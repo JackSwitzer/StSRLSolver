@@ -1,0 +1,15 @@
+[project]
+name = "stsrlsolver"
+version = "0.1.0"
+description = "AI agent for Slay the Spire targeting >96% winrate on Watcher A20"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.24",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
