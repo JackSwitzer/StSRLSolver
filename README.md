@@ -1,107 +1,121 @@
-# StSRLSolver: Slay the Spire RL Agent
+# StSRLSolver
 
-AI agent for achieving >96% winrate on Slay the Spire Watcher at Ascension 20.
+> **Status: Work In Progress** 🚧
 
-## Setup
+A reinforcement learning agent targeting **>96% win rate** on Slay the Spire's Watcher class at Ascension 20 (highest difficulty).
 
-### 1. Install Dependencies
+## Current Progress
 
-```bash
-# Clone this repo
-git clone https://github.com/JackSwitzer/StSRLSolver.git
-cd StSRLSolver
+### Completed
+- [x] Game communication layer via `spirecomm`
+- [x] Behavioral cloning model trained on 77M official game runs
+- [x] 44 high-level strategic features engineered
+- [x] Self-play data collection pipeline
+- [x] Training infrastructure with overnight runs
 
-# Install spirecomm (game communication library)
-git clone https://github.com/ForgottenArbiter/spirecomm.git
+### In Development
+- [ ] Validate behavioral cloning baseline performance
+- [ ] Self-play training loop optimization
+- [ ] Feature importance analysis
+- [ ] Win rate benchmarking system
 
-# Install Python dependencies
-uv sync
-```
-
-### 2. Install Game Mods (Steam Workshop)
-
-Subscribe to these mods on Steam Workshop:
-- [ModTheSpire](https://steamcommunity.com/workshop/filedetails/?id=1605060445)
-- [BaseMod](https://steamcommunity.com/workshop/filedetails/?id=1605833019)
-- [StSLib](https://steamcommunity.com/workshop/filedetails/?id=1609158507)
-- [CommunicationMod](https://steamcommunity.com/workshop/filedetails/?id=2131373661)
-
-### 3. Configure CommunicationMod
-
-Create/edit `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties`:
-
-```properties
-command=/path/to/StSRLSolver/run_agent.sh
-```
-
-### 4. Launch
-
-```bash
-./launch_game.sh
-```
-
-## Features
-
-### Line Evaluation
-Instead of raw card encodings, the agent pre-computes strategic features:
-- **Kill probability** per enemy and for lethal lines
-- **Damage predictions** accounting for stance math (Wrath = 2x)
-- **Block efficiency** and incoming damage calculations
-- **Deck cycling** awareness
-
-### Self-Play Training
-```bash
-# Switch to self-play mode
-./switch_mode.sh selfplay
-
-# Run with sleep prevention (for long training)
-./run_vacation_selfplay.sh
-
-# Monitor progress
-./monitor_selfplay.sh
-```
-
-### Models
-- `models/line_evaluator.py` - Simulates card play sequences
-- `models/strategic_features.py` - 44 high-level strategic features
-- `models/combat_calculator.py` - Combat math pre-computation
-- `models/enemy_database.py` - Enemy difficulty ratings
-
-## Project Structure
+## Architecture
 
 ```
 StSRLSolver/
-├── agent.py                 # Main agent entry point
-├── watcher_agent.py         # Priority-based Watcher logic
-├── self_play_trainer.py     # Self-play learning loop
-├── models/
-│   ├── line_evaluator.py    # Combat sequence simulation
-│   ├── strategic_features.py # Feature extraction
-│   ├── combat_calculator.py # Combat math
-│   ├── enemy_database.py    # Enemy info
-│   └── bc_model.py          # Neural network
-├── train_bc.py              # Behavioral cloning training
-├── launch_game.sh           # Game launcher
-├── run_agent.sh             # Agent wrapper
-├── run_selfplay.sh          # Self-play wrapper
-└── switch_mode.sh           # Toggle agent/selfplay mode
+├── agent.py              # Base agent interface
+├── bc_agent.py           # Behavioral cloning agent
+├── watcher_agent.py      # Watcher-specific logic
+├── watcher_priorities.py # Card/relic priority system
+├── train_bc.py           # BC training script
+├── self_play_trainer.py  # RL self-play training
+├── collect_self_play_data.py
+├── models/               # Saved model checkpoints
+└── spirecomm/            # Game communication library
 ```
 
-## Watcher Strategy
+## Feature Engineering
 
-The agent manages Watcher's stance system:
-- **Wrath**: 2x damage dealt and taken - use for lethal turns
-- **Calm**: +2 energy on exit - use for setup
-- **Divinity**: 3x damage - rare, powerful state
+44 strategic features including:
+- **Combat**: Kill probability, damage predictions, block efficiency
+- **Stance**: Wrath/Calm cycling optimization
+- **Deck**: Card synergy scores, energy curve analysis
+- **Pathing**: Elite/rest site value calculations
+- **Meta**: Act-specific strategy adjustments
 
-Key cards prioritized: Rushdown, Tantrum, Ragnarok, MentalFortress, TalkToTheHand
+## Roadmap
+
+### Phase 1: Baseline Validation
+- [ ] Benchmark BC model on 1000 seeded runs
+- [ ] Establish win rate baseline (target: 60%+)
+- [ ] Identify failure modes and patterns
+
+### Phase 2: Self-Play Improvement
+- [ ] Implement reward shaping for intermediate goals
+- [ ] Add exploration bonuses for novel strategies
+- [ ] Train on diverse starting conditions
+
+### Phase 3: Advanced Features
+- [ ] Monte Carlo tree search for combat
+- [ ] Card pick probability distributions
+- [ ] Dynamic priority adjustments
+
+### Phase 4: Target Achievement
+- [ ] Reach 80% win rate milestone
+- [ ] Fine-tune for 90%+ consistency
+- [ ] Push for 96% target
+
+## Running the Agent
+
+### Prerequisites
+- Python 3.11+
+- Slay the Spire with ModTheSpire
+- Communication Mod installed
+
+### Quick Start
+```bash
+# Install dependencies
+uv sync
+
+# Launch game with mod
+./launch_game.sh
+
+# Run agent
+./run_agent.sh
+```
+
+### Training
+```bash
+# Collect self-play data
+./run_collector.sh
+
+# Train behavioral cloning
+python train_bc.py
+
+# Run self-play training
+./run_selfplay.sh
+```
 
 ## Data
 
-Training data from the [77M official run dataset](https://github.com/alexdriedger/SlayTheSpireData) (2018-2020).
+Trained on 77 million official game runs from the Slay the Spire community dataset, filtered for:
+- Watcher class only
+- Ascension 20 difficulty
+- Winning runs (for initial BC)
 
-## References
+## Metrics
 
-- [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod) - Game communication protocol
-- [spirecomm](https://github.com/ForgottenArbiter/spirecomm) - Python wrapper
-- [Is Every Seed Winnable?](https://forgottenarbiter.github.io/Is-Every-Seed-Winnable/) - ForgottenArbiter's analysis
+| Metric | Current | Target |
+|--------|---------|--------|
+| Win Rate (A20) | TBD | >96% |
+| Avg Score | TBD | >1000 |
+| BC Loss | - | <0.1 |
+
+## Acknowledgments
+
+- [spirecomm](https://github.com/ForgottenArbiter/spirecomm) - Game communication
+- Slay the Spire community for game data
+
+## License
+
+MIT
