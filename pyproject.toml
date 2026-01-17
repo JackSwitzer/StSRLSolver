@@ -1,0 +1,27 @@
+[project]
+name = "stsrl"
+version = "0.1.0"
+description = "Slay the Spire RL Agent"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+vod = [
+    "yt-dlp>=2024.1.0",
+    "google-generativeai>=0.3.0",
+    "youtube-transcript-api>=0.6.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "pillow>=10.0.0",
+]
+data = [
+    "gdown>=5.0.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "aiohttp>=3.9.0",
+]

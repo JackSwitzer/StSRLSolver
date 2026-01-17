@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Game assets & decompiled code (DO NOT COMMIT)
+decompiled/
+jdk8/
+_ModTheSpire/
+mts-source/
+lib/
+ModTheSpire*.zip
+game_sources/
+
+# Reference projects (external)
+reference/
+
+# Generated annotations
+annotations/
+
+# Mod dependencies (keep src/ only)
+mod/lib/
+mod/target/
+
+# Logs and temp files
+logs/
+*.log
+tmp/
+
+# Mod build artifacts
+mod/*.jar
+
+# Data files (large/generated)
+vod_data/
+data/
+
+# Lock files (optional - uncomment to track)
+# uv.lock
+
+# Test artifacts
+.coverage
+htmlcov/
+
+# Secrets
+.env
+*.pem
+*.key
