@@ -1,0 +1,310 @@
+/**
+ * Global styles for Seed Oracle
+ * Dark theme matching the original Slay the Spire UI aesthetic
+ */
+
+:root {
+  /* Background colors */
+  --bg-dark: #0a0a0f;
+  --bg-card: #12121a;
+  --bg-node: #1a1a25;
+
+  /* Accent colors */
+  --border-glow: #3d5a80;
+  --accent-gold: #d4a857;
+  --accent-red: #8b2635;
+  --accent-green: #2d5a3d;
+  --accent-blue: #3d5a80;
+  --accent-purple: #5a3d6e;
+
+  /* Text colors */
+  --text-primary: #e8e4d9;
+  --text-secondary: #9a9486;
+  --text-muted: #5a5650;
+
+  /* Room type colors */
+  --monster: #8b2635;
+  --elite: #d4a857;
+  --rest: #2d5a3d;
+  --shop: #d4a857;
+  --event: #3d5a80;
+  --treasure: #d4a857;
+  --boss: #5a3d6e;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Crimson Text', Georgia, serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 168, 87, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 168, 87, 0.5);
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Button styles */
+.btn {
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(180deg, rgba(212, 168, 87, 0.2) 0%, rgba(212, 168, 87, 0.1) 100%);
+  border: 1px solid rgba(212, 168, 87, 0.4);
+  border-radius: 4px;
+  color: var(--accent-gold);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.btn:hover {
+  background: linear-gradient(180deg, rgba(212, 168, 87, 0.3) 0%, rgba(212, 168, 87, 0.15) 100%);
+  box-shadow: 0 0 20px rgba(212, 168, 87, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-small {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.7rem;
+}
+
+/* Input styles */
+.input {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.2rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(26, 26, 37, 0.8);
+  border: 1px solid rgba(212, 168, 87, 0.3);
+  border-radius: 4px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  transition: all 0.3s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 20px rgba(212, 168, 87, 0.2);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Select styles */
+.select {
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  background: rgba(26, 26, 37, 0.8);
+  border: 1px solid rgba(212, 168, 87, 0.3);
+  border-radius: 4px;
+  color: var(--accent-gold);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d4a857' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+.select:hover {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 10px rgba(212, 168, 87, 0.2);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 15px rgba(212, 168, 87, 0.3);
+}
+
+.select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Panel styles */
+.panel {
+  background: linear-gradient(180deg, rgba(26, 26, 37, 0.9) 0%, rgba(18, 18, 26, 0.95) 100%);
+  border: 1px solid rgba(212, 168, 87, 0.15);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.panel-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Card rarity colors */
+.card-common {
+  border-color: rgba(150, 150, 150, 0.3);
+}
+
+.card-uncommon {
+  border-color: rgba(61, 90, 128, 0.5);
+  color: #6b9ac4;
+}
+
+.card-rare {
+  border-color: rgba(212, 168, 87, 0.5);
+  color: var(--accent-gold);
+}
+
+/* Room type badges */
+.room-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.room-badge-monster {
+  background: rgba(139, 38, 53, 0.3);
+  color: var(--monster);
+}
+
+.room-badge-elite {
+  background: rgba(212, 168, 87, 0.2);
+  color: var(--elite);
+}
+
+.room-badge-rest {
+  background: rgba(45, 90, 61, 0.3);
+  color: var(--rest);
+}
+
+.room-badge-shop {
+  background: rgba(212, 168, 87, 0.2);
+  color: var(--shop);
+}
+
+.room-badge-event {
+  background: rgba(61, 90, 128, 0.3);
+  color: var(--event);
+}
+
+.room-badge-treasure {
+  background: rgba(212, 168, 87, 0.2);
+  color: var(--treasure);
+}
+
+.room-badge-boss {
+  background: rgba(90, 61, 110, 0.3);
+  color: var(--boss);
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+}
+
+.empty-state h3 {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+/* Logo styles */
+.logo {
+  font-family: 'Cinzel', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-shadow: 0 0 20px rgba(212, 168, 87, 0.3);
+  letter-spacing: 0.1em;
+}
+
+.logo span {
+  color: var(--text-secondary);
+  font-weight: 400;
+}

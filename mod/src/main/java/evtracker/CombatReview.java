@@ -365,6 +365,13 @@ public class CombatReview {
     // ========== TRACKING HOOKS ==========
 
     /**
+     * Called when a potion is used (no target specified)
+     */
+    public static void onPotionUsed(AbstractPotion potion) {
+        onPotionUsed(potion, null);
+    }
+
+    /**
      * Called when a potion is used
      */
     public static void onPotionUsed(AbstractPotion potion, String targetName) {

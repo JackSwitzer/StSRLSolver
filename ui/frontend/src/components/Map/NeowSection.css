@@ -1,0 +1,66 @@
+/**
+ * NeowSection styles
+ */
+
+.neow-section {
+  background: linear-gradient(180deg, rgba(26, 26, 37, 0.9) 0%, rgba(18, 18, 26, 0.95) 100%);
+  border: 1px solid rgba(212, 168, 87, 0.15);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.neow-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+  text-align: center;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.neow-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.neow-option {
+  background: rgba(26, 26, 37, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.neow-option:hover {
+  background: rgba(26, 26, 37, 0.9);
+  border-color: rgba(212, 168, 87, 0.3);
+  transform: translateY(-2px);
+}
+
+.neow-slot {
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+
+.neow-name {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.neow-drawback {
+  font-size: 0.8rem;
+  color: var(--accent-red);
+  font-style: italic;
+}

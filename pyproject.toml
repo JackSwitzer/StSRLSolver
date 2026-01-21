@@ -1,15 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*"]
+
 [project]
 name = "stsrl"
 version = "0.1.0"
 description = "Slay the Spire RL Agent"
 requires-python = ">=3.10"
 dependencies = [
+    "flask>=3.1.2",
+    "google-genai>=1.59.0",
     "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-timeout>=2.0.0",
 ]
 vod = [
     "yt-dlp>=2024.1.0",
@@ -18,6 +29,8 @@ vod = [
     "beautifulsoup4>=4.12.0",
     "requests>=2.31.0",
     "pillow>=10.0.0",
+    "openai>=1.0.0",  # OpenRouter compatible
+    "httpx>=0.25.0",
 ]
 data = [
     "gdown>=5.0.0",
@@ -25,3 +38,74 @@ data = [
     "beautifulsoup4>=4.12.0",
     "aiohttp>=3.9.0",
 ]
+
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = [
+    "tests",
+    "core/tests",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+# Markers for test categorization
+markers = [
+    "slow: marks test as slow (deselect with -m 'not slow')",
+    "integration: marks test as integration test",
+    "unit: marks test as unit test",
+    "rng: marks test as RNG-related",
+    "combat: marks test as combat-related",
+    "cards: marks test as card-related",
+    "java: marks test as Java verification test",
+]
+# Default options
+addopts = [
+    "--strict-markers",
+    "-ra",  # Show summary of all test results
+    "--tb=short",
+]
+# Filter warnings
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# =============================================================================
+# Coverage Configuration
+# =============================================================================
+
+[tool.coverage.run]
+source = ["core"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "coverage_html"

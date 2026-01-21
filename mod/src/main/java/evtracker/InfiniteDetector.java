@@ -1,10 +1,7 @@
 package evtracker;
 
-import com.evacipated.cardcrawl.modthespire.lib.SpireInsertPatch;
-import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.monsters.AbstractMonster;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -208,25 +205,6 @@ public class InfiniteDetector {
         detectedRepetitions = 0;
     }
 
-    // ========== PATCHES ==========
-
-    /**
-     * Patch to detect when a card is played.
-     */
-    @SpirePatch(
-        clz = com.megacrit.cardcrawl.cards.AbstractCard.class,
-        method = "use",
-        paramtypez = {
-            com.megacrit.cardcrawl.characters.AbstractPlayer.class,
-            com.megacrit.cardcrawl.monsters.AbstractMonster.class
-        }
-    )
-    public static class CardUsePatch {
-        @SpireInsertPatch(rloc = 0)
-        public static void Insert(AbstractCard __instance,
-                                  com.megacrit.cardcrawl.characters.AbstractPlayer p,
-                                  AbstractMonster m) {
-            InfiniteDetector.onCardPlayed(__instance);
-        }
-    }
+    // Note: Card tracking is handled via BaseMod's OnCardUseSubscriber in EVTrackerMod
+    // which calls InfiniteDetector.onCardPlayed() - no patch needed here.
 }

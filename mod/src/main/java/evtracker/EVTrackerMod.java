@@ -21,6 +21,11 @@ import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
 
+import evtracker.search.SearchClient;
+import evtracker.search.SearchOverlay;
+import evtracker.search.SearchResponse;
+import evtracker.search.StateVerifier;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +36,7 @@ public class EVTrackerMod implements
         PostInitializeSubscriber,
         OnCardUseSubscriber,
         OnPlayerTurnStartSubscriber,
-        OnPlayerTurnStartPostDrawSubscriber,  // NEW: After draw
+        OnPlayerTurnStartPostDrawSubscriber,
         OnPlayerDamagedSubscriber,
         PostBattleSubscriber,
         OnStartBattleSubscriber,
@@ -39,8 +44,9 @@ public class EVTrackerMod implements
         PostDeathSubscriber,
         PostDungeonInitializeSubscriber,
         PostRenderSubscriber,
-        PostUpdateSubscriber,     // For UI updates
-        PostCampfireSubscriber {  // Campfire decision tracking
+        PostUpdateSubscriber,
+        PostCampfireSubscriber,
+        PostPotionUseSubscriber {  // Potion tracking via BaseMod
 
     public static final String MOD_ID = "evtracker";
     private static EVLogger logger;
@@ -97,6 +103,9 @@ public class EVTrackerMod implements
 
         // Update infinite detector
         InfiniteDetector.update();
+
+        // Update search overlay animation
+        SearchOverlay.update(com.badlogic.gdx.Gdx.graphics.getDeltaTime());
     }
 
     // ========== RENDER EV PANEL ==========
@@ -106,6 +115,12 @@ public class EVTrackerMod implements
         // Render post-combat review (can show during any phase after combat)
         if (AbstractDungeon.player != null && PostCombatReviewUI.isShowing()) {
             PostCombatReviewUI.render(sb);
+        }
+
+        // Render card reward EV when on reward screen
+        if (AbstractDungeon.player != null &&
+            AbstractDungeon.screen == AbstractDungeon.CurrentScreen.CARD_REWARD) {
+            CardRewardEV.render(sb);
         }
 
         // Combat-specific rendering: only during active combat
@@ -118,6 +133,9 @@ public class EVTrackerMod implements
 
         // Render debug overlay (includes infinite button and detection)
         DebugOverlay.render(sb);
+
+        // Render combat search overlay (shows best play recommendation)
+        SearchOverlay.render(sb);
 
         // Calculate accurate damage using DamageCalculator
         int incomingDamage = DamageCalculator.calculateTotalIncomingDamage();
@@ -228,15 +246,25 @@ public class EVTrackerMod implements
         CardEVOverlay.renderCardEVs(sb);
     }
 
-    // Placeholder for tree search recommendation
-    // TODO: Connect to Python simulation via socket for real-time computation
+    // Get tree search recommendation from Python server or fallback to heuristic
     private String getBestLineRecommendation() {
+        // Check if we have a search result from Python
+        SearchResponse response = SearchClient.getLatestResponse();
+        if (response != null && response.isValid() && response.hasBestLine()) {
+            return response.getFullDisplay();
+        }
+
+        // Check if search is in progress
+        if (SearchClient.isSearchInProgress()) {
+            return "Searching...";
+        }
+
         // Check if we have cards in hand
         if (AbstractDungeon.player.hand.size() == 0) {
             return "No cards in hand";
         }
 
-        // Simple heuristic for now - will be replaced with tree search
+        // Simple heuristic fallback
         int energy = EnergyPanel.totalCount;
         if (energy == 0) {
             return "End turn (no energy)";
@@ -294,6 +322,10 @@ public class EVTrackerMod implements
         // Reset infinite detector and debug overlay for new combat
         InfiniteDetector.reset();
         DebugOverlay.reset();
+
+        // Clear search state for new combat
+        SearchClient.clearLatestResponse();
+        StateVerifier.resetStats();
 
         // Initialize combat review tracking
         CombatReview.onBattleStart();
@@ -353,6 +385,17 @@ public class EVTrackerMod implements
         // Capture full state for Python consumption (writes to /tmp/evtracker_state.json)
         TurnStateCapture.captureState();
 
+        // Request search from Python server (async)
+        SearchClient.requestSearch(response -> {
+            // Update overlay when response arrives
+            SearchOverlay.updateResults(response);
+
+            // Store prediction for verification
+            if (response != null && response.hasBestLine()) {
+                StateVerifier.setPredictedState(response, response.getFullDisplay());
+            }
+        });
+
         // Log hand after draw completed
         Map<String, Object> event = new HashMap<>();
         event.put("run_id", currentRunId);
@@ -381,6 +424,9 @@ public class EVTrackerMod implements
         cardsPlayed++;
         int energyBefore = EnergyPanel.totalCount + card.costForTurn;
         energySpent += card.costForTurn;
+
+        // Track for infinite detection
+        InfiniteDetector.onCardPlayed(card);
 
         // Track for combat review - get target name
         String targetName = null;
@@ -442,6 +488,9 @@ public class EVTrackerMod implements
         lastCardTarget = null;
 
         logger.log("card_played", event);
+
+        // Verify predicted state matches actual (async, on next frame)
+        StateVerifier.verifyAfterAction("card", card.cardID);
     }
 
     @Override
@@ -537,6 +586,31 @@ public class EVTrackerMod implements
         }
 
         logger.log("run_end", event);
+    }
+
+    // ========== POTION TRACKING ==========
+
+    @Override
+    public void receivePostPotionUse(AbstractPotion potion) {
+        // Track potion usage for combat review
+        CombatReview.onPotionUsed(potion);
+
+        Map<String, Object> event = new HashMap<>();
+        event.put("run_id", currentRunId);
+        event.put("floor", AbstractDungeon.floorNum);
+        event.put("battle_number", battleNumber);
+        event.put("turn", turnNumber);
+        event.put("potion_id", potion.ID);
+        event.put("potion_name", potion.name);
+        event.put("player_state", getPlayerState());
+
+        // Log monster states if in combat
+        if (AbstractDungeon.getCurrRoom() != null &&
+            AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT) {
+            event.put("monsters", getMonsterStates());
+        }
+
+        logger.log("potion_used", event);
     }
 
     // ========== CAMPFIRE DECISION TRACKING ==========
@@ -794,10 +868,17 @@ public class EVTrackerMod implements
         info.put("exhausts", card.exhaust);
         info.put("ethereal", card.isEthereal);
         info.put("target_type", card.target.name());
-        // Only check playability if we're in combat with a valid room
-        if (AbstractDungeon.currMapNode != null && AbstractDungeon.getCurrRoom() != null) {
-            info.put("is_playable", card.canUse(AbstractDungeon.player, null));
-        } else {
+        // Only check playability if we're in active combat
+        try {
+            if (AbstractDungeon.currMapNode != null &&
+                AbstractDungeon.getCurrRoom() != null &&
+                AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT &&
+                AbstractDungeon.player != null) {
+                info.put("is_playable", card.canUse(AbstractDungeon.player, null));
+            } else {
+                info.put("is_playable", false);
+            }
+        } catch (Exception e) {
             info.put("is_playable", false);
         }
 
