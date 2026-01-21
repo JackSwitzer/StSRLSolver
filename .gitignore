@@ -50,6 +50,10 @@ mod/*.jar
 vod_data/
 data/
 
+# VOD extraction outputs (generated)
+vod/verify_ui/extractions.json
+*_extraction.json
+
 # Lock files (optional - uncomment to track)
 # uv.lock
 
