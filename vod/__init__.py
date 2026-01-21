@@ -10,9 +10,10 @@ from vod.tools import TOOLS, get_tool_definitions
 from vod.handlers import ToolHandler
 from vod.voting import VotingEngine, vote_on_decisions
 from vod.chunker import VideoChunker, DynamicChunker, Chunk, ChunkType, ScanResult, DetectedEvent
-from vod.extractor import GeminiExtractor
+from vod.verified_extractor import VerifiedExtractor
 from vod.verification import SeedVerifier
-from vod.orchestrator import ExtractionOrchestrator, extract_vod
+# Note: orchestrator.py has broken deps (vod.extractor) - disabled until fixed
+# from vod.orchestrator import ExtractionOrchestrator, extract_vod
 
 __all__ = [
     # State
@@ -35,8 +36,9 @@ __all__ = [
     "ScanResult",
     "DetectedEvent",
     # Extraction
-    "GeminiExtractor",
+    "VerifiedExtractor",
     "SeedVerifier",
-    "ExtractionOrchestrator",
-    "extract_vod",
+    # Disabled until orchestrator.py is fixed:
+    # "ExtractionOrchestrator",
+    # "extract_vod",
 ]
