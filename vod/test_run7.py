@@ -11,7 +11,7 @@ if __name__ == "__main__":
     run_extraction(
         video_path="vod_data/merl/run7_first_hour.mkv",  # First hour clip
         seed="227QYN385T72G",  # Run 7 verified seed
-        output_path="vod_data/merl/run7_extraction.json",
+        output_path="vod_data/merl/run7_extraction_v2.json",
         chunk_minutes=5,
         video_duration_minutes=60,  # Full first hour
     )

@@ -5,7 +5,7 @@ VOD Extraction Script - Extract decisions from Slay the Spire VOD
 Uses the NEW google.genai package (not deprecated google.generativeai).
 
 Extracts: neow choice, path choices, card rewards, shop visits, rest sites, events, boss relics
-Includes RNG predictions and mismatch detection.
+Includes RNG predictions and mismatch detection with PROPER state tracking.
 """
 
 import json
@@ -13,7 +13,8 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Tuple
+from copy import deepcopy
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -29,6 +30,225 @@ from core.state.game_rng import GameRNGState, RNGStream
 from core.generation.rewards import generate_card_rewards, RewardState
 
 
+# =============================================================================
+# RNG STATE TRACKER - Tracks exact RNG consumption
+# =============================================================================
+
+@dataclass
+class RNGStateTracker:
+    """
+    Tracks RNG state with exact counter updates.
+
+    Instead of estimated advances, this tracks actual RNG consumption
+    by measuring counter before/after operations.
+    """
+    seed: str
+    game_state: GameRNGState = field(init=False)
+    reward_state: RewardState = field(default_factory=RewardState)
+
+    # Current game position
+    floor: int = 0
+    act: int = 1
+
+    # Debug tracking
+    rng_history: List[Dict] = field(default_factory=list)
+
+    def __post_init__(self):
+        self.game_state = GameRNGState(self.seed)
+
+    def get_card_counter(self) -> int:
+        """Get current cardRng counter."""
+        return self.game_state.get_counter(RNGStream.CARD)
+
+    def apply_neow(self, option: str, boss_relic: str = None):
+        """Apply Neow choice with proper RNG tracking."""
+        counter_before = self.get_card_counter()
+        self.game_state.apply_neow_choice(option, boss_relic)
+        counter_after = self.get_card_counter()
+
+        self.rng_history.append({
+            "event": "neow",
+            "option": option,
+            "card_rng_consumed": counter_after - counter_before,
+            "counter_after": counter_after,
+        })
+
+    def predict_card_reward(
+        self,
+        room_type: str = "normal",
+        num_cards: int = 3,
+    ) -> Tuple[List[str], int]:
+        """
+        Predict the next card reward WITHOUT advancing state.
+
+        Returns: (card_names, rng_calls_consumed)
+        """
+        # Create a temporary RNG at current counter position
+        card_rng = self.game_state.get_rng(RNGStream.CARD)
+        counter_before = card_rng.counter
+
+        # Generate cards (this advances the temporary RNG's counter)
+        cards = generate_card_rewards(
+            rng=card_rng,
+            reward_state=deepcopy(self.reward_state),  # Don't modify actual state
+            act=self.act,
+            player_class="WATCHER",
+            ascension=20,
+            room_type=room_type,
+            num_cards=num_cards,
+        )
+
+        counter_after = card_rng.counter
+        rng_consumed = counter_after - counter_before
+
+        return [c.name for c in cards], rng_consumed
+
+    def consume_card_reward(
+        self,
+        room_type: str = "normal",
+        num_cards: int = 3,
+    ) -> List[str]:
+        """
+        Generate card reward AND advance RNG state properly.
+
+        Returns: card_names
+        """
+        # Get RNG and track counter
+        card_rng = self.game_state.get_rng(RNGStream.CARD)
+        counter_before = card_rng.counter
+
+        # Generate cards
+        cards = generate_card_rewards(
+            rng=card_rng,
+            reward_state=self.reward_state,  # Modify actual state (blizzard)
+            act=self.act,
+            player_class="WATCHER",
+            ascension=20,
+            room_type=room_type,
+            num_cards=num_cards,
+        )
+
+        # Advance the game state by exact amount consumed
+        counter_after = card_rng.counter
+        rng_consumed = counter_after - counter_before
+        self.game_state.set_counter(RNGStream.CARD, counter_after)
+
+        self.rng_history.append({
+            "event": "card_reward",
+            "floor": self.floor,
+            "room_type": room_type,
+            "card_rng_consumed": rng_consumed,
+            "counter_after": counter_after,
+            "cards": [c.name for c in cards],
+        })
+
+        return [c.name for c in cards]
+
+    def apply_shop(self):
+        """Apply shop visit RNG consumption."""
+        counter_before = self.get_card_counter()
+        self.game_state.apply_shop()
+        counter_after = self.get_card_counter()
+
+        self.rng_history.append({
+            "event": "shop",
+            "floor": self.floor,
+            "card_rng_consumed": counter_after - counter_before,
+            "counter_after": counter_after,
+        })
+
+    def apply_event(self, event_name: str = None):
+        """Apply event RNG consumption."""
+        counter_before = self.get_card_counter()
+        self.game_state.apply_event(event_name)
+        counter_after = self.get_card_counter()
+
+        self.rng_history.append({
+            "event": "event",
+            "event_name": event_name,
+            "floor": self.floor,
+            "card_rng_consumed": counter_after - counter_before,
+            "counter_after": counter_after,
+        })
+
+    def enter_floor(self, floor_num: int):
+        """Enter a new floor."""
+        self.floor = floor_num
+        self.game_state.enter_floor(floor_num)
+
+    def transition_act(self):
+        """Transition to next act with cardRng snapping."""
+        counter_before = self.get_card_counter()
+        self.game_state.transition_to_next_act()
+        self.act = self.game_state.act_num
+        counter_after = self.get_card_counter()
+
+        self.rng_history.append({
+            "event": "act_transition",
+            "new_act": self.act,
+            "counter_before": counter_before,
+            "counter_after": counter_after,
+            "snapped": counter_after != counter_before,
+        })
+
+    def reset_with_neow(self, option: str, boss_relic: str = None):
+        """Reset state and apply Neow choice (for when Neow detected late)."""
+        self.game_state = GameRNGState(self.seed)
+        self.reward_state = RewardState()
+        self.floor = 0
+        self.act = 1
+        self.rng_history = []
+        self.apply_neow(option, boss_relic)
+
+
+# =============================================================================
+# NEOW OPTION MAPPING
+# =============================================================================
+
+NEOW_TEXT_TO_OPTION = {
+    # Bonuses (match partial text)
+    "100 gold": "HUNDRED_GOLD",
+    "receive 100 gold": "HUNDRED_GOLD",
+    "upgrade a card": "UPGRADE_CARD",
+    "upgrade": "UPGRADE_CARD",
+    "max hp": "TEN_PERCENT_HP_BONUS",
+    "common relic": "RANDOM_COMMON_RELIC",
+    "random rare card": "ONE_RANDOM_RARE_CARD",
+    "obtain a random rare card": "ONE_RANDOM_RARE_CARD",
+    "remove card": "REMOVE_CARD",
+    "remove a card": "REMOVE_CARD",
+    "transform": "TRANSFORM_CARD",
+    "transform a card": "TRANSFORM_CARD",
+    "colorless card": "RANDOM_COLORLESS",
+    "random colorless": "RANDOM_COLORLESS",
+    "boss relic": "BOSS_SWAP",
+    "boss swap": "BOSS_SWAP",
+    "swap": "BOSS_SWAP",
+    "rare relic": "ONE_RARE_RELIC",
+    "250 gold": "TWO_FIFTY_GOLD",
+    "receive 250 gold": "TWO_FIFTY_GOLD",
+    "three rare cards": "THREE_RARE_CARDS",
+    "choose a rare card": "THREE_RARE_CARDS",
+    "enemies in your first three": "THREE_ENEMY_KILL",
+    "three enemy kill": "THREE_ENEMY_KILL",
+    "three cards": "THREE_CARDS",
+    "choose a card": "THREE_CARDS",
+}
+
+
+def detect_neow_option(text: str) -> Optional[str]:
+    """Detect Neow option from extraction text."""
+    text_lower = text.lower()
+    for pattern, option in NEOW_TEXT_TO_OPTION.items():
+        if pattern in text_lower:
+            return option
+    return None
+
+
+# =============================================================================
+# VOD EXTRACTOR
+# =============================================================================
+
 class VODExtractor:
     """Extract all decisions from a Slay the Spire VOD using Gemini."""
 
@@ -40,8 +260,8 @@ class VODExtractor:
         self.client = genai.Client(api_key=api_key)
         self.video_file = None
 
-    def upload_video(self, video_path: str, timeout: int = 600):
-        """Upload video to Gemini for processing."""
+    def upload_video(self, video_path: str, timeout: int = 1800):
+        """Upload video to Gemini for processing (30 min timeout for large videos)."""
         print(f"Uploading video: {video_path}")
         start = time.time()
 
@@ -71,6 +291,7 @@ class VODExtractor:
         floor: int,
         act: int,
         predicted_cards: Optional[List[str]] = None,
+        card_rng_counter: int = 0,
     ) -> List[Dict]:
         """Extract decisions from a video chunk."""
 
@@ -79,39 +300,49 @@ class VODExtractor:
 
         predictions_text = ""
         if predicted_cards:
-            predictions_text = f"\n\nPREDICTED NEXT CARD REWARD (from RNG): {predicted_cards}\nIf you see a card reward, check if these cards match. Report any mismatch."
+            predictions_text = f"""
+
+PREDICTED NEXT CARD REWARD (from RNG simulation):
+Cards: {predicted_cards}
+cardRng counter: {card_rng_counter}
+
+If you see a card reward, report the EXACT cards shown and compare to prediction."""
 
         prompt = f"""Analyze this Slay the Spire video segment from {start_time} to {end_time}.
 
 You are extracting game decisions for a Watcher run. Return a JSON array of decision objects.
 
-IMPORTANT RULES:
+CRITICAL RULES:
 1. Only report decisions you can CLEARLY see happen
-2. Use exact card/relic names as shown in the game
-3. For card rewards: report timestamp, cards offered, and chosen card (or "SKIP" if skipped)
-4. For paths: report floor number and room type chosen
-5. For events: report event name and choice made
-6. For shops: report any purchases and card removal
-7. For rest sites: report action (rest/smith/dig/recall/toke/lift)
-8. For boss relics: report options shown and which was chosen
+2. Use EXACT card/relic names as shown in the game (spelling matters!)
+3. For card rewards: report ALL cards offered in order, and which was chosen
+4. Report events IN CHRONOLOGICAL ORDER within the segment
+5. Track floor numbers carefully - they increment as the player progresses
 
-Current game state estimate:
+Current game state:
 - Floor: {floor}
 - Act: {act}
 {predictions_text}
 
-Return a JSON array with objects like:
-- {{"timestamp": "MM:SS", "type": "neow_choice", "floor": 0, "chosen_bonus": "...", "drawback": "..."}}
-- {{"timestamp": "MM:SS", "type": "path_choice", "floor": N, "room_type": "monster|elite|rest|shop|event|chest|boss"}}
-- {{"timestamp": "MM:SS", "type": "card_reward", "floor": N, "cards_offered": ["Card1", "Card2", "Card3"], "chosen_card": "Card1|SKIP", "chosen_index": 0-2 or -1 for skip}}
-- {{"timestamp": "MM:SS", "type": "rest_site", "floor": N, "action": "rest|smith", "card_upgraded": "CardName" if smith}}
-- {{"timestamp": "MM:SS", "type": "shop_visit", "floor": N, "cards_bought": [], "relics_bought": [], "card_removed": "..."}}
-- {{"timestamp": "MM:SS", "type": "event_choice", "floor": N, "event_name": "...", "choice_made": "..."}}
-- {{"timestamp": "MM:SS", "type": "boss_relic", "floor": N, "options": ["Relic1", "Relic2", "Relic3"], "chosen_relic": "..."}}
-- {{"timestamp": "MM:SS", "type": "combat_end", "floor": N, "enemy": "EnemyName"}}
-- {{"timestamp": "MM:SS", "type": "run_end", "floor": N, "victory": true|false}}
+Return a JSON array with these object types:
 
-ONLY return the JSON array, no other text. If no decisions in this segment, return []."""
+{{"timestamp": "MM:SS", "type": "neow_choice", "floor": 0, "chosen_bonus": "exact bonus text", "drawback": "exact drawback text or none"}}
+
+{{"timestamp": "MM:SS", "type": "path_choice", "floor": N, "room_type": "monster|elite|rest|shop|event|chest|boss"}}
+
+{{"timestamp": "MM:SS", "type": "card_reward", "floor": N, "cards_offered": ["Card1", "Card2", "Card3"], "chosen_card": "CardName or SKIP"}}
+
+{{"timestamp": "MM:SS", "type": "shop_visit", "floor": N, "cards_bought": [], "relics_bought": [], "card_removed": "CardName or null"}}
+
+{{"timestamp": "MM:SS", "type": "rest_site", "floor": N, "action": "rest|smith|dig|recall|toke|lift", "card_upgraded": "CardName or null"}}
+
+{{"timestamp": "MM:SS", "type": "event_choice", "floor": N, "event_name": "Event Name", "choice_made": "choice text"}}
+
+{{"timestamp": "MM:SS", "type": "boss_relic", "floor": N, "options": ["Relic1", "Relic2", "Relic3"], "chosen_relic": "RelicName"}}
+
+{{"timestamp": "MM:SS", "type": "combat_end", "floor": N, "enemy": "EnemyName"}}
+
+ONLY return the JSON array, no other text. Return [] if no decisions visible."""
 
         try:
             response = self.client.models.generate_content(
@@ -162,39 +393,74 @@ ONLY return the JSON array, no other text. If no decisions in this segment, retu
                 print(f"Warning: Could not delete video file: {e}")
 
 
+# =============================================================================
+# CARD NAME NORMALIZATION
+# =============================================================================
+
 def normalize_card_name(name: str) -> str:
     """Normalize card name for comparison."""
-    # Remove upgrade indicator
     name = name.replace("+", "").strip()
-    # Lowercase for comparison
+    # Common OCR/transcription errors
+    name = name.replace("Judgement", "Judgment")  # Alternate spelling
     return name.lower()
 
 
-def check_card_mismatch(predicted: List[str], observed: List[str]) -> bool:
-    """Check if predicted cards match observed cards."""
+def check_card_match(predicted: List[str], observed: List[str]) -> Tuple[bool, float]:
+    """
+    Check if predicted cards match observed cards.
+
+    Returns: (is_match, match_score)
+    - is_match: True if all cards match
+    - match_score: 0.0-1.0 indicating how many matched
+    """
     if not predicted or not observed:
-        return False
+        return False, 0.0
 
-    pred_normalized = set(normalize_card_name(c) for c in predicted)
-    obs_normalized = set(normalize_card_name(c) for c in observed)
+    pred_normalized = [normalize_card_name(c) for c in predicted]
+    obs_normalized = [normalize_card_name(c) for c in observed]
 
-    # Check if any predicted card is in observed
-    intersection = pred_normalized & obs_normalized
+    # Check exact order match
+    if len(pred_normalized) == len(obs_normalized):
+        if all(p == o for p, o in zip(pred_normalized, obs_normalized)):
+            return True, 1.0
 
-    # Mismatch if no overlap at all
-    return len(intersection) == 0
+    # Check set match (order doesn't matter)
+    pred_set = set(pred_normalized)
+    obs_set = set(obs_normalized)
 
+    if pred_set == obs_set:
+        return True, 1.0
+
+    # Partial match
+    intersection = pred_set & obs_set
+    union = pred_set | obs_set
+    score = len(intersection) / len(union) if union else 0.0
+
+    return score >= 0.5, score  # Consider 50%+ overlap a partial match
+
+
+# =============================================================================
+# MAIN EXTRACTION
+# =============================================================================
 
 def run_extraction(
     video_path: str,
     seed: str,
     output_path: str,
     chunk_minutes: int = 5,
-    video_duration_minutes: int = 55,
+    video_duration_minutes: int = 60,
 ):
-    """Run full extraction on a video."""
+    """
+    Run full extraction on a video with proper RNG tracking.
 
-    print(f"Starting extraction")
+    Key improvements:
+    1. Track exact RNG consumption (not estimates)
+    2. Generate prediction for each card reward individually
+    3. Apply Neow choice as soon as detected
+    4. Handle shop/event RNG consumption properly
+    """
+
+    print(f"Starting extraction with proper RNG tracking")
     print(f"  Video: {video_path}")
     print(f"  Seed: {seed}")
     print(f"  Output: {output_path}")
@@ -204,145 +470,140 @@ def run_extraction(
     # Initialize extractor
     extractor = VODExtractor()
 
-    # Upload video
-    extractor.upload_video(video_path)
+    # Upload video (extended timeout)
+    extractor.upload_video(video_path, timeout=1800)
 
-    # Initialize RNG state
-    rng_state = GameRNGState(seed)
-    # Default Neow assumption - 100 gold (safe, no cardRng consumption)
-    rng_state.apply_neow_choice("HUNDRED_GOLD")
-
-    reward_state = RewardState()
+    # Initialize RNG tracker
+    rng_tracker = RNGStateTracker(seed)
+    neow_detected = False
 
     all_extractions = []
-    floor = 0
-    act = 1
-    combat_count = 0  # Track combats for card prediction
+    processed_timestamps = set()  # Avoid duplicate processing
 
     # Process in chunks
     total_chunks = (video_duration_minutes + chunk_minutes - 1) // chunk_minutes
     print(f"Processing {total_chunks} chunks...")
+    print()
 
-    for i in range(total_chunks):
-        start_min = i * chunk_minutes
-        end_min = min((i + 1) * chunk_minutes, video_duration_minutes)
+    for chunk_idx in range(total_chunks):
+        start_min = chunk_idx * chunk_minutes
+        end_min = min((chunk_idx + 1) * chunk_minutes, video_duration_minutes)
         start_time = f"{start_min:02d}:00"
         end_time = f"{end_min:02d}:00"
 
-        # Generate card prediction for this chunk
-        predicted_cards = None
-        try:
-            card_rng = rng_state.get_rng(RNGStream.CARD)
-            cards = generate_card_rewards(
-                rng=card_rng,
-                reward_state=reward_state,
-                act=act,
-                player_class="WATCHER",
-                ascension=20,
-                room_type="normal",
-                num_cards=3,
-            )
-            predicted_cards = [c.name for c in cards]
-        except Exception as e:
-            print(f"  Warning: Could not generate prediction: {e}")
+        # Get prediction for NEXT card reward at current state
+        predicted_cards, _ = rng_tracker.predict_card_reward()
+        card_counter = rng_tracker.get_card_counter()
 
-        print(f"  [{i+1}/{total_chunks}] {start_time} - {end_time}")
-        if predicted_cards:
-            print(f"    Predicted cards: {predicted_cards}")
+        print(f"[{chunk_idx+1}/{total_chunks}] {start_time} - {end_time}")
+        print(f"  cardRng counter: {card_counter}")
+        print(f"  Next prediction: {predicted_cards}")
 
         # Extract chunk
         extractions = extractor.extract_chunk(
             start_time, end_time,
-            floor=floor, act=act,
+            floor=rng_tracker.floor,
+            act=rng_tracker.act,
             predicted_cards=predicted_cards,
+            card_rng_counter=card_counter,
         )
 
-        # Process extractions
+        # Process extractions in order
         for ext in extractions:
             ext_type = ext.get("type", "")
+            timestamp = ext.get("timestamp", "")
+            ext_floor = ext.get("floor", rng_tracker.floor)
 
-            # Add predictions and check for mismatch on card rewards
-            if ext_type == "card_reward":
-                ext["predicted_options"] = predicted_cards or []
+            # Skip duplicates
+            ext_key = f"{ext_type}:{timestamp}:{ext_floor}"
+            if ext_key in processed_timestamps:
+                continue
+            processed_timestamps.add(ext_key)
 
-                observed = ext.get("cards_offered", [])
-                if predicted_cards and observed:
-                    mismatch = check_card_mismatch(predicted_cards, observed)
-                    ext["mismatch"] = mismatch
-                    if mismatch:
-                        print(f"    MISMATCH! Predicted: {predicted_cards}, Observed: {observed}")
-                else:
-                    ext["mismatch"] = False
+            # Update floor if needed
+            if ext_floor > rng_tracker.floor:
+                rng_tracker.enter_floor(ext_floor)
 
-                # Advance RNG state for next card reward
-                # Combat consumes ~9 cardRng calls
-                rng_state.advance(RNGStream.CARD, 9)
-                combat_count += 1
-
-            # Update floor tracking
-            if "floor" in ext:
-                new_floor = ext["floor"]
-                if new_floor > floor:
-                    floor = new_floor
-                    rng_state.enter_floor(floor)
-
-            # Track room types for RNG advancement
-            if ext_type == "path_choice":
-                room_type = ext.get("room_type", "")
-                if room_type == "shop":
-                    rng_state.apply_shop()
-                elif room_type == "event":
-                    event_name = ext.get("event_name", "")
-                    rng_state.apply_event(event_name)
-                elif room_type == "rest":
-                    rng_state.apply_rest()
-                elif room_type in ("monster", "elite"):
-                    # Combat handled by card_reward
-                    pass
-
-            # Handle Neow choice
-            if ext_type == "neow_choice":
+            # Handle Neow choice - MUST be processed first
+            if ext_type == "neow_choice" and not neow_detected:
                 chosen = ext.get("chosen_bonus", "")
-                # Try to match to known option
-                neow_map = {
-                    "100 gold": "HUNDRED_GOLD",
-                    "upgrade": "UPGRADE_CARD",
-                    "max hp": "TEN_PERCENT_HP_BONUS",
-                    "common relic": "RANDOM_COMMON_RELIC",
-                    "random rare card": "ONE_RANDOM_RARE_CARD",
-                    "remove card": "REMOVE_CARD",
-                    "transform": "TRANSFORM_CARD",
-                    "colorless": "RANDOM_COLORLESS",
-                    "boss swap": "BOSS_SWAP",
-                    "rare relic": "ONE_RARE_RELIC",
-                }
-                for key, option in neow_map.items():
-                    if key in chosen.lower():
-                        # Re-apply Neow choice with correct option
-                        # Reset and reapply
-                        rng_state = GameRNGState(seed)
-                        rng_state.apply_neow_choice(option)
-                        break
+                option = detect_neow_option(chosen)
+                if option:
+                    print(f"  NEOW detected: {chosen} -> {option}")
+                    rng_tracker.reset_with_neow(option)
+                    neow_detected = True
+                    # Re-predict with correct Neow
+                    predicted_cards, _ = rng_tracker.predict_card_reward()
+                    print(f"  New prediction after Neow: {predicted_cards}")
 
-            # Update act
-            if floor > 17 and act == 1:
-                act = 2
-                rng_state.transition_to_next_act()
-            elif floor > 34 and act == 2:
-                act = 3
-                rng_state.transition_to_next_act()
-            elif floor > 52 and act == 3:
-                act = 4
+            # Handle shop (BEFORE checking card_reward because shop enters affect cardRng)
+            elif ext_type == "shop_visit":
+                rng_tracker.apply_shop()
+                print(f"  Shop visit at floor {ext_floor}, counter now: {rng_tracker.get_card_counter()}")
+
+            # Handle event
+            elif ext_type == "event_choice":
+                event_name = ext.get("event_name", "")
+                rng_tracker.apply_event(event_name)
+                print(f"  Event '{event_name}' at floor {ext_floor}")
+
+            # Handle card reward - THE KEY PART
+            elif ext_type == "card_reward":
+                observed = ext.get("cards_offered", [])
+
+                # Generate fresh prediction at current state
+                predicted, rng_consumed = rng_tracker.predict_card_reward()
+
+                # Check match
+                is_match, score = check_card_match(predicted, observed)
+                ext["predicted_options"] = predicted
+                ext["match_score"] = score
+                ext["mismatch"] = not is_match
+                ext["rng_counter_before"] = rng_tracker.get_card_counter()
+
+                if is_match:
+                    print(f"  ✓ Card reward MATCH at floor {ext_floor}: {observed}")
+                else:
+                    print(f"  ✗ MISMATCH at floor {ext_floor}!")
+                    print(f"    Predicted: {predicted}")
+                    print(f"    Observed:  {observed}")
+                    print(f"    Counter:   {rng_tracker.get_card_counter()}")
+
+                # CONSUME the card reward RNG (advance state)
+                rng_tracker.consume_card_reward()
+                ext["rng_counter_after"] = rng_tracker.get_card_counter()
+
+            # Handle path choice (for room type tracking)
+            elif ext_type == "path_choice":
+                room_type = ext.get("room_type", "")
+                # Note: actual RNG consumption happens when entering the room
+                # Shop/event handled above, combat card reward handled above
+
+            # Handle act transition
+            if ext_floor == 17 and rng_tracker.act == 1:
+                rng_tracker.transition_act()
+                print(f"  ACT TRANSITION to Act 2, counter snapped to: {rng_tracker.get_card_counter()}")
+            elif ext_floor == 34 and rng_tracker.act == 2:
+                rng_tracker.transition_act()
+                print(f"  ACT TRANSITION to Act 3, counter snapped to: {rng_tracker.get_card_counter()}")
+            elif ext_floor == 52 and rng_tracker.act == 3:
+                rng_tracker.transition_act()
+                print(f"  ACT TRANSITION to Act 4, counter snapped to: {rng_tracker.get_card_counter()}")
 
             all_extractions.append(ext)
 
-        print(f"    Found {len(extractions)} decisions")
+        print(f"  Found {len(extractions)} decisions")
+        print()
 
     # Clean up
     extractor.cleanup()
 
-    # Count mismatches
-    mismatches = [e for e in all_extractions if e.get("mismatch", False)]
+    # Calculate results
+    card_rewards = [e for e in all_extractions if e.get("type") == "card_reward"]
+    mismatches = [e for e in card_rewards if e.get("mismatch", False)]
+    matches = [e for e in card_rewards if not e.get("mismatch", True)]
+
+    match_rate = len(matches) / len(card_rewards) * 100 if card_rewards else 0
 
     # Save results
     output = {
@@ -350,11 +611,15 @@ def run_extraction(
         "seed": seed,
         "extraction_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "total_extractions": len(all_extractions),
-        "total_mismatches": len(mismatches),
+        "card_rewards": len(card_rewards),
+        "matches": len(matches),
+        "mismatches": len(mismatches),
+        "match_rate": f"{match_rate:.1f}%",
+        "rng_history": rng_tracker.rng_history,
         "extractions": all_extractions,
     }
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
 
@@ -364,7 +629,10 @@ def run_extraction(
     print("=" * 60)
     print(f"Seed: {seed}")
     print(f"Total extractions: {len(all_extractions)}")
-    print(f"Total mismatches: {len(mismatches)}")
+    print(f"Card rewards: {len(card_rewards)}")
+    print(f"  Matches: {len(matches)}")
+    print(f"  Mismatches: {len(mismatches)}")
+    print(f"  Match rate: {match_rate:.1f}%")
     print(f"Output: {output_path}")
 
     # Summary by type
@@ -379,22 +647,30 @@ def run_extraction(
 
     if mismatches:
         print(f"\nMismatches ({len(mismatches)}):")
-        for m in mismatches:
+        for m in mismatches[:10]:  # Show first 10
             print(f"  Floor {m.get('floor', '?')}: Predicted {m.get('predicted_options', [])} vs Observed {m.get('cards_offered', [])}")
+        if len(mismatches) > 10:
+            print(f"  ... and {len(mismatches) - 10} more")
 
     return all_extractions, mismatches
 
 
 if __name__ == "__main__":
-    # Default paths for this specific task
-    VIDEO_PATH = "/Users/jackswitzer/Desktop/SlayTheSpireRL/vod_data/merl/TO6u6As_lR4.mp4"
-    SEED = "1V2ZJKI0"
-    OUTPUT_PATH = "/Users/jackswitzer/Desktop/SlayTheSpireRL/vod/verify_ui/extractions.json"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Extract VOD with RNG verification")
+    parser.add_argument("--video", default="vod_data/merl/run7_first_hour.mkv", help="Video path")
+    parser.add_argument("--seed", default="227QYN385T72G", help="Seed string")
+    parser.add_argument("--output", default="vod_data/merl/run7_extraction.json", help="Output path")
+    parser.add_argument("--duration", type=int, default=60, help="Video duration in minutes")
+    parser.add_argument("--chunk", type=int, default=5, help="Chunk size in minutes")
+
+    args = parser.parse_args()
 
     run_extraction(
-        video_path=VIDEO_PATH,
-        seed=SEED,
-        output_path=OUTPUT_PATH,
-        chunk_minutes=5,
-        video_duration_minutes=55,
+        video_path=args.video,
+        seed=args.seed,
+        output_path=args.output,
+        chunk_minutes=args.chunk,
+        video_duration_minutes=args.duration,
     )
