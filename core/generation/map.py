@@ -293,6 +293,8 @@ class MapGenerator:
                                 new_edge_x = edge.dst_x
 
                         target_candidate = nodes[new_edge_y][new_edge_x]
+                    elif ancestor_gap < MAX_ANCESTOR_GAP:
+                        continue  # Skip this parent, gap not large enough
 
         # Prevent path crossing with left neighbor
         if edge.dst_x != 0:
@@ -330,7 +332,9 @@ class MapGenerator:
         if node1.y != node2.y or node1 == node2:
             return None
 
-        if node1.x < node2.x:
+        # NOTE: Java compares node1.x < node2.y (x to y) - this appears to be
+        # a bug in the original game, but we match it exactly for parity
+        if node1.x < node2.y:
             l_node, r_node = node1, node2
         else:
             l_node, r_node = node2, node1

@@ -383,6 +383,469 @@ def get_watcher_pool_by_rarity(rarity: str) -> List[str]:
 
 
 # =============================================================================
+# IRONCLAD CARD RARITIES
+# =============================================================================
+
+# Card ID to rarity mapping for Ironclad cards
+# Uses actual Java card IDs
+# Extracted from decompiled Java source
+IRONCLAD_CARD_RARITIES = {
+    # BASIC cards (not in reward pools)
+    "Defend_R": "BASIC",
+    "Strike_R": "BASIC",
+    "Bash": "BASIC",
+
+    # COMMON cards (22 total)
+    # Common Attacks
+    "Anger": "COMMON",
+    "BodySlam": "COMMON",
+    "Clash": "COMMON",
+    "Cleave": "COMMON",
+    "Clothesline": "COMMON",
+    "Headbutt": "COMMON",
+    "HeavyBlade": "COMMON",
+    "IronWave": "COMMON",
+    "PerfectedStrike": "COMMON",
+    "PommelStrike": "COMMON",
+    "SwordBoomerang": "COMMON",
+    "ThunderClap": "COMMON",
+    "TwinStrike": "COMMON",
+    "WildStrike": "COMMON",
+    # Common Skills
+    "Armaments": "COMMON",
+    "Flex": "COMMON",
+    "Havoc": "COMMON",
+    "ShrugItOff": "COMMON",
+    "TrueGrit": "COMMON",
+    "Warcry": "COMMON",
+
+    # UNCOMMON cards (37 total)
+    # Uncommon Attacks
+    "BloodForBlood": "UNCOMMON",
+    "Carnage": "UNCOMMON",
+    "Dropkick": "UNCOMMON",
+    "Hemokinesis": "UNCOMMON",
+    "Pummel": "UNCOMMON",
+    "Rampage": "UNCOMMON",
+    "RecklessCharge": "UNCOMMON",
+    "SearingBlow": "UNCOMMON",
+    "SeverSoul": "UNCOMMON",
+    "Uppercut": "UNCOMMON",
+    "Whirlwind": "UNCOMMON",
+    # Uncommon Skills
+    "BattleTrance": "UNCOMMON",
+    "Bloodletting": "UNCOMMON",
+    "BurningPact": "UNCOMMON",
+    "Disarm": "UNCOMMON",
+    "DualWield": "UNCOMMON",
+    "Entrench": "UNCOMMON",
+    "FlameBarrier": "UNCOMMON",
+    "GhostlyArmor": "UNCOMMON",
+    "InfernalBlade": "UNCOMMON",
+    "Intimidate": "UNCOMMON",
+    "PowerThrough": "UNCOMMON",
+    "Rage": "UNCOMMON",
+    "SecondWind": "UNCOMMON",
+    "SeeingRed": "UNCOMMON",
+    "Sentinel": "UNCOMMON",
+    "Shockwave": "UNCOMMON",
+    "SpotWeakness": "UNCOMMON",
+    # Uncommon Powers
+    "Combust": "UNCOMMON",
+    "DarkEmbrace": "UNCOMMON",
+    "Evolve": "UNCOMMON",
+    "FeelNoPain": "UNCOMMON",
+    "FireBreathing": "UNCOMMON",
+    "Inflame": "UNCOMMON",
+    "Metallicize": "UNCOMMON",
+    "Rupture": "UNCOMMON",
+
+    # RARE cards (16 total)
+    # Rare Attacks
+    "Bludgeon": "RARE",
+    "Feed": "RARE",
+    "FiendFire": "RARE",
+    "Immolate": "RARE",
+    "Reaper": "RARE",
+    # Rare Skills
+    "DoubleTap": "RARE",
+    "Exhume": "RARE",
+    "Impervious": "RARE",
+    "LimitBreak": "RARE",
+    "Offering": "RARE",
+    # Rare Powers
+    "Barricade": "RARE",
+    "Berserk": "RARE",
+    "Brutality": "RARE",
+    "Corruption": "RARE",
+    "DemonForm": "RARE",
+    "Juggernaut": "RARE",
+}
+
+
+def get_ironclad_pool_order(card_ids_set: Set[str] = None) -> List[str]:
+    """
+    Get Ironclad card IDs in Java HashMap iteration order.
+
+    Args:
+        card_ids_set: Optional set of card IDs to filter by.
+                     If None, returns all Ironclad cards.
+
+    Returns:
+        List of Ironclad card IDs in HashMap iteration order.
+    """
+    if card_ids_set is None:
+        card_ids_set = set(RED_CARD_IDS)
+
+    # Get full iteration order
+    iteration_order = _compute_card_library_iteration_order()
+
+    # Filter to just Ironclad cards
+    return [cid for cid in iteration_order if cid in card_ids_set]
+
+
+# Cache the computed orders for performance
+_IRONCLAD_POOL_ORDER_CACHE: List[str] = None
+
+
+def get_cached_ironclad_pool_order() -> List[str]:
+    """Get cached Ironclad pool order (computed once)."""
+    global _IRONCLAD_POOL_ORDER_CACHE
+    if _IRONCLAD_POOL_ORDER_CACHE is None:
+        _IRONCLAD_POOL_ORDER_CACHE = get_ironclad_pool_order()
+    return _IRONCLAD_POOL_ORDER_CACHE
+
+
+def get_ironclad_pool_by_rarity(rarity: str) -> List[str]:
+    """
+    Get Ironclad card IDs for a specific rarity in HashMap iteration order.
+
+    Args:
+        rarity: "COMMON", "UNCOMMON", or "RARE"
+
+    Returns:
+        List of card IDs in HashMap iteration order, filtered to the rarity.
+    """
+    # Get full Ironclad pool in HashMap order
+    ironclad_order = get_cached_ironclad_pool_order()
+
+    # Filter by rarity
+    return [cid for cid in ironclad_order if IRONCLAD_CARD_RARITIES.get(cid) == rarity]
+
+
+# =============================================================================
+# SILENT CARD RARITIES
+# =============================================================================
+
+# Card ID to rarity mapping for Silent cards
+# Uses actual Java card IDs from decompiled source
+# Key ID mappings (where class name differs from cardID):
+#   - SneakyStrike.java -> ID "Underhanded Strike" (but listed as SneakyStrike in GREEN_CARD_IDS)
+#   - Nightmare.java -> ID "Night Terror"
+#   - Alchemize.java -> ID "Venomology"
+#   - WraithForm.java -> ID "Wraith Form v2"
+SILENT_CARD_RARITIES = {
+    # BASIC cards (not in reward pools)
+    "Defend_G": "BASIC",
+    "Strike_G": "BASIC",
+    "Neutralize": "BASIC",
+    "Survivor": "BASIC",
+
+    # COMMON cards (22 total)
+    # Common Attacks (9)
+    "Bane": "COMMON",
+    "DaggerSpray": "COMMON",
+    "DaggerThrow": "COMMON",
+    "FlyingKnee": "COMMON",
+    "PoisonedStab": "COMMON",
+    "QuickSlash": "COMMON",
+    "Slice": "COMMON",
+    "SneakyStrike": "COMMON",  # "Underhanded Strike" in game
+    "SuckerPunch": "COMMON",
+    # Common Skills (10)
+    "Acrobatics": "COMMON",
+    "Backflip": "COMMON",
+    "BladeDance": "COMMON",
+    "CloakAndDagger": "COMMON",
+    "DeadlyPoison": "COMMON",
+    "Deflect": "COMMON",
+    "DodgeAndRoll": "COMMON",
+    "Outmaneuver": "COMMON",
+    "PiercingWail": "COMMON",
+    "Prepared": "COMMON",
+
+    # UNCOMMON cards (35 total)
+    # Uncommon Attacks (13)
+    "AllOutAttack": "UNCOMMON",
+    "Backstab": "UNCOMMON",
+    "Choke": "UNCOMMON",
+    "Dash": "UNCOMMON",
+    "EndlessAgony": "UNCOMMON",
+    "Eviscerate": "UNCOMMON",
+    "Finisher": "UNCOMMON",
+    "Flechettes": "UNCOMMON",
+    "HeelHook": "UNCOMMON",
+    "MasterfulStab": "UNCOMMON",
+    "Predator": "UNCOMMON",
+    "RiddleWithHoles": "UNCOMMON",
+    "Skewer": "UNCOMMON",
+    # Uncommon Skills (14)
+    "Blur": "UNCOMMON",
+    "BouncingFlask": "UNCOMMON",
+    "CalculatedGamble": "UNCOMMON",
+    "Catalyst": "UNCOMMON",
+    "Concentrate": "UNCOMMON",
+    "CripplingPoison": "UNCOMMON",
+    "Distraction": "UNCOMMON",
+    "EscapePlan": "UNCOMMON",
+    "Expertise": "UNCOMMON",
+    "LegSweep": "UNCOMMON",
+    "Reflex": "UNCOMMON",
+    "Setup": "UNCOMMON",
+    "Tactician": "UNCOMMON",
+    "Terror": "UNCOMMON",
+    # Uncommon Powers (6)
+    "Accuracy": "UNCOMMON",
+    "Caltrops": "UNCOMMON",
+    "Footwork": "UNCOMMON",
+    "InfiniteBlades": "UNCOMMON",
+    "NoxiousFumes": "UNCOMMON",
+    "WellLaidPlans": "UNCOMMON",
+
+    # RARE cards (18 total)
+    # Rare Attacks (4)
+    "DieDieDie": "RARE",
+    "GlassKnife": "RARE",
+    "GrandFinale": "RARE",
+    "Unload": "RARE",
+    # Rare Skills (10)
+    "Adrenaline": "RARE",
+    "Alchemize": "RARE",  # "Venomology" in game
+    "BulletTime": "RARE",
+    "Burst": "RARE",
+    "CorpseExplosion": "RARE",
+    "Doppelganger": "RARE",
+    "Malaise": "RARE",
+    "Nightmare": "RARE",  # "Night Terror" in game
+    "PhantasmalKiller": "RARE",
+    "StormOfSteel": "RARE",
+    # Rare Powers (5)
+    "AfterImage": "RARE",
+    "AThousandCuts": "RARE",
+    "Envenom": "RARE",
+    "ToolsOfTheTrade": "RARE",
+    "WraithForm": "RARE",  # "Wraith Form v2" in game
+}
+
+
+def get_silent_pool_order(card_ids_set: Set[str] = None) -> List[str]:
+    """
+    Get Silent card IDs in Java HashMap iteration order.
+
+    Args:
+        card_ids_set: Optional set of card IDs to filter by.
+                     If None, returns all Silent cards.
+
+    Returns:
+        List of Silent card IDs in HashMap iteration order.
+    """
+    if card_ids_set is None:
+        card_ids_set = set(GREEN_CARD_IDS)
+
+    # Get full iteration order
+    iteration_order = _compute_card_library_iteration_order()
+
+    # Filter to just Silent cards
+    return [cid for cid in iteration_order if cid in card_ids_set]
+
+
+# Cache the computed orders for performance
+_SILENT_POOL_ORDER_CACHE: List[str] = None
+
+
+def get_cached_silent_pool_order() -> List[str]:
+    """Get cached Silent pool order (computed once)."""
+    global _SILENT_POOL_ORDER_CACHE
+    if _SILENT_POOL_ORDER_CACHE is None:
+        _SILENT_POOL_ORDER_CACHE = get_silent_pool_order()
+    return _SILENT_POOL_ORDER_CACHE
+
+
+def get_silent_pool_by_rarity(rarity: str) -> List[str]:
+    """
+    Get Silent card IDs for a specific rarity in HashMap iteration order.
+
+    Args:
+        rarity: "COMMON", "UNCOMMON", or "RARE"
+
+    Returns:
+        List of card IDs in HashMap iteration order, filtered to the rarity.
+    """
+    # Get full Silent pool in HashMap order
+    silent_order = get_cached_silent_pool_order()
+
+    # Filter by rarity
+    return [cid for cid in silent_order if SILENT_CARD_RARITIES.get(cid) == rarity]
+
+
+# =============================================================================
+# DEFECT CARD RARITIES
+# =============================================================================
+
+# Card ID to rarity mapping for Defect cards
+# Uses actual Java card IDs (class ID, not display name)
+# Key ID mappings (where class name differs from cardID):
+#   - Overclock.java -> ID "Steam Power"
+#   - Recursion.java -> ID "Redo"
+#   - SteamBarrier.java -> ID "Steam"
+#   - Equilibrium.java -> ID "Undo"
+#   - LockOn.java -> ID "Lockon"
+#   - MultiCast.java -> ID "Multi-Cast"
+DEFECT_CARD_RARITIES = {
+    # BASIC cards (not in reward pools)
+    "Defend_B": "BASIC",
+    "Strike_B": "BASIC",
+    "Zap": "BASIC",
+    "Dualcast": "BASIC",
+
+    # COMMON cards (18 total)
+    # Common Attacks (10)
+    "BallLightning": "COMMON",
+    "Barrage": "COMMON",
+    "BeamCell": "COMMON",
+    "Claw": "COMMON",
+    "ColdSnap": "COMMON",
+    "CompileDriver": "COMMON",
+    "GoForTheEyes": "COMMON",
+    "Rebound": "COMMON",
+    "Streamline": "COMMON",
+    "SweepingBeam": "COMMON",
+    # Common Skills (8)
+    "ConserveBattery": "COMMON",  # Charge Battery
+    "Coolheaded": "COMMON",
+    "Hologram": "COMMON",
+    "Leap": "COMMON",
+    "Recursion": "COMMON",  # ID is "Redo" in game
+    "Stack": "COMMON",
+    "SteamBarrier": "COMMON",  # ID is "Steam" in game
+    "Turbo": "COMMON",
+
+    # UNCOMMON cards (28 total)
+    # Uncommon Attacks (8)
+    "Blizzard": "UNCOMMON",
+    "DoomAndGloom": "UNCOMMON",
+    "FTL": "UNCOMMON",
+    "LockOn": "UNCOMMON",  # ID is "Lockon" in game
+    "Melter": "UNCOMMON",
+    "RipAndTear": "UNCOMMON",
+    "Scrape": "UNCOMMON",
+    "Sunder": "UNCOMMON",
+    # Uncommon Skills (12)
+    "Aggregate": "UNCOMMON",
+    "AutoShields": "UNCOMMON",
+    "BootSequence": "UNCOMMON",
+    "Chaos": "UNCOMMON",
+    "Chill": "UNCOMMON",
+    "Consume": "UNCOMMON",
+    "Darkness": "UNCOMMON",
+    "DoubleEnergy": "UNCOMMON",
+    "Equilibrium": "UNCOMMON",  # ID is "Undo" in game
+    "ForceField": "UNCOMMON",
+    "Fusion": "UNCOMMON",
+    "GeneticAlgorithm": "UNCOMMON",
+    "Glacier": "UNCOMMON",
+    "Overclock": "UNCOMMON",  # ID is "Steam Power" in game
+    "Recycle": "UNCOMMON",
+    "ReinforcedBody": "UNCOMMON",
+    "Reprogram": "UNCOMMON",
+    "Skim": "UNCOMMON",
+    "Tempest": "UNCOMMON",
+    "WhiteNoise": "UNCOMMON",
+    # Uncommon Powers (8)
+    "Capacitor": "UNCOMMON",
+    "Defragment": "UNCOMMON",
+    "Heatsinks": "UNCOMMON",
+    "HelloWorld": "UNCOMMON",
+    "Loop": "UNCOMMON",
+    "SelfRepair": "UNCOMMON",
+    "StaticDischarge": "UNCOMMON",
+    "Storm": "UNCOMMON",
+
+    # RARE cards (18 total)
+    # Rare Attacks (5)
+    "AllForOne": "RARE",
+    "CoreSurge": "RARE",
+    "Hyperbeam": "RARE",
+    "MeteorStrike": "RARE",
+    "ThunderStrike": "RARE",
+    # Rare Skills (6)
+    "Amplify": "RARE",
+    "Fission": "RARE",
+    "MultiCast": "RARE",  # ID is "Multi-Cast" in game
+    "Rainbow": "RARE",
+    "Reboot": "RARE",
+    "Seek": "RARE",
+    # Rare Powers (6)
+    "BiasedCognition": "RARE",
+    "Buffer": "RARE",
+    "CreativeAI": "RARE",
+    "EchoForm": "RARE",
+    "Electrodynamics": "RARE",
+    "MachineLearning": "RARE",
+}
+
+
+def get_defect_pool_order(card_ids_set: Set[str] = None) -> List[str]:
+    """
+    Get Defect card IDs in Java HashMap iteration order.
+
+    Args:
+        card_ids_set: Optional set of card IDs to filter by.
+                     If None, returns all Defect cards.
+
+    Returns:
+        List of Defect card IDs in HashMap iteration order.
+    """
+    if card_ids_set is None:
+        card_ids_set = set(BLUE_CARD_IDS)
+
+    # Get full iteration order
+    iteration_order = _compute_card_library_iteration_order()
+
+    # Filter to just Defect cards
+    return [cid for cid in iteration_order if cid in card_ids_set]
+
+
+# Cache the computed orders for performance
+_DEFECT_POOL_ORDER_CACHE: List[str] = None
+
+
+def get_cached_defect_pool_order() -> List[str]:
+    """Get cached Defect pool order (computed once)."""
+    global _DEFECT_POOL_ORDER_CACHE
+    if _DEFECT_POOL_ORDER_CACHE is None:
+        _DEFECT_POOL_ORDER_CACHE = get_defect_pool_order()
+    return _DEFECT_POOL_ORDER_CACHE
+
+
+def get_defect_pool_by_rarity(rarity: str) -> List[str]:
+    """
+    Get Defect card IDs for a specific rarity in HashMap iteration order.
+
+    Args:
+        rarity: "COMMON", "UNCOMMON", or "RARE"
+
+    Returns:
+        List of card IDs in HashMap iteration order, filtered to the rarity.
+    """
+    # Get full Defect pool in HashMap order
+    defect_order = get_cached_defect_pool_order()
+
+    # Filter by rarity
+    return [cid for cid in defect_order if DEFECT_CARD_RARITIES.get(cid) == rarity]
+
+
+# =============================================================================
 # TESTING
 # =============================================================================
 

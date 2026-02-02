@@ -43,6 +43,20 @@ search_server() {
 }
 
 # ==============================================================================
+# Game Launch
+# ==============================================================================
+
+# Launch STS with CommunicationMod (default)
+sts_launch() {
+    ./scripts/dev/launch_sts.sh "$@"
+}
+
+# Launch STS vanilla (no mods)
+sts_vanilla() {
+    ./scripts/dev/launch_sts.sh --no-mods
+}
+
+# ==============================================================================
 # Java Mod
 # ==============================================================================
 
@@ -84,6 +98,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "  source scripts/commands.sh"
     echo ""
     echo "Available commands:"
+    echo "  sts_launch        - Launch STS with CommunicationMod"
+    echo "  sts_vanilla       - Launch STS without mods"
     echo "  vod_baalorlord    - Process Baalorlord Spirelogs data"
     echo "  vod_transcript    - Analyze video with transcript"
     echo "  vod_gemini        - Analyze video with Gemini"

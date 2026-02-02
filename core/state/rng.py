@@ -380,7 +380,15 @@ def seed_to_long(seed_string: str) -> int:
 
     The game uses base-35 encoding: 0-9 + A-Z excluding O.
     O is automatically replaced with 0 when parsing.
+
+    If the seed is already a pure numeric string (from save file),
+    it's treated as a plain integer, not base-35.
     """
+    # If seed is numeric (including negative), it's already the numeric form (from save file)
+    # Java stores seeds as signed longs, so negative values are valid
+    if seed_string.lstrip('-').isdigit():
+        return int(seed_string)
+
     # Game's exact character set from SeedHelper.java
     CHARACTERS = "0123456789ABCDEFGHIJKLMNPQRSTUVWXYZ"
 

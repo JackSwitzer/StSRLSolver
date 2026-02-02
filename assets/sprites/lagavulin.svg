@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Lagavulin - Sleeping demon with horns -->
+  <!-- Shell/armor base -->
+  <ellipse cx="32" cy="44" rx="26" ry="18" fill="#2a2a3a"/>
+  <!-- Shell top -->
+  <path d="M6 44 Q6 24 32 20 Q58 24 58 44" fill="#3a3a4a"/>
+  <!-- Shell ridges -->
+  <path d="M12 42 Q12 28 32 24 Q52 28 52 42" fill="none" stroke="#4a4a5a" stroke-width="2"/>
+  <path d="M18 40 Q18 30 32 26 Q46 30 46 40" fill="none" stroke="#4a4a5a" stroke-width="2"/>
+  <!-- Horns -->
+  <path d="M14 30 Q8 20 4 8 Q6 10 10 12 Q8 22 16 28" fill="#1a1520"/>
+  <path d="M50 30 Q56 20 60 8 Q58 10 54 12 Q56 22 48 28" fill="#1a1520"/>
+  <!-- Face area (sleeping) -->
+  <ellipse cx="32" cy="38" rx="10" ry="6" fill="#1a1a2a"/>
+  <!-- Closed eyes (sleeping) -->
+  <path d="M24 36 Q28 34 32 36" stroke="#CC4444" stroke-width="2" fill="none"/>
+  <path d="M32 36 Q36 34 40 36" stroke="#CC4444" stroke-width="2" fill="none"/>
+  <!-- Zzz - sleeping indicator -->
+  <text x="46" y="16" fill="#e8c44a" font-size="8" font-family="sans-serif">Z</text>
+  <text x="52" y="12" fill="#e8c44a" font-size="6" font-family="sans-serif">z</text>
+  <text x="56" y="8" fill="#e8c44a" font-size="4" font-family="sans-serif">z</text>
+  <!-- Ground shadow -->
+  <ellipse cx="32" cy="60" rx="24" ry="4" fill="#1a1520" opacity="0.5"/>
+</svg>

@@ -668,7 +668,7 @@ GHOSTS = Event(
 KNOWING_SKULL = Event(
     id="Knowing Skull",
     name="Knowing Skull",
-    act=Act.ACT_2,
+    act=Act.ANY,  # specialOneTimeEventList - can appear in any act
     description="A skull offers items for HP. Costs escalate.",
     choices=[
         EventChoice(
@@ -755,7 +755,7 @@ NEST = Event(
 THE_JOUST = Event(
     id="The Joust",
     name="The Joust",
-    act=Act.ACT_2,
+    act=Act.ANY,  # specialOneTimeEventList - can appear in any act
     description="Bet on a joust outcome.",
     choices=[
         EventChoice(
@@ -988,9 +988,9 @@ MYSTERIOUS_SPHERE = Event(
 )
 
 SECRET_PORTAL = Event(
-    id="Secret Portal",
+    id="SecretPortal",  # Note: Java uses "SecretPortal" without space
     name="Secret Portal",
-    act=Act.ACT_3,
+    act=Act.ANY,  # specialOneTimeEventList - can appear in any act
     description="A portal that leads directly to the boss.",
     choices=[
         EventChoice(
@@ -1009,7 +1009,7 @@ SECRET_PORTAL = Event(
 )
 
 SENSORY_STONE = Event(
-    id="Sensory Stone",
+    id="SensoryStone",  # Note: Java uses "SensoryStone" without space
     name="Sensory Stone",
     act=Act.ACT_3,
     description="Relive memories for colorless cards.",
@@ -1649,10 +1649,8 @@ CITY_EVENTS = {
     "Drug Dealer": DRUG_DEALER,
     "Forgotten Altar": FORGOTTEN_ALTAR,
     "Ghosts": GHOSTS,
-    "Knowing Skull": KNOWING_SKULL,
     "Masked Bandits": MASKED_BANDITS,
     "Nest": NEST,
-    "The Joust": THE_JOUST,
     "The Library": THE_LIBRARY,
     "The Mausoleum": THE_MAUSOLEUM,
     "Vampires": VAMPIRES,
@@ -1663,37 +1661,50 @@ BEYOND_EVENTS = {
     "MindBloom": MIND_BLOOM,
     "The Moai Head": MOAI_HEAD,
     "Mysterious Sphere": MYSTERIOUS_SPHERE,
-    "Secret Portal": SECRET_PORTAL,
-    "Sensory Stone": SENSORY_STONE,
+    "SensoryStone": SENSORY_STONE,
     "Tomb of Lord Red Mask": TOMB_OF_LORD_RED_MASK,
     "Winding Halls": WINDING_HALLS,
 }
 
+# Shrines that appear in each act's shrineList
 SHRINE_EVENTS = {
+    "Golden Shrine": GOLD_SHRINE,
+    "Match and Keep!": GREMLIN_MATCH_GAME,
+    "Wheel of Change": GREMLIN_WHEEL_GAME,
+    "Purifier": PURIFICATION_SHRINE,
+    "Transmorgrifier": TRANSMOGRIFIER,
+    "Upgrade Shrine": UPGRADE_SHRINE,
+}
+
+# specialOneTimeEventList events (can appear in any act, one-time per run)
+SPECIAL_ONE_TIME_EVENTS = {
     "Accursed Blacksmith": ACCURSED_BLACKSMITH,
     "Bonfire Elementals": BONFIRE_ELEMENTALS,
     "Designer": DESIGNER,
     "Duplicator": DUPLICATOR,
     "FaceTrader": FACE_TRADER,
     "Fountain of Cleansing": FOUNTAIN_OF_CURSE_REMOVAL,
-    "Golden Shrine": GOLD_SHRINE,
-    "Match and Keep!": GREMLIN_MATCH_GAME,
-    "Wheel of Change": GREMLIN_WHEEL_GAME,
+    "Knowing Skull": KNOWING_SKULL,
     "Lab": LAB,
     "N'loth": NLOTH,
     "NoteForYourself": NOTE_FOR_YOURSELF,
-    "Purifier": PURIFICATION_SHRINE,
-    "Transmorgrifier": TRANSMOGRIFIER,
-    "Upgrade Shrine": UPGRADE_SHRINE,
+    "SecretPortal": SECRET_PORTAL,
+    "The Joust": THE_JOUST,
     "WeMeetAgain": WE_MEET_AGAIN,
     "The Woman in Blue": WOMAN_IN_BLUE,
+}
+
+# Combined shared events (shrines + special one-time events)
+SHARED_EVENTS = {
+    **SHRINE_EVENTS,
+    **SPECIAL_ONE_TIME_EVENTS,
 }
 
 ALL_EVENTS = {
     **EXORDIUM_EVENTS,
     **CITY_EVENTS,
     **BEYOND_EVENTS,
-    **SHRINE_EVENTS,
+    **SHARED_EVENTS,
 }
 
 
@@ -1705,13 +1716,13 @@ def get_event(event_id: str) -> Optional[Event]:
 def get_events_for_act(act: Act) -> dict[str, Event]:
     """Get all events that can appear in a specific act"""
     if act == Act.ACT_1:
-        return {**EXORDIUM_EVENTS, **SHRINE_EVENTS}
+        return {**EXORDIUM_EVENTS, **SHARED_EVENTS}
     elif act == Act.ACT_2:
-        return {**CITY_EVENTS, **SHRINE_EVENTS}
+        return {**CITY_EVENTS, **SHARED_EVENTS}
     elif act == Act.ACT_3:
-        return {**BEYOND_EVENTS, **SHRINE_EVENTS}
+        return {**BEYOND_EVENTS, **SHARED_EVENTS}
     else:
-        return SHRINE_EVENTS
+        return SHARED_EVENTS
 
 
 def calculate_outcome_value(outcome: Outcome, player_max_hp: int, player_current_hp: int,

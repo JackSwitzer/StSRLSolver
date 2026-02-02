@@ -375,6 +375,11 @@ ONLY return the JSON array, no other text. Return [] if no decisions visible."""
                     extractions = [extractions]
                 return extractions
             except json.JSONDecodeError as e:
+                # Try to repair truncated JSON
+                repaired = self._repair_truncated_json(text)
+                if repaired:
+                    print(f"  Repaired truncated JSON, got {len(repaired)} items")
+                    return repaired
                 print(f"  JSON parse error: {e}")
                 print(f"  Raw response: {text[:500]}...")
                 return []
@@ -382,6 +387,48 @@ ONLY return the JSON array, no other text. Return [] if no decisions visible."""
         except Exception as e:
             print(f"  Error extracting {start_time}-{end_time}: {e}")
             return []
+
+    def _repair_truncated_json(self, text: str) -> List[Dict]:
+        """Attempt to repair truncated JSON array responses."""
+        # Find all complete JSON objects in the text
+        results = []
+
+        # Try to find complete objects using regex
+        import re
+
+        # Pattern for complete JSON objects (simplified)
+        # Look for {...} patterns that are likely complete
+        obj_pattern = r'\{[^{}]*"type"\s*:\s*"[^"]+\"[^{}]*\}'
+
+        for match in re.finditer(obj_pattern, text):
+            try:
+                obj = json.loads(match.group())
+                results.append(obj)
+            except json.JSONDecodeError:
+                continue
+
+        # Also try line-by-line for formatted JSON
+        if not results and '\n' in text:
+            lines = text.split('\n')
+            current_obj = ""
+            brace_count = 0
+
+            for line in lines:
+                current_obj += line
+                brace_count += line.count('{') - line.count('}')
+
+                if brace_count == 0 and current_obj.strip():
+                    # Try to parse
+                    try:
+                        cleaned = current_obj.strip().rstrip(',')
+                        if cleaned.startswith('{'):
+                            obj = json.loads(cleaned)
+                            results.append(obj)
+                    except json.JSONDecodeError:
+                        pass
+                    current_obj = ""
+
+        return results
 
     def cleanup(self):
         """Delete uploaded video from Gemini."""
@@ -394,8 +441,18 @@ ONLY return the JSON array, no other text. Return [] if no decisions visible."""
 
 
 # =============================================================================
-# CARD NAME NORMALIZATION
+# CARD NAME VALIDATION AND MATCHING
 # =============================================================================
+
+# Import card validator
+from vod.card_name_validator import (
+    validate_card_name,
+    correct_card_list,
+    validate_for_rewards,
+    detect_extraction_issues,
+    WATCHER_DISPLAY_TO_ID,
+)
+
 
 def normalize_card_name(name: str) -> str:
     """Normalize card name for comparison."""
@@ -405,38 +462,59 @@ def normalize_card_name(name: str) -> str:
     return name.lower()
 
 
-def check_card_match(predicted: List[str], observed: List[str]) -> Tuple[bool, float]:
+def correct_and_match(observed: List[str]) -> Tuple[List[str], float]:
+    """
+    Correct observed card names using validator.
+
+    Returns: (corrected_cards, correction_confidence)
+    """
+    corrected, invalid, confidence = correct_card_list(observed)
+
+    if invalid:
+        print(f"    Warning: Invalid cards detected: {invalid}")
+
+    return corrected, confidence
+
+
+def check_card_match(predicted: List[str], observed: List[str]) -> Tuple[bool, float, List[str]]:
     """
     Check if predicted cards match observed cards.
 
-    Returns: (is_match, match_score)
+    First corrects observed cards for OCR errors, then compares.
+
+    Returns: (is_match, match_score, corrected_observed)
     - is_match: True if all cards match
     - match_score: 0.0-1.0 indicating how many matched
+    - corrected_observed: The corrected card names
     """
     if not predicted or not observed:
-        return False, 0.0
+        return False, 0.0, observed
 
+    # Correct observed cards for OCR errors
+    corrected, _ = correct_and_match(observed)
+
+    # Normalize for comparison
     pred_normalized = [normalize_card_name(c) for c in predicted]
-    obs_normalized = [normalize_card_name(c) for c in observed]
+    obs_normalized = [normalize_card_name(c) for c in corrected]
 
     # Check exact order match
     if len(pred_normalized) == len(obs_normalized):
         if all(p == o for p, o in zip(pred_normalized, obs_normalized)):
-            return True, 1.0
+            return True, 1.0, corrected
 
     # Check set match (order doesn't matter)
     pred_set = set(pred_normalized)
     obs_set = set(obs_normalized)
 
     if pred_set == obs_set:
-        return True, 1.0
+        return True, 1.0, corrected
 
     # Partial match
     intersection = pred_set & obs_set
     union = pred_set | obs_set
     score = len(intersection) / len(union) if union else 0.0
 
-    return score >= 0.5, score  # Consider 50%+ overlap a partial match
+    return score >= 0.5, score, corrected  # Consider 50%+ overlap a partial match
 
 
 # =============================================================================
@@ -554,19 +632,26 @@ def run_extraction(
                 # Generate fresh prediction at current state
                 predicted, rng_consumed = rng_tracker.predict_card_reward()
 
-                # Check match
-                is_match, score = check_card_match(predicted, observed)
+                # Check match (with card name correction)
+                is_match, score, corrected = check_card_match(predicted, observed)
                 ext["predicted_options"] = predicted
+                ext["cards_observed_raw"] = observed  # Keep original
+                ext["cards_corrected"] = corrected  # Store corrected version
                 ext["match_score"] = score
                 ext["mismatch"] = not is_match
                 ext["rng_counter_before"] = rng_tracker.get_card_counter()
 
                 if is_match:
-                    print(f"  ✓ Card reward MATCH at floor {ext_floor}: {observed}")
+                    if corrected != observed:
+                        print(f"  ✓ Card reward MATCH at floor {ext_floor}: {observed} -> {corrected}")
+                    else:
+                        print(f"  ✓ Card reward MATCH at floor {ext_floor}: {observed}")
                 else:
                     print(f"  ✗ MISMATCH at floor {ext_floor}!")
                     print(f"    Predicted: {predicted}")
                     print(f"    Observed:  {observed}")
+                    if corrected != observed:
+                        print(f"    Corrected: {corrected}")
                     print(f"    Counter:   {rng_tracker.get_card_counter()}")
 
                 # CONSUME the card reward RNG (advance state)
@@ -605,6 +690,13 @@ def run_extraction(
 
     match_rate = len(matches) / len(card_rewards) * 100 if card_rewards else 0
 
+    # Detect extraction issues (duplicates, etc)
+    extraction_issues = detect_extraction_issues(all_extractions)
+    if extraction_issues:
+        print(f"\n⚠️  Detected {len(extraction_issues)} extraction issues:")
+        for issue in extraction_issues:
+            print(f"    {issue.get('message', str(issue))}")
+
     # Save results
     output = {
         "video": video_path,
@@ -615,6 +707,7 @@ def run_extraction(
         "matches": len(matches),
         "mismatches": len(mismatches),
         "match_rate": f"{match_rate:.1f}%",
+        "extraction_issues": extraction_issues,
         "rng_history": rng_tracker.rng_history,
         "extractions": all_extractions,
     }

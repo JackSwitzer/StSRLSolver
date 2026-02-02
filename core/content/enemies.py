@@ -1,6 +1,15 @@
 """
 Enemy AI System - Exact replication from decompiled AbstractMonster and enemy classes.
 
+This module contains the complete enemy AI system including:
+- Data types (Intent, EnemyType, MoveInfo, EnemyState)
+- AI logic for all enemy classes
+- Factory function and registry
+
+Related modules:
+- enemies_data.py: Pure data definitions (HP ranges, damage values, move IDs)
+- enemies_ai.py: Standalone AI implementations (alternative import)
+
 AI Decision Flow (from source):
 1. rollMove() is called at end of turn
 2. rollMove() calls getMove(AbstractDungeon.aiRng.random(99))
@@ -33,6 +42,17 @@ from enum import Enum
 import math
 
 from ..state.rng import Random
+
+# Import data access functions from enemies_data for convenience
+# (These provide alternate access to HP/damage data extracted from this file)
+from .enemies_data import (
+    ENEMY_DATA,
+    get_hp_range as data_get_hp_range,
+    get_damage_value as data_get_damage_value,
+    get_damage_values as data_get_damage_values,
+    get_enemy_type as data_get_enemy_type,
+    get_move_name as data_get_move_name,
+)
 
 
 class Intent(Enum):

@@ -28,11 +28,18 @@ import math
 
 # Import from core modules
 from ..state.rng import Random
+from ..state.combat import (
+    CombatState,
+    EnemyCombatState as CoreEnemyCombatState,
+    EntityState,
+    create_player,
+    create_enemy,
+    create_combat,
+)
 from ..content.cards import Card, CardType, CardTarget, get_card, ALL_CARDS
 from ..content.enemies import Enemy, Intent, MoveInfo, EnemyState, EnemyType
 from ..content.stances import StanceID, StanceManager, STANCES
-# Use old damage module for DamageCombatState/Power classes (legacy compatibility)
-from ..damage import calculate_card_damage, calculate_block, DamageType, CombatState as DamageCombatState, Power
+from .damage import calculate_damage, calculate_block
 
 
 # =============================================================================
@@ -68,151 +75,56 @@ class Action:
 
 
 # =============================================================================
-# COMBAT STATE (Immutable)
+# HELPER: Card ID encoding
 # =============================================================================
 
-@dataclass
-class EnemyCombatState:
-    """Enemy state within combat (copyable)."""
-    id: str
-    name: str
-    enemy_type: EnemyType
-    current_hp: int
-    max_hp: int
-    block: int = 0
-    strength: int = 0
-    powers: Dict[str, int] = field(default_factory=dict)
-    move_history: List[int] = field(default_factory=list)
-    next_move: Optional[MoveInfo] = None
-    first_turn: bool = True
-
-    def copy(self) -> EnemyCombatState:
-        return EnemyCombatState(
-            id=self.id,
-            name=self.name,
-            enemy_type=self.enemy_type,
-            current_hp=self.current_hp,
-            max_hp=self.max_hp,
-            block=self.block,
-            strength=self.strength,
-            powers=dict(self.powers),
-            move_history=list(self.move_history),
-            next_move=self.next_move,
-            first_turn=self.first_turn,
-        )
-
-    def is_alive(self) -> bool:
-        return self.current_hp > 0
+def encode_card_id(card_id: str, upgraded: bool) -> str:
+    """Encode card ID with upgrade status (e.g., 'Strike_P+')."""
+    if upgraded and not card_id.endswith('+'):
+        return f"{card_id}+"
+    return card_id
 
 
-@dataclass
-class PlayerCombatState:
-    """Player state within combat (copyable)."""
-    current_hp: int
-    max_hp: int
-    energy: int = 3
-    max_energy: int = 3
-    block: int = 0
-
-    # Card piles (stored as card IDs with upgrade status)
-    draw_pile: List[Tuple[str, bool]] = field(default_factory=list)  # (card_id, upgraded)
-    hand: List[Tuple[str, bool]] = field(default_factory=list)
-    discard_pile: List[Tuple[str, bool]] = field(default_factory=list)
-    exhaust_pile: List[Tuple[str, bool]] = field(default_factory=list)
-
-    # Stance
-    stance: StanceID = StanceID.NEUTRAL
-    mantra: int = 0
-
-    # Powers (id -> amount)
-    powers: Dict[str, int] = field(default_factory=dict)
-
-    # Combat tracking
-    cards_played_this_turn: int = 0
-    attacks_played_this_turn: int = 0
-    last_card_type: Optional[CardType] = None
-
-    def copy(self) -> PlayerCombatState:
-        return PlayerCombatState(
-            current_hp=self.current_hp,
-            max_hp=self.max_hp,
-            energy=self.energy,
-            max_energy=self.max_energy,
-            block=self.block,
-            draw_pile=list(self.draw_pile),
-            hand=list(self.hand),
-            discard_pile=list(self.discard_pile),
-            exhaust_pile=list(self.exhaust_pile),
-            stance=self.stance,
-            mantra=self.mantra,
-            powers=dict(self.powers),
-            cards_played_this_turn=self.cards_played_this_turn,
-            attacks_played_this_turn=self.attacks_played_this_turn,
-            last_card_type=self.last_card_type,
-        )
-
-    def has_power(self, power_id: str) -> bool:
-        return power_id in self.powers and self.powers[power_id] > 0
-
-    def get_power(self, power_id: str) -> int:
-        return self.powers.get(power_id, 0)
-
-    def is_alive(self) -> bool:
-        return self.current_hp > 0
+def decode_card_id(card_id: str) -> Tuple[str, bool]:
+    """Decode card ID to (base_id, upgraded)."""
+    if card_id.endswith('+'):
+        return card_id[:-1], True
+    return card_id, False
 
 
-@dataclass
-class SimCombatState:
-    """
-    Complete combat state for simulation.
+# =============================================================================
+# HELPER: MoveInfo storage on EnemyCombatState
+# =============================================================================
 
-    Designed to be copied cheaply for tree search.
-    """
-    player: PlayerCombatState
-    enemies: List[EnemyCombatState]
+def set_enemy_move(enemy: CoreEnemyCombatState, move: Optional[MoveInfo]) -> None:
+    """Set enemy move info using the enemy's fields."""
+    if move is None:
+        enemy.move_id = -1
+        enemy.move_damage = 0
+        enemy.move_hits = 1
+        enemy.move_block = 0
+        enemy.move_effects = {}
+    else:
+        enemy.move_id = move.move_id
+        enemy.move_damage = move.base_damage
+        enemy.move_hits = move.hits
+        enemy.move_block = move.block
+        enemy.move_effects = dict(move.effects) if move.effects else {}
 
-    turn: int = 1
-    combat_over: bool = False
-    player_won: bool = False
 
-    # RNG state (for deterministic simulation)
-    shuffle_rng_state: Tuple[int, int] = (0, 0)  # (seed0, seed1)
-    card_rng_state: Tuple[int, int] = (0, 0)
-    ai_rng_state: Tuple[int, int] = (0, 0)
-
-    # Relic flags
-    has_violet_lotus: bool = False
-    has_barricade: bool = False
-    has_runic_pyramid: bool = False
-
-    # Tracking
-    total_damage_dealt: int = 0
-    total_damage_taken: int = 0
-    total_cards_played: int = 0
-
-    def copy(self) -> SimCombatState:
-        return SimCombatState(
-            player=self.player.copy(),
-            enemies=[e.copy() for e in self.enemies],
-            turn=self.turn,
-            combat_over=self.combat_over,
-            player_won=self.player_won,
-            shuffle_rng_state=self.shuffle_rng_state,
-            card_rng_state=self.card_rng_state,
-            ai_rng_state=self.ai_rng_state,
-            has_violet_lotus=self.has_violet_lotus,
-            has_barricade=self.has_barricade,
-            has_runic_pyramid=self.has_runic_pyramid,
-            total_damage_dealt=self.total_damage_dealt,
-            total_damage_taken=self.total_damage_taken,
-            total_cards_played=self.total_cards_played,
-        )
-
-    def get_living_enemies(self) -> List[EnemyCombatState]:
-        return [e for e in self.enemies if e.is_alive()]
-
-    def all_enemies_dead(self) -> bool:
-        return all(not e.is_alive() for e in self.enemies)
+def get_enemy_move(enemy: CoreEnemyCombatState) -> Optional[MoveInfo]:
+    """Get MoveInfo from enemy's fields."""
+    if enemy.move_id == -1:
+        return None
+    return MoveInfo(
+        move_id=enemy.move_id,
+        name="",  # Name not stored
+        intent=Intent.ATTACK if enemy.move_damage > 0 else Intent.UNKNOWN,
+        base_damage=enemy.move_damage,
+        hits=enemy.move_hits,
+        block=enemy.move_block,
+        effects=dict(enemy.move_effects) if enemy.move_effects else {},
+    )
 
 
 # =============================================================================
@@ -248,6 +160,8 @@ class CombatSimulator:
     1. State is never mutated - all methods return new states
     2. RNG is fully deterministic given initial state
     3. Supports tree search via state copying
+
+    Uses CombatState from core.state.combat as the canonical state representation.
     """
 
     def __init__(
@@ -277,12 +191,13 @@ class CombatSimulator:
         shuffle_rng: Random = None,
         card_rng: Random = None,
         ai_rng: Random = None,
-    ) -> SimCombatState:
+    ) -> CombatState:
         """
         Initialize combat state.
 
         Args:
             deck: List of card IDs (e.g., ["Strike_P", "Defend_P", ...])
+                  Upgraded cards can be marked with '+' suffix
             enemies: List of Enemy objects
             player_hp: Current HP
             player_max_hp: Maximum HP
@@ -294,7 +209,7 @@ class CombatSimulator:
             ai_rng: RNG for enemy AI
 
         Returns:
-            Initial SimCombatState
+            Initial CombatState
         """
         relics = relics or []
         potions = potions or []
@@ -307,19 +222,14 @@ class CombatSimulator:
         if ai_rng is None:
             ai_rng = Random(12347)
 
-        # Build draw pile from deck
-        draw_pile = []
-        for card_id in deck:
-            # Check if card ID includes upgrade marker
-            upgraded = card_id.endswith("+")
-            base_id = card_id.rstrip("+")
-            draw_pile.append((base_id, upgraded))
+        # Build draw pile from deck (keep upgrade markers in card IDs)
+        draw_pile = list(deck)
 
         # Shuffle draw pile
         draw_pile = self._shuffle_pile(draw_pile, shuffle_rng)
 
         # Check relic flags
-        has_violet_lotus = "VioletLotus" in relics
+        has_violet_lotus = "VioletLotus" in relics or "Violet Lotus" in relics
         has_barricade = "Barricade" in relics or any("Barricade" in r for r in relics)
         has_runic_pyramid = "Runic Pyramid" in relics
 
@@ -333,58 +243,97 @@ class CombatSimulator:
                 base_energy = 4
                 break
 
-        # Create player state
-        player = PlayerCombatState(
-            current_hp=player_hp,
-            max_hp=player_max_hp,
-            energy=base_energy,
-            max_energy=base_energy,
-            draw_pile=draw_pile,
-        )
-
         # Convert enemies to combat state
         enemy_states = []
         for enemy in enemies:
             # Roll initial move
             enemy.roll_move()
 
-            enemy_combat = EnemyCombatState(
-                id=enemy.ID,
-                name=enemy.NAME,
-                enemy_type=enemy.TYPE,
-                current_hp=enemy.state.current_hp,
+            enemy_combat = CoreEnemyCombatState(
+                hp=enemy.state.current_hp,
                 max_hp=enemy.state.max_hp,
                 block=enemy.state.block,
-                strength=enemy.state.strength,
-                powers=dict(enemy.state.powers),
+                statuses=dict(enemy.state.powers),
+                id=enemy.ID,
+                name=enemy.NAME,
+                enemy_type=str(enemy.TYPE.value) if hasattr(enemy.TYPE, 'value') else str(enemy.TYPE),
                 move_history=list(enemy.state.move_history),
-                next_move=enemy.state.next_move,
                 first_turn=enemy.state.first_turn,
             )
+            # Set the move info
+            set_enemy_move(enemy_combat, enemy.state.next_move)
+            # Set strength in statuses
+            if enemy.state.strength != 0:
+                enemy_combat.statuses["Strength"] = enemy.state.strength
             enemy_states.append(enemy_combat)
 
-        # Create initial state
-        state = SimCombatState(
-            player=player,
+        # Create initial state using CombatState
+        state = CombatState(
+            player=EntityState(hp=player_hp, max_hp=player_max_hp),
+            energy=base_energy,
+            max_energy=base_energy,
+            stance="Neutral",
+            draw_pile=draw_pile,
+            hand=[],
+            discard_pile=[],
+            exhaust_pile=[],
             enemies=enemy_states,
-            shuffle_rng_state=(shuffle_rng.rng.seed0, shuffle_rng.rng.seed1),
-            card_rng_state=(card_rng.rng.seed0, card_rng.rng.seed1),
-            ai_rng_state=(ai_rng.rng.seed0, ai_rng.rng.seed1),
-            has_violet_lotus=has_violet_lotus,
-            has_barricade=has_barricade,
-            has_runic_pyramid=has_runic_pyramid,
+            potions=potions if potions else ["", "", ""],
+            relics=relics,
+            shuffle_rng_state=(shuffle_rng._rng.seed0, shuffle_rng._rng.seed1),
+            card_rng_state=(card_rng._rng.seed0, card_rng._rng.seed1),
+            ai_rng_state=(ai_rng._rng.seed0, ai_rng._rng.seed1),
         )
+
+        # Store relic flags in relic_counters for quick access
+        if has_violet_lotus:
+            state.relic_counters["_violet_lotus"] = 1
+        if has_barricade:
+            state.relic_counters["_barricade"] = 1
+        if has_runic_pyramid:
+            state.relic_counters["_runic_pyramid"] = 1
 
         # Draw starting hand
         state = self._draw_cards(state, 5)
 
         return state
 
+    def _has_violet_lotus(self, state: CombatState) -> bool:
+        """Check if player has Violet Lotus relic."""
+        return state.relic_counters.get("_violet_lotus", 0) > 0 or state.has_relic("Violet Lotus") or state.has_relic("VioletLotus")
+
+    def _has_barricade(self, state: CombatState) -> bool:
+        """Check if player has Barricade (relic or power)."""
+        return (state.relic_counters.get("_barricade", 0) > 0 or
+                state.has_relic("Barricade") or
+                state.player.statuses.get("Barricade", 0) > 0)
+
+    def _has_runic_pyramid(self, state: CombatState) -> bool:
+        """Check if player has Runic Pyramid relic."""
+        return state.relic_counters.get("_runic_pyramid", 0) > 0 or state.has_relic("Runic Pyramid")
+
+    def _get_stance_id(self, stance_str: str) -> StanceID:
+        """Convert stance string to StanceID enum."""
+        if not stance_str:
+            return StanceID.NEUTRAL
+        # Handle both formats: "Neutral", "neutral", "NEUTRAL", etc.
+        stance_lower = stance_str.lower()
+        if stance_lower == "neutral":
+            return StanceID.NEUTRAL
+        elif stance_lower == "calm":
+            return StanceID.CALM
+        elif stance_lower == "wrath":
+            return StanceID.WRATH
+        elif stance_lower == "divinity":
+            return StanceID.DIVINITY
+        else:
+            return StanceID.NEUTRAL
+
     def _shuffle_pile(
         self,
-        pile: List[Tuple[str, bool]],
+        pile: List[str],
         rng: Random,
-    ) -> List[Tuple[str, bool]]:
+    ) -> List[str]:
         """Shuffle a card pile using Fisher-Yates."""
         result = list(pile)
         n = len(result)
@@ -393,45 +342,40 @@ class CombatSimulator:
             result[i], result[j] = result[j], result[i]
         return result
 
-    def _draw_cards(self, state: SimCombatState, count: int) -> SimCombatState:
+    def _draw_cards(self, state: CombatState, count: int) -> CombatState:
         """Draw cards from draw pile to hand."""
         state = state.copy()
 
         for _ in range(count):
-            if not state.player.draw_pile:
+            if not state.draw_pile:
                 # Shuffle discard into draw
-                if not state.player.discard_pile:
+                if not state.discard_pile:
                     break
 
-                # Create RNG from state
-                rng = Random.__new__(Random)
-                rng.rng = type(rng).__new__(type(rng))
-
                 # Copy discard to draw and shuffle
-                state.player.draw_pile = list(state.player.discard_pile)
-                state.player.discard_pile = []
+                state.draw_pile = list(state.discard_pile)
+                state.discard_pile = []
 
                 # Simple deterministic shuffle based on state
-                n = len(state.player.draw_pile)
+                n = len(state.draw_pile)
                 for i in range(n - 1, 0, -1):
                     # Use a deterministic index based on position and turn
                     j = (state.shuffle_rng_state[0] + i * 7 + state.turn) % (i + 1)
-                    state.player.draw_pile[i], state.player.draw_pile[j] = \
-                        state.player.draw_pile[j], state.player.draw_pile[i]
+                    state.draw_pile[i], state.draw_pile[j] = \
+                        state.draw_pile[j], state.draw_pile[i]
 
-            if state.player.draw_pile:
-                card = state.player.draw_pile.pop()
-                state.player.hand.append(card)
+            if state.draw_pile:
+                card = state.draw_pile.pop()
+                state.hand.append(card)
 
         return state
 
-    def _get_card_from_tuple(self, card_tuple: Tuple[str, bool]) -> Card:
-        """Get a Card object from a (card_id, upgraded) tuple."""
-        card_id, upgraded = card_tuple
-        card = get_card(card_id, upgraded)
-        return card
+    def _get_card(self, card_id: str) -> Card:
+        """Get a Card object from a card ID (with optional '+' suffix for upgraded)."""
+        base_id, upgraded = decode_card_id(card_id)
+        return get_card(base_id, upgraded)
 
-    def get_legal_actions(self, state: SimCombatState) -> List[Action]:
+    def get_legal_actions(self, state: CombatState) -> List[Action]:
         """
         Get all legal actions from current state.
 
@@ -445,8 +389,8 @@ class CombatSimulator:
         actions = []
 
         # Check each card in hand
-        for i, card_tuple in enumerate(state.player.hand):
-            card = self._get_card_from_tuple(card_tuple)
+        for i, card_id in enumerate(state.hand):
+            card = self._get_card(card_id)
 
             if self._can_play_card(state, card, i):
                 # Determine targets
@@ -472,10 +416,10 @@ class CombatSimulator:
 
         return actions
 
-    def _can_play_card(self, state: SimCombatState, card: Card, hand_index: int) -> bool:
+    def _can_play_card(self, state: CombatState, card: Card, hand_index: int) -> bool:
         """Check if a card can be played."""
         # Energy check
-        if card.current_cost > state.player.energy:
+        if card.current_cost > state.energy:
             return False
 
         # Unplayable check (curses, statuses)
@@ -485,19 +429,19 @@ class CombatSimulator:
         # Signature Move check
         if "only_attack_in_hand" in card.effects:
             attacks_in_hand = sum(
-                1 for ct in state.player.hand
-                if self._get_card_from_tuple(ct).card_type == CardType.ATTACK
+                1 for card_id in state.hand
+                if self._get_card(card_id).card_type == CardType.ATTACK
             )
             if attacks_in_hand > 1:
                 return False
 
         # Entangled check
-        if state.player.has_power("Entangled") and card.card_type == CardType.ATTACK:
+        if state.player.statuses.get("Entangled", 0) > 0 and card.card_type == CardType.ATTACK:
             return False
 
         return True
 
-    def execute_action(self, state: SimCombatState, action: Action) -> SimCombatState:
+    def execute_action(self, state: CombatState, action: Action) -> CombatState:
         """
         Execute an action and return new state.
 
@@ -512,35 +456,35 @@ class CombatSimulator:
 
     def _play_card(
         self,
-        state: SimCombatState,
+        state: CombatState,
         hand_index: int,
         target_index: int,
-    ) -> SimCombatState:
+    ) -> CombatState:
         """Play a card from hand."""
         state = state.copy()
 
-        if hand_index >= len(state.player.hand):
+        if hand_index >= len(state.hand):
             return state
 
-        card_tuple = state.player.hand[hand_index]
-        card = self._get_card_from_tuple(card_tuple)
+        card_id = state.hand[hand_index]
+        card = self._get_card(card_id)
 
         if not self._can_play_card(state, card, hand_index):
             return state
 
         # Pay energy
-        state.player.energy -= card.current_cost
+        state.energy -= card.current_cost
 
         # Remove from hand
-        state.player.hand.pop(hand_index)
+        state.hand.pop(hand_index)
 
         # Track card play
-        state.player.cards_played_this_turn += 1
-        state.player.last_card_type = card.card_type
+        state.cards_played_this_turn += 1
+        state.last_card_type = card.card_type.value if hasattr(card.card_type, 'value') else str(card.card_type)
         state.total_cards_played += 1
 
         if card.card_type == CardType.ATTACK:
-            state.player.attacks_played_this_turn += 1
+            state.attacks_played_this_turn += 1
 
         # Get target enemy
         target_enemy = None
@@ -552,13 +496,13 @@ class CombatSimulator:
 
         # Card destination
         if card.exhaust:
-            state.player.exhaust_pile.append(card_tuple)
+            state.exhaust_pile.append(card_id)
         elif card.shuffle_back:
             # Insert at random position in draw pile
-            pos = (state.shuffle_rng_state[0] + state.turn) % (len(state.player.draw_pile) + 1)
-            state.player.draw_pile.insert(pos, card_tuple)
+            pos = (state.shuffle_rng_state[0] + state.turn) % (len(state.draw_pile) + 1)
+            state.draw_pile.insert(pos, card_id)
         else:
-            state.player.discard_pile.append(card_tuple)
+            state.discard_pile.append(card_id)
 
         # Check for end turn effect
         if "end_turn" in card.effects:
@@ -571,18 +515,15 @@ class CombatSimulator:
 
     def _apply_card_effects(
         self,
-        state: SimCombatState,
+        state: CombatState,
         card: Card,
         target_index: int,
-    ) -> SimCombatState:
+    ) -> CombatState:
         """Apply a card's effects."""
-        # Build damage calculation state
-        damage_state = self._build_damage_state(state, target_index)
-
         # Damage
         if card.damage > 0:
             hits = card.magic_number if card.magic_number > 0 and "damage_x_times" in card.effects else 1
-            per_hit_damage = calculate_card_damage(card.damage, damage_state, card.id)
+            per_hit_damage = self._calculate_card_damage(state, card.damage, target_index)
 
             for _ in range(hits):
                 if target_index < len(state.enemies) and state.enemies[target_index].is_alive():
@@ -592,21 +533,21 @@ class CombatSimulator:
                     blocked = min(enemy.block, per_hit_damage)
                     hp_damage = per_hit_damage - blocked
                     enemy.block -= blocked
-                    enemy.current_hp -= hp_damage
+                    enemy.hp -= hp_damage
 
                     state.total_damage_dealt += hp_damage
 
-                    if enemy.current_hp <= 0:
-                        enemy.current_hp = 0
+                    if enemy.hp <= 0:
+                        enemy.hp = 0
 
         # Block
         if card.block > 0:
-            block_gained = calculate_block(card.block, damage_state)
+            block_gained = self._calculate_block_gained(state, card.block)
             state.player.block += block_gained
 
         # Stance changes
         if card.enter_stance:
-            state = self._change_stance(state, StanceID(card.enter_stance.upper()))
+            state = self._change_stance(state, self._get_stance_id(card.enter_stance))
 
         if card.exit_stance:
             state = self._change_stance(state, StanceID.NEUTRAL)
@@ -629,63 +570,61 @@ class CombatSimulator:
 
         return state
 
-    def _build_damage_state(
+    def _calculate_card_damage(
         self,
-        state: SimCombatState,
+        state: CombatState,
+        base_damage: int,
         target_index: int,
-    ) -> DamageCombatState:
-        """Build damage calculation state from combat state."""
-        player_powers = []
+    ) -> int:
+        """Calculate damage for a card attack."""
+        # Get player modifiers
+        strength = state.player.statuses.get("Strength", 0)
+        vigor = state.player.statuses.get("Vigor", 0)
+        weak = state.player.statuses.get("Weak", 0) > 0 or state.player.statuses.get("Weakened", 0) > 0
 
-        # Strength
-        str_amt = state.player.get_power("Strength")
-        if str_amt != 0:
-            player_powers.append(Power("Strength", str_amt))
+        # Get stance multiplier
+        stance_id = self._get_stance_id(state.stance)
+        stance_effect = STANCES[stance_id]
+        stance_mult = stance_effect.damage_give_multiplier
 
-        # Weak
-        if state.player.has_power("Weak") or state.player.has_power("Weakened"):
-            weak_amt = state.player.get_power("Weak") or state.player.get_power("Weakened")
-            player_powers.append(Power("Weak", weak_amt))
-
-        # Vigor
-        vigor = state.player.get_power("Vigor")
-        if vigor > 0:
-            player_powers.append(Power("Vigor", vigor))
-
-        # Dexterity
-        dex = state.player.get_power("Dexterity")
-        if dex != 0:
-            player_powers.append(Power("Dexterity", dex))
-
-        # Frail
-        if state.player.has_power("Frail"):
-            player_powers.append(Power("Frail", 1))
-
-        target_powers = []
+        # Get target modifiers
+        vuln = False
         if target_index < len(state.enemies):
             enemy = state.enemies[target_index]
-            if enemy.powers.get("Vulnerable", 0) > 0:
-                target_powers.append(Power("Vulnerable", 1))
+            vuln = enemy.statuses.get("Vulnerable", 0) > 0
 
-        # Stance multiplier
-        stance_effect = STANCES[state.player.stance]
-        stance_mult = stance_effect.damage_give_multiplier
-        stance_incoming_mult = stance_effect.damage_receive_multiplier
+        return calculate_damage(
+            base=base_damage,
+            strength=strength,
+            vigor=vigor,
+            weak=weak,
+            stance_mult=stance_mult,
+            vuln=vuln,
+        )
 
-        return DamageCombatState(
-            player_powers=player_powers,
-            stance_damage_mult=stance_mult,
-            stance_incoming_mult=stance_incoming_mult,
-            target_powers=target_powers,
+    def _calculate_block_gained(
+        self,
+        state: CombatState,
+        base_block: int,
+    ) -> int:
+        """Calculate block gained from a card."""
+        dexterity = state.player.statuses.get("Dexterity", 0)
+        frail = state.player.statuses.get("Frail", 0) > 0
+
+        return calculate_block(
+            base=base_block,
+            dexterity=dexterity,
+            frail=frail,
         )
 
     def _change_stance(
         self,
-        state: SimCombatState,
+        state: CombatState,
         new_stance: StanceID,
-    ) -> SimCombatState:
+    ) -> CombatState:
         """Change stance and handle effects."""
-        old_stance = state.player.stance
+        old_stance_str = state.stance
+        old_stance = self._get_stance_id(old_stance_str)
 
         if old_stance == new_stance:
             return state
@@ -693,43 +632,45 @@ class CombatSimulator:
         # Exit effects
         if old_stance == StanceID.CALM:
             # Gain energy
-            energy_gain = 3 if state.has_violet_lotus else 2
-            state.player.energy += energy_gain
+            energy_gain = 3 if self._has_violet_lotus(state) else 2
+            state.energy += energy_gain
 
         # Enter effects
         if new_stance == StanceID.DIVINITY:
-            state.player.energy += 3
+            state.energy += 3
 
-        state.player.stance = new_stance
+        state.stance = new_stance.value if hasattr(new_stance, 'value') else str(new_stance)
 
         # Mental Fortress trigger
-        if state.player.has_power("MentalFortress"):
-            state.player.block += state.player.get_power("MentalFortress")
+        mental_fortress = state.player.statuses.get("MentalFortress", 0)
+        if mental_fortress > 0:
+            state.player.block += mental_fortress
 
         # Rushdown trigger
-        if new_stance == StanceID.WRATH and state.player.has_power("Rushdown"):
-            state = self._draw_cards(state, state.player.get_power("Rushdown"))
+        rushdown = state.player.statuses.get("Rushdown", 0)
+        if new_stance == StanceID.WRATH and rushdown > 0:
+            state = self._draw_cards(state, rushdown)
 
         # Flurry of Blows trigger
-        flurries = [(i, ct) for i, ct in enumerate(state.player.discard_pile)
-                    if ct[0] == "FlurryOfBlows"]
-        for i, ct in reversed(flurries):
-            state.player.discard_pile.pop(i)
-            state.player.hand.append(ct)
+        flurries = [(i, card_id) for i, card_id in enumerate(state.discard_pile)
+                    if "FlurryOfBlows" in card_id]
+        for i, card_id in reversed(flurries):
+            state.discard_pile.pop(i)
+            state.hand.append(card_id)
 
         return state
 
-    def _add_mantra(self, state: SimCombatState, amount: int) -> SimCombatState:
+    def _add_mantra(self, state: CombatState, amount: int) -> CombatState:
         """Add mantra and potentially enter Divinity."""
-        state.player.mantra += amount
+        state.mantra += amount
 
-        if state.player.mantra >= 10:
-            state.player.mantra -= 10
+        if state.mantra >= 10:
+            state.mantra -= 10
             state = self._change_stance(state, StanceID.DIVINITY)
 
         return state
 
-    def _apply_power_card(self, state: SimCombatState, card: Card) -> SimCombatState:
+    def _apply_power_card(self, state: CombatState, card: Card) -> CombatState:
         """Apply a power card's effect."""
         power_mapping = {
             "MentalFortress": ("MentalFortress", card.magic_number if card.magic_number > 0 else 4),
@@ -746,34 +687,35 @@ class CombatSimulator:
 
         if card.id in power_mapping:
             power_id, amount = power_mapping[card.id]
-            current = state.player.powers.get(power_id, 0)
-            state.player.powers[power_id] = current + amount
+            current = state.player.statuses.get(power_id, 0)
+            state.player.statuses[power_id] = current + amount
 
         return state
 
-    def _end_player_turn(self, state: SimCombatState) -> SimCombatState:
+    def _end_player_turn(self, state: CombatState) -> CombatState:
         """End the player's turn."""
         state = state.copy()
 
         # Discard hand (unless Runic Pyramid)
-        if not state.has_runic_pyramid:
+        if not self._has_runic_pyramid(state):
             retained = []
-            for card_tuple in state.player.hand:
-                card = self._get_card_from_tuple(card_tuple)
+            for card_id in state.hand:
+                card = self._get_card(card_id)
                 if card.retain:
-                    retained.append(card_tuple)
+                    retained.append(card_id)
                 elif card.ethereal:
-                    state.player.exhaust_pile.append(card_tuple)
+                    state.exhaust_pile.append(card_id)
                 else:
-                    state.player.discard_pile.append(card_tuple)
-            state.player.hand = retained
+                    state.discard_pile.append(card_id)
+            state.hand = retained
 
         # Like Water
-        if state.player.has_power("LikeWater") and state.player.stance == StanceID.CALM:
-            state.player.block += state.player.get_power("LikeWater")
+        like_water = state.player.statuses.get("LikeWater", 0)
+        if like_water > 0 and state.stance == "Calm":
+            state.player.block += like_water
 
         # Divinity auto-exit
-        if state.player.stance == StanceID.DIVINITY:
+        if state.stance == "Divinity" or state.stance == StanceID.DIVINITY.value:
             state = self._change_stance(state, StanceID.NEUTRAL)
 
         # Process enemy turns
@@ -787,7 +729,7 @@ class CombatSimulator:
 
         return state
 
-    def simulate_enemy_turn(self, state: SimCombatState) -> SimCombatState:
+    def simulate_enemy_turn(self, state: CombatState) -> CombatState:
         """Execute all enemy actions."""
         state = state.copy()
 
@@ -795,12 +737,12 @@ class CombatSimulator:
             if not enemy.is_alive():
                 continue
 
-            move = enemy.next_move
+            move = get_enemy_move(enemy)
             if not move:
                 continue
 
             # Apply strength to damage
-            enemy_strength = enemy.strength + enemy.powers.get("strength", 0)
+            enemy_strength = enemy.strength
 
             # Execute attack moves
             if move.intent in [Intent.ATTACK, Intent.ATTACK_BUFF, Intent.ATTACK_DEBUFF, Intent.ATTACK_DEFEND]:
@@ -808,7 +750,8 @@ class CombatSimulator:
                 hits = move.hits
 
                 # Calculate damage with player's stance
-                stance_effect = STANCES[state.player.stance]
+                stance_id = self._get_stance_id(state.stance)
+                stance_effect = STANCES[stance_id]
                 damage_mult = stance_effect.damage_receive_multiplier
 
                 for _ in range(hits):
@@ -818,12 +761,12 @@ class CombatSimulator:
                     blocked = min(state.player.block, damage)
                     hp_damage = damage - blocked
                     state.player.block -= blocked
-                    state.player.current_hp -= hp_damage
+                    state.player.hp -= hp_damage
 
                     state.total_damage_taken += hp_damage
 
-                    if state.player.current_hp <= 0:
-                        state.player.current_hp = 0
+                    if state.player.hp <= 0:
+                        state.player.hp = 0
                         state.combat_over = True
                         state.player_won = False
                         return state
@@ -833,27 +776,28 @@ class CombatSimulator:
                 enemy.block += move.block
 
             # Enemy buffs/debuffs
-            if "strength" in move.effects:
-                enemy.strength += move.effects["strength"]
+            if move.effects:
+                if "strength" in move.effects:
+                    enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + move.effects["strength"]
 
-            if "weak" in move.effects:
-                current = state.player.powers.get("Weakened", 0)
-                state.player.powers["Weakened"] = current + move.effects["weak"]
+                if "weak" in move.effects:
+                    current = state.player.statuses.get("Weakened", 0)
+                    state.player.statuses["Weakened"] = current + move.effects["weak"]
 
-            if "vulnerable" in move.effects:
-                current = state.player.powers.get("Vulnerable", 0)
-                state.player.powers["Vulnerable"] = current + move.effects["vulnerable"]
+                if "vulnerable" in move.effects:
+                    current = state.player.statuses.get("Vulnerable", 0)
+                    state.player.statuses["Vulnerable"] = current + move.effects["vulnerable"]
 
-            if "frail" in move.effects:
-                current = state.player.powers.get("Frail", 0)
-                state.player.powers["Frail"] = current + move.effects["frail"]
+                if "frail" in move.effects:
+                    current = state.player.statuses.get("Frail", 0)
+                    state.player.statuses["Frail"] = current + move.effects["frail"]
 
         # Decrement player debuffs
         for debuff in ["Weakened", "Vulnerable", "Frail"]:
-            if state.player.has_power(debuff):
-                state.player.powers[debuff] -= 1
-                if state.player.powers[debuff] <= 0:
-                    del state.player.powers[debuff]
+            if state.player.statuses.get(debuff, 0) > 0:
+                state.player.statuses[debuff] -= 1
+                if state.player.statuses[debuff] <= 0:
+                    del state.player.statuses[debuff]
 
         # Enemy block decay
         for enemy in state.enemies:
@@ -866,7 +810,7 @@ class CombatSimulator:
 
         return state
 
-    def _roll_enemy_move(self, state: SimCombatState, enemy: EnemyCombatState):
+    def _roll_enemy_move(self, state: CombatState, enemy: CoreEnemyCombatState):
         """Roll next move for an enemy using deterministic logic."""
         # Simplified move rolling - uses state for determinism
         # In practice, would need full enemy AI logic
@@ -875,7 +819,7 @@ class CombatSimulator:
         # Simple pattern: alternate between attack and other moves
         if len(enemy.move_history) == 0 or enemy.move_history[-1] != 1:
             # Attack move
-            enemy.next_move = MoveInfo(
+            move = MoveInfo(
                 move_id=1,
                 name="Attack",
                 intent=Intent.ATTACK,
@@ -884,61 +828,65 @@ class CombatSimulator:
             )
         else:
             # Other move
-            enemy.next_move = MoveInfo(
+            move = MoveInfo(
                 move_id=2,
                 name="Buff",
                 intent=Intent.BUFF,
                 effects={"strength": 1},
             )
 
-        enemy.move_history.append(enemy.next_move.move_id)
+        set_enemy_move(enemy, move)
+        enemy.move_history.append(move.move_id)
 
-    def simulate_turn_end(self, state: SimCombatState) -> SimCombatState:
+    def simulate_turn_end(self, state: CombatState) -> CombatState:
         """Process end of turn: discard hand, tick statuses, etc."""
         return self._end_player_turn(state)
 
-    def simulate_turn_start(self, state: SimCombatState) -> SimCombatState:
+    def simulate_turn_start(self, state: CombatState) -> CombatState:
         """Process start of turn: draw cards, reset energy, etc."""
         state = state.copy()
 
         state.turn += 1
 
         # Reset energy
-        state.player.energy = state.player.max_energy
+        state.energy = state.max_energy
 
         # Lose block (unless Barricade)
-        if not state.has_barricade and not state.player.has_power("Barricade"):
+        if not self._has_barricade(state):
             state.player.block = 0
 
         # Reset turn counters
-        state.player.cards_played_this_turn = 0
-        state.player.attacks_played_this_turn = 0
-        state.player.last_card_type = None
+        state.cards_played_this_turn = 0
+        state.attacks_played_this_turn = 0
+        state.last_card_type = ""
 
         # Draw cards
         draw_count = 5
-        if state.player.has_power("NoDraw") or state.player.has_power("No Draw"):
+        no_draw = state.player.statuses.get("NoDraw", 0) > 0 or state.player.statuses.get("No Draw", 0) > 0
+        if no_draw:
             draw_count = 0
 
         state = self._draw_cards(state, draw_count)
 
         # Deva Form energy
-        if state.player.has_power("DevaForm"):
-            state.player.energy += state.player.get_power("DevaForm")
-            state.player.powers["DevaForm"] = state.player.get_power("DevaForm") + 1
+        deva_form = state.player.statuses.get("DevaForm", 0)
+        if deva_form > 0:
+            state.energy += deva_form
+            state.player.statuses["DevaForm"] = deva_form + 1
 
         # Devotion mantra
-        if state.player.has_power("Devotion"):
-            state = self._add_mantra(state, state.player.get_power("Devotion"))
+        devotion = state.player.statuses.get("Devotion", 0)
+        if devotion > 0:
+            state = self._add_mantra(state, devotion)
 
         return state
 
-    def _check_combat_end(self, state: SimCombatState) -> SimCombatState:
+    def _check_combat_end(self, state: CombatState) -> CombatState:
         """Check if combat should end."""
         if state.all_enemies_dead():
             state.combat_over = True
             state.player_won = True
-        elif not state.player.is_alive():
+        elif state.player.is_dead:
             state.combat_over = True
             state.player_won = False
 
@@ -946,8 +894,8 @@ class CombatSimulator:
 
     def simulate_full_combat(
         self,
-        state: SimCombatState,
-        policy: Callable[[SimCombatState], Action],
+        state: CombatState,
+        policy: Callable[[CombatState], Action],
         max_turns: int = 100,
     ) -> CombatResult:
         """
@@ -964,7 +912,7 @@ class CombatSimulator:
         cards_played_sequence = []
         energy_spent = 0
         stance_changes = 0
-        initial_hp = state.player.current_hp
+        initial_hp = state.player.hp
 
         while not state.combat_over and state.turn <= max_turns:
             actions = self.get_legal_actions(state)
@@ -975,21 +923,21 @@ class CombatSimulator:
 
             # Track card plays
             if action.action_type == ActionType.PLAY_CARD:
-                card_tuple = state.player.hand[action.card_index]
-                card = self._get_card_from_tuple(card_tuple)
+                card_id = state.hand[action.card_index]
+                card = self._get_card(card_id)
                 cards_played_sequence.append(card.id)
                 energy_spent += card.current_cost
 
-            old_stance = state.player.stance
+            old_stance = state.stance
             state = self.execute_action(state, action)
 
-            if state.player.stance != old_stance:
+            if state.stance != old_stance:
                 stance_changes += 1
 
         return CombatResult(
             victory=state.player_won,
-            hp_remaining=state.player.current_hp,
-            hp_lost=initial_hp - state.player.current_hp + state.total_damage_taken,
+            hp_remaining=state.player.hp,
+            hp_lost=initial_hp - state.player.hp + state.total_damage_taken,
             turns=state.turn,
             cards_played=state.total_cards_played,
             damage_dealt=state.total_damage_dealt,
@@ -999,13 +947,13 @@ class CombatSimulator:
             energy_spent=energy_spent,
         )
 
-    def random_policy(self, state: SimCombatState) -> Action:
+    def random_policy(self, state: CombatState) -> Action:
         """Random legal action - baseline policy."""
         import random
         actions = self.get_legal_actions(state)
         return random.choice(actions) if actions else Action(ActionType.END_TURN)
 
-    def greedy_policy(self, state: SimCombatState) -> Action:
+    def greedy_policy(self, state: CombatState) -> Action:
         """
         Greedy policy: maximize immediate damage or block.
 
@@ -1029,27 +977,26 @@ class CombatSimulator:
         incoming_damage = self._estimate_incoming_damage(state)
 
         # Get total enemy HP
-        total_enemy_hp = sum(e.current_hp for e in state.enemies if e.is_alive())
+        total_enemy_hp = sum(e.hp for e in state.enemies if e.is_alive())
 
         for action in actions:
             if action.action_type == ActionType.END_TURN:
                 # End turn has base score of 0
                 score = 0
             else:
-                card_tuple = state.player.hand[action.card_index]
-                card = self._get_card_from_tuple(card_tuple)
+                card_id = state.hand[action.card_index]
+                card = self._get_card(card_id)
 
                 # Calculate damage output
-                damage_state = self._build_damage_state(state, action.target_index)
                 damage = 0
                 if card.damage > 0:
                     hits = card.magic_number if card.magic_number > 0 and "damage_x_times" in card.effects else 1
-                    damage = calculate_card_damage(card.damage, damage_state, card.id) * hits
+                    damage = self._calculate_card_damage(state, card.damage, action.target_index) * hits
 
                 # Calculate block
                 block = 0
                 if card.block > 0:
-                    block = calculate_block(card.block, damage_state)
+                    block = self._calculate_block_gained(state, card.block)
 
                 # Scoring
                 score = 0
@@ -1074,8 +1021,8 @@ class CombatSimulator:
                 if card.enter_stance == "Wrath":
                     # Wrath is good if we have attacks to follow up
                     attacks_in_hand = sum(
-                        1 for ct in state.player.hand
-                        if self._get_card_from_tuple(ct).card_type == CardType.ATTACK
+                        1 for card_id in state.hand
+                        if self._get_card(card_id).card_type == CardType.ATTACK
                     )
                     if attacks_in_hand > 1:
                         score += 20
@@ -1103,7 +1050,7 @@ class CombatSimulator:
 
         return best_action
 
-    def _estimate_incoming_damage(self, state: SimCombatState) -> int:
+    def _estimate_incoming_damage(self, state: CombatState) -> int:
         """Estimate total incoming damage from enemies."""
         total = 0
 
@@ -1111,7 +1058,7 @@ class CombatSimulator:
             if not enemy.is_alive():
                 continue
 
-            move = enemy.next_move
+            move = get_enemy_move(enemy)
             if not move:
                 continue
 
@@ -1119,7 +1066,8 @@ class CombatSimulator:
                 damage = move.base_damage + enemy.strength
 
                 # Apply stance multiplier
-                stance_effect = STANCES[state.player.stance]
+                stance_id = self._get_stance_id(state.stance)
+                stance_effect = STANCES[stance_id]
                 damage = int(damage * stance_effect.damage_receive_multiplier)
 
                 total += damage * move.hits
@@ -1145,7 +1093,7 @@ if __name__ == "__main__":
     ]
 
     # Create enemy
-    from enemies import JawWorm
+    from ..content.enemies import JawWorm
     ai_rng = Random(12345)
     hp_rng = Random(12346)
     enemies = [JawWorm(ai_rng, ascension=0, hp_rng=hp_rng)]
@@ -1160,11 +1108,12 @@ if __name__ == "__main__":
     )
 
     print(f"Initial state:")
-    print(f"  Player HP: {state.player.current_hp}/{state.player.max_hp}")
-    print(f"  Energy: {state.player.energy}")
-    print(f"  Hand: {[ct[0] for ct in state.player.hand]}")
-    print(f"  Enemy: {state.enemies[0].name} - {state.enemies[0].current_hp} HP")
-    print(f"  Enemy intent: {state.enemies[0].next_move.intent.value if state.enemies[0].next_move else 'None'}")
+    print(f"  Player HP: {state.player.hp}/{state.player.max_hp}")
+    print(f"  Energy: {state.energy}")
+    print(f"  Hand: {state.hand}")
+    print(f"  Enemy: {state.enemies[0].name} - {state.enemies[0].hp} HP")
+    move = get_enemy_move(state.enemies[0])
+    print(f"  Enemy intent: {move.intent.value if move else 'None'}")
 
     # Run with greedy policy
     print("\n--- Running with greedy policy ---")

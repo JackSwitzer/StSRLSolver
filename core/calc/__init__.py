@@ -27,13 +27,21 @@ from .damage import (
 
 from .combat_sim import (
     CombatSimulator,
-    SimCombatState,
     CombatResult,
     Action,
     ActionType,
-    PlayerCombatState,
-    EnemyCombatState as SimEnemyState,
+    encode_card_id,
+    decode_card_id,
+    set_enemy_move,
+    get_enemy_move,
 )
+
+# Re-export CombatState from canonical location for backwards compatibility
+from ..state.combat import CombatState, EnemyCombatState, EntityState
+
+# Backwards compatibility aliases
+SimCombatState = CombatState  # Alias for legacy code
+SimEnemyState = EnemyCombatState  # Alias for legacy code
 
 __all__ = [
     # Damage calculation
@@ -55,10 +63,17 @@ __all__ = [
     "FLIGHT_MULT",
     # Combat simulation
     "CombatSimulator",
-    "SimCombatState",
+    "CombatState",
+    "SimCombatState",  # Backwards compatibility alias
     "CombatResult",
     "Action",
     "ActionType",
-    "PlayerCombatState",
-    "SimEnemyState",
+    "EnemyCombatState",
+    "EntityState",
+    "SimEnemyState",  # Backwards compatibility alias
+    # Card ID helpers
+    "encode_card_id",
+    "decode_card_id",
+    "set_enemy_move",
+    "get_enemy_move",
 ]

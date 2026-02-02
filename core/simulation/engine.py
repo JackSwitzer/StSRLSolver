@@ -13,6 +13,9 @@ Performance optimizations:
 - Batch processing to minimize IPC overhead
 - Efficient state serialization (pickle protocol 5)
 - Shared memory for immutable data (card/enemy definitions)
+
+NOTE: Simulation logic is delegated to CombatSimulator from core.calc.combat_sim.
+This module focuses on parallel orchestration, not simulation mechanics.
 """
 
 from __future__ import annotations
@@ -31,6 +34,44 @@ from typing import (
 from ..state.combat import CombatState, Action, PlayCard, EndTurn
 from ..state.run import RunState
 from ..state.rng import Random, seed_to_long
+from ..calc.combat_sim import (
+    CombatSimulator,
+    Action as SimAction,
+    ActionType as SimActionType,
+    CombatResult as SimCombatResult,
+)
+
+
+# =============================================================================
+# Action Type Conversion Helpers
+# =============================================================================
+
+def _state_action_to_sim_action(action: Action) -> SimAction:
+    """Convert state.combat Action to calc.combat_sim Action."""
+    if isinstance(action, PlayCard):
+        return SimAction(
+            action_type=SimActionType.PLAY_CARD,
+            card_index=action.card_idx,
+            target_index=action.target_idx if action.target_idx >= 0 else 0,
+        )
+    elif isinstance(action, EndTurn):
+        return SimAction(action_type=SimActionType.END_TURN)
+    else:
+        # UsePotion or unknown
+        return SimAction(action_type=SimActionType.END_TURN)
+
+
+def _sim_action_to_state_action(action: SimAction) -> Action:
+    """Convert calc.combat_sim Action to state.combat Action."""
+    if action.action_type == SimActionType.PLAY_CARD:
+        return PlayCard(
+            card_idx=action.card_index,
+            target_idx=action.target_index,
+        )
+    elif action.action_type == SimActionType.END_TURN:
+        return EndTurn()
+    else:
+        return EndTurn()
 
 
 # =============================================================================
@@ -450,8 +491,12 @@ class ParallelSimulator:
 
         start_time = time.perf_counter()
 
-        # Get legal actions
-        legal_actions = combat_state.get_legal_actions()
+        # Get legal actions using CombatSimulator
+        simulator = CombatSimulator()
+        sim_legal_actions = simulator.get_legal_actions(combat_state)
+        # Convert to state.combat Actions for MCTS
+        legal_actions = [_sim_action_to_state_action(a) for a in sim_legal_actions]
+
         if len(legal_actions) <= 1:
             return MCTSResult(
                 best_action=legal_actions[0] if legal_actions else EndTurn(),
@@ -679,82 +724,88 @@ def _simulate_combat_internal(
     max_turns: int,
     policy: Optional[Callable[[CombatState], Action]],
 ) -> CombatSimResult:
-    """Internal function to simulate a combat."""
+    """
+    Internal function to simulate a combat using CombatSimulator.
+
+    Delegates to CombatSimulator for actual simulation logic.
+    This function handles:
+    - Converting between action types
+    - Wrapping policy functions
+    - Executing initial actions before rollout
+    """
     import random
+
+    # Create simulator instance (stateless, lightweight)
+    simulator = CombatSimulator()
 
     current_state = state.copy()
     actions_taken = []
-    cards_played = 0
-    damage_dealt = 0
-    damage_taken = 0
     initial_hp = current_state.player.hp
 
-    # Execute initial actions
+    # Execute initial actions using CombatSimulator
     for action in initial_actions:
-        if current_state.is_terminal():
+        if current_state.combat_over:
             break
-        current_state = _apply_action(current_state, action)
+        # Convert to simulator action type
+        sim_action = _state_action_to_sim_action(action)
+        current_state = simulator.execute_action(current_state, sim_action)
         actions_taken.append(action)
-        if isinstance(action, PlayCard):
-            cards_played += 1
 
-    # Random rollout
-    turn = 0
-    while not current_state.is_terminal() and turn < max_turns:
-        legal_actions = current_state.get_legal_actions()
-        if not legal_actions:
-            break
+    # If combat already over, return early
+    if current_state.combat_over:
+        hp_lost = initial_hp - current_state.player.hp
+        return CombatSimResult(
+            victory=current_state.player_won,
+            hp_remaining=current_state.player.hp,
+            hp_lost=hp_lost,
+            turns=current_state.turn,
+            cards_played=current_state.total_cards_played,
+            damage_dealt=current_state.total_damage_dealt,
+            damage_taken=hp_lost,
+            final_state=current_state,
+            action_sequence=actions_taken,
+        )
 
+    # Create a policy wrapper for CombatSimulator
+    def sim_policy(s: CombatState) -> SimAction:
         if policy:
-            action = policy(current_state)
+            # Policy returns state.combat Action, need to convert
+            state_action = policy(s)
+            return _state_action_to_sim_action(state_action)
         else:
-            action = random.choice(legal_actions)
+            # Random policy using simulator's action format
+            return simulator.random_policy(s)
 
-        current_state = _apply_action(current_state, action)
-        actions_taken.append(action)
+    # Run simulation to completion
+    result = simulator.simulate_full_combat(current_state, sim_policy, max_turns)
 
-        if isinstance(action, PlayCard):
-            cards_played += 1
-
-        if isinstance(action, EndTurn):
-            turn += 1
-
-    hp_lost = initial_hp - current_state.player.hp
+    # Convert result back to CombatSimResult
+    # Note: action_sequence only includes initial_actions since simulate_full_combat
+    # doesn't return the full sequence (but we tracked the initial ones)
+    hp_lost = initial_hp - result.hp_remaining
 
     return CombatSimResult(
-        victory=current_state.is_victory(),
-        hp_remaining=current_state.player.hp,
+        victory=result.victory,
+        hp_remaining=result.hp_remaining,
         hp_lost=hp_lost,
-        turns=turn,
-        cards_played=cards_played,
-        damage_dealt=damage_dealt,
-        damage_taken=hp_lost,
-        final_state=current_state,
-        action_sequence=actions_taken,
+        turns=result.turns,
+        cards_played=result.cards_played,
+        damage_dealt=result.damage_dealt,
+        damage_taken=result.damage_taken,
+        final_state=None,  # Not available from simulate_full_combat
+        action_sequence=actions_taken,  # Only initial actions tracked
     )
 
 
 def _apply_action(state: CombatState, action: Action) -> CombatState:
-    """Apply an action to a combat state and return new state."""
-    # This is a simplified action application
-    # Full implementation would use the combat simulator
-    new_state = state.copy()
+    """
+    Apply an action to a combat state and return new state.
 
-    if isinstance(action, PlayCard):
-        # Remove card from hand
-        if action.card_idx < len(new_state.hand):
-            card_id = new_state.hand.pop(action.card_idx)
-            new_state.discard_pile.append(card_id)
-            new_state.energy = max(0, new_state.energy - 1)
-            new_state.cards_played_this_turn += 1
-
-    elif isinstance(action, EndTurn):
-        # End turn - simple version
-        new_state.turn += 1
-        new_state.cards_played_this_turn = 0
-        # Would process enemy turn here
-
-    return new_state
+    Delegates to CombatSimulator for proper game mechanics.
+    """
+    simulator = CombatSimulator()
+    sim_action = _state_action_to_sim_action(action)
+    return simulator.execute_action(state, sim_action)
 
 
 # =============================================================================
@@ -822,13 +873,20 @@ def _mcts_search(
             action = random.choice(node.untried_actions)
             node.untried_actions.remove(action)
 
-            # Apply action to get new state
+            # Apply action to get new state using CombatSimulator
             new_state = _apply_action(node.state, action)
+
+            # Get legal actions for the new state using CombatSimulator
+            simulator = CombatSimulator()
+            sim_legal_actions = simulator.get_legal_actions(new_state)
+            # Convert SimActions to state Actions
+            state_legal_actions = [_sim_action_to_state_action(a) for a in sim_legal_actions]
+
             child = _MCTSNode(
                 state=new_state,
                 parent=node,
                 action=action,
-                untried_actions=list(new_state.get_legal_actions()),
+                untried_actions=state_legal_actions,
             )
             action_key = repr(action)
             node.children[action_key] = child
@@ -895,7 +953,12 @@ def _mcts_search_worker(
 ) -> MCTSResult:
     """Worker function for parallel MCTS search."""
     state = pickle.loads(state_bytes)
-    legal_actions = state.get_legal_actions()
+
+    # Get legal actions using CombatSimulator
+    simulator = CombatSimulator()
+    sim_legal_actions = simulator.get_legal_actions(state)
+    # Convert to state.combat Actions for MCTS
+    legal_actions = [_sim_action_to_state_action(a) for a in sim_legal_actions]
 
     # Run search (no executor for nested parallelism)
     return _mcts_search(

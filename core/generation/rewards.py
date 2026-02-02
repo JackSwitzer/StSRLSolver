@@ -41,6 +41,9 @@ Card = _cards_module.Card
 CardRarity = _cards_module.CardRarity
 CardColor = _cards_module.CardColor
 CardType = _cards_module.CardType
+IRONCLAD_CARDS = _cards_module.IRONCLAD_CARDS
+SILENT_CARDS = _cards_module.SILENT_CARDS
+DEFECT_CARDS = _cards_module.DEFECT_CARDS
 WATCHER_CARDS = _cards_module.WATCHER_CARDS
 COLORLESS_CARDS = _cards_module.COLORLESS_CARDS
 CURSE_CARDS = _cards_module.CURSE_CARDS
@@ -287,14 +290,13 @@ def _get_card_pool(
     card rewards.
 
     Args:
-        player_class: "WATCHER", "IRONCLAD", etc.
+        player_class: "WATCHER", "IRONCLAD", "SILENT", "DEFECT"
         rarity: The rarity to filter by
         has_prismatic_shard: Can get cards from any class
 
     Returns:
         List of cards matching the rarity, in HashMap iteration order
     """
-    # Get card IDs in Java HashMap iteration order for this rarity
     rarity_str = rarity.name  # "COMMON", "UNCOMMON", "RARE"
 
     # Import the card library order module (handles its own imports)
@@ -302,15 +304,36 @@ def _get_card_pool(
         "card_library_order",
         os.path.join(_core_dir, "utils", "card_library_order.py")
     )
-    pool_order = _card_lib_module.get_watcher_pool_by_rarity(rarity_str)
 
     if has_prismatic_shard:
-        # All cards from all classes - for now just return Watcher + colorless
-        # In full implementation, would include all class cards
-        cards_dict = {**WATCHER_CARDS, **COLORLESS_CARDS}
+        # All cards from all classes
+        cards_dict = {
+            **IRONCLAD_CARDS,
+            **SILENT_CARDS,
+            **DEFECT_CARDS,
+            **WATCHER_CARDS,
+            **COLORLESS_CARDS,
+        }
+        # Combine all pool orders for prismatic shard
+        pool_order = (
+            _card_lib_module.get_ironclad_pool_by_rarity(rarity_str) +
+            _card_lib_module.get_silent_pool_by_rarity(rarity_str) +
+            _card_lib_module.get_defect_pool_by_rarity(rarity_str) +
+            _card_lib_module.get_watcher_pool_by_rarity(rarity_str)
+        )
+    elif player_class == "IRONCLAD":
+        cards_dict = IRONCLAD_CARDS
+        pool_order = _card_lib_module.get_ironclad_pool_by_rarity(rarity_str)
+    elif player_class == "SILENT":
+        cards_dict = SILENT_CARDS
+        pool_order = _card_lib_module.get_silent_pool_by_rarity(rarity_str)
+    elif player_class == "DEFECT":
+        cards_dict = DEFECT_CARDS
+        pool_order = _card_lib_module.get_defect_pool_by_rarity(rarity_str)
     else:
-        # Watcher cards only for now
+        # Default to Watcher
         cards_dict = WATCHER_CARDS
+        pool_order = _card_lib_module.get_watcher_pool_by_rarity(rarity_str)
 
     # Build pool in HashMap iteration order
     pool = []

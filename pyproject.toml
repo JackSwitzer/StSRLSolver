@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*"]
+include = ["core*", "tools*", "ui*"]
 
 [project]
 name = "stsrl"
@@ -14,6 +14,9 @@ dependencies = [
     "flask>=3.1.2",
     "google-genai>=1.59.0",
     "numpy>=1.24.0",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "dearpygui>=2.1.1",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +41,9 @@ data = [
     "beautifulsoup4>=4.12.0",
     "aiohttp>=3.9.0",
 ]
+
+[project.scripts]
+sts-launcher = "tools.launcher:main"
 
 # =============================================================================
 # Pytest Configuration

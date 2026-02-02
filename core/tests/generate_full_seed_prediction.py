@@ -35,8 +35,10 @@ from core.generation.map import (
     get_map_seed_offset, map_to_string
 )
 from core.generation.encounters import (
-    generate_exordium_encounters, get_enemy_hp, ENEMY_HP_RANGES,
-    normalize_weights, roll_monster, populate_monster_list, MonsterInfo
+    generate_exordium_encounters, generate_ending_encounters,
+    get_enemy_hp, ENEMY_HP_RANGES,
+    normalize_weights, roll_monster, populate_monster_list, MonsterInfo,
+    ENDING_ELITE, ENDING_BOSS,
 )
 from core.generation.rewards import (
     RewardState, generate_card_rewards, generate_gold_reward,
@@ -406,8 +408,7 @@ def predict_full_game(seed_str: str, ascension: int = 20, neow_option: str = "HU
             normal_encounters, elite_encounters = generate_beyond_encounters(monster_rng)
         else:
             # Act 4 has fixed encounters
-            normal_encounters = []
-            elite_encounters = ["Shield and Spear"]
+            normal_encounters, elite_encounters, _ = generate_ending_encounters()
 
         act_data["encounters"]["normal"] = normal_encounters
         act_data["encounters"]["elite"] = elite_encounters

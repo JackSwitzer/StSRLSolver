@@ -122,11 +122,15 @@ class EnemyCombatState(EntityState):
     """Enemy state in combat."""
 
     id: str = ""
+    name: str = ""  # Display name
+    enemy_type: str = ""  # Enemy type for categorization (e.g., "NORMAL", "ELITE", "BOSS")
     move_id: int = -1  # Current intended move
     move_damage: int = 0
     move_hits: int = 1
     move_block: int = 0
     move_effects: Dict[str, int] = field(default_factory=dict)
+    move_history: List[int] = field(default_factory=list)  # History of move IDs for AI patterns
+    first_turn: bool = True  # Whether this is the enemy's first turn
 
     def copy(self) -> EnemyCombatState:
         """Create a shallow copy with copied dicts."""
@@ -136,11 +140,15 @@ class EnemyCombatState(EntityState):
             block=self.block,
             statuses=self.statuses.copy(),
             id=self.id,
+            name=self.name,
+            enemy_type=self.enemy_type,
             move_id=self.move_id,
             move_damage=self.move_damage,
             move_hits=self.move_hits,
             move_block=self.move_block,
             move_effects=self.move_effects.copy(),
+            move_history=self.move_history.copy(),
+            first_turn=self.first_turn,
         )
 
     @property
@@ -152,6 +160,15 @@ class EnemyCombatState(EntityState):
     def total_incoming_damage(self) -> int:
         """Total damage this enemy will deal with current move."""
         return self.move_damage * self.move_hits
+
+    @property
+    def strength(self) -> int:
+        """Get enemy strength from statuses."""
+        return self.statuses.get("Strength", 0)
+
+    def is_alive(self) -> bool:
+        """Check if enemy is alive."""
+        return self.hp > 0
 
 
 # =============================================================================
@@ -175,6 +192,7 @@ class CombatState:
     stance: str = "Neutral"
 
     # Card piles (as lists of card IDs for speed)
+    # Note: Upgrade status can be encoded in card ID (e.g., "Strike+" or "Strike_P+")
     hand: List[str] = field(default_factory=list)
     draw_pile: List[str] = field(default_factory=list)
     discard_pile: List[str] = field(default_factory=list)
@@ -192,6 +210,22 @@ class CombatState:
     attacks_played_this_turn: int = 0
     skills_played_this_turn: int = 0
     powers_played_this_turn: int = 0
+    combat_over: bool = False
+    player_won: bool = False
+
+    # Watcher-specific tracking
+    mantra: int = 0
+    last_card_type: str = ""  # "ATTACK", "SKILL", "POWER", or ""
+
+    # RNG state for deterministic simulation (seed0, seed1)
+    shuffle_rng_state: tuple = (0, 0)
+    card_rng_state: tuple = (0, 0)
+    ai_rng_state: tuple = (0, 0)
+
+    # Combat statistics
+    total_damage_dealt: int = 0
+    total_damage_taken: int = 0
+    total_cards_played: int = 0
 
     # Relic counters (only combat-relevant state)
     relic_counters: Dict[str, int] = field(default_factory=dict)
@@ -234,6 +268,19 @@ class CombatState:
             attacks_played_this_turn=self.attacks_played_this_turn,
             skills_played_this_turn=self.skills_played_this_turn,
             powers_played_this_turn=self.powers_played_this_turn,
+            combat_over=self.combat_over,
+            player_won=self.player_won,
+            # Watcher-specific
+            mantra=self.mantra,
+            last_card_type=self.last_card_type,
+            # RNG state
+            shuffle_rng_state=self.shuffle_rng_state,
+            card_rng_state=self.card_rng_state,
+            ai_rng_state=self.ai_rng_state,
+            # Combat statistics
+            total_damage_dealt=self.total_damage_dealt,
+            total_damage_taken=self.total_damage_taken,
+            total_cards_played=self.total_cards_played,
             # Relic counters - shallow copy (string keys, int values)
             relic_counters=self.relic_counters.copy(),
             relics=self.relics.copy(),
@@ -252,6 +299,14 @@ class CombatState:
     def is_terminal(self) -> bool:
         """Check if combat has ended (victory or defeat)."""
         return self.is_victory() or self.is_defeat()
+
+    def get_living_enemies(self) -> List[EnemyCombatState]:
+        """Get list of living enemies (alias for living_enemies)."""
+        return [e for e in self.enemies if not e.is_dead]
+
+    def all_enemies_dead(self) -> bool:
+        """Check if all enemies are dead."""
+        return all(e.is_dead for e in self.enemies)
 
     # -------------------------------------------------------------------------
     # Action Generation
@@ -440,6 +495,8 @@ def create_enemy(
     id: str,
     hp: int,
     max_hp: int = None,
+    name: str = None,
+    enemy_type: str = "NORMAL",
     move_id: int = -1,
     move_damage: int = 0,
     move_hits: int = 1,
@@ -450,6 +507,8 @@ def create_enemy(
         hp=hp,
         max_hp=max_hp or hp,
         id=id,
+        name=name or id,  # Use id as name if not provided
+        enemy_type=enemy_type,
         move_id=move_id,
         move_damage=move_damage,
         move_hits=move_hits,

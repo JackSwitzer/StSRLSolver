@@ -226,11 +226,13 @@ CERAMIC_FISH = Relic(
 
 DAMARU = Relic(
     id="Damaru", name="Damaru", tier=RelicTier.COMMON,
+    player_class=PlayerClass.WATCHER,
     effects=["atTurnStart: Gain 1 Mantra"],
 )
 
 DATA_DISK = Relic(
     id="DataDisk", name="Data Disk", tier=RelicTier.COMMON,
+    player_class=PlayerClass.DEFECT,
     effects=["atBattleStart: Gain 1 Focus"],
 )
 
@@ -318,6 +320,7 @@ SMILING_MASK = Relic(
 
 SNECKO_SKULL = Relic(
     id="Snake Skull", name="Snecko Skull", tier=RelicTier.COMMON,
+    player_class=PlayerClass.SILENT,
     effects=["Whenever you apply Poison, apply 1 additional Poison"],
 )
 
@@ -360,6 +363,7 @@ WHETSTONE = Relic(
 
 RED_SKULL = Relic(
     id="Red Skull", name="Red Skull", tier=RelicTier.COMMON,
+    player_class=PlayerClass.IRONCLAD,
     effects=["onBloodied (HP <= 50%): Gain 3 Strength. Lose when healed above 50%"],
 )
 
@@ -404,6 +408,7 @@ FROZEN_EGG = Relic(
 
 GOLD_PLATED_CABLES = Relic(
     id="Cables", name="Gold-Plated Cables", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.DEFECT,
     effects=["Your rightmost Orb triggers its passive an additional time"],
 )
 
@@ -463,6 +468,7 @@ MUMMIFIED_HAND = Relic(
 
 NINJA_SCROLL = Relic(
     id="Ninja Scroll", name="Ninja Scroll", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.SILENT,
     effects=["atBattleStartPreDraw: Add 3 Shivs to hand"],
 )
 
@@ -479,11 +485,13 @@ PANTOGRAPH = Relic(
 
 PAPER_CRANE = Relic(
     id="Paper Crane", name="Paper Crane", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.SILENT,
     effects=["Enemies with Weak deal 40% less damage instead of 25%"],
 )
 
 PAPER_FROG = Relic(
     id="Paper Frog", name="Paper Frog", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.IRONCLAD,
     effects=["Enemies with Vulnerable take 75% more damage instead of 50%"],
 )
 
@@ -500,6 +508,7 @@ QUESTION_CARD = Relic(
 
 SELF_FORMING_CLAY = Relic(
     id="Self Forming Clay", name="Self Forming Clay", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.IRONCLAD,
     effects=["wasHPLost: Gain 3 Block next turn"],
 )
 
@@ -527,11 +536,13 @@ SUNDIAL = Relic(
 
 SYMBIOTIC_VIRUS = Relic(
     id="Symbiotic Virus", name="Symbiotic Virus", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.DEFECT,
     effects=["atPreBattle: Channel 1 Dark orb"],
 )
 
 TEARDROP_LOCKET = Relic(
     id="TeardropLocket", name="Teardrop Locket", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.WATCHER,
     effects=["atBattleStart: Enter Calm"],
 )
 
@@ -552,6 +563,7 @@ WHITE_BEAST_STATUE = Relic(
 
 DUALITY = Relic(
     id="Yang", name="Duality", tier=RelicTier.UNCOMMON,
+    player_class=PlayerClass.WATCHER,
     effects=["onUseCard (attack): Gain 1 Dexterity this turn"],
 )
 
@@ -583,16 +595,19 @@ CAPTAINS_WHEEL = Relic(
 
 CHARONS_ASHES = Relic(
     id="Charon's Ashes", name="Charon's Ashes", tier=RelicTier.RARE,
+    player_class=PlayerClass.IRONCLAD,
     effects=["onExhaust: Deal 3 damage to ALL enemies"],
 )
 
 CHAMPIONS_BELT = Relic(
     id="Champion Belt", name="Champion Belt", tier=RelicTier.RARE,
+    player_class=PlayerClass.IRONCLAD,
     effects=["Whenever you apply Vulnerable, also apply 1 Weak"],
 )
 
 CLOAK_CLASP = Relic(
     id="CloakClasp", name="Cloak Clasp", tier=RelicTier.RARE,
+    player_class=PlayerClass.WATCHER,
     effects=["onPlayerEndTurn: Gain 1 Block per card in hand"],
 )
 
@@ -608,6 +623,7 @@ DU_VU_DOLL = Relic(
 
 EMOTION_CHIP = Relic(
     id="Emotion Chip", name="Emotion Chip", tier=RelicTier.RARE,
+    player_class=PlayerClass.DEFECT,
     effects=["wasHPLost (once per combat): Trigger passive of all Orbs"],
 )
 
@@ -634,6 +650,7 @@ GIRYA = Relic(
 
 GOLDEN_EYE = Relic(
     id="GoldenEye", name="Golden Eye", tier=RelicTier.RARE,
+    player_class=PlayerClass.WATCHER,
     effects=["onScry: Scry 2 additional cards"],
 )
 
@@ -655,6 +672,7 @@ LIZARD_TAIL = Relic(
 
 MAGIC_FLOWER = Relic(
     id="Magic Flower", name="Magic Flower", tier=RelicTier.RARE,
+    player_class=PlayerClass.IRONCLAD,
     effects=["Healing is 50% more effective"],
 )
 
@@ -697,6 +715,7 @@ STONE_CALENDAR = Relic(
 
 THE_SPECIMEN = Relic(
     id="The Specimen", name="The Specimen", tier=RelicTier.RARE,
+    player_class=PlayerClass.SILENT,
     effects=["onMonsterDeath: Transfer enemy's Poison to random enemy"],
 )
 
@@ -707,6 +726,7 @@ THREAD_AND_NEEDLE = Relic(
 
 TINGSHA = Relic(
     id="Tingsha", name="Tingsha", tier=RelicTier.RARE,
+    player_class=PlayerClass.SILENT,
     effects=["onManualDiscard: Deal 3 damage to random enemy per card"],
 )
 
@@ -717,6 +737,7 @@ TORII = Relic(
 
 TOUGH_BANDAGES = Relic(
     id="Tough Bandages", name="Tough Bandages", tier=RelicTier.RARE,
+    player_class=PlayerClass.SILENT,
     effects=["onManualDiscard: Gain 3 Block per card"],
 )
 
@@ -748,12 +769,14 @@ WING_BOOTS = Relic(
 # Boss relics that upgrade starter relics
 BLACK_BLOOD = Relic(
     id="Black Blood", name="Black Blood", tier=RelicTier.BOSS,
+    player_class=PlayerClass.IRONCLAD,
     requires_relic="Burning Blood",
     effects=["onVictory: Heal 12 HP (replaces Burning Blood)"],
 )
 
 RING_OF_THE_SERPENT = Relic(
     id="Ring of the Serpent", name="Ring of the Serpent", tier=RelicTier.BOSS,
+    player_class=PlayerClass.SILENT,
     requires_relic="Ring of the Snake",
     hand_size_bonus=1,
     effects=["onEquip: Draw 1 additional card each turn (replaces Ring of the Snake)"],
@@ -761,12 +784,14 @@ RING_OF_THE_SERPENT = Relic(
 
 FROZEN_CORE = Relic(
     id="FrozenCore", name="Frozen Core", tier=RelicTier.BOSS,
+    player_class=PlayerClass.DEFECT,
     requires_relic="Cracked Core",
     effects=["onPlayerEndTurn: If empty orb slot, Channel 1 Frost (replaces Cracked Core)"],
 )
 
 HOLY_WATER = Relic(
     id="HolyWater", name="Holy Water", tier=RelicTier.BOSS,
+    player_class=PlayerClass.WATCHER,
     requires_relic="PureWater",
     effects=["atBattleStartPreDraw: Add 3 Miracles to hand (replaces Pure Water)"],
 )
@@ -828,23 +853,27 @@ FUSION_HAMMER = Relic(
 
 HOVERING_KITE = Relic(
     id="HoveringKite", name="Hovering Kite", tier=RelicTier.BOSS,
+    player_class=PlayerClass.SILENT,
     effects=["onManualDiscard (first each turn): Gain 1 Energy"],
 )
 
 INSERTER = Relic(
     id="Inserter", name="Inserter", tier=RelicTier.BOSS,
+    player_class=PlayerClass.DEFECT,
     counter_type="permanent", counter_max=2, counter_start=0,
     effects=["atTurnStart: Counter +1. At 2, gain 1 Orb slot and reset"],
 )
 
 MARK_OF_PAIN = Relic(
     id="Mark of Pain", name="Mark of Pain", tier=RelicTier.BOSS,
+    player_class=PlayerClass.IRONCLAD,
     energy_bonus=1,
     effects=["onEquip: +1 Energy. atBattleStart: Shuffle 2 Wounds into draw pile"],
 )
 
 NUCLEAR_BATTERY = Relic(
     id="Nuclear Battery", name="Nuclear Battery", tier=RelicTier.BOSS,
+    player_class=PlayerClass.DEFECT,
     effects=["atPreBattle: Channel 1 Plasma orb"],
 )
 
@@ -861,6 +890,7 @@ PHILOSOPHERS_STONE = Relic(
 
 RUNIC_CUBE = Relic(
     id="Runic Cube", name="Runic Cube", tier=RelicTier.BOSS,
+    player_class=PlayerClass.IRONCLAD,
     effects=["wasHPLost: Draw 1 card"],
 )
 
@@ -913,16 +943,19 @@ VELVET_CHOKER = Relic(
 
 VIOLET_LOTUS = Relic(
     id="VioletLotus", name="Violet Lotus", tier=RelicTier.BOSS,
+    player_class=PlayerClass.WATCHER,
     effects=["onChangeStance (exit Calm): Gain 1 additional Energy"],
 )
 
 WRIST_BLADE = Relic(
     id="WristBlade", name="Wrist Blade", tier=RelicTier.BOSS,
+    player_class=PlayerClass.SILENT,
     effects=["atDamageModify: 0-cost Attacks deal 4 additional damage"],
 )
 
 RUNIC_CAPACITOR = Relic(
     id="Runic Capacitor", name="Runic Capacitor", tier=RelicTier.SHOP,  # Actually SHOP, but often considered with boss-level power
+    player_class=PlayerClass.DEFECT,
     orb_slots=3,
     effects=["onEquip: Gain 3 Orb slots"],
 )
@@ -938,6 +971,7 @@ THE_ABACUS = Relic(
 
 BRIMSTONE = Relic(
     id="Brimstone", name="Brimstone", tier=RelicTier.SHOP,
+    player_class=PlayerClass.IRONCLAD,
     effects=["atTurnStart: Gain 2 Strength. ALL enemies gain 1 Strength"],
 )
 
@@ -984,6 +1018,7 @@ MEDICAL_KIT = Relic(
 
 MELANGE = Relic(
     id="Melange", name="Melange", tier=RelicTier.SHOP,
+    player_class=PlayerClass.WATCHER,
     effects=["onEnterRestRoom: Scry 3"],
 )
 
@@ -1019,6 +1054,7 @@ STRANGE_SPOON = Relic(
 
 TWISTED_FUNNEL = Relic(
     id="TwistedFunnel", name="Twisted Funnel", tier=RelicTier.SHOP,
+    player_class=PlayerClass.SILENT,
     effects=["atBattleStart: Apply 4 Poison to ALL enemies"],
 )
 

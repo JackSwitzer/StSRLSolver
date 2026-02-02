@@ -208,6 +208,9 @@ class RunState:
     # Perfect floors (no damage taken) - for some event logic
     perfect_floors: int = 0
 
+    # Shop purge count (card removals - affects future shop prices)
+    purge_count: int = 0
+
     # ==================== SPECIAL FLAGS ====================
     # Neow's Lament counter (if obtained)
     neow_lament_count: int = 0

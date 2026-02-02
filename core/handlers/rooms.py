@@ -15,6 +15,7 @@ RNG streams for determinism.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Optional, Dict, Set, Tuple, Any, TYPE_CHECKING
 
 from ..state.run import RunState, CardInstance
@@ -75,6 +76,7 @@ class RestResult:
     strength_gained: int = 0
     max_hp_restored: int = 0
     card_removed: Optional[str] = None
+    dream_catcher_triggered: bool = False
 
 
 @dataclass
@@ -477,10 +479,9 @@ class ShopHandler:
         """
         reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
 
-        # Count previous purges (simplified - track in run_state ideally)
-        purge_count = 0
+        purge_count = getattr(run_state, 'purge_count', 0)
 
-        return generate_shop_inventory(
+        shop = generate_shop_inventory(
             rng=merchant_rng,
             reward_state=reward_state,
             act=run_state.act,
@@ -490,6 +491,12 @@ class ShopHandler:
             has_membership_card=run_state.has_relic("MembershipCard"),
             has_the_courier=run_state.has_relic("TheCourier"),
         )
+
+        # A15+ purge cost cap at 175g
+        if run_state.ascension >= 15:
+            shop.purge_cost = min(75 + 25 * purge_count, 175)
+
+        return shop
 
     @staticmethod
     def get_purchasable_items(shop: ShopInventory, run_state: RunState) -> Dict[str, List]:
@@ -732,6 +739,7 @@ class ShopHandler:
         removed_card = run_state.remove_card(card_idx)
         run_state.lose_gold(shop.purge_cost)
         shop.purge_available = False
+        run_state.purge_count = getattr(run_state, 'purge_count', 0) + 1
 
         return ShopResult(
             item_type="purge",
@@ -751,17 +759,24 @@ class RestHandler:
     Handles rest site (campfire) interactions.
 
     Available actions depend on relics:
-    - Rest: Heal 30% max HP (35% with Regal Pillow)
-    - Upgrade: Upgrade a card (always available unless Fusion Hammer)
+    - Rest: Heal 30% max HP (blocked by Coffee Dripper)
+    - Smith (Upgrade): Upgrade a card (blocked by Fusion Hammer)
     - Dig: Get random relic (requires Shovel)
     - Lift: Gain 1 permanent strength (requires Girya, max 3 times)
-    - Recall: Obtain ruby key, heal 15 max HP (only when key available)
+    - Recall: Obtain ruby key (Act 3+, skip rest/upgrade)
     - Toke: Remove a card (requires Peace Pipe)
+
+    Relic Modifiers:
+    - Regal Pillow: Rest heals extra 15 HP (flat bonus)
+    - Eternal Feather: Heal 3 HP per 5 cards in deck on entering rest site
+    - Coffee Dripper: Cannot rest
+    - Fusion Hammer: Cannot smith/upgrade
+    - Dream Catcher: Get card reward when resting
     """
 
     REST_HEAL_PERCENT = 0.30
-    REGAL_PILLOW_BONUS = 0.05
-    RECALL_HP_RESTORE = 15
+    REGAL_PILLOW_BONUS_HP = 15  # Flat HP bonus, not percentage
+    ETERNAL_FEATHER_HEAL_PER_5 = 3  # Heal 3 HP per 5 cards
     GIRYA_MAX_LIFTS = 3
 
     @staticmethod
@@ -777,14 +792,15 @@ class RestHandler:
         """
         options = []
 
-        # Rest is always available (unless at full HP)
-        if run_state.current_hp < run_state.max_hp:
-            options.append("rest")
+        # Rest is available unless Coffee Dripper or at full HP
+        if not run_state.has_relic("Coffee Dripper"):
+            if run_state.current_hp < run_state.max_hp:
+                options.append("rest")
 
-        # Upgrade available unless Fusion Hammer
-        if not run_state.has_relic("FusionHammer"):
+        # Smith/Upgrade available unless Fusion Hammer
+        if not run_state.has_relic("Fusion Hammer"):
             if run_state.get_upgradeable_cards():
-                options.append("upgrade")
+                options.append("smith")
 
         # Dig with Shovel
         if run_state.has_relic("Shovel"):
@@ -792,24 +808,50 @@ class RestHandler:
 
         # Lift with Girya (max 3 times)
         girya = run_state.get_relic("Girya")
-        if girya and (girya.counter < RestHandler.GIRYA_MAX_LIFTS or girya.counter == -1):
-            options.append("lift")
-
-        # Recall for ruby key (Act 3+, key not obtained)
-        if run_state.act >= 3 and not run_state.has_ruby_key:
-            options.append("recall")
+        if girya:
+            counter = girya.counter if girya.counter >= 0 else 0
+            if counter < RestHandler.GIRYA_MAX_LIFTS:
+                options.append("lift")
 
         # Toke with Peace Pipe
-        if run_state.has_relic("PeacePipe"):
+        if run_state.has_relic("Peace Pipe"):
             if run_state.get_removable_cards():
                 options.append("toke")
+
+        # Recall for ruby key (Act 3, key not obtained)
+        if run_state.act == 3 and not run_state.has_ruby_key:
+            options.append("recall")
 
         return options
 
     @staticmethod
+    def on_enter_rest_site(run_state: RunState) -> int:
+        """
+        Called when entering a rest site. Applies Eternal Feather healing.
+
+        Args:
+            run_state: Run state to modify
+
+        Returns:
+            HP healed from Eternal Feather (0 if not present)
+        """
+        if run_state.has_relic("Eternal Feather"):
+            deck_size = len(run_state.deck)
+            heal_amount = (deck_size // 5) * RestHandler.ETERNAL_FEATHER_HEAL_PER_5
+            if heal_amount > 0:
+                old_hp = run_state.current_hp
+                run_state.heal(heal_amount)
+                return run_state.current_hp - old_hp
+        return 0
+
+    @staticmethod
     def rest(run_state: RunState) -> RestResult:
         """
-        Rest at campfire - heal 30% (or 35% with Regal Pillow).
+        Rest at campfire - heal 30% max HP (rounded down).
+
+        Relic modifiers:
+        - Regal Pillow: +15 HP flat
+        - Coffee Dripper: Blocks this action (checked in get_options)
 
         Args:
             run_state: Run state to modify
@@ -817,26 +859,35 @@ class RestHandler:
         Returns:
             RestResult with heal amount
         """
-        heal_percent = RestHandler.REST_HEAL_PERCENT
-        if run_state.has_relic("RegalPillow"):
-            heal_percent += RestHandler.REGAL_PILLOW_BONUS
+        if run_state.has_relic("Coffee Dripper"):
+            return RestResult(action="rest", hp_healed=0)
 
-        heal_amount = int(run_state.max_hp * heal_percent)
+        # Base heal: 30% of max HP, rounded down
+        heal_amount = int(run_state.max_hp * RestHandler.REST_HEAL_PERCENT)
+
+        # Regal Pillow: +15 HP flat
+        if run_state.has_relic("Regal Pillow"):
+            heal_amount += RestHandler.REGAL_PILLOW_BONUS_HP
+
         old_hp = run_state.current_hp
         run_state.heal(heal_amount)
         actual_heal = run_state.current_hp - old_hp
 
-        # Dream Catcher: heal gives a card (handled elsewhere)
-
-        return RestResult(
+        result = RestResult(
             action="rest",
             hp_healed=actual_heal
         )
 
+        # Dream Catcher: flag that a card reward should be generated
+        if run_state.has_relic("Dream Catcher"):
+            result.dream_catcher_triggered = True
+
+        return result
+
     @staticmethod
-    def upgrade(run_state: RunState, card_idx: int) -> RestResult:
+    def smith(run_state: RunState, card_idx: int) -> RestResult:
         """
-        Upgrade a card at the campfire.
+        Smith (upgrade) a card at the campfire.
 
         Args:
             run_state: Run state to modify
@@ -845,19 +896,28 @@ class RestHandler:
         Returns:
             RestResult with upgraded card info
         """
+        if run_state.has_relic("Fusion Hammer"):
+            return RestResult(action="smith")
+
         if card_idx < 0 or card_idx >= len(run_state.deck):
-            return RestResult(action="upgrade")
+            return RestResult(action="smith")
 
         card = run_state.deck[card_idx]
         card_id = card.id
 
         if run_state.upgrade_card(card_idx):
             return RestResult(
-                action="upgrade",
+                action="smith",
                 card_upgraded=card_id
             )
 
-        return RestResult(action="upgrade")
+        return RestResult(action="smith")
+
+    # Alias for backwards compatibility
+    @staticmethod
+    def upgrade(run_state: RunState, card_idx: int) -> RestResult:
+        """Alias for smith() for backwards compatibility."""
+        return RestHandler.smith(run_state, card_idx)
 
     @staticmethod
     def dig(run_state: RunState, relic_rng: Random) -> RestResult:
@@ -874,7 +934,7 @@ class RestHandler:
         if not run_state.has_relic("Shovel"):
             return RestResult(action="dig")
 
-        # Generate random relic
+        # Generate random relic (dig uses standard tier roll)
         reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
         relic = generate_relic_reward(
             relic_rng, RelicTier.COMMON, reward_state,
@@ -910,36 +970,13 @@ class RestHandler:
             girya.counter = 0
 
         if girya.counter >= RestHandler.GIRYA_MAX_LIFTS:
-            return RestResult(action="lift")
+            return RestResult(action="lift", strength_gained=0)
 
         girya.counter += 1
 
         return RestResult(
             action="lift",
             strength_gained=1
-        )
-
-    @staticmethod
-    def recall(run_state: RunState) -> RestResult:
-        """
-        Recall the ruby key - restore 15 max HP.
-
-        Args:
-            run_state: Run state to modify
-
-        Returns:
-            RestResult with max HP restore
-        """
-        if run_state.has_ruby_key:
-            return RestResult(action="recall")
-
-        run_state.obtain_ruby_key()
-        run_state.gain_max_hp(RestHandler.RECALL_HP_RESTORE)
-        run_state.heal(RestHandler.RECALL_HP_RESTORE)
-
-        return RestResult(
-            action="recall",
-            max_hp_restored=RestHandler.RECALL_HP_RESTORE
         )
 
     @staticmethod
@@ -954,7 +991,7 @@ class RestHandler:
         Returns:
             RestResult with removed card info
         """
-        if not run_state.has_relic("PeacePipe"):
+        if not run_state.has_relic("Peace Pipe"):
             return RestResult(action="toke")
 
         if card_idx < 0 or card_idx >= len(run_state.deck):
@@ -967,65 +1004,249 @@ class RestHandler:
             card_removed=removed.id if removed else None
         )
 
+    @staticmethod
+    def recall(run_state: RunState) -> RestResult:
+        """
+        Take the Ruby Key at a rest site in Act 3.
+
+        This skips the normal rest/smith action to obtain the key.
+
+        Args:
+            run_state: Run state to modify
+
+        Returns:
+            RestResult
+        """
+        if run_state.has_ruby_key:
+            return RestResult(action="recall")
+
+        if run_state.act != 3:
+            return RestResult(action="recall")
+
+        run_state.obtain_ruby_key()
+
+        return RestResult(
+            action="recall",
+            max_hp_restored=0  # Ruby key doesn't restore HP
+        )
+
+    @staticmethod
+    def get_dream_catcher_reward(
+        run_state: RunState,
+        card_rng: Random,
+    ) -> List[Any]:
+        """
+        Generate card reward for Dream Catcher after resting.
+
+        Args:
+            run_state: Current run state
+            card_rng: Card RNG stream
+
+        Returns:
+            List of Card objects to choose from
+        """
+        if not run_state.has_relic("Dream Catcher"):
+            return []
+
+        reward_state = RewardState()
+        return generate_card_rewards(
+            card_rng, reward_state,
+            act=run_state.act,
+            player_class=run_state.character,
+            ascension=run_state.ascension,
+            room_type="normal",
+            num_cards=3,
+        )
+
 
 # ============================================================================
 # TREASURE HANDLER
 # ============================================================================
 
+class ChestType(Enum):
+    """Types of treasure chests."""
+    SMALL = "Small"
+    MEDIUM = "Medium"
+    LARGE = "Large"
+
+
+@dataclass
+class ChestReward:
+    """Result of opening a chest."""
+    chest_type: ChestType
+    relic_tier: str  # "COMMON", "UNCOMMON", "RARE"
+    relic_id: str
+    relic_name: str
+    gold_amount: int = 0
+    curse_added: Optional[str] = None
+    sapphire_key_taken: bool = False
+    matryoshka_relics: Optional[List[str]] = None  # Additional relics from Matryoshka
+
+
 class TreasureHandler:
     """
     Handles treasure room (chest) interactions.
 
-    Responsibilities:
-    - Generate relic from chest
-    - Handle Cursed Key (adds curse when opening chest)
-    - Handle Sapphire Key (skip relic for key)
+    Chest Types & Relic Tier Probabilities:
+    - Small chest:  Common (50%), Uncommon (33%), Rare (17%)
+    - Medium chest: Uncommon (75%), Rare (25%)
+    - Large chest:  Always Rare (100%)
+
+    Relic Interactions:
+    - Cursed Key: Get a random curse when taking a relic from a chest
+    - Matryoshka: Get 2 relics instead of 1 from first 2 non-boss chests
+    - Sapphire Key: Can skip relic to obtain the key (Act 3)
+
+    Chest Type Roll (treasureRng 0-99):
+    - < 50: Small chest
+    - < 83: Medium chest
+    - else: Large chest
     """
+
+    # Chest type thresholds (roll 0-99)
+    SMALL_THRESHOLD = 50
+    MEDIUM_THRESHOLD = 83
+
+    # Relic tier chances by chest type
+    CHEST_RELIC_CHANCES = {
+        ChestType.SMALL: {"common": 50, "uncommon": 83},   # 50% common, 33% uncommon, 17% rare
+        ChestType.MEDIUM: {"common": 0, "uncommon": 75},   # 0% common, 75% uncommon, 25% rare
+        ChestType.LARGE: {"common": 0, "uncommon": 0},     # 100% rare
+    }
+
+    @staticmethod
+    def determine_chest_type(treasure_rng: Random) -> ChestType:
+        """
+        Determine the type of chest using treasureRng.
+
+        Args:
+            treasure_rng: Treasure RNG stream
+
+        Returns:
+            ChestType enum value
+        """
+        roll = treasure_rng.random_int(99)
+
+        if roll < TreasureHandler.SMALL_THRESHOLD:
+            return ChestType.SMALL
+        elif roll < TreasureHandler.MEDIUM_THRESHOLD:
+            return ChestType.MEDIUM
+        else:
+            return ChestType.LARGE
+
+    @staticmethod
+    def roll_relic_tier(treasure_rng: Random, chest_type: ChestType) -> str:
+        """
+        Roll the relic tier based on chest type.
+
+        Args:
+            treasure_rng: Treasure RNG stream
+            chest_type: Type of chest being opened
+
+        Returns:
+            Relic tier string: "COMMON", "UNCOMMON", or "RARE"
+        """
+        chances = TreasureHandler.CHEST_RELIC_CHANCES[chest_type]
+        roll = treasure_rng.random_int(99)
+
+        if roll < chances["common"]:
+            return "COMMON"
+        elif roll < chances["uncommon"]:
+            return "UNCOMMON"
+        else:
+            return "RARE"
 
     @staticmethod
     def open_chest(
         run_state: RunState,
+        treasure_rng: Random,
         relic_rng: Random,
         take_sapphire_key: bool = False,
-    ) -> TreasureResult:
+        chest_type: Optional[ChestType] = None,
+    ) -> ChestReward:
         """
         Open a treasure chest and get the reward.
 
+        Process:
+        1. Determine chest type (if not specified)
+        2. Roll relic tier based on chest type
+        3. Get relic from appropriate pool
+        4. Handle Matryoshka (2 relics from small/medium chests)
+        5. Handle Cursed Key (add curse)
+        6. Handle Sapphire Key (skip relic for key)
+
         Args:
             run_state: Run state to modify
-            relic_rng: Relic RNG stream
+            treasure_rng: Treasure RNG stream (for chest type and tier rolls)
+            relic_rng: Relic RNG stream (for relic selection)
             take_sapphire_key: If True, take key instead of relic
+            chest_type: Override chest type (if known from map generation)
 
         Returns:
-            TreasureResult with reward details
+            ChestReward with all reward details
         """
-        # Check for Matryoshka (2 relics from first 2 chests)
-        # This would need tracking in run_state
+        # Step 1: Determine chest type
+        if chest_type is None:
+            chest_type = TreasureHandler.determine_chest_type(treasure_rng)
 
-        # Generate relic (always generated even if taking key)
+        # Step 2: Roll relic tier
+        relic_tier = TreasureHandler.roll_relic_tier(treasure_rng, chest_type)
+
+        # Map tier string to RelicTier enum
+        tier_map = {
+            "COMMON": RelicTier.COMMON,
+            "UNCOMMON": RelicTier.UNCOMMON,
+            "RARE": RelicTier.RARE,
+        }
+
+        # Step 3: Get relic from pool
         reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
         relic = generate_relic_reward(
-            relic_rng, RelicTier.COMMON, reward_state,
+            relic_rng, tier_map[relic_tier], reward_state,
             run_state.character, run_state.act
         )
 
-        result = TreasureResult(
+        result = ChestReward(
+            chest_type=chest_type,
+            relic_tier=relic_tier,
             relic_id=relic.id if relic else "Circlet",
             relic_name=relic.name if relic else "Circlet",
         )
 
-        if take_sapphire_key and not run_state.has_sapphire_key:
+        # Handle Sapphire Key (Act 3)
+        if take_sapphire_key and not run_state.has_sapphire_key and run_state.act == 3:
             run_state.obtain_sapphire_key()
             result.sapphire_key_taken = True
-        else:
-            # Take the relic
-            if relic:
-                run_state.add_relic(relic.id)
+            return result
 
-            # Apply Cursed Key effect
-            if run_state.has_relic("CursedKey"):
-                curse = TreasureHandler.apply_cursed_key(run_state, relic_rng)
-                result.curse_added = curse
+        # Take the relic
+        if relic:
+            run_state.add_relic(relic.id)
+
+        # Step 4: Handle Matryoshka (2 relics from first 2 non-boss chests)
+        if run_state.has_relic("Matryoshka"):
+            matryoshka = run_state.get_relic("Matryoshka")
+            if matryoshka and (matryoshka.counter < 2 or matryoshka.counter == -1):
+                if matryoshka.counter == -1:
+                    matryoshka.counter = 0
+
+                if chest_type in (ChestType.SMALL, ChestType.MEDIUM, ChestType.LARGE):
+                    # Get a second relic
+                    matryoshka.counter += 1
+                    reward_state.owned_relics.add(relic.id if relic else "Circlet")
+                    second_tier = TreasureHandler.roll_relic_tier(treasure_rng, chest_type)
+                    second_relic = generate_relic_reward(
+                        relic_rng, tier_map[second_tier], reward_state,
+                        run_state.character, run_state.act
+                    )
+                    if second_relic:
+                        run_state.add_relic(second_relic.id)
+                        result.matryoshka_relics = [second_relic.id]
+
+        # Step 5: Handle Cursed Key (adds curse when taking relic)
+        if run_state.has_relic("Cursed Key") and not result.sapphire_key_taken:
+            curse = TreasureHandler.apply_cursed_key(run_state, relic_rng)
+            result.curse_added = curse
 
         return result
 
@@ -1041,8 +1262,8 @@ class TreasureHandler:
         Returns:
             ID of the curse added
         """
-        # List of basic curses (not including special ones)
-        curses = ["Regret", "Doubt", "Pain", "Parasite", "Shame", "Decay", "Writhe"]
+        # Basic curses that can be added (not special event-only curses)
+        curses = ["Pain", "Parasite", "Clumsy", "Decay", "Doubt", "Injury", "Normality", "Regret", "Shame", "Writhe"]
 
         curse_idx = relic_rng.random(len(curses) - 1)
         curse_id = curses[curse_idx]
@@ -1050,6 +1271,529 @@ class TreasureHandler:
         run_state.add_card(curse_id)
 
         return curse_id
+
+    @staticmethod
+    def get_treasure_actions(run_state: RunState) -> List[str]:
+        """
+        Get available actions in a treasure room.
+
+        Args:
+            run_state: Current run state
+
+        Returns:
+            List of available action strings
+        """
+        actions = ["open"]
+
+        # Sapphire key option in Act 3
+        if run_state.act == 3 and not run_state.has_sapphire_key:
+            actions.append("take_sapphire_key")
+
+        return actions
+
+
+# ============================================================================
+# NEOW HANDLER
+# ============================================================================
+
+class NeowBlessingType(Enum):
+    """Types of Neow blessings available."""
+    # Common blessings (no drawback)
+    HUNDRED_GOLD = "hundred_gold"
+    THREE_CARDS = "three_cards"
+    RANDOM_COMMON_RELIC = "random_common_relic"
+    TEN_PERCENT_HP_BONUS = "ten_percent_hp_bonus"
+    THREE_ENEMY_KILL = "three_enemy_kill"
+    UPGRADE_CARD = "upgrade_card"
+    ONE_RANDOM_RARE_CARD = "one_random_rare_card"
+    REMOVE_CARD = "remove_card"
+    TRANSFORM_CARD = "transform_card"
+    THREE_POTIONS = "three_potions"
+
+    # Rare blessings (with drawbacks)
+    RANDOM_COLORLESS_RARE = "random_colorless_rare"
+    REMOVE_TWO = "remove_two"
+    TRANSFORM_TWO = "transform_two"
+    RANDOM_RARE_RELIC = "random_rare_relic"
+    BOSS_SWAP = "boss_swap"
+
+
+class NeowDrawbackType(Enum):
+    """Types of Neow drawbacks."""
+    NONE = "none"
+    LOSE_GOLD = "lose_gold"
+    LOSE_HP = "lose_hp"
+    GAIN_CURSE = "gain_curse"
+    LOSE_MAX_HP = "lose_max_hp"
+
+
+@dataclass
+class NeowBlessing:
+    """A Neow blessing option."""
+    blessing_type: NeowBlessingType
+    description: str
+    drawback_type: NeowDrawbackType = NeowDrawbackType.NONE
+    drawback_description: str = ""
+    drawback_value: int = 0
+
+
+@dataclass
+class NeowResult:
+    """Result of choosing a Neow blessing."""
+    blessing_type: NeowBlessingType
+    blessing_applied: str = ""
+    drawback_applied: str = ""
+    gold_change: int = 0
+    hp_change: int = 0
+    max_hp_change: int = 0
+    relics_gained: List[str] = field(default_factory=list)
+    cards_gained: List[str] = field(default_factory=list)
+    cards_removed: List[str] = field(default_factory=list)
+    cards_transformed: List[str] = field(default_factory=list)
+    cards_upgraded: List[str] = field(default_factory=list)
+    curse_added: Optional[str] = None
+    requires_card_selection: bool = False
+    card_selection_type: Optional[str] = None  # "upgrade", "remove", "transform", "choose"
+    card_choices: List[Any] = field(default_factory=list)
+    potions_gained: List[str] = field(default_factory=list)
+
+
+class NeowHandler:
+    """
+    Handles Neow's blessing selection at the start of a run.
+
+    On first run: Fixed set of safe options
+    On subsequent runs: Options based on previous run score
+
+    Blessing Categories:
+    1. Simple blessings (no drawback)
+    2. Card manipulation blessings
+    3. Rare blessings (require a drawback)
+
+    Drawbacks:
+    - Lose gold (varies by ascension)
+    - Lose 10% current HP
+    - Gain a curse
+    - Lose 10% max HP (for best rewards)
+    """
+
+    # Gold amounts
+    HUNDRED_GOLD_AMOUNT = 100
+    GOLD_LOSS_AMOUNT = 100  # For "lose all gold" drawback it's variable
+
+    # HP/Max HP changes
+    HP_BONUS_PERCENT = 0.10  # +10% max HP
+    HP_LOSS_PERCENT = 0.10   # -10% current HP (drawback)
+    MAX_HP_LOSS_PERCENT = 0.10  # -10% max HP (severe drawback)
+
+    # Card counts
+    THREE_ENEMY_KILL_HP = 1  # Set first 3 combat enemies to 1 HP
+
+    # Basic curses for drawback
+    BASIC_CURSES = ["Regret", "Doubt", "Pain", "Parasite", "Shame", "Decay", "Writhe"]
+
+    @staticmethod
+    def get_first_run_options() -> List[NeowBlessing]:
+        """
+        Get Neow options for a first-time player (no previous run).
+
+        Returns safe, easy-to-understand options.
+        """
+        return [
+            NeowBlessing(
+                NeowBlessingType.THREE_ENEMY_KILL,
+                "Enemies in your first 3 combats have 1 HP"
+            ),
+            NeowBlessing(
+                NeowBlessingType.HUNDRED_GOLD,
+                "Gain 100 Gold"
+            ),
+            NeowBlessing(
+                NeowBlessingType.TEN_PERCENT_HP_BONUS,
+                "Gain 10% Max HP"
+            ),
+            NeowBlessing(
+                NeowBlessingType.THREE_CARDS,
+                "Choose a card to add to your deck"
+            ),
+        ]
+
+    @staticmethod
+    def get_blessing_options(
+        neow_rng: Random,
+        previous_score: int = 0,
+        is_first_run: bool = False,
+    ) -> List[NeowBlessing]:
+        """
+        Get 4 Neow blessing options based on previous run score.
+
+        Args:
+            neow_rng: Neow RNG stream
+            previous_score: Score from previous run (affects rare options)
+            is_first_run: If True, return safe beginner options
+
+        Returns:
+            List of 4 NeowBlessing options
+        """
+        if is_first_run:
+            return NeowHandler.get_first_run_options()
+
+        options = []
+
+        # Option 1: Simple blessing (no drawback)
+        simple_options = [
+            NeowBlessing(NeowBlessingType.HUNDRED_GOLD, "Gain 100 Gold"),
+            NeowBlessing(NeowBlessingType.THREE_CARDS, "Choose a card to add to your deck"),
+            NeowBlessing(NeowBlessingType.RANDOM_COMMON_RELIC, "Obtain a random common relic"),
+            NeowBlessing(NeowBlessingType.TEN_PERCENT_HP_BONUS, "Gain 10% Max HP"),
+            NeowBlessing(NeowBlessingType.THREE_ENEMY_KILL, "Enemies in your first 3 combats have 1 HP"),
+            NeowBlessing(NeowBlessingType.THREE_POTIONS, "Obtain 3 random potions"),
+        ]
+        idx = neow_rng.random(len(simple_options) - 1)
+        options.append(simple_options[idx])
+
+        # Option 2: Card manipulation (moderate, no drawback)
+        card_options = [
+            NeowBlessing(NeowBlessingType.UPGRADE_CARD, "Upgrade a card"),
+            NeowBlessing(NeowBlessingType.REMOVE_CARD, "Remove a card from your deck"),
+            NeowBlessing(NeowBlessingType.TRANSFORM_CARD, "Transform a card"),
+            NeowBlessing(NeowBlessingType.ONE_RANDOM_RARE_CARD, "Obtain a random rare card"),
+        ]
+        idx = neow_rng.random(len(card_options) - 1)
+        options.append(card_options[idx])
+
+        # Option 3: Rare blessing with drawback based on score
+        drawback = NeowHandler._select_drawback(neow_rng, previous_score)
+        rare_options = [
+            NeowBlessing(
+                NeowBlessingType.RANDOM_COLORLESS_RARE,
+                "Obtain a random rare colorless card",
+                drawback[0], drawback[1], drawback[2]
+            ),
+            NeowBlessing(
+                NeowBlessingType.REMOVE_TWO,
+                "Remove 2 cards from your deck",
+                drawback[0], drawback[1], drawback[2]
+            ),
+            NeowBlessing(
+                NeowBlessingType.TRANSFORM_TWO,
+                "Transform 2 cards",
+                drawback[0], drawback[1], drawback[2]
+            ),
+        ]
+        idx = neow_rng.random(len(rare_options) - 1)
+        options.append(rare_options[idx])
+
+        # Option 4: Boss swap (swap starter relic for random boss relic)
+        options.append(NeowBlessing(
+            NeowBlessingType.BOSS_SWAP,
+            "Swap your starting relic for a random boss relic"
+        ))
+
+        return options
+
+    @staticmethod
+    def _select_drawback(
+        neow_rng: Random,
+        previous_score: int,
+    ) -> Tuple[NeowDrawbackType, str, int]:
+        """
+        Select a drawback for rare blessings based on score.
+
+        Higher scores unlock better (less severe) drawbacks.
+
+        Args:
+            neow_rng: RNG stream
+            previous_score: Previous run score
+
+        Returns:
+            Tuple of (drawback_type, description, value)
+        """
+        drawbacks = [
+            (NeowDrawbackType.LOSE_HP, "Lose 10% of your current HP", 10),
+            (NeowDrawbackType.GAIN_CURSE, "Gain a curse", 0),
+            (NeowDrawbackType.LOSE_GOLD, "Lose all your gold", 0),
+            (NeowDrawbackType.LOSE_MAX_HP, "Lose 10% of your Max HP", 10),
+        ]
+
+        idx = neow_rng.random(len(drawbacks) - 1)
+        return drawbacks[idx]
+
+    @staticmethod
+    def apply_blessing(
+        run_state: RunState,
+        blessing: NeowBlessing,
+        neow_rng: Random,
+        card_rng: Random,
+        relic_rng: Random,
+        potion_rng: Random,
+        card_selection_idx: Optional[int] = None,
+    ) -> NeowResult:
+        """
+        Apply a Neow blessing to the run state.
+
+        Some blessings require card selection (upgrade, remove, transform).
+        These return requires_card_selection=True and must be called again
+        with card_selection_idx to complete.
+
+        Args:
+            run_state: Run state to modify
+            blessing: The blessing to apply
+            neow_rng: Neow RNG stream
+            card_rng: Card RNG stream
+            relic_rng: Relic RNG stream
+            potion_rng: Potion RNG stream
+            card_selection_idx: Index of selected card (for upgrade/remove/transform)
+
+        Returns:
+            NeowResult with all changes
+        """
+        result = NeowResult(blessing_type=blessing.blessing_type)
+
+        # Apply drawback first
+        if blessing.drawback_type != NeowDrawbackType.NONE:
+            NeowHandler._apply_drawback(run_state, blessing, neow_rng, result)
+
+        # Apply blessing based on type
+        btype = blessing.blessing_type
+
+        if btype == NeowBlessingType.HUNDRED_GOLD:
+            run_state.add_gold(NeowHandler.HUNDRED_GOLD_AMOUNT)
+            result.gold_change = NeowHandler.HUNDRED_GOLD_AMOUNT
+            result.blessing_applied = f"Gained {NeowHandler.HUNDRED_GOLD_AMOUNT} gold"
+
+        elif btype == NeowBlessingType.THREE_CARDS:
+            # Generate 3 card choices
+            reward_state = RewardState()
+            cards = generate_card_rewards(
+                card_rng, reward_state,
+                act=1, player_class=run_state.character,
+                room_type="normal", num_cards=3
+            )
+            result.card_choices = cards
+            result.requires_card_selection = True
+            result.card_selection_type = "choose"
+
+        elif btype == NeowBlessingType.RANDOM_COMMON_RELIC:
+            reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
+            relic = generate_relic_reward(
+                relic_rng, RelicTier.COMMON, reward_state,
+                run_state.character, 1
+            )
+            if relic:
+                run_state.add_relic(relic.id)
+                result.relics_gained.append(relic.id)
+                result.blessing_applied = f"Obtained {relic.name}"
+
+        elif btype == NeowBlessingType.TEN_PERCENT_HP_BONUS:
+            bonus = int(run_state.max_hp * NeowHandler.HP_BONUS_PERCENT)
+            bonus = max(1, bonus)  # At least 1 HP
+            run_state.gain_max_hp(bonus)
+            run_state.heal(bonus)
+            result.max_hp_change = bonus
+            result.hp_change = bonus
+            result.blessing_applied = f"Gained {bonus} Max HP"
+
+        elif btype == NeowBlessingType.THREE_ENEMY_KILL:
+            # This flag is stored in run state and checked during combat
+            run_state.neow_bonus_first_three_enemies = True
+            result.blessing_applied = "First 3 combat enemies will have 1 HP"
+
+        elif btype == NeowBlessingType.UPGRADE_CARD:
+            upgradeable = run_state.get_upgradeable_cards()
+            if card_selection_idx is not None and 0 <= card_selection_idx < len(run_state.deck):
+                card = run_state.deck[card_selection_idx]
+                if run_state.upgrade_card(card_selection_idx):
+                    result.cards_upgraded.append(card.id)
+                    result.blessing_applied = f"Upgraded {card.id}"
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "upgrade"
+
+        elif btype == NeowBlessingType.ONE_RANDOM_RARE_CARD:
+            # Get a random rare card
+            reward_state = RewardState()
+            reward_state.card_blizzard.offset = -100  # Force rare
+            cards = generate_card_rewards(
+                card_rng, reward_state,
+                act=1, player_class=run_state.character,
+                room_type="normal", num_cards=1
+            )
+            if cards:
+                card = cards[0]
+                run_state.add_card(card.id, card.upgraded)
+                result.cards_gained.append(card.id)
+                result.blessing_applied = f"Obtained {card.name}"
+
+        elif btype == NeowBlessingType.REMOVE_CARD:
+            removable = run_state.get_removable_cards()
+            if card_selection_idx is not None and 0 <= card_selection_idx < len(run_state.deck):
+                removed = run_state.remove_card(card_selection_idx)
+                if removed:
+                    result.cards_removed.append(removed.id)
+                    result.blessing_applied = f"Removed {removed.id}"
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "remove"
+
+        elif btype == NeowBlessingType.TRANSFORM_CARD:
+            if card_selection_idx is not None and 0 <= card_selection_idx < len(run_state.deck):
+                old_card = run_state.deck[card_selection_idx]
+                # Transform: remove old, get random new of same rarity
+                run_state.remove_card(card_selection_idx)
+                reward_state = RewardState()
+                cards = generate_card_rewards(
+                    card_rng, reward_state,
+                    act=1, player_class=run_state.character,
+                    room_type="normal", num_cards=1
+                )
+                if cards:
+                    new_card = cards[0]
+                    run_state.add_card(new_card.id, new_card.upgraded)
+                    result.cards_transformed.append(f"{old_card.id}->{new_card.id}")
+                    result.blessing_applied = f"Transformed {old_card.id} into {new_card.id}"
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "transform"
+
+        elif btype == NeowBlessingType.THREE_POTIONS:
+            for _ in range(3):
+                potion = generate_potion_reward(potion_rng, run_state.character)
+                if potion and run_state.count_empty_potion_slots() > 0:
+                    run_state.add_potion(potion.id)
+                    result.potions_gained.append(potion.id)
+            result.blessing_applied = f"Obtained {len(result.potions_gained)} potions"
+
+        elif btype == NeowBlessingType.RANDOM_COLORLESS_RARE:
+            # Get a random rare colorless card
+            cards = generate_colorless_card_rewards(card_rng, num_cards=1)
+            # Filter to rare only
+            rare_cards = [c for c in cards if c.rarity == CardRarity.RARE]
+            if not rare_cards:
+                # Generate more until we get a rare
+                for _ in range(10):
+                    cards = generate_colorless_card_rewards(card_rng, num_cards=1)
+                    rare_cards = [c for c in cards if c.rarity == CardRarity.RARE]
+                    if rare_cards:
+                        break
+            if rare_cards:
+                card = rare_cards[0]
+                run_state.add_card(card.id, card.upgraded)
+                result.cards_gained.append(card.id)
+                result.blessing_applied = f"Obtained {card.name}"
+
+        elif btype == NeowBlessingType.REMOVE_TWO:
+            # Remove 2 cards - requires two selections
+            # For simplicity, if card_selection_idx is a list, remove both
+            result.requires_card_selection = True
+            result.card_selection_type = "remove_two"
+
+        elif btype == NeowBlessingType.TRANSFORM_TWO:
+            # Transform 2 cards
+            result.requires_card_selection = True
+            result.card_selection_type = "transform_two"
+
+        elif btype == NeowBlessingType.RANDOM_RARE_RELIC:
+            reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
+            relic = generate_relic_reward(
+                relic_rng, RelicTier.RARE, reward_state,
+                run_state.character, 1
+            )
+            if relic:
+                run_state.add_relic(relic.id)
+                result.relics_gained.append(relic.id)
+                result.blessing_applied = f"Obtained {relic.name}"
+
+        elif btype == NeowBlessingType.BOSS_SWAP:
+            # Swap starting relic for boss relic
+            starter_relic = run_state.get_starter_relic()
+            if starter_relic:
+                # Remove starter relic
+                run_state.remove_relic(starter_relic)
+                result.blessing_applied = f"Swapped {starter_relic}"
+
+                # Get boss relic from pool (first in shuffled boss pool)
+                reward_state = RewardState(owned_relics=set(run_state.get_relic_ids()))
+                # For boss swap, we get the first boss relic from the pool
+                # This is handled specially - we use relicRng but get from boss pool
+                boss_relic = generate_relic_reward(
+                    relic_rng, RelicTier.BOSS, reward_state,
+                    run_state.character, 1
+                )
+                if boss_relic:
+                    run_state.add_relic(boss_relic.id)
+                    result.relics_gained.append(boss_relic.id)
+                    result.blessing_applied += f" for {boss_relic.name}"
+
+        return result
+
+    @staticmethod
+    def _apply_drawback(
+        run_state: RunState,
+        blessing: NeowBlessing,
+        neow_rng: Random,
+        result: NeowResult,
+    ):
+        """
+        Apply the drawback of a blessing.
+
+        Args:
+            run_state: Run state to modify
+            blessing: The blessing with drawback info
+            neow_rng: RNG stream
+            result: NeowResult to update
+        """
+        dtype = blessing.drawback_type
+
+        if dtype == NeowDrawbackType.LOSE_GOLD:
+            gold_lost = run_state.gold
+            run_state.lose_gold(gold_lost)
+            result.gold_change = -gold_lost
+            result.drawback_applied = f"Lost {gold_lost} gold"
+
+        elif dtype == NeowDrawbackType.LOSE_HP:
+            hp_lost = int(run_state.current_hp * NeowHandler.HP_LOSS_PERCENT)
+            hp_lost = max(1, hp_lost)
+            run_state.damage(hp_lost)
+            result.hp_change = -hp_lost
+            result.drawback_applied = f"Lost {hp_lost} HP"
+
+        elif dtype == NeowDrawbackType.GAIN_CURSE:
+            curse_idx = neow_rng.random(len(NeowHandler.BASIC_CURSES) - 1)
+            curse_id = NeowHandler.BASIC_CURSES[curse_idx]
+            run_state.add_card(curse_id)
+            result.curse_added = curse_id
+            result.drawback_applied = f"Gained curse: {curse_id}"
+
+        elif dtype == NeowDrawbackType.LOSE_MAX_HP:
+            max_hp_lost = int(run_state.max_hp * NeowHandler.MAX_HP_LOSS_PERCENT)
+            max_hp_lost = max(1, max_hp_lost)
+            run_state.lose_max_hp(max_hp_lost)
+            result.max_hp_change = -max_hp_lost
+            result.drawback_applied = f"Lost {max_hp_lost} Max HP"
+
+    @staticmethod
+    def get_neow_actions(
+        run_state: RunState,
+        blessing_options: List[NeowBlessing],
+    ) -> List[Tuple[int, str]]:
+        """
+        Get available Neow actions as (index, description) tuples.
+
+        Args:
+            run_state: Current run state
+            blessing_options: Available blessings
+
+        Returns:
+            List of (blessing_index, description) tuples
+        """
+        actions = []
+        for i, blessing in enumerate(blessing_options):
+            desc = blessing.description
+            if blessing.drawback_type != NeowDrawbackType.NONE:
+                desc += f" ({blessing.drawback_description})"
+            actions.append((i, desc))
+        return actions
 
 
 # ============================================================================

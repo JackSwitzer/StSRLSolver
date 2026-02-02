@@ -1,6 +1,22 @@
 """
 Combat Simulation - Core combat loop for Slay the Spire.
 
+DEPRECATED: This module is deprecated. Use core.calc.combat_sim.CombatSimulator instead.
+
+CombatSimulator provides:
+- Immutable state (no mutation, suitable for tree search)
+- Full turn simulation with policies
+- Deterministic RNG handling
+- CombatResult tracking
+
+This module is kept for backwards compatibility but will be removed in a future version.
+
+NOTE: The CombatLog pattern in this module is useful for EV tracking and should be
+preserved or migrated to the new CombatSimulator when this module is removed.
+CombatLog provides structured event logging (draw_cards, play_card, damage, etc.)
+that can be used for decision attribution and outcome tracking.
+
+Original description:
 This module implements the exact combat mechanics from the decompiled source:
 1. Turn structure (player turn -> monster turn -> end of turn)
 2. Card playing (energy check, effects, damage calculation)
@@ -17,13 +33,27 @@ Key hooks (from decompiled AbstractCreature, AbstractMonster, AbstractCard):
 - atDamageGive/Receive: Damage modification
 """
 
+import warnings
+
+warnings.warn(
+    "core.combat.Combat is deprecated. Use core.calc.CombatSimulator instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Tuple, Any
 from enum import Enum
 import math
 
 from .state.rng import Random
-from .damage import DamageType, calculate_card_damage, calculate_block, calculate_incoming_damage, CombatState, Power
+from .calc.damage import (
+    calculate_damage,
+    calculate_block,
+    calculate_incoming_damage,
+    WRATH_MULT,
+    DIVINITY_MULT,
+)
 from .content.stances import StanceManager, StanceID, STANCES
 from .content.cards import Card, CardType, get_card
 from .content.enemies import Enemy, Intent, MoveInfo
@@ -358,16 +388,13 @@ class Combat:
 
         result = {"success": True, "card": card.id, "effects": []}
 
-        # Build combat state for damage calculation
-        combat_state = self._build_combat_state(target_enemy_index)
-
         # Apply card effects
         target_enemy = self.enemies[target_enemy_index] if target_enemy_index < len(self.enemies) else None
 
         # Damage
         if card.damage > 0:
             hits = card.magic_number if card.magic_number > 0 and "damage_x_times" in card.effects else 1
-            per_hit_damage = calculate_card_damage(card.damage, combat_state, card.id)
+            per_hit_damage = self._calculate_card_damage(card.damage, target_enemy_index)
 
             for _ in range(hits):
                 if target_enemy and target_enemy.state.current_hp > 0:
@@ -392,7 +419,7 @@ class Combat:
 
         # Block
         if card.block > 0:
-            block_gained = calculate_block(card.block, combat_state)
+            block_gained = self._calculate_block_gained(card.block)
             self.player.block += block_gained
             result["effects"].append({"type": "block", "amount": block_gained})
 
@@ -473,48 +500,40 @@ class Combat:
             power_id, amount = power_mapping[card.id]
             self.player.add_power(power_id, amount)
 
-    def _build_combat_state(self, target_index: int = 0) -> CombatState:
-        """Build combat state for damage calculation."""
-        player_powers = []
-
-        # Strength
-        str_amt = self.player.get_power("Strength")
-        if str_amt != 0:
-            player_powers.append(Power("Strength", str_amt))
-
-        # Weak
-        if self.player.has_power("Weak"):
-            player_powers.append(Power("Weak", self.player.get_power("Weak")))
-
-        # Vigor
+    def _calculate_card_damage(self, base_damage: int, target_index: int = 0) -> int:
+        """Calculate damage for a card attack."""
+        # Get player modifiers
+        strength = self.player.get_power("Strength")
         vigor = self.player.get_power("Vigor")
-        if vigor > 0:
-            player_powers.append(Power("Vigor", vigor))
+        weak = self.player.has_power("Weak")
 
-        # Dexterity (for block)
-        dex = self.player.get_power("Dexterity")
-        if dex != 0:
-            player_powers.append(Power("Dexterity", dex))
+        # Get stance multiplier
+        stance_mult = self.stance_manager.effect.damage_give_multiplier
 
-        # Frail
-        if self.player.has_power("Frail"):
-            player_powers.append(Power("Frail", 1))
-
-        target_powers = []
+        # Get target modifiers
+        vuln = False
         if target_index < len(self.enemies):
             enemy = self.enemies[target_index]
-            if enemy.state.powers.get("Vulnerable", 0) > 0:
-                target_powers.append(Power("Vulnerable", 1))
+            vuln = enemy.state.powers.get("Vulnerable", 0) > 0
 
-        # Stance multiplier
-        stance_mult = self.stance_manager.effect.damage_give_multiplier
-        stance_incoming_mult = self.stance_manager.effect.damage_receive_multiplier
+        return calculate_damage(
+            base=base_damage,
+            strength=strength,
+            vigor=vigor,
+            weak=weak,
+            stance_mult=stance_mult,
+            vuln=vuln,
+        )
 
-        return CombatState(
-            player_powers=player_powers,
-            stance_damage_mult=stance_mult,
-            stance_incoming_mult=stance_incoming_mult,
-            target_powers=target_powers,
+    def _calculate_block_gained(self, base_block: int) -> int:
+        """Calculate block gained from a card."""
+        dexterity = self.player.get_power("Dexterity")
+        frail = self.player.has_power("Frail")
+
+        return calculate_block(
+            base=base_block,
+            dexterity=dexterity,
+            frail=frail,
         )
 
     def end_player_turn(self):

@@ -1,0 +1,170 @@
+{
+  "version": "1.0.0",
+  "extracted_from": "Slay the Spire (decompiled game-source)",
+  "extraction_date": "2026-01-27",
+  "notes": "Assets extracted from /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/",
+
+  "relics": {
+    "directory": "relics/",
+    "format": "PNG",
+    "dimensions": "128x128",
+    "count": 232,
+    "files": [
+      "abacus.png", "akabeko.png", "anchor.png", "anvil.png", "artOfWar.png", "ashes.png",
+      "astrolabe.png", "bag_of_prep.png", "bank.png", "bark.png", "battery.png", "bell.png",
+      "bellows.png", "bigSpoon.png", "bird_urn.png", "blackBlood.png", "blackstar.png",
+      "blood_vial.png", "bloodOfGifted.png", "bloodVial.png", "bloodyChalice.png", "bloom.png",
+      "blueCandle.png", "bluePill.png", "boot.png", "bottledFlame.png", "bottledLightning.png",
+      "bottledTornado.png", "bowlerHat.png", "brimstone.png", "bronzeScales.png", "burnHammer.png",
+      "burningBlood.png", "cables.png", "cage.png", "calendar.png", "calipers.png",
+      "cantUseRelic.png", "captain_wheel.png", "cauldron.png", "centennialPuzzle.png",
+      "ceramic_fish.png", "championBelt.png", "chemicalX.png", "circlet.png", "clasp.png",
+      "clay.png", "clean_water.png", "clericFace.png", "clockwork.png", "codex.png",
+      "coffeeDripper.png", "collar.png", "compass.png", "courier.png", "crackedOrb.png",
+      "crown.png", "crownOfThorns.png", "cultistMask.png", "cursedBlood.png", "cursedKey.png",
+      "damaru.png", "darkstone.png", "dataDisk.png", "deadBranch.png", "derpRock.png",
+      "dodecahedron_s.png", "dodecahedron.png", "dreamCatcher.png", "drill.png", "duality.png",
+      "dummy.png", "duvuDoll.png", "ectoplasm.png", "egg1.png", "egg2.png", "egg3.png",
+      "emerald_key.png", "emerald.png", "emotionChip.png", "enchiridion.png", "equilibrium.png",
+      "eternal_feather.png", "frozenEgg.png", "frozenEye.png", "frozenOrb.png", "funnel.png",
+      "gamblingChip.png", "ggg.png", "ginger.png", "golden_eye.png", "goldenIdolRelic.png",
+      "goldTooth.png", "gremlin_horn.png", "gremlinMask.png", "gyoza.png", "headband.png",
+      "helix.png", "holy_water.png", "horn_cleat.png", "hotPotato.png", "hourglass.png",
+      "iceCream.png", "incenseBurner.png", "ink_bottle.png", "insect.png", "inserter.png",
+      "juzuBracelet.png", "kettlebell.png", "keyRing.png", "kindling.png", "kite.png",
+      "kunai.png", "lament.png", "lantern.png", "letterOpener.png", "lives.png",
+      "livingBlood.png", "lizardTail.png", "lock.png", "magicFlower.png", "mango.png",
+      "marbles.png", "mark_of_pain.png", "matryoshka.png", "mealTicket.png", "meat.png",
+      "medicalKit.png", "melange.png", "membershipCard.png", "merchantMask.png", "mirror.png",
+      "monocle.png", "mummifiedHand.png", "mushroom.png", "mutagen.png", "necronomicon.png",
+      "ninjaScroll.png", "nloth.png", "nlothsGift.png", "nullStone.png", "nullStoneUsed.png",
+      "nunchaku.png", "octohedron.png", "oldCoin.png", "omamori.png", "orichalcum.png",
+      "ornamentalFan.png", "ornithopter.png", "orrery.png", "owlDoll.png", "pandoras_box.png",
+      "pantograph.png", "paperCrane.png", "paperFrog.png", "peacePipe.png", "pear.png",
+      "pellets.png", "penNib.png", "philosopherStone.png", "pocketwatch.png", "potion_belt.png",
+      "practiceLock.png", "prayerWheel.png", "prism.png", "questionCard.png", "red_skull.png",
+      "redChoker.png", "redCirclet.png", "redMask.png", "redPill.png", "regal_pillow.png",
+      "ruby_key.png", "runicCapacitor.png", "runicCube.png", "runicDome.png", "runicPyramid.png",
+      "runicSphere.png", "rupee.png", "sapphire_key.png", "serpent_ring.png", "serpentHead.png",
+      "shovel.png", "shuriken.png", "singingBowl.png", "sling.png", "smooth_stone.png",
+      "snake_ring.png", "snakeSkull.png", "sneckoEye.png", "sozu.png", "spearHead.png",
+      "spiritPoop.png", "stoneEgg.png", "strawberry.png", "sundial.png", "sunflower.png",
+      "tea_set.png", "tear_drop_locket.png", "test1.png", "test2.png", "test3.png",
+      "test4.png", "test5.png", "test6.png", "test7.png", "test8.png", "the_specimen.png",
+      "threadAndNeedle.png", "tingsha.png", "tinyChest.png", "tinyHouse.png", "tongs.png",
+      "toolbox.png", "top.png", "torii.png", "tough_bandages.png", "toxicEgg.png",
+      "tungsten.png", "turnip.png", "vajra.png", "vCore.png", "violet_lotus.png",
+      "virus.png", "waffle.png", "warPaint.png", "wBlade.png", "whetstone.png",
+      "whiteBeast.png", "winged.png", "yang.png", "yin.png"
+    ]
+  },
+
+  "potions": {
+    "directory": "potions/",
+    "format": "PNG",
+    "notes": "Potions use layered rendering (glass, liquid, outline, spots). Sizes: h=huge, l=large, m=medium, s=small, t=tiny",
+    "count": 27,
+    "layers": {
+      "glass": ["potion_h_glass.png", "potion_l_glass.png", "potion_m_glass.png", "potion_s_glass.png", "potion_t_glass.png"],
+      "liquid": ["potion_h_liquid.png", "potion_l_liquid.png", "potion_m_liquid.png", "potion_s_liquid.png", "potion_t_liquid.png"],
+      "outline": ["potion_h_outline.png", "potion_l_outline.png", "potion_m_outline.png", "potion_s_outline.png", "potion_t_outline.png"],
+      "spots": ["potion_h_spots.png", "potion_l_spots.png", "potion_m_spots.png", "potion_s_spots.png", "potion_t_spots.png"],
+      "hybrid": ["potion_h_hybrid.png", "potion_l_hybrid.png", "potion_m_hybrid.png", "potion_s_hybrid.png", "potion_t_hybrid.png"]
+    },
+    "other": ["potion_placeholder.png", "potion_shadow.png"]
+  },
+
+  "enemies": {
+    "directory": "enemies/",
+    "format": "PNG (sprite sheets)",
+    "notes": "These are Spine animation sprite sheets. Individual frames need extraction for static display.",
+    "count": 40,
+    "files": {
+      "act1_monsters": [
+        "cultist.png", "jawWorm.png", "jawWormAlt.png", "louseGreen.png", "louseRed.png",
+        "slimeS.png", "slimeM.png", "slimeL.png", "slimeAltS.png", "slimeAltM.png", "slimeAltL.png",
+        "angryGremlin.png", "fatGremlin.png", "femaleGremlin.png", "thiefGremlin.png", "wizardGremlin.png",
+        "blueSlaver.png", "redSlaver.png", "looter.png", "sentry.png"
+      ],
+      "act1_elites": [
+        "nobGremlin.png", "Lagavulin.png"
+      ],
+      "act1_bosses": [
+        "guardian.png", "slime.png"
+      ],
+      "act2_monsters": [
+        "automaton.png", "bookOfStabbing.png", "looterAlt.png", "slaverMaster.png", "torchHead.png"
+      ],
+      "act2_bosses": [
+        "collector.png"
+      ],
+      "act3_monsters": [
+        "exploder.png", "maw.png", "repulser.png", "spiker.png", "head.png", "transient.png"
+      ],
+      "act3_bosses": [
+        "AwakenedOne.png", "TimeEater.png", "Donu.png", "Nemesis.png"
+      ]
+    }
+  },
+
+  "ui": {
+    "directory": "ui/",
+    "format": "PNG",
+    "files": {
+      "resources": {
+        "gold": "gold.png",
+        "heart": "panelHeart.png",
+        "bar": "bar.png",
+        "block": "block.png"
+      },
+      "energy_orb": {
+        "notes": "Red energy orb uses layered rendering",
+        "layers": ["layer1.png", "layer1d.png", "layer2.png", "layer2d.png", "layer3.png", "layer3d.png", "layer4.png", "layer4d.png", "layer5.png", "layer5d.png", "layer6.png"]
+      },
+      "relic_frames": {
+        "common": "relicFrameCommon.png",
+        "uncommon": "relicFrameUncommon.png",
+        "rare": "relicFrameRare.png",
+        "boss": "relicFrameBoss.png"
+      },
+      "intents": {
+        "directory": "intent/",
+        "attack": ["attack_intent_1.png", "attack_intent_2.png", "attack_intent_3.png", "attack_intent_4.png", "attack_intent_5.png", "attack_intent_6.png", "attack_intent_7.png"],
+        "buff": ["buff1.png", "buff1L.png"],
+        "debuff": ["debuff1.png", "debuff1L.png", "debuff2.png", "debuff2L.png"],
+        "defend": ["defend.png", "defendL.png", "defendBuff.png", "defendBuffL.png"],
+        "special": ["attackBuff.png", "attackDebuff.png", "attackDefend.png", "escape.png", "escapeL.png", "magic.png", "magicL.png", "sleep.png", "sleepL.png", "special.png", "specialL.png", "stun.png", "stunL.png", "unknown.png", "unknownL.png", "placeholder.png"]
+      }
+    }
+  },
+
+  "cards": {
+    "directory": "cards/",
+    "format": "PNG",
+    "notes": "Card UI atlas files need sprite extraction. Includes small portrait frames.",
+    "files": {
+      "card_ui_atlases": ["cardui.png", "cardui2.png", "cardui3.png", "cardui4.png"],
+      "locked_cards": ["locked_attack.png", "locked_attack_l.png", "locked_skill.png", "locked_skill_l.png", "locked_power.png", "locked_power_l.png"],
+      "tiny_cards": {
+        "portraits": ["attackPortrait.png", "powerPortrait.png", "skillPortrait.png"],
+        "ui": ["banner.png", "bannerShadow.png", "cardBack.png", "descBox.png", "portraitShadow.png"]
+      }
+    }
+  },
+
+  "powers": {
+    "directory": "powers/",
+    "format": "PNG atlas",
+    "notes": "Powers are stored as a texture atlas. Use powers.atlas to extract individual power icons.",
+    "files": ["powers.png", "powers.atlas"]
+  },
+
+  "usage_notes": {
+    "relics": "Direct use - each PNG is a complete relic icon at 128x128",
+    "potions": "Composite rendering required - layer glass, liquid, outline, spots for full potion",
+    "enemies": "Sprite sheets from Spine animations - may need frame extraction for static use",
+    "ui_intent": "Direct use - each intent icon is standalone",
+    "cards": "Atlas files need sprite extraction using cardui.atlas (not included)",
+    "powers": "Atlas extraction needed - use powers.atlas for coordinates"
+  }
+}

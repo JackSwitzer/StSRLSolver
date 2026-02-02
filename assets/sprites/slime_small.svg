@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Small Slime - Simple blob -->
+  <!-- Slime puddle -->
+  <ellipse cx="32" cy="54" rx="16" ry="4" fill="#1a4a4a"/>
+  <!-- Main body -->
+  <path d="M16 52 Q12 40 18 32 Q24 24 32 24 Q40 24 46 32 Q52 40 48 52 Q40 56 32 56 Q24 56 16 52" fill="#2a7a6a"/>
+  <!-- Highlight -->
+  <path d="M20 42 Q18 36 24 32 Q30 28 32 30 Q28 34 26 40 Q24 46 20 42" fill="#40a090" opacity="0.6"/>
+  <!-- Face -->
+  <ellipse cx="28" cy="40" rx="3" ry="4" fill="#1a1520"/>
+  <ellipse cx="40" cy="40" rx="3" ry="4" fill="#1a1520"/>
+  <!-- Pupils -->
+  <ellipse cx="29" cy="41" rx="1" ry="1.5" fill="#e8c44a"/>
+  <ellipse cx="41" cy="41" rx="1" ry="1.5" fill="#e8c44a"/>
+  <!-- Mouth -->
+  <path d="M30 48 Q34 52 38 48" stroke="#1a1520" stroke-width="2" fill="none"/>
+</svg>

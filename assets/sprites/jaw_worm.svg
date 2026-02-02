@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Jaw Worm - Segmented worm with gaping maw -->
+  <!-- Body segments -->
+  <ellipse cx="48" cy="40" rx="10" ry="8" fill="#5a2a4a"/>
+  <ellipse cx="38" cy="36" rx="11" ry="9" fill="#6b3a5a"/>
+  <ellipse cx="26" cy="34" rx="12" ry="10" fill="#7a4a6a"/>
+  <!-- Head -->
+  <ellipse cx="14" cy="32" rx="12" ry="14" fill="#8a5a7a"/>
+  <!-- Open jaw - top -->
+  <path d="M4 28 Q2 20 10 18 L18 24 Q14 28 4 28" fill="#CC4444"/>
+  <!-- Open jaw - bottom -->
+  <path d="M4 36 Q2 44 10 46 L18 40 Q14 36 4 36" fill="#CC4444"/>
+  <!-- Teeth -->
+  <path d="M6 26 L8 22 L10 26 L12 22 L14 26" fill="#e8e8e8" stroke="#1a1520" stroke-width="0.5"/>
+  <path d="M6 38 L8 42 L10 38 L12 42 L14 38" fill="#e8e8e8" stroke="#1a1520" stroke-width="0.5"/>
+  <!-- Inside mouth -->
+  <ellipse cx="10" cy="32" rx="4" ry="6" fill="#3a0a1a"/>
+  <!-- Eye -->
+  <circle cx="18" cy="28" r="3" fill="#1a1520"/>
+  <circle cx="19" cy="27" r="1" fill="#e8c44a"/>
+</svg>

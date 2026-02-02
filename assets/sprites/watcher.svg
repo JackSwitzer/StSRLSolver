@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Watcher - Hooded figure with third eye, purple/violet -->
+  <!-- Robe body -->
+  <path d="M16 30 L10 60 L54 60 L48 30 Q32 24 16 30" fill="#3a2a4a"/>
+  <!-- Robe inner layer -->
+  <path d="M20 34 L16 60 L48 60 L44 34 Q32 30 20 34" fill="#4a3a5a"/>
+  <!-- Hood -->
+  <path d="M14 32 Q14 10 32 6 Q50 10 50 32 Q42 38 32 38 Q22 38 14 32" fill="#2a1a3a"/>
+  <!-- Face shadow -->
+  <ellipse cx="32" cy="28" rx="10" ry="8" fill="#1a0a2a"/>
+  <!-- Normal eyes (closed/serene) -->
+  <path d="M24 28 Q28 26 32 28" stroke="#8a6aaa" stroke-width="1.5" fill="none"/>
+  <path d="M32 28 Q36 26 40 28" stroke="#8a6aaa" stroke-width="1.5" fill="none"/>
+  <!-- Third eye -->
+  <ellipse cx="32" cy="18" rx="4" ry="3" fill="#6a4a8a"/>
+  <ellipse cx="32" cy="18" rx="3" ry="2" fill="#8a6aaa"/>
+  <circle cx="32" cy="18" r="1.5" fill="#e8c44a"/>
+  <!-- Third eye glow -->
+  <circle cx="32" cy="18" r="5" fill="none" stroke="#8a6aaa" stroke-width="0.5" opacity="0.6"/>
+  <!-- Hands in meditation pose -->
+  <ellipse cx="24" cy="50" rx="4" ry="3" fill="#5a4a6a"/>
+  <ellipse cx="40" cy="50" rx="4" ry="3" fill="#5a4a6a"/>
+  <!-- Robe details -->
+  <line x1="32" y1="38" x2="32" y2="60" stroke="#2a1a3a" stroke-width="1"/>
+  <!-- Subtle glow effect -->
+  <ellipse cx="32" cy="18" rx="8" ry="6" fill="#8a6aaa" opacity="0.2"/>
+</svg>

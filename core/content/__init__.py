@@ -49,6 +49,16 @@ from .enemies import (
     create_enemy, ENEMY_CLASSES,
 )
 
+# Enemy Data (pure data access - HP ranges, damage values, move IDs)
+from .enemies_data import (
+    ENEMY_DATA,
+    get_hp_range as enemy_get_hp_range,
+    get_damage_value as enemy_get_damage_value,
+    get_damage_values as enemy_get_damage_values,
+    get_enemy_type as enemy_get_type_from_data,
+    get_move_name as enemy_get_move_name,
+)
+
 # Events
 from .events import (
     Event, EventChoice, Outcome, OutcomeType, Act, NeowBonus,
@@ -86,6 +96,10 @@ __all__ = [
     "Enemy", "EnemyState", "MoveInfo", "Intent", "EnemyType",
     "JawWorm", "Cultist", "GremlinNob", "Lagavulin", "SlimeBoss",
     "create_enemy", "ENEMY_CLASSES",
+    # Enemy Data
+    "ENEMY_DATA",
+    "enemy_get_hp_range", "enemy_get_damage_value", "enemy_get_damage_values",
+    "enemy_get_type_from_data", "enemy_get_move_name",
     # Events
     "Event", "EventChoice", "Outcome", "OutcomeType", "Act", "NeowBonus",
     "ALL_EVENTS", "EXORDIUM_EVENTS", "CITY_EVENTS", "BEYOND_EVENTS", "SHRINE_EVENTS",

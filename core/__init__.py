@@ -7,24 +7,30 @@ This is the "ground truth" module - all mechanics must match the original game e
 Submodules:
 - content: Cards, relics, potions, enemies, powers, stances
 - state: RNG system, game state tracking
-- calc: Damage and block calculations
+- calc: Damage and block calculations, combat simulation (CombatSimulator)
 - generation: Map generation
 
-Legacy modules (still in core root):
-- combat: Combat simulation
-- damage: Damage calculation utilities
+Legacy modules (deprecated, will be removed):
+- combat: Use core.calc.combat_sim.CombatSimulator instead
 
 Usage:
-    from core import GameState, simulate_combat, predict_enemy_move
+    from core import CombatSimulator, Random
+    from core.content.enemies import JawWorm
 
-    # Create game state from seed
-    state = GameState(seed="ABC123XYZ", ascension=20, character="Watcher")
+    # Setup combat simulator
+    sim = CombatSimulator()
+    deck = ["Strike_P", "Strike_P", "Defend_P", "Defend_P", "Eruption", "Vigilance"]
+    enemies = [JawWorm(Random(12345), ascension=0)]
 
-    # Predict enemy's next move
-    move = predict_enemy_move(state, enemy_id="JawWorm")
+    # Initialize combat state
+    state = sim.setup_combat(deck, enemies, player_hp=80, player_max_hp=80)
 
-    # Simulate combat outcome
-    result = simulate_combat(state, deck, enemies)
+    # Get legal actions and execute
+    actions = sim.get_legal_actions(state)
+    new_state = sim.execute_action(state, actions[0])
+
+    # Or simulate full combat with a policy
+    result = sim.simulate_full_combat(state, sim.greedy_policy)
 """
 
 __version__ = "0.1.0"
@@ -32,11 +38,20 @@ __version__ = "0.1.0"
 # RNG System (from state submodule)
 from .state.rng import XorShift128, Random, GameRNG, seed_to_long, long_to_seed
 
-# Damage Calculation (still in core root)
-from .damage import (
-    DamageType, Power, Relic, CombatState,
-    calculate_card_damage, calculate_block, calculate_incoming_damage,
-    wrath_damage, divinity_damage
+# Damage Calculation (from calc submodule)
+from .calc.damage import (
+    calculate_damage,
+    calculate_block,
+    calculate_incoming_damage,
+    apply_hp_loss,
+    wrath_damage,
+    divinity_damage,
+    # Constants
+    WEAK_MULT,
+    VULN_MULT,
+    FRAIL_MULT,
+    WRATH_MULT,
+    DIVINITY_MULT,
 )
 
 # Stance System (from content submodule)
@@ -55,7 +70,11 @@ from .content.enemies import (
     create_enemy, ENEMY_CLASSES
 )
 
-# Combat Simulation (still in core root)
+# Combat Simulation - Use CombatSimulator from calc submodule (preferred)
+from .calc.combat_sim import CombatSimulator, ActionType, Action, CombatResult
+
+# Legacy Combat (deprecated - will be removed in future version)
+# CombatLog is preserved here as the pattern is useful for EV tracking
 from .combat import Combat, CombatPhase, PlayerState, CombatLog
 
 # Powers System (from content submodule)
@@ -71,6 +90,15 @@ from .content.powers import (
 from .generation.map import (
     MapGenerator, MapGeneratorConfig, MapRoomNode, MapEdge, RoomType,
     generate_act4_map, get_map_seed_offset, map_to_string
+)
+
+# Encounter Prediction (from generation submodule)
+from .generation.encounters import (
+    predict_all_acts, predict_all_bosses, predict_all_bosses_extended,
+    predict_act_encounters, get_monsterrng_calls_for_act,
+    generate_exordium_encounters, generate_city_encounters,
+    generate_beyond_encounters, generate_ending_encounters,
+    EXORDIUM_BOSSES, CITY_BOSSES, BEYOND_BOSSES,
 )
 
 # Potions (from content submodule)
@@ -106,9 +134,9 @@ __all__ = [
     # RNG
     "XorShift128", "Random", "GameRNG", "seed_to_long", "long_to_seed",
     # Damage
-    "DamageType", "Power", "Relic", "CombatState",
-    "calculate_card_damage", "calculate_block", "calculate_incoming_damage",
-    "wrath_damage", "divinity_damage",
+    "calculate_damage", "calculate_block", "calculate_incoming_damage",
+    "apply_hp_loss", "wrath_damage", "divinity_damage",
+    "WEAK_MULT", "VULN_MULT", "FRAIL_MULT", "WRATH_MULT", "DIVINITY_MULT",
     # Stances
     "StanceID", "StanceEffect", "StanceManager", "STANCES",
     # Cards
@@ -118,11 +146,19 @@ __all__ = [
     "Enemy", "EnemyState", "MoveInfo", "Intent", "EnemyType",
     "JawWorm", "Cultist", "GremlinNob", "Lagavulin", "SlimeBoss",
     "create_enemy", "ENEMY_CLASSES",
-    # Combat
+    # Combat Simulation (preferred)
+    "CombatSimulator", "ActionType", "Action", "CombatResult",
+    # Combat (legacy, deprecated)
     "Combat", "CombatPhase", "PlayerState", "CombatLog",
     # Map
     "MapGenerator", "MapGeneratorConfig", "MapRoomNode", "MapEdge", "RoomType",
     "generate_act4_map", "get_map_seed_offset", "map_to_string",
+    # Encounters
+    "predict_all_acts", "predict_all_bosses", "predict_all_bosses_extended",
+    "predict_act_encounters", "get_monsterrng_calls_for_act",
+    "generate_exordium_encounters", "generate_city_encounters",
+    "generate_beyond_encounters", "generate_ending_encounters",
+    "EXORDIUM_BOSSES", "CITY_BOSSES", "BEYOND_BOSSES",
     # Powers
     "PowerInstance", "PowerType", "PowerManager", "PowerDamageType",
     "create_power", "create_strength", "create_dexterity", "create_weak", "create_vulnerable",
