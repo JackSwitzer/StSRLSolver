@@ -3,6 +3,44 @@
 ## Project Goal
 Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using reinforcement learning with EV-based decision tracking.
 
+## Project Structure (Monorepo)
+```
+packages/engine/     # Pure Python game engine (source of truth)
+packages/parity/     # Seed catalog + parity verification tools
+core/                # Compatibility shim → re-exports from packages/engine
+tests/               # 1958 tests (pytest), 51% coverage
+mod/                 # Java EVTracker mod
+decompiled/          # Java source reference
+docs/vault/          # Game mechanics ground truth
+```
+
+## Testing
+```bash
+uv run pytest tests/ -q              # Run all 1958 tests
+uv run pytest tests/test_parity.py   # Parity verification (94 tests)
+uv run pytest tests/ --cov=packages/engine  # Coverage report
+```
+
+## Engine API (for RL integration)
+```python
+from packages.engine import GameRunner, GamePhase
+
+runner = GameRunner(seed="SEED", ascension=20)
+while not runner.game_over:
+    actions = runner.get_available_actions()  # Decision point
+    runner.take_action(actions[0])            # Execute action
+    # runner.run_state = full observable state
+    # runner.phase = current GamePhase
+```
+
+## Git Branches
+- **main**: Clean monorepo (engine + tests + parity)
+- **archive/pre-cleanup** (tag): Full project snapshot pre-cleanup
+- **archive/sts-oracle**: Web dashboard
+- **archive/vod-extraction**: VOD/training pipeline
+- **archive/comparison-tools**: Verification scripts
+- **archive/old-master**: Original StSRLSolver repo
+
 ## Workflow
 
 ### Subagent Policy
