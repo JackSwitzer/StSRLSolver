@@ -2079,6 +2079,11 @@ vod = [
     { name = "yt-dlp" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'data'", specifier = ">=3.9.0" },
@@ -2104,6 +2109,9 @@ requires-dist = [
     { name = "yt-dlp", marker = "extra == 'vod'", specifier = ">=2024.1.0" },
 ]
 provides-extras = ["dev", "vod", "data"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "tenacity"

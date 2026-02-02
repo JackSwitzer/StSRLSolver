@@ -50,7 +50,7 @@ from .enemies import (
 )
 
 # Enemy Data (pure data access - HP ranges, damage values, move IDs)
-from .enemies_data import (
+from .enemies import (
     ENEMY_DATA,
     get_hp_range as enemy_get_hp_range,
     get_damage_value as enemy_get_damage_value,

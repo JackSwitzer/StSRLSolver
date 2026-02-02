@@ -45,6 +45,11 @@ data = [
 [project.scripts]
 sts-launcher = "tools.launcher:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
 # =============================================================================
 # Pytest Configuration
 # =============================================================================
