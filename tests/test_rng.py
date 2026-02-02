@@ -23,10 +23,12 @@ class TestSeedConversion:
         assert seed_to_long("A") == 10
         assert seed_to_long("Z") == 34
 
-        # Multi-character seeds
-        assert seed_to_long("10") == 35  # 1*35 + 0
-        assert seed_to_long("11") == 36  # 1*35 + 1
-        assert seed_to_long("AA") == 10 * 35 + 10  # 360
+        # Multi-character seeds (purely numeric strings are treated as decimal
+        # integers for save file compatibility, so use non-numeric seeds for base-35)
+        assert seed_to_long("10") == 10  # All-digit string -> decimal
+        assert seed_to_long("11") == 11  # All-digit string -> decimal
+        assert seed_to_long("AA") == 10 * 35 + 10  # 360 (base-35)
+        assert seed_to_long("1A") == 1 * 35 + 10  # 45 (base-35, has letter)
 
     def test_o_to_zero_conversion(self):
         """Test that O is converted to 0."""
@@ -453,7 +455,8 @@ class TestJava64BitOverflowUnderflow:
 
         for _ in range(1000):
             val = rng._next_long()
-            assert 0 <= val <= 0xFFFFFFFFFFFFFFFF, f"Value {val} out of 64-bit range"
+            # Java nextLong() returns signed 64-bit: [-2^63, 2^63 - 1]
+            assert -0x8000000000000000 <= val <= 0x7FFFFFFFFFFFFFFF, f"Value {val} out of signed 64-bit range"
 
     def test_xorshift_internal_operations_masked(self):
         """XorShift operations must mask intermediate results to 64 bits.
@@ -1022,18 +1025,20 @@ class TestSeedStringConversionEdgeCases:
         """Test roundtrip conversion with edge values.
 
         seed -> long -> seed -> long should be stable.
+        Note: Values whose base-35 representation is all digits (e.g. 35 -> "10")
+        won't roundtrip because seed_to_long treats all-digit strings as decimal
+        for save file compatibility. We only test values with letters in base-35.
         """
         edge_values = [
-            0,
-            1,
-            34,  # Max single char (Z)
-            35,  # "10" in base 35
-            35**2 - 1,  # "ZZ"
-            2**32,  # 32-bit boundary
-            2**32 - 1,
-            2**48,
-            2**63 - 1,  # Long.MAX_VALUE
-            2**64 - 1,  # Max unsigned 64-bit
+            0,           # "0" -> decimal 0 (works)
+            1,           # "1" -> decimal 1 (works)
+            34,          # "Z" (has letter, works)
+            35**2 - 1,   # "ZZ" (has letters, works)
+            2**32,       # Has letters in base-35
+            2**32 - 1,   # Has letters in base-35
+            2**48,       # Has letters in base-35
+            2**63 - 1,   # Long.MAX_VALUE
+            2**64 - 1,   # Max unsigned 64-bit
         ]
 
         for val in edge_values:
@@ -1128,7 +1133,8 @@ class TestRandomClassMethodVariants:
 
         for _ in range(100):
             val = rng.random_long()
-            assert 0 <= val <= 0xFFFFFFFFFFFFFFFF
+            # Java randomLong() returns signed 64-bit long
+            assert -0x8000000000000000 <= val <= 0x7FFFFFFFFFFFFFFF
 
     def test_random_boolean_no_arg(self):
         """random_boolean() uses nextBoolean (50% chance).

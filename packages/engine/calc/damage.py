@@ -34,6 +34,8 @@ __all__ = [
     "WRATH_MULT",
     "DIVINITY_MULT",
     "FLIGHT_MULT",
+    "wrath_damage",
+    "divinity_damage",
 ]
 
 

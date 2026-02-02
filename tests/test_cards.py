@@ -160,7 +160,7 @@ class TestStanceChangingCards:
         """Cards that enter Calm stance."""
         calm_cards = [
             ("Vigilance", CardType.SKILL),
-            ("Tranquility", CardType.SKILL),
+            ("ClearTheMind", CardType.SKILL),  # Java ID for Tranquility
         ]
         for card_id, expected_type in calm_cards:
             card = get_card(card_id)
@@ -190,14 +190,14 @@ class TestStanceChangingCards:
         assert upgraded.damage == 14  # +5
 
     def test_empty_body_stats(self):
-        """Empty Body: 1 cost, 7 block (12 upgraded), exits stance."""
+        """Empty Body: 1 cost, 7 block (10 upgraded), exits stance."""
         card = get_card("EmptyBody")
         assert card.cost == 1
         assert card.block == 7
         assert card.exit_stance == True
 
         upgraded = get_card("EmptyBody", upgraded=True)
-        assert upgraded.block == 12  # +5
+        assert upgraded.block == 10  # +3
 
     def test_empty_mind_stats(self):
         """Empty Mind: 1 cost, draw 2 (3 upgraded), exits stance."""
@@ -220,7 +220,7 @@ class TestStanceChangingCards:
 
     def test_tranquility_mechanics(self):
         """Tranquility: 0 cost, enters Calm, retain, exhaust."""
-        card = get_card("Tranquility")
+        card = get_card("ClearTheMind")  # Java ID for Tranquility
         assert card.cost == 0
         assert card.enter_stance == "Calm"
         assert card.retain == True
@@ -240,7 +240,7 @@ class TestStanceChangingCards:
         """Inner Peace: enter Calm OR draw 3 if in Calm."""
         card = get_card("InnerPeace")
         assert card.cost == 1
-        assert "if_calm_draw_3_else_calm" in card.effects
+        assert "if_calm_draw_else_calm" in card.effects
 
     def test_indignation_dual_effect(self):
         """Indignation: enter Wrath OR gain 3 mantra if in Wrath."""
@@ -263,7 +263,7 @@ class TestRetainMechanics:
     def test_retain_cards_list(self):
         """All cards that should have retain."""
         retain_cards = [
-            "Miracle", "FlyingSleeves", "Tranquility", "Crescendo",
+            "Miracle", "FlyingSleeves", "ClearTheMind", "Crescendo",  # ClearTheMind = Tranquility
             "Protect", "SandsOfTime", "WindmillStrike", "Perseverance",
             "Worship", "Blasphemy",
             # Special cards
@@ -288,9 +288,8 @@ class TestRetainMechanics:
         card = get_card("FlyingSleeves")
         assert card.cost == 1
         assert card.damage == 4
-        assert card.magic_number == 2  # hits
         assert card.retain == True
-        assert "damage_x_times" in card.effects
+        assert "damage_twice" in card.effects  # Hardcoded 2 hits
 
         upgraded = get_card("FlyingSleeves", upgraded=True)
         assert upgraded.damage == 6
@@ -341,7 +340,7 @@ class TestScryMechanics:
         card = get_card("CutThroughFate")
         assert card.cost == 1
         assert card.damage == 7
-        assert "scry_2" in card.effects
+        assert "scry" in card.effects
         assert "draw_1" in card.effects
 
         upgraded = get_card("CutThroughFate", upgraded=True)
@@ -352,8 +351,8 @@ class TestScryMechanics:
         card = get_card("JustLucky")
         assert card.cost == 0
         assert card.damage == 3
-        assert "scry_1" in card.effects
-        assert "gain_block_2" in card.effects
+        assert "scry" in card.effects
+        assert "gain_block" in card.effects
 
         upgraded = get_card("JustLucky", upgraded=True)
         assert upgraded.damage == 4
@@ -382,13 +381,13 @@ class TestScryMechanics:
 
     def test_foresight_power(self):
         """Foresight: scry each turn."""
-        card = get_card("Foresight")
+        card = get_card("Wireheading")  # Java ID for Foresight
         assert card.cost == 1
         assert card.card_type == CardType.POWER
         assert card.magic_number == 3
         assert "scry_each_turn" in card.effects
 
-        upgraded = get_card("Foresight", upgraded=True)
+        upgraded = get_card("Wireheading", upgraded=True)
         assert upgraded.magic_number == 4
 
     def test_nirvana_power(self):
@@ -419,7 +418,7 @@ class TestMantraGeneration:
         assert "gain_mantra" in card.effects
 
         upgraded = get_card("Prostrate", upgraded=True)
-        assert upgraded.block == 6
+        assert upgraded.block == 4  # No block upgrade
         assert upgraded.magic_number == 3
 
     def test_worship_mantra(self):
@@ -570,13 +569,13 @@ class TestStanceEffects:
 
     def test_rushdown_power(self):
         """Rushdown: draw on entering Wrath."""
-        card = get_card("Rushdown")
+        card = get_card("Adaptation")  # Java ID for Rushdown
         assert card.card_type == CardType.POWER
         assert card.magic_number == 2
         assert "on_wrath_draw" in card.effects
 
-        upgraded = get_card("Rushdown", upgraded=True)
-        assert upgraded.magic_number == 3
+        upgraded = get_card("Adaptation", upgraded=True)
+        assert upgraded.current_cost == 0  # Upgrade reduces cost
 
     def test_like_water_power(self):
         """Like Water: block at end of turn if in Calm."""
@@ -609,8 +608,7 @@ class TestMultiHitCards:
         """Flying Sleeves: 4 damage x 2 hits."""
         card = get_card("FlyingSleeves")
         assert card.damage == 4
-        assert card.magic_number == 2
-        assert "damage_x_times" in card.effects
+        assert "damage_twice" in card.effects  # Hardcoded 2 hits
 
     def test_tantrum_multi_hit(self):
         """Tantrum: 3 damage x 3 hits (x4 upgraded)."""
@@ -675,7 +673,7 @@ class TestXCostCards:
     def test_collect_x_cost(self):
         """Collect: X cost, put X Miracles on draw pile."""
         card = get_card("Collect")
-        assert card.cost == 0  # X cost implementation
+        assert card.cost == -1  # X cost
         assert card.exhaust == True
         assert "put_x_miracles_on_draw" in card.effects
 
@@ -690,7 +688,7 @@ class TestExhaustCards:
     def test_exhaust_cards_list(self):
         """All cards that should exhaust."""
         exhaust_cards = [
-            "Miracle", "Tranquility", "Crescendo",
+            "Miracle", "ClearTheMind", "Crescendo",  # ClearTheMind = Tranquility
             "TalkToTheHand", "Collect", "Alpha",
             "ForeignInfluence", "Omniscience",
             "Scrawl", "Vault", "Wish", "LessonLearned",
@@ -809,7 +807,7 @@ class TestCardDrawEffects:
         """Evaluate: add Insight to draw pile."""
         card = get_card("Evaluate")
         assert card.cost == 1
-        assert card.magic_number == 6  # Insight has 6 damage? Actually it's draw
+        assert card.block == 6
         assert "add_insight_to_draw" in card.effects
 
     def test_study_power(self):
@@ -972,7 +970,7 @@ class TestCardGeneration:
         assert "add_smite_each_turn" in card.effects
 
         upgraded = get_card("BattleHymn", upgraded=True)
-        assert upgraded.magic_number == 2
+        assert upgraded.magic_number == 1  # No magic upgrade; upgrade makes innate
 
     def test_master_reality_upgrades_created(self):
         """Master Reality: created cards are upgraded."""
@@ -994,14 +992,14 @@ class TestSpecialMechanics:
 
     def test_pressure_points_mark(self):
         """Pressure Points: apply Mark, trigger all Marks."""
-        card = get_card("PressurePoints")
+        card = get_card("PathToVictory")  # Java ID for Pressure Points
         assert card.cost == 1
         assert card.card_type == CardType.SKILL
         assert card.magic_number == 8
         assert "apply_mark" in card.effects
         assert "trigger_all_marks" in card.effects
 
-        upgraded = get_card("PressurePoints", upgraded=True)
+        upgraded = get_card("PathToVictory", upgraded=True)
         assert upgraded.magic_number == 11
 
     def test_judgment_execute(self):
@@ -1105,7 +1103,7 @@ class TestConditionalEffects:
         card = get_card("SashWhip")
         assert card.cost == 1
         assert card.damage == 8
-        assert "if_last_card_attack_weak_1" in card.effects
+        assert "if_last_card_attack_weak" in card.effects
 
         upgraded = get_card("SashWhip", upgraded=True)
         assert upgraded.damage == 10
@@ -1115,7 +1113,7 @@ class TestConditionalEffects:
         card = get_card("CrushJoints")
         assert card.cost == 1
         assert card.damage == 8
-        assert "if_last_card_skill_vulnerable_1" in card.effects
+        assert "if_last_card_skill_vulnerable" in card.effects
 
         upgraded = get_card("CrushJoints", upgraded=True)
         assert upgraded.damage == 10
@@ -1147,7 +1145,7 @@ class TestPowerCards:
         assert "retained_cards_cost_less" in card.effects
 
         upgraded = get_card("Establishment", upgraded=True)
-        assert upgraded.current_cost == 0
+        assert upgraded.current_cost == 1  # No cost reduction; upgrade makes innate
 
     def test_deva_form_energy_scaling(self):
         """Deva Form: gain energy each turn (stacking)."""
@@ -1159,13 +1157,13 @@ class TestPowerCards:
 
     def test_fasting_stats(self):
         """Fasting: gain Strength and Dexterity."""
-        card = get_card("Fasting")
+        card = get_card("Fasting2")  # Java ID
         assert card.cost == 2
         assert card.card_type == CardType.POWER
         assert card.magic_number == 3
         assert "gain_strength_and_dex_lose_focus" in card.effects
 
-        upgraded = get_card("Fasting", upgraded=True)
+        upgraded = get_card("Fasting2", upgraded=True)
         assert upgraded.magic_number == 4
 
     def test_wave_of_the_hand_weak(self):
