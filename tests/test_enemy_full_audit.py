@@ -131,7 +131,6 @@ class TestCultistParity:
         assert c.INCANTATION == 3, \
             f"Python INCANTATION={c.INCANTATION}, Java INCANTATION=3"
 
-    @pytest.mark.xfail(reason="Python Cultist has wrong move IDs: INCANTATION=1 should be 3, DARK_STRIKE=2 should be 1")
     def test_dark_strike_id_matches_java(self):
         """Java: DARK_STRIKE=1"""
         c = Cultist(make_rng())
@@ -1530,13 +1529,13 @@ class TestMuggerParity:
 class TestTaskmasterParity:
     def test_exists(self):
         t = Taskmaster(make_rng())
-        assert t.ID == "Taskmaster"
+        assert t.ID == "SlaverBoss"
 
 
 class TestShelledParasiteParity:
     def test_exists(self):
         s = ShelledParasite(make_rng())
-        assert s.ID == "ShelledParasite"
+        assert s.ID == "Shelled Parasite"
 
 
 class TestSphericGuardianParity:
@@ -1574,7 +1573,7 @@ class TestDarklingParity:
 class TestOrbWalkerParity:
     def test_exists(self):
         o = OrbWalker(make_rng())
-        assert o.ID == "OrbWalker"
+        assert o.ID == "Orb Walker"
 
 
 class TestSpikerParity:
@@ -1610,13 +1609,13 @@ class TestExploderParity:
 class TestSpireGrowthParity:
     def test_exists(self):
         s = SpireGrowth(make_rng())
-        assert s.ID == "SpireGrowth"
+        assert s.ID == "Serpent"
 
 
 class TestSnakeDaggerParity:
     def test_exists(self):
         s = SnakeDagger(make_rng())
-        assert s.ID == "SnakeDagger"
+        assert s.ID == "Dagger"
 
 
 class TestMawParity:
@@ -1696,7 +1695,7 @@ class TestBanditLeaderParity:
 class TestBanditPointyParity:
     def test_exists(self):
         b = BanditPointy(make_rng())
-        assert b.ID == "BanditPointy"
+        assert b.ID == "BanditChild"
 
 
 # ============================================================

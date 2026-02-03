@@ -1,0 +1,83 @@
+{
+  "seeds": [
+    {
+      "name": "first_full_run",
+      "seed_long": -2135088296775038935,
+      "character": "WATCHER",
+      "ascension": 20,
+      "neow_bonus": "THREE_ENEMY_KILL",
+      "neow_cost": "NONE",
+      "result": "victory_act3",
+      "max_floor": 52,
+      "final_hp": 71,
+      "final_max_hp": 71,
+      "final_gold": 131,
+      "final_deck": [
+        "AscendersBane",
+        "Eruption+1",
+        "Vigilance",
+        "InnerPeace+1",
+        "CutThroughFate",
+        "Scrawl+1",
+        "Adaptation+1",
+        "MentalFortress",
+        "Adaptation+1",
+        "Vault+1",
+        "Panacea+1"
+      ],
+      "relics": [
+        "PureWater",
+        "NeowsBlessing",
+        "Golden Idol",
+        "WingedGreaves",
+        "Question Card",
+        "Oddly Smooth Stone",
+        "Tiny House",
+        "Centennial Puzzle",
+        "The Courier",
+        "Frozen Egg 2",
+        "Empty Cage",
+        "Pantograph"
+      ],
+      "potions_at_end": ["BlessingOfTheForge", "Ambrosia"],
+      "keys": {"emerald": true, "ruby": true, "sapphire": true},
+      "boss_relics_chosen": [
+        {"picked": "Tiny House", "skipped": ["SacredBark", "Cursed Key"]},
+        {"picked": "Empty Cage", "skipped": ["Velvet Choker", "Busted Crown"]}
+      ],
+      "path": "M M ? ? ? E R M T M $ E M $ R BOSS M ? M $ ? R $ E T ? R E $ ? R BOSS M M M M M E $ R T ? M $ M M R BOSS BOSS",
+      "campfire_choices": [
+        {"floor": 7, "action": "SMITH", "card": "Eruption"},
+        {"floor": 15, "action": "SMITH", "card": "SignatureMove"},
+        {"floor": 23, "action": "SMITH", "card": "Adaptation"},
+        {"floor": 28, "action": "REST"},
+        {"floor": 32, "action": "SMITH", "card": "InnerPeace"},
+        {"floor": 42, "action": "SMITH", "card": "Vault"},
+        {"floor": 49, "action": "RECALL"}
+      ],
+      "event_choices": [
+        {"floor": 3, "event": "World of Goop", "choice": "Gather Gold"},
+        {"floor": 4, "event": "Big Fish", "choice": "Donut"},
+        {"floor": 5, "event": "Golden Idol", "choice": "Lose Max HP"},
+        {"floor": 19, "event": "Nest", "choice": "Stole From Cult"},
+        {"floor": 22, "event": "Back to Basics", "choice": "Elegance"},
+        {"floor": 27, "event": "Golden Shrine", "choice": "Pray"},
+        {"floor": 44, "event": "SensoryStone", "choice": "Memory 1"}
+      ],
+      "purchases": [
+        {"floor": 21, "item": "DistilledChaos"},
+        {"floor": 24, "item": "MentalFortress"}
+      ],
+      "removals": [
+        {"floor": 11, "card": "Strike_P"},
+        {"floor": 14, "card": "Strike_P"},
+        {"floor": 21, "card": "Strike_P"},
+        {"floor": 30, "card": "Defend_P"},
+        {"floor": 41, "card": "SignatureMove+1"},
+        {"floor": 46, "card": "Defend_P"}
+      ],
+      "log_file": "logs/consolidated_seed_run.jsonl",
+      "notes": "Watcher A20 run. Thin deck with double Adaptation + Scrawl engine. Infinite detected during combats. Beat Time Eater as Act 3 boss."
+    }
+  ]
+}

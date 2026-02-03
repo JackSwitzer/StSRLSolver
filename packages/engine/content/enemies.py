@@ -426,8 +426,8 @@ class Cultist(Enemy):
     NAME = "Cultist"
     TYPE = EnemyType.NORMAL
 
-    INCANTATION = 1
-    DARK_STRIKE = 2
+    DARK_STRIKE = 1
+    INCANTATION = 3
 
     def _get_hp_range(self) -> Tuple[int, int]:
         if self.ascension >= 7:
@@ -6208,7 +6208,7 @@ CULTIST_DATA = {
         "ritual": {"base": 3, "a2": 4, "a17": 5},
     },
     "moves": {1: "Incantation", 2: "Dark Strike"},
-    "move_ids": {"INCANTATION": 1, "DARK_STRIKE": 2},
+    "move_ids": {"DARK_STRIKE": 1, "INCANTATION": 3},
     "passives": [],
 }
 

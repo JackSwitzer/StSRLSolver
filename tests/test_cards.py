@@ -213,7 +213,7 @@ class TestStanceChangingCards:
     def test_crescendo_mechanics(self):
         """Crescendo: 0 cost, enters Wrath, retain, exhaust."""
         card = get_card("Crescendo")
-        assert card.cost == 0
+        assert card.cost == 1  # Base cost 1, upgrade to 0
         assert card.enter_stance == "Wrath"
         assert card.retain == True
         assert card.exhaust == True
@@ -221,7 +221,7 @@ class TestStanceChangingCards:
     def test_tranquility_mechanics(self):
         """Tranquility: 0 cost, enters Calm, retain, exhaust."""
         card = get_card("ClearTheMind")  # Java ID for Tranquility
-        assert card.cost == 0
+        assert card.cost == 1  # Base cost 1, upgrade to 0
         assert card.enter_stance == "Calm"
         assert card.retain == True
         assert card.exhaust == True
@@ -265,7 +265,7 @@ class TestRetainMechanics:
         retain_cards = [
             "Miracle", "FlyingSleeves", "ClearTheMind", "Crescendo",  # ClearTheMind = Tranquility
             "Protect", "SandsOfTime", "WindmillStrike", "Perseverance",
-            "Worship", "Blasphemy",
+            "Worship",  # Blasphemy gains retain only on upgrade
             # Special cards
             "Insight", "Smite", "Safety", "ThroughViolence",
         ]
@@ -430,7 +430,7 @@ class TestMantraGeneration:
         assert "gain_mantra" in card.effects
 
         upgraded = get_card("Worship", upgraded=True)
-        assert upgraded.magic_number == 8  # +3
+        assert upgraded.magic_number == 5  # No magic upgrade; gains Retain instead
 
     def test_devotion_power(self):
         """Devotion: gain mantra each turn."""
@@ -667,7 +667,8 @@ class TestXCostCards:
     def test_conjure_blade_x_cost(self):
         """Conjure Blade: X cost, creates Expunger."""
         card = get_card("ConjureBlade")
-        assert card.cost == 0  # X cost
+        assert card.cost == -1  # X cost
+        assert card.exhaust == True
         assert "add_expunger_to_hand" in card.effects
 
     def test_collect_x_cost(self):
@@ -699,11 +700,11 @@ class TestExhaustCards:
             card = get_card(card_id)
             assert card.exhaust == True, f"{card_id} should exhaust"
 
-    def test_blasphemy_no_exhaust(self):
-        """Blasphemy does NOT exhaust (you die next turn anyway)."""
+    def test_blasphemy_exhaust(self):
+        """Blasphemy exhausts; retain only on upgrade (per Java source)."""
         card = get_card("Blasphemy")
-        assert card.exhaust == False
-        assert card.retain == True
+        assert card.exhaust == True
+        assert card.retain == False
 
     def test_talk_to_the_hand(self):
         """Talk to the Hand: 1 cost, 5 damage, exhaust."""
@@ -733,12 +734,12 @@ class TestExhaustCards:
         """Alpha -> Beta -> Omega chain."""
         alpha = get_card("Alpha")
         assert alpha.cost == 1
-        assert alpha.innate == True
+        assert alpha.innate == False  # Innate only on upgrade (Java source)
         assert alpha.exhaust == True
         assert "shuffle_beta_into_draw" in alpha.effects
 
         alpha_plus = get_card("Alpha", upgraded=True)
-        assert alpha_plus.current_cost == 0
+        assert alpha_plus.current_cost == 1  # No cost change on upgrade
 
         beta = get_card("Beta")
         assert beta.cost == 2
@@ -849,7 +850,7 @@ class TestTargetingModes:
         """Cards targeting self."""
         self_target = [
             "Defend_P", "Vigilance", "EmptyBody", "Protect",
-            "Prostrate", "Meditate", "SpiritShield",
+            "Prostrate", "SpiritShield",
         ]
         for card_id in self_target:
             card = get_card(card_id)
@@ -1030,7 +1031,7 @@ class TestSpecialMechanics:
         assert "gain_block_equal_unblocked_damage" in card.effects
 
         upgraded = get_card("Wallop", upgraded=True)
-        assert upgraded.damage == 14
+        assert upgraded.damage == 12  # 9 + 3 per Java source
 
     def test_spirit_shield_block_per_card(self):
         """Spirit Shield: gain block per card in hand."""
@@ -1046,12 +1047,12 @@ class TestSpecialMechanics:
         """Blasphemy: enter Divinity, die next turn."""
         card = get_card("Blasphemy")
         assert card.cost == 1
-        assert card.retain == True
+        assert card.retain == False  # Retain only on upgrade per Java source
         assert "enter_divinity" in card.effects
         assert "die_next_turn" in card.effects
 
         upgraded = get_card("Blasphemy", upgraded=True)
-        assert upgraded.current_cost == 0
+        assert upgraded.current_cost == 1  # No cost change on upgrade
 
     def test_wish_choices(self):
         """Wish: choose between plated armor, strength, or gold."""
@@ -1297,17 +1298,16 @@ class TestEtherealCards:
 class TestInnateCards:
     """Test cards with the Innate keyword."""
 
-    def test_alpha_innate(self):
-        """Alpha is innate."""
+    def test_alpha_innate_on_upgrade(self):
+        """Alpha is NOT innate at base; innate only on upgrade (Java source)."""
         card = get_card("Alpha")
-        assert card.innate == True
+        assert card.innate == False
 
     def test_innate_cards_list(self):
-        """Check all innate Watcher cards."""
-        innate_cards = ["Alpha"]
-        for card_id in innate_cards:
-            card = get_card(card_id)
-            assert card.innate == True, f"{card_id} should be innate"
+        """No base Watcher cards are innate (Alpha gains innate on upgrade only)."""
+        # Alpha is innate only when upgraded
+        alpha = get_card("Alpha")
+        assert alpha.innate == False
 
 
 # =============================================================================

@@ -206,7 +206,7 @@ class TestEnemyAIDelegation:
         engine, enemy = self._make_engine_with_real_enemy(Cultist)
         engine.start_combat()
         e = engine.state.enemies[0]
-        assert e.move_history[-1] == 1  # Incantation
+        assert e.move_history[-1] == 3  # Incantation (Java ID=3)
 
     def test_sentries_position_affects_first_move(self):
         """Sentries at different positions should start with different moves."""
@@ -251,9 +251,9 @@ class TestEnemyAIDelegation:
             deck=["Strike_P"] * 4 + ["Defend_P"] * 4 + ["Eruption", "Vigilance"],
         )
         engine.start_combat()
-        # JawWorm: Chomp (1), Cultist: Incantation (1)
+        # JawWorm: Chomp (1), Cultist: Incantation (3)
         assert engine.state.enemies[0].move_history[-1] == 1
-        assert engine.state.enemies[1].move_history[-1] == 1
+        assert engine.state.enemies[1].move_history[-1] == 3
 
 
 # =============================================================================

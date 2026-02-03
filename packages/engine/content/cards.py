@@ -106,6 +106,12 @@ class Card:
     innate: bool = False
     shuffle_back: bool = False
 
+    # Upgrade-time flag changes (None = no change on upgrade)
+    upgrade_retain: Optional[bool] = None
+    upgrade_innate: Optional[bool] = None
+    upgrade_exhaust: Optional[bool] = None
+    upgrade_ethereal: Optional[bool] = None
+
     # Stance effects
     enter_stance: Optional[str] = None  # "Wrath", "Calm", "Divinity", "Neutral"
     exit_stance: bool = False
@@ -273,14 +279,14 @@ SASH_WHIP = Card(
 TRANQUILITY = Card(
     id="ClearTheMind", name="Tranquility", card_type=CardType.SKILL, rarity=CardRarity.COMMON,
     # Java cardID is "ClearTheMind", not "Tranquility"
-    target=CardTarget.SELF, cost=0, retain=True, exhaust=True,
+    target=CardTarget.SELF, cost=1, upgrade_cost=0, retain=True, exhaust=True,
     enter_stance="Calm",
 )
 
 CRESCENDO = Card(
     id="Crescendo", name="Crescendo", card_type=CardType.SKILL, rarity=CardRarity.COMMON,
-    target=CardTarget.SELF, cost=0, retain=True, exhaust=True,
-    enter_stance="Wrath", upgrade_magic=1,  # Upgraded: not exhaust
+    target=CardTarget.SELF, cost=1, upgrade_cost=0, retain=True, exhaust=True,
+    enter_stance="Wrath",  # Upgraded: not exhaust
 )
 
 CONSECRATE = Card(
@@ -382,7 +388,7 @@ TALK_TO_THE_HAND = Card(
 
 WALLOP = Card(
     id="Wallop", name="Wallop", card_type=CardType.ATTACK, rarity=CardRarity.UNCOMMON,
-    cost=2, base_damage=9, upgrade_damage=5,
+    cost=2, base_damage=9, upgrade_damage=3,
     effects=["gain_block_equal_unblocked_damage"],
 )
 
@@ -434,25 +440,25 @@ DECEIVE_REALITY = Card(
 FORESIGHT = Card(
     id="Wireheading", name="Foresight", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
     # Java cardID is "Wireheading", not "Foresight"
-    target=CardTarget.SELF, cost=1, base_magic=3, upgrade_magic=1,
+    target=CardTarget.NONE, cost=1, base_magic=3, upgrade_magic=1,
     effects=["scry_each_turn"],
 )
 
 INDIGNATION = Card(
     id="Indignation", name="Indignation", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_magic=3, upgrade_magic=2,
+    target=CardTarget.NONE, cost=1, base_magic=3, upgrade_magic=2,
     effects=["if_wrath_gain_mantra_else_wrath"],
 )
 
 MEDITATE = Card(
     id="Meditate", name="Meditate", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_magic=1, upgrade_magic=1,
+    target=CardTarget.NONE, cost=1, base_magic=1, upgrade_magic=1,
     effects=["put_cards_from_discard_to_hand", "enter_calm", "end_turn"],
 )
 
 PERSEVERANCE = Card(
     id="Perseverance", name="Perseverance", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=2, retain=True,
+    target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=2, base_magic=2, upgrade_magic=1, retain=True,
     effects=["gains_block_when_retained"],  # +2/+3 block when retained
 )
 
@@ -489,7 +495,8 @@ SIMMERING_FURY = Card(
 
 WORSHIP = Card(
     id="Worship", name="Worship", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=2, base_magic=5, upgrade_magic=3, retain=True,
+    target=CardTarget.SELF, cost=2, base_magic=5, upgrade_magic=0, retain=True,
+    upgrade_retain=True,
     effects=["gain_mantra"],
 )
 
@@ -516,7 +523,7 @@ ESTABLISHMENT = Card(
 
 LIKE_WATER = Card(
     id="LikeWater", name="Like Water", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_magic=5, upgrade_magic=2,
+    target=CardTarget.NONE, cost=1, base_magic=5, upgrade_magic=2,
     effects=["if_calm_end_turn_gain_block"],
 )
 
@@ -563,7 +570,7 @@ CONCLUDE_PLUS = Card(  # Already defined above
 )
 
 JUDGMENT = Card(
-    id="Judgement", name="Judgement", card_type=CardType.ATTACK, rarity=CardRarity.RARE,
+    id="Judgement", name="Judgement", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     cost=1, base_magic=30, upgrade_magic=10,
     effects=["if_enemy_hp_below_kill"],  # Kill if HP < magic_number
 )
@@ -593,38 +600,40 @@ DEUS_EX_MACHINA = Card(
 
 ALPHA = Card(
     id="Alpha", name="Alpha", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=1, upgrade_cost=0, innate=True,
+    target=CardTarget.NONE, cost=1, innate=False,
+    upgrade_innate=True,
     exhaust=True, effects=["shuffle_beta_into_draw"],
 )
 
 BLASPHEMY = Card(
     id="Blasphemy", name="Blasphemy", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=1, upgrade_cost=0, retain=True,
+    target=CardTarget.SELF, cost=1, retain=False, exhaust=True,
+    upgrade_retain=True,
     effects=["enter_divinity", "die_next_turn"],
 )
 
 CONJURE_BLADE = Card(
     id="ConjureBlade", name="Conjure Blade", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=0,  # X cost
+    target=CardTarget.SELF, cost=-1, exhaust=True,  # X cost
     effects=["add_expunger_to_hand"],  # Expunger does Xx9 damage
 )
 
 FOREIGN_INFLUENCE = Card(
     id="ForeignInfluence", name="Foreign Influence", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=0, exhaust=True,
+    target=CardTarget.NONE, cost=0, exhaust=True,
     effects=["choose_attack_from_any_class"],
     upgrade_magic=1,  # Choose 2 when upgraded
 )
 
 OMNISCIENCE = Card(
     id="Omniscience", name="Omniscience", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=4, upgrade_cost=3, exhaust=True,
+    target=CardTarget.NONE, cost=4, upgrade_cost=3, exhaust=True,
     effects=["play_card_from_draw_twice"],
 )
 
 SCRAWL = Card(
     id="Scrawl", name="Scrawl", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=1, upgrade_cost=0, exhaust=True,
+    target=CardTarget.NONE, cost=1, upgrade_cost=0, exhaust=True,
     effects=["draw_until_hand_full"],  # Draw until hand = 10
 )
 
@@ -636,13 +645,13 @@ SPIRIT_SHIELD = Card(
 
 VAULT = Card(
     id="Vault", name="Vault", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=3, upgrade_cost=2, exhaust=True,
+    target=CardTarget.ALL, cost=3, upgrade_cost=2, exhaust=True,
     effects=["take_extra_turn"],
 )
 
 WISH = Card(
     id="Wish", name="Wish", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=3, exhaust=True,
+    target=CardTarget.NONE, cost=3, exhaust=True,
     effects=["choose_plated_armor_or_strength_or_gold"],
     upgrade_magic=1,  # Higher values when upgraded
 )
@@ -658,7 +667,7 @@ DEVA_FORM = Card(
 
 DEVOTION = Card(
     id="Devotion", name="Devotion", card_type=CardType.POWER, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=1, base_magic=2, upgrade_magic=1,
+    target=CardTarget.NONE, cost=1, base_magic=2, upgrade_magic=1,
     effects=["gain_mantra_each_turn"],
 )
 
