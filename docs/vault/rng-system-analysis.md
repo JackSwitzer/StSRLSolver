@@ -223,7 +223,7 @@ The counter-based state machine is the most accurate and flexible. It:
 4. Supports save/load of state
 
 **Implementation Status: COMPLETE**
-- `core/state/game_rng.py` - GameRNGState class
+- `packages/engine/state/game_rng.py` - GameRNGState class
 - **Test Results: 15/15 verified seeds passing (100%)**
 
 ### Verified Neow Consumption Values

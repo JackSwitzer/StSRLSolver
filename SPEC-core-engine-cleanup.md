@@ -73,10 +73,10 @@ SlayTheSpireRL/
 
 ### Phase 2: Code Cleanup & Consolidation
 **Delete (after archiving):**
-- `core/combat.py` (754 lines, deprecated — replaced by combat_engine.py)
-- `core/game.py.backup`
-- `core/data/enemies.py` (698 lines, duplicates content/)
-- `core/data/events.py` (853 lines, duplicates content/)
+- `packages/engine/combat.py` (754 lines, deprecated — replaced by combat_engine.py)
+- `packages/engine/game.py.backup`
+- `packages/engine/data/enemies.py` (698 lines, duplicates content/)
+- `packages/engine/data/events.py` (853 lines, duplicates content/)
 - All training/ code (archived)
 - All web/ server code (archived)
 - All comparison/ tools except what's consolidated into packages/parity/

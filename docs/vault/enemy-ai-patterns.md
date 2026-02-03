@@ -1089,7 +1089,7 @@ Enemies with moves on cooldown timers:
 
 ## Implementation Notes
 
-Our implementation is in `core/content/enemies.py`. Key bug fixes from Java decompilation:
+Our implementation is in `packages/engine/content/enemies.py`. Key bug fixes from Java decompilation:
 
 ### HP Range Corrections
 

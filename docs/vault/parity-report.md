@@ -24,7 +24,7 @@
 
 ## 1. RNG System
 
-**File**: `core/state/game_rng.py`
+**File**: `packages/engine/state/game_rng.py`
 **Java**: `com/megacrit/cardcrawl/random/java/util/Random.java`
 
 ### XorShift128 Algorithm
@@ -67,7 +67,7 @@
 
 ## 2. Card Rewards
 
-**File**: `core/generation/rewards.py`
+**File**: `packages/engine/generation/rewards.py`
 **Java**: `com/megacrit/cardcrawl/dungeons/AbstractDungeon.java`
 
 ### Rarity Rolling
@@ -101,7 +101,7 @@
 
 ## 3. Encounters
 
-**File**: `core/generation/encounters.py`
+**File**: `packages/engine/generation/encounters.py`
 **Java**: `com/megacrit/cardcrawl/dungeons/Exordium.java`, `TheCity.java`, `TheBeyond.java`
 
 ### Monster List Generation
@@ -168,7 +168,7 @@
 
 ## 4. Relics
 
-**File**: `core/generation/relics.py`
+**File**: `packages/engine/generation/relics.py`
 **Java**: `com/megacrit/cardcrawl/relics/*.java`
 
 ### Pool Structure
@@ -212,7 +212,7 @@
 
 ## 5. Map Generation
 
-**File**: `core/generation/map.py`
+**File**: `packages/engine/generation/map.py`
 **Java**: `com/megacrit/cardcrawl/map/MapGenerator.java`
 
 ### Generation Parameters
@@ -252,7 +252,7 @@ Python matches this exactly for true parity. Java is ground truth.
 
 ## 6. Shop
 
-**File**: `core/generation/shop.py`
+**File**: `packages/engine/generation/shop.py`
 **Java**: `com/megacrit/cardcrawl/shop/ShopScreen.java`
 
 ### Card Slots
@@ -282,7 +282,7 @@ Python matches this exactly for true parity. Java is ground truth.
 
 ## 7. Potions
 
-**File**: `core/generation/potions.py`
+**File**: `packages/engine/generation/potions.py`
 **Java**: `com/megacrit/cardcrawl/helpers/PotionHelper.java`
 
 ### Drop Mechanics
@@ -306,7 +306,7 @@ Python matches this exactly for true parity. Java is ground truth.
 
 ## 8. Card Data
 
-**File**: `core/content/cards.py`
+**File**: `packages/engine/content/cards.py`
 **Java**: `com/megacrit/cardcrawl/cards/**/*.java`
 
 ### Card Counts
@@ -344,7 +344,7 @@ Python matches this exactly for true parity. Java is ground truth.
 
 ## 9. Enemy Data
 
-**File**: `core/content/enemies_data.py`
+**File**: `packages/engine/content/enemies_data.py`
 **Java**: `com/megacrit/cardcrawl/monsters/**/*.java`
 
 ### HP Ranges (All Match)
@@ -372,7 +372,7 @@ Python matches this exactly for true parity. Java is ground truth.
 
 ## 10. Events
 
-**File**: `core/content/events.py`
+**File**: `packages/engine/content/events.py`
 **Java**: `com/megacrit/cardcrawl/dungeons/*.java`
 
 ### Event Counts (All Match After Fix)

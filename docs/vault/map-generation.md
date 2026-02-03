@@ -122,7 +122,7 @@ Each act uses a different offset from the base seed. The actual values from the 
 mapRng = new Random(Settings.seed + actSpecificOffset);
 ```
 
-**Note**: Earlier documentation showed `actNum * 100/200/300` which was an approximation. Our implementation in `core/generation/map.py:get_map_seed_offset()` uses the correct values above.
+**Note**: Earlier documentation showed `actNum * 100/200/300` which was an approximation. Our implementation in `packages/engine/generation/map.py:get_map_seed_offset()` uses the correct values above.
 
 ### RNG Usage
 1. Path starting positions: `randRange(rng, 0, 6)` -> `[0, 6]` inclusive
@@ -217,7 +217,7 @@ The "donut check" ensures exactly one node in the final row leads to the boss (p
 
 ## Implementation
 
-Our implementation is in `core/generation/map.py`. Key features:
+Our implementation is in `packages/engine/generation/map.py`. Key features:
 
 - `MapGenerator` class generates maps matching game algorithm exactly
 - `generate_act4_map()` creates the fixed Act 4 linear structure
@@ -226,8 +226,8 @@ Our implementation is in `core/generation/map.py`. Key features:
 
 Usage:
 ```python
-from core.state.rng import Random
-from core.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
+from packages.engine.state.rng import Random
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
 
 seed = 12345678
 config = MapGeneratorConfig(ascension_level=20)

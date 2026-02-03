@@ -124,7 +124,7 @@ This means:
 
 **Method 1: Run the unlock script (Recommended)**
 ```bash
-uv run python core/utils/generate_full_unlocks.py --backup --apply
+uv run python packages/engine/utils/generate_full_unlocks.py --backup --apply
 ```
 This backs up your current unlocks and writes a complete unlock file.
 

@@ -365,7 +365,7 @@ This ensures deterministic card rewards based on seed and decision order.
 
 ## Implementation
 
-Our implementation is in `core/generation/rewards.py`. Key classes and functions:
+Our implementation is in `packages/engine/generation/rewards.py`. Key classes and functions:
 
 - `CardBlizzardState`: Tracks the pity timer modifier
 - `roll_card_rarity()`: Performs rarity roll with blizzard system

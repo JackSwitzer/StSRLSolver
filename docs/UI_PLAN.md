@@ -255,7 +255,7 @@ Get a functional combat visualization working with minimal new asset creation.
 
 ---
 
-## Complete Enemy List (from core/content/enemies.py)
+## Complete Enemy List (from packages/engine/content/enemies.py)
 
 ### Act 1 - The Exordium
 

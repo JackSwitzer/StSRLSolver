@@ -1,7 +1,7 @@
 # FINAL PARITY AUDIT: RNG System
 
 ## Executive Summary
-Comparing Python RNG implementation (`/Users/jackswitzer/Desktop/SlayTheSpireRL/core/state/rng.py`) against Java decompiled code for **PERFECT parity**.
+Comparing Python RNG implementation (`/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine/state/rng.py`) against Java decompiled code for **PERFECT parity**.
 
 ---
 

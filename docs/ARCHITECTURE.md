@@ -29,7 +29,7 @@ SlayTheSpireRL is a Python-based system that:
 
 ```
 SlayTheSpireRL/
-├── core/                    # Core game logic
+├── packages/engine/          # Core game engine
 │   ├── state/              # RNG, run state, combat state
 │   ├── generation/         # Content generators (map, encounters, rewards)
 │   ├── content/            # Game data (cards, enemies, events, relics)
@@ -51,14 +51,14 @@ SlayTheSpireRL/
 
 ## Core Module Structure
 
-### `core/state/` - State Management
+### `packages/engine/state/` - State Management
 
 #### `rng.py` - XorShift128 Random Number Generator
 
 The heart of the prediction system. Implements the exact RNG algorithm used by Slay the Spire (Java's SplittableRandom variant).
 
 ```python
-from core.state.rng import Random, seed_to_long, long_to_seed
+from packages.engine.state.rng import Random, seed_to_long, long_to_seed
 
 # Convert alphanumeric seed to numeric
 seed_long = seed_to_long("ABC123XYZ")  # -> 64-bit integer
@@ -93,7 +93,7 @@ function next():
 Manages all 13 RNG streams and their counters throughout a run.
 
 ```python
-from core.state.game_rng import GameRNGState, RNGStream
+from packages.engine.state.game_rng import GameRNGState, RNGStream
 
 # Initialize RNG state for a seed
 state = GameRNGState(seed_long)
@@ -128,7 +128,7 @@ counters = state.get_all_counters()
 Complete state of a run in progress, tracking deck, relics, HP, gold, map position, and more.
 
 ```python
-from core.state.run import RunState, create_watcher_run
+from packages.engine.state.run import RunState, create_watcher_run
 
 # Create a new Watcher run
 run = create_watcher_run("ABC123", ascension=20)
@@ -152,14 +152,14 @@ run.advance_floor()
 
 ---
 
-### `core/generation/` - Content Generators
+### `packages/engine/generation/` - Content Generators
 
 #### `encounters.py` - Encounter Prediction
 
 Predicts monster encounters, elites, and bosses for all acts.
 
 ```python
-from core.generation.encounters import (
+from packages.engine.generation.encounters import (
     predict_act_encounters,
     predict_all_acts,
     predict_all_bosses_extended,
@@ -188,7 +188,7 @@ bosses = predict_all_bosses_extended(seed_long, ascension=20)
 Generates the complete dungeon map for each act.
 
 ```python
-from core.generation.map import (
+from packages.engine.generation.map import (
     MapGenerator,
     MapGeneratorConfig,
     RoomType,
@@ -222,7 +222,7 @@ dungeon = generator.generate()  # 2D list of MapRoomNode
 Predicts shuffled relic pools and boss relic offerings.
 
 ```python
-from core.generation.relics import (
+from packages.engine.generation.relics import (
     predict_all_relic_pools,
     predict_neow_boss_swap,
     predict_calling_bell_relics,
@@ -253,7 +253,7 @@ choices = get_boss_relic_choices(pool_state, count=3)
 Predicts potion drops and which specific potion will be obtained.
 
 ```python
-from core.generation.potions import (
+from packages.engine.generation.potions import (
     predict_potion_drop,
     predict_potion_from_seed,
     PotionPrediction,
@@ -283,7 +283,7 @@ print(pred.new_blizzard_mod)  # Updated blizzard modifier
 Generates card rewards after combat.
 
 ```python
-from core.generation.rewards import (
+from packages.engine.generation.rewards import (
     generate_card_rewards,
     RewardState,
     CardBlizzardState,
@@ -317,7 +317,7 @@ cards = generate_card_rewards(
 Predicts complete shop inventory including cards, relics, and potions.
 
 ```python
-from core.generation.shop import predict_shop_inventory, format_shop_inventory
+from packages.engine.generation.shop import predict_shop_inventory, format_shop_inventory
 
 result = predict_shop_inventory(
     seed="ABC123",
@@ -339,7 +339,7 @@ print([r.relic.name for r in inv.relics])        # 3 relics
 Predicts chest contents including type, relic tier, and gold.
 
 ```python
-from core.generation.treasure import predict_full_chest, ChestType
+from packages.engine.generation.treasure import predict_full_chest, ChestType
 
 pred = predict_full_chest(
     seed=seed_long,
@@ -353,7 +353,7 @@ print(pred.gold_amount)  # 55 (if has_gold)
 
 ---
 
-### `core/content/` - Game Data
+### `packages/engine/content/` - Game Data
 
 Static definitions for all game content.
 
@@ -366,12 +366,12 @@ Static definitions for all game content.
 
 ---
 
-### `core/game.py` - GameRunner Orchestrator
+### `packages/engine/game.py` - GameRunner Orchestrator
 
 Main game loop manager that handles all phases of a run.
 
 ```python
-from core.game import GameRunner, GamePhase
+from packages.engine.game import GameRunner, GamePhase
 
 # Initialize a run
 runner = GameRunner(seed="ABC123", ascension=20)
@@ -402,14 +402,14 @@ stats = runner.run()
 
 ---
 
-### `core/simulation/` - Parallel Simulation Engine
+### `packages/engine/simulation/` - Parallel Simulation Engine
 
 High-throughput parallel simulation for RL training.
 
 #### `engine.py` - ParallelSimulator
 
 ```python
-from core.simulation.engine import ParallelSimulator, SimulationConfig
+from packages.engine.simulation.engine import ParallelSimulator, SimulationConfig
 
 # Configure simulation
 config = SimulationConfig(
@@ -456,7 +456,7 @@ with ParallelSimulator(config=config) as sim:
 Slay the Spire uses alphanumeric seeds (base-35: 0-9 + A-Y, no Z) that convert to 64-bit signed integers.
 
 ```python
-from core.state.rng import seed_to_long, long_to_seed
+from packages.engine.state.rng import seed_to_long, long_to_seed
 
 # Alphanumeric to numeric
 seed_long = seed_to_long("ABC123XYZ")
@@ -515,7 +515,7 @@ This ensures that card rewards in Act 2 are consistent regardless of how many sh
 ### `predict_all_acts(seed)` - Full Run Encounter Prediction
 
 ```python
-from core.generation.encounters import predict_all_acts
+from packages.engine.generation.encounters import predict_all_acts
 
 predictions = predict_all_acts("YOUR_SEED")
 # {
@@ -534,7 +534,7 @@ predictions = predict_all_acts("YOUR_SEED")
 Includes A20 double boss in Act 3:
 
 ```python
-from core.generation.encounters import predict_all_bosses_extended
+from packages.engine.generation.encounters import predict_all_bosses_extended
 
 bosses = predict_all_bosses_extended(seed_long, ascension=20)
 # {
@@ -547,7 +547,7 @@ bosses = predict_all_bosses_extended(seed_long, ascension=20)
 ### Card Reward Prediction
 
 ```python
-from core.comparison.full_rng_tracker import predict_card_reward
+from packages.engine.comparison.full_rng_tracker import predict_card_reward
 
 cards, new_counter = predict_card_reward(
     seed="ABC123",
@@ -563,8 +563,8 @@ cards, new_counter = predict_card_reward(
 ### Map Generation
 
 ```python
-from core.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
-from core.state.rng import Random
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
+from packages.engine.state.rng import Random
 
 # Generate Act 2 map
 act = 2
@@ -587,7 +587,7 @@ dungeon = generator.generate()
 ### Initialization
 
 ```python
-from core.game import GameRunner
+from packages.engine.game import GameRunner
 
 runner = GameRunner(
     seed="ABC123",      # Seed string or numeric
@@ -906,9 +906,9 @@ if roll < rare_threshold:
 ### Predict Full Run
 
 ```python
-from core.state.rng import seed_to_long
-from core.generation.encounters import predict_all_acts
-from core.generation.relics import predict_all_relic_pools
+from packages.engine.state.rng import seed_to_long
+from packages.engine.generation.encounters import predict_all_acts
+from packages.engine.generation.relics import predict_all_relic_pools
 
 seed = "MYSEED123"
 seed_long = seed_to_long(seed)
@@ -926,7 +926,7 @@ print(f"First boss relic: {pools.boss[0]}")
 ### Simulate Combat
 
 ```python
-from core.simulation.engine import ParallelSimulator
+from packages.engine.simulation.engine import ParallelSimulator
 
 with ParallelSimulator(n_workers=4) as sim:
     result = sim.simulate_combat_single(

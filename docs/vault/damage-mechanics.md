@@ -147,7 +147,7 @@ public float atDamageGive(float damage, DamageInfo.DamageType type) {
 
 ## Implementation
 
-Our implementation is in `core/calc/damage.py`. Key functions:
+Our implementation is in `packages/engine/calc/damage.py`. Key functions:
 
 ### Outgoing Damage (`calculate_damage`)
 ```python

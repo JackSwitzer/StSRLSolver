@@ -337,7 +337,7 @@ public static long getLong(String seedStr) {
 ```
 
 **Implementation Note**: The character set is 0-9 (10 chars) + A-Z excluding O (25 chars) = 35 total characters.
-Our Python implementation in `core/state/rng.py` correctly uses base-35.
+Our Python implementation in `packages/engine/state/rng.py` correctly uses base-35.
 
 ## Python XorShift128+ Implementation
 
@@ -560,7 +560,7 @@ def shuffle_with_rng(items: list, rng: Random):
 
 **Critical Detail**: The game uses `rng.random(i)` which returns `[0, i]` inclusive, not `[0, i)`. This matches Java's `Random.nextInt(n+1)` behavior wrapped in StS's Random class.
 
-Our implementation in `core/generation/map.py` correctly uses this approach for room type shuffling.
+Our implementation in `packages/engine/generation/map.py` correctly uses this approach for room type shuffling.
 
 ### Map Seed Offsets
 
