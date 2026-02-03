@@ -43,6 +43,7 @@ from core.calc.damage import (
     calculate_damage, calculate_block, calculate_incoming_damage,
     WEAK_MULT, VULN_MULT, WRATH_MULT, DIVINITY_MULT, FRAIL_MULT,
 )
+from packages.engine.combat_engine import CombatEngine, create_simple_combat
 
 
 # =============================================================================
@@ -1010,6 +1011,124 @@ class TestRelicEffects:
         """Relic counter returns default."""
         counter = basic_combat.get_relic_counter("Unknown", default=0)
         assert counter == 0
+
+    def test_torii_reduces_attack_damage_2_to_5_to_1(self):
+        """Torii: damage 2-5 reduced to 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=4, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_does_not_affect_damage_1(self):
+        """Torii: damage 1 stays 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=1, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_does_not_affect_damage_6_or_more(self):
+        """Torii: damage 6+ not affected."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 10
+
+    def test_torii_applies_before_intangible(self):
+        """Torii applies BEFORE Intangible check."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=4, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.state.player.statuses["Intangible"] = 1
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Torii reduces 4->1, Intangible doesn't change 1
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_with_block(self):
+        """Torii applies before block absorption."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=3, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 1
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Torii reduces 3->1, then block absorbs it
+        assert engine.state.player.hp == initial_hp
+        assert engine.state.player.block == 0
+
+    def test_tungsten_rod_reduces_attack_damage_by_1(self):
+        """Tungsten Rod: reduce HP loss by 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Tungsten Rod")
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 9
+
+    def test_tungsten_rod_minimum_0_hp_loss(self):
+        """Tungsten Rod: minimum 0 HP loss."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=5, player_hp=80)
+        engine.state.relics.append("Tungsten Rod")
+        engine.start_combat()
+        engine.state.player.block = 5
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Block absorbs all damage (5-5=0), Tungsten Rod doesn't go negative
+        assert engine.state.player.hp == initial_hp
+        assert engine.state.player.block == 0
+
+    def test_tungsten_rod_applies_after_buffer(self):
+        """Tungsten Rod applies after Buffer (Buffer prevents HP loss entirely)."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Tungsten Rod")
+        engine.state.player.statuses["Buffer"] = 1
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Buffer prevents HP loss, so Tungsten Rod doesn't apply
+        assert engine.state.player.hp == initial_hp
+        assert engine.state.player.statuses.get("Buffer", 0) == 0
+
+    def test_tungsten_rod_reduces_poison_damage(self):
+        """Tungsten Rod: reduces poison HP loss by 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=0, player_hp=80)
+        engine.state.relics.append("Tungsten Rod")
+        engine.state.player.statuses["Poison"] = 5
+        engine.start_combat()
+        # Poison triggers at start of turn: 5 damage - 1 (Tungsten) = 4
+        assert engine.state.player.hp == 76  # 80 - 4
+
+    def test_torii_and_tungsten_rod_stack(self):
+        """Torii and Tungsten Rod stack: damage 4 -> 1 (Torii) -> 0 (Tungsten)."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=4, player_hp=80)
+        engine.state.relics.extend(["Torii", "Tungsten Rod"])
+        engine.start_combat()
+        engine.state.player.block = 0
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Torii: 4->1, block absorbs 0, HP loss 1, Tungsten: 1->0
+        assert engine.state.player.hp == initial_hp
+
+    def test_tungsten_rod_with_intangible_on_poison(self):
+        """Tungsten Rod + Intangible on poison: 10 -> 1 (Intangible) -> 0 (Tungsten)."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=0, player_hp=80)
+        engine.state.relics.append("Tungsten Rod")
+        engine.state.player.statuses["Poison"] = 10
+        engine.state.player.statuses["Intangible"] = 1
+        engine.start_combat()
+        assert engine.state.player.hp == 80  # Intangible caps to 1, Tungsten reduces to 0
 
 
 # =============================================================================

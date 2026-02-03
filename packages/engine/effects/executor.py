@@ -687,13 +687,65 @@ class EffectExecutor:
         if effect_name == "unplayable":
             return True
 
+        # Vault: take extra turn
+        if effect_name == "take_extra_turn":
+            ctx.apply_status_to_player("ExtraTurn", 1)
+            return True
+
+        # Collect: put X Miracles on draw at START of NEXT turn
+        if effect_name == "put_x_miracles_on_draw":
+            x_cost = ctx.energy_spent if hasattr(ctx, 'energy_spent') else 0
+            # Upgraded: X+1
+            amount = x_cost + 1 if ctx.is_upgraded else x_cost
+            ctx.apply_status_to_player("CollectMiracles", amount)
+            return True
+
+        # Conjure Blade: add Expunger to hand
+        if effect_name == "add_expunger_to_hand":
+            x_cost = ctx.energy_spent if hasattr(ctx, 'energy_spent') else 0
+            ctx.add_card_to_hand("Expunger")
+            # Store X for Expunger's hits
+            ctx.extra_data["expunger_x"] = x_cost
+            return True
+
+        # Fasting: +3 Str, +3 Dex, -1 max energy
+        if effect_name == "gain_strength_and_dex_lose_focus":
+            amount = 4 if ctx.is_upgraded else 3
+            ctx.apply_status_to_player("Strength", amount)
+            ctx.apply_status_to_player("Dexterity", amount)
+            # Reduce max energy by 1
+            if ctx.state.max_energy > 0:
+                ctx.state.max_energy -= 1
+            return True
+
+        # Lesson Learned: upgrade random card on kill
+        if effect_name == "if_fatal_upgrade_random_card":
+            ctx.apply_status_to_player("FatalUpgrade", 1)
+            return True
+
+        # Wish: choose between Plated Armor, Strength, or Gold
+        if effect_name == "choose_plated_armor_or_strength_or_gold":
+            # Default choice: Strength (best in combat)
+            choice = ctx.extra_data.get("wish_choice", 1)
+            amount = 4 if ctx.is_upgraded else 3
+            if choice == 0:
+                ctx.apply_status_to_player("Plated Armor", amount)
+            elif choice == 2:
+                gold = 75 if ctx.is_upgraded else 50
+                ctx.extra_data["gold_gained"] = gold
+            else:
+                ctx.apply_status_to_player("Strength", amount)
+            return True
+
+        # Omega: deal 50 damage to all enemies at end of turn
+        if effect_name == "deal_50_damage_end_turn":
+            ctx.apply_status_to_player("Omega", 50)
+            return True
+
         # Effects that need external systems
         if effect_name in [
-            "choose_plated_armor_or_strength_or_gold",
             "choose_attack_from_any_class",
             "play_card_from_draw_twice",
-            "put_x_miracles_on_draw",
-            "add_expunger_to_hand",
             "discover_card",
             "put_card_on_bottom_of_draw_cost_0",
             "search_draw_for_skill",

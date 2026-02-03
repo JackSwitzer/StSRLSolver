@@ -1794,6 +1794,8 @@ class TheGuardian(Enemy):
         self.damage_taken_this_mode = 0
         # Sharp hide from Java: A19+=4 (thornsDamage+1), below=3 (thornsDamage)
         self.state.powers["sharp_hide"] = 4 if self.ascension >= 19 else 3
+        # Increment threshold by 10 (Java: dmgThreshold += dmgThresholdIncrease)
+        self.mode_shift_damage += 10
 
     def switch_to_offensive(self):
         """Switch back to offensive mode."""

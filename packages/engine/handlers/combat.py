@@ -260,8 +260,16 @@ class CombatRunner:
         if self.state.has_relic("SneckoEye"):
             # Snecko Eye randomizes card costs on draw
             pass
+        if self.state.has_relic("BagOfPreparation"):
+            draw_count += 2
 
         self._draw_cards(draw_count)
+
+        # Gambling Chip - discard and redraw at combat start
+        if self.state.has_relic("GamblingChip"):
+            # For now, just mark that we have it
+            # In a real implementation, would need player input for which cards to discard
+            pass
 
         # Start first turn (without drawing since we already drew)
         self._start_player_turn(first_turn=True)
@@ -327,14 +335,40 @@ class CombatRunner:
                 self.state.draw_pile = self._shuffle_deck(self.state.discard_pile.copy())
                 self.state.discard_pile.clear()
 
+                # Sundial - track shuffles
+                if self.state.has_relic("Sundial"):
+                    counter = self.state.get_relic_counter("Sundial", 0)
+                    counter += 1
+                    if counter >= 3:
+                        self.state.energy += 2
+                        counter = 0
+                    self.state.set_relic_counter("Sundial", counter)
+
             if self.state.draw_pile:
                 card = self.state.draw_pile.pop()
+
+                # Snecko Eye - randomize card cost to 0-3
+                if self.state.has_relic("SneckoEye"):
+                    cost = self.card_rng.random(3)  # 0-3 inclusive
+                    self.state.card_costs[card] = cost
+
                 self.state.hand.append(card)
                 drawn.append(card)
 
                 # Handle Void card (lose 1 energy when drawn)
                 if card == "Void" or card == "Void+":
                     self.state.energy = max(0, self.state.energy - 1)
+
+
+        # Unceasing Top - after drawing, if hand empty and draw pile has cards, draw 1
+        if self.state.has_relic("UnceasingTop"):
+            if not self.state.hand and self.state.draw_pile:
+                card = self.state.draw_pile.pop()
+                if self.state.has_relic("SneckoEye"):
+                    cost = self.card_rng.random(3)
+                    self.state.card_costs[card] = cost
+                self.state.hand.append(card)
+                drawn.append(card)
 
         return drawn
 
@@ -354,7 +388,11 @@ class CombatRunner:
             self.state.turn = 1
 
         # Reset energy
-        self.state.energy = self.state.max_energy
+        if self.state.has_relic("IceCream"):
+            # Keep leftover energy
+            pass  # Energy persists
+        else:
+            self.state.energy = self.state.max_energy
 
         # Remove block (unless Barricade/Blur) - skip on first turn
         if not first_turn:
@@ -391,6 +429,30 @@ class CombatRunner:
 
     def _trigger_start_of_turn(self):
         """Trigger start-of-turn effects."""
+        # Lantern - +1 energy on turn 1 only
+        if self.state.has_relic("Lantern") and self.state.turn == 1:
+            self.state.energy += 1
+
+        # Horn Cleat - +14 block on turn 2 only
+        if self.state.has_relic("HornCleat") and self.state.turn == 2:
+            self.state.player.block += 14
+            self.total_block_gained += 14
+
+        # Happy Flower - +1 energy every 3 turns
+        if self.state.has_relic("HappyFlower"):
+            counter = self.state.get_relic_counter("HappyFlower", 0)
+            counter += 1
+            if counter >= 3:
+                self.state.energy += 1
+                counter = 0
+            self.state.set_relic_counter("HappyFlower", counter)
+
+        # Art of War - +1 energy if no attacks played last turn
+        if self.state.has_relic("ArtOfWar"):
+            flag = self.state.get_relic_counter("ArtOfWar", 0)
+            if flag == 0:  # 0 means no attacks last turn
+                self.state.energy += 1
+
         # Metallicize - Gain block at end of turn
         metallicize = self.state.player.statuses.get("Metallicize", 0)
         if metallicize > 0:
@@ -553,6 +615,16 @@ class CombatRunner:
         elif card.card_type == CardType.POWER:
             self.state.powers_played_this_turn += 1
 
+        # Ink Bottle - track all cards played
+        if self.state.has_relic("InkBottle"):
+            counter = self.state.get_relic_counter("InkBottle", 0)
+            counter += 1
+            if counter >= 10:
+                self._draw_cards(1)
+                counter = 0
+            self.state.set_relic_counter("InkBottle", counter)
+
+
         result = {"success": True, "card": card_id, "effects": []}
 
         # Get target
@@ -565,7 +637,18 @@ class CombatRunner:
 
         # Card destination
         if card.exhaust:
-            self.state.exhaust_pile.append(card_id)
+            # Strange Spoon - 50% chance card goes to discard instead
+            if self.state.has_relic("StrangeSpoon") and self.card_rng.random_boolean():
+                self.state.discard_pile.append(card_id)
+            else:
+                self.state.exhaust_pile.append(card_id)
+                # Dead Branch - add random card when exhausting
+                if self.state.has_relic("DeadBranch"):
+                    from ..content.cards import ALL_CARDS
+                    card_pool = [cid for cid in ALL_CARDS.keys() if cid not in ["Curse", "Status"]]
+                    if card_pool:
+                        random_card = card_pool[self.card_rng.random(len(card_pool) - 1)]
+                        self.state.hand.append(random_card)
         elif card.shuffle_back:
             # Insert at random position in draw pile
             pos = self.shuffle_rng.random(len(self.state.draw_pile)) if self.state.draw_pile else 0
@@ -575,6 +658,12 @@ class CombatRunner:
 
         # Trigger on-play relics
         self._trigger_on_play_relics(card)
+
+        # Unceasing Top - if hand is empty after playing card, draw 1
+        if self.state.has_relic("UnceasingTop"):
+            if not self.state.hand and self.state.draw_pile:
+                self._draw_cards(1)
+
 
         # Check combat end
         self._check_combat_end()
@@ -814,6 +903,16 @@ class CombatRunner:
                 counter = 0
             self.state.set_relic_counter("Kunai", counter)
 
+        # Nunchaku - +1 energy per 10 attacks
+        if card.card_type == CardType.ATTACK and self.state.has_relic("Nunchaku"):
+            counter = self.state.get_relic_counter("Nunchaku", 0)
+            counter += 1
+            if counter >= 10:
+                self.state.energy += 1
+                counter = 0
+            self.state.set_relic_counter("Nunchaku", counter)
+
+
         # Letter Opener - Deal 5 damage per 3 skills
         if card.card_type == CardType.SKILL and self.state.has_relic("LetterOpener"):
             counter = self.state.get_relic_counter("LetterOpener", 0)
@@ -834,6 +933,20 @@ class CombatRunner:
                 self.total_block_gained += 4
                 counter = 0
             self.state.set_relic_counter("OrnamentalFan", counter)
+
+        # Mummified Hand - reduce random card cost after Power play
+        if card.card_type == CardType.POWER and self.state.has_relic("MummifiedHand"):
+            if self.state.hand:
+                idx = self.card_rng.random(len(self.state.hand) - 1)
+                random_card = self.state.hand[idx]
+                current_cost = self._get_card_cost(random_card)
+                self.state.card_costs[random_card] = max(0, current_cost - 1)
+
+        # Bird-Faced Urn - heal 2 HP after Power play
+        if card.card_type == CardType.POWER and self.state.has_relic("BirdFacedUrn"):
+            heal = min(2, self.state.player.max_hp - self.state.player.hp)
+            self.state.player.hp += heal
+
 
     def use_potion(self, potion_idx: int, target_idx: int = -1) -> Dict[str, Any]:
         """
@@ -959,6 +1072,11 @@ class CombatRunner:
 
     def _trigger_end_of_turn(self):
         """Trigger end-of-turn effects."""
+        # Art of War - track if any attacks played this turn
+        if self.state.has_relic("ArtOfWar"):
+            flag = 1 if self.state.attacks_played_this_turn > 0 else 0
+            self.state.set_relic_counter("ArtOfWar", flag)
+
         # Decrement debuffs
         for debuff in ["Weak", "Vulnerable", "Frail"]:
             if debuff in self.state.player.statuses:
@@ -1040,6 +1158,11 @@ class CombatRunner:
                     stance_mult=WRATH_MULT if is_wrath else 1.0,
                 )
 
+                # Torii - reduce damage 2-5 to 1
+                if self.state.has_relic("Torii"):
+                    if 2 <= final_damage <= 5:
+                        final_damage = 1
+
                 # Apply to player
                 hp_loss, block_remaining = calculate_incoming_damage(
                     damage=final_damage,
@@ -1047,6 +1170,17 @@ class CombatRunner:
                     is_wrath=is_wrath,
                     vuln=vuln,
                 )
+
+                # Tungsten Rod - reduce HP loss by 1
+                if self.state.has_relic("TungstenRod"):
+                    hp_loss = max(0, hp_loss - 1)
+
+                # Centennial Puzzle - draw 3 cards first time taking damage
+                if hp_loss > 0 and self.state.has_relic("CentennialPuzzle"):
+                    counter = self.state.get_relic_counter("CentennialPuzzle", 0)
+                    if counter == 0:
+                        self._draw_cards(3)
+                        self.state.set_relic_counter("CentennialPuzzle", 1)
 
                 self.state.player.block = block_remaining
                 self.state.player.hp -= hp_loss

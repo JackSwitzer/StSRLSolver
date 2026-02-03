@@ -892,7 +892,7 @@ MIND_BLOOM = Event(
     name="Mind Bloom",
     act=Act.ACT_3,
     has_ascension_modifier=True,
-    description="A powerful event with major rewards and costs.",
+    description="A powerful event with major rewards and costs. Third option determined by floor % 50.",
     choices=[
         EventChoice(
             index=0,
@@ -912,22 +912,21 @@ MIND_BLOOM = Event(
                        description="Obtain Mark of the Bloom (can't heal)")
             ]
         ),
+        # NOTE: Third option is runtime-determined based on floor % 50
+        # floor % 50 <= 40: "I am Rich" (999 gold + 2 Normality)
+        # floor % 50 > 40: "I am Healthy" (full heal + Doubt)
+        # Implementation should check floor at runtime to determine which option appears
         EventChoice(
             index=2,
-            description="I am Rich (floors 1-40): Gain 999 gold, obtain 2 Normality curses",
+            description="I am Rich/Healthy (runtime): floor % 50 <= 40 = Rich, > 40 = Healthy",
             outcomes=[
-                Outcome(OutcomeType.GOLD_CHANGE, value=999, description="Gain 999 gold"),
+                # Rich outcomes (floor % 50 <= 40):
+                Outcome(OutcomeType.GOLD_CHANGE, value=999, description="Gain 999 gold (if Rich)"),
                 Outcome(OutcomeType.CURSE_GAIN, card_id="Normality", count=2,
-                       description="Obtain 2 Normality curses")
-            ]
-        ),
-        # Alternative option on floors 41-50
-        EventChoice(
-            index=2,
-            description="I am Healthy (floors 41-50): Full heal, obtain Doubt curse",
-            outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, description="Heal to full"),
-                Outcome(OutcomeType.CURSE_GAIN, card_id="Doubt", description="Obtain Doubt curse")
+                       description="Obtain 2 Normality (if Rich)"),
+                # Healthy outcomes (floor % 50 > 40):
+                Outcome(OutcomeType.HP_CHANGE, description="Heal to full (if Healthy)"),
+                Outcome(OutcomeType.CURSE_GAIN, card_id="Doubt", description="Obtain Doubt (if Healthy)")
             ]
         ),
     ]
@@ -1013,14 +1012,30 @@ SENSORY_STONE = Event(
     id="SensoryStone",  # Note: Java uses "SensoryStone" without space
     name="Sensory Stone",
     act=Act.ACT_3,
-    description="Relive memories for colorless cards.",
+    has_ascension_modifier=True,
+    description="Relive memories for colorless cards. 3 options give 1, 2, or 3 cards respectively.",
     choices=[
         EventChoice(
             index=0,
-            description="Touch: Obtain 1-3 random colorless cards based on relics",
+            description="Option 1: Obtain 1 colorless card (free)",
             outcomes=[
-                # 1 card base, +1 for each of Circlet, Enchiridion, Nilry's Codex
-                Outcome(OutcomeType.CARD_GAIN, count=1, description="1 colorless card (+1 per memory relic)")
+                Outcome(OutcomeType.CARD_GAIN, count=1, description="Obtain 1 colorless card")
+            ]
+        ),
+        EventChoice(
+            index=1,
+            description="Option 2: Take 5/8 damage, obtain 2 colorless cards",
+            outcomes=[
+                Outcome(OutcomeType.HP_CHANGE, value=-5, description="Take 5 damage (8 A15+)"),
+                Outcome(OutcomeType.CARD_GAIN, count=2, description="Obtain 2 colorless cards")
+            ]
+        ),
+        EventChoice(
+            index=2,
+            description="Option 3: Take 10/15 damage, obtain 3 colorless cards",
+            outcomes=[
+                Outcome(OutcomeType.HP_CHANGE, value=-10, description="Take 10 damage (15 A15+)"),
+                Outcome(OutcomeType.CARD_GAIN, count=3, description="Obtain 3 colorless cards")
             ]
         ),
     ]
@@ -1030,7 +1045,7 @@ TOMB_OF_LORD_RED_MASK = Event(
     id="Tomb of Lord Red Mask",
     name="Tomb of Lord Red Mask",
     act=Act.ACT_3,
-    description="A tomb with gold but requires the Red Mask.",
+    description="A tomb with gold but requires the Red Mask. Red Mask option gives flat 222 gold total.",
     choices=[
         EventChoice(
             index=0,
@@ -1041,11 +1056,11 @@ TOMB_OF_LORD_RED_MASK = Event(
         ),
         EventChoice(
             index=1,
-            description="Offer Gold (requires Red Mask): Lose all gold, gain 222 gold per relic",
+            description="Offer Gold (requires Red Mask): Lose all gold, gain 222 gold total",
             requires_relic="Red Mask",
             outcomes=[
                 Outcome(OutcomeType.GOLD_CHANGE, description="Lose all gold"),
-                Outcome(OutcomeType.GOLD_CHANGE, description="Gain 222 gold per relic")
+                Outcome(OutcomeType.GOLD_CHANGE, value=222, description="Gain 222 gold (flat total)")
             ]
         ),
         EventChoice(
@@ -1155,28 +1170,28 @@ DESIGNER = Event(
     name="Designer In-Spire",
     act=Act.ANY,
     has_ascension_modifier=True,
-    description="A fashion designer offers services for gold.",
+    description="A fashion designer offers services for gold. NOTE: RNG flags (miscRng.randomBoolean()): adjustmentUpgradesOne (true=upgrade 1 choose, false=upgrade 2 random), cleanUpRemovesCards (true=remove 1 choose, false=transform 2 choose).",
     choices=[
         EventChoice(
             index=0,
-            description="Adjustments (40/50 gold): Upgrade 1 card OR 2 random cards",
+            description="Adjustments (40/50 gold): Upgrade 1 (choose) OR 2 random (RNG-determined)",
             requires_gold=40,  # 50 on A15+
             requires_upgradable_cards=True,
             outcomes=[
                 Outcome(OutcomeType.GOLD_CHANGE, value=-40, description="Pay 40 gold (50 A15+)"),
                 Outcome(OutcomeType.CARD_UPGRADE, count=1, random=True,
-                       description="Upgrade 1 card or 2 random")
+                       description="Upgrade 1 (choose) or 2 random (RNG)")
             ]
         ),
         EventChoice(
             index=1,
-            description="Clean Up (60/75 gold): Remove 1 card OR Transform 2 cards",
+            description="Clean Up (60/75 gold): Remove 1 (choose) OR Transform 2 (choose) (RNG-determined)",
             requires_gold=60,  # 75 on A15+
             requires_removable_cards=True,
             outcomes=[
                 Outcome(OutcomeType.GOLD_CHANGE, value=-60, description="Pay 60 gold (75 A15+)"),
                 Outcome(OutcomeType.CARD_REMOVE, count=1, random=True,
-                       description="Remove 1 or transform 2")
+                       description="Remove 1 or transform 2 (RNG)")
             ]
         ),
         EventChoice(
@@ -1226,13 +1241,14 @@ FACE_TRADER = Event(
     name="Face Trader",
     act=Act.ANY,
     has_ascension_modifier=True,
-    description="A strange being that trades faces.",
+    description="A strange being that trades faces. NOTE: Gold is 75 base, 50 at A15+. HP damage uses maxHealth // 10 (integer division).",
     choices=[
         EventChoice(
             index=0,
-            description="Touch: Take 10% Max HP damage, gain 50/75 gold",
+            description="Touch: Take maxHealth // 10 damage, gain 75/50 gold",
             outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.10, description="Take 10% max HP damage"),
+                # HP damage is calculated as maxHealth // 10 (integer division, not percentage)
+                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.10, description="Take maxHealth // 10 damage"),
                 Outcome(OutcomeType.GOLD_CHANGE, value=75, description="Gain 75 gold (50 A15+)")
             ]
         ),
@@ -1560,11 +1576,10 @@ WOMAN_IN_BLUE = Event(
         ),
         EventChoice(
             index=3,
-            description="Leave: Free below A15, take 5% Max HP damage on A15+",
+            description="Leave: Free below A15, take ceil(5% Max HP) damage on A15+",
             outcomes=[
                 # Below A15 leaving is free; A15+ applies ceil(maxHP * 0.05) damage
-                # The HP cost is handled at execution time based on ascension level
-                Outcome(OutcomeType.NOTHING, description="Leave (free below A15, 5% HP on A15+)")
+                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.05, description="Free below A15, ceil(5% max HP) A15+")
             ]
         ),
     ]

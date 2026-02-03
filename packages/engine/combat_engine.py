@@ -305,7 +305,8 @@ class CombatEngine:
         poison = self.state.player.statuses.get("Poison", 0)
         if poison > 0:
             intangible = self.state.player.statuses.get("Intangible", 0) > 0
-            actual_poison = apply_hp_loss(poison, intangible=intangible)
+            tungsten_rod = "Tungsten Rod" in self.state.relics
+            actual_poison = apply_hp_loss(poison, intangible=intangible, tungsten_rod=tungsten_rod)
             self.state.player.hp -= actual_poison
             self.state.total_damage_taken += actual_poison
             self.log.log(self.state.turn, "poison_damage", damage=poison)
@@ -557,6 +558,10 @@ class CombatEngine:
                 # Floor to int only at the end (Java parity)
                 damage = max(0, int(damage_f))
 
+                # Torii: reduce damage 2-5 to 1 (BEFORE Intangible)
+                if "Torii" in self.state.relics and 2 <= damage <= 5:
+                    damage = 1
+
                 # Intangible: cap damage to 1
                 if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
                     damage = 1
@@ -576,6 +581,10 @@ class CombatEngine:
                         else:
                             self.state.player.statuses["Buffer"] = buffer
                         hp_damage = 0
+
+                # Tungsten Rod: reduce all HP loss by 1 (minimum 0)
+                if hp_damage > 0 and "Tungsten Rod" in self.state.relics:
+                    hp_damage = max(0, hp_damage - 1)
 
                 self.state.player.hp -= hp_damage
                 self.state.total_damage_taken += hp_damage
@@ -608,12 +617,15 @@ class CombatEngine:
                     self.state.player.hp = 0
                     return
 
-        # Apply block
-        if enemy.move_block > 0:
+        # Apply effects first (to check for block_all_monsters)
+        effects = enemy.move_effects
+        has_block_all = effects and "block_all_monsters" in effects
+
+        # Apply block to self (unless block_all_monsters will handle it)
+        if enemy.move_block > 0 and not has_block_all:
             enemy.block += enemy.move_block
 
         # Apply effects
-        effects = enemy.move_effects
         if effects:
             if "strength" in effects:
                 enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + effects["strength"]
@@ -657,6 +669,37 @@ class CombatEngine:
             if "status_cards" in effects:
                 for card_id in effects["status_cards"]:
                     self.state.draw_pile.append(card_id)
+
+            # Spire Shield Fortify: block to ALL monsters
+            if "block_all_monsters" in effects:
+                block_amount = effects["block_all_monsters"]
+                for e in self.state.enemies:
+                    if e.hp > 0:
+                        e.block += block_amount
+                self.log.log(self.state.turn, "block_all_monsters",
+                           enemy=enemy.id, amount=block_amount)
+
+            # Strength to ALL monsters (Donu Circle of Protection, SpireSpear Piercer)
+            if "strength_all_monsters" in effects:
+                str_amount = effects["strength_all_monsters"]
+                for e in self.state.enemies:
+                    if e.hp > 0:
+                        e.statuses["Strength"] = e.statuses.get("Strength", 0) + str_amount
+                self.log.log(self.state.turn, "strength_all_monsters",
+                           enemy=enemy.id, amount=str_amount)
+
+            # Plated Armor to ALL monsters (Deca Square of Protection A19+)
+            if "plated_armor_all_monsters" in effects:
+                plated_amount = effects["plated_armor_all_monsters"]
+                for e in self.state.enemies:
+                    if e.hp > 0:
+                        e.statuses["Plated Armor"] = e.statuses.get("Plated Armor", 0) + plated_amount
+
+            # Spawning enemies (Reptomancer, Collector)
+            if "spawn_daggers" in effects:
+                self._handle_reptomancer_spawn(enemy, effects["spawn_daggers"])
+            if "spawn_torchheads" in effects:
+                self._handle_collector_spawn(enemy, effects["spawn_torchheads"])
 
         # Mark first turn as complete
         enemy.first_turn = False
@@ -1075,6 +1118,9 @@ class CombatEngine:
                     target=target_index,
                     effects=result["effects"])
 
+        # Time Eater 12-card counter check (after card is played)
+        self._check_time_eater_numen()
+
         # End turn effect
         if "end_turn" in card.effects:
             self.end_turn()
@@ -1257,9 +1303,19 @@ class CombatEngine:
         if enemy.hp < 0:
             enemy.hp = 0
 
+        # Guardian mode shift (track damage taken)
+        if hp_damage > 0:
+            self._check_guardian_mode_shift(enemy, hp_damage)
+
         # Check split threshold (large slimes split at 50% HP)
         if hp_damage > 0 and enemy.hp > 0:
             self._check_split(enemy)
+
+        # Awakened One rebirth check (phase 1 -> phase 2)
+        if enemy.hp <= 0:
+            if self._check_awakened_one_rebirth(enemy):
+                # Rebirth successful, enemy is back to life
+                return hp_damage
 
         # Death trigger
         if enemy.hp <= 0:
@@ -1688,6 +1744,178 @@ class CombatEngine:
         """Check if player has Runic Pyramid relic."""
         return (self.state.relic_counters.get("_runic_pyramid", 0) > 0 or
                 self.state.has_relic("Runic Pyramid"))
+
+    # =========================================================================
+    # Boss Mechanic Helpers
+    # =========================================================================
+
+    def _check_time_eater_numen(self):
+        """Check if Time Eater should trigger Numen (12-card counter)."""
+        # Find Time Eater enemy
+        time_eater = None
+        time_eater_idx = None
+        for idx, enemy in enumerate(self.state.enemies):
+            if enemy.hp > 0 and "TimeEater" in enemy.id:
+                time_eater = enemy
+                time_eater_idx = idx
+                break
+
+        if not time_eater:
+            return
+
+        # Check if 12 cards have been played this turn
+        if self.state.cards_played_this_turn >= 12:
+            # Trigger Numen: end turn, gain 2 strength, heal to 50%
+            self.log.log(self.state.turn, "time_eater_numen", cards_played=self.state.cards_played_this_turn)
+
+            # Gain 2 Strength
+            time_eater.statuses["Strength"] = time_eater.statuses.get("Strength", 0) + 2
+
+            # Heal to 50% max HP (only if below 50%)
+            half_hp = time_eater.max_hp // 2
+            if time_eater.hp < half_hp:
+                heal_amount = half_hp - time_eater.hp
+                time_eater.hp = half_hp
+                self.log.log(self.state.turn, "time_eater_heal", amount=heal_amount)
+
+            # At A19+, also trigger Beat of Death (1 damage per card played)
+            if self.enemy_objects and time_eater_idx < len(self.enemy_objects):
+                real_enemy = self.enemy_objects[time_eater_idx]
+                if hasattr(real_enemy, 'ascension') and real_enemy.ascension >= 19:
+                    # Beat of Death: 1 damage per card played
+                    beat_damage = self.state.cards_played_this_turn
+                    self.state.player.hp -= beat_damage
+                    self.state.total_damage_taken += beat_damage
+                    self.log.log(self.state.turn, "beat_of_death", damage=beat_damage)
+
+            # Reset counter
+            self.state.cards_played_this_turn = 0
+
+            # End player turn immediately
+            self.end_turn()
+
+    def _check_awakened_one_rebirth(self, enemy: EnemyCombatState) -> bool:
+        """Check if Awakened One should rebirth (phase 1 -> phase 2)."""
+        if "AwakenedOne" not in enemy.id:
+            return False
+
+        # Find the real Enemy object
+        real_enemy = self._get_real_enemy(enemy)
+        if real_enemy is None:
+            return False
+
+        # Check if should rebirth
+        if hasattr(real_enemy, 'should_rebirth') and real_enemy.should_rebirth():
+            # Trigger rebirth
+            real_enemy.trigger_rebirth()
+
+            # Update combat state enemy with new stats
+            enemy.hp = real_enemy.state.current_hp
+            enemy.max_hp = real_enemy.state.max_hp
+            enemy.statuses = dict(real_enemy.state.powers)
+
+            # Clear debuffs
+            for debuff in ["Weak", "Vulnerable", "Frail", "Poison"]:
+                enemy.statuses.pop(debuff, None)
+
+            # Gain phase 2 powers per ascension
+            if hasattr(real_enemy, 'ascension'):
+                if real_enemy.ascension >= 19:
+                    enemy.statuses["Regen"] = 15
+                    enemy.statuses["Curiosity"] = 2
+                else:
+                    enemy.statuses["Regen"] = 10
+                    enemy.statuses["Curiosity"] = 1
+
+            self.log.log(self.state.turn, "awakened_one_rebirth", new_hp=enemy.hp)
+            return True
+
+        return False
+
+    def _check_guardian_mode_shift(self, enemy: EnemyCombatState, damage_taken: int):
+        """Check if Guardian should shift modes and increment threshold."""
+        if "Guardian" not in enemy.id:
+            return
+
+        # Find the real Enemy object
+        real_enemy = self._get_real_enemy(enemy)
+        if real_enemy is None or not hasattr(real_enemy, 'take_damage'):
+            return
+
+        # Get damage before shift
+        old_threshold = getattr(real_enemy, 'mode_shift_damage', 30)
+        was_offensive = getattr(real_enemy, 'offensive_mode', True)
+
+        # Track damage and check for mode shift
+        real_enemy.take_damage(damage_taken)
+
+        # After shift to defensive, increment threshold by 10
+        is_offensive_now = getattr(real_enemy, 'offensive_mode', True)
+        if was_offensive and not is_offensive_now:
+            # Just shifted to defensive, increment threshold by 10
+            if hasattr(real_enemy, 'mode_shift_damage'):
+                real_enemy.mode_shift_damage += 10
+                self.log.log(self.state.turn, "guardian_threshold_increase",
+                           old_threshold=old_threshold,
+                           new_threshold=real_enemy.mode_shift_damage)
+
+    def _handle_reptomancer_spawn(self, enemy: EnemyCombatState, num_daggers: int):
+        """Handle Reptomancer dagger spawning."""
+        # Find the real Enemy object
+        real_enemy = self._get_real_enemy(enemy)
+        if real_enemy is None or not hasattr(real_enemy, 'spawn_daggers'):
+            return
+
+        # Get dagger spawn info
+        dagger_list = real_enemy.spawn_daggers()
+
+        # Create dagger enemies
+        for dagger_info in dagger_list:
+            # Create a SnakeDagger enemy
+            from .content.enemies import SnakeDagger, create_enemy
+            dagger = EnemyCombatState(
+                hp=25,  # SnakeDagger HP
+                max_hp=25,
+                block=0,
+                statuses={},
+                id="Dagger",
+                name="Snake Dagger",
+                enemy_type="NORMAL",
+                move_id=-1,
+                move_damage=0,
+                move_hits=1,
+                move_block=0,
+                move_effects={},
+            )
+            self.state.enemies.append(dagger)
+            # Roll initial move
+            self._roll_enemy_move(dagger)
+
+        self.log.log(self.state.turn, "reptomancer_spawn", daggers=len(dagger_list))
+
+    def _handle_collector_spawn(self, enemy: EnemyCombatState, num_torchheads: int):
+        """Handle Collector TorchHead spawning."""
+        # Create TorchHead enemies
+        for _ in range(num_torchheads):
+            torchhead = EnemyCombatState(
+                hp=40,  # TorchHead HP
+                max_hp=40,
+                block=0,
+                statuses={},
+                id="TorchHead",
+                name="Torch Head",
+                enemy_type="NORMAL",
+                move_id=-1,
+                move_damage=7,  # TorchHead Tackle damage
+                move_hits=1,
+                move_block=0,
+                move_effects={},
+            )
+            self.state.enemies.append(torchhead)
+            # Roll initial move
+            self._roll_enemy_move(torchhead)
+
+        self.log.log(self.state.turn, "collector_spawn", torchheads=num_torchheads)
 
     # =========================================================================
     # State Observation
