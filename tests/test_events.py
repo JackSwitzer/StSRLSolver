@@ -125,11 +125,11 @@ class TestEventPoolPerAct:
 
     def test_city_event_count(self):
         """Verify expected number of City events."""
-        assert len(CITY_EVENTS) == 13
+        assert len(CITY_EVENTS) == 14
 
     def test_beyond_event_count(self):
         """Verify expected number of Beyond events."""
-        assert len(BEYOND_EVENTS) == 7
+        assert len(BEYOND_EVENTS) == 8
 
     def test_shrine_event_count(self):
         """Verify expected number of Shrine events."""

@@ -624,7 +624,21 @@ class RunState:
         self.visited_nodes.append((self.act, x, y))
 
     def advance_act(self):
-        """Move to the next act."""
+        """Move to the next act.
+
+        Java: AbstractDungeon.java:2562-2566
+        Between-act healing:
+        - A0-A4: Full heal
+        - A5+: Heal 75% of missing HP (rounded)
+        """
+        # Between-act heal (Java: AbstractDungeon.java:2562-2566)
+        if self.ascension >= 5:
+            missing = self.max_hp - self.current_hp
+            heal_amount = round(missing * 0.75)
+            self.current_hp = min(self.current_hp + heal_amount, self.max_hp)
+        else:
+            self.current_hp = self.max_hp
+
         self.act += 1
         self.floor = 0
         self.map_position = MapPosition()

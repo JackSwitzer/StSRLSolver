@@ -502,31 +502,29 @@ class TestBlockDecay:
         # Block retained due to Barricade (no decay at start of turn)
         assert engine.state.player.block == 30
 
-    @pytest.mark.xfail(
-        reason="MISSING: Calipers relic not implemented. Java: lose 15 block instead of all."
-    )
     def test_calipers_retains_block_minus_15(self):
         """
         Java: Calipers makes player lose only 15 block per turn instead of all.
         player.loseBlock(15) means block = max(0, block - 15).
         """
-        engine = make_engine(relics=["Calipers"])
+        engine = make_engine(relics=["Calipers"], enemy_damage=0)
         start_engine(engine)
         engine.state.player.block = 30
+        engine.state.enemies[0].move_damage = 0
         engine.end_turn()
         # Should keep 30 - 15 = 15 block
         assert engine.state.player.block == 15
 
-    @pytest.mark.xfail(
-        reason="MISSING: Blur power not implemented. Java: Blur prevents block loss like Barricade."
-    )
     def test_blur_retains_block(self):
         """
         Java: Blur prevents block loss at start of turn (for 1 turn).
         """
-        engine = make_engine(player_statuses={"Blur": 1})
+        engine = make_engine(enemy_damage=0)
         start_engine(engine)
+        # Set Blur AFTER start so it isn't consumed on the first turn's block decay
+        engine.state.player.statuses["Blur"] = 1
         engine.state.player.block = 20
+        engine.state.enemies[0].move_damage = 0
         engine.end_turn()
         assert engine.state.player.block == 20
 
@@ -657,7 +655,6 @@ class TestIncomingDamage:
 class TestMissingMechanics:
     """These test mechanics that are completely absent from the Python engine."""
 
-    @pytest.mark.xfail(reason="MISSING: Artifact power not implemented")
     def test_artifact_blocks_debuffs(self):
         """
         Java ArtifactPower: when a debuff would be applied, reduce Artifact
@@ -665,13 +662,12 @@ class TestMissingMechanics:
         """
         engine = make_engine(player_statuses={"Artifact": 1})
         start_engine(engine)
-        # Apply weak to player - should be blocked by Artifact
-        engine.state.player.statuses["Weak"] = engine.state.player.statuses.get("Weak", 0) + 2
+        # Apply weak to player through the engine's debuff method
+        engine._apply_debuff_to_player("Weak", 2)
         # With Artifact, weak should NOT be applied and Artifact should decrement
         assert engine.state.player.statuses.get("Weak", 0) == 0
         assert engine.state.player.statuses.get("Artifact", 0) == 0
 
-    @pytest.mark.xfail(reason="MISSING: Buffer power not implemented")
     def test_buffer_prevents_hp_loss(self):
         """
         Java BufferPower: when player would lose HP, prevent it and
@@ -687,17 +683,16 @@ class TestMissingMechanics:
         engine.end_turn()
         assert engine.state.player.hp == initial_hp  # No HP lost
 
-    @pytest.mark.xfail(reason="MISSING: Regen power not implemented")
     def test_regen_heals_at_end_of_turn(self):
         """Java RegenPower: heal amount at end of turn, decrement by 1."""
-        engine = make_engine(player_hp=50, player_statuses={"Regen": 5})
+        engine = make_engine(player_hp=50, player_statuses={"Regen": 5}, enemy_damage=0)
         engine.state.player.max_hp = 80
         start_engine(engine)
+        engine.state.enemies[0].move_damage = 0
         engine.end_turn()
         # Should heal 5 HP
         assert engine.state.player.hp == 55
 
-    @pytest.mark.xfail(reason="MISSING: Intangible not implemented in combat engine")
     def test_intangible_caps_damage_to_1(self):
         """
         Java IntangiblePower: all damage reduced to 1.
@@ -721,9 +716,6 @@ class TestMissingMechanics:
         result = calculate_damage(10, weak=True, weak_paper_crane=True)
         assert result == 6  # 10 * 0.6 = 6
 
-    @pytest.mark.xfail(
-        reason="MISSING: Paper Crane not wired into combat engine enemy attacks"
-    )
     def test_paper_crane_in_combat_engine(self):
         """Combat engine should pass paper_crane flag for enemy attacks."""
         engine = make_engine(
@@ -738,7 +730,6 @@ class TestMissingMechanics:
         # With Paper Crane, weak enemy should deal 10*0.6=6 damage
         assert engine.state.player.hp == initial_hp - 6
 
-    @pytest.mark.xfail(reason="MISSING: Thorns on player not implemented")
     def test_player_thorns(self):
         """Player Thorns: deal damage back when attacked."""
         engine = make_engine(
@@ -759,7 +750,6 @@ class TestMissingMechanics:
         engine._scry(3)
         assert engine.state.player.block == block_before + 3
 
-    @pytest.mark.xfail(reason="MISSING: Scry card discard choice not implemented")
     def test_scry_allows_discard_choice(self):
         """Scry should allow player to choose which revealed cards to discard."""
         engine = make_engine(deck=["Strike_P"] * 20)
@@ -783,9 +773,6 @@ class TestMissingMechanics:
         # Poison ticked at start of turn 1: 80 - 5 = 75
         assert engine.state.player.hp == 75
 
-    @pytest.mark.xfail(
-        reason="MISSING: Poison doesn't check Intangible (should cap at 1 via apply_hp_loss)"
-    )
     def test_player_poison_with_intangible(self):
         """Poison + Intangible should only deal 1 damage."""
         engine = make_engine(player_statuses={"Poison": 10, "Intangible": 1})
@@ -907,9 +894,6 @@ class TestPotions:
         engine.use_potion(0)
         assert engine.state.potions[0] == ""
 
-    @pytest.mark.xfail(
-        reason="MISSING: Many potions not implemented (Explosive, Poison, Fairy, Smoke Bomb, etc.)"
-    )
     def test_explosive_potion(self):
         """Explosive Potion: deal 10 damage to ALL enemies."""
         engine = make_engine(potions=["Explosive Potion", "", ""])
@@ -1008,9 +992,6 @@ class TestEnemyDamageInEngine:
         expected = initial_hp - 30
         assert engine.state.player.hp == expected
 
-    @pytest.mark.xfail(
-        reason="BUG: Python applies vuln AFTER stance mult in _execute_enemy_move using int() truncation at wrong step"
-    )
     def test_enemy_damage_truncation_order(self):
         """
         Verify intermediate truncation matches Java.

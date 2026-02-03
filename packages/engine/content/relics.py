@@ -315,7 +315,7 @@ REGAL_PILLOW = Relic(
 
 SMILING_MASK = Relic(
     id="Smiling Mask", name="Smiling Mask", tier=RelicTier.COMMON,
-    effects=["Replaces Face Trader event's HP cost with fixed 50 Gold"],
+    effects=["Shop card removal (purge) always costs 50 Gold"],
 )
 
 SNECKO_SKULL = Relic(

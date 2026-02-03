@@ -998,6 +998,9 @@ def generate_shop_inventory(
         ShopInventory with all items and prices
     """
     discount = 1.0
+    # A16+: Shop prices increased by 10% (Java: ShopScreen.java:212)
+    if ascension >= 16:
+        discount *= 1.1
     if has_membership_card:
         discount *= 0.5
     if has_the_courier:

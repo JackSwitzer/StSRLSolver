@@ -725,6 +725,8 @@ def predict_shop_inventory(
     purge_count: int = 0,
     has_membership_card: bool = False,
     has_the_courier: bool = False,
+    has_smiling_mask: bool = False,
+    ascension_level: int = 0,
 ) -> ShopPredictionResult:
     """
     Predict complete shop inventory for a given game state.
@@ -743,6 +745,8 @@ def predict_shop_inventory(
         purge_count: Number of previous card removals
         has_membership_card: 50% shop discount
         has_the_courier: 20% shop discount + always has removal
+        has_smiling_mask: Overrides purge cost to flat 50g
+        ascension_level: Ascension level (A16+ adds 10% price markup)
 
     Returns:
         ShopPredictionResult with inventory and final counter values
@@ -757,6 +761,9 @@ def predict_shop_inventory(
 
     # Calculate discount multiplier
     discount = 1.0
+    # A16+ applies 10% price increase (Java: applyDiscount(1.1f))
+    if ascension_level >= 16:
+        discount *= 1.1
     if has_membership_card:
         discount *= 0.5
     if has_the_courier:
@@ -842,7 +849,11 @@ def predict_shop_inventory(
 
     # ========== CALCULATE PURGE COST ==========
 
-    purge_cost = BASE_PURGE_COST + (purge_count * PURGE_COST_INCREMENT)
+    # Smiling Mask overrides purge cost to flat 50g
+    if has_smiling_mask:
+        purge_cost = 50
+    else:
+        purge_cost = BASE_PURGE_COST + (purge_count * PURGE_COST_INCREMENT)
     purge_cost = int(purge_cost * discount)
 
     # ========== BUILD RESULT ==========

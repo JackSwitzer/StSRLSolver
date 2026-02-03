@@ -1746,7 +1746,7 @@ class TestMissingEnemies:
         with pytest.raises(ImportError):
             from packages.engine.content.enemies import ApologySlime  # noqa
 
-    @pytest.mark.xfail(reason="ApologySlime not needed for gameplay")
+    @pytest.mark.skip(reason="ApologySlime is a joke/cosmetic enemy, not needed for gameplay parity")
     def test_apology_slime_exists(self):
         """ApologySlime is a joke enemy, not needed for parity."""
         from packages.engine.content.enemies import ApologySlime  # noqa

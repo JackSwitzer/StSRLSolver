@@ -4,6 +4,7 @@ Extracted from decompiled source code for RL decision-making.
 Contains all events with their options, outcomes, and conditions.
 """
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional, Callable
@@ -668,7 +669,7 @@ GHOSTS = Event(
 KNOWING_SKULL = Event(
     id="Knowing Skull",
     name="Knowing Skull",
-    act=Act.ANY,  # specialOneTimeEventList - can appear in any act
+    act=Act.ACT_2,  # Java: com.megacrit.cardcrawl.events.city.KnowingSkull
     description="A skull offers items for HP. Costs escalate.",
     choices=[
         EventChoice(
@@ -990,7 +991,7 @@ MYSTERIOUS_SPHERE = Event(
 SECRET_PORTAL = Event(
     id="SecretPortal",  # Note: Java uses "SecretPortal" without space
     name="Secret Portal",
-    act=Act.ANY,  # specialOneTimeEventList - can appear in any act
+    act=Act.ACT_3,  # Java: com.megacrit.cardcrawl.events.beyond.SecretPortal
     description="A portal that leads directly to the boss.",
     choices=[
         EventChoice(
@@ -1559,10 +1560,11 @@ WOMAN_IN_BLUE = Event(
         ),
         EventChoice(
             index=3,
-            description="Leave: Take 5% Max HP damage (A15+ only) or free leave",
+            description="Leave: Free below A15, take 5% Max HP damage on A15+",
             outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.05,
-                       description="Take 5% max HP damage on A15+ (free otherwise)")
+                # Below A15 leaving is free; A15+ applies ceil(maxHP * 0.05) damage
+                # The HP cost is handled at execution time based on ascension level
+                Outcome(OutcomeType.NOTHING, description="Leave (free below A15, 5% HP on A15+)")
             ]
         ),
     ]
@@ -1621,6 +1623,24 @@ NEOW_DRAWBACK_NO_GOLD = "Lose all gold"
 NEOW_DRAWBACK_CURSE = "Obtain a random curse"
 NEOW_DRAWBACK_PERCENT_DAMAGE = "Take 30% current HP damage"
 
+# Category 2 conditional exclusions (Java NeowReward.java)
+# Maps drawback -> set of bonus types to exclude from category 2
+NEOW_CATEGORY_2_EXCLUSIONS = {
+    NEOW_DRAWBACK_CURSE: {"REMOVE_TWO"},      # Don't offer remove 2 + curse
+    NEOW_DRAWBACK_NO_GOLD: {"TWO_FIFTY_GOLD"},  # Don't offer 250g + lose all gold
+    NEOW_DRAWBACK_10_PERCENT_HP_LOSS: {"TWENTY_PERCENT_HP_BONUS"},  # Don't offer +20% HP + -10% HP
+}
+
+
+def neow_percent_damage(current_hp: int) -> int:
+    """Calculate Neow PERCENT_DAMAGE drawback using Java's integer division formula.
+
+    Java: currentHealth / 10 * 3
+    This uses integer division first, then multiplication.
+    Example: HP=79 -> 79//10=7, 7*3=21 (NOT int(79*0.3)=23)
+    """
+    return (current_hp // 10) * 3
+
 
 # =============================================================================
 # EVENT LOOKUP DICTIONARIES
@@ -1654,6 +1674,7 @@ CITY_EVENTS = {
     "The Library": THE_LIBRARY,
     "The Mausoleum": THE_MAUSOLEUM,
     "Vampires": VAMPIRES,
+    "Knowing Skull": KNOWING_SKULL,
 }
 
 BEYOND_EVENTS = {
@@ -1664,6 +1685,7 @@ BEYOND_EVENTS = {
     "SensoryStone": SENSORY_STONE,
     "Tomb of Lord Red Mask": TOMB_OF_LORD_RED_MASK,
     "Winding Halls": WINDING_HALLS,
+    "SecretPortal": SECRET_PORTAL,
 }
 
 # Shrines that appear in each act's shrineList
@@ -1684,11 +1706,9 @@ SPECIAL_ONE_TIME_EVENTS = {
     "Duplicator": DUPLICATOR,
     "FaceTrader": FACE_TRADER,
     "Fountain of Cleansing": FOUNTAIN_OF_CURSE_REMOVAL,
-    "Knowing Skull": KNOWING_SKULL,
     "Lab": LAB,
     "N'loth": NLOTH,
     "NoteForYourself": NOTE_FOR_YOURSELF,
-    "SecretPortal": SECRET_PORTAL,
     "The Joust": THE_JOUST,
     "WeMeetAgain": WE_MEET_AGAIN,
     "The Woman in Blue": WOMAN_IN_BLUE,
@@ -1737,6 +1757,11 @@ def calculate_outcome_value(outcome: Outcome, player_max_hp: int, player_current
         return outcome.value
 
     if outcome.value_percent is not None:
-        return int(player_max_hp * outcome.value_percent)
+        raw = player_max_hp * outcome.value_percent
+        # Java uses MathUtils.ceil for HP/MaxHP percentage losses (e.g., Ghosts)
+        if outcome.value_percent < 0:
+            return -math.ceil(abs(raw))
+        else:
+            return int(raw)
 
     return 0

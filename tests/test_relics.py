@@ -632,9 +632,9 @@ class TestGoldTriggers:
         assert "Shop always has card removal. 20% discount on everything" in relic.effects
 
     def test_smiling_mask_face_trader(self):
-        """Smiling Mask: Face Trader costs 50 Gold instead of HP."""
+        """Smiling Mask: Shop card removal (purge) always costs 50 Gold."""
         relic = SMILING_MASK
-        assert "Replaces Face Trader event's HP cost with fixed 50 Gold" in relic.effects
+        assert "Shop card removal (purge) always costs 50 Gold" in relic.effects
 
     def test_ceramic_fish_gold_on_card(self):
         """Ceramic Fish: Gain 9 Gold when adding cards."""

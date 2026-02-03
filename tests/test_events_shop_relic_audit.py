@@ -19,7 +19,6 @@ import math
 class TestEventsParity:
     """Tests for event parity between Java and Python."""
 
-    @pytest.mark.xfail(reason="BUG: Knowing Skull classified as ANY, should be ACT_2")
     def test_knowing_skull_is_act2_event(self):
         """CRITICAL: Knowing Skull is a City (Act 2) event in Java, not ANY/special.
         Java: com.megacrit.cardcrawl.events.city.KnowingSkull
@@ -36,24 +35,21 @@ class TestEventsParity:
             "Java source: com.megacrit.cardcrawl.events.city.KnowingSkull"
         )
 
-    @pytest.mark.xfail(reason="BUG: Python uses floor, Java uses ceil for Ghosts HP loss")
     def test_ghosts_hp_loss_uses_ceil(self):
         """CRITICAL: Java Ghosts event uses MathUtils.ceil for HP loss.
         Java: this.hpLoss = MathUtils.ceil((float)maxHealth * 0.5f)
-        Python content/events.py uses value_percent=-0.50 which floors.
+        The engine's calculate_outcome_value should use math.ceil for Ghosts MAX_HP loss.
 
-        For max HP = 73: Java = ceil(36.5) = 37, Python = int(36.5) = 36
+        For max HP = 73: Java = ceil(36.5) = 37
         """
-        # Simulate Java behavior
+        from packages.engine.content.events import GHOSTS, calculate_outcome_value
         max_hp = 73
-        java_hp_loss = math.ceil(max_hp * 0.5)
-        python_hp_loss = int(max_hp * 0.5)
-
-        assert java_hp_loss == 37
-        assert python_hp_loss == 36
-        assert java_hp_loss == python_hp_loss, (
-            f"Ghosts HP loss should use ceil: Java={java_hp_loss}, Python={python_hp_loss}"
-        )
+        # The Ghosts accept choice loses 50% max HP
+        accept_choice = GHOSTS.choices[0]
+        hp_outcome = [o for o in accept_choice.outcomes if o.type.name == "MAX_HP_CHANGE"][0]
+        result = calculate_outcome_value(hp_outcome, max_hp, max_hp)
+        # Java uses ceil(73 * 0.5) = 37 for the loss amount, so result should be -37
+        assert result == -37, f"Ghosts HP loss should use ceil: expected -37, got {result}"
 
     def test_ghosts_hp_loss_clamped_to_max_minus_one(self):
         """CRITICAL: Java clamps Ghosts HP loss so it can't kill you.
@@ -145,7 +141,6 @@ class TestEventsParity:
         hp_outcome = [o for o in banana_choice.outcomes if o.type.name == "HP_CHANGE"][0]
         assert hp_outcome.value_percent == pytest.approx(1.0 / 3, abs=0.01)
 
-    @pytest.mark.xfail(reason="BUG: Knowing Skull classified as ANY, should be ACT_2")
     def test_knowing_skull_not_in_special_events(self):
         """Knowing Skull should NOT be in the special one-time events pool."""
         from packages.engine.content.events import SPECIAL_ONE_TIME_EVENTS
@@ -154,7 +149,6 @@ class TestEventsParity:
             "Knowing Skull is a City event, not a special one-time event"
         )
 
-    @pytest.mark.xfail(reason="BUG: Secret Portal classified as ANY, should be ACT_3")
     def test_secret_portal_is_act3(self):
         """CRITICAL: Secret Portal is a Beyond (Act 3) event.
         Java: com.megacrit.cardcrawl.events.beyond.SecretPortal
@@ -173,7 +167,6 @@ class TestEventsParity:
         assert WOMAN_IN_BLUE.choices[1].requires_gold == 30
         assert WOMAN_IN_BLUE.choices[2].requires_gold == 40
 
-    @pytest.mark.xfail(reason="BUG: Python always applies 5% damage on leave; Java only on A15+")
     def test_woman_in_blue_leave_free_below_a15(self):
         """MODERATE: In Java, leaving Woman in Blue is FREE below A15.
         Only A15+ takes ceil(maxHP * 0.05) damage.
@@ -253,7 +246,6 @@ class TestShopParity:
             actual = BASE_PURGE_COST + purge_count * PURGE_COST_INCREMENT
             assert actual == expected, f"Purge cost at count {purge_count}: expected {expected}, got {actual}"
 
-    @pytest.mark.xfail(reason="BUG: Missing Smiling Mask override - purge should be flat 50g")
     def test_smiling_mask_purge_override(self):
         """CRITICAL: Java sets actualPurgeCost = 50 when Smiling Mask is held.
         Java ShopScreen.java line 222: if (hasRelic("Smiling Mask")) { actualPurgeCost = 50; }
@@ -268,13 +260,12 @@ class TestShopParity:
             potion_counter=0,
             purge_count=3,  # Would normally be 75 + 75 = 150
             has_membership_card=False,
+            has_smiling_mask=True,
         )
-        # With Smiling Mask, purge cost should be flat 50 regardless of purge count
-        # Currently no way to pass Smiling Mask to predict_shop_inventory
-        # This test documents the missing feature
-        assert False, "Smiling Mask purge override not implemented in shop prediction"
+        assert result.inventory.purge_cost == 50, (
+            f"With Smiling Mask, purge cost should be flat 50, got {result.inventory.purge_cost}"
+        )
 
-    @pytest.mark.xfail(reason="BUG: Missing A16+ shop price 10% markup")
     def test_a16_price_markup(self):
         """CRITICAL: Java applies 1.1x price multiplier at ascension >= 16.
         Java ShopScreen.java line 212-213:
@@ -386,7 +377,6 @@ class TestShopParity:
 class TestRelicParity:
     """Tests for relic parity between Java and Python."""
 
-    @pytest.mark.xfail(reason="BUG: Smiling Mask description says Face Trader, should say shop purge = 50g")
     def test_smiling_mask_description(self):
         """CRITICAL: Smiling Mask sets shop purge cost to 50g.
         Java SmilingMask.java: Shop purge is always 50g.
@@ -554,7 +544,6 @@ class TestNeowParity:
         assert NEOW_DRAWBACK_CURSE is not None
         assert NEOW_DRAWBACK_PERCENT_DAMAGE is not None
 
-    @pytest.mark.xfail(reason="BUG: Neow category 2 conditional exclusions not implemented")
     def test_neow_category_2_excludes_remove_two_if_curse_drawback(self):
         """CRITICAL: Java excludes REMOVE_TWO from category 2 if drawback is CURSE.
         Java NeowReward.java line 95: if (this.drawback != NeowRewardDrawback.CURSE) {
@@ -564,30 +553,34 @@ class TestNeowParity:
         This prevents the player from getting 'remove 2 cards + curse' since
         adding a curse while removing cards is a conflict the game avoids.
         """
-        # This would need to be tested at the reward generation level
-        # Currently the Python static data doesn't encode these exclusions
-        assert False, "Neow category 2 conditional exclusions not encoded in Python"
+        from packages.engine.content.events import (
+            NEOW_CATEGORY_2_EXCLUSIONS,
+            NEOW_DRAWBACK_CURSE,
+            NEOW_DRAWBACK_NO_GOLD,
+            NEOW_DRAWBACK_10_PERCENT_HP_LOSS,
+        )
 
-    @pytest.mark.xfail(reason="BUG: Neow PERCENT_DAMAGE uses currentHP/10*3, not currentHP*0.3")
+        # CURSE drawback excludes REMOVE_TWO
+        assert "REMOVE_TWO" in NEOW_CATEGORY_2_EXCLUSIONS[NEOW_DRAWBACK_CURSE]
+        # NO_GOLD drawback excludes TWO_FIFTY_GOLD
+        assert "TWO_FIFTY_GOLD" in NEOW_CATEGORY_2_EXCLUSIONS[NEOW_DRAWBACK_NO_GOLD]
+        # TEN_PERCENT_HP_LOSS drawback excludes TWENTY_PERCENT_HP
+        assert "TWENTY_PERCENT_HP_BONUS" in NEOW_CATEGORY_2_EXCLUSIONS[NEOW_DRAWBACK_10_PERCENT_HP_LOSS]
+
     def test_neow_percent_damage_formula(self):
         """MODERATE: Java does integer division then multiply.
         Java: currentHealth / 10 * 3
         This can differ from currentHealth * 0.3 for non-round numbers.
 
-        Example: HP=73 -> Java: 73/10=7, 7*3=21. Float: 73*0.3=21.9->21. Same.
         Example: HP=79 -> Java: 79/10=7, 7*3=21. Float: 79*0.3=23.7->23. DIFFERENT.
         """
-        # Test with HP = 79
-        hp = 79
-        java_damage = (hp // 10) * 3  # 7 * 3 = 21
-        float_damage = int(hp * 0.3)  # 23
+        from packages.engine.content.events import neow_percent_damage
 
-        assert java_damage != float_damage, "These should differ to prove the bug"
-        assert java_damage == 21
-        assert float_damage == 23
-        # The Python implementation should use java_damage formula
-        # Currently it uses the float version
-        assert False, "Python should use (currentHP // 10) * 3, not int(currentHP * 0.3)"
+        # Test with HP = 79 where the two formulas differ
+        assert neow_percent_damage(79) == 21, "Should use (79//10)*3 = 21, not int(79*0.3) = 23"
+        assert neow_percent_damage(73) == 21, "Should use (73//10)*3 = 21"
+        assert neow_percent_damage(100) == 30, "Should use (100//10)*3 = 30"
+        assert neow_percent_damage(9) == 0, "Should use (9//10)*3 = 0"
 
 
 # ============================================================================

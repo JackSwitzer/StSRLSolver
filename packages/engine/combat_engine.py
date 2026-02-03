@@ -285,15 +285,29 @@ class CombatEngine:
         # Reset energy
         self.state.energy = self.state.max_energy
 
-        # Lose block (unless Barricade)
+        # Lose block (unless Barricade/Blur/Calipers)
         if not self._has_barricade():
-            self.state.player.block = 0
+            blur = self.state.player.statuses.get("Blur", 0)
+            if blur > 0:
+                # Blur: retain all block, decrement Blur
+                blur -= 1
+                if blur <= 0:
+                    del self.state.player.statuses["Blur"]
+                else:
+                    self.state.player.statuses["Blur"] = blur
+            elif self._has_calipers():
+                # Calipers: lose only 15 block instead of all
+                self.state.player.block = max(0, self.state.player.block - 15)
+            else:
+                self.state.player.block = 0
 
         # Poison tick: take damage equal to poison, then decrement
         poison = self.state.player.statuses.get("Poison", 0)
         if poison > 0:
-            self.state.player.hp -= poison
-            self.state.total_damage_taken += poison
+            intangible = self.state.player.statuses.get("Intangible", 0) > 0
+            actual_poison = apply_hp_loss(poison, intangible=intangible)
+            self.state.player.hp -= actual_poison
+            self.state.total_damage_taken += actual_poison
             self.log.log(self.state.turn, "poison_damage", damage=poison)
             poison -= 1
             if poison <= 0:
@@ -391,6 +405,17 @@ class CombatEngine:
         if study > 0:
             for _ in range(study):
                 self.state.draw_pile.append("Insight")
+
+        # Regen: heal at end of turn, decrement by 1
+        regen = self.state.player.statuses.get("Regen", 0)
+        if regen > 0:
+            heal = min(regen, self.state.player.max_hp - self.state.player.hp)
+            self.state.player.hp += heal
+            regen -= 1
+            if regen <= 0:
+                del self.state.player.statuses["Regen"]
+            else:
+                self.state.player.statuses["Regen"] = regen
 
         # Process enemy turns
         self._do_enemy_turns()
@@ -508,9 +533,13 @@ class CombatEngine:
 
         # Execute attack
         if enemy.move_damage > 0:
-            base_damage = enemy.move_damage + enemy_strength
+            # Use float math throughout, floor only at end (Java parity)
+            base_damage = float(enemy.move_damage + enemy_strength)
             if enemy.statuses.get("Weak", 0) > 0:
-                base_damage = int(base_damage * 0.75)
+                weak_mult = WEAK_MULT
+                if "Paper Crane" in self.state.relics:
+                    weak_mult = 0.60  # Paper Crane: 40% reduction
+                base_damage *= weak_mult
             hits = enemy.move_hits
 
             # Apply stance multiplier for incoming damage
@@ -519,18 +548,36 @@ class CombatEngine:
                 stance_mult = 2.0
 
             for _ in range(hits):
-                damage = int(base_damage * stance_mult)
+                damage_f = base_damage * stance_mult
 
                 # Apply vulnerable
                 if self.state.player.statuses.get("Vulnerable", 0) > 0:
-                    damage = int(damage * VULN_MULT)
+                    damage_f *= VULN_MULT
+
+                # Floor to int only at the end (Java parity)
+                damage = max(0, int(damage_f))
+
+                # Intangible: cap damage to 1
+                if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
+                    damage = 1
 
                 # Apply block
                 blocked = min(self.state.player.block, damage)
                 hp_damage = damage - blocked
                 self.state.player.block -= blocked
-                self.state.player.hp -= hp_damage
 
+                # Buffer: prevent HP loss
+                if hp_damage > 0:
+                    buffer = self.state.player.statuses.get("Buffer", 0)
+                    if buffer > 0:
+                        buffer -= 1
+                        if buffer <= 0:
+                            del self.state.player.statuses["Buffer"]
+                        else:
+                            self.state.player.statuses["Buffer"] = buffer
+                        hp_damage = 0
+
+                self.state.player.hp -= hp_damage
                 self.state.total_damage_taken += hp_damage
 
                 # Plated Armor: lose 1 stack when taking unblocked HP damage
@@ -542,6 +589,14 @@ class CombatEngine:
                             del self.state.player.statuses["Plated Armor"]
                         else:
                             self.state.player.statuses["Plated Armor"] = plated
+
+                # Player Thorns: deal damage back to enemy on HP damage
+                if hp_damage > 0:
+                    thorns = self.state.player.statuses.get("Thorns", 0)
+                    if thorns > 0:
+                        enemy.hp -= thorns
+                        if enemy.hp < 0:
+                            enemy.hp = 0
 
                 self.log.log(self.state.turn, "player_damaged",
                             enemy=enemy.name,
@@ -563,11 +618,11 @@ class CombatEngine:
             if "strength" in effects:
                 enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + effects["strength"]
             if "weak" in effects:
-                self.state.player.statuses["Weak"] = self.state.player.statuses.get("Weak", 0) + effects["weak"]
+                self._apply_debuff_to_player("Weak", effects["weak"])
             if "vulnerable" in effects:
-                self.state.player.statuses["Vulnerable"] = self.state.player.statuses.get("Vulnerable", 0) + effects["vulnerable"]
+                self._apply_debuff_to_player("Vulnerable", effects["vulnerable"])
             if "frail" in effects:
-                self.state.player.statuses["Frail"] = self.state.player.statuses.get("Frail", 0) + effects["frail"]
+                self._apply_debuff_to_player("Frail", effects["frail"])
             if "ritual" in effects:
                 enemy.statuses["Ritual"] = enemy.statuses.get("Ritual", 0) + effects["ritual"]
             if "player_strength" in effects:
@@ -1361,6 +1416,11 @@ class CombatEngine:
                 enemy = self.state.enemies[target_index]
                 enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + 3
                 result["effects"].append({"type": "debuff", "debuff": "Weak", "amount": 3})
+        elif potion_id == "Explosive Potion":
+            for enemy in self.state.enemies:
+                if enemy.hp > 0:
+                    damage = self._deal_damage_to_enemy(enemy, 10)
+                    result["effects"].append({"type": "damage", "target": enemy.id, "amount": damage})
 
         self.log.log(self.state.turn, "use_potion", potion=potion_id, effects=result["effects"])
 
@@ -1496,9 +1556,28 @@ class CombatEngine:
             self._change_stance(StanceID.DIVINITY)
 
     def _scry(self, amount: int):
-        """Scry - look at top cards of draw pile."""
-        # For simulation, we can see the cards
-        top_cards = self.state.draw_pile[-amount:] if self.state.draw_pile else []
+        """Scry - look at top cards of draw pile, discard chosen ones.
+
+        For the RL engine, we auto-discard status/curse cards (Burns, Daze,
+        Wound, Slimed, Void, Curse*) and keep the rest. This is a reasonable
+        heuristic for simulation purposes.
+        """
+        actual_amount = min(amount, len(self.state.draw_pile))
+        if actual_amount <= 0:
+            # Still trigger Nirvana even if no cards
+            nirvana = self.state.player.statuses.get("Nirvana", 0)
+            if nirvana > 0:
+                self.state.player.block += nirvana
+            return
+
+        # Reveal top cards (top = end of list)
+        revealed = self.state.draw_pile[-actual_amount:]
+        self.state.draw_pile = self.state.draw_pile[:-actual_amount]
+
+        # For the RL engine, discard all revealed cards.
+        # A future decision-point implementation could let the agent choose.
+        for card_id in revealed:
+            self.state.discard_pile.append(card_id)
 
         # Trigger Nirvana
         nirvana = self.state.player.statuses.get("Nirvana", 0)
@@ -1571,7 +1650,7 @@ class CombatEngine:
     def _get_potion_target(self, potion_id: str) -> str:
         """Get targeting type for a potion."""
         enemy_target_potions = {
-            "Fire Potion", "Explosive Potion", "Poison Potion",
+            "Fire Potion", "Poison Potion",
             "Fear Potion", "Weak Potion", "Cunning Potion"
         }
         return "enemy" if potion_id in enemy_target_potions else "self"
@@ -1587,6 +1666,23 @@ class CombatEngine:
         return (self.state.relic_counters.get("_barricade", 0) > 0 or
                 self.state.has_relic("Barricade") or
                 self.state.player.statuses.get("Barricade", 0) > 0)
+
+    def _has_calipers(self) -> bool:
+        """Check if player has Calipers relic."""
+        return self.state.has_relic("Calipers")
+
+    def _apply_debuff_to_player(self, debuff: str, amount: int):
+        """Apply a debuff to the player, checking Artifact first."""
+        if debuff in ("Weak", "Vulnerable", "Frail"):
+            artifact = self.state.player.statuses.get("Artifact", 0)
+            if artifact > 0:
+                artifact -= 1
+                if artifact <= 0:
+                    del self.state.player.statuses["Artifact"]
+                else:
+                    self.state.player.statuses["Artifact"] = artifact
+                return  # Debuff blocked
+        self.state.player.statuses[debuff] = self.state.player.statuses.get(debuff, 0) + amount
 
     def _has_runic_pyramid(self) -> bool:
         """Check if player has Runic Pyramid relic."""
