@@ -533,23 +533,14 @@ class TestA14StartingDeck:
 # A15: Less starting gold; ? rooms more likely to have monsters
 # =============================================================================
 
-class TestA15StartingGold:
-    """Test that player starts with less gold at A15+."""
+class TestA15EventPenalties:
+    """A15+ affects event gold amounts, NOT starting gold. Starting gold is always 99."""
 
-    def test_starting_gold_below_a15(self):
-        """Player should start with 99 gold below A15."""
-        run = create_watcher_run("SEED123", ascension=14)
-        assert run.gold == 99
-
-    def test_starting_gold_at_a15(self):
-        """Player should start with 74 gold at A15+ (99 - 25)."""
-        run = create_watcher_run("SEED123", ascension=15)
-        assert run.gold == 74
-
-    def test_starting_gold_at_a20(self):
-        """Player should start with 74 gold at A20."""
-        run = create_watcher_run("SEED123", ascension=20)
-        assert run.gold == 74
+    def test_starting_gold_always_99(self):
+        """Starting gold is always 99 regardless of ascension."""
+        for asc in [0, 6, 14, 15, 20]:
+            run = create_watcher_run("SEED123", ascension=asc)
+            assert run.gold == 99, f"A{asc}: expected 99 gold, got {run.gold}"
 
 
 # =============================================================================
@@ -798,10 +789,10 @@ class TestAscensionIntegration:
         assert run.max_hp == expected_hp
 
     @pytest.mark.parametrize("ascension,expected_gold", [
-        (0, 99), (10, 99), (14, 99), (15, 74), (20, 74)
+        (0, 99), (10, 99), (14, 99), (15, 99), (20, 99)
     ])
     def test_watcher_gold_by_ascension(self, ascension, expected_gold):
-        """Test Watcher gold at specific ascension breakpoints."""
+        """Starting gold is always 99 -- A15 only affects events."""
         run = create_watcher_run("TESTSEED", ascension=ascension)
         assert run.gold == expected_gold
 

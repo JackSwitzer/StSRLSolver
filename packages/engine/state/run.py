@@ -859,12 +859,8 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
     else:
         current_hp = max_hp
 
-    # Calculate starting gold based on ascension
-    if ascension >= 15:
-        # A15+: start with less gold
-        gold = WATCHER_BASE_GOLD - 25  # 74 gold
-    else:
-        gold = WATCHER_BASE_GOLD
+    # Starting gold is always base (99 for Watcher) -- A15 only affects events, not starting gold
+    gold = WATCHER_BASE_GOLD
 
     # Calculate potion slots based on ascension
     if ascension >= 11:
