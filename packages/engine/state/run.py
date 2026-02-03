@@ -853,6 +853,12 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
     else:
         max_hp = WATCHER_BASE_HP
 
+    # A6+: start at 90% current HP (applied after max HP reduction)
+    if ascension >= 6:
+        current_hp = round(max_hp * 0.9)
+    else:
+        current_hp = max_hp
+
     # Calculate starting gold based on ascension
     if ascension >= 15:
         # A15+: start with less gold
@@ -874,7 +880,7 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
         seed_string=seed_string,
         ascension=ascension,
         character="Watcher",
-        current_hp=max_hp,
+        current_hp=current_hp,
         max_hp=max_hp,
         gold=gold,
     )

@@ -293,17 +293,23 @@ class TestA5BossHealReduction:
 class TestA6StartingHP:
     """Test that player starts with less max HP at A6+ (A14+ for Watcher)."""
 
-    def test_watcher_starting_hp_below_a14(self):
-        """Watcher should start with 72 HP below A14."""
+    def test_watcher_starting_hp_below_a6(self):
+        """Watcher should start at full HP below A6."""
         run = create_watcher_run("SEED123", ascension=0)
         assert run.max_hp == 72
         assert run.current_hp == 72
 
+    def test_watcher_starting_hp_at_a6(self):
+        """A6+: start at 90% current HP. round(72 * 0.9) = 65."""
+        run = create_watcher_run("SEED123", ascension=6)
+        assert run.max_hp == 72
+        assert run.current_hp == 65  # round(72 * 0.9)
+
     def test_watcher_starting_hp_at_a14(self):
-        """Watcher should start with 68 HP at A14+ (72 - 4)."""
+        """Watcher at A14+: max HP 68 (72-4), current HP round(68*0.9)=61 (A6+ penalty)."""
         run = create_watcher_run("SEED123", ascension=14)
         assert run.max_hp == 68  # 72 - 4
-        assert run.current_hp == 68
+        assert run.current_hp == 61  # round(68 * 0.9) -- A6+ starts at 90% HP
 
 
 # =============================================================================
