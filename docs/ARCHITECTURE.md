@@ -32,19 +32,21 @@ SlayTheSpireRL/
 ├── packages/engine/          # Core game engine
 │   ├── state/              # RNG, run state, combat state
 │   ├── generation/         # Content generators (map, encounters, rewards)
-│   ├── content/            # Game data (cards, enemies, events, relics)
-│   ├── calc/               # Combat simulation and damage calculation
-│   ├── simulation/         # Parallel simulation engine
-│   ├── utils/              # Utility modules (Java hashmap, card library order)
+│   ├── content/            # Game data (cards, enemies, events, relics, powers, stances)
+│   ├── calc/               # Damage calculation and combat simulation
+│   ├── effects/            # Card effect registry and executor
+│   ├── handlers/           # Combat, event, shop, reward handlers
+│   ├── utils/              # Utility modules
+│   ├── api.py              # Curated public API exports
 │   ├── game.py             # GameRunner orchestrator
-│   └── combat.py           # Combat simulation (deprecated)
-├── web/                     # Web dashboard
-│   ├── server.py           # FastAPI server with SSE
-│   ├── index.html          # Dashboard UI
-│   └── static/             # Static assets
+│   └── combat_engine.py    # Turn-based combat engine
+├── packages/parity/         # Seed parity verification tools
+│   └── comparison/         # State comparators, RNG trackers, game simulator
+├── tests/                   # 2480+ pytest tests
+├── mod/                     # Java EVTracker mod
 ├── docs/                    # Documentation
-│   └── vault/              # Verified game mechanics documentation
-└── decompiled/             # Decompiled game source (reference)
+│   └── vault/              # Verified game mechanics ground truth
+└── decompiled/             # Decompiled Java source (reference)
 ```
 
 ---
