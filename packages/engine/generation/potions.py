@@ -548,7 +548,7 @@ def get_rng_calls_for_potion_selection(
     if starting_seed0 is None:
         temp_rng = Random(12345)
     else:
-        from core.state.rng import XorShift128
+        from packages.engine.state.rng import XorShift128
         temp_rng = Random.__new__(Random)
         temp_rng._rng = XorShift128(starting_seed0, starting_seed1)
         temp_rng.counter = 0

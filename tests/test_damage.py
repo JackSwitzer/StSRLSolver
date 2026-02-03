@@ -9,7 +9,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.calc.damage import (
+from packages.engine.calc.damage import (
     calculate_damage, calculate_block, calculate_incoming_damage,
     WEAK_MULT, VULN_MULT, WRATH_MULT, DIVINITY_MULT, FRAIL_MULT,
 )
@@ -505,7 +505,7 @@ class TestIntangibleEdgeCases:
 
     def test_intangible_hp_loss(self):
         """Intangible affects HP_LOSS damage type."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(10, intangible=True) == 1
         assert apply_hp_loss(1, intangible=True) == 1
         assert apply_hp_loss(0, intangible=True) == 0
@@ -587,7 +587,7 @@ class TestTungstenRod:
 
     def test_tungsten_rod_hp_loss_type(self):
         """Tungsten Rod affects HP_LOSS damage."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(5, tungsten_rod=True) == 4
         assert apply_hp_loss(1, tungsten_rod=True) == 0
 
@@ -775,32 +775,32 @@ class TestHPLossEdgeCases:
 
     def test_hp_loss_basic(self):
         """Basic HP loss calculation."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(10) == 10
         assert apply_hp_loss(0) == 0
 
     def test_hp_loss_intangible(self):
         """Intangible caps HP loss at 1."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(100, intangible=True) == 1
         assert apply_hp_loss(5, intangible=True) == 1
         assert apply_hp_loss(1, intangible=True) == 1
 
     def test_hp_loss_tungsten_rod(self):
         """Tungsten Rod reduces HP loss by 1."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(10, tungsten_rod=True) == 9
         assert apply_hp_loss(1, tungsten_rod=True) == 0
 
     def test_hp_loss_intangible_tungsten_combined(self):
         """Intangible + Tungsten Rod: 1 - 1 = 0."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         # 100 -> 1 (intangible) -> 0 (tungsten)
         assert apply_hp_loss(100, intangible=True, tungsten_rod=True) == 0
 
     def test_hp_loss_zero_unaffected(self):
         """Zero HP loss unaffected by relics."""
-        from core.calc.damage import apply_hp_loss
+        from packages.engine.calc.damage import apply_hp_loss
         assert apply_hp_loss(0, intangible=True) == 0
         assert apply_hp_loss(0, tungsten_rod=True) == 0
         assert apply_hp_loss(0, intangible=True, tungsten_rod=True) == 0
@@ -811,14 +811,14 @@ class TestConvenienceFunctions:
 
     def test_wrath_damage_function(self):
         """Test wrath_damage convenience function."""
-        from core.calc.damage import wrath_damage
+        from packages.engine.calc.damage import wrath_damage
         assert wrath_damage(10) == 20
         assert wrath_damage(10, strength=3) == 26  # (10+3)*2
         assert wrath_damage(10, vuln=True) == 30  # 10*2*1.5
 
     def test_divinity_damage_function(self):
         """Test divinity_damage convenience function."""
-        from core.calc.damage import divinity_damage
+        from packages.engine.calc.damage import divinity_damage
         assert divinity_damage(10) == 30
         assert divinity_damage(10, strength=3) == 39  # (10+3)*3
         assert divinity_damage(10, vuln=True) == 45  # 10*3*1.5

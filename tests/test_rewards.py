@@ -9,7 +9,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.generation.rewards import (
+from packages.engine.generation.rewards import (
     generate_card_rewards, generate_boss_relics, check_potion_drop,
     generate_gold_reward, generate_relic_reward, generate_elite_relic_reward,
     RewardState, CardBlizzardState, PotionBlizzardState,
@@ -26,10 +26,10 @@ from core.generation.rewards import (
     RelicTier as RewardsRelicTier,
     PotionRarity as RewardsPotionRarity,
 )
-from core.state.rng import Random, GameRNG
-from core.content.relics import RelicTier, BOSS_RELICS, COMMON_RELICS, UNCOMMON_RELICS, RARE_RELICS, SHOP_RELICS
-from core.content.cards import CardRarity
-from core.content.potions import PotionRarity, BASE_POTION_DROP_CHANCE, BLIZZARD_MOD_STEP
+from packages.engine.state.rng import Random, GameRNG
+from packages.engine.content.relics import RelicTier, BOSS_RELICS, COMMON_RELICS, UNCOMMON_RELICS, RARE_RELICS, SHOP_RELICS
+from packages.engine.content.cards import CardRarity
+from packages.engine.content.potions import PotionRarity, BASE_POTION_DROP_CHANCE, BLIZZARD_MOD_STEP
 
 
 class TestCardRewards:
@@ -403,7 +403,7 @@ class TestSingingBowlInteraction:
 
     def test_singing_bowl_flag_exists(self):
         """Verify Singing Bowl effect documentation exists in relic data."""
-        from core.content.relics import ALL_RELICS
+        from packages.engine.content.relics import ALL_RELICS
         singing_bowl = ALL_RELICS.get("Singing Bowl")
         assert singing_bowl is not None
         assert "Max HP" in str(singing_bowl.effects) or "HP" in str(singing_bowl.effects)
@@ -498,7 +498,7 @@ class TestPrayerWheelRelic:
 
     def test_prayer_wheel_documented(self):
         """Prayer Wheel effect is documented in relic data."""
-        from core.content.relics import ALL_RELICS
+        from packages.engine.content.relics import ALL_RELICS
         prayer_wheel = ALL_RELICS.get("Prayer Wheel")
         assert prayer_wheel is not None
         assert "card" in str(prayer_wheel.effects).lower()

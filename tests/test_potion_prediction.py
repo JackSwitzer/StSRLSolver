@@ -15,7 +15,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.generation.potions import (
+from packages.engine.generation.potions import (
     # Prediction functions
     predict_potion_drop,
     predict_potion_from_seed,
@@ -34,9 +34,9 @@ from core.generation.potions import (
     POTION_COMMON_CHANCE,
     POTION_UNCOMMON_CHANCE,
 )
-from core.state.rng import Random, seed_to_long
+from packages.engine.state.rng import Random, seed_to_long
 # Import PotionRarity from the generation module to ensure enum identity matches
-from core.generation.potions import PotionRarity, ALL_POTIONS
+from packages.engine.generation.potions import PotionRarity, ALL_POTIONS
 
 
 # ============================================================================

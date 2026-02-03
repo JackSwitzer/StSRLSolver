@@ -20,7 +20,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.events import (
+from packages.engine.content.events import (
     # Enums
     Act, OutcomeType,
     # Data classes
@@ -56,7 +56,7 @@ from core.content.events import (
     # Functions
     get_event, get_events_for_act, calculate_outcome_value,
 )
-from core.state.rng import Random, GameRNG, seed_to_long
+from packages.engine.state.rng import Random, GameRNG, seed_to_long
 
 
 # =============================================================================

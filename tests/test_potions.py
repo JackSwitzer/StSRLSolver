@@ -10,7 +10,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.potions import (
+from packages.engine.content.potions import (
     # Base classes and enums
     Potion, PotionRarity, PotionTargetType, PlayerClass,
     # Helper functions

@@ -16,10 +16,10 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
-from core.state.rng import Random, seed_to_long, long_to_seed
-from core.state.game_rng import GameRNGState, RNGStream
-from core.generation.map import MapGenerator, MapGeneratorConfig, MapRoomNode, RoomType
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.rng import Random, seed_to_long, long_to_seed
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, MapRoomNode, RoomType
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 class Phase(Enum):
@@ -622,7 +622,7 @@ if __name__ == "__main__":
         print("\n" + "="*60)
         print("Simulator ready. Use interactive mode (-i) to step through.")
         print("Or import GameSimulator in Python:")
-        print("  from core.comparison.game_simulator import GameSimulator")
+        print("  from packages.engine.comparison.game_simulator import GameSimulator")
         print(f"  sim = GameSimulator('{args.seed}')")
         print("  sim.choose_neow('BOSS_SWAP')")
         print("  sim.enter_room(x, y)")

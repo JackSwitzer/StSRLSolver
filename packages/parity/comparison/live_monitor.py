@@ -15,14 +15,14 @@ from typing import List, Dict, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.comparison.full_rng_tracker import (
+from packages.engine.comparison.full_rng_tracker import (
     read_save_file, SAVE_PATH, predict_boss_relics,
     CLASS_STARTER_RELICS, STARTER_UPGRADE_RELICS
 )
-from core.state.rng import long_to_seed, Random
-from core.state.game_rng import GameRNGState, RNGStream
-from core.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.rng import long_to_seed, Random
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, get_map_seed_offset
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 # Enemy HP data (A20)

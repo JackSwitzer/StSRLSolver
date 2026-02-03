@@ -21,7 +21,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.cards import (
+from packages.engine.content.cards import (
     Card, CardType, CardRarity, CardTarget, CardColor,
     get_card, get_starting_deck,
     # Basic cards
@@ -56,7 +56,7 @@ from core.content.cards import (
     # Registry
     WATCHER_CARDS, ALL_CARDS,
 )
-from core.content.stances import StanceID, StanceManager, STANCES
+from packages.engine.content.stances import StanceID, StanceManager, STANCES
 
 
 # =============================================================================

@@ -16,9 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.state.game_rng import GameRNGState, RNGStream
-from core.state.rng import long_to_seed
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.state.rng import long_to_seed
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 # XOR key for save file decryption

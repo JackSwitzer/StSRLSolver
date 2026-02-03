@@ -21,7 +21,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.generation.map import (
+from packages.engine.generation.map import (
     MapGenerator,
     MapGeneratorConfig,
     MapRoomNode,
@@ -34,7 +34,7 @@ from core.generation.map import (
     get_map_seed_offset,
     map_to_string,
 )
-from core.state.rng import Random, seed_to_long
+from packages.engine.state.rng import Random, seed_to_long
 
 
 # ============================================================================

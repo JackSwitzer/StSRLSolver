@@ -27,9 +27,9 @@ from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.state.game_rng import GameRNGState, RNGStream
-from core.state.rng import Random, long_to_seed, seed_to_long
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.state.rng import Random, long_to_seed, seed_to_long
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 # =============================================================================
@@ -222,7 +222,7 @@ def predict_boss_relics(
     Returns:
         List of 3 boss relic IDs that will be offered
     """
-    from core.generation.relics import predict_boss_relic_pool
+    from packages.engine.generation.relics import predict_boss_relic_pool
 
     # Get the shuffled boss relic pool using the proper generation code
     # This uses the correct HashMap iteration order and shuffle algorithm
@@ -300,7 +300,7 @@ def predict_card_reward(
     - Toxic Egg 2: SKILL cards
     - Frozen Egg: POWER cards
     """
-    from core.content.cards import CardType
+    from packages.engine.content.cards import CardType
 
     state = GameRNGState(seed_str)
     state.set_counter(RNGStream.CARD, card_counter)
@@ -519,7 +519,7 @@ def watch_mode(debug: bool = False):
 
 def test_boss_relics(seed_str: str, player_class: str = "WATCHER"):
     """Test boss relic prediction for a given seed."""
-    from core.generation.relics import predict_boss_relic_pool
+    from packages.engine.generation.relics import predict_boss_relic_pool
 
     seed = seed_to_long(seed_str)
 

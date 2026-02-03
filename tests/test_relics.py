@@ -20,7 +20,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.relics import (
+from packages.engine.content.relics import (
     Relic, RelicTier, PlayerClass, ALL_RELICS, get_relic, get_relics_by_tier,
     get_relics_for_class, get_starter_relic,
     # Starter relics
@@ -72,7 +72,7 @@ from core.content.relics import (
     ODD_MUSHROOM, RED_CIRCLET, RED_MASK, SPIRIT_POOP, SSSERPENT_HEAD,
     WARPED_TONGS,
 )
-from core.state.combat import (
+from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState, create_combat,
     create_player, create_enemy,
 )

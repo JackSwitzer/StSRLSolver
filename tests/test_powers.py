@@ -21,7 +21,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.powers import (
+from packages.engine.content.powers import (
     Power,
     PowerType,
     DamageType,
@@ -50,7 +50,7 @@ from core.content.powers import (
     create_mantra,
 )
 
-from core.content.stances import StanceManager, StanceID
+from packages.engine.content.stances import StanceManager, StanceID
 
 
 # =============================================================================

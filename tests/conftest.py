@@ -14,11 +14,11 @@ import sys
 # Ensure project root is in path
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.state.combat import (
+from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
     PlayCard, UsePotion, EndTurn,
 )
-from core.state.rng import XorShift128, Random, GameRNG, seed_to_long
+from packages.engine.state.rng import XorShift128, Random, GameRNG, seed_to_long
 
 
 # =============================================================================
@@ -490,14 +490,14 @@ def ascension_20_state():
 @pytest.fixture
 def fresh_reward_state():
     """Fresh reward state (no rewards collected yet)."""
-    from core.generation.rewards import RewardState
+    from packages.engine.generation.rewards import RewardState
     return RewardState()
 
 
 @pytest.fixture
 def mid_act_reward_state():
     """Reward state after some Act 1 rewards (simulated)."""
-    from core.generation.rewards import RewardState, CardBlizzardState, PotionBlizzardState
+    from packages.engine.generation.rewards import RewardState, CardBlizzardState, PotionBlizzardState
     state = RewardState()
     # Simulate some card rewards lowering the blizzard offset
     state.card_blizzard.offset = 0

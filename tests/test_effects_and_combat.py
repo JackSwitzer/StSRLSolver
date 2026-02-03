@@ -11,7 +11,7 @@ Covers:
 
 import pytest
 from tests.conftest import create_combat_state
-from core.state.combat import (
+from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
     PlayCard, UsePotion, EndTurn,
 )

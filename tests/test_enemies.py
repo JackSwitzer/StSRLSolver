@@ -8,11 +8,11 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.enemies import (
+from packages.engine.content.enemies import (
     JawWorm, Cultist, GremlinNob, Lagavulin, SlimeBoss,
     Champ, TimeEater, CorruptHeart, create_enemy, ENEMY_CLASSES,
 )
-from core.state.rng import Random
+from packages.engine.state.rng import Random
 
 
 class TestJawWorm:

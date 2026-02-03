@@ -12,8 +12,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from typing import List, Optional
-from core.state.game_rng import GameRNGState, RNGStream
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 class InteractiveVerifier:

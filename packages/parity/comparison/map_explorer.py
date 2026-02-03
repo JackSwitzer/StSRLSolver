@@ -15,10 +15,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
-from core.state.rng import Random, seed_to_long
-from core.state.game_rng import GameRNGState, RNGStream
-from core.generation.map import MapGenerator, MapGeneratorConfig, MapRoomNode, RoomType
-from core.generation.rewards import generate_card_rewards, RewardState
+from packages.engine.state.rng import Random, seed_to_long
+from packages.engine.state.game_rng import GameRNGState, RNGStream
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, MapRoomNode, RoomType
+from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
 
 def get_map_seed(base_seed: int, act: int) -> int:

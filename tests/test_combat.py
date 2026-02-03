@@ -23,23 +23,23 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.state.combat import (
+from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
     create_player, create_enemy, create_combat,
     PlayCard, UsePotion, EndTurn,
 )
-from core.state.rng import Random
-from core.content.stances import StanceID, StanceManager, STANCES
-from core.content.cards import (
+from packages.engine.state.rng import Random
+from packages.engine.content.stances import StanceID, StanceManager, STANCES
+from packages.engine.content.cards import (
     Card, CardType, CardTarget, get_card, get_starting_deck,
     STRIKE_W, DEFEND_W, ERUPTION, VIGILANCE, TANTRUM,
 )
-from core.content.powers import (
+from packages.engine.content.powers import (
     PowerManager, create_power, create_strength, create_dexterity,
     create_weak, create_vulnerable, create_frail, create_poison,
     create_artifact, create_intangible, create_vigor,
 )
-from core.calc.damage import (
+from packages.engine.calc.damage import (
     calculate_damage, calculate_block, calculate_incoming_damage,
     WEAK_MULT, VULN_MULT, WRATH_MULT, DIVINITY_MULT, FRAIL_MULT,
 )

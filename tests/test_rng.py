@@ -9,7 +9,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.state.rng import XorShift128, Random, GameRNG, seed_to_long, long_to_seed
+from packages.engine.state.rng import XorShift128, Random, GameRNG, seed_to_long, long_to_seed
 
 
 class TestSeedConversion:

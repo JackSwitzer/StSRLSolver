@@ -15,11 +15,11 @@ import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
 from tests.conftest import create_combat_state
-from core.state.combat import (
+from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
     PlayCard, UsePotion, EndTurn,
 )
-from core.state.rng import Random, GameRNG, XorShift128, seed_to_long
+from packages.engine.state.rng import Random, GameRNG, XorShift128, seed_to_long
 
 
 # =============================================================================
@@ -158,7 +158,7 @@ class TestRNGRewardsIntegration:
 
     def test_card_rewards_deterministic(self, rng_seed_42):
         """Card rewards should be deterministic with same seed."""
-        from core.generation.rewards import generate_card_rewards, RewardState
+        from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
         state = RewardState()
         cards1 = generate_card_rewards(
@@ -176,7 +176,7 @@ class TestRNGRewardsIntegration:
 
     def test_different_seeds_different_cards(self):
         """Different seeds should produce different card rewards."""
-        from core.generation.rewards import generate_card_rewards, RewardState
+        from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
         cards1 = generate_card_rewards(
             Random(42), act=1, player_class="WATCHER",
@@ -210,7 +210,7 @@ class TestRNGRewardsIntegration:
 
     def test_ascension_affects_rewards(self):
         """Higher ascension should affect reward generation."""
-        from core.generation.rewards import generate_card_rewards, RewardState
+        from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
         a0_cards = generate_card_rewards(
             Random(42), act=1, player_class="WATCHER",
@@ -349,7 +349,7 @@ class TestEffectExecutorIntegration:
     def test_executor_imports_correctly(self):
         """EffectExecutor should be importable."""
         try:
-            from core.effects import EffectExecutor, EffectResult, EffectContext
+            from packages.engine.effects import EffectExecutor, EffectResult, EffectContext
             assert EffectExecutor is not None
             assert EffectResult is not None
         except ImportError as e:
@@ -358,7 +358,7 @@ class TestEffectExecutorIntegration:
     def test_effect_registry_has_handlers(self):
         """Effect registry should have registered handlers."""
         try:
-            from core.effects import list_registered_effects
+            from packages.engine.effects import list_registered_effects
             effects = list_registered_effects()
             assert len(effects) > 0
         except ImportError:
@@ -367,8 +367,8 @@ class TestEffectExecutorIntegration:
     def test_executor_with_combat_state(self, basic_combat):
         """EffectExecutor should work with CombatState."""
         try:
-            from core.effects import EffectExecutor
-            from core.content.cards import get_card
+            from packages.engine.effects import EffectExecutor
+            from packages.engine.content.cards import get_card
 
             executor = EffectExecutor(basic_combat)
             assert executor.state == basic_combat
@@ -513,7 +513,7 @@ class TestSeedConversionIntegration:
 
     def test_seed_conversion_roundtrip(self, known_seeds):
         """Seed conversion should be consistent."""
-        from core.state.rng import long_to_seed
+        from packages.engine.state.rng import long_to_seed
 
         for seed_str, seed_long in known_seeds.items():
             # Convert back to string
@@ -546,7 +546,7 @@ class TestCrossModuleIntegration:
     def test_map_generation_with_rng(self):
         """Map generation should use RNG correctly."""
         try:
-            from core.generation.map import MapGenerator, MapGeneratorConfig, RoomType
+            from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, RoomType
 
             config = MapGeneratorConfig()
             gen = MapGenerator(config)
@@ -576,7 +576,7 @@ class TestCrossModuleIntegration:
 
     def test_reward_state_persists_across_floors(self):
         """Reward state should persist and affect subsequent rewards."""
-        from core.generation.rewards import generate_card_rewards, RewardState
+        from packages.engine.generation.rewards import generate_card_rewards, RewardState
 
         state = RewardState()
         rng = Random(42)

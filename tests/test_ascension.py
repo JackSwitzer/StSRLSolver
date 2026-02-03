@@ -31,19 +31,19 @@ import os
 # Add core to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.state.run import create_watcher_run, WATCHER_BASE_HP, WATCHER_BASE_GOLD, CardInstance
-from core.state.rng import Random
-from core.content.enemies import (
+from packages.engine.state.run import create_watcher_run, WATCHER_BASE_HP, WATCHER_BASE_GOLD, CardInstance
+from packages.engine.state.rng import Random
+from packages.engine.content.enemies import (
     JawWorm, Cultist, AcidSlimeM, SpikeSlimeL,
     GremlinNob, Lagavulin, Sentries,
     SlimeBoss, TheGuardian, Hexaghost,
     CorruptHeart, create_enemy
 )
-from core.generation.rewards import (
+from packages.engine.generation.rewards import (
     generate_card_rewards, generate_gold_reward, RewardState,
     CARD_UPGRADE_CHANCES
 )
-from core.generation.map import MapGenerator, MapGeneratorConfig, RoomType
+from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, RoomType
 
 
 # =============================================================================

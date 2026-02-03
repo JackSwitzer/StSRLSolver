@@ -7,8 +7,7 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ```
 packages/engine/     # Pure Python game engine (source of truth)
 packages/parity/     # Seed catalog + parity verification tools
-core/                # Compatibility shim → re-exports from packages/engine
-tests/               # 1958 tests (pytest), 51% coverage
+tests/               # 3345+ tests (pytest)
 mod/                 # Java EVTracker mod
 decompiled/          # Java source reference
 docs/vault/          # Game mechanics ground truth

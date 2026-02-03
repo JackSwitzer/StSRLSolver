@@ -17,7 +17,7 @@ import pytest
 import sys
 sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
-from core.content.cards import (
+from packages.engine.content.cards import (
     Card,
     CardType,
     CardRarity,
@@ -50,7 +50,7 @@ from core.content.cards import (
     get_card,
 )
 
-from core.content.relics import (
+from packages.engine.content.relics import (
     BLUE_CANDLE,
     OMAMORI,
     DARKSTONE_PERIAPT,
@@ -744,7 +744,7 @@ class TestBlueCandle:
 
     def test_blue_candle_exists_in_registry(self):
         """Blue Candle relic exists and has correct tier."""
-        from core.content.relics import RelicTier
+        from packages.engine.content.relics import RelicTier
         relic = get_relic("Blue Candle")
         assert relic.tier == RelicTier.UNCOMMON
 
@@ -837,7 +837,7 @@ class TestMedicalKit:
 
     def test_medical_kit_exists_as_shop_relic(self):
         """Medical Kit relic exists as shop tier."""
-        from core.content.relics import RelicTier
+        from packages.engine.content.relics import RelicTier
         relic = get_relic("Medical Kit")
         assert relic.tier == RelicTier.SHOP
 
@@ -856,7 +856,7 @@ class TestDuVuDoll:
 
     def test_du_vu_doll_exists_as_rare_relic(self):
         """Du-Vu Doll exists as rare tier."""
-        from core.content.relics import RelicTier
+        from packages.engine.content.relics import RelicTier
         relic = get_relic("Du-Vu Doll")
         assert relic.tier == RelicTier.RARE
 

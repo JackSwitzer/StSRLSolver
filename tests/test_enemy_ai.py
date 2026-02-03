@@ -17,7 +17,7 @@ Uses pytest with deterministic RNG seeds for reproducibility.
 """
 
 import pytest
-from core.content.enemies import (
+from packages.engine.content.enemies import (
     # Base classes
     Enemy, EnemyState, MoveInfo, Intent, EnemyType,
 
@@ -60,7 +60,7 @@ from core.content.enemies import (
     TorchHead, BronzeOrb, GremlinFat, GremlinThief,
     GremlinTsundere, GremlinWarrior, GremlinWizard,
 )
-from core.state.rng import Random
+from packages.engine.state.rng import Random
 
 
 # ============================================================================
