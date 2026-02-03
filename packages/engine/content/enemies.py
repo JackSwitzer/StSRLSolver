@@ -1430,9 +1430,9 @@ class GremlinNob(Enemy):
     NAME = "Gremlin Nob"
     TYPE = EnemyType.ELITE
 
-    BELLOW = 1
-    RUSH = 2
-    SKULL_BASH = 3
+    RUSH = 1       # Java: BULL_RUSH = 1
+    SKULL_BASH = 2  # Java: SKULL_BASH = 2
+    BELLOW = 3      # Java: BELLOW = 3
 
     def _get_hp_range(self) -> Tuple[int, int]:
         if self.ascension >= 8:
@@ -1464,11 +1464,9 @@ class GremlinNob(Enemy):
             else:
                 move = MoveInfo(self.RUSH, "Rush", Intent.ATTACK, dmg["rush"])
         elif roll < 33:
-            if self.state.last_move(self.SKULL_BASH):
-                move = MoveInfo(self.RUSH, "Rush", Intent.ATTACK, dmg["rush"])
-            else:
-                move = MoveInfo(self.SKULL_BASH, "Skull Bash", Intent.ATTACK_DEBUFF,
-                               dmg["skull_bash"], effects={"vulnerable": 2})
+            # Java: unconditionally sets SKULL_BASH when num < 33 (no lastMove check)
+            move = MoveInfo(self.SKULL_BASH, "Skull Bash", Intent.ATTACK_DEBUFF,
+                           dmg["skull_bash"], effects={"vulnerable": 2})
         else:
             if self.state.last_two_moves(self.RUSH):
                 move = MoveInfo(self.SKULL_BASH, "Skull Bash", Intent.ATTACK_DEBUFF,
@@ -1501,10 +1499,10 @@ class Lagavulin(Enemy):
     NAME = "Lagavulin"
     TYPE = EnemyType.ELITE
 
-    ATTACK = 1
-    SIPHON_SOUL = 2
-    SLEEP = 3
-    STUN = 4
+    SIPHON_SOUL = 1  # Java: DEBUFF = 1
+    ATTACK = 3        # Java: STRONG_ATK = 3
+    SLEEP = 4         # Java: OPEN = 4
+    STUN = 5          # Java: IDLE = 5
 
     def __init__(self, ai_rng: Random, ascension: int = 0, hp_rng: Optional[Random] = None):
         super().__init__(ai_rng, ascension, hp_rng)
@@ -1593,8 +1591,8 @@ class Sentries(Enemy):
     NAME = "Sentry"
     TYPE = EnemyType.ELITE
 
-    BOLT = 1
-    BEAM = 2
+    BOLT = 3  # Java: BOLT = 3
+    BEAM = 4  # Java: BEAM = 4
 
     def __init__(self, ai_rng: Random, ascension: int = 0, hp_rng: Optional[Random] = None,
                  position: int = 0):
@@ -1726,12 +1724,12 @@ class TheGuardian(Enemy):
     NAME = "The Guardian"
     TYPE = EnemyType.BOSS
 
-    CHARGING_UP = 1
-    FIERCE_BASH = 2
-    VENT_STEAM = 3
-    WHIRLWIND = 4
-    ROLL_ATTACK = 5
-    TWIN_SLAM = 6
+    CHARGING_UP = 6   # Java: CHARGE_UP = 6
+    FIERCE_BASH = 2    # Java: FIERCE_BASH = 2
+    ROLL_ATTACK = 3    # Java: ROLL_ATTACK = 3
+    TWIN_SLAM = 4      # Java: TWIN_SLAM = 4
+    WHIRLWIND = 5      # Java: WHIRLWIND = 5
+    VENT_STEAM = 7     # Java: VENT_STEAM = 7
 
     def __init__(self, ai_rng: Random, ascension: int = 0, hp_rng: Optional[Random] = None):
         super().__init__(ai_rng, ascension, hp_rng)
@@ -1826,12 +1824,12 @@ class Hexaghost(Enemy):
     NAME = "Hexaghost"
     TYPE = EnemyType.BOSS
 
-    ACTIVATE = 1
-    DIVIDER = 2
-    SEAR = 3
-    TACKLE = 4
-    INFLAME = 5
-    INFERNO = 6
+    DIVIDER = 1    # Java: DIVIDER = 1
+    TACKLE = 2     # Java: TACKLE = 2
+    INFLAME = 3    # Java: INFLAME = 3
+    SEAR = 4       # Java: SEAR = 4
+    ACTIVATE = 5   # Java: ACTIVATE = 5
+    INFERNO = 6    # Java: INFERNO = 6
 
     def __init__(self, ai_rng: Random, ascension: int = 0, hp_rng: Optional[Random] = None,
                  player_max_hp: int = 80):

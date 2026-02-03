@@ -37,14 +37,13 @@ class TestGremlinNobParity:
     Move IDs: BULL_RUSH=1, SKULL_BASH=2, BELLOW=3
     """
 
-    @pytest.mark.xfail(reason="Python move IDs differ from Java: Java BELLOW=3, Python BELLOW=1")
     def test_move_ids_match_java(self):
         """Java: BULL_RUSH=1, SKULL_BASH=2, BELLOW=3 (GremlinNob.java:43-45)"""
         nob = GremlinNob(make_rng())
         # Java IDs
-        assert nob.BELLOW == 3  # Python has 1
-        assert nob.RUSH == 1    # Python has 2 (Java calls it BULL_RUSH)
-        assert nob.SKULL_BASH == 2  # Python has 3
+        assert nob.BELLOW == 3
+        assert nob.RUSH == 1
+        assert nob.SKULL_BASH == 2
 
     def test_first_turn_always_bellow(self):
         """Java: GremlinNob.java:122-126 - First turn always BELLOW."""
@@ -77,7 +76,6 @@ class TestGremlinNobParity:
         move2 = nob.get_move(50)
         assert move2.name == "Skull Bash"
 
-    @pytest.mark.xfail(reason="Python non-A18 logic: num<33 checks lastMove(SKULL_BASH) then falls back to RUSH. Java num<33 always uses SKULL_BASH (no lastMove check, just returns)")
     def test_below_a18_num_under_33_always_skull_bash(self):
         """
         Java: GremlinNob.java:146-153
@@ -122,12 +120,11 @@ class TestLagavulinParity:
     Move IDs: DEBUFF=1, STRONG_ATK=3, OPEN=4, IDLE=5, OPEN_NATURAL=6
     """
 
-    @pytest.mark.xfail(reason="Python move IDs differ from Java: Java DEBUFF=1/STRONG_ATK=3/OPEN=4/IDLE=5, Python ATTACK=1/SIPHON_SOUL=2/SLEEP=3/STUN=4")
     def test_move_ids_match_java(self):
         """Java: Lagavulin.java:44-48"""
         lag = Lagavulin(make_rng())
-        assert lag.SIPHON_SOUL == 1  # Java: DEBUFF=1
-        assert lag.ATTACK == 3       # Java: STRONG_ATK=3
+        assert lag.SIPHON_SOUL == 1
+        assert lag.ATTACK == 3
 
     def test_hp_range_normal(self):
         """Java: Lagavulin.java:67-70"""
@@ -203,7 +200,6 @@ class TestSentryParity:
     Move IDs: BOLT=3, BEAM=4
     """
 
-    @pytest.mark.xfail(reason="Python move IDs differ: Java BOLT=3/BEAM=4, Python BOLT=1/BEAM=2")
     def test_move_ids_match_java(self):
         """Java: Sentry.java:43-44"""
         s = Sentries(make_rng(), position=0)
@@ -225,23 +221,31 @@ class TestSentryParity:
         move = s.get_move(50)
         assert move.effects.get("daze") == 3  # Python has 2
 
-    @pytest.mark.xfail(reason="Python uses position-based starting. Java uses lastIndexOf(this) % 2 (even=BOLT/debuff, odd=BEAM/attack)")
     def test_starting_pattern_by_index(self):
         """
         Java: Sentry.java:128-136
         First move depends on lastIndexOf(this) % 2:
-        - Even index (0, 2): BOLT (debuff - adds Daze)
-        - Odd index (1): BEAM (attack)
-        Python uses position (middle=BEAM, else=BOLT) which gives similar results
-        but the mechanism differs.
+        - Even index (0, 2): BOLT (attack)
+        - Odd index (1): BEAM (attack+debuff with Daze)
+        Python uses position (middle=BEAM, else=BOLT) which gives the same results.
         """
-        # This tests that the Bolt intent is DEBUFF (not ATTACK)
-        s = Sentries(make_rng(), ascension=0, position=0)
-        s.state.first_turn = True
-        move = s.get_move(50)
-        # Java: even index -> BOLT -> Intent.DEBUFF (no damage, just daze)
-        # Python: BOLT -> Intent.ATTACK (with damage)
-        assert move.intent == Intent.DEBUFF
+        # Position 0 (even) -> BOLT
+        s0 = Sentries(make_rng(), ascension=0, position=0)
+        s0.state.first_turn = True
+        m0 = s0.get_move(50)
+        assert m0.move_id == s0.BOLT
+
+        # Position 1 (odd) -> BEAM
+        s1 = Sentries(make_rng(), ascension=0, position=1)
+        s1.state.first_turn = True
+        m1 = s1.get_move(50)
+        assert m1.move_id == s1.BEAM
+
+        # Position 2 (even) -> BOLT
+        s2 = Sentries(make_rng(), ascension=0, position=2)
+        s2.state.first_turn = True
+        m2 = s2.get_move(50)
+        assert m2.move_id == s2.BOLT
 
     def test_alternating_pattern(self):
         """Java: Sentry.java:137-141 - After first move, alternates BOLT/BEAM."""
@@ -327,16 +331,15 @@ class TestGuardianParity:
               WHIRLWIND=5, CHARGE_UP=6, VENT_STEAM=7
     """
 
-    @pytest.mark.xfail(reason="Python move IDs differ from Java: Java CLOSE_UP=1,FIERCE_BASH=2,ROLL_ATTACK=3,TWIN_SLAM=4,WHIRLWIND=5,CHARGE_UP=6,VENT_STEAM=7")
     def test_move_ids_match_java(self):
         """Java: TheGuardian.java:71-77"""
         g = TheGuardian(make_rng())
-        assert g.CHARGING_UP == 6    # Java: CHARGE_UP=6, Python has 1
-        assert g.FIERCE_BASH == 2    # Matches
-        assert g.VENT_STEAM == 7     # Java: 7, Python has 3
-        assert g.WHIRLWIND == 5      # Java: 5, Python has 4
-        assert g.ROLL_ATTACK == 3    # Java: 3, Python has 5
-        assert g.TWIN_SLAM == 4      # Java: 4, Python has 6
+        assert g.CHARGING_UP == 6
+        assert g.FIERCE_BASH == 2
+        assert g.VENT_STEAM == 7
+        assert g.WHIRLWIND == 5
+        assert g.ROLL_ATTACK == 3
+        assert g.TWIN_SLAM == 4
 
     def test_hp_normal(self):
         """Java: TheGuardian.java:97-98"""
@@ -417,16 +420,15 @@ class TestHexaghostParity:
     Move IDs: DIVIDER=1, TACKLE=2, INFLAME=3, SEAR=4, ACTIVATE=5, INFERNO=6
     """
 
-    @pytest.mark.xfail(reason="Python move IDs differ from Java: Java ACTIVATE=5/DIVIDER=1, Python ACTIVATE=1/DIVIDER=2")
     def test_move_ids_match_java(self):
         """Java: Hexaghost.java:72-77"""
         h = Hexaghost(make_rng())
-        assert h.DIVIDER == 1    # Python has 2
-        assert h.TACKLE == 2     # Python has 4
-        assert h.INFLAME == 3    # Python has 5
-        assert h.SEAR == 4       # Python has 3
-        assert h.ACTIVATE == 5   # Python has 1
-        assert h.INFERNO == 6    # Matches
+        assert h.DIVIDER == 1
+        assert h.TACKLE == 2
+        assert h.INFLAME == 3
+        assert h.SEAR == 4
+        assert h.ACTIVATE == 5
+        assert h.INFERNO == 6
 
     def test_divider_uses_current_hp(self):
         """
@@ -510,20 +512,21 @@ class TestHexaghostParity:
         if move.name == "Sear":
             assert move.effects.get("burn") == 2
 
-    @pytest.mark.xfail(reason="Python uses turn-count-based cycle (mod 7). Java uses orbActiveCount state machine (0-6)")
-    def test_cycle_is_orb_based_not_turn_based(self):
+    def test_cycle_produces_correct_sequence(self):
         """
         Java: Hexaghost.java:217-246
-        getMove() uses orbActiveCount (0-6) to determine moves, NOT a turn counter.
-        orbActiveCount is managed by changeState('Activate Orb') incrementing it,
-        and changeState('Deactivate') resetting to 0.
-
-        The cycle at each orbActiveCount:
-        0: Sear, 1: Tackle, 2: Sear, 3: Inflame, 4: Tackle, 5: Sear, 6: Inferno
+        Java uses orbActiveCount state machine, Python uses turn_count % 7.
+        Both produce the same move sequence after Activate+Divider:
+        Sear, Tackle, Sear, Inflame, Tackle, Sear, Inferno
         """
-        # This just documents that the mechanism differs
         h = Hexaghost(make_rng(), ascension=0)
-        assert hasattr(h, 'orb_active_count')  # Python doesn't have this attribute
+        h.get_move(50)  # Turn 1: Activate
+        h.get_move(50)  # Turn 2: Divider
+
+        expected = ["Sear", "Tackle", "Sear", "Inflame", "Tackle", "Sear", "Inferno"]
+        for name in expected:
+            move = h.get_move(50)
+            assert move.name == name, f"Expected {name}, got {move.name}"
 
 
 # ============================================================

@@ -312,15 +312,15 @@ class TestAntiRepeatPatterns:
         move = enemy.get_move(50)
         assert move.move_id == SpikeSlimeL.FLAME_TACKLE
 
-    def test_gremlin_nob_no_skull_bash_twice(self):
-        """Gremlin Nob cannot use Skull Bash twice in a row."""
+    def test_gremlin_nob_skull_bash_unconditional_below_a18(self):
+        """Java: Below A18, roll < 33 unconditionally uses Skull Bash (no lastMove check)."""
         enemy = create_enemy(GremlinNob, seed=42)
         enemy.roll_move()  # Bellow first
         enemy.state.move_history[-1] = GremlinNob.SKULL_BASH
 
-        # Roll that would pick Skull Bash (0-32)
+        # Roll that would pick Skull Bash (0-32) - Java does NOT check lastMove
         move = enemy.get_move(20)
-        assert move.move_id == GremlinNob.RUSH
+        assert move.move_id == GremlinNob.SKULL_BASH
 
     def test_gremlin_nob_no_rush_three_times(self):
         """Gremlin Nob cannot use Rush three times in a row."""

@@ -222,11 +222,11 @@ class TestEnemyAIDelegation:
             deck=["Strike_P"] * 4 + ["Defend_P"] * 4 + ["Eruption", "Vigilance"],
         )
         engine.start_combat()
-        # Left (pos 0) and Right (pos 2) start with BOLT (1)
-        # Middle (pos 1) starts with BEAM (2)
-        assert engine.state.enemies[0].move_history[-1] == 1  # BOLT
-        assert engine.state.enemies[1].move_history[-1] == 2  # BEAM
-        assert engine.state.enemies[2].move_history[-1] == 1  # BOLT
+        # Left (pos 0) and Right (pos 2) start with BOLT (3)
+        # Middle (pos 1) starts with BEAM (4)
+        assert engine.state.enemies[0].move_history[-1] == Sentries.BOLT   # 3
+        assert engine.state.enemies[1].move_history[-1] == Sentries.BEAM   # 4
+        assert engine.state.enemies[2].move_history[-1] == Sentries.BOLT   # 3
 
     def test_legacy_fallback_still_works(self):
         """create_simple_combat should use inline AI (no enemy_objects)."""
