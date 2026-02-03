@@ -1102,102 +1102,198 @@ class CombatRunner:
 # Encounter Creation
 # =============================================================================
 
-# Enemy class registry
-ENEMY_CLASSES: Dict[str, type] = {}
+from ..content.enemies import (
+    Enemy as EnemyObj, ENEMY_CLASSES as _ALL_ENEMIES, create_enemy as _create_enemy,
+    # Act 1
+    JawWorm, Cultist, Louse, LouseNormal, LouseDefensive, FungiBeast,
+    AcidSlimeM, SpikeSlimeM, AcidSlimeL, SpikeSlimeL, AcidSlimeS, SpikeSlimeS,
+    Looter, SlaverBlue, SlaverRed,
+    GremlinNob, Lagavulin, Sentries,
+    SlimeBoss, TheGuardian, Hexaghost,
+    # Act 1 minions
+    GremlinFat, GremlinThief, GremlinTsundere, GremlinWarrior, GremlinWizard,
+    # Act 2
+    Chosen, Byrd, Centurion, Healer, Snecko, SnakePlant, Mugger,
+    ShelledParasite, SphericGuardian, BanditBear, BanditLeader, BanditPointy,
+    GremlinLeader, BookOfStabbing, Taskmaster,
+    Champ, TheCollector, BronzeAutomaton,
+    # Act 3
+    Maw, Darkling, OrbWalker, Spiker, Repulsor, WrithingMass, Transient,
+    Exploder, SpireGrowth, SnakeDagger,
+    GiantHead, Nemesis, Reptomancer,
+    AwakenedOne, TimeEater, Donu, Deca,
+    # Act 4
+    SpireShield, SpireSpear, CorruptHeart,
+    # Minions
+    TorchHead, BronzeOrb,
+)
+
+ENEMY_CLASSES: Dict[str, type] = _ALL_ENEMIES
 
 
-def register_enemy_class(enemy_class: type):
-    """Register an enemy class for encounter creation."""
-    ENEMY_CLASSES[enemy_class.ID] = enemy_class
+def _make(cls, ai_rng, asc, hp_rng, **kw):
+    """Create a single Enemy instance."""
+    return cls(ai_rng=ai_rng, ascension=asc, hp_rng=hp_rng, **kw)
 
 
-# Import and register enemies
-try:
-    from ..content.enemies import (
-        JawWorm, Cultist, AcidSlimeM, SpikeSlimeM,
-        AcidSlimeL, SpikeSlimeL, AcidSlimeS, SpikeSlimeS,
-    )
-    register_enemy_class(JawWorm)
-    register_enemy_class(Cultist)
-    register_enemy_class(AcidSlimeM)
-    register_enemy_class(SpikeSlimeM)
-    register_enemy_class(AcidSlimeL)
-    register_enemy_class(SpikeSlimeL)
-    register_enemy_class(AcidSlimeS)
-    register_enemy_class(SpikeSlimeS)
-except ImportError:
-    pass  # Enemies not fully available
+def _make_louse(ai_rng, asc, hp_rng):
+    """Create a random red/green louse using ai_rng to pick color (matches Java)."""
+    return _make(Louse, ai_rng, asc, hp_rng, is_red=ai_rng.random_boolean())
 
 
-# Act 1 encounter pools (from decompiled MonsterHelper.java)
-ACT1_WEAK_ENCOUNTERS = [
-    ["JawWorm"],
-    ["Cultist"],
-    ["Cultist", "Cultist"],
-    ["AcidSlime_S", "AcidSlime_S"],
-    ["SpikeSlime_S", "SpikeSlime_S"],
-]
-
-ACT1_STRONG_ENCOUNTERS = [
-    ["AcidSlime_L"],
-    ["SpikeSlime_L"],
-    ["JawWorm", "JawWorm"],
-    ["Cultist", "AcidSlime_M"],
-]
+def _make_gremlin(ai_rng, asc, hp_rng):
+    """Create a random gremlin type (matches Java GremlinGang logic)."""
+    gremlin_types = [GremlinFat, GremlinThief, GremlinTsundere, GremlinWarrior, GremlinWizard]
+    return _make(gremlin_types[ai_rng.random(len(gremlin_types) - 1)], ai_rng, asc, hp_rng)
 
 
-def create_encounter(
-    run_state: RunState,
-    room_type: str,
-    floor: int,
-    monster_rng: Random,
+def _make_random_shape(ai_rng, asc, hp_rng):
+    """Create a random shape (Exploder, Repulsor, or Spiker)."""
+    shape_types = [Exploder, Repulsor, Spiker]
+    return _make(shape_types[ai_rng.random(2)], ai_rng, asc, hp_rng)
+
+
+# ---- Encounter factories for encounters requiring RNG-based composition ----
+
+def _enc_2_louse(ai, a, hp):
+    return [_make_louse(ai, a, hp), _make_louse(ai, a, hp)]
+
+def _enc_gremlin_gang(ai, a, hp):
+    return [_make_gremlin(ai, a, hp) for _ in range(4)]
+
+def _enc_large_slime(ai, a, hp):
+    cls = AcidSlimeL if ai.random_boolean() else SpikeSlimeL
+    return [_make(cls, ai, a, hp)]
+
+def _enc_lots_of_slimes(ai, a, hp):
+    return [_make(AcidSlimeS if ai.random_boolean() else SpikeSlimeS, ai, a, hp) for _ in range(5)]
+
+def _enc_exordium_wildlife(ai, a, hp):
+    return [_make(FungiBeast, ai, a, hp), _make_louse(ai, a, hp)]
+
+def _enc_3_louse(ai, a, hp):
+    return [_make_louse(ai, a, hp) for _ in range(3)]
+
+def _enc_3_sentries(ai, a, hp):
+    return [_make(Sentries, ai, a, hp, position=i) for i in range(3)]
+
+def _enc_gremlin_leader(ai, a, hp):
+    return [_make(GremlinLeader, ai, a, hp), _make_gremlin(ai, a, hp), _make_gremlin(ai, a, hp)]
+
+def _enc_3_shapes(ai, a, hp):
+    return [_make_random_shape(ai, a, hp) for _ in range(3)]
+
+def _enc_4_shapes(ai, a, hp):
+    return [_make_random_shape(ai, a, hp) for _ in range(4)]
+
+def _enc_sphere_and_2_shapes(ai, a, hp):
+    return [_make(SphericGuardian, ai, a, hp), _make_random_shape(ai, a, hp), _make_random_shape(ai, a, hp)]
+
+
+# Master encounter table: maps encounter name strings to factory functions.
+# Simple encounters (fixed enemy composition) use lambda; complex ones use named functions above.
+ENCOUNTER_TABLE: Dict[str, Any] = {
+    # Act 1 Weak
+    "Jaw Worm":         lambda ai, a, hp: [_make(JawWorm, ai, a, hp)],
+    "Cultist":          lambda ai, a, hp: [_make(Cultist, ai, a, hp)],
+    "2 Louse":          _enc_2_louse,
+    "Small Slimes":     lambda ai, a, hp: [_make(SpikeSlimeS, ai, a, hp), _make(AcidSlimeS, ai, a, hp)],
+    # Act 1 Strong
+    "Blue Slaver":      lambda ai, a, hp: [_make(SlaverBlue, ai, a, hp)],
+    "Red Slaver":       lambda ai, a, hp: [_make(SlaverRed, ai, a, hp)],
+    "Gremlin Gang":     _enc_gremlin_gang,
+    "Looter":           lambda ai, a, hp: [_make(Looter, ai, a, hp)],
+    "Large Slime":      _enc_large_slime,
+    "Lots of Slimes":   _enc_lots_of_slimes,
+    "Exordium Thugs":   lambda ai, a, hp: [_make(SlaverBlue, ai, a, hp), _make(SlaverRed, ai, a, hp)],
+    "Exordium Wildlife": _enc_exordium_wildlife,
+    "3 Louse":          _enc_3_louse,
+    "2 Fungi Beasts":   lambda ai, a, hp: [_make(FungiBeast, ai, a, hp), _make(FungiBeast, ai, a, hp)],
+    # Act 1 Elites
+    "Gremlin Nob":      lambda ai, a, hp: [_make(GremlinNob, ai, a, hp)],
+    "Lagavulin":        lambda ai, a, hp: [_make(Lagavulin, ai, a, hp)],
+    "3 Sentries":       _enc_3_sentries,
+    # Act 1 Bosses
+    "Slime Boss":       lambda ai, a, hp: [_make(SlimeBoss, ai, a, hp)],
+    "The Guardian":     lambda ai, a, hp: [_make(TheGuardian, ai, a, hp)],
+    "Hexaghost":        lambda ai, a, hp: [_make(Hexaghost, ai, a, hp)],
+    # Act 2 Weak
+    "Spheric Guardian": lambda ai, a, hp: [_make(SphericGuardian, ai, a, hp)],
+    "Chosen":           lambda ai, a, hp: [_make(Chosen, ai, a, hp)],
+    "Shell Parasite":   lambda ai, a, hp: [_make(ShelledParasite, ai, a, hp)],
+    "3 Byrds":          lambda ai, a, hp: [_make(Byrd, ai, a, hp) for _ in range(3)],
+    "2 Thieves":        lambda ai, a, hp: [_make(Mugger, ai, a, hp), _make(Looter, ai, a, hp)],
+    # Act 2 Strong
+    "Chosen and Byrds": lambda ai, a, hp: [_make(Chosen, ai, a, hp), _make(Byrd, ai, a, hp), _make(Byrd, ai, a, hp)],
+    "Sentry and Sphere": lambda ai, a, hp: [_make(Sentries, ai, a, hp, position=0), _make(SphericGuardian, ai, a, hp)],
+    "Snake Plant":      lambda ai, a, hp: [_make(SnakePlant, ai, a, hp)],
+    "Snecko":           lambda ai, a, hp: [_make(Snecko, ai, a, hp)],
+    "Centurion and Healer": lambda ai, a, hp: [_make(Centurion, ai, a, hp), _make(Healer, ai, a, hp)],
+    "Cultist and Chosen": lambda ai, a, hp: [_make(Cultist, ai, a, hp), _make(Chosen, ai, a, hp)],
+    "3 Cultists":       lambda ai, a, hp: [_make(Cultist, ai, a, hp) for _ in range(3)],
+    "Shelled Parasite and Fungi": lambda ai, a, hp: [_make(ShelledParasite, ai, a, hp), _make(FungiBeast, ai, a, hp)],
+    # Act 2 Elites
+    "Gremlin Leader":   _enc_gremlin_leader,
+    "Slavers":          lambda ai, a, hp: [_make(SlaverBlue, ai, a, hp), _make(SlaverRed, ai, a, hp), _make(Taskmaster, ai, a, hp)],
+    "Book of Stabbing": lambda ai, a, hp: [_make(BookOfStabbing, ai, a, hp)],
+    # Act 2 Bosses
+    "Automaton":        lambda ai, a, hp: [_make(BronzeAutomaton, ai, a, hp)],
+    "Collector":        lambda ai, a, hp: [_make(TheCollector, ai, a, hp)],
+    "Champ":            lambda ai, a, hp: [_make(Champ, ai, a, hp)],
+    # Act 3 Weak
+    "3 Darklings":      lambda ai, a, hp: [_make(Darkling, ai, a, hp) for _ in range(3)],
+    "Orb Walker":       lambda ai, a, hp: [_make(OrbWalker, ai, a, hp)],
+    "3 Shapes":         _enc_3_shapes,
+    # Act 3 Strong
+    "Spire Growth":     lambda ai, a, hp: [_make(SpireGrowth, ai, a, hp)],
+    "Transient":        lambda ai, a, hp: [_make(Transient, ai, a, hp)],
+    "4 Shapes":         _enc_4_shapes,
+    "Maw":              lambda ai, a, hp: [_make(Maw, ai, a, hp)],
+    "Sphere and 2 Shapes": _enc_sphere_and_2_shapes,
+    "Jaw Worm Horde":   lambda ai, a, hp: [_make(JawWorm, ai, a, hp) for _ in range(3)],
+    "Writhing Mass":    lambda ai, a, hp: [_make(WrithingMass, ai, a, hp)],
+    # Act 3 Elites
+    "Giant Head":       lambda ai, a, hp: [_make(GiantHead, ai, a, hp)],
+    "Nemesis":          lambda ai, a, hp: [_make(Nemesis, ai, a, hp)],
+    "Reptomancer":      lambda ai, a, hp: [_make(Reptomancer, ai, a, hp), _make(SnakeDagger, ai, a, hp), _make(SnakeDagger, ai, a, hp)],
+    # Act 3 Bosses
+    "Awakened One":     lambda ai, a, hp: [_make(AwakenedOne, ai, a, hp)],
+    "Time Eater":       lambda ai, a, hp: [_make(TimeEater, ai, a, hp)],
+    "Donu and Deca":    lambda ai, a, hp: [_make(Donu, ai, a, hp), _make(Deca, ai, a, hp)],
+    # Act 4
+    "Spire Shield and Spire Spear": lambda ai, a, hp: [_make(SpireShield, ai, a, hp), _make(SpireSpear, ai, a, hp)],
+    "Corrupt Heart":    lambda ai, a, hp: [_make(CorruptHeart, ai, a, hp)],
+}
+
+
+def create_enemies_from_encounter(
+    encounter_name: str,
     ai_rng: Random,
-    hp_rng: Random,
-) -> List[Enemy]:
+    ascension: int = 0,
+    hp_rng: Optional[Random] = None,
+) -> List[EnemyObj]:
     """
-    Create an enemy encounter for a room.
+    Create Enemy instances for a named encounter.
 
     Args:
-        run_state: Current RunState
-        room_type: "monster", "elite", "boss"
-        floor: Current floor number
-        monster_rng: RNG for encounter selection
-        ai_rng: RNG for enemy AI
-        hp_rng: RNG for enemy HP rolls
+        encounter_name: Name from generation/encounters.py (e.g. "2 Louse", "Gremlin Gang")
+        ai_rng: RNG for enemy AI decisions
+        ascension: Ascension level
+        hp_rng: RNG for enemy HP rolls (defaults to ai_rng if None)
 
     Returns:
-        List of Enemy instances
+        List of Enemy instances for this encounter
+
+    Raises:
+        ValueError: If encounter name not found in ENCOUNTER_TABLE
     """
-    act = run_state.act
-    ascension = run_state.ascension
-
-    # Select encounter based on act and room type
-    if room_type == "monster":
-        if act == 1:
-            if floor <= 2:
-                # First few floors are easier
-                pool = ACT1_WEAK_ENCOUNTERS
-            else:
-                pool = ACT1_WEAK_ENCOUNTERS + ACT1_STRONG_ENCOUNTERS
-        else:
-            pool = ACT1_WEAK_ENCOUNTERS  # Fallback
-
-        # Select from pool
-        idx = monster_rng.random(len(pool) - 1)
-        encounter_ids = pool[idx]
-    else:
-        # Elite/boss encounters need more specific handling
-        encounter_ids = ["JawWorm"]  # Fallback
-
-    # Create enemy instances
-    enemies = []
-    for enemy_id in encounter_ids:
-        if enemy_id in ENEMY_CLASSES:
-            enemy_class = ENEMY_CLASSES[enemy_id]
-            enemy = enemy_class(ai_rng=ai_rng.copy(), ascension=ascension, hp_rng=hp_rng.copy())
-            enemies.append(enemy)
-
-    return enemies
+    if hp_rng is None:
+        hp_rng = ai_rng
+    factory = ENCOUNTER_TABLE.get(encounter_name)
+    if factory is None:
+        raise ValueError(f"Unknown encounter: {encounter_name!r}. "
+                         f"Available: {sorted(ENCOUNTER_TABLE.keys())}")
+    return factory(ai_rng, ascension, hp_rng)
 
 
 # =============================================================================

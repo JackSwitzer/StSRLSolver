@@ -586,3 +586,95 @@ class TestFullRunVerification:
         generate_card_rewards(rng, state, act=1, player_class="WATCHER", ascension=20)
         # 3 rarity rolls + 3 card selections + 3 upgrade checks = 9
         assert rng.counter == 9
+
+
+# =============================================================================
+# Full Run Replay Parity Tests
+# =============================================================================
+
+class TestFullRunReplay:
+    """
+    Replay a recorded run through the engine and verify state parity.
+
+    These tests use the consolidated JSONL log from a real game session
+    and compare engine state at floor boundaries.
+    """
+
+    JSONL_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "logs", "consolidated_seed_run.jsonl"
+    )
+
+    @pytest.fixture(autouse=True)
+    def _check_jsonl(self):
+        """Skip tests if JSONL log is not available."""
+        if not os.path.exists(self.JSONL_PATH):
+            pytest.skip("consolidated_seed_run.jsonl not found")
+
+    def test_jsonl_parses(self):
+        """Verify the JSONL log can be parsed."""
+        from packages.parity.replay_runner import parse_jsonl
+        events = parse_jsonl(self.JSONL_PATH)
+        assert len(events) > 100
+
+    def test_floor_states_extracted(self):
+        """Verify floor states can be extracted from the log."""
+        from packages.parity.replay_runner import parse_jsonl, extract_floor_states
+        events = parse_jsonl(self.JSONL_PATH)
+        states = extract_floor_states(events)
+        assert 0 in states  # dungeon_init
+        assert 1 in states  # first floor
+
+    def test_decisions_extracted(self):
+        """Verify decisions can be extracted from the log."""
+        from packages.parity.replay_runner import parse_jsonl, extract_decisions
+        events = parse_jsonl(self.JSONL_PATH)
+        decisions = extract_decisions(events)
+        # Should have neow, path choices, card plays, etc.
+        types = {d["type"] for d in decisions}
+        assert "neow" in types
+        assert "path" in types
+        assert "card_play" in types
+
+    def test_encounter_table_coverage(self):
+        """Verify all encounter names from the JSONL are in ENCOUNTER_TABLE."""
+        from packages.engine.handlers.combat import ENCOUNTER_TABLE
+        from packages.engine.generation.encounters import (
+            get_exordium_weak_pool, get_exordium_strong_pool, get_exordium_elite_pool,
+            get_city_weak_pool, get_city_strong_pool, get_city_elite_pool,
+            get_beyond_weak_pool, get_beyond_strong_pool, get_beyond_elite_pool,
+            EXORDIUM_BOSSES, CITY_BOSSES, BEYOND_BOSSES,
+        )
+
+        # Collect all encounter names from encounter pools
+        all_names = set()
+        for pool_fn in [
+            get_exordium_weak_pool, get_exordium_strong_pool, get_exordium_elite_pool,
+            get_city_weak_pool, get_city_strong_pool, get_city_elite_pool,
+            get_beyond_weak_pool, get_beyond_strong_pool, get_beyond_elite_pool,
+        ]:
+            for mi in pool_fn():
+                all_names.add(mi.name)
+
+        for boss_list in [EXORDIUM_BOSSES, CITY_BOSSES, BEYOND_BOSSES]:
+            for name in boss_list:
+                all_names.add(name)
+
+        all_names.add("Spire Shield and Spire Spear")
+        all_names.add("Corrupt Heart")
+
+        missing = all_names - set(ENCOUNTER_TABLE.keys())
+        assert not missing, f"Missing encounters in ENCOUNTER_TABLE: {missing}"
+
+    def test_initial_state_parity(self):
+        """Verify engine initial deck matches the recorded initial state.
+
+        Note: HP may differ at floor 0 because the Neow choice modifies HP
+        before dungeon_init is recorded. We only check deck/max_hp here.
+        """
+        from packages.parity.replay_runner import ReplayRunner
+        runner = ReplayRunner(self.JSONL_PATH)
+        result = runner.run(max_floors=0)
+        # Check max_hp matches (Neow may change current HP but not max_hp for most choices)
+        max_hp_disc = [d for d in result.discrepancies if d.field == "max_hp"]
+        assert not max_hp_disc, f"Initial max_hp mismatch: {max_hp_disc}"

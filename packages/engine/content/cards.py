@@ -3141,6 +3141,20 @@ def get_card(card_id: str, upgraded: bool = False) -> Card:
     return card
 
 
+def normalize_card_id(java_id: str) -> tuple:
+    """
+    Normalize a card ID from mod JSONL format to engine format.
+
+    Handles the '+' suffix convention for upgraded cards.
+    Returns (base_id, upgraded) tuple. If base_id is not in ALL_CARDS,
+    returns as-is and lets the caller handle it.
+    """
+    if "+" in java_id:
+        base_id = java_id.rsplit("+", 1)[0]
+        return (base_id, True)
+    return (java_id, False)
+
+
 def get_starting_deck() -> List[Card]:
     """Get Watcher's starting deck."""
     deck = []

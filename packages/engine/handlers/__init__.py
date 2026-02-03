@@ -14,7 +14,7 @@ Room Handlers:
 - RewardHandler: Combat reward collection
 """
 
-from .combat import CombatRunner, CombatResult, create_encounter
+from .combat import CombatRunner, CombatResult, create_enemies_from_encounter, ENCOUNTER_TABLE
 from .rooms import (
     # Handlers (legacy - EventHandler moved to event_handler.py)
     EventHandler as LegacyEventHandler,
@@ -51,7 +51,7 @@ __all__ = [
     # Combat
     "CombatRunner",
     "CombatResult",
-    "create_encounter",
+    "create_enemies_from_encounter",
 
     # Event Handler (new complete system)
     "EventHandler",

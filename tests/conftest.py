@@ -519,7 +519,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "rng: marks test as RNG-related")
     config.addinivalue_line("markers", "combat: marks test as combat-related")
     config.addinivalue_line("markers", "cards: marks test as card-related")
-    config.addinivalue_line("markers", "java: marks test as Java verification test")
+    config.addinivalue_line("markers", "parity: marks test as parity verification")
 
 
 # =============================================================================

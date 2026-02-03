@@ -115,6 +115,7 @@ from .game import (
     PathAction, NeowAction, CombatAction, RewardAction,
     EventAction, ShopAction, RestAction, TreasureAction, BossRewardAction,
     DecisionLogEntry, GameAction,
+    RunResult, run_headless, run_parallel,
 )
 
 # State objects (for observation/serialization)

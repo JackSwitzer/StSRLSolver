@@ -162,6 +162,9 @@ class CombatEngine:
         """
         self.state = state
         self.enemy_data = enemy_data or {}
+        # Index-based enemy objects (parallel to state.enemies). Set by
+        # create_combat_from_enemies or manually after construction.
+        self.enemy_objects: List[Optional[Enemy]] = []
 
         # Initialize RNG from state or create new
         if shuffle_rng:
@@ -210,6 +213,7 @@ class CombatEngine:
         new_engine = CombatEngine.__new__(CombatEngine)
         new_engine.state = self.state.copy()
         new_engine.enemy_data = self.enemy_data
+        new_engine.enemy_objects = list(self.enemy_objects)
         new_engine.shuffle_rng = self.shuffle_rng.copy() if hasattr(self.shuffle_rng, 'copy') else self.shuffle_rng
         new_engine.card_rng = self.card_rng.copy() if hasattr(self.card_rng, 'copy') else self.card_rng
         new_engine.ai_rng = self.ai_rng.copy() if hasattr(self.ai_rng, 'copy') else self.ai_rng
@@ -539,7 +543,29 @@ class CombatEngine:
         enemy.first_turn = False
 
     def _roll_enemy_move(self, enemy: EnemyCombatState):
-        """Roll the next move for an enemy using pattern-based AI."""
+        """Roll the next move for an enemy using pattern-based AI.
+
+        If enemy_data contains a real Enemy object for this enemy, delegate
+        to its roll_move() method for accurate AI. Otherwise fall back to
+        the inline patterns below.
+        """
+        # Delegate to real Enemy AI if available (parallel array lookup)
+        if self.enemy_objects:
+            for idx, e in enumerate(self.state.enemies):
+                if e is not enemy:
+                    continue
+                if idx < len(self.enemy_objects) and self.enemy_objects[idx] is not None:
+                    real_enemy = self.enemy_objects[idx]
+                    real_enemy.state.strength = enemy.statuses.get("Strength", 0)
+                    real_enemy.state.block = enemy.block
+                    real_enemy.state.current_hp = enemy.hp
+                    real_enemy.state.move_history = list(enemy.move_history)
+                    real_enemy.state.first_turn = enemy.first_turn
+                    move = real_enemy.roll_move()
+                    self._set_enemy_move(enemy, move)
+                    return
+                break
+
         roll = self.ai_rng.random(99) if hasattr(self.ai_rng, 'random') else (
             (self.state.turn * 17 + hash(enemy.id) + len(enemy.move_history)) % 100
         )
@@ -1511,7 +1537,9 @@ def create_combat_from_enemies(
     if "Runic Pyramid" in relics:
         state.relic_counters["_runic_pyramid"] = 1
 
-    return CombatEngine(state)
+    engine = CombatEngine(state)
+    engine.enemy_objects = list(enemies)
+    return engine
 
 
 def create_simple_combat(

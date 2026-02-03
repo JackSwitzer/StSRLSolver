@@ -37,7 +37,9 @@ from .generation.map import (
 from .combat_engine import (
     CombatEngine, CombatResult, PlayCard, EndTurn, UsePotion,
     CombatPhase as CombatEnginePhase, create_simple_combat,
+    create_combat_from_enemies,
 )
+from .handlers.combat import create_enemies_from_encounter, ENCOUNTER_TABLE
 from .content.cards import get_card, CardTarget, CardType
 from .generation.encounters import (
     generate_exordium_encounters, generate_city_encounters,
@@ -1439,104 +1441,77 @@ class GameRunner:
             self._enter_treasure()
 
     def _enter_combat(self, is_elite: bool = False, is_boss: bool = False):
-        """Enter a combat encounter using CombatEngine."""
+        """Enter a combat encounter using real Enemy AI objects."""
         combat_type = "BOSS" if is_boss else ("ELITE" if is_elite else "MONSTER")
         self._log(f"Combat started ({combat_type})")
         self.phase = GamePhase.COMBAT
         self.current_room_type = "boss" if is_boss else ("elite" if is_elite else "monster")
 
-        # Get deck as card IDs
-        deck_ids = []
-        for card in self.run_state.deck:
-            if hasattr(card, 'id'):
-                card_id = card.id
-                if hasattr(card, 'upgraded') and card.upgraded:
-                    card_id += "+"
-            else:
-                card_id = str(card)
-            deck_ids.append(card_id)
-
-        # Get relics list
+        deck_ids = [
+            (card.id + "+" if card.upgraded else card.id) if hasattr(card, 'id') else str(card)
+            for card in self.run_state.deck
+        ]
         relics = [r.id if hasattr(r, 'id') else str(r) for r in self.run_state.relics]
+        potions = [
+            "" if slot.is_empty() else (slot.potion_id or "")
+            for slot in self.run_state.potion_slots
+        ]
+        potions.extend("" for _ in range(max(0, 3 - len(potions))))
 
-        # Get potions
-        potions = []
-        for slot in self.run_state.potion_slots:
-            if slot.is_empty():
-                potions.append("")
-            else:
-                potions.append(slot.potion_id if slot.potion_id else "")
-        # Ensure we have 3 potion slots
-        while len(potions) < 3:
-            potions.append("")
-
-        # Select encounter from pre-generated tables
         if is_boss:
-            enemy_id = self._boss_name or "SlimeBoss"
-            base_hp = 250
-            base_damage = 20
+            encounter_name = self._boss_name or "Slime Boss"
         elif is_elite:
-            if self._elite_list and self._elite_index < len(self._elite_list):
-                enemy_id = self._elite_list[self._elite_index]
+            if self._elite_index < len(self._elite_list):
+                encounter_name = self._elite_list[self._elite_index]
                 self._elite_index += 1
             else:
-                enemy_id = "Lagavulin"
-            # Set base stats by elite name
-            elite_stats = {
-                "Gremlin Nob": (84, 14), "Lagavulin": (110, 18), "3 Sentries": (120, 9),
-                "Gremlin Leader": (140, 12), "Slavers": (130, 13), "Book of Stabbing": (160, 6),
-                "Giant Head": (500, 13), "Nemesis": (185, 7), "Reptomancer": (180, 10),
-                "Spire Shield and Spire Spear": (270, 15),
-            }
-            base_hp, base_damage = elite_stats.get(enemy_id, (90, 15))
+                encounter_name = "Lagavulin"
         else:
-            if self._monster_list and self._monster_index < len(self._monster_list):
-                enemy_id = self._monster_list[self._monster_index]
+            if self._monster_index < len(self._monster_list):
+                encounter_name = self._monster_list[self._monster_index]
                 self._monster_index += 1
             else:
-                enemy_id = "Jaw Worm"
-            # Set base stats by monster name
-            monster_stats = {
-                "Jaw Worm": (42, 11), "Cultist": (50, 6), "2 Louse": (30, 6),
-                "Small Slimes": (25, 5), "Blue Slaver": (48, 12), "Red Slaver": (48, 12),
-                "Looter": (46, 10), "Gremlin Gang": (50, 5), "Large Slime": (65, 12),
-                "Lots of Slimes": (12, 3), "Exordium Thugs": (48, 10),
-                "Exordium Wildlife": (55, 10), "3 Louse": (30, 6), "2 Fungi Beasts": (24, 6),
-            }
-            base_hp, base_damage = monster_stats.get(enemy_id, (42, 11))
+                encounter_name = "Jaw Worm"
 
-        # Ascension HP scaling
-        if self.run_state.ascension >= 7:
-            base_hp = int(base_hp * 1.04)
-        if self.run_state.ascension >= 8:
-            base_damage = int(base_damage * 1.08) if is_elite else base_damage
+        floor_num = self.run_state.floor
+        floor_ai_rng = Random(self.seed + floor_num)
+        floor_hp_rng = Random(self.seed + floor_num)
 
-        # Create combat engine
-        self.current_combat = create_simple_combat(
-            enemy_id=enemy_id,
-            enemy_hp=base_hp,
-            enemy_damage=base_damage,
-            player_hp=self.run_state.current_hp,
-            deck=deck_ids,
-        )
+        if encounter_name in ENCOUNTER_TABLE:
+            enemies = create_enemies_from_encounter(
+                encounter_name,
+                ai_rng=floor_ai_rng,
+                ascension=self.run_state.ascension,
+                hp_rng=floor_hp_rng,
+            )
 
-        # Set potions
-        self.current_combat.state.potions = potions
-
-        # Set relic counters
-        for relic in relics:
-            if "VioletLotus" in relic or "Violet Lotus" in relic:
-                self.current_combat.state.relic_counters["_violet_lotus"] = 1
-            if "Barricade" in relic:
-                self.current_combat.state.relic_counters["_barricade"] = 1
-            if "Runic Pyramid" in relic:
-                self.current_combat.state.relic_counters["_runic_pyramid"] = 1
+            self.current_combat = create_combat_from_enemies(
+                enemies=enemies,
+                player_hp=self.run_state.current_hp,
+                player_max_hp=self.run_state.max_hp,
+                deck=deck_ids,
+                relics=relics,
+                potions=potions,
+                ascension=self.run_state.ascension,
+            )
+        else:
+            # Fallback to simple combat for unknown encounters
+            self._log(f"WARNING: Unknown encounter '{encounter_name}', using simple combat")
+            self.current_combat = create_simple_combat(
+                enemy_id=encounter_name,
+                enemy_hp=50,
+                enemy_damage=8,
+                player_hp=self.run_state.current_hp,
+                deck=deck_ids,
+            )
+            self.current_combat.state.potions = potions
 
         # Start combat
         self.current_combat.start_combat()
 
-        self._log(f"Enemy: {enemy_id} ({base_hp} HP)")
-        self._log(f"Player: {self.run_state.current_hp} HP, Deck: {len(deck_ids)} cards")
+        enemy_names = [e.id for e in self.current_combat.state.enemies]
+        self._log(f"Encounter: {encounter_name} -> {enemy_names}")
+        self._log(f"Player: {self.run_state.current_hp}/{self.run_state.max_hp} HP, Deck: {len(deck_ids)} cards")
 
     def _end_combat(self, victory: bool, combat_result: Optional[CombatResult] = None):
         """End a combat encounter and generate rewards using RewardHandler."""
@@ -1814,6 +1789,110 @@ def main():
     if actions:
         print(f"\nTaking first action: {actions[0]}")
         runner2.take_action(actions[0])
+
+
+# =============================================================================
+# Headless RL Mode
+# =============================================================================
+
+@dataclass
+class RunResult:
+    """Result of a headless game run."""
+    seed: int
+    ascension: int
+    victory: bool
+    floor_reached: int
+    hp_remaining: int
+    gold: int
+    deck_size: int
+    relics_count: int
+    combats_won: int
+    stats: Dict[str, Any] = field(default_factory=dict)
+
+
+def run_headless(
+    seed: int,
+    ascension: int = 20,
+    decision_fn=None,
+    max_actions: int = 10000,
+) -> RunResult:
+    """
+    Run a complete game headlessly with a decision function.
+
+    Args:
+        seed: Game seed (numeric)
+        ascension: Ascension level
+        decision_fn: Callable(run_state, actions) -> action.
+                     If None, picks the first available action.
+        max_actions: Safety limit to prevent infinite loops
+
+    Returns:
+        RunResult with game outcome
+    """
+    if decision_fn is None:
+        decision_fn = lambda state, actions: actions[0]
+
+    runner = GameRunner(seed=seed, ascension=ascension, verbose=False)
+    actions_taken = 0
+
+    while not runner.game_over and actions_taken < max_actions:
+        actions = runner.get_available_actions()
+        if not actions:
+            break
+        action = decision_fn(runner.run_state, actions)
+        runner.take_action(action)
+        actions_taken += 1
+
+    stats = runner.get_run_statistics()
+    return RunResult(
+        seed=seed,
+        ascension=ascension,
+        victory=stats.get("game_won", False),
+        floor_reached=runner.run_state.floor,
+        hp_remaining=runner.run_state.current_hp,
+        gold=runner.run_state.gold,
+        deck_size=len(runner.run_state.deck),
+        relics_count=len(runner.run_state.relics),
+        combats_won=runner.run_state.combats_won,
+        stats=stats,
+    )
+
+
+def run_parallel(
+    seeds: List[int],
+    ascension: int = 20,
+    decision_fn=None,
+    max_workers: int = 4,
+) -> List[RunResult]:
+    """
+    Run multiple games in parallel using ProcessPoolExecutor.
+
+    Args:
+        seeds: List of game seeds
+        ascension: Ascension level for all games
+        decision_fn: Decision function (must be picklable for multiprocessing,
+                     so use module-level functions, not lambdas).
+                     If None, picks first available action.
+        max_workers: Number of parallel workers
+
+    Returns:
+        List of RunResult, one per seed
+    """
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    def _run_one(seed):
+        return run_headless(seed, ascension, decision_fn)
+
+    results = []
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_run_one, s): s for s in seeds}
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    # Sort by seed to match input order
+    seed_order = {s: i for i, s in enumerate(seeds)}
+    results.sort(key=lambda r: seed_order.get(r.seed, 0))
+    return results
 
 
 if __name__ == "__main__":
