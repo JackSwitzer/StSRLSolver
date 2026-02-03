@@ -648,7 +648,7 @@ class TestA18EliteAI:
         move = sentry.get_move(50)
         # First turn middle sentry does Beam which applies Daze
         if "daze" in move.effects:
-            assert move.effects["daze"] == 2  # 2 at A18+
+            assert move.effects["daze"] == 3  # 3 at A18+ (Java: Sentry.java:60)
 
     def test_gremlin_nob_ai_pattern_at_a18(self):
         """Gremlin Nob should use improved AI at A18+."""

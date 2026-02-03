@@ -1073,15 +1073,15 @@ class TestEliteA18Patterns:
         assert move.move_id == GremlinNob.SKULL_BASH
 
     def test_sentries_a18_double_daze(self):
-        """Sentries at A18+ apply 2 Daze instead of 1."""
+        """Sentries at A18+ apply 3 Daze instead of 2 (Java: Sentry.java:60)."""
         enemy_a0 = create_enemy(Sentries, seed=42, ascension=0, position=1)
         enemy_a18 = create_enemy(Sentries, seed=42, ascension=18, position=1)
 
         move_a0 = enemy_a0.roll_move()  # Beam
         move_a18 = enemy_a18.roll_move()  # Beam
 
-        assert move_a0.effects.get("daze", 0) == 1
-        assert move_a18.effects.get("daze", 0) == 2
+        assert move_a0.effects.get("daze", 0) == 2
+        assert move_a18.effects.get("daze", 0) == 3
 
     def test_book_of_stabbing_a18_stab_count_on_single(self):
         """Book of Stabbing at A18+ increments stab count even on Single Stab."""

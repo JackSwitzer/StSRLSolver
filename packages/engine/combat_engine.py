@@ -289,6 +289,22 @@ class CombatEngine:
         if not self._has_barricade():
             self.state.player.block = 0
 
+        # Poison tick: take damage equal to poison, then decrement
+        poison = self.state.player.statuses.get("Poison", 0)
+        if poison > 0:
+            self.state.player.hp -= poison
+            self.state.total_damage_taken += poison
+            self.log.log(self.state.turn, "poison_damage", damage=poison)
+            poison -= 1
+            if poison <= 0:
+                del self.state.player.statuses["Poison"]
+            else:
+                self.state.player.statuses["Poison"] = poison
+            if self.state.player.hp <= 0:
+                self.state.player.hp = 0
+                self._end_combat(player_won=False)
+                return
+
         # Reset turn counters
         self.state.cards_played_this_turn = 0
         self.state.attacks_played_this_turn = 0
@@ -417,6 +433,30 @@ class CombatEngine:
             if enemy.hp <= 0:
                 continue
 
+            # Block decays at start of each enemy's turn (per-enemy)
+            enemy.block = 0
+
+            # Metallicize: enemy gains block at start of turn
+            metallicize = enemy.statuses.get("Metallicize", 0)
+            if metallicize > 0:
+                enemy.block += metallicize
+
+            # Enemy poison tick
+            enemy_poison = enemy.statuses.get("Poison", 0)
+            if enemy_poison > 0:
+                enemy.hp -= enemy_poison
+                self.state.total_damage_dealt += enemy_poison
+                self.log.log(self.state.turn, "enemy_poison", enemy=enemy.id, damage=enemy_poison)
+                enemy_poison -= 1
+                if enemy_poison <= 0:
+                    del enemy.statuses["Poison"]
+                else:
+                    enemy.statuses["Poison"] = enemy_poison
+                if enemy.hp <= 0:
+                    enemy.hp = 0
+                    self._on_enemy_death(enemy)
+                    continue
+
             # Apply Ritual strength gain at start of enemy turn
             ritual = enemy.statuses.get("Ritual", 0)
             if ritual > 0 and not enemy.first_turn:
@@ -439,10 +479,6 @@ class CombatEngine:
                     enemy.statuses[debuff] -= 1
                     if enemy.statuses[debuff] <= 0:
                         del enemy.statuses[debuff]
-
-        # Enemy block decay
-        for enemy in self.state.enemies:
-            enemy.block = 0
 
         # Roll next moves
         for enemy in self.state.enemies:
@@ -538,6 +574,34 @@ class CombatEngine:
                 self.state.player.statuses["Strength"] = self.state.player.statuses.get("Strength", 0) + effects["player_strength"]
             if "player_dexterity" in effects:
                 self.state.player.statuses["Dexterity"] = self.state.player.statuses.get("Dexterity", 0) + effects["player_dexterity"]
+            if "poison" in effects:
+                self.state.player.statuses["Poison"] = self.state.player.statuses.get("Poison", 0) + effects["poison"]
+            if "metallicize" in effects:
+                enemy.statuses["Metallicize"] = enemy.statuses.get("Metallicize", 0) + effects["metallicize"]
+            if "plated_armor" in effects:
+                enemy.statuses["Plated Armor"] = enemy.statuses.get("Plated Armor", 0) + effects["plated_armor"]
+
+            # Status cards added to discard pile
+            if "slimed" in effects:
+                for _ in range(effects["slimed"]):
+                    self.state.discard_pile.append("Slimed")
+            if "daze" in effects:
+                for _ in range(effects["daze"]):
+                    self.state.discard_pile.append("Daze")
+            if "burn" in effects:
+                for _ in range(effects["burn"]):
+                    self.state.discard_pile.append("Burn")
+            if "wound" in effects:
+                for _ in range(effects["wound"]):
+                    self.state.discard_pile.append("Wound")
+            if "void" in effects:
+                for _ in range(effects["void"]):
+                    self.state.discard_pile.append("Void")
+
+            # Status cards added to draw pile (e.g. CorruptHeart Debilitate)
+            if "status_cards" in effects:
+                for card_id in effects["status_cards"]:
+                    self.state.draw_pile.append(card_id)
 
         # Mark first turn as complete
         enemy.first_turn = False
@@ -561,6 +625,12 @@ class CombatEngine:
                     real_enemy.state.current_hp = enemy.hp
                     real_enemy.state.move_history = list(enemy.move_history)
                     real_enemy.state.first_turn = enemy.first_turn
+                    # Pass player HP for moves that scale with it (e.g. Hexaghost Divider)
+                    real_enemy.state.player_hp = self.state.player.hp
+                    # Pass number of living allies for AI that cares
+                    real_enemy.state.num_allies = sum(
+                        1 for e2 in self.state.enemies if e2.hp > 0 and e2 is not enemy
+                    )
                     move = real_enemy.roll_move()
                     self._set_enemy_move(enemy, move)
                     return
@@ -1103,11 +1173,120 @@ class CombatEngine:
 
         self.state.total_damage_dealt += hp_damage
 
+        # Curl Up: gain block when first attacked (one-time trigger)
+        curl_up = enemy.statuses.get("Curl Up", 0)
+        if curl_up > 0 and hp_damage > 0:
+            enemy.block += curl_up
+            del enemy.statuses["Curl Up"]
+            self.log.log(self.state.turn, "curl_up", enemy=enemy.id, block=curl_up)
+
+        # Thorns: deal damage back to player per hit
+        thorns = enemy.statuses.get("Thorns", 0)
+        if thorns > 0:
+            thorn_blocked = min(self.state.player.block, thorns)
+            thorn_hp = thorns - thorn_blocked
+            self.state.player.block -= thorn_blocked
+            self.state.player.hp -= thorn_hp
+            self.state.total_damage_taken += thorn_hp
+
+        # Sharp Hide (Guardian): damage player per hit
+        sharp_hide = enemy.statuses.get("Sharp Hide", 0)
+        if sharp_hide > 0:
+            sh_blocked = min(self.state.player.block, sharp_hide)
+            sh_hp = sharp_hide - sh_blocked
+            self.state.player.block -= sh_blocked
+            self.state.player.hp -= sh_hp
+            self.state.total_damage_taken += sh_hp
+
         # Clamp HP
         if enemy.hp < 0:
             enemy.hp = 0
 
+        # Check split threshold (large slimes split at 50% HP)
+        if hp_damage > 0 and enemy.hp > 0:
+            self._check_split(enemy)
+
+        # Death trigger
+        if enemy.hp <= 0:
+            self._on_enemy_death(enemy)
+
         return hp_damage
+
+    def _check_split(self, enemy: EnemyCombatState):
+        """Check if an enemy should split (large slimes at 50% HP)."""
+        if enemy.hp > enemy.max_hp // 2:
+            return
+
+        # Find the real Enemy object
+        real_enemy = self._get_real_enemy(enemy)
+        if real_enemy is None:
+            return
+
+        if not hasattr(real_enemy, 'check_split'):
+            return
+
+        spawn_info = real_enemy.check_split()
+        if spawn_info is None:
+            return
+
+        # Kill the parent
+        enemy.hp = 0
+        self._spawn_enemies(spawn_info)
+
+    def _spawn_enemies(self, spawn_info: list):
+        """Spawn new enemies from split/summon. spawn_info is list of (enemy_id, hp, max_hp) tuples."""
+        for info in spawn_info:
+            if isinstance(info, EnemyCombatState):
+                self.state.enemies.append(info)
+            elif isinstance(info, tuple) and len(info) >= 3:
+                enemy_id, hp, max_hp = info[0], info[1], info[2]
+                new_enemy = EnemyCombatState(
+                    hp=hp, max_hp=max_hp, block=0, statuses={},
+                    id=enemy_id, name=enemy_id,
+                    move_id=-1, move_damage=0, move_hits=1,
+                    move_block=0, move_effects={},
+                )
+                self.state.enemies.append(new_enemy)
+                # Roll initial move
+                self._roll_enemy_move(new_enemy)
+
+    def _on_enemy_death(self, enemy: EnemyCombatState):
+        """Handle enemy death triggers."""
+        # Spore Cloud (FungiBeast): apply Vulnerable to player
+        spore_cloud = enemy.statuses.get("Spore Cloud", 0)
+        if spore_cloud > 0:
+            self.state.player.statuses["Vulnerable"] = (
+                self.state.player.statuses.get("Vulnerable", 0) + spore_cloud
+            )
+            self.log.log(self.state.turn, "death_trigger",
+                        enemy=enemy.id, effect="Spore Cloud", amount=spore_cloud)
+
+        # Exploder: deal damage to player on death
+        explode_damage = enemy.statuses.get("Explosive", 0)
+        if explode_damage > 0:
+            blocked = min(self.state.player.block, explode_damage)
+            hp_dmg = explode_damage - blocked
+            self.state.player.block -= blocked
+            self.state.player.hp -= hp_dmg
+            self.state.total_damage_taken += hp_dmg
+            self.log.log(self.state.turn, "death_trigger",
+                        enemy=enemy.id, effect="Explosive", damage=hp_dmg)
+
+        # Delegate to real Enemy object if available
+        real_enemy = self._get_real_enemy(enemy)
+        if real_enemy and hasattr(real_enemy, 'on_death'):
+            real_enemy.on_death()
+
+    def _get_real_enemy(self, enemy: EnemyCombatState) -> Optional[Enemy]:
+        """Get the real Enemy object for an EnemyCombatState, if available."""
+        if not self.enemy_objects:
+            return None
+        for idx, e in enumerate(self.state.enemies):
+            if e is enemy:
+                if idx < len(self.enemy_objects):
+                    return self.enemy_objects[idx]
+                break
+        return None
 
     def _apply_power_card(self, card: Card, effects: List):
         """Apply a power card's effect."""

@@ -104,6 +104,10 @@ class EnemyState:
     next_move: Optional[MoveInfo] = None
     first_turn: bool = True
 
+    # Context from CombatEngine (set before roll_move)
+    player_hp: int = 0
+    num_allies: int = 0
+
     def last_move(self, move_id: int) -> bool:
         """Check if last move was the given ID."""
         if not self.move_history:
@@ -1617,7 +1621,7 @@ class Sentries(Enemy):
 
     def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
-        daze_count = 2 if self.ascension >= 18 else 1
+        daze_count = 3 if self.ascension >= 18 else 2
 
         if self.state.first_turn:
             self.state.first_turn = False
@@ -1841,22 +1845,36 @@ class Hexaghost(Enemy):
         return (250, 250)
 
     def _get_damage_values(self) -> Dict[str, int]:
-        if self.ascension >= 4:
+        # Divider uses player's CURRENT HP, not max HP (Java: currentHealth / 12 + 1)
+        player_hp = self.state.player_hp if self.state.player_hp > 0 else self.player_max_hp
+        if self.ascension >= 19:
             return {
-                "divider_base": (self.player_max_hp // 12) + 1,
+                "divider_base": (player_hp // 12) + 1,
                 "sear": 6,
                 "tackle": 6,
-                "inferno": 2,
+                "inferno": 3,
                 "inflame_str": 3,
-                "inflame_block": 15,
+                "inflame_block": 12,
+                "burn_count": 2,
+            }
+        elif self.ascension >= 4:
+            return {
+                "divider_base": (player_hp // 12) + 1,
+                "sear": 6,
+                "tackle": 6,
+                "inferno": 3,
+                "inflame_str": 2,
+                "inflame_block": 12,
+                "burn_count": 1,
             }
         return {
-            "divider_base": (self.player_max_hp // 12) + 1,
+            "divider_base": (player_hp // 12) + 1,
             "sear": 6,
             "tackle": 5,
             "inferno": 2,
             "inflame_str": 2,
             "inflame_block": 12,
+            "burn_count": 1,
         }
 
     def get_move(self, roll: int) -> MoveInfo:
