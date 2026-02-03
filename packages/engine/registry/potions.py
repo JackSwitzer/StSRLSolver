@@ -1,0 +1,407 @@
+"""
+Potion Effect Implementations.
+
+This module contains all potion effect handlers using the registry pattern.
+Each handler is registered via decorator and called when the potion is used.
+
+Potions are organized by rarity for easier maintenance.
+"""
+
+from __future__ import annotations
+
+from . import potion_effect, PotionContext
+
+
+# =============================================================================
+# COMMON POTIONS
+# =============================================================================
+
+@potion_effect("Block Potion")
+def block_potion(ctx: PotionContext) -> None:
+    """Block Potion: Gain 12 Block (24 with Sacred Bark)."""
+    ctx.gain_block(ctx.potency)
+
+
+@potion_effect("Dexterity Potion")
+def dexterity_potion(ctx: PotionContext) -> None:
+    """Dexterity Potion: Gain 2 Dexterity (4 with Sacred Bark)."""
+    ctx.apply_power_to_player("Dexterity", ctx.potency)
+
+
+@potion_effect("Energy Potion")
+def energy_potion(ctx: PotionContext) -> None:
+    """Energy Potion: Gain 2 Energy (4 with Sacred Bark)."""
+    ctx.gain_energy(ctx.potency)
+
+
+@potion_effect("Explosive Potion")
+def explosive_potion(ctx: PotionContext) -> None:
+    """Explosive Potion: Deal 10 damage to ALL enemies (20 with Sacred Bark)."""
+    ctx.deal_damage_to_all_enemies(ctx.potency)
+
+
+@potion_effect("Fire Potion", requires_target=True)
+def fire_potion(ctx: PotionContext) -> None:
+    """Fire Potion: Deal 20 damage to target enemy (40 with Sacred Bark)."""
+    ctx.deal_damage_to_target(ctx.potency)
+
+
+@potion_effect("Strength Potion")
+def strength_potion(ctx: PotionContext) -> None:
+    """Strength Potion: Gain 2 Strength (4 with Sacred Bark)."""
+    ctx.apply_power_to_player("Strength", ctx.potency)
+
+
+@potion_effect("Swift Potion")
+def swift_potion(ctx: PotionContext) -> None:
+    """Swift Potion: Draw 3 cards (6 with Sacred Bark)."""
+    ctx.draw_cards(ctx.potency)
+
+
+@potion_effect("Weak Potion", requires_target=True)
+def weak_potion(ctx: PotionContext) -> None:
+    """Weak Potion: Apply 3 Weak to target (6 with Sacred Bark)."""
+    if ctx.target:
+        ctx.apply_power(ctx.target, "Weakened", ctx.potency)
+
+
+@potion_effect("FearPotion", requires_target=True)
+def fear_potion(ctx: PotionContext) -> None:
+    """Fear Potion: Apply 3 Vulnerable to target (6 with Sacred Bark)."""
+    if ctx.target:
+        ctx.apply_power(ctx.target, "Vulnerable", ctx.potency)
+
+
+@potion_effect("AttackPotion")
+def attack_potion(ctx: PotionContext) -> None:
+    """Attack Potion: Discover an Attack card (costs 0 this turn).
+    With Sacred Bark, add 2 copies instead of 1."""
+    # This requires a Discovery action - for now, add a random attack to hand
+    from ..content.cards import ALL_CARDS, CardType
+    import random
+
+    attacks = [cid for cid, card in ALL_CARDS.items()
+               if card.card_type == CardType.ATTACK
+               and card.player_class.value in ("WATCHER", "ALL")]
+
+    if attacks:
+        chosen = random.choice(attacks)
+        copies = ctx.potency if ctx.has_sacred_bark else 1
+        for _ in range(copies):
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(chosen)
+                ctx.state.card_costs[chosen] = 0  # Costs 0 this turn
+
+
+@potion_effect("SkillPotion")
+def skill_potion(ctx: PotionContext) -> None:
+    """Skill Potion: Discover a Skill card (costs 0 this turn)."""
+    from ..content.cards import ALL_CARDS, CardType
+    import random
+
+    skills = [cid for cid, card in ALL_CARDS.items()
+              if card.card_type == CardType.SKILL
+              and card.player_class.value in ("WATCHER", "ALL")]
+
+    if skills:
+        chosen = random.choice(skills)
+        copies = ctx.potency if ctx.has_sacred_bark else 1
+        for _ in range(copies):
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(chosen)
+                ctx.state.card_costs[chosen] = 0
+
+
+@potion_effect("PowerPotion")
+def power_potion(ctx: PotionContext) -> None:
+    """Power Potion: Discover a Power card (costs 0 this turn)."""
+    from ..content.cards import ALL_CARDS, CardType
+    import random
+
+    powers = [cid for cid, card in ALL_CARDS.items()
+              if card.card_type == CardType.POWER
+              and card.player_class.value in ("WATCHER", "ALL")]
+
+    if powers:
+        chosen = random.choice(powers)
+        copies = ctx.potency if ctx.has_sacred_bark else 1
+        for _ in range(copies):
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(chosen)
+                ctx.state.card_costs[chosen] = 0
+
+
+@potion_effect("ColorlessPotion")
+def colorless_potion(ctx: PotionContext) -> None:
+    """Colorless Potion: Discover a Colorless card (costs 0 this turn)."""
+    from ..content.cards import ALL_CARDS
+    from ..content.cards import PlayerClass as CardPlayerClass
+    import random
+
+    colorless = [cid for cid, card in ALL_CARDS.items()
+                 if card.player_class == CardPlayerClass.COLORLESS]
+
+    if colorless:
+        chosen = random.choice(colorless)
+        copies = ctx.potency if ctx.has_sacred_bark else 1
+        for _ in range(copies):
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(chosen)
+                ctx.state.card_costs[chosen] = 0
+
+
+@potion_effect("SpeedPotion")
+def speed_potion(ctx: PotionContext) -> None:
+    """Speed Potion: Gain 5 temporary Dexterity (10 with Sacred Bark)."""
+    ctx.apply_power_to_player("Dexterity", ctx.potency)
+    ctx.apply_power_to_player("LoseDexterity", ctx.potency)
+
+
+@potion_effect("SteroidPotion")
+def steroid_potion(ctx: PotionContext) -> None:
+    """Flex Potion: Gain 5 temporary Strength (10 with Sacred Bark)."""
+    ctx.apply_power_to_player("Strength", ctx.potency)
+    ctx.apply_power_to_player("LoseStrength", ctx.potency)
+
+
+@potion_effect("BlessingOfTheForge")
+def blessing_of_forge(ctx: PotionContext) -> None:
+    """Blessing of the Forge: Upgrade all cards in hand for combat."""
+    upgraded_hand = []
+    for card_id in ctx.state.hand:
+        if not card_id.endswith("+"):
+            upgraded_hand.append(card_id + "+")
+        else:
+            upgraded_hand.append(card_id)
+    ctx.state.hand = upgraded_hand
+
+
+# Class-specific COMMON potions
+
+@potion_effect("BloodPotion")
+def blood_potion(ctx: PotionContext) -> None:
+    """Blood Potion (Ironclad): Heal 20% of Max HP (40% with Sacred Bark)."""
+    heal_amount = (ctx.player.max_hp * ctx.potency) // 100
+    ctx.heal_player(heal_amount)
+
+
+@potion_effect("Poison Potion", requires_target=True)
+def poison_potion(ctx: PotionContext) -> None:
+    """Poison Potion (Silent): Apply 6 Poison (12 with Sacred Bark)."""
+    if ctx.target:
+        ctx.apply_power(ctx.target, "Poison", ctx.potency)
+
+
+@potion_effect("FocusPotion")
+def focus_potion(ctx: PotionContext) -> None:
+    """Focus Potion (Defect): Gain 2 Focus (4 with Sacred Bark)."""
+    ctx.apply_power_to_player("Focus", ctx.potency)
+
+
+@potion_effect("BottledMiracle")
+def bottled_miracle(ctx: PotionContext) -> None:
+    """Bottled Miracle (Watcher): Add 2 Miracles to hand (4 with Sacred Bark)."""
+    for _ in range(ctx.potency):
+        ctx.add_card_to_hand("Miracle")
+
+
+# =============================================================================
+# UNCOMMON POTIONS
+# =============================================================================
+
+@potion_effect("Ancient Potion")
+def ancient_potion(ctx: PotionContext) -> None:
+    """Ancient Potion: Gain 1 Artifact (2 with Sacred Bark)."""
+    ctx.apply_power_to_player("Artifact", ctx.potency)
+
+
+@potion_effect("Regen Potion")
+def regen_potion(ctx: PotionContext) -> None:
+    """Regeneration Potion: Gain 5 Regeneration (10 with Sacred Bark)."""
+    ctx.apply_power_to_player("Regeneration", ctx.potency)
+
+
+@potion_effect("GamblersBrew")
+def gamblers_brew(ctx: PotionContext) -> None:
+    """Gambler's Brew: Discard any number of cards, draw that many.
+    For simulation, discard all and redraw."""
+    hand_size = len(ctx.state.hand)
+    # Move all cards from hand to discard
+    ctx.state.discard_pile.extend(ctx.state.hand)
+    ctx.state.hand.clear()
+    # Draw same number
+    ctx.draw_cards(hand_size)
+
+
+@potion_effect("LiquidBronze")
+def liquid_bronze(ctx: PotionContext) -> None:
+    """Liquid Bronze: Gain 3 Thorns (6 with Sacred Bark)."""
+    ctx.apply_power_to_player("Thorns", ctx.potency)
+
+
+@potion_effect("LiquidMemories")
+def liquid_memories(ctx: PotionContext) -> None:
+    """Liquid Memories: Return card(s) from discard to hand (cost 0).
+    With Sacred Bark, return 2 cards."""
+    # For simulation, return last card(s) from discard
+    cards_to_return = ctx.potency if ctx.has_sacred_bark else 1
+    for _ in range(cards_to_return):
+        if ctx.state.discard_pile and len(ctx.state.hand) < 10:
+            card = ctx.state.discard_pile.pop()
+            ctx.state.hand.append(card)
+            ctx.state.card_costs[card] = 0
+
+
+@potion_effect("EssenceOfSteel")
+def essence_of_steel(ctx: PotionContext) -> None:
+    """Essence of Steel: Gain 4 Plated Armor (8 with Sacred Bark)."""
+    ctx.apply_power_to_player("Plated Armor", ctx.potency)
+
+
+@potion_effect("DuplicationPotion")
+def duplication_potion(ctx: PotionContext) -> None:
+    """Duplication Potion: Next card played twice (2 with Sacred Bark)."""
+    ctx.apply_power_to_player("Duplication", ctx.potency)
+
+
+@potion_effect("DistilledChaos")
+def distilled_chaos(ctx: PotionContext) -> None:
+    """Distilled Chaos: Play top 3 cards of draw pile (6 with Sacred Bark)."""
+    # For simulation, just draw and auto-play would be complex
+    # Simplified: draw the cards
+    ctx.draw_cards(ctx.potency)
+
+
+# Class-specific UNCOMMON potions
+
+@potion_effect("ElixirPotion")
+def elixir_potion(ctx: PotionContext) -> None:
+    """Elixir (Ironclad): Exhaust any number of cards.
+    For simulation, exhaust nothing (player choice)."""
+    pass  # Requires player input
+
+
+@potion_effect("CunningPotion")
+def cunning_potion(ctx: PotionContext) -> None:
+    """Cunning Potion (Silent): Add 3 upgraded Shivs (6 with Sacred Bark)."""
+    for _ in range(ctx.potency):
+        ctx.add_card_to_hand("Shiv+")
+
+
+@potion_effect("PotionOfCapacity")
+def potion_of_capacity(ctx: PotionContext) -> None:
+    """Potion of Capacity (Defect): Gain 2 Orb slots (4 with Sacred Bark)."""
+    ctx.apply_power_to_player("OrbSlots", ctx.potency)
+
+
+@potion_effect("StancePotion")
+def stance_potion(ctx: PotionContext) -> None:
+    """Stance Potion (Watcher): Enter Calm or Wrath.
+    For simulation, enter Calm (generally safer)."""
+    # Change stance to Calm
+    old_stance = ctx.state.stance
+    ctx.state.stance = "Calm"
+
+
+# =============================================================================
+# RARE POTIONS
+# =============================================================================
+
+@potion_effect("CultistPotion")
+def cultist_potion(ctx: PotionContext) -> None:
+    """Cultist Potion: Gain 1 Ritual (2 with Sacred Bark).
+    Ritual grants Strength at end of turn."""
+    ctx.apply_power_to_player("Ritual", ctx.potency)
+
+
+@potion_effect("Fruit Juice")
+def fruit_juice(ctx: PotionContext) -> None:
+    """Fruit Juice: Gain 5 Max HP (10 with Sacred Bark)."""
+    ctx.player.max_hp += ctx.potency
+    ctx.player.hp += ctx.potency  # Also heal that amount
+
+
+@potion_effect("SneckoOil")
+def snecko_oil(ctx: PotionContext) -> None:
+    """Snecko Oil: Draw 5 cards and randomize all hand costs (0-3)."""
+    import random
+    ctx.draw_cards(ctx.potency)
+    # Randomize all card costs in hand
+    for card_id in ctx.state.hand:
+        ctx.state.card_costs[card_id] = random.randint(0, 3)
+
+
+@potion_effect("FairyPotion")
+def fairy_potion(ctx: PotionContext) -> None:
+    """Fairy in a Bottle: Auto-triggers on death, not manual use."""
+    # This potion triggers automatically when player would die
+    # Manual use does nothing
+    pass
+
+
+@potion_effect("SmokeBomb")
+def smoke_bomb(ctx: PotionContext) -> None:
+    """Smoke Bomb: Escape from non-boss combat."""
+    # Set combat end flag - handled by combat engine
+    ctx.state.escaped = True
+
+
+@potion_effect("EntropicBrew")
+def entropic_brew(ctx: PotionContext) -> None:
+    """Entropic Brew: Fill empty potion slots with random potions."""
+    from ..content.potions import ALL_POTIONS, PotionRarity
+    import random
+
+    # Get all potions excluding special ones
+    available = [p.id for p in ALL_POTIONS.values()
+                 if p.rarity != PotionRarity.PLACEHOLDER]
+
+    # Fill empty slots
+    for i, slot in enumerate(ctx.state.potions):
+        if not slot:  # Empty slot
+            if available:
+                ctx.state.potions[i] = random.choice(available)
+
+
+# Class-specific RARE potions
+
+@potion_effect("HeartOfIron")
+def heart_of_iron(ctx: PotionContext) -> None:
+    """Heart of Iron (Ironclad): Gain 6 Metallicize (12 with Sacred Bark)."""
+    ctx.apply_power_to_player("Metallicize", ctx.potency)
+
+
+@potion_effect("GhostInAJar")
+def ghost_in_jar(ctx: PotionContext) -> None:
+    """Ghost In A Jar (Silent): Gain 1 Intangible (2 with Sacred Bark)."""
+    ctx.apply_power_to_player("Intangible", ctx.potency)
+
+
+@potion_effect("EssenceOfDarkness")
+def essence_of_darkness(ctx: PotionContext) -> None:
+    """Essence of Darkness (Defect): Channel Dark orbs (1 per slot).
+    With Sacred Bark, channel 2 per slot."""
+    orb_slots = ctx.player.statuses.get("OrbSlots", 3)
+    dark_count = orb_slots * ctx.potency
+    # Would need orb system - for now just track it
+    ctx.apply_power_to_player("DarkOrbs", dark_count)
+
+
+@potion_effect("Ambrosia")
+def ambrosia(ctx: PotionContext) -> None:
+    """Ambrosia (Watcher): Enter Divinity stance."""
+    old_stance = ctx.state.stance
+
+    # Exit Calm bonus if applicable
+    if old_stance == "Calm":
+        energy_gain = 3 if ctx.has_relic("VioletLotus") else 2
+        ctx.gain_energy(energy_gain)
+
+    # Enter Divinity
+    ctx.state.stance = "Divinity"
+    ctx.gain_energy(3)  # Divinity grants +3 energy
+
+    # Trigger Mental Fortress if applicable
+    mental_fortress = ctx.player.statuses.get("MentalFortress", 0)
+    if mental_fortress > 0:
+        ctx.gain_block(mental_fortress)

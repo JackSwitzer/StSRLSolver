@@ -418,7 +418,7 @@ def if_last_card_skill_vulnerable_1(ctx: EffectContext) -> None:
 def if_last_skill_draw_2(ctx: EffectContext) -> None:
     """If last card was Skill, draw 2 (Sanctity)."""
     if ctx.get_last_card_type() == "SKILL":
-        amount = 3 if ctx.is_upgraded else 2
+        amount = 2
         ctx.draw_cards(amount)
 
 
@@ -426,7 +426,7 @@ def if_last_skill_draw_2(ctx: EffectContext) -> None:
 def if_in_wrath_extra_block(ctx: EffectContext) -> None:
     """If in Wrath, gain extra block (Halt)."""
     if ctx.stance == "Wrath":
-        extra = 9 if ctx.is_upgraded else 6
+        extra = 10 if ctx.is_upgraded else 6
         ctx.gain_block(extra)
 
 

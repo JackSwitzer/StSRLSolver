@@ -1,0 +1,456 @@
+{
+  "potions": [
+    {
+      "id": "Block Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Dexterity Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Energy Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Explosive Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py with AOE damage",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Fire Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Strength Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Swift Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py with card drawing",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Weak Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py and handlers/combat.py",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Fear Potion",
+      "rarity": "common",
+      "status": "full",
+      "notes": "Implemented in both combat_engine.py (as FearPotion) and handlers/combat.py. Applies Vulnerable",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Attack Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py but no use_potion handler. Needs Discovery action implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Skill Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py but no use_potion handler. Needs Discovery action implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Power Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py but no use_potion handler. Needs Discovery action implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Colorless Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py but no use_potion handler. Needs Discovery action implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Speed Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (SpeedPotion). Needs LoseDexterityPower implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Flex Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (SteroidPotion). Needs LoseStrengthPower implementation (similar to Flex card)",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Blessing of the Forge",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (BlessingOfTheForge). Needs ArmamentsAction implementation",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Blood Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (BloodPotion). Ironclad-specific. Percentage-based healing, can use outside combat",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Poison Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py. Silent-specific. Needs poison status implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Focus Potion",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (FocusPotion). Defect-specific. Needs Focus status implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Bottled Miracle",
+      "rarity": "common",
+      "status": "data_only",
+      "notes": "Defined in potions.py (BottledMiracle). Watcher-specific. Needs Miracle card generation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Ancient Potion",
+      "rarity": "uncommon",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py. Grants Artifact",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Regeneration Potion",
+      "rarity": "uncommon",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py (Regen Potion). Grants Regeneration status",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Gambler's Brew",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (GamblersBrew). Needs GamblingChipAction for discard/draw selection",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Liquid Bronze",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (LiquidBronze). Needs Thorns power implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Liquid Memories",
+      "rarity": "uncommon",
+      "status": "partial",
+      "notes": "Defined in potions.py and returns action dict in combat_engine.py, but card selection from discard not implemented",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Essence of Steel",
+      "rarity": "uncommon",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py (EssenceOfSteel). Grants Plated Armor",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Duplication Potion",
+      "rarity": "uncommon",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py (DuplicationPotion). Grants Duplication power",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Distilled Chaos",
+      "rarity": "uncommon",
+      "status": "partial",
+      "notes": "Defined in potions.py and returns action dict in combat_engine.py (DistilledChaos), but auto-play top cards not fully implemented",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Elixir",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (ElixirPotion). Ironclad-specific. Needs exhaust selection action",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Cunning Potion",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (CunningPotion). Silent-specific. Needs upgraded Shiv generation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Potion of Capacity",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (PotionOfCapacity). Defect-specific. Needs orb slot system",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Stance Potion",
+      "rarity": "uncommon",
+      "status": "data_only",
+      "notes": "Defined in potions.py (StancePotion). Watcher-specific. Needs stance selection between Calm/Wrath",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Cultist Potion",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py (CultistPotion). Needs Ritual power implementation",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Fruit Juice",
+      "rarity": "rare",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py. Permanent Max HP increase, can use outside combat",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Snecko Oil",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py (SneckoOil). Needs RandomizeHandCostAction",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Fairy in a Bottle",
+      "rarity": "rare",
+      "status": "full",
+      "notes": "Implemented in combat_engine.py (FairyPotion) with auto-trigger on death. Cannot be manually used",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Smoke Bomb",
+      "rarity": "rare",
+      "status": "partial",
+      "notes": "Defined in potions.py and returns action dict in combat_engine.py (SmokeBomb), but escape mechanics not fully implemented",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Entropic Brew",
+      "rarity": "rare",
+      "status": "partial",
+      "notes": "Defined in potions.py and returns action dict in combat_engine.py (EntropicBrew), but random potion generation not implemented",
+      "sacred_bark_support": false
+    },
+    {
+      "id": "Heart of Iron",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py (HeartOfIron). Ironclad-specific. Needs Metallicize power",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Ghost In A Jar",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py (GhostInAJar). Silent-specific. Needs Intangible power",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Essence of Darkness",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py (EssenceOfDarkness). Defect-specific. Needs Dark orb channeling",
+      "sacred_bark_support": true
+    },
+    {
+      "id": "Ambrosia",
+      "rarity": "rare",
+      "status": "data_only",
+      "notes": "Defined in potions.py. Watcher-specific. Needs Divinity stance enter (already exists in engine)",
+      "sacred_bark_support": false
+    }
+  ],
+  "summary": {
+    "total": 42,
+    "full": 14,
+    "partial": 4,
+    "data_only": 24,
+    "missing": 0
+  },
+  "analysis": {
+    "by_rarity": {
+      "common": {
+        "total": 20,
+        "full": 9,
+        "partial": 0,
+        "data_only": 11
+      },
+      "uncommon": {
+        "total": 12,
+        "full": 4,
+        "partial": 2,
+        "data_only": 6
+      },
+      "rare": {
+        "total": 10,
+        "full": 1,
+        "partial": 2,
+        "data_only": 7
+      }
+    },
+    "by_class": {
+      "universal": {
+        "total": 30,
+        "full": 13,
+        "partial": 4,
+        "data_only": 13
+      },
+      "ironclad": {
+        "total": 3,
+        "full": 0,
+        "partial": 0,
+        "data_only": 3
+      },
+      "silent": {
+        "total": 3,
+        "full": 0,
+        "partial": 0,
+        "data_only": 3
+      },
+      "defect": {
+        "total": 3,
+        "full": 0,
+        "partial": 0,
+        "data_only": 3
+      },
+      "watcher": {
+        "total": 3,
+        "full": 0,
+        "partial": 0,
+        "data_only": 3
+      }
+    },
+    "implementation_notes": [
+      "All 42 potions from the Java game are defined in packages/engine/content/potions.py",
+      "combat_engine.py has more implementations (18) than handlers/combat.py (7)",
+      "handlers/combat.py appears to be an older/alternative implementation",
+      "Sacred Bark support is correctly flagged in potion data for 35/42 potions",
+      "Fairy in a Bottle has special auto-trigger logic on player death (line 967 in combat_engine.py)",
+      "All class-specific potions (12 total) are data_only - no implementations yet",
+      "Discovery-based potions (Attack/Skill/Power/Colorless) need card selection UI",
+      "Several potions need special action implementations (GamblingChip, Armaments, RandomizeHandCost)",
+      "Partial status means action dict returned but mechanics incomplete (e.g., card selection, auto-play)"
+    ],
+    "priority_implementations": [
+      {
+        "category": "Quick wins (simple status effects)",
+        "potions": [
+          "Poison Potion",
+          "Focus Potion",
+          "Speed Potion",
+          "Flex Potion",
+          "Liquid Bronze",
+          "Heart of Iron",
+          "Ghost In A Jar",
+          "Cultist Potion"
+        ]
+      },
+      {
+        "category": "Moderate complexity (card generation)",
+        "potions": [
+          "Bottled Miracle",
+          "Cunning Potion",
+          "Snecko Oil"
+        ]
+      },
+      {
+        "category": "Complex (require UI/selection)",
+        "potions": [
+          "Attack Potion",
+          "Skill Potion",
+          "Power Potion",
+          "Colorless Potion",
+          "Gambler's Brew",
+          "Liquid Memories (partial)",
+          "Elixir",
+          "Stance Potion"
+        ]
+      },
+      {
+        "category": "Special mechanics",
+        "potions": [
+          "Blessing of the Forge",
+          "Distilled Chaos (partial)",
+          "Smoke Bomb (partial)",
+          "Entropic Brew (partial)",
+          "Essence of Darkness",
+          "Ambrosia",
+          "Potion of Capacity"
+        ]
+      }
+    ],
+    "watcher_specific_status": {
+      "note": "Since project focuses on Watcher (A20, >96% winrate), Watcher potions should be prioritized",
+      "watcher_potions": [
+        {
+          "id": "Bottled Miracle",
+          "rarity": "common",
+          "status": "data_only",
+          "priority": "high",
+          "implementation": "Generate 2 Miracle cards (1 energy, Retain). Simple card generation."
+        },
+        {
+          "id": "Stance Potion",
+          "rarity": "uncommon",
+          "status": "data_only",
+          "priority": "medium",
+          "implementation": "Choice between Calm/Wrath stance. Stance system already implemented."
+        },
+        {
+          "id": "Ambrosia",
+          "rarity": "rare",
+          "status": "data_only",
+          "priority": "high",
+          "implementation": "Enter Divinity stance. Stance system already exists, trivial to implement."
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "audit_date": "2026-02-03",
+    "python_files_analyzed": [
+      "packages/engine/content/potions.py",
+      "packages/engine/combat_engine.py",
+      "packages/engine/handlers/combat.py"
+    ],
+    "java_reference": "decompiled/game-source/com/megacrit/cardcrawl/potions/",
+    "total_java_potions": 42,
+    "total_python_definitions": 42,
+    "discrepancies": "None - all Java potions have Python data definitions"
+  }
+}

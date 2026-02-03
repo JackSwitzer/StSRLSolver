@@ -36,6 +36,7 @@ from ..calc.damage import (
 )
 from ..content.cards import Card, CardType, CardTarget, get_card, ALL_CARDS
 from ..content.enemies import Enemy, Intent, MoveInfo, EnemyType
+from ..registry import execute_relic_triggers, execute_power_triggers, RelicContext
 
 if TYPE_CHECKING:
     from ..content.enemies import Enemy as EnemyClass
@@ -175,9 +176,9 @@ class CombatRunner:
         """Create initial CombatState from RunState."""
         # Calculate base energy
         base_energy = 3
-        if self.run_state.has_relic("CoffeeDripper"):
+        if self.run_state.has_relic("Coffee Dripper"):
             pass  # No energy bonus, but can't rest
-        if self.run_state.has_relic("FusionHammer"):
+        if self.run_state.has_relic("Fusion Hammer"):
             base_energy += 1
         if self.run_state.has_relic("Ectoplasm"):
             base_energy += 1
@@ -187,17 +188,17 @@ class CombatRunner:
             base_energy += 1
         if self.run_state.has_relic("Sozu"):
             base_energy += 1
-        if self.run_state.has_relic("PhilosopherStone"):
+        if self.run_state.has_relic("Philosopher's Stone"):
             base_energy += 1
-        if self.run_state.has_relic("MarkOfPain"):
+        if self.run_state.has_relic("Mark of Pain"):
             base_energy += 1
         if self.run_state.has_relic("Nuclear Battery"):
             base_energy += 1  # Defect only
-        if self.run_state.has_relic("VelvetChoker"):
+        if self.run_state.has_relic("Velvet Choker"):
             base_energy += 1
-        if self.run_state.has_relic("RunicDome"):
+        if self.run_state.has_relic("Runic Dome"):
             base_energy += 1
-        if self.run_state.has_relic("SneckoEye"):
+        if self.run_state.has_relic("Snecko Eye"):
             base_energy += 1
         if self.run_state.has_relic("Runic Pyramid"):
             pass  # No energy bonus, but retain hand
@@ -250,23 +251,29 @@ class CombatRunner:
             move = enemy.roll_move()
             self._update_enemy_move(i, move)
 
-        # Trigger start-of-combat relics
+        # Execute registry-based atBattleStart triggers
+        execute_relic_triggers("atBattleStart", self.state)
+
+        # Trigger any remaining start-of-combat relics not in registry
         self._trigger_start_of_combat_relics()
+
+        # Execute atBattleStartPreDraw triggers (e.g., Pure Water adds Miracle)
+        execute_relic_triggers("atBattleStartPreDraw", self.state)
 
         # Draw initial hand
         draw_count = 5
         if self.state.has_relic("Ring of the Snake"):
             draw_count += 2
-        if self.state.has_relic("SneckoEye"):
+        if self.state.has_relic("Snecko Eye"):
             # Snecko Eye randomizes card costs on draw
             pass
-        if self.state.has_relic("BagOfPreparation"):
+        if self.state.has_relic("Bag of Preparation"):
             draw_count += 2
 
         self._draw_cards(draw_count)
 
         # Gambling Chip - discard and redraw at combat start
-        if self.state.has_relic("GamblingChip"):
+        if self.state.has_relic("Gambling Chip"):
             # For now, just mark that we have it
             # In a real implementation, would need player input for which cards to discard
             pass
@@ -275,38 +282,12 @@ class CombatRunner:
         self._start_player_turn(first_turn=True)
 
     def _trigger_start_of_combat_relics(self):
-        """Trigger relics that activate at start of combat."""
-        # Pure Water (Watcher) - Add Miracle to hand
-        if self.state.has_relic("PureWater"):
-            self.state.hand.append("Miracle")
+        """Trigger remaining relics not yet in registry that activate at combat start.
 
-        # Bag of Marbles - Apply 1 Vulnerable to all enemies
-        if self.state.has_relic("Bag of Marbles"):
-            for enemy in self.state.enemies:
-                if not enemy.is_dead:
-                    self._apply_status(enemy, "Vulnerable", 1)
-
-        # Anchor - Gain 10 block
-        if self.state.has_relic("Anchor"):
-            self.state.player.block += 10
-            self.total_block_gained += 10
-
-        # Akabeko - Gain 8 Vigor
-        if self.state.has_relic("Akabeko"):
-            self._apply_status(self.state.player, "Vigor", 8)
-
-        # Bronze Scales - Gain 3 Thorns
-        if self.state.has_relic("BronzeScales"):
-            self._apply_status(self.state.player, "Thorns", 3)
-
-        # Preserved Insect - If room is elite, enemies start with 25% less HP
-        # (This should be handled when creating enemies)
-
-        # Thread and Needle - Gain 4 Plated Armor
-        if self.state.has_relic("Thread and Needle"):
-            self._apply_status(self.state.player, "Plated Armor", 4)
-
-        # Pen Nib counter initialization
+        Note: Most atBattleStart relics are now handled via execute_relic_triggers().
+        This method only handles relics requiring CombatRunner-specific logic.
+        """
+        # Pen Nib counter initialization - needs run_state access
         if self.state.has_relic("Pen Nib"):
             counter = self.run_state.get_relic_counter("Pen Nib")
             if counter >= 0:
@@ -335,20 +316,14 @@ class CombatRunner:
                 self.state.draw_pile = self._shuffle_deck(self.state.discard_pile.copy())
                 self.state.discard_pile.clear()
 
-                # Sundial - track shuffles
-                if self.state.has_relic("Sundial"):
-                    counter = self.state.get_relic_counter("Sundial", 0)
-                    counter += 1
-                    if counter >= 3:
-                        self.state.energy += 2
-                        counter = 0
-                    self.state.set_relic_counter("Sundial", counter)
+                # Trigger registry-based onShuffle relics (Sundial)
+                execute_relic_triggers("onShuffle", self.state)
 
             if self.state.draw_pile:
                 card = self.state.draw_pile.pop()
 
                 # Snecko Eye - randomize card cost to 0-3
-                if self.state.has_relic("SneckoEye"):
+                if self.state.has_relic("Snecko Eye"):
                     cost = self.card_rng.random(3)  # 0-3 inclusive
                     self.state.card_costs[card] = cost
 
@@ -361,10 +336,10 @@ class CombatRunner:
 
 
         # Unceasing Top - after drawing, if hand empty and draw pile has cards, draw 1
-        if self.state.has_relic("UnceasingTop"):
+        if self.state.has_relic("Unceasing Top"):
             if not self.state.hand and self.state.draw_pile:
                 card = self.state.draw_pile.pop()
-                if self.state.has_relic("SneckoEye"):
+                if self.state.has_relic("Snecko Eye"):
                     cost = self.card_rng.random(3)
                     self.state.card_costs[card] = cost
                 self.state.hand.append(card)
@@ -381,14 +356,11 @@ class CombatRunner:
         """
         self.phase = CombatPhase.PLAYER_TURN_START
 
-        # Increment turn counter
-        if self.state.turn > 0:
-            self.state.turn += 1
-        else:
-            self.state.turn = 1
+        # Increment turn counter (starts at 0, so first turn becomes 1)
+        self.state.turn += 1
 
         # Reset energy
-        if self.state.has_relic("IceCream"):
+        if self.state.has_relic("Ice Cream"):
             # Keep leftover energy
             pass  # Energy persists
         else:
@@ -399,8 +371,10 @@ class CombatRunner:
             if not self.state.player.statuses.get("Barricade", 0) > 0:
                 blur = self.state.player.statuses.get("Blur", 0)
                 if blur > 0:
-                    # Blur lets you keep some block
-                    pass  # Keep block based on blur stacks
+                    # Blur: retain block, decrement Blur by 1
+                    self.state.player.statuses["Blur"] = blur - 1
+                    if self.state.player.statuses["Blur"] <= 0:
+                        del self.state.player.statuses["Blur"]
                 else:
                     self.state.player.block = 0
 
@@ -414,11 +388,14 @@ class CombatRunner:
         self.state.skills_played_this_turn = 0
         self.state.powers_played_this_turn = 0
 
+        # Execute registry-based atTurnStart triggers (handles counter resets and energy effects)
+        execute_relic_triggers("atTurnStart", self.state)
+
         # Draw cards (skip on first turn since setup already drew)
         if not first_turn and not self.state.player.statuses.get("NoDraw", 0) > 0:
             draw_count = 5
             # Relics that modify draw
-            if self.state.has_relic("Snecko Skull"):
+            if self.state.has_relic("Snake Skull"):
                 pass  # Poison-related, not draw
             self._draw_cards(draw_count)
 
@@ -428,60 +405,32 @@ class CombatRunner:
         self.phase = CombatPhase.PLAYER_TURN
 
     def _trigger_start_of_turn(self):
-        """Trigger start-of-turn effects."""
-        # Lantern - +1 energy on turn 1 only
-        if self.state.has_relic("Lantern") and self.state.turn == 1:
-            self.state.energy += 1
+        """Trigger start-of-turn power effects using registry system."""
+        # Execute atStartOfTurn power triggers for player
+        execute_power_triggers("atStartOfTurn", self.state, self.state.player)
 
-        # Horn Cleat - +14 block on turn 2 only
-        if self.state.has_relic("HornCleat") and self.state.turn == 2:
-            self.state.player.block += 14
-            self.total_block_gained += 14
+        # Execute atStartOfTurn for enemy powers (e.g., Poison deals damage then decrements)
+        for enemy in self.state.enemies:
+            if not enemy.is_dead:
+                execute_power_triggers("atStartOfTurn", self.state, enemy)
 
-        # Happy Flower - +1 energy every 3 turns
-        if self.state.has_relic("HappyFlower"):
-            counter = self.state.get_relic_counter("HappyFlower", 0)
-            counter += 1
-            if counter >= 3:
-                self.state.energy += 1
-                counter = 0
-            self.state.set_relic_counter("HappyFlower", counter)
+        # Execute onEnergyRecharge power triggers (DevaForm, Energized)
+        execute_power_triggers("onEnergyRecharge", self.state, self.state.player)
 
-        # Art of War - +1 energy if no attacks played last turn
-        if self.state.has_relic("ArtOfWar"):
-            flag = self.state.get_relic_counter("ArtOfWar", 0)
-            if flag == 0:  # 0 means no attacks last turn
-                self.state.energy += 1
+        # NextTurnBlock power (from Self-Forming Clay) - handled in registry
+        next_turn_block = self.state.player.statuses.get("NextTurnBlock", 0)
+        if next_turn_block > 0:
+            self.state.player.block += next_turn_block
+            self.total_block_gained += next_turn_block
+            del self.state.player.statuses["NextTurnBlock"]
 
-        # Metallicize - Gain block at end of turn
-        metallicize = self.state.player.statuses.get("Metallicize", 0)
-        if metallicize > 0:
-            self.state.player.block += metallicize
-            self.total_block_gained += metallicize
+    def _trigger_was_hp_lost(self, hp_loss: int):
+        """Trigger relics that activate when HP is lost."""
+        if hp_loss <= 0:
+            return
 
-        # Plated Armor - Gain block at end of turn
-        plated = self.state.player.statuses.get("Plated Armor", 0)
-        if plated > 0:
-            self.state.player.block += plated
-            self.total_block_gained += plated
-
-        # Combust - Deal 5 damage to all enemies, take 1 damage
-        combust = self.state.player.statuses.get("Combust", 0)
-        if combust > 0:
-            for enemy in self.state.enemies:
-                if not enemy.is_dead:
-                    self._deal_damage_to_enemy(enemy, 5)
-            self.state.player.hp -= 1
-            self.total_damage_taken += 1
-
-        # Regeneration - Heal at end of turn
-        regen = self.state.player.statuses.get("Regeneration", 0)
-        if regen > 0:
-            heal = min(regen, self.state.player.max_hp - self.state.player.hp)
-            self.state.player.hp += heal
-            self.state.player.statuses["Regeneration"] = regen - 1
-            if self.state.player.statuses["Regeneration"] <= 0:
-                del self.state.player.statuses["Regeneration"]
+        # Execute registry-based wasHPLost triggers
+        execute_relic_triggers("wasHPLost", self.state, {"hp_lost": hp_loss})
 
     def _apply_status(self, target: Union[EntityState, EnemyCombatState], status: str, amount: int):
         """Apply a status effect to target."""
@@ -497,6 +446,12 @@ class CombatRunner:
 
         current = target.statuses.get(status, 0)
         target.statuses[status] = current + amount
+
+        # Champion's Belt - when applying Vulnerable, also apply 1 Weak
+        if status == "Vulnerable" and self.state.has_relic("Champion Belt"):
+            if isinstance(target, EnemyCombatState):
+                weak_current = target.statuses.get("Weak", 0)
+                target.statuses["Weak"] = weak_current + 1
 
     def get_legal_actions(self) -> List[Action]:
         """Get all legal actions from current state."""
@@ -615,16 +570,6 @@ class CombatRunner:
         elif card.card_type == CardType.POWER:
             self.state.powers_played_this_turn += 1
 
-        # Ink Bottle - track all cards played
-        if self.state.has_relic("InkBottle"):
-            counter = self.state.get_relic_counter("InkBottle", 0)
-            counter += 1
-            if counter >= 10:
-                self._draw_cards(1)
-                counter = 0
-            self.state.set_relic_counter("InkBottle", counter)
-
-
         result = {"success": True, "card": card_id, "effects": []}
 
         # Get target
@@ -638,17 +583,14 @@ class CombatRunner:
         # Card destination
         if card.exhaust:
             # Strange Spoon - 50% chance card goes to discard instead
-            if self.state.has_relic("StrangeSpoon") and self.card_rng.random_boolean():
+            if self.state.has_relic("Strange Spoon") and self.card_rng.random_boolean():
                 self.state.discard_pile.append(card_id)
             else:
                 self.state.exhaust_pile.append(card_id)
-                # Dead Branch - add random card when exhausting
-                if self.state.has_relic("DeadBranch"):
-                    from ..content.cards import ALL_CARDS
-                    card_pool = [cid for cid in ALL_CARDS.keys() if cid not in ["Curse", "Status"]]
-                    if card_pool:
-                        random_card = card_pool[self.card_rng.random(len(card_pool) - 1)]
-                        self.state.hand.append(random_card)
+                # Trigger registry-based onExhaust relics (Dead Branch, Charon's Ashes, etc.)
+                execute_relic_triggers("onExhaust", self.state, {"card": card})
+                # Trigger onExhaust power triggers (Dark Embrace, Feel No Pain)
+                execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
         elif card.shuffle_back:
             # Insert at random position in draw pile
             pos = self.shuffle_rng.random(len(self.state.draw_pile)) if self.state.draw_pile else 0
@@ -656,11 +598,14 @@ class CombatRunner:
         else:
             self.state.discard_pile.append(card_id)
 
-        # Trigger on-play relics
-        self._trigger_on_play_relics(card)
+        # Trigger registry-based onPlayCard relics
+        execute_relic_triggers("onPlayCard", self.state, {"card": card})
+
+        # Trigger onUseCard power triggers (After Image, Choked, Duplication)
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card})
 
         # Unceasing Top - if hand is empty after playing card, draw 1
-        if self.state.has_relic("UnceasingTop"):
+        if self.state.has_relic("Unceasing Top"):
             if not self.state.hand and self.state.draw_pile:
                 self._draw_cards(1)
 
@@ -730,6 +675,8 @@ class CombatRunner:
             self.state.player.block += block_amount
             self.total_block_gained += block_amount
             result["effects"].append({"type": "block", "amount": block_amount})
+            # Trigger onGainBlock power triggers (Juggernaut, Wave of the Hand)
+            execute_power_triggers("onGainBlock", self.state, self.state.player, {"block_amount": block_amount})
 
         # Handle stance changes
         if card.enter_stance:
@@ -794,6 +741,10 @@ class CombatRunner:
             vuln=vuln,
         )
 
+        # The Boot - minimum 5 damage on attacks
+        if self.state.has_relic("Boot") and 0 < damage < 5:
+            damage = 5
+
         # Consume Vigor after first attack of the turn
         if vigor > 0 and self.state.attacks_played_this_turn == 1:
             self.state.player.statuses["Vigor"] = 0
@@ -848,11 +799,8 @@ class CombatRunner:
         if new_stance == "Divinity":
             self.state.energy += 3
 
-        # Mental Fortress - gain block on stance change
-        mental_fortress = self.state.player.statuses.get("MentalFortress", 0)
-        if mental_fortress > 0:
-            self.state.player.block += mental_fortress
-            self.total_block_gained += mental_fortress
+        # Execute onChangeStance power triggers (Mental Fortress, Rushdown)
+        execute_power_triggers("onChangeStance", self.state, self.state.player, {"new_stance": new_stance, "old_stance": old_stance})
 
         # Trigger Flurry of Blows
         self._trigger_flurry_of_blows()
@@ -882,70 +830,6 @@ class CombatRunner:
         if power_id in power_map:
             status, value = power_map[power_id]
             self._apply_status(self.state.player, status, value)
-
-    def _trigger_on_play_relics(self, card: Card):
-        """Trigger relics that activate on card play."""
-        # Shuriken - +1 Strength per 3 attacks
-        if card.card_type == CardType.ATTACK and self.state.has_relic("Shuriken"):
-            counter = self.state.get_relic_counter("Shuriken", 0)
-            counter += 1
-            if counter >= 3:
-                self._apply_status(self.state.player, "Strength", 1)
-                counter = 0
-            self.state.set_relic_counter("Shuriken", counter)
-
-        # Kunai - +1 Dexterity per 3 attacks
-        if card.card_type == CardType.ATTACK and self.state.has_relic("Kunai"):
-            counter = self.state.get_relic_counter("Kunai", 0)
-            counter += 1
-            if counter >= 3:
-                self._apply_status(self.state.player, "Dexterity", 1)
-                counter = 0
-            self.state.set_relic_counter("Kunai", counter)
-
-        # Nunchaku - +1 energy per 10 attacks
-        if card.card_type == CardType.ATTACK and self.state.has_relic("Nunchaku"):
-            counter = self.state.get_relic_counter("Nunchaku", 0)
-            counter += 1
-            if counter >= 10:
-                self.state.energy += 1
-                counter = 0
-            self.state.set_relic_counter("Nunchaku", counter)
-
-
-        # Letter Opener - Deal 5 damage per 3 skills
-        if card.card_type == CardType.SKILL and self.state.has_relic("LetterOpener"):
-            counter = self.state.get_relic_counter("LetterOpener", 0)
-            counter += 1
-            if counter >= 3:
-                for enemy in self.state.enemies:
-                    if not enemy.is_dead:
-                        self._deal_damage_to_enemy(enemy, 5)
-                counter = 0
-            self.state.set_relic_counter("LetterOpener", counter)
-
-        # Ornamental Fan - Gain 4 block per 3 attacks
-        if card.card_type == CardType.ATTACK and self.state.has_relic("OrnamentalFan"):
-            counter = self.state.get_relic_counter("OrnamentalFan", 0)
-            counter += 1
-            if counter >= 3:
-                self.state.player.block += 4
-                self.total_block_gained += 4
-                counter = 0
-            self.state.set_relic_counter("OrnamentalFan", counter)
-
-        # Mummified Hand - reduce random card cost after Power play
-        if card.card_type == CardType.POWER and self.state.has_relic("MummifiedHand"):
-            if self.state.hand:
-                idx = self.card_rng.random(len(self.state.hand) - 1)
-                random_card = self.state.hand[idx]
-                current_cost = self._get_card_cost(random_card)
-                self.state.card_costs[random_card] = max(0, current_cost - 1)
-
-        # Bird-Faced Urn - heal 2 HP after Power play
-        if card.card_type == CardType.POWER and self.state.has_relic("BirdFacedUrn"):
-            heal = min(2, self.state.player.max_hp - self.state.player.hp)
-            self.state.player.hp += heal
 
 
     def use_potion(self, potion_idx: int, target_idx: int = -1) -> Dict[str, Any]:
@@ -986,60 +870,24 @@ class CombatRunner:
         return result
 
     def _apply_potion_effect(self, potion_id: str, target: Optional[EnemyCombatState], result: dict):
-        """Apply a potion's effect."""
-        # Common potions
-        if potion_id == "Block Potion":
-            block = 12
-            if self.state.has_relic("SacredBark"):
-                block = 24
-            self.state.player.block += block
-            self.total_block_gained += block
-            result["effects"].append({"type": "block", "amount": block})
+        """Apply a potion's effect using the registry system."""
+        from ..registry import execute_potion_effect
 
-        elif potion_id == "Fire Potion":
-            damage = 20
-            if self.state.has_relic("SacredBark"):
-                damage = 40
-            if target:
-                self._deal_damage_to_enemy(target, damage)
-                result["effects"].append({"type": "damage", "amount": damage})
+        target_idx = -1
+        if target is not None:
+            for i, enemy in enumerate(self.state.enemies):
+                if enemy is target:
+                    target_idx = i
+                    break
 
-        elif potion_id == "Strength Potion":
-            amount = 2
-            if self.state.has_relic("SacredBark"):
-                amount = 4
-            self._apply_status(self.state.player, "Strength", amount)
-            result["effects"].append({"type": "strength", "amount": amount})
+        registry_result = execute_potion_effect(potion_id, self.state, target_idx)
 
-        elif potion_id == "Dexterity Potion":
-            amount = 2
-            if self.state.has_relic("SacredBark"):
-                amount = 4
-            self._apply_status(self.state.player, "Dexterity", amount)
-            result["effects"].append({"type": "dexterity", "amount": amount})
-
-        elif potion_id == "Weak Potion":
-            amount = 3
-            if self.state.has_relic("SacredBark"):
-                amount = 6
-            if target:
-                self._apply_status(target, "Weak", amount)
-                result["effects"].append({"type": "weak", "amount": amount})
-
-        elif potion_id == "Fear Potion":
-            amount = 3
-            if self.state.has_relic("SacredBark"):
-                amount = 6
-            if target:
-                self._apply_status(target, "Vulnerable", amount)
-                result["effects"].append({"type": "vulnerable", "amount": amount})
-
-        elif potion_id == "Energy Potion":
-            amount = 2
-            if self.state.has_relic("SacredBark"):
-                amount = 4
-            self.state.energy += amount
-            result["effects"].append({"type": "energy", "amount": amount})
+        if registry_result.get("success"):
+            potency = registry_result.get("potency", 0)
+            result["effects"].append({"type": "potion_used", "potion": potion_id, "potency": potency})
+        else:
+            # Fallback for any potions not yet in registry (should not happen)
+            result["effects"].append({"type": "error", "error": registry_result.get("error", "Unknown error")})
 
     def _end_player_turn(self):
         """End player turn and start enemy turn."""
@@ -1057,7 +905,7 @@ class CombatRunner:
                 self.state.discard_pile.append(card_id)
 
         # Runic Pyramid - retain entire hand
-        if self.state.has_relic("RunicPyramid"):
+        if self.state.has_relic("Runic Pyramid"):
             retained = self.state.hand.copy()
             self.state.discard_pile.clear()
 
@@ -1071,29 +919,25 @@ class CombatRunner:
             self._do_enemy_turns()
 
     def _trigger_end_of_turn(self):
-        """Trigger end-of-turn effects."""
-        # Art of War - track if any attacks played this turn
-        if self.state.has_relic("ArtOfWar"):
-            flag = 1 if self.state.attacks_played_this_turn > 0 else 0
-            self.state.set_relic_counter("ArtOfWar", flag)
+        """Trigger end-of-turn effects using registry system."""
+        # Execute registry-based onPlayerEndTurn triggers
+        execute_relic_triggers("onPlayerEndTurn", self.state)
 
-        # Decrement debuffs
-        for debuff in ["Weak", "Vulnerable", "Frail"]:
-            if debuff in self.state.player.statuses:
-                self.state.player.statuses[debuff] -= 1
-                if self.state.player.statuses[debuff] <= 0:
-                    del self.state.player.statuses[debuff]
+        # Execute atEndOfTurnPreEndTurnCards power triggers (Metallicize, Plated Armor, Like Water)
+        execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
 
-        # Like Water - gain block if in Calm
-        if self.state.stance == "Calm":
-            like_water = self.state.player.statuses.get("LikeWater", 0)
-            if like_water > 0:
-                self.state.player.block += like_water
-                self.total_block_gained += like_water
+        # Execute atEndOfTurn power triggers (Constricted damage, Combust, Ritual, etc.)
+        execute_power_triggers("atEndOfTurn", self.state, self.state.player)
+        for enemy in self.state.enemies:
+            if not enemy.is_dead:
+                execute_power_triggers("atEndOfTurn", self.state, enemy)
 
         # Divinity auto-exit
         if self.state.stance == "Divinity":
             self._change_stance("Neutral")
+
+        # LoseDexterity - lose dexterity at end of turn (from Duality) - handled in registry
+        # LoseStrength (Flex) - handled in registry
 
     def _do_enemy_turns(self):
         """Execute all enemy turns."""
@@ -1123,15 +967,11 @@ class CombatRunner:
             self.phase = CombatPhase.COMBAT_END
             return
 
-        # Decrement enemy debuffs
+        # Execute atEndOfRound power triggers (decrement Weak, Vulnerable, Frail)
+        execute_power_triggers("atEndOfRound", self.state, self.state.player)
         for enemy_state in self.state.enemies:
-            if enemy_state.is_dead:
-                continue
-            for debuff in ["Weak", "Vulnerable"]:
-                if debuff in enemy_state.statuses:
-                    enemy_state.statuses[debuff] -= 1
-                    if enemy_state.statuses[debuff] <= 0:
-                        del enemy_state.statuses[debuff]
+            if not enemy_state.is_dead:
+                execute_power_triggers("atEndOfRound", self.state, enemy_state)
 
         # Start next player turn
         self._start_player_turn()
@@ -1171,20 +1011,31 @@ class CombatRunner:
                     vuln=vuln,
                 )
 
+                # Buffer - prevent all damage from first unblocked hit
+                buffer = self.state.player.statuses.get("Buffer", 0)
+                if buffer > 0 and hp_loss > 0:
+                    hp_loss = 0
+                    self.state.player.statuses["Buffer"] = buffer - 1
+                    if self.state.player.statuses["Buffer"] <= 0:
+                        del self.state.player.statuses["Buffer"]
+
                 # Tungsten Rod - reduce HP loss by 1
                 if self.state.has_relic("TungstenRod"):
                     hp_loss = max(0, hp_loss - 1)
 
                 # Centennial Puzzle - draw 3 cards first time taking damage
-                if hp_loss > 0 and self.state.has_relic("CentennialPuzzle"):
-                    counter = self.state.get_relic_counter("CentennialPuzzle", 0)
+                if hp_loss > 0 and self.state.has_relic("Centennial Puzzle"):
+                    counter = self.state.get_relic_counter("Centennial Puzzle", 0)
                     if counter == 0:
                         self._draw_cards(3)
-                        self.state.set_relic_counter("CentennialPuzzle", 1)
+                        self.state.set_relic_counter("Centennial Puzzle", 1)
 
                 self.state.player.block = block_remaining
                 self.state.player.hp -= hp_loss
                 self.total_damage_taken += hp_loss
+
+                # Trigger wasHPLost relics
+                self._trigger_was_hp_lost(hp_loss)
 
                 # Check death
                 if self.state.player.hp <= 0:
@@ -1224,6 +1075,8 @@ class CombatRunner:
             self.combat_over = True
             self.victory = True
             self.phase = CombatPhase.COMBAT_END
+            # Trigger onVictory relics (Burning Blood, Meat on the Bone, etc.)
+            execute_relic_triggers("onVictory", self.state)
 
         # Player dead?
         if self.state.player.hp <= 0:

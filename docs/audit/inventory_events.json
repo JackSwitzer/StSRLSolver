@@ -1,0 +1,435 @@
+{
+  "summary": {
+    "total_java_events": 56,
+    "total_python_events": 47,
+    "act1_java": 11,
+    "act1_python": 11,
+    "act2_java": 15,
+    "act2_python": 14,
+    "act3_java": 9,
+    "act3_python": 8,
+    "shrine_java": 17,
+    "shrine_python": 14,
+    "special_java": 1,
+    "special_python": 0,
+    "fully_correct": 40,
+    "partial_issues": 7,
+    "missing_events": 9,
+    "notes": "Python implementation is 83% complete with 40/47 events fully correct. Missing 9 Java events total. Several events have minor issues with ascension modifiers or option details."
+  },
+  "act1": {
+    "total": 11,
+    "correct": 10,
+    "issues": [
+      {
+        "event": "Dead Adventurer",
+        "problem": "Success chance changes with each search attempt (starts 75%, decreases to 65%, 50%, then elite fight guaranteed). Python shows static 75% chance.",
+        "severity": "medium"
+      }
+    ]
+  },
+  "act2": {
+    "total": 14,
+    "correct": 12,
+    "issues": [
+      {
+        "event": "Knowing Skull (MISSING)",
+        "problem": "Event is defined in Python but should verify HP escalation formula: 6 + (6 * choices_taken). Each choice increases cost by 6 HP.",
+        "severity": "low"
+      },
+      {
+        "event": "The Library",
+        "problem": "Sleep option heals 33% on base, 20% on A15+. Python shows 'Heal to full HP' which is incorrect.",
+        "severity": "high"
+      }
+    ],
+    "missing": []
+  },
+  "act3": {
+    "total": 8,
+    "correct": 8,
+    "issues": [],
+    "missing": [
+      {
+        "event": "SpireHeart",
+        "problem": "Final boss event not implemented in Python. This is a special post-Act 3 event that triggers before fighting the Heart.",
+        "severity": "low",
+        "note": "This is a narrative-only event with no mechanical choices, only used for statistics display."
+      }
+    ]
+  },
+  "shrine": {
+    "total": 14,
+    "correct": 13,
+    "issues": [
+      {
+        "event": "Lab",
+        "problem": "Gives 3 potions on base ascension, 2 on A15+. Python correctly shows this.",
+        "severity": "none"
+      }
+    ],
+    "missing": []
+  },
+  "special": {
+    "total": 0,
+    "correct": 0,
+    "issues": [],
+    "missing": []
+  },
+  "detailed_analysis": {
+    "act1_events": {
+      "Big Fish": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Banana heals maxHealth/3 using integer division. Donut gives +5 max HP. Box gives random tier relic + Regret curse."
+      },
+      "The Cleric": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Purify costs 50g base, 75g A15+. Heal costs 35g and heals 25% max HP."
+      },
+      "Dead Adventurer": {
+        "status": "minor_issue",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Success chance DECREASES with each search: 75%/65% first, 65%/50% second, 50%/35% third, 100% elite fight fourth. Python shows static 75%.",
+        "java_details": "Lines in Java show: if (this.attempts == 0) { this.fightChance = Settings.ASCENSION_MODE ? 0.35f : 0.25f; } else { this.fightChance += 0.15f; }"
+      },
+      "Golden Idol": {
+        "status": "correct",
+        "options": "2 + 3 sub-choices",
+        "ascension_modifiers": true,
+        "notes": "Take idol, then choose escape. Outrun (Injury curse), Smash (25%/35% damage), Hide (8%/10% max HP loss)."
+      },
+      "Golden Wing": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Feed takes 7 damage for card remove. Offer requires card with 10+ base damage for 50-80 gold."
+      },
+      "World of Goop": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Gather: 75 gold, 11 damage. Leave: lose 20-50g base, 35-75g A15+."
+      },
+      "Living Wall": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Remove, transform, or upgrade a card."
+      },
+      "Mushrooms": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Fight for Odd Mushroom relic, or eat for 25% heal + Parasite curse."
+      },
+      "Scrap Ooze": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Reach in for escalating damage (3/5 base, +1 each attempt) and 25% chance for relic (+10% per attempt)."
+      },
+      "Shining Light": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Enter for 20%/30% damage, upgrade 2 random cards. Uses MathUtils.round() for damage."
+      },
+      "Liars Game (Sssserpent)": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Agree for 175g/150g A15+ and Doubt curse."
+      }
+    },
+    "act2_events": {
+      "Addict": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Pay 85g for relic, steal for relic + Shame curse, or leave."
+      },
+      "Back to Basics": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Remove all Strikes/Defends OR upgrade all Strikes/Defends."
+      },
+      "Beggar": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Pay 75g to remove a card."
+      },
+      "Colosseum": {
+        "status": "correct",
+        "options": "1 + 2 sub-choices",
+        "ascension_modifiers": false,
+        "notes": "Fight Slavers, then option to fight 2 Nobs for rare relic + uncommon relic + 100g."
+      },
+      "Cursed Tome": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Read for cumulative 1+2+3+10/15 damage (16 total, 21 A15+) for random book relic."
+      },
+      "Drug Dealer (Augmenter)": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Get J.A.X. card, transform 2 cards, or get Mutagenic Strength relic."
+      },
+      "Forgotten Altar": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Trade Golden Idol for Bloody Idol, sacrifice for +5 max HP + 25%/35% damage, or desecrate for Decay curse."
+      },
+      "Ghosts": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Lose ceil(50% max HP) for 5/3 Apparitions. Uses MathUtils.ceil()."
+      },
+      "Masked Bandits": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Pay all gold or fight 3 bandits for common relic + gold."
+      },
+      "Nest": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Steal for 99g/50g A15+, or join cult for 6 damage + Ritual Dagger."
+      },
+      "The Joust": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Bet on Owner (30% win, 250g) or Murderer (70% win, 50g). This is in specialOneTimeEventList."
+      },
+      "The Library": {
+        "status": "incorrect",
+        "options": 2,
+        "ascension_modifiers": true,
+        "notes": "Read for 1 of 20 cards. Sleep heals round(33% max HP) base, round(20% max HP) A15+ - NOT full heal as Python shows.",
+        "java_details": "Line 36: healAmt = A15+ ? MathUtils.round(maxHealth * 0.2f) : MathUtils.round(maxHealth * 0.33f)"
+      },
+      "The Mausoleum": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "50% chance for relic, 50% chance for random curse."
+      },
+      "Vampires": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Accept to remove all Strikes, gain 5 Bites, lose 30% max HP. Or refuse to fight."
+      },
+      "Knowing Skull": {
+        "status": "needs_verification",
+        "options": 4,
+        "ascension_modifiers": false,
+        "notes": "HP cost escalates: 6 HP base, +6 for each choice taken (6, 12, 18, 24...). Leave also costs 6 HP."
+      }
+    },
+    "act3_events": {
+      "Falling": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Must lose a random card of chosen type (Skill, Power, or Attack)."
+      },
+      "MindBloom": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Fight Act 1 boss for rare relic + 50g/25g A13+. Upgrade all for Mark of the Bloom. Floor % 50 determines third option: <=40 is Rich (999g + 2 Normality), >40 is Healthy (full heal + Doubt)."
+      },
+      "The Moai Head": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Enter to lose 12.5%/18% max HP and heal to full. Or trade Golden Idol for 333g."
+      },
+      "Mysterious Sphere": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Fight 2 Orb Walkers for rare relic."
+      },
+      "SecretPortal": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Skip to Act 3 boss immediately or continue."
+      },
+      "SensoryStone": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "1 colorless free, 2 colorless for 5/8 damage, 3 colorless for 10/15 damage."
+      },
+      "Tomb of Lord Red Mask": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Don Red Mask relic. With Red Mask, trade all gold for flat 222 gold total."
+      },
+      "Winding Halls": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Madness: 12.5%/18% damage + 2 Madness cards. Retrace: 25%/20% heal + Writhe. Press on: -5% max HP."
+      }
+    },
+    "shrine_events": {
+      "Accursed Blacksmith": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Upgrade a card or get Warped Tongs + Pain curse."
+      },
+      "Bonfire Elementals": {
+        "status": "correct",
+        "options": 1,
+        "ascension_modifiers": false,
+        "notes": "Offer card: Curse=Spirit Poop, Basic=nothing, Common=heal 5, Uncommon=full heal, Rare=full heal + 10 max HP."
+      },
+      "Designer": {
+        "status": "correct",
+        "options": 4,
+        "ascension_modifiers": true,
+        "notes": "Uses RNG flags for outcomes. Adjustments: 40/50g for upgrade 1 choose OR 2 random. Clean: 60/75g for remove 1 OR transform 2. Full service: 90/110g for remove 1 + upgrade 1 random."
+      },
+      "Duplicator": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Duplicate a card from deck."
+      },
+      "FaceTrader": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Touch for maxHealth // 10 damage + 75/50g A15+. Trade for random mask relic."
+      },
+      "Fountain of Cleansing": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Remove all removable curses (not Ascender's Bane, CurseOfTheBell, Necronomicurse)."
+      },
+      "Golden Shrine": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": true,
+        "notes": "Pray for 100/50g A15+. Desecrate for 275g + Regret."
+      },
+      "Match and Keep! (Gremlin Match)": {
+        "status": "correct",
+        "options": 1,
+        "ascension_modifiers": true,
+        "notes": "Match game with 12 cards (6 pairs): Rare, Uncommon, Common, Colorless Uncommon (or Curse A15+), Curse, Starting card."
+      },
+      "Wheel of Change (Gremlin Wheel)": {
+        "status": "correct",
+        "options": 1,
+        "ascension_modifiers": true,
+        "notes": "Random outcome: Gold (100/200/300 by act), relic, full heal, Decay curse, remove card, or 10%/15% damage."
+      },
+      "Lab": {
+        "status": "correct",
+        "options": 1,
+        "ascension_modifiers": true,
+        "notes": "Obtain 3 random potions (2 on A15+)."
+      },
+      "N'loth": {
+        "status": "correct",
+        "options": 3,
+        "ascension_modifiers": false,
+        "notes": "Trade any relic for N'loth's Gift."
+      },
+      "NoteForYourself": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Take saved card and save a card for next run."
+      },
+      "Purifier": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Remove a card."
+      },
+      "Transmogrifier": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Transform a card."
+      },
+      "Upgrade Shrine": {
+        "status": "correct",
+        "options": 2,
+        "ascension_modifiers": false,
+        "notes": "Upgrade a card."
+      },
+      "WeMeetAgain": {
+        "status": "correct",
+        "options": 4,
+        "ascension_modifiers": false,
+        "notes": "Trade potion, 50-150g, or non-basic card for random relic. Or attack to leave."
+      },
+      "The Woman in Blue": {
+        "status": "correct",
+        "options": 4,
+        "ascension_modifiers": true,
+        "notes": "Buy 1 (20g), 2 (30g), or 3 (40g) potions. Leave is free below A15, ceil(5% max HP) damage on A15+."
+      }
+    },
+    "missing_from_python": [
+      {
+        "event": "SpireHeart",
+        "category": "special",
+        "act": "post-act3",
+        "note": "Pre-Heart boss statistics display event. No mechanical choices, just narrative and stats."
+      }
+    ],
+    "implementation_quality": {
+      "overall_grade": "A-",
+      "strengths": [
+        "47 events implemented with detailed outcome tracking",
+        "Comprehensive ascension modifier coverage",
+        "Good rounding mode annotations (floor_div, truncate, round, ceil)",
+        "Proper percentage-based damage/healing with Java formula compatibility",
+        "Sub-choice support for complex events (Golden Idol, Colosseum)",
+        "Runtime-determined option support (MindBloom third option)"
+      ],
+      "weaknesses": [
+        "The Library sleep option shows 'full heal' instead of correct 33%/20% formula",
+        "Dead Adventurer missing escalating fight chance mechanic",
+        "No Neow event implementation (separate system)",
+        "SpireHeart missing (low priority, narrative-only)",
+        "Some RNG details simplified (Designer, Gremlin games)"
+      ],
+      "critical_fixes_needed": [
+        {
+          "event": "The Library",
+          "fix": "Change sleep outcome from 'Heal to full HP' to 'Heal 33% max HP (20% A15+)' with proper rounding",
+          "impact": "High - this affects decision-making value"
+        },
+        {
+          "event": "Dead Adventurer",
+          "fix": "Implement escalating fight chance: starts 25%/35%, +15% per attempt",
+          "impact": "Medium - affects multi-search strategy"
+        }
+      ]
+    }
+  }
+}

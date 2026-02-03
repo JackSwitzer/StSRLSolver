@@ -174,6 +174,8 @@ class Card:
             innate=self.innate, shuffle_back=self.shuffle_back,
             enter_stance=self.enter_stance, exit_stance=self.exit_stance,
             effects=self.effects.copy(), upgraded=self.upgraded,
+            upgrade_innate=self.upgrade_innate, upgrade_retain=self.upgrade_retain,
+            upgrade_ethereal=self.upgrade_ethereal, upgrade_exhaust=self.upgrade_exhaust,
         )
 
 
@@ -470,7 +472,7 @@ PRAY = Card(
 
 SANCTITY = Card(
     id="Sanctity", name="Sanctity", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_block=6, upgrade_block=3,
+    target=CardTarget.SELF, cost=1, base_block=6, upgrade_block=3, base_magic=2,
     effects=["if_last_skill_draw_2"],
 )
 
@@ -495,7 +497,7 @@ SIMMERING_FURY = Card(
 
 WORSHIP = Card(
     id="Worship", name="Worship", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=2, base_magic=5, upgrade_magic=0, retain=True,
+    target=CardTarget.SELF, cost=2, base_magic=5, upgrade_magic=0, retain=False,
     upgrade_retain=True,
     effects=["gain_mantra"],
 )
@@ -511,13 +513,13 @@ WREATH_OF_FLAME = Card(
 
 BATTLE_HYMN = Card(
     id="BattleHymn", name="Battle Hymn", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
-    target=CardTarget.SELF, cost=1, base_magic=1,
+    target=CardTarget.SELF, cost=1, base_magic=1, upgrade_innate=True,
     effects=["add_smite_each_turn"],  # Upgraded: becomes Innate
 )
 
 ESTABLISHMENT = Card(
     id="Establishment", name="Establishment", card_type=CardType.POWER, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=1, base_magic=1,
+    target=CardTarget.SELF, cost=1, base_magic=1, upgrade_innate=True,
     effects=["retained_cards_cost_less"],  # Upgraded: becomes Innate
 )
 
@@ -622,7 +624,6 @@ FOREIGN_INFLUENCE = Card(
     id="ForeignInfluence", name="Foreign Influence", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     target=CardTarget.NONE, cost=0, exhaust=True,
     effects=["choose_attack_from_any_class"],
-    upgrade_magic=1,  # Choose 2 when upgraded
 )
 
 OMNISCIENCE = Card(
@@ -661,7 +662,8 @@ WISH = Card(
 
 DEVA_FORM = Card(
     id="DevaForm", name="Deva Form", card_type=CardType.POWER, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=3, ethereal=True,
+    target=CardTarget.SELF, cost=3, ethereal=True, base_magic=1,
+    upgrade_ethereal=False,
     effects=["gain_energy_each_turn_stacking"],
 )
 
