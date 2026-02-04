@@ -132,9 +132,10 @@ class GameRNGState:
             # Per-floor streams use seed + floorNum
             return Random(self.seed + self.floor_num)
         elif stream == RNGStream.MAP:
-            # Map RNG uses act-specific seed
-            multiplier = {1: 0, 2: 100, 3: 200, 4: 300}.get(self.act_num, 0)
-            return Random(self.seed + self.act_num * multiplier)
+            # Map RNG uses act-specific seed offset
+            # Act 1: seed+1, Act 2: seed+200, Act 3: seed+600, Act 4: seed+1200
+            offset = {1: 1, 2: 200, 3: 600, 4: 1200}.get(self.act_num, 0)
+            return Random(self.seed + offset)
         else:
             # Persistent streams use counter
             counter = self.counters.get(stream.value, 0)

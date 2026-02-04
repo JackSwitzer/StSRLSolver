@@ -7,18 +7,37 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ```
 packages/engine/     # Pure Python game engine (source of truth)
 packages/parity/     # Seed catalog + parity verification tools
-tests/               # 3345+ tests (pytest)
+tests/               # 4100+ tests (pytest)
 mod/                 # Java EVTracker mod
 decompiled/          # Java source reference
 docs/vault/          # Game mechanics ground truth
+docs/                # ARCHITECTURE.md
 ```
 
 ## Testing
 ```bash
-uv run pytest tests/ -q              # Run all 1958 tests
-uv run pytest tests/test_parity.py   # Parity verification (94 tests)
-uv run pytest tests/ --cov=packages/engine  # Coverage report
+uv run pytest tests/ -q              # Run all 4100+ tests
+uv run pytest tests/test_parity.py   # Parity verification
+uv run pytest tests/ --cov=packages/engine  # Coverage (~68%)
 ```
+
+## Java Parity Status (Verified 2026-02-03)
+
+| Domain | Parity | Status |
+|--------|--------|--------|
+| **RNG System** | 100% | ✅ PRODUCTION READY |
+| **Damage/Block Calc** | 100% | ✅ Exact match |
+| **Enemies** | 100% | ✅ All 66 verified |
+| **Stances** | 100% | ✅ Divinity timing fixed |
+| **Cards** | 97% | ✅ 6 cards fixed |
+| **Powers** | 84% | ⚠️ Most triggers working |
+| **Events** | 95% | ⚠️ Minor issues |
+| **Potions (Data)** | 100% | ✅ All 42 correct |
+| **Potions (Effects)** | 40% | ⚠️ 25 missing effects |
+| **Relics (Active)** | 65% | ⚠️ 117/180 triggers implemented |
+| **Relics (Passive)** | 15% | ✅ Data-driven (27/180) |
+
+See test files and `docs/ARCHITECTURE.md` for implementation details.
 
 ## Engine API (for RL integration)
 ```python
@@ -175,6 +194,26 @@ Ground truth for game mechanics:
 - `docs/vault/direct-launch.md` - Running without Steam
 - `docs/vault/stsrlsolver-analysis.md` - Existing project structure
 
+## Engine Registry Pattern
+
+Effect handlers use decorator-based registration:
+```python
+# packages/engine/registry/
+@relic_trigger("atBattleStart", relic="Vajra")
+def vajra_start(ctx: RelicContext) -> None:
+    ctx.apply_power_to_player("Strength", 1)
+
+@power_trigger("atDamageGive", power="Strength")
+def strength_damage_give(ctx: PowerContext) -> int:
+    return ctx.trigger_data.get("value", 0) + ctx.amount
+
+@potion_effect("Fire Potion", requires_target=True)
+def fire_potion(ctx: PotionContext) -> None:
+    ctx.deal_damage_to_target(ctx.potency)
+```
+
+Trigger hooks match Java: `atBattleStart`, `onPlayCard`, `wasHPLost`, `atDamageGive`, `atDamageReceive`, etc.
+
 ## EV Tracking Framework
 
 ### Decision Points to Track
@@ -220,16 +259,16 @@ Tier 2: InnerPeace, CutThroughFate, WheelKick, Conclude
 - Divinity enter: +3
 - Deva Form: +1/turn stacking
 
-## RNG Prediction System
+## RNG Prediction System (✅ Verified 100% Java Parity)
 
 ### Documentation
-- `docs/vault/rng-system-analysis.md` - Complete 13-stream analysis with 3 implementation hypotheses
+- `docs/vault/rng-system-analysis.md` - Complete 13-stream analysis
 - `docs/vault/verified-seeds.md` - Verified seed data and Neow cardRng consumption
-- `core/state/game_rng.py` - **GameRNGState** implementation (counter-based state machine)
+- `packages/engine/state/game_rng.py` - **GameRNGState** implementation (counter-based state machine)
 
 ### Key Implementation: GameRNGState
 ```python
-from core.state.game_rng import GameRNGState, simulate_path, predict_card_reward
+from packages.engine.state.game_rng import GameRNGState, simulate_path, predict_card_reward
 
 # Simulate a path through the game
 path = [

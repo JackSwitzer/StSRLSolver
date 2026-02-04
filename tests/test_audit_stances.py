@@ -418,3 +418,203 @@ class TestDivinityTiming:
         assert engine.state.player.block >= 4, (
             "Mental Fortress block from Divinity auto-exit should happen at start of turn"
         )
+
+
+# =============================================================================
+# SPECIFIC INTERACTION TESTS (from audit request)
+# =============================================================================
+
+class TestStanceInteractions:
+    """Test specific stance interactions requested in audit."""
+
+    def test_calm_to_wrath_to_calm_energy(self):
+        """Test energy gain through multiple stance changes."""
+        engine = make_engine(stance="Neutral", energy=3)
+
+        # Neutral → Calm (no energy change)
+        engine._change_stance(StanceID.CALM)
+        assert engine.state.energy == 3
+
+        # Calm → Wrath (+2 from Calm exit)
+        engine._change_stance(StanceID.WRATH)
+        assert engine.state.energy == 5  # 3 + 2
+
+        # Wrath → Calm (no energy change)
+        engine._change_stance(StanceID.CALM)
+        assert engine.state.energy == 5  # Still 5
+
+        # Calm → Neutral (+2 from Calm exit)
+        engine._change_stance(StanceID.NEUTRAL)
+        assert engine.state.energy == 7  # 5 + 2
+
+    def test_mantra_9_plus_2_enters_divinity_with_1_remaining(self):
+        """Test Mantra at 9 + 2 = enter Divinity with 1 Mantra remaining."""
+        engine = make_engine(energy=3)
+
+        # Add 9 Mantra (not enough for Divinity)
+        engine._add_mantra(9)
+        assert engine.state.stance == "Neutral"
+        assert engine.state.mantra == 9
+        assert engine.state.energy == 3
+
+        # Add 2 more (11 total, triggers at 10)
+        engine._add_mantra(2)
+        assert engine.state.stance == "Divinity"
+        assert engine.state.mantra == 1  # 11 - 10 = 1
+        assert engine.state.energy == 6  # 3 + 3 from Divinity
+
+    def test_mental_fortress_multiple_changes_per_turn(self):
+        """Test Mental Fortress with multiple stance changes in one turn."""
+        engine = make_engine(
+            player_statuses={"MentalFortress": 5},
+            stance="Neutral",
+        )
+
+        initial_block = engine.state.player.block
+
+        # Change 1: Neutral → Calm
+        engine._change_stance(StanceID.CALM)
+        assert engine.state.player.block == initial_block + 5
+
+        # Change 2: Calm → Wrath
+        engine._change_stance(StanceID.WRATH)
+        assert engine.state.player.block == initial_block + 10
+
+        # Change 3: Wrath → Divinity
+        engine._change_stance(StanceID.DIVINITY)
+        assert engine.state.player.block == initial_block + 15
+
+        # Same stance (no change, no block)
+        engine._change_stance(StanceID.DIVINITY)
+        assert engine.state.player.block == initial_block + 15  # Still 15
+
+    def test_mental_fortress_with_calm_energy_interaction(self):
+        """Test Mental Fortress block + Calm energy gain together."""
+        engine = make_engine(
+            stance="Calm",
+            energy=3,
+            player_statuses={"MentalFortress": 4},
+        )
+
+        # Exit Calm → Wrath (should get +2 energy and +4 block)
+        engine._change_stance(StanceID.WRATH)
+        assert engine.state.energy == 5  # 3 + 2
+        assert engine.state.player.block == 4  # Mental Fortress
+
+    def test_rushdown_only_triggers_on_wrath(self):
+        """Verify Rushdown only triggers when entering Wrath, not other stances."""
+        deck = ["Strike_P"] * 10
+        engine = make_engine(
+            deck=deck,
+            player_statuses={"Rushdown": 2},
+            stance="Neutral",
+        )
+        engine.state.draw_pile = ["Strike_P"] * 5
+        engine.state.hand = []
+
+        # Neutral → Calm (should NOT draw)
+        engine._change_stance(StanceID.CALM)
+        assert len(engine.state.hand) == 0
+
+        # Calm → Divinity (should NOT draw)
+        engine._change_stance(StanceID.DIVINITY)
+        assert len(engine.state.hand) == 0
+
+        # Divinity → Wrath (should draw 2)
+        engine._change_stance(StanceID.WRATH)
+        assert len(engine.state.hand) == 2
+
+    def test_divinity_turn_cycle_with_mental_fortress(self):
+        """
+        Test complete turn cycle with Divinity:
+        1. Enter Divinity (gain 3 energy)
+        2. Play cards in Divinity (3x damage)
+        3. End turn (Divinity persists through enemy turn)
+        4. Start next turn (Divinity auto-exits, Mental Fortress triggers)
+        """
+        engine = make_engine(
+            stance="Neutral",
+            energy=3,
+            player_statuses={"MentalFortress": 6},
+            enemy_damage=10,
+            player_hp=80,
+        )
+
+        # Enter Divinity
+        engine._change_stance(StanceID.DIVINITY)
+        assert engine.state.stance == "Divinity"
+        assert engine.state.energy == 6  # 3 + 3
+
+        # End turn (Divinity should persist)
+        engine.state.hand = []
+        engine.end_turn()
+
+        # After turn cycle, should be in Neutral with Mental Fortress block
+        assert engine.state.stance == "Neutral"
+        assert engine.state.player.block >= 6  # Mental Fortress from auto-exit
+
+    def test_violet_lotus_with_multiple_calm_exits(self):
+        """Test Violet Lotus gives +3 energy for each Calm exit."""
+        engine = make_engine(
+            stance="Neutral",
+            energy=3,
+            relics=["Violet Lotus"],
+        )
+
+        # First Calm cycle
+        engine._change_stance(StanceID.CALM)
+        engine._change_stance(StanceID.NEUTRAL)
+        assert engine.state.energy == 6  # 3 + 3
+
+        # Second Calm cycle
+        engine._change_stance(StanceID.CALM)
+        engine._change_stance(StanceID.NEUTRAL)
+        assert engine.state.energy == 9  # 6 + 3
+
+    def test_wrath_damage_multiplier_exact_value(self):
+        """Verify Wrath multiplier is exactly 2.0, not 2.01 or 1.99."""
+        sm = StanceManager()
+        sm.change_stance(StanceID.WRATH)
+
+        # Test various base damage values
+        test_cases = [
+            (1, 2),
+            (5, 10),
+            (6, 12),
+            (10, 20),
+            (13, 26),
+        ]
+
+        for base, expected in test_cases:
+            result = sm.at_damage_give(base, "NORMAL")
+            assert result == expected, f"Wrath {base} → {result}, expected {expected}"
+
+    def test_divinity_damage_multiplier_exact_value(self):
+        """Verify Divinity multiplier is exactly 3.0."""
+        sm = StanceManager()
+        sm.change_stance(StanceID.DIVINITY)
+
+        test_cases = [
+            (1, 3),
+            (5, 15),
+            (6, 18),
+            (10, 30),
+            (13, 39),
+        ]
+
+        for base, expected in test_cases:
+            result = sm.at_damage_give(base, "NORMAL")
+            assert result == expected, f"Divinity {base} → {result}, expected {expected}"
+
+    def test_hp_loss_damage_ignores_wrath(self):
+        """HP_LOSS damage should not be multiplied by Wrath."""
+        sm = StanceManager()
+        sm.change_stance(StanceID.WRATH)
+
+        # HP_LOSS type should return same value
+        assert sm.at_damage_give(10, "HP_LOSS") == 10
+        assert sm.at_damage_receive(10, "HP_LOSS") == 10
+
+        # NORMAL type should be 2x
+        assert sm.at_damage_give(10, "NORMAL") == 20
+        assert sm.at_damage_receive(10, "NORMAL") == 20

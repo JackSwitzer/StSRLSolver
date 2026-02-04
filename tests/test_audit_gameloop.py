@@ -130,10 +130,20 @@ class TestCombatRewards:
         assert runner.game_over or runner.run_state.floor > 0
 
     def test_reward_proceed_returns_to_map(self):
+        """Test proceeding from COMBAT_REWARDS goes back to MAP_NAVIGATION."""
+        from packages.engine.handlers.reward_handler import RewardHandler
         runner = make_runner(seed="RWDMAP")
-        reached = advance_to_phase(runner, GamePhase.COMBAT_REWARDS, max_steps=500)
-        if not reached:
-            pytest.skip("Could not reach COMBAT_REWARDS")
+        # Directly set up combat rewards phase (don't rely on random play)
+        runner.current_room_type = "monster"
+        runner.current_rewards = RewardHandler.generate_combat_rewards(
+            run_state=runner.run_state,
+            room_type="monster",
+            card_rng=runner.card_rng,
+            treasure_rng=runner.treasure_rng,
+            potion_rng=runner.potion_rng,
+            relic_rng=runner.relic_rng,
+        )
+        runner.phase = GamePhase.COMBAT_REWARDS
 
         # Skip all card rewards and proceed
         while runner.phase == GamePhase.COMBAT_REWARDS:
@@ -294,18 +304,19 @@ class TestShopFlow:
     """Test shop entry and purchase flow."""
 
     def test_shop_phase_transition(self):
+        """Test that entering shop sets up shop state correctly."""
         runner = make_runner(seed="SHOP1")
-        # Force shop entry
-        reached = advance_to_phase(runner, GamePhase.SHOP, max_steps=1000)
-        if not reached:
-            pytest.skip("Could not reach SHOP phase in random play")
+        # Directly enter shop (don't rely on random play)
+        runner._enter_shop()
+        assert runner.phase == GamePhase.SHOP
         assert runner.current_shop is not None
 
     def test_shop_leave_returns_to_map(self):
+        """Test that leaving shop returns to MAP_NAVIGATION."""
         runner = make_runner(seed="SHOP2")
-        reached = advance_to_phase(runner, GamePhase.SHOP, max_steps=1000)
-        if not reached:
-            pytest.skip("Could not reach SHOP phase")
+        # Directly enter shop (don't rely on random play)
+        runner._enter_shop()
+        assert runner.phase == GamePhase.SHOP
         runner.take_action(ShopAction(action_type="leave"))
         assert runner.phase == GamePhase.MAP_NAVIGATION
 
@@ -534,14 +545,24 @@ class TestGoldRewardRanges:
 
     def test_monster_gold_range(self):
         """Java: treasureRng.random(10, 20) for normal monsters."""
-        # Just verify the runner generates non-zero gold for combat
+        from packages.engine.handlers.reward_handler import RewardHandler
+        # Directly generate combat rewards (don't rely on random play)
         runner = make_runner(seed="GOLDTEST")
-        reached = advance_to_phase(runner, GamePhase.COMBAT_REWARDS, max_steps=500)
-        if not reached:
-            pytest.skip("Could not reach COMBAT_REWARDS")
-        if runner.current_rewards and runner.current_rewards.gold:
-            # Gold should be a reasonable positive number
-            assert runner.current_rewards.gold.amount > 0
+        runner.current_room_type = "monster"
+        runner.current_rewards = RewardHandler.generate_combat_rewards(
+            run_state=runner.run_state,
+            room_type="monster",
+            card_rng=runner.card_rng,
+            treasure_rng=runner.treasure_rng,
+            potion_rng=runner.potion_rng,
+            relic_rng=runner.relic_rng,
+        )
+        runner.phase = GamePhase.COMBAT_REWARDS
+
+        assert runner.current_rewards is not None
+        assert runner.current_rewards.gold is not None
+        # Gold should be a reasonable positive number (Java: 10-20 base)
+        assert runner.current_rewards.gold.amount > 0
 
 
 # =============================================================================

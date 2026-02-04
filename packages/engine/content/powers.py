@@ -127,6 +127,10 @@ class Power:
 
     def should_remove(self) -> bool:
         """Check if power should be removed (0 stacks and can't go negative)."""
+        # Special case: Dexterity/Strength are removed at exactly 0 in Java
+        # even though can_go_negative=True
+        if self.id in ("Strength", "Dexterity") and self.amount == 0:
+            return True
         return self.amount <= 0 and not self.can_go_negative
 
 
@@ -211,6 +215,7 @@ POWER_DATA = {
         "name": "Lock-On",
         "type": PowerType.DEBUFF,
         "is_turn_based": True,
+        "uses_just_applied": True,  # Added for Java parity - skips first decrement when monster-applied
         "mechanics": {
             "orb_damage": "damage * 1.5",
             "at_end_of_round": "decrement by 1",
@@ -251,12 +256,13 @@ POWER_DATA = {
         "name": "Draw Down",
         "type": PowerType.DEBUFF,
         "is_turn_based": True,
+        "always_just_applied": True,  # Java: private boolean justApplied = true;
         "mechanics": {
             "on_initial_application": "gameHandSize -= 1",
             "on_remove": "gameHandSize += 1",
             "at_end_of_round": "decrement by 1",
         },
-        "notes": "Draw 1 fewer card. Directly modifies gameHandSize."
+        "notes": "Draw 1 fewer card. Directly modifies gameHandSize. Always skips first decrement."
     },
 
     # =========== COMMON BUFFS ===========
@@ -303,11 +309,23 @@ POWER_DATA = {
         "type": PowerType.BUFF,
         "is_turn_based": True,
         "priority": 75,
+        "uses_just_applied": True,  # Java: justApplied = true when monster applies to self
         "mechanics": {
             "at_damage_receive_final": "if damage > 1, return 1",
             "at_end_of_turn": "decrement by 1",
         },
-        "notes": "All damage reduced to 1. Priority 75 = applies late."
+        "notes": "Monster version. All damage reduced to 1. Decrements at end of turn."
+    },
+    "IntangiblePlayer": {
+        "name": "Intangible",
+        "type": PowerType.BUFF,
+        "is_turn_based": True,
+        "priority": 75,
+        "mechanics": {
+            "at_damage_receive_final": "if damage > 1, return 1",
+            "at_end_of_round": "decrement by 1",
+        },
+        "notes": "Player version. All damage reduced to 1. Decrements at end of round."
     },
     "Plated Armor": {
         "name": "Plated Armor",
@@ -357,6 +375,7 @@ POWER_DATA = {
         "type": PowerType.BUFF,
         "is_turn_based": True,
         "priority": 6,
+        "uses_just_applied": True,  # Java: justApplied = isSourceMonster (skips first decrement when monster-applied)
         "mechanics": {
             "at_damage_give": "damage * 2.0 (NORMAL only)",
             "at_end_of_round": "decrement by 1",
@@ -689,6 +708,56 @@ POWER_DATA = {
         "notes": "Thieves. Steal gold on hit."
     },
 
+    # =========== IRONCLAD TURN-BASED POWERS ===========
+    "Regeneration": {
+        "name": "Regen",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "at_end_of_turn": "heal amount HP",
+        },
+        "notes": "Java RegenPower: heals at end of turn. Does NOT decrement."
+    },
+    "Combust": {
+        "name": "Combust",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "at_end_of_turn": "lose hpLoss HP, deal amount THORNS to all enemies",
+        },
+        "notes": "Ironclad. Self-damage + AoE thorns at end of turn."
+    },
+    "Brutality": {
+        "name": "Brutality",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "at_start_of_turn_post_draw": "draw amount cards, lose amount HP",
+        },
+        "notes": "Ironclad. Draw cards and lose HP at start of turn after draw."
+    },
+    "Feel No Pain": {
+        "name": "Feel No Pain",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "on_exhaust": "gain amount block",
+        },
+        "notes": "Ironclad. Gain block whenever a card is exhausted."
+    },
+    "Fire Breathing": {
+        "name": "Fire Breathing",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "on_card_draw": "if STATUS or CURSE card, deal amount THORNS to all enemies",
+        },
+        "notes": "Ironclad. Deal damage to all enemies when drawing Status/Curse."
+    },
+    "Thousand Cuts": {
+        "name": "Thousand Cuts",
+        "type": PowerType.BUFF,
+        "mechanics": {
+            "on_after_card_played": "deal amount THORNS to all enemies",
+        },
+        "notes": "Silent. Deal damage to all enemies after playing any card."
+    },
+
     # =========== IRONCLAD POWERS ===========
     "Corruption": {
         "name": "Corruption",
@@ -732,6 +801,14 @@ POWER_DATA = {
             "at_end_of_turn": "apply -amount Strength, then remove",
         },
         "notes": "Flex downside. Lose Strength at end of turn."
+    },
+    "LoseDexterity": {
+        "name": "Lose Dexterity",
+        "type": PowerType.DEBUFF,
+        "mechanics": {
+            "at_end_of_turn": "apply -amount Dexterity, then remove",
+        },
+        "notes": "Duality downside. Lose Dexterity at end of turn."
     },
     "Evolve": {
         "name": "Evolve",
@@ -959,6 +1036,21 @@ def create_power(
             amount=amount,
         )
 
+    # Determine just_applied flag:
+    # - Some powers (Draw Reduction, Intangible) always start with justApplied=True
+    # - Some powers (Lock-On, Double Damage) use justApplied when monster-applied (uses_just_applied)
+    # - Standard debuffs (Weak, Vuln, Frail) use justApplied when monster-applied
+    if data.get("always_just_applied", False):
+        just_applied = True
+    elif is_source_monster and data.get("uses_just_applied", False):
+        # Powers that explicitly opt-in to justApplied behavior when monster-applied
+        just_applied = True
+    elif is_source_monster and data.get("type") == PowerType.DEBUFF:
+        # Standard debuff behavior: skip first decrement when applied by monster
+        just_applied = True
+    else:
+        just_applied = False
+
     return Power(
         id=power_id,
         name=data.get("name", power_id),
@@ -968,7 +1060,7 @@ def create_power(
         can_go_negative=data.get("can_go_negative", False),
         stacks=data.get("stacks", True),
         priority=data.get("priority", 5),
-        just_applied=is_source_monster and data.get("type") == PowerType.DEBUFF,
+        just_applied=just_applied,
         max_amount=data.get("max_amount", 999),
         min_amount=data.get("min_amount", -999),
     )

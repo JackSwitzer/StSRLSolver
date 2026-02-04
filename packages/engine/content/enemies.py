@@ -4551,8 +4551,20 @@ class AwakenedOne(Enemy):
         phase2_hp = self.get_phase2_hp()
         self.state.max_hp = phase2_hp
         self.state.current_hp = phase2_hp
-        # Clear phase 1 powers (Curiosity, Unawakened, debuffs)
-        self.state.powers = {}
+        # Java removes only debuffs, Curiosity, Unawakened, and Shackled.
+        # All other buffs (Strength, Regenerate, etc.) are preserved.
+        _REBIRTH_ALWAYS_REMOVE = {"curiosity", "unawakened", "shackled"}
+        _REBIRTH_DEBUFF_KEYS = {
+            "weak", "vulnerable", "frail", "poison", "constricted",
+            "choked", "slow", "lock_on", "no_block", "entangled",
+            "no_draw", "draw_reduction", "flex", "bias",
+            "wraith_form", "hex", "mark",
+        }
+        keys_to_remove = _REBIRTH_ALWAYS_REMOVE | _REBIRTH_DEBUFF_KEYS
+        self.state.powers = {
+            k: v for k, v in self.state.powers.items()
+            if k not in keys_to_remove
+        }
 
     def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
@@ -4977,7 +4989,7 @@ class SpireShield(Enemy):
                                block=dmg["fortify_block"],
                                effects={"block_all_monsters": dmg["fortify_block"]})
         else:  # cycle_pos == 2
-            smash_block = 99 if self.ascension >= 18 else dmg["smash"]
+            smash_block = 99 if self.ascension >= 18 else (dmg["smash"] + self.state.strength)
             move = MoveInfo(self.SMASH, "Smash", Intent.ATTACK_DEFEND,
                            dmg["smash"], block=smash_block)
 

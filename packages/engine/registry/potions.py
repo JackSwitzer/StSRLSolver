@@ -77,12 +77,12 @@ def attack_potion(ctx: PotionContext) -> None:
     """Attack Potion: Discover an Attack card (costs 0 this turn).
     With Sacred Bark, add 2 copies instead of 1."""
     # This requires a Discovery action - for now, add a random attack to hand
-    from ..content.cards import ALL_CARDS, CardType
+    from ..content.cards import ALL_CARDS, CardType, CardColor
     import random
 
     attacks = [cid for cid, card in ALL_CARDS.items()
                if card.card_type == CardType.ATTACK
-               and card.player_class.value in ("WATCHER", "ALL")]
+               and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
 
     if attacks:
         chosen = random.choice(attacks)
@@ -96,12 +96,12 @@ def attack_potion(ctx: PotionContext) -> None:
 @potion_effect("SkillPotion")
 def skill_potion(ctx: PotionContext) -> None:
     """Skill Potion: Discover a Skill card (costs 0 this turn)."""
-    from ..content.cards import ALL_CARDS, CardType
+    from ..content.cards import ALL_CARDS, CardType, CardColor
     import random
 
     skills = [cid for cid, card in ALL_CARDS.items()
               if card.card_type == CardType.SKILL
-              and card.player_class.value in ("WATCHER", "ALL")]
+              and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
 
     if skills:
         chosen = random.choice(skills)
@@ -115,12 +115,12 @@ def skill_potion(ctx: PotionContext) -> None:
 @potion_effect("PowerPotion")
 def power_potion(ctx: PotionContext) -> None:
     """Power Potion: Discover a Power card (costs 0 this turn)."""
-    from ..content.cards import ALL_CARDS, CardType
+    from ..content.cards import ALL_CARDS, CardType, CardColor
     import random
 
     powers = [cid for cid, card in ALL_CARDS.items()
               if card.card_type == CardType.POWER
-              and card.player_class.value in ("WATCHER", "ALL")]
+              and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
 
     if powers:
         chosen = random.choice(powers)
@@ -134,12 +134,11 @@ def power_potion(ctx: PotionContext) -> None:
 @potion_effect("ColorlessPotion")
 def colorless_potion(ctx: PotionContext) -> None:
     """Colorless Potion: Discover a Colorless card (costs 0 this turn)."""
-    from ..content.cards import ALL_CARDS
-    from ..content.cards import PlayerClass as CardPlayerClass
+    from ..content.cards import ALL_CARDS, CardColor
     import random
 
     colorless = [cid for cid, card in ALL_CARDS.items()
-                 if card.player_class == CardPlayerClass.COLORLESS]
+                 if card.color == CardColor.COLORLESS]
 
     if colorless:
         chosen = random.choice(colorless)
@@ -392,14 +391,17 @@ def ambrosia(ctx: PotionContext) -> None:
     """Ambrosia (Watcher): Enter Divinity stance."""
     old_stance = ctx.state.stance
 
-    # Exit Calm bonus if applicable
+    # Exit Calm bonus if applicable (base 2, Violet Lotus adds +1 via relic trigger)
     if old_stance == "Calm":
-        energy_gain = 3 if ctx.has_relic("VioletLotus") else 2
-        ctx.gain_energy(energy_gain)
+        ctx.gain_energy(2)
 
     # Enter Divinity
     ctx.state.stance = "Divinity"
     ctx.gain_energy(3)  # Divinity grants +3 energy
+
+    # Execute relic triggers for stance change (Violet Lotus)
+    from . import execute_relic_triggers
+    execute_relic_triggers("onChangeStance", ctx.state, {"new_stance": "Divinity", "old_stance": old_stance})
 
     # Trigger Mental Fortress if applicable
     mental_fortress = ctx.player.statuses.get("MentalFortress", 0)

@@ -545,34 +545,28 @@ class TestCrossModuleIntegration:
 
     def test_map_generation_with_rng(self):
         """Map generation should use RNG correctly."""
-        try:
-            from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, RoomType
+        from packages.engine.generation.map import MapGenerator, MapGeneratorConfig, RoomType
+        from packages.engine.state.rng import Random
 
-            config = MapGeneratorConfig()
-            gen = MapGenerator(config)
+        config = MapGeneratorConfig()
 
-            # Try to determine the correct API by checking if seed is a parameter
-            import inspect
-            sig = inspect.signature(gen.generate)
-            params = list(sig.parameters.keys())
+        # MapGenerator takes RNG in constructor, generate() takes no args
+        rng1 = Random(42)
+        gen1 = MapGenerator(rng1, config)
+        map1 = gen1.generate()
 
-            if 'seed' in params:
-                map1 = gen.generate(seed=42, act=1)
-                map2 = gen.generate(seed=42, act=1)
-            elif 'act' in params:
-                # May only take act parameter
-                map1 = gen.generate(act=1)
-                map2 = gen.generate(act=1)
-            else:
-                map1 = gen.generate(42, 1)
-                map2 = gen.generate(42, 1)
+        rng2 = Random(42)
+        gen2 = MapGenerator(rng2, config)
+        map2 = gen2.generate()
 
-            # Same seed should produce same or similar map
-            assert map1 is not None
-            assert map2 is not None
-
-        except (ImportError, TypeError) as e:
-            pytest.skip(f"Map generation not available or API differs: {e}")
+        # Same seed should produce same map
+        assert map1 is not None
+        assert map2 is not None
+        # Verify determinism: same room types in same positions
+        assert len(map1) == len(map2)
+        for row1, row2 in zip(map1, map2):
+            for node1, node2 in zip(row1, row2):
+                assert node1.room_type == node2.room_type
 
     def test_reward_state_persists_across_floors(self):
         """Reward state should persist and affect subsequent rewards."""

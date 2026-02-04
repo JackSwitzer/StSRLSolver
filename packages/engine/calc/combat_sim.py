@@ -631,8 +631,10 @@ class CombatSimulator:
 
         # Exit effects
         if old_stance == StanceID.CALM:
-            # Gain energy
-            energy_gain = 3 if self._has_violet_lotus(state) else 2
+            # Gain 2 energy base, +1 if Violet Lotus
+            energy_gain = 2
+            if self._has_violet_lotus(state):
+                energy_gain += 1
             state.energy += energy_gain
 
         # Enter effects

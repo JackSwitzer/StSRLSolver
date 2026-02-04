@@ -414,12 +414,14 @@ class EffectContext:
         if old_stance == new_stance:
             return result
 
+        # Track state energy before relic triggers
+        energy_before_relics = self.state.energy
+
         # Exit current stance
         if old_stance == "Calm":
-            # Gain 2 energy (3 with Violet Lotus)
-            energy_gain = 3 if self.state.has_relic("VioletLotus") else 2
-            self.gain_energy(energy_gain)
-            result["energy_gained"] += energy_gain
+            # Gain 2 energy base (Violet Lotus adds +1 via relic trigger)
+            self.gain_energy(2)
+            result["energy_gained"] += 2
 
         # Enter new stance
         self.state.stance = new_stance
@@ -429,6 +431,20 @@ class EffectContext:
             # Gain 3 energy on entering Divinity
             self.gain_energy(3)
             result["energy_gained"] += 3
+
+        # Execute relic triggers for stance change (Violet Lotus)
+        from ..registry import execute_relic_triggers
+        execute_relic_triggers("onChangeStance", self.state, {"new_stance": new_stance, "old_stance": old_stance})
+
+        # Update result with any additional energy from relic triggers
+        # (RelicContext.gain_energy modifies state.energy but doesn't track it,
+        #  so we check the state energy difference)
+        energy_after_relics = self.state.energy
+        energy_from_relics = energy_after_relics - energy_before_relics - result["energy_gained"]
+        if energy_from_relics > 0:
+            result["energy_gained"] += energy_from_relics
+            # Also update our tracking to stay consistent
+            self.energy_gained += energy_from_relics
 
         # Trigger Mental Fortress (gain block on stance change)
         mental_fortress = self.get_player_status("MentalFortress")

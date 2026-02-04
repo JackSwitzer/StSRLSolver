@@ -439,6 +439,7 @@ class GameRNG:
     """
     seed: int
     floor: int = 0
+    act_num: int = 1
 
     # Persistent streams (seeded once at game start)
     monster_rng: Random = None
@@ -449,6 +450,7 @@ class GameRNG:
     treasure_rng: Random = None
     relic_rng: Random = None
     potion_rng: Random = None
+    neow_rng: Random = None
 
     # Per-floor streams (reseeded each floor with seed + floorNum)
     monster_hp_rng: Random = None
@@ -462,16 +464,29 @@ class GameRNG:
         self._init_persistent_streams()
         self._init_floor_streams()
 
+    @staticmethod
+    def _get_map_seed_offset(act_num: int) -> int:
+        """Get mapRng seed offset for a given act.
+
+        From Java decompilation:
+        - Exordium: seed + actNum (1)
+        - TheCity: seed + actNum * 100 (200)
+        - TheBeyond: seed + actNum * 200 (600)
+        - TheEnding: seed + actNum * 300 (1200)
+        """
+        return {1: 1, 2: 200, 3: 600, 4: 1200}.get(act_num, 0)
+
     def _init_persistent_streams(self):
         """Initialize streams that persist across floors."""
         self.monster_rng = Random(self.seed)
-        self.map_rng = Random(self.seed)
+        self.map_rng = Random(self.seed + self._get_map_seed_offset(self.act_num))
         self.event_rng = Random(self.seed)
         self.merchant_rng = Random(self.seed)
         self.card_rng = Random(self.seed)
         self.treasure_rng = Random(self.seed)
         self.relic_rng = Random(self.seed)
         self.potion_rng = Random(self.seed)
+        self.neow_rng = Random(self.seed)
 
     def _init_floor_streams(self):
         """Initialize/reseed per-floor streams."""
@@ -486,6 +501,11 @@ class GameRNG:
         """Called when entering a new floor."""
         self.floor += 1
         self._init_floor_streams()
+
+    def advance_act(self, new_act_num: int):
+        """Called when transitioning to a new act. Reseeds mapRng."""
+        self.act_num = new_act_num
+        self.map_rng = Random(self.seed + self._get_map_seed_offset(self.act_num))
 
     def get_counters(self) -> dict:
         """Get all counter values for save state."""

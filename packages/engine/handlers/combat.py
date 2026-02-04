@@ -274,9 +274,11 @@ class CombatRunner:
 
         # Gambling Chip - discard and redraw at combat start
         if self.state.has_relic("Gambling Chip"):
-            # For now, just mark that we have it
-            # In a real implementation, would need player input for which cards to discard
-            pass
+            # Discard entire hand and redraw same number
+            hand_size = len(self.state.hand)
+            self.state.discard_pile.extend(self.state.hand)
+            self.state.hand.clear()
+            self._draw_cards(hand_size)
 
         # Start first turn (without drawing since we already drew)
         self._start_player_turn(first_turn=True)
@@ -366,7 +368,7 @@ class CombatRunner:
         else:
             self.state.energy = self.state.max_energy
 
-        # Remove block (unless Barricade/Blur) - skip on first turn
+        # Remove block (unless Barricade/Blur/Calipers) - skip on first turn
         if not first_turn:
             if not self.state.player.statuses.get("Barricade", 0) > 0:
                 blur = self.state.player.statuses.get("Blur", 0)
@@ -375,12 +377,11 @@ class CombatRunner:
                     self.state.player.statuses["Blur"] = blur - 1
                     if self.state.player.statuses["Blur"] <= 0:
                         del self.state.player.statuses["Blur"]
+                elif self.state.has_relic("Calipers"):
+                    # Calipers - Lose only 15 block per turn (only when no Barricade/Blur)
+                    self.state.player.block = max(0, self.state.player.block - 15)
                 else:
                     self.state.player.block = 0
-
-            # Calipers - Lose only 15 block per turn
-            if self.state.has_relic("Calipers"):
-                self.state.player.block = max(0, self.state.player.block - 15)
 
         # Reset turn counters
         self.state.cards_played_this_turn = 0
@@ -785,12 +786,9 @@ class CombatRunner:
         if old_stance == new_stance:
             return  # No change
 
-        # Exit Calm - gain energy
+        # Exit Calm - gain 2 energy (Violet Lotus adds +1 via relic trigger)
         if old_stance == "Calm":
-            energy_gain = 2
-            if self.state.has_relic("VioletLotus"):
-                energy_gain = 3
-            self.state.energy += energy_gain
+            self.state.energy += 2
 
         # Enter Wrath/Calm/Divinity
         self.state.stance = new_stance
@@ -798,6 +796,9 @@ class CombatRunner:
         # Enter Divinity - gain energy
         if new_stance == "Divinity":
             self.state.energy += 3
+
+        # Execute onChangeStance relic triggers (Violet Lotus)
+        execute_relic_triggers("onChangeStance", self.state, {"new_stance": new_stance, "old_stance": old_stance})
 
         # Execute onChangeStance power triggers (Mental Fortress, Rushdown)
         execute_power_triggers("onChangeStance", self.state, self.state.player, {"new_stance": new_stance, "old_stance": old_stance})

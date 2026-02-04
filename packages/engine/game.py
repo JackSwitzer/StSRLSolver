@@ -672,8 +672,10 @@ class GameRunner:
         """Get available rest site actions."""
         actions = []
 
-        # Rest (heal)
-        actions.append(RestAction(action_type="rest"))
+        # Rest (heal) - blocked by Coffee Dripper or full HP
+        if not self.run_state.has_relic("Coffee Dripper"):
+            if self.run_state.current_hp < self.run_state.max_hp:
+                actions.append(RestAction(action_type="rest"))
 
         # Upgrade (if have upgradeable cards)
         upgradeable = self.run_state.get_upgradeable_cards()
@@ -689,6 +691,12 @@ class GameRunner:
             counter = self.run_state.get_relic_counter("Girya")
             if counter < 3:
                 actions.append(RestAction(action_type="lift"))
+
+        # Toke (if have Peace Pipe and have removable cards)
+        if self.run_state.has_relic("Peace Pipe"):
+            removable = self.run_state.get_removable_cards()
+            for idx, card in removable:
+                actions.append(RestAction(action_type="toke", card_index=idx))
 
         # Ruby key (if don't have it and in Act 3)
         if self.run_state.act == 3 and not self.run_state.has_ruby_key:
@@ -1294,6 +1302,25 @@ class GameRunner:
             self._log(f"Rested: healed {actual_heal} HP ({self.run_state.current_hp}/{self.run_state.max_hp})")
             result = {"healed": actual_heal}
 
+            # Dream Catcher: generate card reward after resting
+            if self.run_state.has_relic("Dream Catcher"):
+                from .generation.rewards import RewardState, generate_card_rewards
+                reward_state = RewardState()
+                cards = generate_card_rewards(
+                    self.card_rng, reward_state,
+                    act=self.run_state.act,
+                    player_class=self.run_state.character,
+                    ascension=self.run_state.ascension,
+                    room_type="normal",
+                    num_cards=3,
+                )
+                if cards:
+                    self._log(f"Dream Catcher: choose a card reward")
+                    # Store card choices and transition to a card reward selection
+                    # For now, auto-skip (full implementation would need a sub-phase)
+                    self._log(f"  Available: {[c.name for c in cards]}")
+                    result["dream_catcher_cards"] = [c.id for c in cards]
+
         elif action.action_type == "upgrade":
             if action.card_index >= 0:
                 card = self.run_state.deck[action.card_index]
@@ -1314,6 +1341,14 @@ class GameRunner:
             self.run_state.increment_relic_counter("Girya")
             self._log("Lifted with Girya (gained Strength)")
             result = {"lifted": True}
+
+        elif action.action_type == "toke":
+            # Peace Pipe: remove a card
+            if action.card_index >= 0 and action.card_index < len(self.run_state.deck):
+                removed = self.run_state.remove_card(action.card_index)
+                if removed:
+                    self._log(f"Toked (Peace Pipe): removed {removed.id}")
+                    result = {"toked": removed.id}
 
         self.phase = GamePhase.MAP_NAVIGATION
         return True, result
@@ -1686,6 +1721,12 @@ class GameRunner:
     def _enter_rest(self):
         """Enter a rest site."""
         self._log("Arrived at rest site")
+
+        # Eternal Feather: heal on entering rest site
+        healed = RestHandler.on_enter_rest_site(self.run_state)
+        if healed > 0:
+            self._log(f"Eternal Feather: healed {healed} HP ({self.run_state.current_hp}/{self.run_state.max_hp})")
+
         self.phase = GamePhase.REST
 
     def _enter_treasure(self):

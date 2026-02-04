@@ -409,13 +409,13 @@ class TestCalculateOutcomeValue:
     """The core rounding function incorrectly uses ceil for all negative percents.
     Different Java events use different rounding methods."""
 
-    def test_negative_percent_uses_ceil(self):
-        """Current behavior: negative percents use ceil (incorrect for some events)."""
+    def test_negative_percent_uses_truncate(self):
+        """Java uses (int) cast which truncates toward zero."""
         from packages.engine.content.events import Outcome
         o = Outcome(OutcomeType.HP_CHANGE, value_percent=-0.25)
-        # maxHP=73: ceil(73*0.25) = ceil(18.25) = 19
+        # maxHP=73: int(-73*0.25) = int(-18.25) = -18
         result = calculate_outcome_value(o, 73, 73)
-        assert result == -19  # Uses ceil
+        assert result == -18  # Java truncation
 
     def test_positive_percent_uses_int(self):
         """Positive percents use int() truncation."""
@@ -423,3 +423,712 @@ class TestCalculateOutcomeValue:
         o = Outcome(OutcomeType.HP_CHANGE, value_percent=0.25)
         result = calculate_outcome_value(o, 73, 73)
         assert result == 18  # int(18.25) = 18
+
+
+# ===========================================================================
+# BEHAVIOR TESTS - Event Handler Integration
+# ===========================================================================
+
+from packages.engine.handlers.event_handler import (
+    EventHandler,
+    EventState,
+    EventPhase,
+    EventChoiceResult,
+)
+from packages.engine.state.run import create_watcher_run, RunState
+from packages.engine.state.rng import Random
+
+
+class TestGoldenShrineHandlerBehavior:
+    """Behavior tests for Golden Shrine event handler."""
+
+    def test_pray_adds_gold_base(self):
+        """Praying at Golden Shrine adds 100 gold (below A15)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="GoldenShrine")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 100
+        assert run.gold == initial_gold + 100
+
+    def test_pray_adds_less_gold_a15(self):
+        """Praying at Golden Shrine adds 50 gold at A15+."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=15)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="GoldenShrine")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 50
+        assert run.gold == initial_gold + 50
+
+    def test_desecrate_adds_gold_and_curse(self):
+        """Desecrating adds 275 gold and Regret curse."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="GoldenShrine")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 275
+        assert run.gold == initial_gold + 275
+        assert "Regret" in result.cards_gained
+        assert len(run.deck) == initial_deck_size + 1
+        assert any(c.id == "Regret" for c in run.deck)
+
+    def test_leave_no_changes(self):
+        """Leaving the shrine makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="GoldenShrine")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 0
+        assert run.gold == initial_gold
+        assert len(run.deck) == initial_deck_size
+
+
+class TestBigFishHandlerBehavior:
+    """Behavior tests for Big Fish event handler."""
+
+    def test_banana_heals_33_percent(self):
+        """Banana heals 33% of max HP."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.damage(30)  # Take some damage first
+        initial_hp = run.current_hp
+
+        event_state = EventState(event_id="BigFish")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        expected_heal = int(run.max_hp * 0.33)
+        assert result.hp_change > 0
+        assert run.current_hp == min(initial_hp + expected_heal, run.max_hp)
+
+    def test_donut_increases_max_hp(self):
+        """Donut increases max HP by 5."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_max_hp = run.max_hp
+
+        event_state = EventState(event_id="BigFish")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert result.max_hp_change == 5
+        assert run.max_hp == initial_max_hp + 5
+
+    def test_box_gives_relic_and_regret(self):
+        """Box gives random relic and Regret curse."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_relic_count = len(run.relics)
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="BigFish")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert len(result.relics_gained) == 1
+        assert "Regret" in result.cards_gained
+        assert len(run.relics) == initial_relic_count + 1
+        assert any(c.id == "Regret" for c in run.deck)
+
+
+class TestVampiresHandlerBehavior:
+    """Behavior tests for Vampires event handler."""
+
+    def test_accept_removes_all_strikes(self):
+        """Accepting removes all Strike cards from deck."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Count strikes before
+        strikes_before = sum(1 for c in run.deck if c.id == "Strike_P")
+        assert strikes_before == 4  # Watcher starts with 4 strikes
+
+        event_state = EventState(event_id="Vampires")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        strikes_after = sum(1 for c in run.deck if c.id == "Strike_P")
+        assert strikes_after == 0
+        assert len(result.cards_removed) == 4
+
+    def test_accept_gains_five_bites(self):
+        """Accepting gives 5 Bite cards."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="Vampires")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        bites = sum(1 for c in run.deck if c.id == "Bite")
+        assert bites == 5
+        assert result.cards_gained.count("Bite") == 5
+
+    def test_accept_loses_30_percent_max_hp(self):
+        """Accepting loses 30% max HP."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_max_hp = run.max_hp
+
+        event_state = EventState(event_id="Vampires")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        expected_loss = int(initial_max_hp * 0.30)
+        assert result.max_hp_change < 0
+        assert run.max_hp == initial_max_hp - expected_loss
+
+    def test_refuse_triggers_combat(self):
+        """Refusing triggers combat against vampires."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="Vampires")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "Vampires"
+        assert result.event_complete is False
+
+
+class TestGhostsHandlerBehavior:
+    """Behavior tests for Ghosts (Council of Ghosts) event handler."""
+
+    def test_accept_loses_50_percent_max_hp(self):
+        """Accepting loses 50% of max HP."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_max_hp = run.max_hp
+
+        event_state = EventState(event_id="Ghosts")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        expected_loss = int(initial_max_hp * 0.50)
+        assert result.max_hp_change < 0
+        assert run.max_hp == initial_max_hp - expected_loss
+
+    def test_accept_gains_5_apparitions_below_a15(self):
+        """Accepting gains 5 Apparition cards below A15."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="Ghosts")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        apparitions = sum(1 for c in run.deck if c.id == "Apparition")
+        assert apparitions == 5
+        assert result.cards_gained.count("Apparition") == 5
+
+    def test_accept_gains_3_apparitions_a15(self):
+        """Accepting gains 3 Apparition cards at A15+."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=15)
+
+        event_state = EventState(event_id="Ghosts")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        apparitions = sum(1 for c in run.deck if c.id == "Apparition")
+        assert apparitions == 3
+        assert result.cards_gained.count("Apparition") == 3
+
+    def test_refuse_no_changes(self):
+        """Refusing makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_max_hp = run.max_hp
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="Ghosts")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert run.max_hp == initial_max_hp
+        assert len(run.deck) == initial_deck_size
+
+
+class TestMindBloomHandlerBehavior:
+    """Behavior tests for Mind Bloom event handler."""
+
+    def test_war_triggers_act1_boss_combat(self):
+        """'I am War' triggers combat against Act 1 boss."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "Act1Boss"
+        assert result.event_complete is False
+
+    def test_awake_upgrades_all_cards(self):
+        """'I am Awake' upgrades all upgradeable cards."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Count upgradeable cards before
+        upgradeable_before = sum(1 for c in run.deck if not c.upgraded)
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        # All upgradeable cards (except AscendersBane at A10+) should be upgraded
+        upgraded_count = sum(1 for c in run.deck if c.upgraded)
+        assert upgraded_count > 0
+
+    def test_awake_gives_mark_of_bloom(self):
+        """'I am Awake' gives Mark of the Bloom relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert "Mark of the Bloom" in result.relics_gained
+        assert run.has_relic("Mark of the Bloom")
+
+    def test_rich_gives_999_gold(self):
+        """'I am Rich' gives 999 gold."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 999
+        assert run.gold == initial_gold + 999
+
+    def test_rich_gives_two_normality_curses(self):
+        """'I am Rich' gives 2 Normality curses."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        normality_count = sum(1 for c in run.deck if c.id == "Normality")
+        assert normality_count == 2
+        assert result.cards_gained.count("Normality") == 2
+
+
+class TestFallingHandlerBehavior:
+    """Behavior tests for Falling event handler."""
+
+    def test_skill_choice_removes_skill(self):
+        """Choosing skill removes a random skill card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Add some skill cards to test
+        run.add_card("Meditate")
+        run.add_card("InnerPeace")
+
+        skills_before = sum(1 for c in run.deck if c.id in handler.SKILL_CARDS)
+
+        event_state = EventState(event_id="Falling")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        skills_after = sum(1 for c in run.deck if c.id in handler.SKILL_CARDS)
+        assert skills_after == skills_before - 1
+        assert len(result.cards_removed) == 1
+
+    def test_power_choice_removes_power(self):
+        """Choosing power removes a random power card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Add some power cards to test
+        run.add_card("Rushdown")
+        run.add_card("MentalFortress")
+
+        powers_before = sum(1 for c in run.deck if c.id in handler.POWER_CARDS)
+
+        event_state = EventState(event_id="Falling")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        powers_after = sum(1 for c in run.deck if c.id in handler.POWER_CARDS)
+        assert powers_after == powers_before - 1
+        assert len(result.cards_removed) == 1
+
+    def test_attack_choice_removes_attack(self):
+        """Choosing attack removes a random attack card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        attacks_before = sum(1 for c in run.deck if c.id in handler.ATTACK_CARDS)
+
+        event_state = EventState(event_id="Falling")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        attacks_after = sum(1 for c in run.deck if c.id in handler.ATTACK_CARDS)
+        assert attacks_after == attacks_before - 1
+        assert len(result.cards_removed) == 1
+
+
+class TestGoldenIdolHandlerBehavior:
+    """Behavior tests for Golden Idol multi-phase event handler."""
+
+    def test_take_gives_relic_and_secondary_phase(self):
+        """Taking the idol gives the relic and moves to escape phase."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="GoldenIdol")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert "GoldenIdol" in result.relics_gained
+        assert run.has_relic("GoldenIdol")
+        assert result.event_complete is False
+        assert event_state.phase == EventPhase.SECONDARY
+
+    def test_leave_no_changes(self):
+        """Leaving makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="GoldenIdol")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert len(run.relics) == initial_relic_count
+        assert result.event_complete is True
+
+    def test_escape_outrun_gives_injury(self):
+        """Outrun escape gives Injury curse."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # First take the idol
+        event_state = EventState(event_id="GoldenIdol")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+        handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Then escape via outrun
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert "Injury" in result.cards_gained
+        assert any(c.id == "Injury" for c in run.deck)
+
+    def test_escape_smash_deals_damage(self):
+        """Smash escape deals 25% max HP damage."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_hp = run.current_hp
+
+        # First take the idol
+        event_state = EventState(event_id="GoldenIdol")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+        handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Then escape via smash
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        expected_damage = int(run.max_hp * 0.25)
+        assert result.hp_change < 0
+        assert run.current_hp == initial_hp - expected_damage
+
+    def test_escape_hide_loses_max_hp(self):
+        """Hide escape loses 8% max HP."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_max_hp = run.max_hp
+
+        # First take the idol
+        event_state = EventState(event_id="GoldenIdol")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+        handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Then escape via hide
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        expected_loss = int(initial_max_hp * 0.08)
+        assert result.max_hp_change < 0
+        assert run.max_hp == initial_max_hp - expected_loss
+
+
+class TestScrapOozeHandlerBehavior:
+    """Behavior tests for Scrap Ooze event handler."""
+
+    def test_reach_deals_base_damage(self):
+        """Reaching in deals base damage (3 at A0-14, 5 at A15+)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_hp = run.current_hp
+
+        event_state = EventState(event_id="ScrapOoze")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Base damage is 3 below A15
+        assert result.hp_change == -3
+        assert run.current_hp == initial_hp - 3
+
+    def test_reach_damage_escalates(self):
+        """Each attempt increases damage by 1."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        event_state = EventState(event_id="ScrapOoze")
+        event_state.attempt_count = 3  # Simulate 3 previous attempts
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Damage is 3 (base) + 3 (attempts) = 6
+        assert result.hp_change == -6
+
+    def test_leave_no_damage(self):
+        """Leaving takes no damage."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_hp = run.current_hp
+
+        event_state = EventState(event_id="ScrapOoze")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert result.hp_change == 0
+        assert run.current_hp == initial_hp
+
+
+class TestLivingWallHandlerBehavior:
+    """Behavior tests for Living Wall event handler."""
+
+    def test_forget_removes_card(self):
+        """Forget option removes the selected card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="LivingWall")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        # Select a card to remove (index 0)
+        result = handler.execute_choice(event_state, 0, run, event_rng, card_idx=0, misc_rng=misc_rng)
+
+        assert len(run.deck) == initial_deck_size - 1
+        assert len(result.cards_removed) == 1
+
+    def test_change_transforms_card(self):
+        """Change option transforms the selected card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_deck_size = len(run.deck)
+        card_to_transform = run.deck[0].id
+
+        event_state = EventState(event_id="LivingWall")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, card_idx=0, misc_rng=misc_rng)
+
+        assert len(run.deck) == initial_deck_size  # Same size (one removed, one added)
+        assert len(result.cards_transformed) == 1
+        assert result.cards_transformed[0][0] == card_to_transform
+
+    def test_grow_upgrades_card(self):
+        """Grow option upgrades the selected card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Find an upgradeable card
+        upgradeable_idx = None
+        for i, c in enumerate(run.deck):
+            if not c.upgraded:
+                upgradeable_idx = i
+                break
+        assert upgradeable_idx is not None
+
+        event_state = EventState(event_id="LivingWall")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, card_idx=upgradeable_idx, misc_rng=misc_rng)
+
+        assert len(result.cards_upgraded) == 1
+        assert run.deck[upgradeable_idx].upgraded is True
+
+
+class TestMarkOfTheBloomPreventsHealing:
+    """Test that Mark of the Bloom prevents healing in events."""
+
+    def test_big_fish_banana_no_heal_with_mark(self):
+        """Banana doesn't heal when Mark of the Bloom is active."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_relic("Mark of the Bloom")
+        run.damage(30)  # Take some damage
+        initial_hp = run.current_hp
+
+        event_state = EventState(event_id="BigFish")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Mark of the Bloom prevents healing
+        assert run.current_hp == initial_hp
+
+
+class TestEctoplasmPreventsGoldGain:
+    """Test that Ectoplasm prevents gold gain in events."""
+
+    def test_golden_shrine_no_gold_with_ectoplasm(self):
+        """Praying doesn't give gold when Ectoplasm is active."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_relic("Ectoplasm")
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="GoldenShrine")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        # Ectoplasm prevents gold gain
+        assert run.gold == initial_gold
+
+
+class TestSssserpentHandlerBehavior:
+    """Behavior tests for Sssserpent event handler."""
+
+    def test_agree_gives_gold_and_doubt_curse(self):
+        """Agreeing gives gold and Doubt curse."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="Sssserpent")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 175
+        assert run.gold == initial_gold + 175
+        assert "Doubt" in result.cards_gained
+        assert any(c.id == "Doubt" for c in run.deck)
+
+    def test_agree_gives_less_gold_a15(self):
+        """Agreeing gives less gold at A15+."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=15)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="Sssserpent")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 150
+        assert run.gold == initial_gold + 150
+
+    def test_disagree_no_changes(self):
+        """Disagreeing makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="Sssserpent")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == initial_gold
+        assert len(run.deck) == initial_deck_size

@@ -20,11 +20,29 @@ from . import power_trigger, PowerContext
 def poison_start(ctx: PowerContext) -> None:
     """Poison: Deal damage and decrement at start of turn."""
     if ctx.owner and ctx.amount > 0:
+        damage = ctx.amount
+
+        # For player, apply Intangible and Tungsten Rod
+        if ctx.owner == ctx.player:
+            # Intangible caps HP loss to 1
+            if ctx.player.statuses.get("Intangible", 0) > 0 and damage > 1:
+                damage = 1
+            # Tungsten Rod reduces HP loss by 1
+            if ctx.state.has_relic("Tungsten Rod") and damage > 0:
+                damage = max(0, damage - 1)
+
         # Deal HP_LOSS damage (ignores block)
-        ctx.owner.hp -= ctx.amount
+        ctx.owner.hp -= damage
         if ctx.owner.hp < 0:
             ctx.owner.hp = 0
-        # Decrement
+
+        # Track damage for player
+        if ctx.owner == ctx.player:
+            ctx.state.total_damage_taken += damage
+        else:
+            ctx.state.total_damage_dealt += damage
+
+        # Decrement poison
         ctx.owner.statuses["Poison"] = ctx.amount - 1
         if ctx.owner.statuses["Poison"] <= 0:
             del ctx.owner.statuses["Poison"]
@@ -55,6 +73,114 @@ def next_turn_block_start(ctx: PowerContext) -> None:
     if ctx.amount > 0:
         ctx.gain_block(ctx.amount)
         del ctx.player.statuses["NextTurnBlock"]
+
+
+@power_trigger("atStartOfTurn", power="Foresight")
+def foresight_start(ctx: PowerContext) -> None:
+    """Foresight: Scry at start of turn."""
+    # Track scry count for the turn - combat engine handles actual scry UI
+    ctx.state.pending_scry = getattr(ctx.state, 'pending_scry', 0) + ctx.amount
+
+
+@power_trigger("atStartOfTurn", power="InfiniteBlades")
+def infinite_blades_start(ctx: PowerContext) -> None:
+    """Infinite Blades: Add Shiv(s) to hand at start of turn."""
+    for _ in range(ctx.amount):
+        ctx.add_card_to_hand("Shiv")
+
+
+@power_trigger("atStartOfTurn", power="BattleHymn")
+def battle_hymn_start(ctx: PowerContext) -> None:
+    """Battle Hymn: Add Smite(s) to hand at start of turn."""
+    for _ in range(ctx.amount):
+        ctx.add_card_to_hand("Smite")
+
+
+@power_trigger("atStartOfTurn", power="FlameBarrier")
+def flame_barrier_remove(ctx: PowerContext) -> None:
+    """Flame Barrier: Remove at start of turn."""
+    if "FlameBarrier" in ctx.player.statuses:
+        del ctx.player.statuses["FlameBarrier"]
+
+
+@power_trigger("atStartOfTurn", power="Mayhem")
+def mayhem_start(ctx: PowerContext) -> None:
+    """Mayhem: Play top card(s) of draw pile at start of turn."""
+    for _ in range(ctx.amount):
+        if ctx.state.draw_pile:
+            card = ctx.state.draw_pile.pop()
+            # Store cards to auto-play - combat engine handles actual play
+            if not hasattr(ctx.state, 'cards_to_auto_play'):
+                ctx.state.cards_to_auto_play = []
+            ctx.state.cards_to_auto_play.append(card)
+
+
+@power_trigger("atStartOfTurn", power="Magnetism")
+def magnetism_start(ctx: PowerContext) -> None:
+    """Magnetism: Add random colorless card to hand at start of turn."""
+    import random
+    from ..content.cards import ALL_CARDS, CardColor
+    colorless_cards = [
+        cid for cid, c in ALL_CARDS.items()
+        if hasattr(c, 'color') and c.color == CardColor.COLORLESS
+    ]
+    for _ in range(ctx.amount):
+        if colorless_cards and len(ctx.state.hand) < 10:
+            ctx.state.hand.append(random.choice(colorless_cards))
+
+
+@power_trigger("atStartOfTurn", power="CreativeAI")
+def creative_ai_start(ctx: PowerContext) -> None:
+    """Creative AI: Add random Power card to hand at start of turn."""
+    import random
+    from ..content.cards import ALL_CARDS, CardType
+    power_cards = [
+        cid for cid, c in ALL_CARDS.items()
+        if c.card_type == CardType.POWER
+    ]
+    for _ in range(ctx.amount):
+        if power_cards and len(ctx.state.hand) < 10:
+            ctx.state.hand.append(random.choice(power_cards))
+
+
+# =============================================================================
+# AT_START_OF_TURN_POST_DRAW Triggers (after draw)
+# =============================================================================
+
+@power_trigger("atStartOfTurnPostDraw", power="DemonForm")
+def demon_form_start(ctx: PowerContext) -> None:
+    """Demon Form: Gain Strength at start of turn (after draw)."""
+    ctx.apply_power_to_player("Strength", ctx.amount)
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Brutality")
+def brutality_start(ctx: PowerContext) -> None:
+    """Brutality: Draw cards and lose HP at start of turn (after draw)."""
+    ctx.draw_cards(ctx.amount)
+    ctx.player.hp -= ctx.amount
+    if ctx.player.hp < 0:
+        ctx.player.hp = 0
+
+
+@power_trigger("atStartOfTurnPostDraw", power="NoxiousFumes")
+def noxious_fumes_start(ctx: PowerContext) -> None:
+    """Noxious Fumes: Apply Poison to all enemies at start of turn."""
+    ctx.apply_power_to_all_enemies("Poison", ctx.amount)
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Devotion")
+def devotion_start(ctx: PowerContext) -> None:
+    """Devotion: Gain Mantra at start of turn."""
+    current_mantra = ctx.player.statuses.get("Mantra", 0)
+    new_mantra = current_mantra + ctx.amount
+    if new_mantra >= 10:
+        # Enter Divinity
+        ctx.state.stance = "Divinity"
+        ctx.player.statuses["Mantra"] = new_mantra - 10
+        if ctx.player.statuses["Mantra"] <= 0:
+            del ctx.player.statuses["Mantra"]
+    else:
+        ctx.player.statuses["Mantra"] = new_mantra
 
 
 # =============================================================================
@@ -138,6 +264,47 @@ def intangible_end(ctx: PowerContext) -> None:
             del ctx.player.statuses["Intangible"]
 
 
+@power_trigger("atEndOfTurn", power="Study")
+def study_end(ctx: PowerContext) -> None:
+    """Study: Shuffle Insight into draw pile at end of turn."""
+    import random
+    for _ in range(ctx.amount):
+        ctx.state.draw_pile.append("Insight")
+    # Shuffle to random position
+    random.shuffle(ctx.state.draw_pile)
+
+
+@power_trigger("atEndOfTurn", power="WraithFormPower")
+def wraith_form_end(ctx: PowerContext) -> None:
+    """Wraith Form: Lose Dexterity at end of turn."""
+    current_dex = ctx.player.statuses.get("Dexterity", 0)
+    ctx.player.statuses["Dexterity"] = current_dex - ctx.amount
+    # Remove at 0
+    if ctx.player.statuses["Dexterity"] == 0:
+        del ctx.player.statuses["Dexterity"]
+
+
+@power_trigger("atEndOfTurn", power="Omega")
+def omega_end(ctx: PowerContext) -> None:
+    """Omega: Deal damage to all enemies at end of turn."""
+    for enemy in ctx.living_enemies:
+        # THORNS type damage
+        blocked = min(enemy.block, ctx.amount)
+        enemy.block -= blocked
+        enemy.hp -= (ctx.amount - blocked)
+        if enemy.hp < 0:
+            enemy.hp = 0
+
+
+@power_trigger("atEndOfTurn", power="Bias")
+def bias_end(ctx: PowerContext) -> None:
+    """Bias: Lose Focus at start of turn (processed at end of prev turn)."""
+    current_focus = ctx.player.statuses.get("Focus", 0)
+    ctx.player.statuses["Focus"] = current_focus - ctx.amount
+    if ctx.player.statuses["Focus"] == 0:
+        del ctx.player.statuses["Focus"]
+
+
 # =============================================================================
 # AT_END_OF_ROUND Triggers (after all turns)
 # =============================================================================
@@ -204,6 +371,43 @@ def duplication_on_use(ctx: PowerContext) -> None:
             del ctx.player.statuses["Duplication"]
 
 
+@power_trigger("onUseCard", power="Panache")
+def panache_on_use(ctx: PowerContext) -> None:
+    """Panache: Deal 10 damage to all enemies after playing 5 cards."""
+    counter = ctx.player.statuses.get("PanacheCounter", 0) + 1
+    if counter >= 5:
+        # Deal 10 damage to all enemies (THORNS type, bypasses Strength)
+        for enemy in ctx.living_enemies:
+            blocked = min(enemy.block, 10)
+            enemy.block -= blocked
+            enemy.hp -= (10 - blocked)
+            if enemy.hp < 0:
+                enemy.hp = 0
+        counter = 0
+    ctx.player.statuses["PanacheCounter"] = counter
+
+
+@power_trigger("onUseCard", power="ThousandCuts")
+def thousand_cuts_on_use(ctx: PowerContext) -> None:
+    """Thousand Cuts: Deal damage to all enemies when playing any card."""
+    for enemy in ctx.living_enemies:
+        # THORNS type damage
+        blocked = min(enemy.block, ctx.amount)
+        enemy.block -= blocked
+        enemy.hp -= (ctx.amount - blocked)
+        if enemy.hp < 0:
+            enemy.hp = 0
+
+
+@power_trigger("onUseCard", power="Heatsink")
+def heatsink_on_use(ctx: PowerContext) -> None:
+    """Heatsink: Draw cards when playing a Power card."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.POWER:
+        ctx.draw_cards(ctx.amount)
+
+
 # =============================================================================
 # ON_EXHAUST Triggers
 # =============================================================================
@@ -218,6 +422,35 @@ def dark_embrace_exhaust(ctx: PowerContext) -> None:
 def feel_no_pain_exhaust(ctx: PowerContext) -> None:
     """Feel No Pain: Gain Block when exhausting a card."""
     ctx.gain_block(ctx.amount)
+
+
+# =============================================================================
+# ON_CARD_DRAW Triggers
+# =============================================================================
+
+@power_trigger("onCardDraw", power="Evolve")
+def evolve_draw(ctx: PowerContext) -> None:
+    """Evolve: Draw card(s) when Status drawn."""
+    card_id = ctx.trigger_data.get("card_id", "")
+    from ..content.cards import ALL_CARDS, CardType
+    if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.STATUS:
+        ctx.draw_cards(ctx.amount)
+
+
+@power_trigger("onCardDraw", power="FireBreathing")
+def fire_breathing_draw(ctx: PowerContext) -> None:
+    """Fire Breathing: Deal damage to all enemies when drawing Status/Curse."""
+    card_id = ctx.trigger_data.get("card_id", "")
+    from ..content.cards import ALL_CARDS, CardType
+    if card_id in ALL_CARDS:
+        card_type = ALL_CARDS[card_id].card_type
+        if card_type in (CardType.STATUS, CardType.CURSE):
+            for enemy in ctx.living_enemies:
+                blocked = min(enemy.block, ctx.amount)
+                enemy.block -= blocked
+                enemy.hp -= (ctx.amount - blocked)
+                if enemy.hp < 0:
+                    enemy.hp = 0
 
 
 # =============================================================================
@@ -374,6 +607,21 @@ def thorns_on_attacked(ctx: PowerContext) -> None:
 
 
 # =============================================================================
+# ON_ATTACKED Triggers (when player is attacked)
+# =============================================================================
+
+@power_trigger("onAttacked", power="FlameBarrier")
+def flame_barrier_attacked(ctx: PowerContext) -> None:
+    """Flame Barrier: Deal damage back when attacked."""
+    attacker = ctx.trigger_data.get("attacker")
+    if attacker and hasattr(attacker, 'hp'):
+        # Flame Barrier deals THORNS damage (bypasses block)
+        attacker.hp -= ctx.amount
+        if attacker.hp < 0:
+            attacker.hp = 0
+
+
+# =============================================================================
 # ON_GAIN_BLOCK Triggers
 # =============================================================================
 
@@ -394,6 +642,26 @@ def juggernaut_gain_block(ctx: PowerContext) -> None:
 def wave_of_hand_gain_block(ctx: PowerContext) -> None:
     """Wave of the Hand: Apply Weak to all enemies when gaining block."""
     ctx.apply_power_to_all_enemies("Weakened", ctx.amount)
+
+
+# =============================================================================
+# ON_APPLY_POWER Triggers
+# =============================================================================
+
+@power_trigger("onApplyPower", power="SadisticNature")
+def sadistic_nature_apply(ctx: PowerContext) -> None:
+    """Sadistic Nature: Deal damage when applying a debuff to an enemy."""
+    power_id = ctx.trigger_data.get("power_id")
+    target = ctx.trigger_data.get("target")
+    # Debuffs that trigger Sadistic Nature
+    debuffs = {"Weakened", "Vulnerable", "Frail", "Poison", "Slow", "Choked"}
+    if power_id in debuffs and target and hasattr(target, 'hp') and target != ctx.player:
+        # Deal THORNS damage
+        blocked = min(target.block, ctx.amount)
+        target.block -= blocked
+        target.hp -= (ctx.amount - blocked)
+        if target.hp < 0:
+            target.hp = 0
 
 
 # =============================================================================

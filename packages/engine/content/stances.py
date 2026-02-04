@@ -5,7 +5,7 @@ Stances:
 - Neutral: No effects (default)
 - Calm: +2 energy on exit (Violet Lotus: +3)
 - Wrath: 2x damage dealt AND received
-- Divinity: 3x damage dealt, +3 energy on enter, exits at end of turn
+- Divinity: 3x damage dealt, +3 energy on enter, exits at start of next turn
 
 From decompiled WrathStance.java:
     public float atDamageGive(float damage, DamageType type) {
@@ -175,7 +175,15 @@ class StanceManager:
         """
         Called at end of turn.
 
-        Handles Divinity auto-exit.
+        Divinity no longer exits here (moved to on_turn_start per Java).
+        """
+        return {}
+
+    def on_turn_start(self) -> dict:
+        """
+        Called at start of turn.
+
+        Handles Divinity auto-exit (Java: DivinityStance.atStartOfTurn).
         """
         result = {}
         if self.current == StanceID.DIVINITY:

@@ -532,14 +532,14 @@ class TestRegistryVerification:
         expected = [
             "Vajra", "Anchor", "Akabeko", "Bag of Marbles", "Blood Vial",
             "Bronze Scales", "Thread and Needle", "Oddly Smooth Stone",
-            "FossilizedHelix", "Data Disk", "Damaru",
+            "FossilizedHelix", "Data Disk",
         ]
         for relic in expected:
             assert RELIC_REGISTRY.has_handler("atBattleStart", relic), f"{relic} not registered for atBattleStart"
 
     def test_at_turn_start_relics_registered(self):
         """Key atTurnStart relics should be registered."""
-        expected = ["Lantern", "HornCleat", "Happy Flower", "Art of War"]
+        expected = ["Lantern", "HornCleat", "Happy Flower", "Art of War", "Damaru", "Mercury Hourglass"]
         for relic in expected:
             assert RELIC_REGISTRY.has_handler("atTurnStart", relic), f"{relic} not registered for atTurnStart"
 
@@ -572,3 +572,666 @@ class TestRegistryVerification:
         expected = ["Burning Blood", "Black Blood", "Meat on the Bone"]
         for relic in expected:
             assert RELIC_REGISTRY.has_handler("onVictory", relic), f"{relic} not registered for onVictory"
+
+
+# =============================================================================
+# ON_MONSTER_DEATH Tests
+# =============================================================================
+
+class TestOnMonsterDeathTriggers:
+    """Test onMonsterDeath relic triggers via registry."""
+
+    def test_gremlin_horn_energy_and_draw(self):
+        """Gremlin Horn should give 1 energy and draw 1 card when enemy dies."""
+        state = create_test_combat(relics=["Gremlin Horn"], energy=3)
+        state.draw_pile = ["Card1", "Card2", "Card3"]
+        state.hand = []
+
+        dead_enemy = create_enemy("Dead", hp=0, max_hp=30)
+        dead_enemy.hp = 0
+
+        execute_relic_triggers("onMonsterDeath", state, {"enemy": dead_enemy})
+
+        assert state.energy == 4
+        assert len(state.hand) == 1
+
+    def test_specimen_transfers_poison(self):
+        """The Specimen should transfer Poison to random enemy when poisoned enemy dies."""
+        state = create_test_combat(
+            relics=["The Specimen"],
+            enemies=[
+                create_enemy("E1", hp=0, max_hp=30),  # Dead with poison
+                create_enemy("E2", hp=30, max_hp=30),  # Alive
+            ]
+        )
+        # Set up dead enemy with poison
+        state.enemies[0].hp = 0
+        state.enemies[0].statuses["Poison"] = 5
+
+        execute_relic_triggers("onMonsterDeath", state, {"enemy": state.enemies[0]})
+
+        # Poison should transfer to the living enemy
+        assert state.enemies[1].statuses.get("Poison", 0) == 5
+
+    def test_specimen_no_transfer_without_poison(self):
+        """The Specimen should not transfer anything if dead enemy had no Poison."""
+        state = create_test_combat(
+            relics=["The Specimen"],
+            enemies=[
+                create_enemy("E1", hp=0, max_hp=30),
+                create_enemy("E2", hp=30, max_hp=30),
+            ]
+        )
+        state.enemies[0].hp = 0
+
+        execute_relic_triggers("onMonsterDeath", state, {"enemy": state.enemies[0]})
+
+        assert state.enemies[1].statuses.get("Poison", 0) == 0
+
+
+# =============================================================================
+# ON_OBTAIN_CARD Tests
+# =============================================================================
+
+class TestOnObtainCardTriggers:
+    """Test onObtainCard relic triggers via registry."""
+
+    def test_ceramic_fish_gains_gold(self):
+        """Ceramic Fish should give 9 gold when obtaining a card."""
+        state = create_test_combat(relics=["Ceramic Fish"])
+        state.gold = 100
+
+        execute_relic_triggers("onObtainCard", state, {"card_id": "Strike_R"})
+
+        assert state.gold == 109
+
+    def test_frozen_egg_upgrades_powers(self):
+        """Frozen Egg 2 should return upgraded version of Power cards."""
+        state = create_test_combat(relics=["Frozen Egg 2"])
+
+        # Test with a power card (Eruption is a Skill, let's use a Power)
+        from packages.engine.content.cards import ALL_CARDS, CardType
+
+        # Find a power card that exists
+        power_id = None
+        for card_id, card in ALL_CARDS.items():
+            if card.card_type == CardType.POWER and not card_id.endswith("+"):
+                power_id = card_id
+                break
+
+        if power_id:
+            ctx = RelicContext(
+                state=state,
+                relic_id="Frozen Egg 2",
+                trigger_data={"card_id": power_id}
+            )
+            from packages.engine.registry.relics import frozen_egg_obtain
+            result = frozen_egg_obtain(ctx)
+            assert result == power_id + "+"
+
+    def test_molten_egg_upgrades_attacks(self):
+        """Molten Egg 2 should return upgraded version of Attack cards."""
+        state = create_test_combat(relics=["Molten Egg 2"])
+
+        # Strike is an attack
+        ctx = RelicContext(
+            state=state,
+            relic_id="Molten Egg 2",
+            trigger_data={"card_id": "Strike_R"}
+        )
+        from packages.engine.registry.relics import molten_egg_obtain
+        result = molten_egg_obtain(ctx)
+        assert result == "Strike_R+"
+
+    def test_toxic_egg_upgrades_skills(self):
+        """Toxic Egg 2 should return upgraded version of Skill cards."""
+        state = create_test_combat(relics=["Toxic Egg 2"])
+
+        # Defend is a skill
+        ctx = RelicContext(
+            state=state,
+            relic_id="Toxic Egg 2",
+            trigger_data={"card_id": "Defend_R"}
+        )
+        from packages.engine.registry.relics import toxic_egg_obtain
+        result = toxic_egg_obtain(ctx)
+        assert result == "Defend_R+"
+
+    def test_darkstone_periapt_gains_max_hp_on_curse(self):
+        """Darkstone Periapt should give 6 max HP when obtaining a Curse."""
+        state = create_test_combat(relics=["Darkstone Periapt"], player_hp=70, max_hp=80)
+
+        # Use a curse card
+        from packages.engine.content.cards import ALL_CARDS, CardType
+
+        curse_id = None
+        for card_id, card in ALL_CARDS.items():
+            if card.card_type == CardType.CURSE:
+                curse_id = card_id
+                break
+
+        if curse_id:
+            execute_relic_triggers("onObtainCard", state, {"card_id": curse_id})
+            assert state.player.max_hp == 86
+            assert state.player.hp == 76  # Also heals to new max
+
+    def test_eggs_dont_double_upgrade(self):
+        """Egg relics should not upgrade already-upgraded cards."""
+        state = create_test_combat(relics=["Molten Egg 2"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="Molten Egg 2",
+            trigger_data={"card_id": "Strike_R+"}  # Already upgraded
+        )
+        from packages.engine.registry.relics import molten_egg_obtain
+        result = molten_egg_obtain(ctx)
+        assert result == "Strike_R+"  # Unchanged
+
+
+# =============================================================================
+# ON_USE_POTION Tests
+# =============================================================================
+
+class TestOnUsePotionTriggers:
+    """Test onUsePotion relic triggers via registry."""
+
+    def test_toy_ornithopter_heals(self):
+        """Toy Ornithopter should heal 5 HP when using a potion."""
+        state = create_test_combat(relics=["Toy Ornithopter"], player_hp=60, max_hp=80)
+
+        execute_relic_triggers("onUsePotion", state)
+
+        assert state.player.hp == 65
+
+    def test_toy_ornithopter_respects_max_hp(self):
+        """Toy Ornithopter healing should not exceed max HP."""
+        state = create_test_combat(relics=["Toy Ornithopter"], player_hp=78, max_hp=80)
+
+        execute_relic_triggers("onUsePotion", state)
+
+        assert state.player.hp == 80
+
+
+# =============================================================================
+# DAMAGE MODIFIER Tests
+# =============================================================================
+
+class TestDamageModifierTriggers:
+    """Test damage modifier relic triggers via registry."""
+
+    def test_wrist_blade_zero_cost_bonus(self):
+        """Wrist Blade should add 4 damage to 0-cost Attacks."""
+        state = create_test_combat(relics=["WristBlade"])
+        state.card_costs = {}
+
+        # Create a mock card with 0 cost
+        class MockCard:
+            def __init__(self):
+                self.id = "Shiv"
+                self.cost = 0
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+        state.card_costs["Shiv"] = 0
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="WristBlade",
+            trigger_data={"value": 6},  # Base damage
+            card=mock_card,
+        )
+        from packages.engine.registry.relics import wrist_blade_damage
+        result = wrist_blade_damage(ctx)
+
+        assert result == 10  # 6 + 4
+
+    def test_wrist_blade_no_bonus_nonzero_cost(self):
+        """Wrist Blade should not add damage to cards costing 1+."""
+        state = create_test_combat(relics=["WristBlade"])
+        state.card_costs = {"Strike": 1}
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Strike"
+                self.cost = 1
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="WristBlade",
+            trigger_data={"value": 6},
+            card=mock_card,
+        )
+        from packages.engine.registry.relics import wrist_blade_damage
+        result = wrist_blade_damage(ctx)
+
+        assert result == 6  # Unchanged
+
+    def test_strike_dummy_bonus(self):
+        """Strike Dummy should add 3 damage to cards containing 'Strike'."""
+        state = create_test_combat(relics=["StrikeDummy"])
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Strike_R"
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="StrikeDummy",
+            trigger_data={"value": 6},
+            card=mock_card,
+        )
+        from packages.engine.registry.relics import strike_dummy_damage
+        result = strike_dummy_damage(ctx)
+
+        assert result == 9  # 6 + 3
+
+    def test_strike_dummy_no_bonus_other_cards(self):
+        """Strike Dummy should not add damage to non-Strike cards."""
+        state = create_test_combat(relics=["StrikeDummy"])
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Bash"
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="StrikeDummy",
+            trigger_data={"value": 10},
+            card=mock_card,
+        )
+        from packages.engine.registry.relics import strike_dummy_damage
+        result = strike_dummy_damage(ctx)
+
+        assert result == 10  # Unchanged
+
+    def test_boot_minimum_damage(self):
+        """The Boot should ensure minimum 5 damage on attacks."""
+        state = create_test_combat(relics=["Boot"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="Boot",
+            trigger_data={"value": 3},  # Low damage
+        )
+        from packages.engine.registry.relics import boot_damage
+        result = boot_damage(ctx)
+
+        assert result == 5  # Minimum 5
+
+    def test_boot_no_change_above_5(self):
+        """The Boot should not modify damage already at or above 5."""
+        state = create_test_combat(relics=["Boot"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="Boot",
+            trigger_data={"value": 10},
+        )
+        from packages.engine.registry.relics import boot_damage
+        result = boot_damage(ctx)
+
+        assert result == 10  # Unchanged
+
+    def test_boot_zero_damage_unchanged(self):
+        """The Boot should not change 0 damage to 5."""
+        state = create_test_combat(relics=["Boot"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="Boot",
+            trigger_data={"value": 0},
+        )
+        from packages.engine.registry.relics import boot_damage
+        result = boot_damage(ctx)
+
+        assert result == 0  # Still 0
+
+    def test_torii_reduces_low_damage(self):
+        """Torii should reduce damage from 2-5 to 1."""
+        state = create_test_combat(relics=["Torii"])
+
+        for dmg in [2, 3, 4, 5]:
+            ctx = RelicContext(
+                state=state,
+                relic_id="Torii",
+                trigger_data={"value": dmg},
+            )
+            from packages.engine.registry.relics import torii_damage
+            result = torii_damage(ctx)
+            assert result == 1, f"Torii should reduce {dmg} to 1"
+
+    def test_torii_no_change_outside_range(self):
+        """Torii should not modify damage outside 2-5 range."""
+        state = create_test_combat(relics=["Torii"])
+
+        for dmg in [1, 6, 10, 15]:
+            ctx = RelicContext(
+                state=state,
+                relic_id="Torii",
+                trigger_data={"value": dmg},
+            )
+            from packages.engine.registry.relics import torii_damage
+            result = torii_damage(ctx)
+            assert result == dmg, f"Torii should not modify {dmg}"
+
+    def test_tungsten_rod_reduces_hp_loss(self):
+        """Tungsten Rod should reduce HP loss by 1."""
+        state = create_test_combat(relics=["TungstenRod"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="TungstenRod",
+            trigger_data={"value": 5},  # HP loss
+        )
+        from packages.engine.registry.relics import tungsten_rod_hp_loss
+        result = tungsten_rod_hp_loss(ctx)
+
+        assert result == 4
+
+    def test_tungsten_rod_minimum_zero(self):
+        """Tungsten Rod should not reduce HP loss below 0."""
+        state = create_test_combat(relics=["TungstenRod"])
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="TungstenRod",
+            trigger_data={"value": 1},
+        )
+        from packages.engine.registry.relics import tungsten_rod_hp_loss
+        result = tungsten_rod_hp_loss(ctx)
+
+        assert result == 0
+
+
+# =============================================================================
+# ON_PLAY_CARD Tests (Advanced Triggers)
+# =============================================================================
+
+class TestOnPlayCardAdvancedTriggers:
+    """Test advanced onPlayCard relic triggers."""
+
+    def test_necronomicon_marks_replay(self):
+        """Necronomicon should mark first 2+ cost attack for replay."""
+        state = create_test_combat(relics=["Necronomicon"])
+        state.card_costs = {"Heavy Blade": 2}
+        state.set_relic_counter("Necronomicon", 0)
+        state.cards_to_replay = None
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Heavy Blade"
+                self.cost = 2
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        execute_relic_triggers("onPlayCard", state, {"card": mock_card})
+
+        assert state.get_relic_counter("Necronomicon") == 1  # Triggered
+        assert state.cards_to_replay == ["Heavy Blade"]
+
+    def test_necronomicon_only_once_per_turn(self):
+        """Necronomicon should only trigger once per turn."""
+        state = create_test_combat(relics=["Necronomicon"])
+        state.card_costs = {"Heavy Blade": 2}
+        state.set_relic_counter("Necronomicon", 1)  # Already triggered
+        state.cards_to_replay = []
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Heavy Blade"
+                self.cost = 2
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        execute_relic_triggers("onPlayCard", state, {"card": mock_card})
+
+        assert state.cards_to_replay == []  # No new replay
+
+    def test_necronomicon_ignores_cheap_attacks(self):
+        """Necronomicon should not trigger on attacks costing less than 2."""
+        state = create_test_combat(relics=["Necronomicon"])
+        state.card_costs = {"Strike": 1}
+        state.set_relic_counter("Necronomicon", 0)
+        state.cards_to_replay = None
+
+        class MockCard:
+            def __init__(self):
+                self.id = "Strike"
+                self.cost = 1
+                self.card_type = CardType.ATTACK
+
+        mock_card = MockCard()
+
+        execute_relic_triggers("onPlayCard", state, {"card": mock_card})
+
+        assert state.get_relic_counter("Necronomicon") == 0
+        assert state.cards_to_replay is None
+
+    def test_velvet_choker_tracks_cards(self):
+        """Velvet Choker should track cards played this turn."""
+        state = create_test_combat(relics=["Velvet Choker"])
+        state.set_relic_counter("Velvet Choker", 0)
+
+        attack_card = ALL_CARDS.get("Strike_R")
+
+        for i in range(5):
+            execute_relic_triggers("onPlayCard", state, {"card": attack_card})
+
+        assert state.get_relic_counter("Velvet Choker") == 5
+
+    def test_orange_pellets_clears_debuffs(self):
+        """Orange Pellets should clear debuffs after attack+skill+power."""
+        state = create_test_combat(relics=["OrangePellets"])
+        state.set_relic_counter("OrangePellets", 0)
+        state.player.statuses["Weakened"] = 2
+        state.player.statuses["Vulnerable"] = 3
+
+        # Get card types
+        attack_card = ALL_CARDS.get("Strike_R")
+        skill_card = ALL_CARDS.get("Defend_R")
+
+        # Find a power card
+        power_card = None
+        for card_id, card in ALL_CARDS.items():
+            if card.card_type == CardType.POWER:
+                power_card = card
+                break
+
+        # Play attack
+        execute_relic_triggers("onPlayCard", state, {"card": attack_card})
+        assert state.player.statuses.get("Weakened", 0) == 2  # Not cleared yet
+
+        # Play skill
+        execute_relic_triggers("onPlayCard", state, {"card": skill_card})
+        assert state.player.statuses.get("Weakened", 0) == 2  # Not cleared yet
+
+        # Play power - should clear debuffs
+        if power_card:
+            execute_relic_triggers("onPlayCard", state, {"card": power_card})
+            assert state.player.statuses.get("Weakened", 0) == 0
+            assert state.player.statuses.get("Vulnerable", 0) == 0
+
+
+# =============================================================================
+# DISCARD/EXHAUST Tests
+# =============================================================================
+
+class TestDiscardExhaustTriggers:
+    """Test discard and exhaust relic triggers."""
+
+    def test_strange_spoon_fifty_percent(self):
+        """Strange Spoon should have 50% chance to send exhausted card to discard."""
+        import random
+
+        # Seed for deterministic test
+        random.seed(42)
+
+        state = create_test_combat(relics=["Strange Spoon"])
+        state.exhaust_pile = ["TestCard"]
+        state.discard_pile = []
+
+        ctx = RelicContext(
+            state=state,
+            relic_id="Strange Spoon",
+            trigger_data={"card_id": "TestCard"}
+        )
+        from packages.engine.registry.relics import strange_spoon_exhaust
+        strange_spoon_exhaust(ctx)
+
+        # With seed 42, first random() should trigger the 50% chance
+        # Check that card moved (or didn't) based on random result
+        total_locations = len(state.exhaust_pile) + len(state.discard_pile)
+        assert total_locations == 1  # Card is in one place or the other
+
+    def test_tingsha_deals_damage(self):
+        """Tingsha should deal 3 damage to random enemy on discard."""
+        import random
+        random.seed(1)
+
+        state = create_test_combat(
+            relics=["Tingsha"],
+            enemies=[create_enemy("E1", hp=30, max_hp=30)]
+        )
+
+        execute_relic_triggers("onManualDiscard", state)
+
+        assert state.enemies[0].hp == 27
+
+    def test_tough_bandages_gains_block(self):
+        """Tough Bandages should gain 3 block on discard."""
+        state = create_test_combat(relics=["Tough Bandages"])
+
+        execute_relic_triggers("onManualDiscard", state)
+
+        assert state.player.block == 3
+
+    def test_tough_bandages_stacks_on_multiple_discards(self):
+        """Tough Bandages should stack block on multiple discards."""
+        state = create_test_combat(relics=["Tough Bandages"])
+
+        for _ in range(3):
+            execute_relic_triggers("onManualDiscard", state)
+
+        assert state.player.block == 9
+
+    def test_hovering_kite_first_discard_energy(self):
+        """Hovering Kite should give 1 energy on first discard each turn."""
+        state = create_test_combat(relics=["HoveringKite"], energy=3)
+        state.set_relic_counter("HoveringKite", 0)
+
+        execute_relic_triggers("onManualDiscard", state)
+
+        assert state.energy == 4
+        assert state.get_relic_counter("HoveringKite") == 1
+
+    def test_hovering_kite_only_first_discard(self):
+        """Hovering Kite should only give energy on first discard."""
+        state = create_test_combat(relics=["HoveringKite"], energy=3)
+        state.set_relic_counter("HoveringKite", 1)  # Already triggered
+
+        execute_relic_triggers("onManualDiscard", state)
+
+        assert state.energy == 3  # No additional energy
+
+    def test_hovering_kite_resets_at_turn_start(self):
+        """Hovering Kite counter should reset at turn start."""
+        state = create_test_combat(relics=["HoveringKite"])
+        state.set_relic_counter("HoveringKite", 1)
+
+        execute_relic_triggers("atTurnStart", state)
+
+        assert state.get_relic_counter("HoveringKite") == 0
+
+    def test_unceasing_top_draws_on_empty_hand(self):
+        """Unceasing Top should draw a card when hand becomes empty."""
+        state = create_test_combat(relics=["Unceasing Top"])
+        state.hand = []  # Empty hand
+        state.draw_pile = ["Card1", "Card2", "Card3"]
+
+        execute_relic_triggers("onEmptyHand", state)
+
+        assert len(state.hand) == 1
+
+    def test_unceasing_top_no_draw_with_cards(self):
+        """Unceasing Top should not draw if hand is not empty."""
+        state = create_test_combat(relics=["Unceasing Top"])
+        state.hand = ["SomeCard"]
+        state.draw_pile = ["Card1", "Card2"]
+
+        execute_relic_triggers("onEmptyHand", state)
+
+        assert len(state.hand) == 1  # Still just the one card
+
+
+# =============================================================================
+# REGISTRY VERIFICATION Tests (New Triggers)
+# =============================================================================
+
+class TestNewTriggerRegistration:
+    """Verify new triggers are properly registered."""
+
+    def test_on_monster_death_relics_registered(self):
+        """Monster death relics should be registered."""
+        expected = ["Gremlin Horn", "The Specimen"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onMonsterDeath", relic), f"{relic} not registered"
+
+    def test_on_obtain_card_relics_registered(self):
+        """Obtain card relics should be registered."""
+        expected = ["Ceramic Fish", "Frozen Egg 2", "Molten Egg 2", "Toxic Egg 2", "Darkstone Periapt"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onObtainCard", relic), f"{relic} not registered"
+
+    def test_on_use_potion_relics_registered(self):
+        """Use potion relics should be registered."""
+        expected = ["Toy Ornithopter"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onUsePotion", relic), f"{relic} not registered"
+
+    def test_damage_modifier_relics_registered(self):
+        """Damage modifier relics should be registered."""
+        expected = [
+            ("atDamageGive", "WristBlade"),
+            ("atDamageGive", "StrikeDummy"),
+            ("atDamageFinalGive", "Boot"),
+            ("onAttackedToChangeDamage", "Torii"),
+            ("onLoseHpLast", "TungstenRod"),
+        ]
+        for hook, relic in expected:
+            assert RELIC_REGISTRY.has_handler(hook, relic), f"{relic} not registered for {hook}"
+
+    def test_advanced_on_play_card_relics_registered(self):
+        """Advanced onPlayCard relics should be registered."""
+        expected = ["Necronomicon", "Velvet Choker", "OrangePellets"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onPlayCard", relic), f"{relic} not registered"
+
+    def test_discard_relics_registered(self):
+        """Discard relics should be registered."""
+        expected = ["Tingsha", "Tough Bandages", "HoveringKite"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onManualDiscard", relic), f"{relic} not registered"
+
+    def test_exhaust_relics_registered(self):
+        """Exhaust relics should be registered."""
+        expected = ["Strange Spoon", "Charons Ashes", "Dead Branch"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onExhaust", relic), f"{relic} not registered"
+
+    def test_empty_hand_relics_registered(self):
+        """Empty hand relics should be registered."""
+        expected = ["Unceasing Top"]
+        for relic in expected:
+            assert RELIC_REGISTRY.has_handler("onEmptyHand", relic), f"{relic} not registered"

@@ -315,6 +315,28 @@ class EffectExecutor:
     # Special Effect Handlers
     # =========================================================================
 
+    # Effects that are no-ops or handled elsewhere (passive/tracked effects)
+    _NOOP_EFFECTS = frozenset([
+        "only_attack_in_hand", "cost_reduces_each_turn", "gain_damage_when_retained_4",
+        "gains_block_when_retained", "on_stance_change_play_from_discard",
+        "on_scry_play_from_discard", "unplayable", "damage_x_times",
+        "choose_attack_from_any_class", "play_card_from_draw_twice", "discover_card",
+        "put_card_on_bottom_of_draw_cost_0", "search_draw_for_skill", "search_draw_for_attack",
+        "deal_50_damage_end_turn", "deal_damage_to_all_after_3_turns", "draw_2_put_1_on_top_of_draw",
+        "add_x_random_colorless_cost_0", "put_attacks_from_draw_into_hand", "upgrade_all_cards_in_combat",
+        "add_random_skills_to_draw_cost_0", "add_random_attacks_to_draw_cost_0",
+        "add_random_colorless_to_hand", "add_random_colorless_each_turn", "auto_play_top_card_each_turn",
+        "every_5_cards_deal_damage_to_all", "on_debuff_deal_damage", "gain_intangible_1",
+        "lose_3_hp_gain_strength", "if_fatal_permanently_increase_damage", "cannot_be_removed",
+        "returns_when_exhausted_or_removed", "limit_3_cards_per_turn", "lose_1_hp_when_other_card_played",
+        "lose_3_max_hp_when_removed", "end_of_turn_add_copy_to_draw", "end_of_turn_lose_hp_equal_to_hand_size",
+        "end_of_turn_gain_frail_1", "end_of_turn_gain_weak_1", "end_of_turn_take_2_damage",
+        "end_of_turn_take_damage", "lose_1_energy_when_drawn", "shuffle_discard_into_draw",
+        "reduce_hand_cost_to_1", "reduce_random_card_cost_to_0", "draw_if_no_attacks_in_hand",
+        "apply_temp_strength_down", "gain_artifact", "gain_no_block_next_2_turns",
+        "exhaust_up_to_x_cards", "if_fatal_gain_gold", "hits_x_times",
+    ])
+
     def _handle_special_effect(
         self,
         effect_name: str,
@@ -322,187 +344,13 @@ class EffectExecutor:
         card: Card,
         result: EffectResult,
     ) -> bool:
-        """
-        Handle special effects that need card context.
-
-        These are effects that can't be handled by the generic registry
-        because they need access to card-specific information.
-        """
-        # Conditional effects based on last card type
-        if effect_name == "if_last_card_attack_gain_energy":
-            if ctx.get_last_card_type() == "ATTACK":
-                ctx.gain_energy(1)
+        """Handle special effects that need card context."""
+        # Fast path: no-op effects
+        if effect_name in self._NOOP_EFFECTS:
             return True
 
-        if effect_name == "if_last_card_attack_weak_1":
-            if ctx.get_last_card_type() == "ATTACK":
-                ctx.apply_status_to_target("Weak", 1)
-            return True
-
-        if effect_name == "if_last_card_skill_vulnerable_1":
-            if ctx.get_last_card_type() == "SKILL":
-                ctx.apply_status_to_target("Vulnerable", 1)
-            return True
-
-        if effect_name == "if_last_skill_draw_2":
-            if ctx.get_last_card_type() == "SKILL":
-                ctx.draw_cards(2)
-            return True
-
-        # Wrath-conditional effects
-        if effect_name == "if_in_wrath_extra_block_6":
-            if ctx.stance == "Wrath":
-                ctx.gain_block(6 if not ctx.is_upgraded else 9)
-            return True
-
-        # Calm conditional
-        if effect_name == "if_calm_draw_3_else_calm":
-            if ctx.stance == "Calm":
-                amount = 4 if ctx.is_upgraded else 3
-                ctx.draw_cards(amount)
-            else:
-                ctx.change_stance("Calm")
-            return True
-
-        # Wrath/Mantra conditional
-        if effect_name == "if_wrath_gain_mantra_else_wrath":
-            if ctx.stance == "Wrath":
-                amount = 5 if ctx.is_upgraded else 3
-                ctx.gain_mantra(amount)
-            else:
-                ctx.change_stance("Wrath")
-            return True
-
-        # Enemy attacking conditional
-        if effect_name == "if_enemy_attacking_enter_calm":
-            if ctx.is_enemy_attacking():
-                ctx.change_stance("Calm")
-            return True
-
-        # Damage per enemy
-        if effect_name == "damage_per_enemy":
-            # Bowling Bash - damage equals number of enemies
-            num_enemies = len(ctx.living_enemies)
-            base_damage = card.damage * num_enemies
-            if ctx.target:
-                ctx.deal_damage_to_enemy(ctx.target, base_damage)
-            return True
-
-        # Damage equal to draw pile
-        if effect_name == "damage_equals_draw_pile_size":
-            damage = len(ctx.draw_pile)
-            if ctx.target:
-                ctx.deal_damage_to_enemy(ctx.target, damage)
-            return True
-
-        # Gain block equal to unblocked damage
-        if effect_name == "gain_block_equal_unblocked_damage":
-            # Wallop - gain block equal to unblocked damage dealt
-            # This is tracked during damage calculation
-            result.extra["wallop_block"] = ctx.damage_dealt
-            ctx.gain_block(ctx.damage_dealt)
-            return True
-
-        # Gain block per card in hand
-        if effect_name == "gain_block_per_card_in_hand":
-            per_card = card.magic_number if card.magic_number > 0 else 3
-            block = per_card * len(ctx.hand)
-            ctx.gain_block(block)
-            return True
-
-        # End turn effect
-        if effect_name == "end_turn":
-            ctx.end_turn()
-            return True
-
-        # Only attack in hand
-        if effect_name == "only_attack_in_hand":
-            # Signature Move - check this is only attack
-            # For now just execute, validation happens elsewhere
-            return True
-
-        # Retain-related effects
-        if effect_name == "cost_reduces_each_turn":
-            # Sands of Time - cost reduces while retained
-            return True
-
-        if effect_name == "gain_damage_when_retained_4":
-            # Windmill Strike - tracked separately
-            return True
-
-        if effect_name == "gains_block_when_retained":
-            # Perseverance - tracked separately
-            return True
-
-        # Card generation effects
-        if effect_name == "add_insight_to_draw":
-            card_id = "Insight+" if ctx.is_upgraded else "Insight"
-            ctx.add_card_to_draw_pile(card_id, "top")
-            return True
-
-        if effect_name == "add_smite_to_hand":
-            card_id = "Smite+" if ctx.is_upgraded else "Smite"
-            ctx.add_card_to_hand(card_id)
-            return True
-
-        if effect_name == "add_safety_to_hand":
-            card_id = "Safety+" if ctx.is_upgraded else "Safety"
-            ctx.add_card_to_hand(card_id)
-            return True
-
-        if effect_name == "add_through_violence_to_draw":
-            card_id = "ThroughViolence+" if ctx.is_upgraded else "ThroughViolence"
-            ctx.add_card_to_draw_pile(card_id, "top")
-            return True
-
-        # Miracle energy gain
-        if effect_name == "gain_1_energy":
-            amount = 2 if ctx.is_upgraded else 1
-            ctx.gain_energy(amount)
-            return True
-
-        # Mark (Pressure Points)
-        if effect_name == "apply_mark":
-            amount = card.magic_number if card.magic_number > 0 else 8
-            ctx.apply_status_to_target("Mark", amount)
-            return True
-
-        if effect_name == "trigger_all_marks":
-            # Deal damage to all enemies equal to their Mark
-            for enemy in ctx.living_enemies:
-                mark = enemy.statuses.get("Mark", 0)
-                if mark > 0:
-                    ctx.deal_damage_to_enemy(enemy, mark)
-            return True
-
-        # Block return (Talk to the Hand)
-        if effect_name == "apply_block_return":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_target("BlockReturn", amount)
-            return True
-
-        # Mantra effects
-        if effect_name == "gain_mantra":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.gain_mantra(amount)
-            return True
-
-        if effect_name == "gain_mantra_add_insight":
-            # Pray
-            amount = card.magic_number if card.magic_number > 0 else 3
-            ctx.gain_mantra(amount)
-            card_id = "Insight+" if ctx.is_upgraded else "Insight"
-            ctx.add_card_to_draw_pile(card_id, "random")
-            return True
-
-        # Scry effects
-        if effect_name == "scry":
-            amount = card.magic_number if card.magic_number > 0 else 3
-            ctx.scry(amount)
-            return True
-
+        # Scry effects (scry_N pattern)
         if effect_name.startswith("scry_"):
-            # Parse scry_N
             try:
                 amount = int(effect_name.split("_")[1])
                 ctx.scry(amount)
@@ -510,290 +358,128 @@ class EffectExecutor:
             except (IndexError, ValueError):
                 pass
 
-        # Power effects (these apply statuses to self)
-        if effect_name == "on_stance_change_gain_block":
-            amount = card.magic_number if card.magic_number > 0 else 4
-            ctx.apply_status_to_player("MentalFortress", amount)
-            return True
-
-        if effect_name == "on_scry_gain_block":
-            amount = card.magic_number if card.magic_number > 0 else 3
-            ctx.apply_status_to_player("Nirvana", amount)
-            return True
-
-        if effect_name == "on_wrath_draw":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_player("Rushdown", amount)
-            return True
-
-        if effect_name == "if_calm_end_turn_gain_block":
-            amount = card.magic_number if card.magic_number > 0 else 5
-            ctx.apply_status_to_player("LikeWater", amount)
-            return True
-
-        if effect_name == "gain_mantra_each_turn":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_player("Devotion", amount)
-            return True
-
-        if effect_name == "retained_cards_cost_less":
-            ctx.apply_status_to_player("Establishment", 1)
-            return True
-
-        if effect_name == "scry_each_turn":
-            amount = card.magic_number if card.magic_number > 0 else 3
-            ctx.apply_status_to_player("Foresight", amount)
-            return True
-
-        if effect_name == "add_smite_each_turn":
-            amount = card.magic_number if card.magic_number > 0 else 1
-            ctx.apply_status_to_player("BattleHymn", amount)
-            return True
-
-        if effect_name == "add_insight_end_turn":
-            ctx.apply_status_to_player("Study", 1)
-            return True
-
-        if effect_name == "gain_energy_each_turn_stacking":
-            ctx.apply_status_to_player("DevaForm", 1)
-            return True
-
-        if effect_name == "created_cards_upgraded":
-            ctx.apply_status_to_player("MasterReality", 1)
-            return True
-
-        if effect_name == "next_attack_plus_damage":
-            amount = card.magic_number if card.magic_number > 0 else 5
-            ctx.apply_status_to_player("WreathOfFlame", amount)
-            return True
-
-        # Special cards
-        if effect_name == "enter_divinity":
-            ctx.change_stance("Divinity")
-            return True
-
-        if effect_name == "die_next_turn":
-            ctx.apply_status_to_player("Blasphemy", 1)
-            return True
-
-        if effect_name == "shuffle_beta_into_draw":
-            card_id = "Beta+" if ctx.is_upgraded else "Beta"
-            ctx.add_card_to_draw_pile(card_id, "random")
-            return True
-
-        if effect_name == "shuffle_omega_into_draw":
-            card_id = "Omega"  # Omega doesn't upgrade
-            ctx.add_card_to_draw_pile(card_id, "random")
-            return True
-
-        if effect_name == "draw_until_hand_full":
-            cards_to_draw = 10 - len(ctx.hand)
-            if cards_to_draw > 0:
-                ctx.draw_cards(cards_to_draw)
-            return True
-
-        if effect_name == "take_extra_turn":
-            ctx.extra_data["extra_turn"] = True
-            return True
-
-        # Meditate
-        if effect_name == "put_cards_from_discard_to_hand":
-            # In simulation, just move some cards
-            amount = card.magic_number if card.magic_number > 0 else 1
-            for _ in range(amount):
-                if ctx.discard_pile and len(ctx.hand) < 10:
-                    # Move first card from discard (in real game player chooses)
-                    card_id = ctx.discard_pile[0]
-                    ctx.move_card_from_discard_to_hand(card_id)
-            return True
-
-        if effect_name == "enter_calm":
-            ctx.change_stance("Calm")
-            return True
-
-        # Damage plus mantra gained
-        if effect_name == "damage_plus_mantra_gained":
-            # Brilliance - damage increased by total mantra gained this combat
-            # This would need tracking at combat level
-            total_mantra = ctx.extra_data.get("total_mantra_gained", 0)
-            extra_damage = total_mantra
-            if ctx.target:
-                ctx.deal_damage_to_enemy(ctx.target, extra_damage)
-            return True
-
-        # Judgment - kill if HP below threshold
-        if effect_name == "if_enemy_hp_below_kill":
-            threshold = card.magic_number if card.magic_number > 0 else 30
-            if ctx.target and ctx.target.hp <= threshold:
-                ctx.target.hp = 0
-            return True
-
-        # Lesson Learned - upgrade random card on kill
-        if effect_name == "if_fatal_upgrade_random_card":
-            ctx.extra_data["fatal_upgrade"] = True
-            return True
-
-        # Ragnarok - damage random enemies
-        if effect_name == "damage_random_x_times":
-            damage = card.damage
-            hits = card.magic_number if card.magic_number > 0 else 5
-            for _ in range(hits):
-                ctx.deal_damage_to_random_enemy(damage)
-            return True
-
-        # Status applications
-        if effect_name == "apply_weak":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_target("Weak", amount)
-            return True
-
-        if effect_name == "apply_vulnerable":
-            amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_target("Vulnerable", amount)
-            return True
-
-        # Heal effects
-        if effect_name == "heal_magic_number":
-            amount = card.magic_number if card.magic_number > 0 else 4
-            ctx.heal_player(amount)
-            return True
-
-        # Simmering Fury
-        if effect_name == "wrath_next_turn_draw_next_turn":
-            # Apply a status that triggers next turn
-            draw_amount = card.magic_number if card.magic_number > 0 else 2
-            ctx.apply_status_to_player("SimmeringFury", draw_amount)
-            return True
-
-        # Meditate special
-        if effect_name == "free_attack_next_turn":
-            ctx.apply_status_to_player("FreeAttackPower", 1)
-            return True
-
-        # Wave of the Hand
-        if effect_name == "block_gain_applies_weak":
-            amount = card.magic_number if card.magic_number > 0 else 1
-            ctx.apply_status_to_player("WaveOfTheHand", amount)
-            return True
-
-        # On-trigger effects (passive, handled by combat loop)
-        if effect_name in [
-            "on_stance_change_play_from_discard",
-            "on_scry_play_from_discard",
-        ]:
-            return True
-
-        # Unplayable effects (for curses/status)
-        if effect_name == "unplayable":
-            return True
-
-        # Vault: take extra turn
-        if effect_name == "take_extra_turn":
-            ctx.apply_status_to_player("ExtraTurn", 1)
-            return True
-
-        # Collect: put X Miracles on draw at START of NEXT turn
-        if effect_name == "put_x_miracles_on_draw":
-            x_cost = ctx.energy_spent if hasattr(ctx, 'energy_spent') else 0
-            # Upgraded: X+1
-            amount = x_cost + 1 if ctx.is_upgraded else x_cost
-            ctx.apply_status_to_player("CollectMiracles", amount)
-            return True
-
-        # Conjure Blade: add Expunger to hand
-        if effect_name == "add_expunger_to_hand":
-            x_cost = ctx.energy_spent if hasattr(ctx, 'energy_spent') else 0
-            ctx.add_card_to_hand("Expunger")
-            # Store X for Expunger's hits
-            ctx.extra_data["expunger_x"] = x_cost
-            return True
-
-        # Fasting: +3 Str, +3 Dex, -1 max energy
-        if effect_name == "gain_strength_and_dex_lose_focus":
-            amount = 4 if ctx.is_upgraded else 3
-            ctx.apply_status_to_player("Strength", amount)
-            ctx.apply_status_to_player("Dexterity", amount)
-            # Reduce max energy by 1
-            if ctx.state.max_energy > 0:
-                ctx.state.max_energy -= 1
-            return True
-
-        # Lesson Learned: upgrade random card on kill
-        if effect_name == "if_fatal_upgrade_random_card":
-            ctx.apply_status_to_player("FatalUpgrade", 1)
-            return True
-
-        # Wish: choose between Plated Armor, Strength, or Gold
-        if effect_name == "choose_plated_armor_or_strength_or_gold":
-            # Default choice: Strength (best in combat)
-            choice = ctx.extra_data.get("wish_choice", 1)
-            amount = 4 if ctx.is_upgraded else 3
-            if choice == 0:
-                ctx.apply_status_to_player("Plated Armor", amount)
-            elif choice == 2:
-                gold = 75 if ctx.is_upgraded else 50
-                ctx.extra_data["gold_gained"] = gold
-            else:
-                ctx.apply_status_to_player("Strength", amount)
-            return True
-
-        # Omega: deal 50 damage to all enemies at end of turn
-        if effect_name == "deal_50_damage_end_turn":
-            ctx.apply_status_to_player("Omega", 50)
-            return True
-
-        # Effects that need external systems
-        if effect_name in [
-            "choose_attack_from_any_class",
-            "play_card_from_draw_twice",
-            "discover_card",
-            "put_card_on_bottom_of_draw_cost_0",
-            "search_draw_for_skill",
-            "search_draw_for_attack",
-            "deal_50_damage_end_turn",
-            "deal_damage_to_all_after_3_turns",
-            "draw_2_put_1_on_top_of_draw",
-            "add_x_random_colorless_cost_0",
-            "put_attacks_from_draw_into_hand",
-            "upgrade_all_cards_in_combat",
-            "add_random_skills_to_draw_cost_0",
-            "add_random_attacks_to_draw_cost_0",
-            "add_random_colorless_to_hand",
-            "add_random_colorless_each_turn",
-            "auto_play_top_card_each_turn",
-            "every_5_cards_deal_damage_to_all",
-            "on_debuff_deal_damage",
-            "gain_intangible_1",
-            "lose_3_hp_gain_strength",
-            "if_fatal_permanently_increase_damage",
-            "cannot_be_removed",
-            "returns_when_exhausted_or_removed",
-            "limit_3_cards_per_turn",
-            "lose_1_hp_when_other_card_played",
-            "lose_3_max_hp_when_removed",
-            "end_of_turn_add_copy_to_draw",
-            "end_of_turn_lose_hp_equal_to_hand_size",
-            "end_of_turn_gain_frail_1",
-            "end_of_turn_gain_weak_1",
-            "end_of_turn_take_2_damage",
-            "end_of_turn_take_damage",
-            "lose_1_energy_when_drawn",
-            "shuffle_discard_into_draw",
-            "reduce_hand_cost_to_1",
-            "reduce_random_card_cost_to_0",
-            "draw_if_no_attacks_in_hand",
-            "apply_temp_strength_down",
-            "gain_artifact",
-            "gain_no_block_next_2_turns",
-            "exhaust_up_to_x_cards",
-            "if_fatal_gain_gold",
-            "gain_strength_and_dex_lose_focus",
-            "hits_x_times",
-        ]:
-            # These need more complex handling
+        # Dispatch table for most effects
+        handler = self._EFFECT_HANDLERS.get(effect_name)
+        if handler:
+            handler(self, ctx, card, result)
             return True
 
         return False
+
+    def _handle_conditional_last_card(self, ctx: EffectContext, card: Card, result: EffectResult, effect: str):
+        """Handle effects that depend on the last card played."""
+        last = ctx.get_last_card_type()
+        if effect == "if_last_card_attack_gain_energy" and last == "ATTACK":
+            ctx.gain_energy(1)
+        elif effect == "if_last_card_attack_weak_1" and last == "ATTACK":
+            ctx.apply_status_to_target("Weak", 1)
+        elif effect == "if_last_card_skill_vulnerable_1" and last == "SKILL":
+            ctx.apply_status_to_target("Vulnerable", 1)
+        elif effect == "if_last_skill_draw_2" and last == "SKILL":
+            ctx.draw_cards(2)
+
+    # Effect handler dispatch table - maps effect name to (self, ctx, card, result) handler
+    _EFFECT_HANDLERS = {
+        # Conditional effects
+        "if_last_card_attack_gain_energy": lambda s, c, cd, r: c.gain_energy(1) if c.get_last_card_type() == "ATTACK" else None,
+        "if_last_card_attack_weak_1": lambda s, c, cd, r: c.apply_status_to_target("Weak", 1) if c.get_last_card_type() == "ATTACK" else None,
+        "if_last_card_skill_vulnerable_1": lambda s, c, cd, r: c.apply_status_to_target("Vulnerable", 1) if c.get_last_card_type() == "SKILL" else None,
+        "if_last_skill_draw_2": lambda s, c, cd, r: c.draw_cards(2) if c.get_last_card_type() == "SKILL" else None,
+        "if_in_wrath_extra_block_6": lambda s, c, cd, r: c.gain_block(9 if c.is_upgraded else 6) if c.stance == "Wrath" else None,
+        "if_enemy_attacking_enter_calm": lambda s, c, cd, r: c.change_stance("Calm") if c.is_enemy_attacking() else None,
+
+        # Calm/Wrath conditionals
+        "if_calm_draw_3_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),
+        "if_wrath_gain_mantra_else_wrath": lambda s, c, cd, r: c.gain_mantra(5 if c.is_upgraded else 3) if c.stance == "Wrath" else c.change_stance("Wrath"),
+
+        # Damage effects
+        "damage_per_enemy": lambda s, c, cd, r: c.deal_damage_to_enemy(c.target, cd.damage * len(c.living_enemies)) if c.target else None,
+        "damage_equals_draw_pile_size": lambda s, c, cd, r: c.deal_damage_to_enemy(c.target, len(c.draw_pile)) if c.target else None,
+        "damage_plus_mantra_gained": lambda s, c, cd, r: c.deal_damage_to_enemy(c.target, c.extra_data.get("total_mantra_gained", 0)) if c.target else None,
+        "damage_random_x_times": lambda s, c, cd, r: [c.deal_damage_to_random_enemy(cd.damage) for _ in range(cd.magic_number if cd.magic_number > 0 else 5)],
+
+        # Block effects
+        "gain_block_equal_unblocked_damage": lambda s, c, cd, r: (r.extra.__setitem__("wallop_block", c.damage_dealt), c.gain_block(c.damage_dealt)),
+        "gain_block_per_card_in_hand": lambda s, c, cd, r: c.gain_block((cd.magic_number if cd.magic_number > 0 else 3) * len(c.hand)),
+
+        # Card generation
+        "add_insight_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Insight+" if c.is_upgraded else "Insight", "top"),
+        "add_smite_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Smite+" if c.is_upgraded else "Smite"),
+        "add_safety_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Safety+" if c.is_upgraded else "Safety"),
+        "add_through_violence_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("ThroughViolence+" if c.is_upgraded else "ThroughViolence", "top"),
+        "shuffle_beta_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Beta+" if c.is_upgraded else "Beta", "random"),
+        "shuffle_omega_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Omega", "random"),
+        "add_expunger_to_hand": lambda s, c, cd, r: (c.add_card_to_hand("Expunger"), c.extra_data.__setitem__("expunger_x", c.energy_spent)),
+
+        # Energy effects
+        "gain_1_energy": lambda s, c, cd, r: c.gain_energy(2 if c.is_upgraded else 1),
+        "end_turn": lambda s, c, cd, r: c.end_turn(),
+
+        # Mantra effects
+        "gain_mantra": lambda s, c, cd, r: c.gain_mantra(cd.magic_number if cd.magic_number > 0 else 2),
+        "gain_mantra_add_insight": lambda s, c, cd, r: (c.gain_mantra(cd.magic_number if cd.magic_number > 0 else 3), c.add_card_to_draw_pile("Insight+" if c.is_upgraded else "Insight", "random")),
+        "scry": lambda s, c, cd, r: c.scry(cd.magic_number if cd.magic_number > 0 else 3),
+
+        # Status applications
+        "apply_mark": lambda s, c, cd, r: c.apply_status_to_target("Mark", cd.magic_number if cd.magic_number > 0 else 8),
+        "apply_block_return": lambda s, c, cd, r: c.apply_status_to_target("BlockReturn", cd.magic_number if cd.magic_number > 0 else 2),
+        "apply_weak": lambda s, c, cd, r: c.apply_status_to_target("Weak", cd.magic_number if cd.magic_number > 0 else 2),
+        "apply_vulnerable": lambda s, c, cd, r: c.apply_status_to_target("Vulnerable", cd.magic_number if cd.magic_number > 0 else 2),
+
+        # Power card effects (apply statuses to self)
+        "on_stance_change_gain_block": lambda s, c, cd, r: c.apply_status_to_player("MentalFortress", cd.magic_number if cd.magic_number > 0 else 4),
+        "on_scry_gain_block": lambda s, c, cd, r: c.apply_status_to_player("Nirvana", cd.magic_number if cd.magic_number > 0 else 3),
+        "on_wrath_draw": lambda s, c, cd, r: c.apply_status_to_player("Rushdown", cd.magic_number if cd.magic_number > 0 else 2),
+        "if_calm_end_turn_gain_block": lambda s, c, cd, r: c.apply_status_to_player("LikeWater", cd.magic_number if cd.magic_number > 0 else 5),
+        "gain_mantra_each_turn": lambda s, c, cd, r: c.apply_status_to_player("Devotion", cd.magic_number if cd.magic_number > 0 else 2),
+        "retained_cards_cost_less": lambda s, c, cd, r: c.apply_status_to_player("Establishment", 1),
+        "scry_each_turn": lambda s, c, cd, r: c.apply_status_to_player("Foresight", cd.magic_number if cd.magic_number > 0 else 3),
+        "add_smite_each_turn": lambda s, c, cd, r: c.apply_status_to_player("BattleHymn", cd.magic_number if cd.magic_number > 0 else 1),
+        "add_insight_end_turn": lambda s, c, cd, r: c.apply_status_to_player("Study", 1),
+        "gain_energy_each_turn_stacking": lambda s, c, cd, r: c.apply_status_to_player("DevaForm", 1),
+        "created_cards_upgraded": lambda s, c, cd, r: c.apply_status_to_player("MasterReality", 1),
+        "next_attack_plus_damage": lambda s, c, cd, r: c.apply_status_to_player("WreathOfFlame", cd.magic_number if cd.magic_number > 0 else 5),
+        "wrath_next_turn_draw_next_turn": lambda s, c, cd, r: c.apply_status_to_player("SimmeringFury", cd.magic_number if cd.magic_number > 0 else 2),
+        "free_attack_next_turn": lambda s, c, cd, r: c.apply_status_to_player("FreeAttackPower", 1),
+        "block_gain_applies_weak": lambda s, c, cd, r: c.apply_status_to_player("WaveOfTheHand", cd.magic_number if cd.magic_number > 0 else 1),
+        "die_next_turn": lambda s, c, cd, r: c.apply_status_to_player("Blasphemy", 1),
+        "deal_50_damage_end_turn_power": lambda s, c, cd, r: c.apply_status_to_player("Omega", 50),
+
+        # Stance changes
+        "enter_divinity": lambda s, c, cd, r: c.change_stance("Divinity"),
+        "enter_calm": lambda s, c, cd, r: c.change_stance("Calm"),
+
+        # Utility effects
+        "draw_until_hand_full": lambda s, c, cd, r: c.draw_cards(max(0, 10 - len(c.hand))),
+        "take_extra_turn": lambda s, c, cd, r: c.extra_data.__setitem__("extra_turn", True),
+        "heal_magic_number": lambda s, c, cd, r: c.heal_player(cd.magic_number if cd.magic_number > 0 else 4),
+        "if_enemy_hp_below_kill": lambda s, c, cd, r: setattr(c.target, 'hp', 0) if c.target and c.target.hp <= (cd.magic_number if cd.magic_number > 0 else 30) else None,
+        "if_fatal_upgrade_random_card": lambda s, c, cd, r: c.extra_data.__setitem__("fatal_upgrade", True),
+        "put_x_miracles_on_draw": lambda s, c, cd, r: c.apply_status_to_player("CollectMiracles", (c.energy_spent + 1) if c.is_upgraded else c.energy_spent),
+
+        # Fasting
+        "gain_strength_and_dex_lose_focus": lambda s, c, cd, r: (c.apply_status_to_player("Strength", 4 if c.is_upgraded else 3), c.apply_status_to_player("Dexterity", 4 if c.is_upgraded else 3), setattr(c.state, 'max_energy', max(0, c.state.max_energy - 1))),
+
+        # Wish
+        "choose_plated_armor_or_strength_or_gold": lambda s, c, cd, r: s._handle_wish(c, cd),
+
+        # Trigger all marks
+        "trigger_all_marks": lambda s, c, cd, r: [c.deal_damage_to_enemy(e, e.statuses.get("Mark", 0)) for e in c.living_enemies if e.statuses.get("Mark", 0) > 0],
+
+        # Meditate
+        "put_cards_from_discard_to_hand": lambda s, c, cd, r: [c.move_card_from_discard_to_hand(c.discard_pile[0]) for _ in range(min(cd.magic_number if cd.magic_number > 0 else 1, len(c.discard_pile))) if c.discard_pile and len(c.hand) < 10],
+    }
+
+    def _handle_wish(self, ctx: EffectContext, card: Card):
+        """Handle Wish card choice."""
+        choice = ctx.extra_data.get("wish_choice", 1)
+        amount = 4 if ctx.is_upgraded else 3
+        if choice == 0:
+            ctx.apply_status_to_player("Plated Armor", amount)
+        elif choice == 2:
+            ctx.extra_data["gold_gained"] = 75 if ctx.is_upgraded else 50
+        else:
+            ctx.apply_status_to_player("Strength", amount)
 
     # =========================================================================
     # Hook Registration

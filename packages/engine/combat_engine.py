@@ -63,6 +63,7 @@ from .calc.damage import (
     WRATH_MULT,
     DIVINITY_MULT,
 )
+from .registry import execute_relic_triggers, execute_power_triggers
 
 
 # =============================================================================
@@ -274,6 +275,12 @@ class CombatEngine:
         for enemy in self.state.enemies:
             self._roll_enemy_move(enemy)
 
+        # Execute registry-based atBattleStart triggers (Vajra, Lantern, etc.)
+        execute_relic_triggers("atBattleStart", self.state)
+
+        # Execute atBattleStartPreDraw triggers (Pure Water adds Miracle)
+        execute_relic_triggers("atBattleStartPreDraw", self.state)
+
         # Start first turn
         self._start_player_turn()
 
@@ -301,24 +308,10 @@ class CombatEngine:
             else:
                 self.state.player.block = 0
 
-        # Poison tick: take damage equal to poison, then decrement
-        poison = self.state.player.statuses.get("Poison", 0)
-        if poison > 0:
-            intangible = self.state.player.statuses.get("Intangible", 0) > 0
-            tungsten_rod = "Tungsten Rod" in self.state.relics
-            actual_poison = apply_hp_loss(poison, intangible=intangible, tungsten_rod=tungsten_rod)
-            self.state.player.hp -= actual_poison
-            self.state.total_damage_taken += actual_poison
-            self.log.log(self.state.turn, "poison_damage", damage=poison)
-            poison -= 1
-            if poison <= 0:
-                del self.state.player.statuses["Poison"]
-            else:
-                self.state.player.statuses["Poison"] = poison
-            if self.state.player.hp <= 0:
-                self.state.player.hp = 0
-                self._end_combat(player_won=False)
-                return
+        # Divinity auto-exit at start of turn (Java: DivinityStance.atStartOfTurn)
+        # Must happen after block reset so Mental Fortress block from exit persists
+        if self._get_stance() == StanceID.DIVINITY:
+            self._change_stance(StanceID.NEUTRAL)
 
         # Reset turn counters
         self.state.cards_played_this_turn = 0
@@ -327,8 +320,21 @@ class CombatEngine:
         self.state.powers_played_this_turn = 0
         self.state.last_card_type = ""
 
-        # Trigger start of turn powers
+        # Execute registry-based atTurnStart relic triggers
+        execute_relic_triggers("atTurnStart", self.state)
+
+        # Trigger start of turn powers (inline and registry)
         self._trigger_start_of_turn()
+
+        # Check for death from poison or other start-of-turn effects
+        if self.state.player.hp <= 0:
+            self.state.player.hp = 0
+            if not self._check_fairy_in_bottle():
+                self._end_combat(player_won=False)
+                return
+
+        # Execute onEnergyRecharge power triggers (DevaForm, Energized)
+        execute_power_triggers("onEnergyRecharge", self.state, self.state.player)
 
         # Draw cards (default 5)
         draw_count = 5
@@ -341,8 +347,13 @@ class CombatEngine:
                     hand=[c for c in self.state.hand])
 
     def _trigger_start_of_turn(self):
-        """Trigger all start-of-turn effects."""
+        """Trigger all start-of-turn effects using registry and inline logic."""
         player = self.state.player
+
+        # Execute atStartOfTurn power triggers for player (handles Poison via registry)
+        execute_power_triggers("atStartOfTurn", self.state, player)
+
+        # Note: Enemy atStartOfTurn (poison, etc.) is handled in _do_enemy_turns() at their turn start
 
         # Deva Form: gain stacking energy
         deva_form = player.statuses.get("DevaForm", 0)
@@ -371,6 +382,10 @@ class CombatEngine:
             self._change_stance(StanceID.WRATH)
             del player.statuses["WrathNextTurn"]
 
+    def start_turn(self):
+        """Public interface for starting a new player turn."""
+        self._start_player_turn()
+
     def end_turn(self):
         """End the player's turn."""
         if self.phase != CombatPhase.PLAYER_TURN:
@@ -379,24 +394,26 @@ class CombatEngine:
         self.log.log(self.state.turn, "turn_end",
                     cards_played=self.state.cards_played_this_turn)
 
+        # Execute registry-based onPlayerEndTurn triggers
+        execute_relic_triggers("onPlayerEndTurn", self.state)
+
         # Discard hand (unless Runic Pyramid)
         self._discard_hand()
 
-        # Like Water
+        # Execute atEndOfTurnPreEndTurnCards power triggers (Metallicize, Plated Armor, Like Water)
+        execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
+
+        # Like Water (inline fallback)
         like_water = self.state.player.statuses.get("LikeWater", 0)
         if like_water > 0 and self._get_stance() == StanceID.CALM:
             self.state.player.block += like_water
 
-        # Divinity auto-exit
-        if self._get_stance() == StanceID.DIVINITY:
-            self._change_stance(StanceID.NEUTRAL)
-
-        # Metallicize
+        # Metallicize (inline fallback)
         metallicize = self.state.player.statuses.get("Metallicize", 0)
         if metallicize > 0:
             self.state.player.block += metallicize
 
-        # Plated Armor
+        # Plated Armor (inline fallback)
         plated = self.state.player.statuses.get("Plated Armor", 0)
         if plated > 0:
             self.state.player.block += plated
@@ -407,19 +424,26 @@ class CombatEngine:
             for _ in range(study):
                 self.state.draw_pile.append("Insight")
 
-        # Regen: heal at end of turn, decrement by 1
+        # Regen: heal at end of turn (Java: no decrement, persists entire combat)
         regen = self.state.player.statuses.get("Regen", 0)
         if regen > 0:
             heal = min(regen, self.state.player.max_hp - self.state.player.hp)
             self.state.player.hp += heal
-            regen -= 1
-            if regen <= 0:
-                del self.state.player.statuses["Regen"]
-            else:
-                self.state.player.statuses["Regen"] = regen
+
+        # Execute atEndOfTurn power triggers (Constricted, Combust, Ritual, etc.)
+        execute_power_triggers("atEndOfTurn", self.state, self.state.player)
+        for enemy in self.state.enemies:
+            if not enemy.is_dead:
+                execute_power_triggers("atEndOfTurn", self.state, enemy)
 
         # Process enemy turns
         self._do_enemy_turns()
+
+        # Execute atEndOfRound power triggers (decrement Weak, Vulnerable, Frail)
+        execute_power_triggers("atEndOfRound", self.state, self.state.player)
+        for enemy_state in self.state.enemies:
+            if not enemy_state.is_dead:
+                execute_power_triggers("atEndOfRound", self.state, enemy_state)
 
         # Check combat end
         if not self._check_combat_end():
@@ -493,8 +517,10 @@ class CombatEngine:
 
             # Check if player died
             if self.state.player.hp <= 0:
-                self._end_combat(player_won=False)
-                return
+                # Check for Fairy in a Bottle before ending combat
+                if not self._check_fairy_in_bottle():
+                    self._end_combat(player_won=False)
+                    return
 
         # Decrement enemy debuffs
         for enemy in self.state.enemies:
@@ -566,21 +592,20 @@ class CombatEngine:
                 if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
                     damage = 1
 
+                # Buffer: prevent entire hit before block subtraction (Java: onAttackedToChangeDamage)
+                buffer = self.state.player.statuses.get("Buffer", 0)
+                if buffer > 0 and damage > 0:
+                    buffer -= 1
+                    if buffer <= 0:
+                        del self.state.player.statuses["Buffer"]
+                    else:
+                        self.state.player.statuses["Buffer"] = buffer
+                    damage = 0
+
                 # Apply block
                 blocked = min(self.state.player.block, damage)
                 hp_damage = damage - blocked
                 self.state.player.block -= blocked
-
-                # Buffer: prevent HP loss
-                if hp_damage > 0:
-                    buffer = self.state.player.statuses.get("Buffer", 0)
-                    if buffer > 0:
-                        buffer -= 1
-                        if buffer <= 0:
-                            del self.state.player.statuses["Buffer"]
-                        else:
-                            self.state.player.statuses["Buffer"] = buffer
-                        hp_damage = 0
 
                 # Tungsten Rod: reduce all HP loss by 1 (minimum 0)
                 if hp_damage > 0 and "Tungsten Rod" in self.state.relics:
@@ -588,6 +613,10 @@ class CombatEngine:
 
                 self.state.player.hp -= hp_damage
                 self.state.total_damage_taken += hp_damage
+
+                # Trigger wasHPLost relics if HP was lost
+                if hp_damage > 0:
+                    execute_relic_triggers("wasHPLost", self.state, {"hp_lost": hp_damage})
 
                 # Plated Armor: lose 1 stack when taking unblocked HP damage
                 if hp_damage > 0:
@@ -942,8 +971,41 @@ class CombatEngine:
 
         # Player dead?
         if self.state.player.hp <= 0:
-            self._end_combat(player_won=False)
-            return True
+            # Check for Fairy in a Bottle before ending combat
+            if not self._check_fairy_in_bottle():
+                self._end_combat(player_won=False)
+                return True
+
+        return False
+
+    def _check_fairy_in_bottle(self) -> bool:
+        """
+        Check if player would die and has Fairy in a Bottle.
+        Returns True if fairy triggered, False otherwise.
+        """
+        if self.state.player.hp > 0:
+            return False
+
+        # Look for Fairy in a Bottle in potion slots
+        for i, potion_id in enumerate(self.state.potions):
+            if potion_id == "FairyPotion":
+                # Calculate heal amount (30% base, 60% with Sacred Bark)
+                has_sacred_bark = self.state.has_relic("Sacred Bark")
+                heal_percent = 60 if has_sacred_bark else 30
+                heal_to = int(self.state.player.max_hp * heal_percent / 100)
+
+                # Revive player
+                self.state.player.hp = heal_to
+
+                # Remove potion
+                self.state.potions[i] = ""
+
+                # Log the trigger
+                self.log.log(self.state.turn, "fairy_trigger",
+                           heal_to=heal_to,
+                           sacred_bark=has_sacred_bark)
+
+                return True
 
         return False
 
@@ -952,6 +1014,10 @@ class CombatEngine:
         self.state.combat_over = True
         self.state.player_won = player_won
         self.phase = CombatPhase.COMBAT_OVER
+
+        # Trigger onVictory relics (Burning Blood, Meat on the Bone, etc.)
+        if player_won:
+            execute_relic_triggers("onVictory", self.state)
 
         self.log.log(self.state.turn, "combat_end",
                     player_won=player_won,
@@ -1105,12 +1171,21 @@ class CombatEngine:
         # Card destination
         if card.exhaust:
             self.state.exhaust_pile.append(card_id)
+            # Trigger registry-based onExhaust relics and powers
+            execute_relic_triggers("onExhaust", self.state, {"card": card})
+            execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
         elif card.shuffle_back:
             # Random position in draw pile
             pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
             self.state.draw_pile.insert(pos, card_id)
         else:
             self.state.discard_pile.append(card_id)
+
+        # Trigger registry-based onPlayCard relics (Shuriken, Kunai, etc.)
+        execute_relic_triggers("onPlayCard", self.state, {"card": card})
+
+        # Trigger onUseCard power triggers (After Image, Duplication, etc.)
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card})
 
         # Log
         self.log.log(self.state.turn, "play_card",
@@ -1157,7 +1232,7 @@ class CombatEngine:
                 living = self.get_living_enemies()
                 if living:
                     target = living[self.state.turn % len(living)]
-                    self._deal_damage_to_enemy(target, jugger_damage)
+                    self._deal_damage_to_enemy(target, jugger_damage, apply_vuln=True)
 
         # Stance changes
         if card.enter_stance:
@@ -1225,9 +1300,16 @@ class CombatEngine:
         elif "damage_twice" in card.effects:
             hits = 2
 
-        # Calculate damage per hit
+        # Calculate damage per hit (includes vuln in single-chain calculation)
         base_damage = card.damage
         damage_per_hit = self._calculate_card_damage(base_damage, target_index)
+
+        # For ALL_ENEMY cards, pre-compute per-enemy damage before vigor consumption
+        enemy_damages = {}
+        if card.target == CardTarget.ALL_ENEMY:
+            for i, enemy in enumerate(self.state.enemies):
+                if enemy.hp > 0:
+                    enemy_damages[i] = self._calculate_card_damage(base_damage, i)
 
         # Consume Vigor after first attack card uses it
         if self.state.player.statuses.get("Vigor", 0) > 0:
@@ -1235,11 +1317,10 @@ class CombatEngine:
 
         # Apply damage
         if card.target == CardTarget.ALL_ENEMY:
-            # Damage all enemies
-            for enemy in self.state.enemies:
-                if enemy.hp > 0:
+            for i, enemy in enumerate(self.state.enemies):
+                if enemy.hp > 0 and i in enemy_damages:
                     for _ in range(hits):
-                        actual_damage = self._deal_damage_to_enemy(enemy, damage_per_hit)
+                        actual_damage = self._deal_damage_to_enemy(enemy, enemy_damages[i])
                         effects.append({
                             "type": "damage",
                             "target": enemy.id,
@@ -1259,11 +1340,13 @@ class CombatEngine:
                         effects.append({"type": "kill", "target": enemy.id})
                         break
 
-    def _deal_damage_to_enemy(self, enemy: EnemyCombatState, damage: int) -> int:
-        """Deal damage to an enemy, return actual HP damage dealt."""
-        # Apply enemy's vulnerability if not already factored
-        vuln = enemy.statuses.get("Vulnerable", 0) > 0
-        if vuln:
+    def _deal_damage_to_enemy(self, enemy: EnemyCombatState, damage: int, apply_vuln: bool = False) -> int:
+        """Deal damage to an enemy, return actual HP damage dealt.
+
+        For card damage, vuln is already factored in via _calculate_card_damage (single-chain).
+        For non-card damage (potions, Juggernaut), pass apply_vuln=True.
+        """
+        if apply_vuln and enemy.statuses.get("Vulnerable", 0) > 0:
             damage = int(damage * VULN_MULT)
 
         # Apply block
@@ -1437,46 +1520,120 @@ class CombatEngine:
 
         result = {"success": True, "potion": potion_id, "effects": []}
 
+        # Check for Sacred Bark relic
+        has_sacred_bark = self.state.has_relic("Sacred Bark")
+
+        # Get potion data from content
+        from .content.potions import get_potion_by_id
+        potion_data = get_potion_by_id(potion_id)
+
+        # Get effective potency (doubled by Sacred Bark if applicable)
+        if potion_data:
+            potency = potion_data.get_effective_potency(has_sacred_bark)
+        else:
+            # Fallback for potions not in content system yet
+            potency = None
+
         # Remove potion
         self.state.potions[potion_index] = ""
 
         # Apply potion effects
         if potion_id == "Block Potion":
-            self.state.player.block += 12
-            result["effects"].append({"type": "block", "amount": 12})
+            amount = potency if potency is not None else 12
+            self.state.player.block += amount
+            result["effects"].append({"type": "block", "amount": amount})
         elif potion_id == "Strength Potion":
-            self.state.player.statuses["Strength"] = self.state.player.statuses.get("Strength", 0) + 2
-            result["effects"].append({"type": "buff", "buff": "Strength", "amount": 2})
+            amount = potency if potency is not None else 2
+            self.state.player.statuses["Strength"] = self.state.player.statuses.get("Strength", 0) + amount
+            result["effects"].append({"type": "buff", "buff": "Strength", "amount": amount})
         elif potion_id == "Dexterity Potion":
-            self.state.player.statuses["Dexterity"] = self.state.player.statuses.get("Dexterity", 0) + 2
-            result["effects"].append({"type": "buff", "buff": "Dexterity", "amount": 2})
+            amount = potency if potency is not None else 2
+            self.state.player.statuses["Dexterity"] = self.state.player.statuses.get("Dexterity", 0) + amount
+            result["effects"].append({"type": "buff", "buff": "Dexterity", "amount": amount})
         elif potion_id == "Fire Potion":
+            amount = potency if potency is not None else 20
             if 0 <= target_index < len(self.state.enemies):
                 enemy = self.state.enemies[target_index]
                 if enemy.hp > 0:
-                    damage = self._deal_damage_to_enemy(enemy, 20)
+                    damage = self._deal_damage_to_enemy(enemy, amount, apply_vuln=True)
                     result["effects"].append({"type": "damage", "target": enemy.id, "amount": damage})
         elif potion_id == "Energy Potion":
-            self.state.energy += 2
-            result["effects"].append({"type": "energy", "amount": 2})
+            amount = potency if potency is not None else 2
+            self.state.energy += amount
+            result["effects"].append({"type": "energy", "amount": amount})
         elif potion_id == "Swift Potion":
-            self._draw_cards(3)
-            result["effects"].append({"type": "draw", "amount": 3})
-        elif potion_id == "Fear Potion":
+            amount = potency if potency is not None else 3
+            self._draw_cards(amount)
+            result["effects"].append({"type": "draw", "amount": amount})
+        elif potion_id in ("Fear Potion", "FearPotion"):
+            amount = potency if potency is not None else 3
             if 0 <= target_index < len(self.state.enemies):
                 enemy = self.state.enemies[target_index]
-                enemy.statuses["Vulnerable"] = enemy.statuses.get("Vulnerable", 0) + 3
-                result["effects"].append({"type": "debuff", "debuff": "Vulnerable", "amount": 3})
+                enemy.statuses["Vulnerable"] = enemy.statuses.get("Vulnerable", 0) + amount
+                result["effects"].append({"type": "debuff", "debuff": "Vulnerable", "amount": amount})
         elif potion_id == "Weak Potion":
+            amount = potency if potency is not None else 3
             if 0 <= target_index < len(self.state.enemies):
                 enemy = self.state.enemies[target_index]
-                enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + 3
-                result["effects"].append({"type": "debuff", "debuff": "Weak", "amount": 3})
+                enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + amount
+                result["effects"].append({"type": "debuff", "debuff": "Weak", "amount": amount})
         elif potion_id == "Explosive Potion":
+            amount = potency if potency is not None else 10
             for enemy in self.state.enemies:
                 if enemy.hp > 0:
-                    damage = self._deal_damage_to_enemy(enemy, 10)
+                    damage = self._deal_damage_to_enemy(enemy, amount, apply_vuln=True)
                     result["effects"].append({"type": "damage", "target": enemy.id, "amount": damage})
+
+        # New potion implementations
+        elif potion_id == "FairyPotion":
+            # Fairy in a Bottle - should be triggered automatically on death, not manually used
+            # This should not be called directly; instead handle in death logic
+            result["success"] = False
+            result["error"] = "Fairy in a Bottle triggers automatically on death"
+        elif potion_id == "SmokeBomb":
+            # Smoke Bomb - escape from non-boss combat
+            # TODO: Need to check if current combat is boss fight
+            result["effects"].append({"type": "escape"})
+        elif potion_id == "DuplicationPotion":
+            # Duplication Potion - next card(s) played twice
+            amount = potency if potency is not None else 1
+            self.state.player.statuses["Duplication"] = self.state.player.statuses.get("Duplication", 0) + amount
+            result["effects"].append({"type": "power", "power": "Duplication", "amount": amount})
+        elif potion_id == "DistilledChaos":
+            # Distilled Chaos - play top N cards from draw pile
+            amount = potency if potency is not None else 3
+            # TODO: Implement card playing from draw pile
+            result["effects"].append({"type": "play_top_cards", "amount": amount})
+        elif potion_id == "Fruit Juice":
+            # Fruit Juice - gain max HP permanently
+            amount = potency if potency is not None else 5
+            self.state.player.max_hp += amount
+            self.state.player.hp += amount
+            result["effects"].append({"type": "max_hp", "amount": amount})
+        elif potion_id == "LiquidMemories":
+            # Liquid Memories - return card(s) from discard to hand, costs 0
+            # TODO: Implement card selection from discard pile
+            amount = potency if potency is not None else 1
+            result["effects"].append({"type": "return_from_discard", "amount": amount})
+        elif potion_id == "EntropicBrew":
+            # Entropic Brew - fill all potion slots with random potions
+            # TODO: Implement potion generation
+            result["effects"].append({"type": "fill_potion_slots"})
+        elif potion_id == "Regen Potion":
+            # Regen Potion - apply Regeneration
+            amount = potency if potency is not None else 5
+            self.state.player.statuses["Regeneration"] = self.state.player.statuses.get("Regeneration", 0) + amount
+            result["effects"].append({"type": "buff", "buff": "Regeneration", "amount": amount})
+        elif potion_id == "Ancient Potion":
+            # Ancient Potion - apply Artifact
+            amount = potency if potency is not None else 1
+            self.state.player.statuses["Artifact"] = self.state.player.statuses.get("Artifact", 0) + amount
+            result["effects"].append({"type": "buff", "buff": "Artifact", "amount": amount})
+        elif potion_id == "EssenceOfSteel":
+            # Essence of Steel - apply Plated Armor
+            amount = potency if potency is not None else 4
+            self.state.player.statuses["Plated Armor"] = self.state.player.statuses.get("Plated Armor", 0) + amount
+            result["effects"].append({"type": "buff", "buff": "Plated Armor", "amount": amount})
 
         self.log.log(self.state.turn, "use_potion", potion=potion_id, effects=result["effects"])
 
@@ -1503,14 +1660,22 @@ class CombatEngine:
         elif stance == StanceID.DIVINITY:
             stance_mult = DIVINITY_MULT
 
-        # Note: Vulnerable is applied in _deal_damage_to_enemy
+        # Determine if target is vulnerable (must be included in single-chain calc)
+        vuln = False
+        if target_index >= 0 and target_index < len(self.state.enemies):
+            vuln = self.state.enemies[target_index].statuses.get("Vulnerable", 0) > 0
+        elif target_index == -1:
+            # For ALL_ENEMY cards, vuln is checked per-enemy in _deal_damage_to_enemy
+            # We pass vuln=False here; per-enemy vuln handled at deal time
+            vuln = False
+
         return calculate_damage(
             base=base_damage,
             strength=strength,
             vigor=vigor,
             weak=weak,
             stance_mult=stance_mult,
-            vuln=False,  # Applied separately
+            vuln=vuln,
         )
 
     def _calculate_block_gained(self, base_block: int) -> int:
@@ -1563,10 +1728,9 @@ class CombatEngine:
 
         # Exit effects
         if old_stance == StanceID.CALM:
-            # Gain energy
-            energy = 3 if self._has_violet_lotus() else 2
-            self.state.energy += energy
-            result["energy_gained"] = energy
+            # Gain 2 energy base (Violet Lotus adds +1 via relic trigger)
+            self.state.energy += 2
+            result["energy_gained"] = 2
 
         # Enter effects
         if new_stance == StanceID.DIVINITY:
@@ -1577,19 +1741,15 @@ class CombatEngine:
         self.state.stance = new_stance.value
         self.stance_changes += 1
 
-        # Mental Fortress trigger
-        mental_fortress = self.state.player.statuses.get("MentalFortress", 0)
-        if mental_fortress > 0:
-            self.state.player.block += mental_fortress
-            result["block_gained"] = mental_fortress
+        # Execute onChangeStance relic triggers (Violet Lotus)
+        execute_relic_triggers("onChangeStance", self.state,
+                              {"new_stance": new_stance.value, "old_stance": old_stance.value})
 
-        # Rushdown trigger
-        rushdown = self.state.player.statuses.get("Rushdown", 0)
-        if new_stance == StanceID.WRATH and rushdown > 0:
-            self._draw_cards(rushdown)
-            result["cards_drawn"] = rushdown
+        # Execute onChangeStance power triggers (Mental Fortress, Rushdown)
+        execute_power_triggers("onChangeStance", self.state, self.state.player,
+                              {"new_stance": new_stance.value, "old_stance": old_stance.value})
 
-        # Flurry of Blows trigger
+        # Flurry of Blows trigger (card-based, not in power registry)
         flurries = [i for i, card_id in enumerate(self.state.discard_pile)
                    if "FlurryOfBlows" in card_id]
         for i in reversed(flurries):
@@ -1673,6 +1833,8 @@ class CombatEngine:
                 self.state.draw_pile = self.state.discard_pile.copy()
                 self.state.discard_pile.clear()
                 self._shuffle_draw_pile()
+                # Trigger registry-based onShuffle relics (Sundial)
+                execute_relic_triggers("onShuffle", self.state)
 
             if self.state.draw_pile:
                 card_id = self.state.draw_pile.pop()

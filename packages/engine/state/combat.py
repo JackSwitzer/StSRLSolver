@@ -205,7 +205,7 @@ class CombatState:
     potions: List[str] = field(default_factory=list)
 
     # Combat tracking
-    turn: int = 1
+    turn: int = 0
     cards_played_this_turn: int = 0
     attacks_played_this_turn: int = 0
     skills_played_this_turn: int = 0

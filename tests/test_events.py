@@ -149,7 +149,7 @@ class TestEventChoiceOutcomes:
         assert len(choice.outcomes) == 1
         outcome = choice.outcomes[0]
         assert outcome.type == OutcomeType.HP_CHANGE
-        assert outcome.value_percent == pytest.approx(0.33, rel=0.01)
+        assert outcome.value_percent == pytest.approx(1/3, rel=0.001)
 
     def test_big_fish_donut_max_hp(self):
         """Big Fish donut option gives max HP."""
@@ -657,9 +657,9 @@ class TestEventCardRewards:
     """Test events that give cards."""
 
     def test_nest_ritual_dagger(self):
-        """The Nest gives Ritual Dagger."""
-        take_choice = NEST.choices[0]
-        card_gain = next(o for o in take_choice.outcomes if o.type == OutcomeType.CARD_GAIN)
+        """The Nest gives Ritual Dagger (option 1: join cult, costs 6 HP)."""
+        cult_choice = NEST.choices[1]
+        card_gain = next(o for o in cult_choice.outcomes if o.type == OutcomeType.CARD_GAIN)
         assert card_gain.card_id == "Ritual Dagger"
 
     def test_drug_dealer_jax(self):
@@ -792,7 +792,6 @@ class TestCurseMechanics:
             (SSSSERPENT, 0),  # Doubt curse
             (MUSHROOMS, 1),  # Parasite curse
             (ADDICT, 1),  # Shame curse
-            (BEGGAR, 1),  # Doubt curse
             (GOLD_SHRINE, 1),  # Regret curse
             (GREMLIN_WHEEL_GAME, 0),  # Decay curse (possible)
             (WINDING_HALLS, 1),  # Writhe curse

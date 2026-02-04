@@ -636,7 +636,7 @@ class EventHandler:
     ) -> int:
         """Apply HP change, respecting Mark of the Bloom. Returns actual change."""
         if amount > 0:
-            if run_state.has_relic("MarkOfTheBloom"):
+            if run_state.has_relic("Mark of the Bloom"):
                 return 0
             old_hp = run_state.current_hp
             run_state.heal(amount)
@@ -2136,8 +2136,8 @@ def _handle_mind_bloom(
                 upgraded_count += 1
 
         # Get Mark of the Bloom (can't heal)
-        run_state.add_relic("MarkOfTheBloom")
-        result.relics_gained.append("MarkOfTheBloom")
+        run_state.add_relic("Mark of the Bloom")
+        result.relics_gained.append("Mark of the Bloom")
         result.description = f"Chose 'I am Awake'. Upgraded {upgraded_count} cards, gained Mark of the Bloom."
 
     elif choice_idx == 2:

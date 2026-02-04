@@ -904,7 +904,8 @@ def generate_gold_reward(
                 GOLD_REWARDS["elite"]["max"]
             )
 
-    elif room_type == "normal":
+    elif room_type in ("normal", "monster"):
+        # "monster" is used by GameRunner, "normal" is the Java term
         if ascension >= 13:
             gold = GOLD_REWARDS["normal"]["a13_fixed"]
         else:

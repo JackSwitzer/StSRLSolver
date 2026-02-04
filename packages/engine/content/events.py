@@ -47,6 +47,7 @@ class Outcome:
     count: int = 1                      # Number of items
     random: bool = False                # Is this outcome random?
     description: str = ""               # Human-readable description
+    rounding: str = "truncate"           # Rounding mode: Java (int) cast truncates toward zero
 
 
 @dataclass
@@ -109,7 +110,7 @@ BIG_FISH = Event(
             index=0,
             description="Banana: Heal 1/3 Max HP",
             outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, value_percent=0.33, description="Heal 1/3 max HP")
+                Outcome(OutcomeType.HP_CHANGE, value_percent=1/3, description="Heal 1/3 max HP", rounding="floor_div")
             ]
         ),
         EventChoice(
@@ -227,7 +228,7 @@ GOLDEN_IDOL_ESCAPE_DAMAGE = EventChoice(
     index=1,
     description="Smash: Take 25%/35% Max HP damage",
     outcomes=[
-        Outcome(OutcomeType.HP_CHANGE, value_percent=-0.25, description="Take 25% max HP damage (35% A15+)")
+        Outcome(OutcomeType.HP_CHANGE, value_percent=-0.25, description="Take 25% max HP damage (35% A15+)", rounding="truncate")
     ]
 )
 
@@ -235,7 +236,7 @@ GOLDEN_IDOL_ESCAPE_MAX_HP = EventChoice(
     index=2,
     description="Hide: Lose 8%/10% Max HP permanently",
     outcomes=[
-        Outcome(OutcomeType.MAX_HP_CHANGE, value_percent=-0.08, description="Lose 8% max HP (10% A15+)")
+        Outcome(OutcomeType.MAX_HP_CHANGE, value_percent=-0.08, description="Lose 8% max HP (10% A15+)", rounding="truncate")
     ]
 )
 
@@ -390,7 +391,7 @@ SHINING_LIGHT = Event(
             description="Enter: Take 20%/30% Max HP damage, upgrade 2 random cards",
             requires_upgradable_cards=True,
             outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.20, description="Take 20% max HP damage (30% A15+)"),
+                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.20, description="Take 20% max HP damage (30% A15+)", rounding="round"),
                 Outcome(OutcomeType.CARD_UPGRADE, count=2, random=True, description="Upgrade 2 random cards")
             ]
         ),
@@ -492,23 +493,15 @@ BEGGAR = Event(
     choices=[
         EventChoice(
             index=0,
-            description="Give 75 gold: Obtain random relic",
+            description="Donate 75 gold: Remove a card",
             requires_gold=75,
             outcomes=[
                 Outcome(OutcomeType.GOLD_CHANGE, value=-75, description="Pay 75 gold"),
-                Outcome(OutcomeType.RELIC_GAIN, random=True, description="Random relic")
+                Outcome(OutcomeType.CARD_REMOVE, count=1, description="Remove a card")
             ]
         ),
         EventChoice(
             index=1,
-            description="Steal: Gain ~75 gold and Doubt curse",
-            outcomes=[
-                Outcome(OutcomeType.GOLD_CHANGE, value=75, random=True, description="Gain ~75 gold"),
-                Outcome(OutcomeType.CURSE_GAIN, card_id="Doubt", description="Obtain Doubt curse")
-            ]
-        ),
-        EventChoice(
-            index=2,
             description="Leave",
             outcomes=[Outcome(OutcomeType.NOTHING, description="Leave")]
         ),
@@ -629,7 +622,7 @@ FORGOTTEN_ALTAR = Event(
             outcomes=[
                 Outcome(OutcomeType.MAX_HP_CHANGE, value=5, description="+5 Max HP"),
                 Outcome(OutcomeType.HP_CHANGE, value_percent=-0.25,
-                       description="Take 25% max HP damage (35% A15+)")
+                       description="Take 25% max HP damage (35% A15+)", rounding="round")
             ]
         ),
         EventChoice(
@@ -735,20 +728,23 @@ NEST = Event(
     id="Nest",
     name="The Nest",
     act=Act.ACT_2,
+    has_ascension_modifier=True,
     description="A nest with valuable contents.",
     choices=[
         EventChoice(
             index=0,
-            description="Take: Obtain 99 gold and Ritual Dagger card",
+            description="Steal: Gain 99 gold (50 at A15+)",
             outcomes=[
-                Outcome(OutcomeType.GOLD_CHANGE, value=99, description="Gain 99 gold"),
-                Outcome(OutcomeType.CARD_GAIN, card_id="Ritual Dagger", description="Obtain Ritual Dagger")
+                Outcome(OutcomeType.GOLD_CHANGE, value=99, description="Gain 99 gold (50 at A15+)")
             ]
         ),
         EventChoice(
             index=1,
-            description="Leave",
-            outcomes=[Outcome(OutcomeType.NOTHING, description="Leave")]
+            description="Join the Cult: Take 6 damage, obtain Ritual Dagger",
+            outcomes=[
+                Outcome(OutcomeType.HP_CHANGE, value=-6, description="Take 6 damage"),
+                Outcome(OutcomeType.CARD_GAIN, card_id="Ritual Dagger", description="Obtain Ritual Dagger")
+            ]
         ),
     ]
 )
@@ -782,6 +778,7 @@ THE_LIBRARY = Event(
     id="The Library",
     name="The Library",
     act=Act.ACT_2,
+    has_ascension_modifier=True,
     description="Choose between reading or sleeping.",
     choices=[
         EventChoice(
@@ -793,9 +790,10 @@ THE_LIBRARY = Event(
         ),
         EventChoice(
             index=1,
-            description="Sleep: Heal to full HP",
+            description="Sleep: Heal 33% Max HP (20% on A15+)",
             outcomes=[
-                Outcome(OutcomeType.HP_CHANGE, description="Heal to full HP")
+                Outcome(OutcomeType.HP_CHANGE, value_percent=0.33,
+                       description="Heal 33% max HP (20% A15+)", rounding="round")
             ]
         ),
     ]
@@ -1248,7 +1246,9 @@ FACE_TRADER = Event(
             description="Touch: Take maxHealth // 10 damage, gain 75/50 gold",
             outcomes=[
                 # HP damage is calculated as maxHealth // 10 (integer division, not percentage)
-                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.10, description="Take maxHealth // 10 damage"),
+                # CANNOT use value_percent - must calculate exact value based on player max HP
+                # Implementation must use: damage = max(1, maxHealth // 10)
+                Outcome(OutcomeType.HP_CHANGE, description="Take maxHealth // 10 damage (special calculation)"),
                 Outcome(OutcomeType.GOLD_CHANGE, value=75, description="Gain 75 gold (50 A15+)")
             ]
         ),
@@ -1579,7 +1579,9 @@ WOMAN_IN_BLUE = Event(
             description="Leave: Free below A15, take ceil(5% Max HP) damage on A15+",
             outcomes=[
                 # Below A15 leaving is free; A15+ applies ceil(maxHP * 0.05) damage
-                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.05, description="Free below A15, ceil(5% max HP) A15+")
+                # Implementation must check ascension level and apply damage conditionally
+                Outcome(OutcomeType.HP_CHANGE, value_percent=-0.05,
+                       description="Free below A15, ceil(5% max HP) A15+", rounding="ceil")
             ]
         ),
     ]
@@ -1655,6 +1657,17 @@ def neow_percent_damage(current_hp: int) -> int:
     Example: HP=79 -> 79//10=7, 7*3=21 (NOT int(79*0.3)=23)
     """
     return (current_hp // 10) * 3
+
+
+def face_trader_damage(max_hp: int) -> int:
+    """Calculate Face Trader damage using Java's integer division formula.
+
+    Java: damage = maxHealth / 10; if (damage == 0) damage = 1;
+    This uses integer division, with minimum of 1.
+    Example: HP=79 -> 79//10=7, HP=9 -> max(1, 9//10)=1
+    """
+    damage = max_hp // 10
+    return max(1, damage)
 
 
 # =============================================================================
@@ -1762,7 +1775,13 @@ def get_events_for_act(act: Act) -> dict[str, Event]:
 
 def calculate_outcome_value(outcome: Outcome, player_max_hp: int, player_current_hp: int,
                            ascension_level: int = 0) -> int:
-    """Calculate the actual numeric value of an outcome given player state"""
+    """Calculate the actual numeric value of an outcome given player state.
+
+    Special cases:
+    - Face Trader: Use face_trader_damage(max_hp) for integer division damage
+    - Woman in Blue leave: Only applies damage on A15+, free below A15
+    - The Library: Heals 33% (20% A15+), NOT full heal
+    """
     if outcome.value is not None:
         # Apply ascension modifiers for certain events
         if outcome.type == OutcomeType.HP_CHANGE and outcome.value < 0:
@@ -1773,10 +1792,38 @@ def calculate_outcome_value(outcome: Outcome, player_max_hp: int, player_current
 
     if outcome.value_percent is not None:
         raw = player_max_hp * outcome.value_percent
-        # Java uses MathUtils.ceil for HP/MaxHP percentage losses (e.g., Ghosts)
-        if outcome.value_percent < 0:
+        rounding = outcome.rounding
+
+        # Special case: Woman in Blue leave damage only on A15+
+        if "Free below A15" in outcome.description:
+            if ascension_level < 15:
+                return 0
+            # A15+: apply ceil rounding
             return -math.ceil(abs(raw))
+
+        if rounding == "floor_div":
+            # Java integer division: maxHealth / 3
+            if outcome.value_percent > 0:
+                return int(player_max_hp * outcome.value_percent)
+            else:
+                return -int(player_max_hp * abs(outcome.value_percent))
+        elif rounding == "truncate":
+            # Java (int) cast: truncates toward zero
+            return int(raw)
+        elif rounding == "round":
+            # Java MathUtils.round
+            if raw < 0:
+                return -round(abs(raw))
+            else:
+                return round(raw)
+        elif rounding == "ceil":
+            # Java MathUtils.ceil - always round up
+            if outcome.value_percent < 0:
+                return -math.ceil(abs(raw))
+            else:
+                return math.ceil(raw)
         else:
+            # Default: truncate for most cases
             return int(raw)
 
     return 0

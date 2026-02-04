@@ -217,14 +217,13 @@ def calculate_incoming_damage(
 
     This is for NORMAL damage (attacks). HP_LOSS bypasses block entirely.
 
-    Order:
+    Order (matches Java):
     1. Apply Wrath multiplier (2x incoming if in Wrath)
     2. Apply Vulnerable
-    3. Apply Intangible (cap at 1)
-    4. Apply Torii (damage 2-5 reduced to 1)
-    5. Apply Tungsten Rod (-1 all damage)
-    6. Subtract block
-    7. Calculate HP loss
+    3. Apply Intangible (cap at 1, atDamageFinalReceive)
+    4. Subtract block (decrementBlock)
+    5. Apply Torii (post-block damage 2-5 reduced to 1, onAttacked)
+    6. Apply Tungsten Rod (-1 HP loss, onLoseHpLast)
 
     IMPORTANT: Only Wrath increases incoming damage (2x).
     Divinity does NOT affect incoming damage - only outgoing.
@@ -259,25 +258,20 @@ def calculate_incoming_damage(
     # Floor before caps
     final_damage = int(final_damage)
 
-    # 4. Intangible (cap at 1)
+    # 4. Intangible (cap at 1) - applied before block (atDamageFinalReceive)
     if intangible and final_damage > 1:
         final_damage = 1
 
-    # 5. Torii (damage 2-5 reduced to 1)
-    # Note: Torii applies BEFORE block in the game
-    if torii and 2 <= final_damage <= 5:
-        final_damage = 1
-
-    # 6. Tungsten Rod (-1 to all HP loss, applied at end)
-    # Note: This is actually applied to HP loss, not blocked damage
-    # But we track it here for the final HP loss calculation
-
-    # 7. Block absorbs damage
+    # 5. Block absorbs damage (decrementBlock in Java)
     blocked = min(block, final_damage)
     hp_loss = final_damage - blocked
     block_remaining = block - blocked
 
-    # Tungsten Rod reduces HP loss by 1 (minimum 0)
+    # 6. Torii (damage 2-5 reduced to 1) - applied AFTER block (onAttacked hook)
+    if torii and hp_loss > 1 and hp_loss <= 5:
+        hp_loss = 1
+
+    # 7. Tungsten Rod (-1 to all HP loss, onLoseHpLast hook)
     if tungsten_rod and hp_loss > 0:
         hp_loss = max(0, hp_loss - 1)
 

@@ -120,7 +120,7 @@ class TestTurnOrder:
         """Player acts before enemies."""
         # Player should have energy and be able to act
         assert basic_combat.energy == 3
-        assert basic_combat.turn == 1
+        assert basic_combat.turn == 0  # Turn starts at 0, incremented to 1 by CombatRunner
 
     def test_end_turn_resets_energy(self, basic_combat):
         """Energy resets at start of next turn."""
@@ -604,12 +604,17 @@ class TestStanceTransitions:
         damage = sm.at_damage_receive(10.0)
         assert damage == 10.0  # NOT 30.0
 
-    def test_divinity_exits_at_turn_end(self):
-        """Divinity automatically exits at turn end."""
+    def test_divinity_exits_at_turn_start(self):
+        """Divinity exits at start of next turn (Java: DivinityStance.atStartOfTurn)."""
         sm = StanceManager()
         sm.change_stance(StanceID.DIVINITY)
 
-        result = sm.on_turn_end()
+        # Persists through end of turn
+        sm.on_turn_end()
+        assert sm.current == StanceID.DIVINITY
+
+        # Exits at start of next turn
+        result = sm.on_turn_start()
         assert sm.current == StanceID.NEUTRAL
         assert result.get("divinity_ended")
 

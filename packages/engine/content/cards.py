@@ -455,6 +455,7 @@ INDIGNATION = Card(
 MEDITATE = Card(
     id="Meditate", name="Meditate", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     target=CardTarget.NONE, cost=1, base_magic=1, upgrade_magic=1,
+    enter_stance="Calm",  # Critical: enters Calm stance
     effects=["put_cards_from_discard_to_hand", "enter_calm", "end_turn"],
 )
 
@@ -611,6 +612,7 @@ BLASPHEMY = Card(
     id="Blasphemy", name="Blasphemy", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     target=CardTarget.SELF, cost=1, retain=False, exhaust=True,
     upgrade_retain=True,
+    enter_stance="Divinity",  # Critical: enters Divinity stance
     effects=["enter_divinity", "die_next_turn"],
 )
 
@@ -644,6 +646,12 @@ SPIRIT_SHIELD = Card(
     effects=["gain_block_per_card_in_hand"],  # 3/4 block per card
 )
 
+UNRAVELING = Card(
+    id="Unraveling", name="Unraveling", card_type=CardType.SKILL, rarity=CardRarity.RARE,
+    target=CardTarget.NONE, cost=2, upgrade_cost=1, exhaust=True,
+    effects=["scry_draw_pile_discard_for_block"],  # Scry entire draw pile, discard any, gain 1 block per discard
+)
+
 VAULT = Card(
     id="Vault", name="Vault", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     target=CardTarget.ALL, cost=3, upgrade_cost=2, exhaust=True,
@@ -653,8 +661,13 @@ VAULT = Card(
 WISH = Card(
     id="Wish", name="Wish", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     target=CardTarget.NONE, cost=3, exhaust=True,
+    base_damage=3,      # For BecomeAlmighty (Strength)
+    base_block=6,       # For LiveForever (Plated Armor)
+    base_magic=25,      # For FameAndFortune (Gold)
+    upgrade_damage=1,   # 3→4 Strength
+    upgrade_block=2,    # 6→8 Plated Armor
+    upgrade_magic=5,    # 25→30 Gold (was incorrect: 1)
     effects=["choose_plated_armor_or_strength_or_gold"],
-    upgrade_magic=1,  # Higher values when upgraded
 )
 
 
@@ -2328,6 +2341,7 @@ WATCHER_CARDS: Dict[str, Card] = {
     "Omniscience": OMNISCIENCE,
     "Scrawl": SCRAWL,
     "SpiritShield": SPIRIT_SHIELD,
+    "Unraveling": UNRAVELING,
     "Vault": VAULT,
     "Wish": WISH,
     # Rare Powers
@@ -2875,7 +2889,7 @@ FOOTWORK = Card(
 INFINITE_BLADES = Card(
     id="Infinite Blades", name="Infinite Blades", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
     color=CardColor.GREEN, target=CardTarget.SELF, cost=1,
-    # Upgraded: Innate
+    upgrade_innate=True,
     effects=["add_shiv_each_turn"],
 )
 
@@ -2999,7 +3013,7 @@ STORM_OF_STEEL = Card(
 AFTER_IMAGE = Card(
     id="After Image", name="After Image", card_type=CardType.POWER, rarity=CardRarity.RARE,
     color=CardColor.GREEN, target=CardTarget.SELF, cost=1,
-    # Upgraded: Innate
+    upgrade_innate=True,
     effects=["gain_1_block_per_card_played"],
 )
 

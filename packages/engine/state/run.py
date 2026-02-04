@@ -398,7 +398,7 @@ class RunState:
             self.gain_max_hp(14)
         elif relic_id == "VioletLotus":
             pass  # Watcher-specific energy on exit Calm
-        elif relic_id == "PotionBelt":
+        elif relic_id == "Potion Belt":
             # Add 2 more potion slots
             self.potion_slots.append(PotionSlot())
             self.potion_slots.append(PotionSlot())
@@ -417,6 +417,41 @@ class RunState:
     def get_relic_ids(self) -> List[str]:
         """Get list of relic IDs."""
         return [r.id for r in self.relics]
+
+    def get_starter_relic(self) -> Optional[str]:
+        """
+        Get the starter relic ID for this character.
+
+        Returns:
+            The starter relic ID if still owned, or None if removed/swapped
+        """
+        # Starter relics by character
+        starter_relics = {
+            "Watcher": "PureWater",
+            "Ironclad": "BurningBlood",
+            "Silent": "RingOfTheSnake",
+            "Defect": "CrackedCore",
+        }
+        starter = starter_relics.get(self.character)
+        if starter and self.has_relic(starter):
+            return starter
+        return None
+
+    def remove_relic(self, relic_id: str) -> bool:
+        """
+        Remove a relic by ID.
+
+        Args:
+            relic_id: ID of relic to remove
+
+        Returns:
+            True if removed, False if not found
+        """
+        for i, relic in enumerate(self.relics):
+            if relic.id == relic_id:
+                self.relics.pop(i)
+                return True
+        return False
 
     def get_relic_counter(self, relic_id: str) -> int:
         """Get counter value for a relic (-1 if not found or no counter)."""
@@ -486,13 +521,18 @@ class RunState:
     # ----- RESOURCE MANAGEMENT -----
 
     def add_gold(self, amount: int):
-        """Add gold (affected by Ectoplasm)."""
+        """Add gold (affected by Ectoplasm and Golden Idol)."""
         if self.has_relic("Ectoplasm"):
             return  # Can't gain gold
+
+        # Golden Idol increases gold gain by 25%
+        if self.has_relic("Golden Idol") and amount > 0:
+            amount = int(amount * 1.25)
+
         self.gold += amount
 
         # Bloody Idol heals on gold gain
-        if self.has_relic("BloodyIdol") and amount > 0:
+        if self.has_relic("Bloody Idol") and amount > 0:
             self.heal(5)
 
     def lose_gold(self, amount: int) -> int:
@@ -517,11 +557,11 @@ class RunState:
         Args:
             amount: Amount to heal (affected by relics)
         """
-        if self.has_relic("MarkOfTheBloom"):
+        if self.has_relic("Mark of the Bloom"):
             return  # Can't heal
 
         # Magic Flower increases healing by 50%
-        if self.has_relic("MagicFlower"):
+        if self.has_relic("Magic Flower"):
             amount = int(amount * 1.5)
 
         self.current_hp = min(self.current_hp + amount, self.max_hp)

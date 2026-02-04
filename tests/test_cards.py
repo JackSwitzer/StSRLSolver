@@ -265,7 +265,7 @@ class TestRetainMechanics:
         retain_cards = [
             "Miracle", "FlyingSleeves", "ClearTheMind", "Crescendo",  # ClearTheMind = Tranquility
             "Protect", "SandsOfTime", "WindmillStrike", "Perseverance",
-            "Worship",  # Blasphemy gains retain only on upgrade
+            # Note: Worship only gains retain on upgrade (not base)
             # Special cards
             "Insight", "Smite", "Safety", "ThroughViolence",
         ]
@@ -422,11 +422,12 @@ class TestMantraGeneration:
         assert upgraded.magic_number == 3
 
     def test_worship_mantra(self):
-        """Worship: 2 cost, retain, 5 mantra."""
+        """Worship: 2 cost, 5 mantra. Retain only on upgrade (Java behavior)."""
         card = get_card("Worship")
         assert card.cost == 2
         assert card.magic_number == 5
-        assert card.retain == True
+        assert card.retain is False  # Java: no retain at base
+        assert card.upgrade_retain is True  # Gains retain on upgrade
         assert "gain_mantra" in card.effects
 
         upgraded = get_card("Worship", upgraded=True)
@@ -519,13 +520,18 @@ class TestStanceEffects:
         modified = sm.at_damage_receive(incoming)
         assert modified == 10.0  # No change
 
-    def test_divinity_exits_at_turn_end(self):
-        """Divinity automatically exits at end of turn."""
+    def test_divinity_exits_at_turn_start(self):
+        """Divinity exits at start of next turn (Java: DivinityStance.atStartOfTurn)."""
         sm = StanceManager()
         sm.change_stance(StanceID.DIVINITY)
         assert sm.current == StanceID.DIVINITY
 
+        # Should NOT exit at end of turn
         result = sm.on_turn_end()
+        assert sm.current == StanceID.DIVINITY
+
+        # Should exit at start of next turn
+        result = sm.on_turn_start()
         assert result.get("divinity_ended") == True
         assert sm.current == StanceID.NEUTRAL
 

@@ -79,6 +79,7 @@ class TriggerHook(Enum):
     MODIFY_BLOCK_LAST = "modifyBlockLast"
     ON_PLAYER_GAIN_BLOCK = "onPlayerGainBlock"
     ON_GAIN_BLOCK = "onGainBlock"
+    ON_BLOCK_BROKEN = "onBlockBroken"
 
     # Stance hooks (Watcher)
     ON_CHANGE_STANCE = "onChangeStance"
@@ -96,9 +97,18 @@ class TriggerHook(Enum):
     ON_EQUIP = "onEquip"
     ON_OBTAIN_CARD = "onObtainCard"
     ON_ENERGY_RECHARGE = "onEnergyRecharge"
+    ON_GAIN_GOLD = "onGainGold"
+    ON_ENTER_ROOM = "onEnterRoom"
+
+    # Rest site & map
+    ON_REST_OPTION = "onRestOption"
+    ON_FLY = "onFly"
 
     # Potion-specific
     ON_USE_POTION = "onUsePotion"
+
+    # Hand state
+    ON_EMPTY_HAND = "onEmptyHand"
 
 
 # =============================================================================
@@ -198,7 +208,15 @@ class BaseContext:
         return drawn
 
     def heal_player(self, amount: int) -> int:
-        """Heal the player. Returns actual amount healed."""
+        """Heal the player. Returns actual amount healed.
+
+        Applies onPlayerHeal trigger for relics like Magic Flower that modify healing.
+        """
+        # Apply onPlayerHeal triggers to modify heal amount
+        if hasattr(self.state, 'relics') and 'Magic Flower' in self.state.relics:
+            # Magic Flower: Healing is 50% more effective (only in combat)
+            amount = round(amount * 1.5)
+
         max_heal = self.player.max_hp - self.player.hp
         actual = min(amount, max_heal)
         if actual > 0:
@@ -211,6 +229,21 @@ class BaseContext:
             self.state.hand.append(card_id)
             return True
         return False
+
+    def deal_damage_to_enemy(self, enemy, amount: int) -> int:
+        """Deal damage to single enemy, respecting block. Returns HP damage dealt."""
+        blocked = min(enemy.block, amount)
+        hp_damage = amount - blocked
+        enemy.block -= blocked
+        enemy.hp = max(0, enemy.hp - hp_damage)
+        return hp_damage
+
+    def deal_damage_to_all_enemies(self, amount: int) -> int:
+        """Deal damage to all living enemies. Returns total HP damage dealt."""
+        total = 0
+        for enemy in self.living_enemies:
+            total += self.deal_damage_to_enemy(enemy, amount)
+        return total
 
 
 @dataclass
@@ -576,3 +609,5 @@ __all__ = [
 # Import handlers to register them (decorators populate the registries)
 from . import potions as _potions  # noqa: F401, E402
 from . import relics as _relics  # noqa: F401, E402
+from . import powers as _powers  # noqa: F401, E402
+from . import relics_passive as _relics_passive  # noqa: F401, E402
