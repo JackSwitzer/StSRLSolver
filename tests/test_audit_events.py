@@ -616,20 +616,56 @@ class TestVampiresHandlerBehavior:
         assert result.max_hp_change < 0
         assert run.max_hp == initial_max_hp - expected_loss
 
-    def test_refuse_triggers_combat(self):
-        """Refusing triggers combat against vampires."""
+    def test_refuse_does_not_trigger_combat(self):
+        """Refusing does NOT trigger combat - just leaves peacefully.
+
+        Java (Vampires.java): Refuse simply updates the dialog text and
+        calls openMap() - no combat is triggered. The incorrect assumption
+        that refuse triggers combat was never in the original game.
+        """
         handler = EventHandler()
         run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Get the choices to find the refuse index
+        event_state = EventState(event_id="Vampires")
+        choices = handler.get_available_choices(event_state, run)
+        refuse_idx = next(i for i, c in enumerate(choices) if c.name == "refuse")
+
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, refuse_idx, run, event_rng, misc_rng=misc_rng)
+
+        assert result.combat_triggered is False
+        assert result.choice_name == "refuse"
+        assert "left" in result.description.lower() or "refused" in result.description.lower()
+
+    def test_blood_vial_trade_no_hp_loss(self):
+        """Trading Blood Vial gives Bites without HP loss.
+
+        Java (Vampires.java): If player has Blood Vial, buttonEffect case 1
+        removes the vial and replaces Strikes with Bites, but does NOT
+        call decreaseMaxHealth().
+        """
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Add Blood Vial relic
+        run.add_relic("Blood Vial")
+        initial_max_hp = run.max_hp
 
         event_state = EventState(event_id="Vampires")
         misc_rng = Random(12345)
         event_rng = Random(12345)
 
+        # Choice 1 is the Blood Vial trade (when available)
         result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
 
-        assert result.combat_triggered is True
-        assert result.combat_encounter == "Vampires"
-        assert result.event_complete is False
+        assert result.choice_name == "vial"
+        assert "Blood Vial" in result.relics_lost
+        assert result.cards_gained.count("Bite") == 5
+        assert run.max_hp == initial_max_hp  # No HP loss!
+        assert not any(r.id == "Blood Vial" for r in run.relics)
 
 
 class TestGhostsHandlerBehavior:
@@ -777,6 +813,88 @@ class TestMindBloomHandlerBehavior:
         normality_count = sum(1 for c in run.deck if c.id == "Normality")
         assert normality_count == 2
         assert result.cards_gained.count("Normality") == 2
+
+    def test_third_option_rich_when_floor_mod_50_lte_40(self):
+        """Third option is 'Rich' when floor % 50 <= 40.
+
+        Java (MindBloom.java): if (AbstractDungeon.floorNum % 50 <= 40)
+        then show "I am Rich" option (999 gold + 2 Normality).
+        """
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Test floor 30 (30 % 50 = 30 <= 40, so should be Rich)
+        run.floor = 30
+        event_state = EventState(event_id="MindBloom")
+        choices = handler.get_available_choices(event_state, run)
+
+        # Third choice should be 'rich'
+        third_choice = choices[2]
+        assert third_choice.name == "rich"
+        assert "Rich" in third_choice.text
+        assert "gold" in third_choice.text.lower()
+
+    def test_third_option_healthy_when_floor_mod_50_gt_40(self):
+        """Third option is 'Healthy' when floor % 50 > 40.
+
+        Java (MindBloom.java): if (AbstractDungeon.floorNum % 50 > 40)
+        then show "I am Healthy" option (full heal + Doubt).
+        """
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Test floor 45 (45 % 50 = 45 > 40, so should be Healthy)
+        run.floor = 45
+        event_state = EventState(event_id="MindBloom")
+        choices = handler.get_available_choices(event_state, run)
+
+        # Third choice should be 'healthy'
+        third_choice = choices[2]
+        assert third_choice.name == "healthy"
+        assert "Healthy" in third_choice.text
+        assert "heal" in third_choice.text.lower()
+
+    def test_healthy_option_heals_to_full(self):
+        """'I am Healthy' heals to full HP.
+
+        Java (MindBloom.java): player.heal(player.maxHealth)
+        """
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Set floor to trigger Healthy option (floor % 50 > 40)
+        run.floor = 45
+        run.current_hp = 30  # Damage the player
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert result.choice_name == "healthy"
+        assert run.current_hp == run.max_hp  # Healed to full
+
+    def test_healthy_option_gives_doubt_curse(self):
+        """'I am Healthy' gives Doubt curse.
+
+        Java (MindBloom.java): Doubt curse = new Doubt(); ...
+        """
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Set floor to trigger Healthy option (floor % 50 > 40)
+        run.floor = 45
+
+        event_state = EventState(event_id="MindBloom")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert result.choice_name == "healthy"
+        assert "Doubt" in result.cards_gained
+        assert any(c.id == "Doubt" for c in run.deck)
 
 
 class TestFallingHandlerBehavior:

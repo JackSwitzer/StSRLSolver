@@ -2006,18 +2006,25 @@ def _handle_vampires(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Vampires: Accept (remove Strikes, gain 5 Bites, -30% max HP) or Refuse (fight)."""
+    """Vampires: Accept, Trade Blood Vial (conditional), or Refuse.
+
+    Java behavior (Vampires.java):
+    - Choice 0: Accept - lose 30% max HP, replace Strikes with Bites
+    - Choice 1 (if has Blood Vial): Trade Blood Vial - lose Blood Vial, replace Strikes with Bites (no HP loss)
+    - Last choice: Refuse - just leave (NO combat!)
+    """
     result = EventChoiceResult(event_id="Vampires", choice_idx=choice_idx, choice_name="")
 
-    if choice_idx == 0:
-        # Accept
-        result.choice_name = "accept"
+    # Get available choices to understand the mapping
+    has_blood_vial = any(r.id == "Blood Vial" for r in run_state.relics)
 
-        # Remove all Strikes
+    # Helper function to perform the vampire transformation (Strikes -> Bites)
+    def replace_strikes_with_bites():
         strikes_removed = []
         indices_to_remove = []
         for i, card in enumerate(run_state.deck):
-            if card.id == "Strike_P":
+            # Check for any Strike card (Strike_R, Strike_G, Strike_B, Strike_P)
+            if card.id.startswith("Strike_"):
                 indices_to_remove.append(i)
                 strikes_removed.append(card.id)
 
@@ -2031,21 +2038,37 @@ def _handle_vampires(
             run_state.add_card("Bite")
             result.cards_gained.append("Bite")
 
-        # Lose 30% max HP
+        return len(strikes_removed)
+
+    if choice_idx == 0:
+        # Accept - lose HP and get Bites
+        result.choice_name = "accept"
+        strikes_count = replace_strikes_with_bites()
+
+        # Lose 30% max HP (ceil in Java)
         loss = handler._lose_max_hp_percent(run_state, 0.30)
         result.max_hp_change = loss
 
-        result.description = f"Became a vampire. Removed {len(strikes_removed)} Strikes, gained 5 Bites, lost {abs(loss)} Max HP."
+        result.description = f"Became a vampire. Removed {strikes_count} Strikes, gained 5 Bites, lost {abs(loss)} Max HP."
 
-    elif choice_idx == 1:
-        # Refuse - fight
+    elif choice_idx == 1 and has_blood_vial:
+        # Trade Blood Vial - no HP loss, just lose the vial
+        result.choice_name = "vial"
+        strikes_count = replace_strikes_with_bites()
+
+        # Lose Blood Vial relic
+        for i, relic in enumerate(run_state.relics):
+            if relic.id == "Blood Vial":
+                run_state.relics.pop(i)
+                result.relics_lost.append("Blood Vial")
+                break
+
+        result.description = f"Traded Blood Vial to become a vampire. Removed {strikes_count} Strikes, gained 5 Bites."
+
+    else:
+        # Refuse - just leave (NO combat in Java!)
         result.choice_name = "refuse"
-        result.combat_triggered = True
-        result.combat_encounter = "Vampires"
-        result.event_complete = False
-        event_state.phase = EventPhase.COMBAT_PENDING
-        event_state.combat_encounter = "Vampires"
-        result.description = "Refused the vampires. They attack!"
+        result.description = "Refused the vampires' offer and left."
 
     return result
 
@@ -2107,10 +2130,12 @@ def _handle_mind_bloom(
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
     """
-    Mind Bloom:
+    Mind Bloom (MindBloom.java):
     - I am War: Fight Act 1 boss for rare relic
     - I am Awake: Upgrade all cards, get Mark of the Bloom
-    - I am Rich: 999 gold, 2 Normality curses
+    - Third option (floor-dependent):
+      - floor % 50 <= 40: "I am Rich" - 999 gold, 2 Normality curses
+      - floor % 50 > 40: "I am Healthy" - Full heal, Doubt curse
     """
     result = EventChoiceResult(event_id="MindBloom", choice_idx=choice_idx, choice_name="")
 
@@ -2141,15 +2166,31 @@ def _handle_mind_bloom(
         result.description = f"Chose 'I am Awake'. Upgraded {upgraded_count} cards, gained Mark of the Bloom."
 
     elif choice_idx == 2:
-        # I am Rich
-        result.choice_name = "rich"
-        handler._apply_gold_change(run_state, 999)
-        result.gold_change = 999
+        # Third option is floor-dependent
+        floor_num = run_state.floor if hasattr(run_state, 'floor') else 0
+        if floor_num % 50 <= 40:
+            # I am Rich
+            result.choice_name = "rich"
+            handler._apply_gold_change(run_state, 999)
+            result.gold_change = 999
 
-        for _ in range(2):
-            handler._add_curse(run_state, "Normality")
-            result.cards_gained.append("Normality")
-        result.description = "Chose 'I am Rich'. Gained 999 gold and 2 Normality curses."
+            for _ in range(2):
+                handler._add_curse(run_state, "Normality")
+                result.cards_gained.append("Normality")
+            result.description = "Chose 'I am Rich'. Gained 999 gold and 2 Normality curses."
+        else:
+            # I am Healthy
+            result.choice_name = "healthy"
+
+            # Heal to full
+            heal_amount = run_state.max_hp - run_state.current_hp
+            run_state.current_hp = run_state.max_hp
+            result.hp_change = heal_amount
+
+            # Get Doubt curse
+            handler._add_curse(run_state, "Doubt")
+            result.cards_gained.append("Doubt")
+            result.description = f"Chose 'I am Healthy'. Healed {heal_amount} HP to full, obtained Doubt curse."
 
     return result
 
@@ -3395,12 +3436,26 @@ def _get_mind_bloom_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Get choices for Mind Bloom event."""
-    return [
+    """Get choices for Mind Bloom event.
+
+    Java behavior (MindBloom.java):
+    - Third option depends on floor number:
+      - floor % 50 <= 40: "I am Rich" (999 gold + 2 Normality)
+      - floor % 50 > 40: "I am Healthy" (full heal + Doubt)
+    """
+    choices = [
         EventChoice(index=0, name="war", text="[I am War] Fight Act 1 boss for rare relic"),
         EventChoice(index=1, name="awake", text="[I am Awake] Upgrade all cards, get Mark of the Bloom"),
-        EventChoice(index=2, name="rich", text="[I am Rich] Gain 999 gold, obtain 2 Normality curses"),
     ]
+
+    # Third option is floor-dependent
+    floor_num = run_state.floor if hasattr(run_state, 'floor') else 0
+    if floor_num % 50 <= 40:
+        choices.append(EventChoice(index=2, name="rich", text="[I am Rich] Gain 999 gold, obtain 2 Normality curses"))
+    else:
+        choices.append(EventChoice(index=2, name="healthy", text="[I am Healthy] Heal to full, obtain Doubt curse"))
+
+    return choices
 
 
 def _get_shrine_choices(
@@ -3639,11 +3694,26 @@ def _get_vampires_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Vampires: Accept or Refuse."""
-    return [
+    """Vampires: Accept, Trade Blood Vial (conditional), or Refuse.
+
+    Java has 3 options:
+    - Accept: Lose 30% max HP, trade Strikes for Bites
+    - Trade Blood Vial (only if has Blood Vial): Trade Blood Vial for Bites (no HP loss)
+    - Refuse: Just leave (NO combat in Java!)
+    """
+    choices = [
         EventChoice(index=0, name="accept", text="[Accept] Lose 30% max HP, trade Strikes for Bites"),
-        EventChoice(index=1, name="refuse", text="[Refuse] Fight the vampires"),
     ]
+
+    # Check if player has Blood Vial relic
+    has_blood_vial = any(r.id == "Blood Vial" for r in run_state.relics)
+    if has_blood_vial:
+        choices.append(EventChoice(index=1, name="vial", text="[Trade Blood Vial] Trade Blood Vial for Bites (no HP loss)"))
+
+    # Refuse is always the last option - just leaves without combat
+    choices.append(EventChoice(index=len(choices), name="refuse", text="[Refuse] Leave"))
+
+    return choices
 
 
 # ============================================================================
