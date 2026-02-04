@@ -143,6 +143,23 @@ def creative_ai_start(ctx: PowerContext) -> None:
             ctx.state.hand.append(random.choice(power_cards))
 
 
+@power_trigger("atStartOfTurn", power="Loop")
+def loop_start(ctx: PowerContext) -> None:
+    """Loop: Trigger rightmost orb's passive at start of turn.
+
+    Java: LoopPower.atStartOfTurn() calls both onStartOfTurn() AND onEndOfTurn()
+    on orbs.get(0), which is the rightmost orb. This triggers the passive effect.
+    """
+    from ..effects.orbs import get_orb_manager
+    manager = get_orb_manager(ctx.state)
+    if manager.orbs:
+        # Trigger rightmost orb's passive ctx.amount times
+        # Note: rightmost orb is at index -1 (end of list)
+        rightmost_orb = manager.orbs[-1]
+        for _ in range(ctx.amount):
+            manager._execute_passive(rightmost_orb, ctx.state, manager.focus)
+
+
 # =============================================================================
 # AT_START_OF_TURN_POST_DRAW Triggers (after draw)
 # =============================================================================
