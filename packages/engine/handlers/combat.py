@@ -1127,7 +1127,7 @@ class CombatRunner:
             if "FairyPotion" in self.state.potions:
                 idx = self.state.potions.index("FairyPotion")
                 self.state.potions[idx] = ""
-                heal_percent = 0.6 if self.state.has_relic("SacredBark") else 0.3
+                heal_percent = 0.6 if self.state.has_relic("Sacred Bark") else 0.3
                 revived_hp = max(1, int(self.state.player.max_hp * heal_percent))
                 self.state.player.hp = revived_hp
                 self.potions_used.append("FairyPotion")
