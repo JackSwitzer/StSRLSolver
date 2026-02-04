@@ -1795,7 +1795,7 @@ CHARGE_BATTERY = Card(
 COOLHEADED = Card(
     id="Coolheaded", name="Coolheaded", card_type=CardType.SKILL, rarity=CardRarity.COMMON,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=1,
-    base_magic=1, upgrade_magic=1, effects=["channel_frost", "draw"],
+    base_magic=1, upgrade_magic=1, effects=["channel_frost", "draw_cards"],
 )
 
 HOLOGRAM = Card(
@@ -1830,7 +1830,7 @@ STEAM_BARRIER = Card(
 TURBO = Card(
     id="Turbo", name="Turbo", card_type=CardType.SKILL, rarity=CardRarity.COMMON,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=0,
-    base_magic=2, upgrade_magic=1, effects=["gain_energy", "add_void_to_discard"],
+    base_magic=2, upgrade_magic=1, effects=["gain_energy_magic", "add_void_to_discard"],
 )
 
 
@@ -1968,7 +1968,7 @@ GLACIER = Card(
 OVERCLOCK = Card(
     id="Steam Power", name="Overclock", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=0,
-    base_magic=2, upgrade_magic=1, effects=["draw", "add_burn_to_discard"],
+    base_magic=2, upgrade_magic=1, effects=["draw_cards", "add_burn_to_discard"],
 )
 
 RECYCLE = Card(
@@ -1992,7 +1992,7 @@ REPROGRAM = Card(
 SKIM = Card(
     id="Skim", name="Skim", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     color=CardColor.BLUE, target=CardTarget.NONE, cost=1,
-    base_magic=3, upgrade_magic=1, effects=["draw"],
+    base_magic=3, upgrade_magic=1, effects=["draw_cards"],
 )
 
 TEMPEST = Card(
@@ -3150,6 +3150,7 @@ ALL_CARDS: Dict[str, Card] = {
     **WATCHER_CARDS,
     **IRONCLAD_CARDS,
     **SILENT_CARDS,
+    **DEFECT_CARDS,
     **COLORLESS_CARDS,
     **CURSE_CARDS,
     **STATUS_CARDS,

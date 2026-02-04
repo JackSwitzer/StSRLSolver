@@ -60,8 +60,10 @@ from .executor import (
     create_executor,
 )
 
-# Import cards module to register all effects
+# Import cards modules to register all effects
 from . import cards as _cards  # noqa: F401
+from . import defect_cards as _defect_cards  # noqa: F401
+from . import orbs as _orbs  # noqa: F401
 
 __all__ = [
     # Core types
