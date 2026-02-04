@@ -430,14 +430,21 @@ def if_in_wrath_extra_block(ctx: EffectContext) -> None:
         ctx.gain_block(extra)
 
 
-@effect_simple("if_calm_draw_3_else_calm")
+@effect_simple("if_calm_draw_else_calm")
 def if_calm_draw_else_calm(ctx: EffectContext) -> None:
-    """If in Calm draw 3, else enter Calm (Inner Peace)."""
+    """If in Calm draw 3/4, else enter Calm (Inner Peace)."""
     if ctx.stance == "Calm":
         amount = 4 if ctx.is_upgraded else 3
         ctx.draw_cards(amount)
     else:
         ctx.change_stance("Calm")
+
+
+# Alias for backwards compatibility
+@effect_simple("if_calm_draw_3_else_calm")
+def _if_calm_draw_else_calm_alias(ctx: EffectContext) -> None:
+    """Alias for if_calm_draw_else_calm."""
+    if_calm_draw_else_calm(ctx)
 
 
 @effect_simple("if_wrath_gain_mantra_else_wrath")
@@ -1152,7 +1159,7 @@ WATCHER_CARD_EFFECTS = {
     "EmptyMind": ["draw_cards", "exit_stance"],
     "Evaluate": ["add_insight_to_draw"],
     "Halt": ["if_in_wrath_extra_block_6"],
-    "InnerPeace": ["if_calm_draw_3_else_calm"],
+    "InnerPeace": ["if_calm_draw_else_calm"],
     "PathToVictory": ["apply_mark", "trigger_all_marks"],  # Pressure Points
     "Protect": [],  # Just block + retain
     "ThirdEye": ["scry"],

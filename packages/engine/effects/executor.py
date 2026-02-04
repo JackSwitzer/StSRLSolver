@@ -389,7 +389,8 @@ class EffectExecutor:
         "if_enemy_attacking_enter_calm": lambda s, c, cd, r: c.change_stance("Calm") if c.is_enemy_attacking() else None,
 
         # Calm/Wrath conditionals
-        "if_calm_draw_3_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),
+        "if_calm_draw_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),
+        "if_calm_draw_3_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),  # Alias
         "if_wrath_gain_mantra_else_wrath": lambda s, c, cd, r: c.gain_mantra(5 if c.is_upgraded else 3) if c.stance == "Wrath" else c.change_stance("Wrath"),
 
         # Damage effects

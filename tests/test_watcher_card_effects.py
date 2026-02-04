@@ -15,12 +15,10 @@ Covers:
 """
 
 import pytest
-import sys
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
 from packages.engine.state.combat import CombatState, EntityState, EnemyCombatState
 from packages.engine.effects.registry import EffectContext, execute_effect
-from packages.engine.effects import cards as card_effects
+from packages.engine.effects import cards as card_effects  # noqa: F401 - imports to register effects
 from packages.engine.content.cards import get_card, CardType
 
 
@@ -203,6 +201,34 @@ class TestConditionalStanceEffects:
         """Inner Peace outside Calm enters Calm."""
         ctx_basic.state.stance = "Neutral"
         execute_effect("if_calm_draw_3_else_calm", ctx_basic)
+        assert ctx_basic.stance == "Calm"
+
+    def test_inner_peace_canonical_effect_in_calm(self, ctx_basic):
+        """Inner Peace canonical effect (if_calm_draw_else_calm) draws 3 in Calm."""
+        ctx_basic.state.stance = "Calm"
+        ctx_basic.is_upgraded = False
+        initial_hand = len(ctx_basic.hand)
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+        assert len(ctx_basic.hand) == initial_hand + 3
+
+    def test_inner_peace_canonical_effect_not_in_calm(self, ctx_basic):
+        """Inner Peace canonical effect enters Calm from Neutral."""
+        ctx_basic.state.stance = "Neutral"
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+        assert ctx_basic.stance == "Calm"
+
+    def test_inner_peace_upgraded_draws_4(self, ctx_basic):
+        """Inner Peace upgraded draws 4 cards in Calm."""
+        ctx_basic.state.stance = "Calm"
+        ctx_basic.is_upgraded = True
+        initial_hand = len(ctx_basic.hand)
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+        assert len(ctx_basic.hand) == initial_hand + 4
+
+    def test_inner_peace_from_wrath_enters_calm(self, ctx_basic):
+        """Inner Peace from Wrath stance enters Calm."""
+        ctx_basic.state.stance = "Wrath"
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
         assert ctx_basic.stance == "Calm"
 
     def test_indignation_in_wrath_gains_mantra(self, ctx_basic):
