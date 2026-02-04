@@ -642,7 +642,7 @@ class TestDefectPowers:
         assert card.cost == 2
         assert card.magic_number == 2
         assert "lightning_hits_all" in card.effects
-        assert "channel_lightning" in card.effects
+        assert "channel_lightning_magic" in card.effects  # Channels magicNumber Lightning orbs
 
         upgraded = get_card("Electrodynamics", upgraded=True)
         assert upgraded.magic_number == 3

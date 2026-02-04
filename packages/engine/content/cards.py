@@ -2160,7 +2160,7 @@ ECHO_FORM = Card(
 ELECTRODYNAMICS = Card(
     id="Electrodynamics", name="Electrodynamics", card_type=CardType.POWER, rarity=CardRarity.RARE,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=2,
-    base_magic=2, upgrade_magic=1, effects=["lightning_hits_all", "channel_lightning"],
+    base_magic=2, upgrade_magic=1, effects=["lightning_hits_all", "channel_lightning_magic"],
 )
 
 MACHINE_LEARNING = Card(

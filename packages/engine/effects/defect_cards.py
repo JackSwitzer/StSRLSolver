@@ -40,6 +40,17 @@ def channel_lightning_effect(ctx: EffectContext) -> None:
     channel_orb(ctx.state, "Lightning")
 
 
+@effect_simple("channel_lightning_magic")
+def channel_lightning_magic_effect(ctx: EffectContext) -> None:
+    """Channel Lightning orbs equal to magic number (Electrodynamics).
+
+    Java: Electrodynamics channels magicNumber Lightning orbs (base: 2, upgraded: 3).
+    """
+    count = ctx.magic_number if ctx.magic_number > 0 else 2
+    for _ in range(count):
+        channel_orb(ctx.state, "Lightning")
+
+
 @effect_simple("channel_frost")
 def channel_frost_effect(ctx: EffectContext) -> None:
     """Channel 1 Frost orb (Cold Snap, Coolheaded)."""
@@ -788,7 +799,7 @@ DEFECT_CARD_EFFECTS = {
     "Buffer": ["prevent_next_hp_loss"],
     "Creative AI": ["add_random_power_each_turn"],
     "Echo Form": ["play_first_card_twice"],
-    "Electrodynamics": ["lightning_hits_all", "channel_lightning"],
+    "Electrodynamics": ["lightning_hits_all", "channel_lightning_magic"],
     "Machine Learning": ["draw_extra_each_turn"],
 }
 
