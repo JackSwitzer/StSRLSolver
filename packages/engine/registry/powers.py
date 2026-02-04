@@ -681,3 +681,68 @@ def energized_energy(ctx: PowerContext) -> None:
     """Energized: Gain energy next turn, then remove."""
     ctx.gain_energy(ctx.amount)
     del ctx.player.statuses["Energized"]
+
+
+@power_trigger("onEnergyRecharge", power="Berserk")
+def berserk_energy(ctx: PowerContext) -> None:
+    """Berserk: Gain 1 energy at start of each turn."""
+    ctx.gain_energy(ctx.amount)
+
+
+# =============================================================================
+# ADDITIONAL IRONCLAD POWER TRIGGERS
+# =============================================================================
+
+@power_trigger("atStartOfTurnPostDraw", power="Corruption")
+def corruption_start(ctx: PowerContext) -> None:
+    """Corruption: Skills cost 0 (handled in card cost calculation)."""
+    # Flag is set, cost modification is handled in card execution
+    pass
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Barricade")
+def barricade_start(ctx: PowerContext) -> None:
+    """Barricade: Block is not removed at start of turn."""
+    # This is handled by preventing block reset in combat engine
+    pass
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Rage")
+def rage_start(ctx: PowerContext) -> None:
+    """Rage: Reset at start of turn (lasts this turn only)."""
+    # Rage is applied fresh each turn, previous turn's Rage is removed
+    if "Rage" in ctx.player.statuses:
+        del ctx.player.statuses["Rage"]
+
+
+@power_trigger("onUseCard", power="Rage")
+def rage_on_attack(ctx: PowerContext) -> None:
+    """Rage: Gain Block when playing an Attack card."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
+        ctx.gain_block(ctx.amount)
+
+
+@power_trigger("onUseCard", power="DoubleTap")
+def double_tap_on_attack(ctx: PowerContext) -> None:
+    """Double Tap: Play Attack card twice (handled by combat engine)."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
+        # Mark that this attack should be played again
+        ctx.state.play_card_again = True
+        # Decrement DoubleTap counter
+        if ctx.amount > 1:
+            ctx.player.statuses["DoubleTap"] = ctx.amount - 1
+        else:
+            del ctx.player.statuses["DoubleTap"]
+
+
+@power_trigger("atEndOfTurn", power="NoDraw")
+def no_draw_end(ctx: PowerContext) -> None:
+    """NoDraw (from Battle Trance): Remove at end of turn."""
+    if "NoDraw" in ctx.player.statuses:
+        del ctx.player.statuses["NoDraw"]

@@ -1615,6 +1615,7 @@ def _is_attack_card(card_id: str) -> bool:
     """Check if a card is an Attack type."""
     # List of known attack card IDs
     attack_ids = {
+        # Watcher
         "Strike_P", "Eruption", "BowlingBash", "CutThroughFate",
         "EmptyFist", "FlurryOfBlows", "FlyingSleeves", "FollowUp",
         "JustLucky", "SashWhip", "Consecrate", "CrushJoints",
@@ -1624,7 +1625,14 @@ def _is_attack_card(card_id: str) -> bool:
         "Brilliance", "Judgement", "LessonLearned", "Ragnarok",
         "Smite", "ThroughViolence", "Expunger",
         # Ironclad
-        "Strike_R", "Bash", "Anger", "Cleave", "Clothesline",
+        "Strike_R", "Bash", "Anger", "Body Slam", "Clash", "Cleave",
+        "Clothesline", "Headbutt", "Heavy Blade", "Iron Wave",
+        "Perfected Strike", "Pommel Strike", "Sword Boomerang",
+        "Thunderclap", "Twin Strike", "Wild Strike",
+        "Blood for Blood", "Carnage", "Dropkick", "Hemokinesis",
+        "Pummel", "Rampage", "Reckless Charge", "Searing Blow",
+        "Sever Soul", "Uppercut", "Whirlwind",
+        "Bludgeon", "Feed", "Fiend Fire", "Immolate", "Reaper",
     }
     base_id = card_id.rstrip("+")
     return base_id in attack_ids
@@ -1642,3 +1650,730 @@ def _ensure_effects_registered():
 
 # Auto-register on import
 _ensure_effects_registered()
+
+
+# =============================================================================
+# IRONCLAD CARD EFFECTS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Simple Stat Modifications
+# -----------------------------------------------------------------------------
+
+@effect_simple("gain_strength")
+def gain_strength_effect(ctx: EffectContext) -> None:
+    """Inflame - Gain Strength permanently."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("Strength", amount)
+
+
+@effect_simple("gain_temp_strength")
+def gain_temp_strength(ctx: EffectContext) -> None:
+    """Flex - Gain temporary Strength (lost at end of turn)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("Strength", amount)
+    ctx.apply_status_to_player("LoseStrength", amount)
+
+
+@effect_simple("reduce_enemy_strength")
+def reduce_enemy_strength(ctx: EffectContext) -> None:
+    """Disarm - Reduce enemy Strength permanently."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    if ctx.target:
+        current = ctx.target.statuses.get("Strength", 0)
+        ctx.target.statuses["Strength"] = current - amount
+
+
+@effect_simple("double_strength")
+def double_strength(ctx: EffectContext) -> None:
+    """Limit Break - Double current Strength."""
+    current = ctx.state.player.statuses.get("Strength", 0)
+    if current > 0:
+        ctx.apply_status_to_player("Strength", current)
+
+
+@effect_simple("double_block")
+def double_block(ctx: EffectContext) -> None:
+    """Entrench - Double current Block."""
+    current = ctx.state.player.block
+    if current > 0:
+        ctx.gain_block(current)
+
+
+# -----------------------------------------------------------------------------
+# Energy Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("gain_2_energy")
+def gain_2_energy(ctx: EffectContext) -> None:
+    """Seeing Red - Gain 2 energy."""
+    ctx.gain_energy(2)
+
+
+@effect_simple("lose_hp_gain_energy")
+def lose_hp_gain_energy(ctx: EffectContext) -> None:
+    """Bloodletting - Lose 3 HP, gain 2/3 energy."""
+    ctx.state.player.hp -= 3
+    if ctx.state.player.hp < 0:
+        ctx.state.player.hp = 0
+    energy_gain = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.gain_energy(energy_gain)
+
+
+@effect_simple("lose_hp_gain_energy_draw")
+def lose_hp_gain_energy_draw(ctx: EffectContext) -> None:
+    """Offering - Lose 6 HP, gain 2 energy, draw 3/5 cards."""
+    ctx.state.player.hp -= 6
+    if ctx.state.player.hp < 0:
+        ctx.state.player.hp = 0
+    ctx.gain_energy(2)
+    draw_amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.draw_cards(draw_amount)
+
+
+# -----------------------------------------------------------------------------
+# HP Loss / Self-Damage Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("lose_hp")
+def lose_hp_effect(ctx: EffectContext) -> None:
+    """Hemokinesis - Lose HP (2 HP)."""
+    hp_loss = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.state.player.hp -= hp_loss
+    if ctx.state.player.hp < 0:
+        ctx.state.player.hp = 0
+
+
+# -----------------------------------------------------------------------------
+# Card Generation / Manipulation
+# -----------------------------------------------------------------------------
+
+@effect_simple("add_copy_to_discard")
+def add_copy_to_discard(ctx: EffectContext) -> None:
+    """Anger - Add a copy of this card to discard pile."""
+    if ctx.card:
+        card_id = ctx.card.id
+        if ctx.is_upgraded:
+            card_id = card_id + "+"
+        ctx.add_card_to_discard(card_id)
+
+
+@effect_simple("shuffle_wound_into_draw")
+def shuffle_wound_into_draw(ctx: EffectContext) -> None:
+    """Wild Strike - Shuffle a Wound into draw pile."""
+    ctx.add_card_to_draw_pile("Wound", "random")
+
+
+@effect_simple("shuffle_dazed_into_draw")
+def shuffle_dazed_into_draw(ctx: EffectContext) -> None:
+    """Reckless Charge - Shuffle a Dazed into draw pile."""
+    ctx.add_card_to_draw_pile("Dazed", "random")
+
+
+@effect_simple("add_wounds_to_hand")
+def add_wounds_to_hand(ctx: EffectContext) -> None:
+    """Power Through - Add 2 Wounds to hand."""
+    for _ in range(2):
+        ctx.add_card_to_hand("Wound")
+
+
+@effect_simple("add_burn_to_discard")
+def add_burn_to_discard(ctx: EffectContext) -> None:
+    """Immolate - Add a Burn to discard pile."""
+    ctx.add_card_to_discard("Burn")
+
+
+@effect_simple("add_random_attack_cost_0")
+def add_random_attack_cost_0(ctx: EffectContext) -> None:
+    """Infernal Blade - Add a random Attack that costs 0 this turn."""
+    from ..content.cards import ALL_CARDS, CardType, CardColor
+    attacks = [
+        cid for cid, c in ALL_CARDS.items()
+        if c.card_type == CardType.ATTACK and c.color == CardColor.RED
+        and c.rarity.value not in ["BASIC", "SPECIAL", "CURSE"]
+    ]
+    if attacks:
+        card_id = random.choice(attacks)
+        ctx.add_card_to_hand(card_id)
+        # Mark card as cost 0 this turn
+        if not hasattr(ctx.state, 'cost_0_this_turn'):
+            ctx.state.cost_0_this_turn = []
+        ctx.state.cost_0_this_turn.append(card_id)
+
+
+@effect_simple("put_card_from_discard_on_draw")
+def put_card_from_discard_on_draw(ctx: EffectContext) -> None:
+    """Headbutt - Put a card from discard on top of draw pile (requires selection)."""
+    # In simulation, move first card from discard to top of draw
+    if ctx.state.discard_pile:
+        card = ctx.state.discard_pile[0]
+        ctx.state.discard_pile.remove(card)
+        ctx.state.draw_pile.append(card)
+
+
+@effect_simple("return_exhausted_card_to_hand")
+def return_exhausted_card_to_hand(ctx: EffectContext) -> None:
+    """Exhume - Return a card from exhaust pile to hand (requires selection)."""
+    if ctx.state.exhaust_pile and len(ctx.state.hand) < 10:
+        # In simulation, return first non-Exhume card
+        for card in ctx.state.exhaust_pile:
+            if not card.startswith("Exhume"):
+                ctx.state.exhaust_pile.remove(card)
+                ctx.state.hand.append(card)
+                break
+
+
+@effect_simple("copy_attack_or_power")
+def copy_attack_or_power(ctx: EffectContext) -> None:
+    """Dual Wield - Create 1/2 copies of an Attack or Power in hand (requires selection)."""
+    copies = ctx.magic_number if ctx.magic_number > 0 else 1
+    # In simulation, copy first Attack or Power
+    from ..content.cards import ALL_CARDS, CardType
+    for card_id in ctx.state.hand:
+        base_id = card_id.rstrip("+")
+        card_def = ALL_CARDS.get(base_id)
+        if card_def and card_def.card_type in [CardType.ATTACK, CardType.POWER]:
+            for _ in range(copies):
+                if len(ctx.state.hand) < 10:
+                    ctx.add_card_to_hand(card_id)
+            break
+
+
+# -----------------------------------------------------------------------------
+# Draw Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("draw_then_no_draw")
+def draw_then_no_draw(ctx: EffectContext) -> None:
+    """Battle Trance - Draw 3/4 cards, cannot draw more this turn."""
+    draw_amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.draw_cards(draw_amount)
+    ctx.apply_status_to_player("NoDraw", 1)
+
+
+@effect_simple("exhaust_to_draw")
+def exhaust_to_draw(ctx: EffectContext) -> None:
+    """Burning Pact - Exhaust 1 card, draw 2/3 (requires card selection)."""
+    # In simulation, exhaust first non-essential card and draw
+    if ctx.state.hand:
+        # Find first non-power card to exhaust
+        for i, card_id in enumerate(ctx.state.hand):
+            ctx.exhaust_hand_idx(i)
+            break
+    draw_amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.draw_cards(draw_amount)
+
+
+@effect_simple("draw_then_put_on_draw")
+def draw_then_put_on_draw(ctx: EffectContext) -> None:
+    """Warcry - Draw 1/2, put card from hand on top of draw (requires selection)."""
+    draw_amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.draw_cards(draw_amount)
+    # In simulation, put last card on draw
+    if ctx.state.hand:
+        card = ctx.state.hand.pop()
+        ctx.state.draw_pile.append(card)
+
+
+# -----------------------------------------------------------------------------
+# Exhaust-Related Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("exhaust_random_card")
+def exhaust_random_card(ctx: EffectContext) -> None:
+    """True Grit (base) - Exhaust a random card from hand."""
+    if ctx.state.hand:
+        card = random.choice(ctx.state.hand)
+        ctx.exhaust_card(card)
+
+
+@effect_simple("exhaust_non_attacks_gain_block")
+def exhaust_non_attacks_gain_block(ctx: EffectContext) -> None:
+    """Second Wind - Exhaust all non-Attack cards, gain block per card."""
+    from ..content.cards import ALL_CARDS, CardType
+    block_per = ctx.magic_number if ctx.magic_number > 0 else 5
+    cards_to_exhaust = []
+
+    for card_id in ctx.state.hand[:]:  # Copy to avoid modifying during iteration
+        base_id = card_id.rstrip("+")
+        card_def = ALL_CARDS.get(base_id)
+        if card_def and card_def.card_type != CardType.ATTACK:
+            cards_to_exhaust.append(card_id)
+
+    for card_id in cards_to_exhaust:
+        ctx.exhaust_card(card_id)
+        ctx.gain_block(block_per)
+
+
+@effect_simple("exhaust_all_non_attacks")
+def exhaust_all_non_attacks(ctx: EffectContext) -> None:
+    """Sever Soul - Exhaust all non-Attack cards in hand."""
+    from ..content.cards import ALL_CARDS, CardType
+    cards_to_exhaust = []
+
+    for card_id in ctx.state.hand[:]:
+        base_id = card_id.rstrip("+")
+        card_def = ALL_CARDS.get(base_id)
+        if card_def and card_def.card_type != CardType.ATTACK:
+            cards_to_exhaust.append(card_id)
+
+    for card_id in cards_to_exhaust:
+        ctx.exhaust_card(card_id)
+
+
+@effect_simple("exhaust_hand_damage_per_card")
+def exhaust_hand_damage_per_card(ctx: EffectContext) -> None:
+    """Fiend Fire - Exhaust all cards in hand, deal damage per card."""
+    if ctx.card and ctx.target:
+        damage = ctx.card.damage
+        count = 0
+
+        # Count cards to exhaust (all except this card)
+        for card_id in ctx.state.hand[:]:
+            if card_id != ctx.card.id:
+                count += 1
+
+        # Exhaust all other cards
+        cards_to_exhaust = [c for c in ctx.state.hand if c != ctx.card.id]
+        for card_id in cards_to_exhaust:
+            ctx.exhaust_card(card_id)
+
+        # Deal damage for each exhausted card
+        for _ in range(count):
+            ctx.deal_damage_to_enemy(ctx.target, damage)
+
+
+# -----------------------------------------------------------------------------
+# Conditional Damage Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("damage_equals_block")
+def damage_equals_block(ctx: EffectContext) -> None:
+    """Body Slam - Deal damage equal to current Block."""
+    damage = ctx.state.player.block
+    if ctx.target and damage > 0:
+        ctx.deal_damage_to_enemy(ctx.target, damage)
+
+
+@effect_simple("damage_per_strike")
+def damage_per_strike(ctx: EffectContext) -> None:
+    """Perfected Strike - Bonus damage per Strike card in deck."""
+    bonus_per = ctx.magic_number if ctx.magic_number > 0 else 2
+    strike_count = 0
+
+    # Count Strikes in all piles
+    for pile in [ctx.state.hand, ctx.state.draw_pile, ctx.state.discard_pile, ctx.state.exhaust_pile]:
+        for card_id in pile:
+            if "Strike" in card_id:
+                strike_count += 1
+
+    bonus = strike_count * bonus_per
+    if ctx.target and bonus > 0:
+        ctx.deal_damage_to_enemy(ctx.target, bonus)
+
+
+@effect_simple("strength_multiplier")
+def strength_multiplier(ctx: EffectContext) -> None:
+    """Heavy Blade - Strength affects this card 3/5 times instead of 1."""
+    # This is handled in damage calculation - mark the card
+    multiplier = ctx.magic_number if ctx.magic_number > 0 else 3
+    strength = ctx.state.player.statuses.get("Strength", 0)
+    # Extra damage = strength * (multiplier - 1) since base strength is already applied
+    extra_damage = strength * (multiplier - 1)
+    if ctx.target and extra_damage > 0:
+        ctx.deal_damage_to_enemy(ctx.target, extra_damage)
+
+
+@effect_simple("increase_damage_on_use")
+def increase_damage_on_use(ctx: EffectContext) -> None:
+    """Rampage - Increase base damage by 5/8 each time played."""
+    increase = ctx.magic_number if ctx.magic_number > 0 else 5
+    if not hasattr(ctx.state, 'rampage_bonus'):
+        ctx.state.rampage_bonus = {}
+    card_key = ctx.card.id if ctx.card else "Rampage"
+    current = ctx.state.rampage_bonus.get(card_key, 0)
+    # Deal the bonus damage
+    if ctx.target and current > 0:
+        ctx.deal_damage_to_enemy(ctx.target, current)
+    # Increase for next time
+    ctx.state.rampage_bonus[card_key] = current + increase
+
+
+@effect_simple("random_enemy_x_times")
+def random_enemy_x_times(ctx: EffectContext) -> None:
+    """Sword Boomerang - Deal damage to random enemy X times."""
+    if ctx.card:
+        damage = ctx.card.damage
+        hits = ctx.magic_number if ctx.magic_number > 0 else 3
+        for _ in range(hits):
+            ctx.deal_damage_to_random_enemy(damage)
+
+
+@effect_simple("if_vulnerable_draw_and_energy")
+def if_vulnerable_draw_and_energy(ctx: EffectContext) -> None:
+    """Dropkick - If enemy is Vulnerable, draw 1 and gain 1 energy."""
+    if ctx.target and ctx.target.statuses.get("Vulnerable", 0) > 0:
+        ctx.draw_cards(1)
+        ctx.gain_energy(1)
+
+
+@effect_simple("damage_all_heal_unblocked")
+def damage_all_heal_unblocked(ctx: EffectContext) -> None:
+    """Reaper - Deal damage to all enemies, heal for unblocked damage."""
+    if ctx.card:
+        damage = ctx.card.damage
+        total_hp_damage = 0
+
+        for enemy in ctx.living_enemies:
+            # Calculate unblocked damage
+            blocked = min(enemy.block, damage)
+            hp_damage = damage - blocked
+            enemy.block -= blocked
+            enemy.hp -= hp_damage
+            if enemy.hp < 0:
+                enemy.hp = 0
+            total_hp_damage += hp_damage
+
+        # Heal for total unblocked damage
+        if total_hp_damage > 0:
+            ctx.heal_player(total_hp_damage)
+
+
+@effect_simple("if_fatal_gain_max_hp")
+def if_fatal_gain_max_hp(ctx: EffectContext) -> None:
+    """Feed - If this kills, gain 3/4 max HP."""
+    max_hp_gain = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.extra_data["fatal_max_hp"] = max_hp_gain
+    # Actual max HP gain happens in combat engine when kill confirmed
+
+
+# -----------------------------------------------------------------------------
+# Status Application Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("apply_weak_all")
+def apply_weak_all(ctx: EffectContext) -> None:
+    """Intimidate - Apply Weak to ALL enemies."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_all_enemies("Weak", amount)
+
+
+@effect_simple("apply_vulnerable_1_all")
+def apply_vulnerable_1_all(ctx: EffectContext) -> None:
+    """Thunderclap - Apply 1 Vulnerable to ALL enemies."""
+    ctx.apply_status_to_all_enemies("Vulnerable", 1)
+
+
+@effect_simple("apply_weak_and_vulnerable")
+def apply_weak_and_vulnerable(ctx: EffectContext) -> None:
+    """Uppercut - Apply Weak and Vulnerable to target."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_target("Weak", amount)
+    ctx.apply_status_to_target("Vulnerable", amount)
+
+
+@effect_simple("apply_weak_and_vulnerable_all")
+def apply_weak_and_vulnerable_all(ctx: EffectContext) -> None:
+    """Shockwave - Apply Weak and Vulnerable to ALL enemies."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_all_enemies("Weak", amount)
+    ctx.apply_status_to_all_enemies("Vulnerable", amount)
+
+
+@effect_simple("gain_strength_if_enemy_attacking")
+def gain_strength_if_enemy_attacking(ctx: EffectContext) -> None:
+    """Spot Weakness - Gain Strength if enemy is attacking."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    if ctx.is_enemy_attacking():
+        ctx.apply_status_to_player("Strength", amount)
+
+
+# -----------------------------------------------------------------------------
+# X-Cost Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("damage_all_x_times")
+def damage_all_x_times(ctx: EffectContext) -> None:
+    """Whirlwind - Deal damage to ALL enemies X times (X = energy spent)."""
+    if ctx.card:
+        damage = ctx.card.damage
+        # X is energy spent (stored in context)
+        x = ctx.energy_spent if hasattr(ctx, 'energy_spent') else ctx.state.energy
+        for _ in range(x):
+            ctx.deal_damage_to_all_enemies(damage)
+
+
+# -----------------------------------------------------------------------------
+# Power Card Effects (apply as statuses that trigger)
+# -----------------------------------------------------------------------------
+
+@effect_simple("block_not_lost")
+def block_not_lost(ctx: EffectContext) -> None:
+    """Barricade - Block is not removed at start of turn."""
+    ctx.apply_status_to_player("Barricade", 1)
+
+
+@effect_simple("gain_vulnerable_gain_energy_per_turn")
+def gain_vulnerable_gain_energy_per_turn(ctx: EffectContext) -> None:
+    """Berserk - Gain 2/1 Vulnerable, gain 1 energy each turn."""
+    vuln_amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("Vulnerable", vuln_amount)
+    ctx.apply_status_to_player("Berserk", 1)
+
+
+@effect_simple("start_turn_lose_hp_draw")
+def start_turn_lose_hp_draw(ctx: EffectContext) -> None:
+    """Brutality - At start of turn, lose 1 HP and draw 1 card."""
+    ctx.apply_status_to_player("Brutality", 1)
+
+
+@effect_simple("skills_cost_0_exhaust")
+def skills_cost_0_exhaust(ctx: EffectContext) -> None:
+    """Corruption - Skills cost 0 but Exhaust."""
+    ctx.apply_status_to_player("Corruption", 1)
+
+
+@effect_simple("draw_on_exhaust")
+def draw_on_exhaust(ctx: EffectContext) -> None:
+    """Dark Embrace - Draw 1 card whenever a card is exhausted."""
+    ctx.apply_status_to_player("DarkEmbrace", 1)
+
+
+@effect_simple("draw_on_status")
+def draw_on_status(ctx: EffectContext) -> None:
+    """Evolve - Draw 1/2 cards whenever you draw a Status."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("Evolve", amount)
+
+
+@effect_simple("block_on_exhaust")
+def block_on_exhaust(ctx: EffectContext) -> None:
+    """Feel No Pain - Gain 3/4 Block whenever a card is exhausted."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_player("FeelNoPain", amount)
+
+
+@effect_simple("damage_on_status_curse")
+def damage_on_status_curse(ctx: EffectContext) -> None:
+    """Fire Breathing - Deal 6/10 damage to ALL enemies when drawing Status/Curse."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 6
+    ctx.apply_status_to_player("FireBreathing", amount)
+
+
+@effect_simple("when_attacked_deal_damage")
+def when_attacked_deal_damage(ctx: EffectContext) -> None:
+    """Flame Barrier - When attacked, deal 4/6 damage back."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 4
+    ctx.apply_status_to_player("FlameBarrier", amount)
+
+
+@effect_simple("gain_strength_each_turn")
+def gain_strength_each_turn(ctx: EffectContext) -> None:
+    """Demon Form - Gain 2/3 Strength at start of each turn."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("DemonForm", amount)
+
+
+@effect_simple("end_turn_gain_block")
+def end_turn_gain_block(ctx: EffectContext) -> None:
+    """Metallicize - Gain 3/4 Block at end of each turn."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_player("Metallicize", amount)
+
+
+@effect_simple("end_turn_damage_all_lose_hp")
+def end_turn_damage_all_lose_hp(ctx: EffectContext) -> None:
+    """Combust - At end of turn, lose 1 HP and deal 5/7 to all enemies."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 5
+    ctx.apply_status_to_player("Combust", amount)
+
+
+@effect_simple("gain_strength_on_hp_loss")
+def gain_strength_on_hp_loss(ctx: EffectContext) -> None:
+    """Rupture - Gain 1/2 Strength when losing HP from a card."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("Rupture", amount)
+
+
+@effect_simple("damage_random_on_block")
+def damage_random_on_block(ctx: EffectContext) -> None:
+    """Juggernaut - Deal 5/7 damage to random enemy when gaining Block."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 5
+    ctx.apply_status_to_player("Juggernaut", amount)
+
+
+@effect_simple("gain_block_per_attack")
+def gain_block_per_attack(ctx: EffectContext) -> None:
+    """Rage - Gain 3/5 Block for each Attack played this turn."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_player("Rage", amount)
+
+
+@effect_simple("play_attacks_twice")
+def play_attacks_twice(ctx: EffectContext) -> None:
+    """Double Tap - Next 1/2 Attacks are played twice."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("DoubleTap", amount)
+
+
+@effect_simple("play_top_card")
+def play_top_card(ctx: EffectContext) -> None:
+    """Havoc - Play the top card of draw pile and Exhaust it."""
+    if ctx.state.draw_pile:
+        card = ctx.state.draw_pile.pop()
+        # Mark for auto-play and exhaust
+        if not hasattr(ctx.state, 'cards_to_auto_play'):
+            ctx.state.cards_to_auto_play = []
+        ctx.state.cards_to_auto_play.append((card, True))  # True = exhaust after
+
+
+@effect_simple("gain_energy_on_exhaust_2_3")
+def gain_energy_on_exhaust_2_3(ctx: EffectContext) -> None:
+    """Sentinel - If exhausted, gain 2/3 energy."""
+    # This effect is tracked on the card, triggers when exhausted
+    ctx.extra_data["sentinel_energy"] = 3 if ctx.is_upgraded else 2
+
+
+# -----------------------------------------------------------------------------
+# Special/Misc Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("only_attacks_in_hand")
+def only_attacks_in_hand(ctx: EffectContext) -> None:
+    """Clash - Can only be played if only Attacks in hand (playability check)."""
+    # Handled in can_play_card
+    pass
+
+
+@effect_simple("cost_reduces_when_damaged")
+def cost_reduces_when_damaged(ctx: EffectContext) -> None:
+    """Blood for Blood - Cost reduces by 1 each time you take damage."""
+    # Tracked in combat state
+    pass
+
+
+@effect_simple("can_upgrade_unlimited")
+def can_upgrade_unlimited(ctx: EffectContext) -> None:
+    """Searing Blow - Can be upgraded multiple times."""
+    # This affects upgrade logic, not combat effect
+    pass
+
+
+@effect_simple("upgrade_card_in_hand")
+def upgrade_card_in_hand(ctx: EffectContext) -> None:
+    """Armaments - Upgrade a card in hand (upgraded: all cards)."""
+    if ctx.is_upgraded:
+        # Upgrade all cards in hand
+        new_hand = []
+        for card_id in ctx.state.hand:
+            if not card_id.endswith("+"):
+                new_hand.append(card_id + "+")
+            else:
+                new_hand.append(card_id)
+        ctx.state.hand = new_hand
+    else:
+        # Upgrade one card (first upgradeable)
+        for i, card_id in enumerate(ctx.state.hand):
+            if not card_id.endswith("+"):
+                ctx.state.hand[i] = card_id + "+"
+                break
+
+
+# =============================================================================
+# IRONCLAD CARD EFFECTS MAPPING
+# =============================================================================
+
+IRONCLAD_CARD_EFFECTS = {
+    # === BASIC ===
+    "Strike_R": [],
+    "Defend_R": [],
+    "Bash": ["apply_vulnerable"],
+
+    # === COMMON ATTACKS ===
+    "Anger": ["add_copy_to_discard"],
+    "Body Slam": ["damage_equals_block"],
+    "Clash": ["only_attacks_in_hand"],
+    "Cleave": [],  # AoE damage only
+    "Clothesline": ["apply_weak"],
+    "Headbutt": ["put_card_from_discard_on_draw"],
+    "Heavy Blade": ["strength_multiplier"],
+    "Iron Wave": [],  # Damage + block built in
+    "Perfected Strike": ["damage_per_strike"],
+    "Pommel Strike": ["draw_cards"],
+    "Sword Boomerang": ["random_enemy_x_times"],
+    "Thunderclap": ["apply_vulnerable_1_all"],
+    "Twin Strike": ["damage_x_times"],
+    "Wild Strike": ["shuffle_wound_into_draw"],
+
+    # === COMMON SKILLS ===
+    "Armaments": ["upgrade_card_in_hand"],
+    "Flex": ["gain_temp_strength"],
+    "Havoc": ["play_top_card"],
+    "Shrug It Off": ["draw_1"],
+    "True Grit": ["exhaust_random_card"],
+    "Warcry": ["draw_then_put_on_draw"],
+
+    # === UNCOMMON ATTACKS ===
+    "Blood for Blood": ["cost_reduces_when_damaged"],
+    "Carnage": [],  # Just ethereal damage
+    "Dropkick": ["if_vulnerable_draw_and_energy"],
+    "Hemokinesis": ["lose_hp"],
+    "Pummel": ["damage_x_times"],
+    "Rampage": ["increase_damage_on_use"],
+    "Reckless Charge": ["shuffle_dazed_into_draw"],
+    "Searing Blow": ["can_upgrade_unlimited"],
+    "Sever Soul": ["exhaust_all_non_attacks"],
+    "Uppercut": ["apply_weak_and_vulnerable"],
+    "Whirlwind": ["damage_all_x_times"],
+
+    # === UNCOMMON SKILLS ===
+    "Battle Trance": ["draw_then_no_draw"],
+    "Bloodletting": ["lose_hp_gain_energy"],
+    "Burning Pact": ["exhaust_to_draw"],
+    "Disarm": ["reduce_enemy_strength"],
+    "Dual Wield": ["copy_attack_or_power"],
+    "Entrench": ["double_block"],
+    "Flame Barrier": ["when_attacked_deal_damage"],
+    "Ghostly Armor": [],  # Ethereal block only
+    "Infernal Blade": ["add_random_attack_cost_0"],
+    "Intimidate": ["apply_weak_all"],
+    "Power Through": ["add_wounds_to_hand"],
+    "Rage": ["gain_block_per_attack"],
+    "Second Wind": ["exhaust_non_attacks_gain_block"],
+    "Seeing Red": ["gain_2_energy"],
+    "Sentinel": ["gain_energy_on_exhaust_2_3"],
+    "Shockwave": ["apply_weak_and_vulnerable_all"],
+    "Spot Weakness": ["gain_strength_if_enemy_attacking"],
+
+    # === UNCOMMON POWERS ===
+    "Combust": ["end_turn_damage_all_lose_hp"],
+    "Dark Embrace": ["draw_on_exhaust"],
+    "Evolve": ["draw_on_status"],
+    "Feel No Pain": ["block_on_exhaust"],
+    "Fire Breathing": ["damage_on_status_curse"],
+    "Inflame": ["gain_strength"],
+    "Metallicize": ["end_turn_gain_block"],
+    "Rupture": ["gain_strength_on_hp_loss"],
+
+    # === RARE ATTACKS ===
+    "Bludgeon": [],  # Big damage only
+    "Feed": ["if_fatal_gain_max_hp"],
+    "Fiend Fire": ["exhaust_hand_damage_per_card"],
+    "Immolate": ["add_burn_to_discard"],
+    "Reaper": ["damage_all_heal_unblocked"],
+
+    # === RARE SKILLS ===
+    "Double Tap": ["play_attacks_twice"],
+    "Exhume": ["return_exhausted_card_to_hand"],
+    "Impervious": [],  # Big block only
+    "Limit Break": ["double_strength"],
+    "Offering": ["lose_hp_gain_energy_draw"],
+
+    # === RARE POWERS ===
+    "Barricade": ["block_not_lost"],
+    "Berserk": ["gain_vulnerable_gain_energy_per_turn"],
+    "Brutality": ["start_turn_lose_hp_draw"],
+    "Corruption": ["skills_cost_0_exhaust"],
+    "Demon Form": ["gain_strength_each_turn"],
+    "Juggernaut": ["damage_random_on_block"],
+}
