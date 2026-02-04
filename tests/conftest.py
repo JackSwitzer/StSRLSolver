@@ -9,10 +9,6 @@ This module provides reusable fixtures for:
 """
 
 import pytest
-import sys
-
-# Ensure project root is in path
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
 from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
