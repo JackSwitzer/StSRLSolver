@@ -703,7 +703,7 @@ class TestRewardHandler:
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
         )
         old_gold = run.gold
-        result = RewardHandler.execute_action(run, rewards, ClaimGoldAction())
+        result = RewardHandler.execute_action(ClaimGoldAction(), run, rewards)
         assert result["success"]
         assert run.gold == old_gold + rewards.gold.amount
 
@@ -716,7 +716,7 @@ class TestRewardHandler:
         if rewards.card_rewards:
             initial_deck = len(run.deck)
             action = PickCardAction(card_reward_index=0, card_index=0)
-            result = RewardHandler.execute_action(run, rewards, action)
+            result = RewardHandler.execute_action(action, run, rewards)
             assert result["success"]
             assert len(run.deck) == initial_deck + 1
 
@@ -729,7 +729,7 @@ class TestRewardHandler:
         actions = RewardHandler.get_available_actions(run, rewards)
         potion_action = next((a for a in actions if isinstance(a, ClaimPotionAction)), None)
         if potion_action:
-            result = RewardHandler.execute_action(run, rewards, potion_action)
+            result = RewardHandler.execute_action(potion_action, run, rewards)
             assert result["success"]
 
     def test_take_potion_no_slots(self):
@@ -741,7 +741,7 @@ class TestRewardHandler:
         potion = list(ALL_POTIONS.values())[0]
         rewards = CombatRewards(room_type="monster", enemies_killed=1)
         rewards.potion = PotionReward(potion=potion)
-        result = RewardHandler.execute_action(run, rewards, ClaimPotionAction())
+        result = RewardHandler.execute_action(ClaimPotionAction(), run, rewards)
         assert not result["success"]
 
     def test_take_emerald_key(self):
@@ -751,7 +751,7 @@ class TestRewardHandler:
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
             is_burning_elite=True,
         )
-        result = RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
+        result = RewardHandler.execute_action(ClaimEmeraldKeyAction(), run, rewards)
         assert result["success"]
         assert run.has_emerald_key
 
@@ -762,8 +762,8 @@ class TestRewardHandler:
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
             is_burning_elite=True,
         )
-        RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
-        result = RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
+        RewardHandler.execute_action(ClaimEmeraldKeyAction(), run, rewards)
+        result = RewardHandler.execute_action(ClaimEmeraldKeyAction(), run, rewards)
         assert not result["success"]
 
     def test_skip_rewards(self):
@@ -772,7 +772,7 @@ class TestRewardHandler:
             run, "monster",
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
         )
-        result = RewardHandler.execute_action(run, rewards, ProceedFromRewardsAction())
+        result = RewardHandler.execute_action(ProceedFromRewardsAction(), run, rewards)
         assert result["success"]
         assert result.get("proceeding_to_map") is True
 
