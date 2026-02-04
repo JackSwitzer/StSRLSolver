@@ -10,11 +10,15 @@ This module provides reusable fixtures for:
 
 import pytest
 import sys
+import os
 
 # Ensure project root is in path - works for both main repo and worktrees
 # Ensure project root is in path (use the correct path for worktrees)
 import os
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Ensure worktree root is in path (support both main repo and worktrees)
+_conftest_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_conftest_dir)
 sys.path.insert(0, _project_root)
 
 from packages.engine.state.combat import (
