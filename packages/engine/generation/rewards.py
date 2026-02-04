@@ -337,9 +337,10 @@ def _get_card_pool(
         pool_order = _card_lib_module.get_watcher_pool_by_rarity(rarity_str)
 
     # Build pool in HashMap iteration order
+    # Compare by name to avoid enum identity mismatch from dynamic imports
     pool = []
     for card_id in pool_order:
-        if card_id in cards_dict and cards_dict[card_id].rarity == rarity:
+        if card_id in cards_dict and cards_dict[card_id].rarity.name == rarity_str:
             pool.append(cards_dict[card_id])
 
     return pool

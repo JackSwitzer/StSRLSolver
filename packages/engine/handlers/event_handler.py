@@ -2184,7 +2184,7 @@ def _handle_falling(
         ]
 
     if candidates:
-        idx = misc_rng.random(len(candidates) - 1)
+        idx = misc_rng.random(len(candidates))
         removed = run_state.remove_card(candidates[idx])
         if removed:
             result.cards_removed.append(removed.id)
@@ -3805,9 +3805,9 @@ def _get_falling_choices(
     """Falling: Land on Skill, Power, or Attack."""
     choices = []
     # Check if player has cards of each type
-    has_skill = any(c.id in handler.SKILL_CARDS for c in run_state.deck)
-    has_power = any(c.id in handler.POWER_CARDS for c in run_state.deck)
-    has_attack = any(c.id in handler.ATTACK_CARDS for c in run_state.deck)
+    has_skill = any(handler._card_is_type(c.id, CardType.SKILL) for c in run_state.deck)
+    has_power = any(handler._card_is_type(c.id, CardType.POWER) for c in run_state.deck)
+    has_attack = any(handler._card_is_type(c.id, CardType.ATTACK) for c in run_state.deck)
 
     if has_skill:
         choices.append(EventChoice(index=0, name="skill", text="[Land on Skill] Lose a random Skill"))

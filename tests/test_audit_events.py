@@ -435,6 +435,7 @@ from packages.engine.handlers.event_handler import (
     EventPhase,
     EventChoiceResult,
 )
+from packages.engine.content.cards import CardType
 from packages.engine.state.run import create_watcher_run, RunState
 from packages.engine.state.rng import Random
 
@@ -909,7 +910,7 @@ class TestFallingHandlerBehavior:
         run.add_card("Meditate")
         run.add_card("InnerPeace")
 
-        skills_before = sum(1 for c in run.deck if c.id in handler.SKILL_CARDS)
+        skills_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.SKILL))
 
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
@@ -917,7 +918,7 @@ class TestFallingHandlerBehavior:
 
         result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
 
-        skills_after = sum(1 for c in run.deck if c.id in handler.SKILL_CARDS)
+        skills_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.SKILL))
         assert skills_after == skills_before - 1
         assert len(result.cards_removed) == 1
 
@@ -930,7 +931,7 @@ class TestFallingHandlerBehavior:
         run.add_card("Rushdown")
         run.add_card("MentalFortress")
 
-        powers_before = sum(1 for c in run.deck if c.id in handler.POWER_CARDS)
+        powers_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.POWER))
 
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
@@ -938,7 +939,7 @@ class TestFallingHandlerBehavior:
 
         result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
 
-        powers_after = sum(1 for c in run.deck if c.id in handler.POWER_CARDS)
+        powers_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.POWER))
         assert powers_after == powers_before - 1
         assert len(result.cards_removed) == 1
 
@@ -947,7 +948,7 @@ class TestFallingHandlerBehavior:
         handler = EventHandler()
         run = create_watcher_run("TESTSEED", ascension=10)
 
-        attacks_before = sum(1 for c in run.deck if c.id in handler.ATTACK_CARDS)
+        attacks_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.ATTACK))
 
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
@@ -955,7 +956,7 @@ class TestFallingHandlerBehavior:
 
         result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
 
-        attacks_after = sum(1 for c in run.deck if c.id in handler.ATTACK_CARDS)
+        attacks_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.ATTACK))
         assert attacks_after == attacks_before - 1
         assert len(result.cards_removed) == 1
 
