@@ -1010,6 +1010,28 @@ LOCKON_MULTIPLIER = 1.50
 # POWER FACTORY FUNCTIONS
 # =============================================================================
 
+# Modern-name aliases for legacy Java IDs.
+# Keep canonical IDs in POWER_DATA; use aliases for lookups only.
+POWER_ID_ALIASES = {
+    "Rushdown": "Adaptation",
+    "Foresight": "WireheadingPower",
+    "ForesightPower": "WireheadingPower",
+    "Wraith Form": "Wraith Form v2",
+    "WraithForm": "Wraith Form v2",
+    "WraithFormPower": "Wraith Form v2",
+}
+
+
+def resolve_power_id(power_id: str) -> str:
+    """Resolve modern display IDs to canonical Java IDs."""
+    return POWER_ID_ALIASES.get(power_id, power_id)
+
+
+def get_power_data(power_id: str) -> Optional[dict]:
+    """Lookup power data with alias resolution."""
+    return POWER_DATA.get(resolve_power_id(power_id))
+
+
 def create_power(
     power_id: str,
     amount: int = 1,
@@ -1026,12 +1048,13 @@ def create_power(
     Returns:
         Power instance
     """
-    data = POWER_DATA.get(power_id)
+    resolved_id = resolve_power_id(power_id)
+    data = POWER_DATA.get(resolved_id)
     if not data:
         # Unknown power - create generic
         return Power(
-            id=power_id,
-            name=power_id,
+            id=resolved_id,
+            name=resolved_id,
             power_type=PowerType.BUFF,
             amount=amount,
         )
@@ -1052,8 +1075,8 @@ def create_power(
         just_applied = False
 
     return Power(
-        id=power_id,
-        name=data.get("name", power_id),
+        id=resolved_id,
+        name=data.get("name", resolved_id),
         power_type=data.get("type", PowerType.BUFF),
         amount=amount,
         is_turn_based=data.get("is_turn_based", False),

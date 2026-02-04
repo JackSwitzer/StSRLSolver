@@ -344,6 +344,7 @@ class RewardHandler:
 
         # Build reward state from run state
         reward_state = RewardState()
+        player_class = run_state.character.upper()
         reward_state.card_blizzard.offset = run_state.card_blizzard
         reward_state.potion_blizzard.modifier = run_state.potion_blizzard
         reward_state.owned_relics = set(run_state.get_relic_ids())
@@ -375,7 +376,7 @@ class RewardHandler:
             relic = generate_elite_relic_reward(
                 relic_rng,
                 reward_state,
-                run_state.character,
+                player_class,
                 run_state.act
             )
             if relic:
@@ -386,7 +387,7 @@ class RewardHandler:
                 second_relic = generate_elite_relic_reward(
                     relic_rng,
                     reward_state,  # Already includes first relic
-                    run_state.character,
+                    player_class,
                     run_state.act
                 )
                 if second_relic:
@@ -428,6 +429,7 @@ class RewardHandler:
 
         # Build reward state
         reward_state = RewardState()
+        player_class = run_state.character.upper()
         reward_state.owned_relics = set(run_state.get_relic_ids())
         reward_state.potion_blizzard.modifier = run_state.potion_blizzard
 
@@ -445,7 +447,7 @@ class RewardHandler:
         boss_relics = generate_boss_relics(
             relic_rng,
             reward_state,
-            run_state.character,
+            player_class,
             run_state.act,
             num_choices=3
         )
@@ -498,6 +500,7 @@ class RewardHandler:
             room_type,
             has_white_beast_statue=run_state.has_relic("White Beast Statue"),
             has_sozu=run_state.has_relic("Sozu"),
+            player_class=run_state.character.upper(),
         )
 
         if dropped and potion:
@@ -513,6 +516,7 @@ class RewardHandler:
         reward_state: RewardState,
     ) -> Optional[CardReward]:
         """Generate card reward with all modifiers."""
+        player_class = run_state.character.upper()
         # Determine number of cards
         num_cards = 3
 
@@ -531,7 +535,7 @@ class RewardHandler:
             card_rng,
             reward_state,
             act=run_state.act,
-            player_class=run_state.character,
+            player_class=player_class,
             ascension=run_state.ascension,
             room_type=room_type,
             num_cards=num_cards,
@@ -689,9 +693,6 @@ class RewardHandler:
                     card = card_reward.cards[action.card_index]
                     run_state.add_card(card.id, card.upgraded)
                     card_reward.claimed_index = action.card_index
-
-                    # Update card blizzard
-                    run_state.on_card_reward_taken(card.rarity == CardRarity.RARE)
 
                     result["card_id"] = card.id
                     result["card_name"] = card.name

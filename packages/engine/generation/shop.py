@@ -62,6 +62,9 @@ CardRarity = _cards_module.CardRarity
 CardColor = _cards_module.CardColor
 CardType = _cards_module.CardType
 WATCHER_CARDS = _cards_module.WATCHER_CARDS
+IRONCLAD_CARDS = _cards_module.IRONCLAD_CARDS
+SILENT_CARDS = _cards_module.SILENT_CARDS
+DEFECT_CARDS = _cards_module.DEFECT_CARDS
 COLORLESS_CARDS = _cards_module.COLORLESS_CARDS
 get_card = _cards_module.get_card
 
@@ -70,6 +73,9 @@ _card_lib_module = _load_module(
     os.path.join(_core_dir, "utils", "card_library_order.py")
 )
 get_watcher_pool_by_rarity = _card_lib_module.get_watcher_pool_by_rarity
+get_ironclad_pool_by_rarity = _card_lib_module.get_ironclad_pool_by_rarity
+get_silent_pool_by_rarity = _card_lib_module.get_silent_pool_by_rarity
+get_defect_pool_by_rarity = _card_lib_module.get_defect_pool_by_rarity
 WATCHER_CARD_RARITIES = _card_lib_module.WATCHER_CARD_RARITIES
 
 _relics_module = _load_module("relics", os.path.join(_core_dir, "content", "relics.py"))
@@ -204,6 +210,7 @@ def _get_card_pool_by_type_and_rarity(
     card_type: CardType,
     rarity: CardRarity,
     player_class: str = "WATCHER",
+    has_prismatic_shard: bool = False,
 ) -> List[str]:
     """
     Get card pool filtered by type and rarity in HashMap iteration order.
@@ -218,16 +225,45 @@ def _get_card_pool_by_type_and_rarity(
     Returns:
         List of card IDs matching both type and rarity
     """
-    # Get rarity pool in HashMap order
-    rarity_pool = get_watcher_pool_by_rarity(rarity.name)
+    rarity_str = rarity.name
 
-    # Filter by card type
+    if has_prismatic_shard:
+        cards_dict = {
+            **IRONCLAD_CARDS,
+            **SILENT_CARDS,
+            **DEFECT_CARDS,
+            **WATCHER_CARDS,
+            **COLORLESS_CARDS,
+        }
+        rarity_pool = (
+            get_ironclad_pool_by_rarity(rarity_str)
+            + get_silent_pool_by_rarity(rarity_str)
+            + get_defect_pool_by_rarity(rarity_str)
+            + get_watcher_pool_by_rarity(rarity_str)
+        )
+    elif player_class == "IRONCLAD":
+        cards_dict = IRONCLAD_CARDS
+        rarity_pool = get_ironclad_pool_by_rarity(rarity_str)
+    elif player_class == "SILENT":
+        cards_dict = SILENT_CARDS
+        rarity_pool = get_silent_pool_by_rarity(rarity_str)
+    elif player_class == "DEFECT":
+        cards_dict = DEFECT_CARDS
+        rarity_pool = get_defect_pool_by_rarity(rarity_str)
+    else:
+        cards_dict = WATCHER_CARDS
+        rarity_pool = get_watcher_pool_by_rarity(rarity_str)
+
+    # Filter by card type and exclude colorless from colored shop slots
     result = []
     for card_id in rarity_pool:
-        if card_id in WATCHER_CARDS:
-            card = WATCHER_CARDS[card_id]
-            if card.card_type == card_type:
-                result.append(card_id)
+        card = cards_dict.get(card_id)
+        if not card:
+            continue
+        if card.color == CardColor.COLORLESS:
+            continue
+        if card.card_type == card_type:
+            result.append(card_id)
 
     return result
 
@@ -260,10 +296,9 @@ def _roll_shop_rarity(rng: Random) -> CardRarity:
 
 def _is_colorless_card(card_id: str) -> bool:
     """Check if a card is colorless."""
-    if card_id in WATCHER_CARDS:
-        return WATCHER_CARDS[card_id].color == CardColor.COLORLESS
-    if card_id in COLORLESS_CARDS:
-        return True
+    for pool in (WATCHER_CARDS, IRONCLAD_CARDS, SILENT_CARDS, DEFECT_CARDS, COLORLESS_CARDS):
+        if card_id in pool:
+            return pool[card_id].color == CardColor.COLORLESS
     return False
 
 
@@ -274,6 +309,7 @@ def _is_colorless_card(card_id: str) -> bool:
 def _generate_shop_colored_cards(
     card_rng: Random,
     player_class: str = "WATCHER",
+    has_prismatic_shard: bool = False,
 ) -> Tuple[List[str], int]:
     """
     Generate the 5 colored cards for the shop.
@@ -313,7 +349,12 @@ def _generate_shop_colored_cards(
             calls_made += 1
 
             # Get pool for this type+rarity
-            pool = _get_card_pool_by_type_and_rarity(card_type, rarity, player_class)
+            pool = _get_card_pool_by_type_and_rarity(
+                card_type,
+                rarity,
+                player_class,
+                has_prismatic_shard=has_prismatic_shard,
+            )
 
             if not pool:
                 # No cards available for this combo, try different rarity
@@ -725,6 +766,7 @@ def predict_shop_inventory(
     purge_count: int = 0,
     has_membership_card: bool = False,
     has_the_courier: bool = False,
+    has_prismatic_shard: bool = False,
     has_smiling_mask: bool = False,
     ascension_level: int = 0,
 ) -> ShopPredictionResult:
@@ -745,6 +787,7 @@ def predict_shop_inventory(
         purge_count: Number of previous card removals
         has_membership_card: 50% shop discount
         has_the_courier: 20% shop discount + always has removal
+        has_prismatic_shard: Allows any class cards in colored slots
         has_smiling_mask: Overrides purge cost to flat 50g
         ascension_level: Ascension level (A16+ adds 10% price markup)
 
@@ -777,7 +820,7 @@ def predict_shop_inventory(
 
     # Generate colored cards
     colored_card_ids, colored_rng_calls = _generate_shop_colored_cards(
-        card_rng, player_class
+        card_rng, player_class, has_prismatic_shard=has_prismatic_shard
     )
 
     # Generate colorless cards

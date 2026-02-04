@@ -27,7 +27,13 @@ from enum import Enum, auto
 from typing import List, Dict, Optional, Union, Any, Tuple
 import random
 
-from .state.run import RunState, create_watcher_run
+from .state.run import (
+    RunState,
+    create_watcher_run,
+    create_ironclad_run,
+    create_silent_run,
+    create_defect_run,
+)
 from .state.rng import Random, seed_to_long
 from .state.combat import CombatState, EnemyCombatState, create_combat, create_enemy
 from .generation.map import (
@@ -153,6 +159,9 @@ GameAction = Union[
     EventAction, ShopAction, RestAction, TreasureAction, BossRewardAction
 ]
 
+# JSON action dictionary shape for agent-facing API.
+ActionDict = Dict[str, Any]
+
 
 # =============================================================================
 # Decision Log Entry
@@ -196,7 +205,7 @@ class GameRunner:
         Args:
             seed: Seed string (e.g., "TEST123") or numeric seed
             ascension: Ascension level (0-20)
-            character: Character class (only "Watcher" supported currently)
+            character: Character class ("Watcher", "Ironclad", "Silent", "Defect")
             skip_neow: If True, skip Neow blessing phase
             verbose: If True, print game events
         """
@@ -212,7 +221,19 @@ class GameRunner:
             self.seed_string = str(seed)
 
         # Create run state
-        self.run_state = create_watcher_run(self.seed_string, ascension)
+        character_key = character.strip().lower()
+        if character_key == "watcher":
+            factory = create_watcher_run
+        elif character_key == "ironclad":
+            factory = create_ironclad_run
+        elif character_key == "silent":
+            factory = create_silent_run
+        elif character_key == "defect":
+            factory = create_defect_run
+        else:
+            raise ValueError(f"Unknown character: {character}")
+
+        self.run_state = factory(self.seed_string, ascension)
 
         # Game status flags
         self.game_over = False
@@ -276,33 +297,66 @@ class GameRunner:
 
     def _init_rng(self):
         """Initialize RNG streams for different game systems."""
-        # AI RNG for enemy decisions
-        self.ai_rng = Random(self.seed + 1000)
-        # Monster HP RNG
-        self.hp_rng = Random(self.seed + 2000)
-        # Event RNG
-        self.event_rng = Random(self.seed + 3000)
-        # Misc RNG
-        self.misc_rng = Random(self.seed + 4000)
-        # Card reward RNG
-        self.card_rng = Random(self.seed + 5000)
-        # Treasure/gold RNG
-        self.treasure_rng = Random(self.seed + 6000)
-        # Potion drop RNG
-        self.potion_rng = Random(self.seed + 7000)
-        # Relic RNG
-        self.relic_rng = Random(self.seed + 8000)
-        # Merchant RNG (for shop prices and generation)
-        self.merchant_rng = Random(self.seed + 9000)
-        # Neow RNG (for blessing selection)
-        self.neow_rng = Random(self.seed + 10000)
-        # Monster encounter selection RNG
-        self.monster_rng = Random(self.seed + 100)
-        # Deck shuffle RNG
-        self.shuffle_rng = Random(self.seed + 200)
-        # Random card effects RNG
-        self.card_random_rng = Random(self.seed + 300)
+        counters = self.run_state.rng_counters or {}
+        def counter(name: str) -> int:
+            return int(counters.get(name, 0))
 
+        # AI RNG for enemy decisions
+        self.ai_rng = Random(self.seed + 1000, counter("ai"))
+        # Monster HP RNG
+        self.hp_rng = Random(self.seed + 2000, counter("monster_hp"))
+        # Event RNG
+        self.event_rng = Random(self.seed + 3000, counter("event"))
+        # Misc RNG
+        self.misc_rng = Random(self.seed + 4000, counter("misc"))
+        # Card reward RNG
+        self.card_rng = Random(self.seed + 5000, counter("card"))
+        # Treasure/gold RNG
+        self.treasure_rng = Random(self.seed + 6000, counter("treasure"))
+        # Potion drop RNG
+        self.potion_rng = Random(self.seed + 7000, counter("potion"))
+        # Relic RNG
+        self.relic_rng = Random(self.seed + 8000, counter("relic"))
+        # Merchant RNG (for shop prices and generation)
+        self.merchant_rng = Random(self.seed + 9000, counter("merchant"))
+        # Neow RNG (for blessing selection)
+        self.neow_rng = Random(self.seed + 10000, counter("neow"))
+        # Monster encounter selection RNG
+        self.monster_rng = Random(self.seed + 100, counter("monster"))
+        # Deck shuffle RNG
+        self.shuffle_rng = Random(self.seed + 200, counter("shuffle"))
+        # Random card effects RNG
+        self.card_random_rng = Random(self.seed + 300, counter("card_random"))
+
+        self._sync_rng_counters()
+
+    def _sync_rng_counters(self) -> None:
+        """Persist RNG counters into the run state."""
+        self.run_state.sync_rng_counters({
+            "ai": self.ai_rng.counter,
+            "monster_hp": self.hp_rng.counter,
+            "event": self.event_rng.counter,
+            "misc": self.misc_rng.counter,
+            "card": self.card_rng.counter,
+            "treasure": self.treasure_rng.counter,
+            "potion": self.potion_rng.counter,
+            "relic": self.relic_rng.counter,
+            "merchant": self.merchant_rng.counter,
+            "neow": self.neow_rng.counter,
+            "monster": self.monster_rng.counter,
+            "shuffle": self.shuffle_rng.counter,
+            "card_random": self.card_random_rng.counter,
+        })
+
+    def _apply_act_transition_rng_snaps(self) -> None:
+        """Apply cardRng snapping when transitioning to a new act."""
+        c = self.card_rng.counter
+        if 0 < c < 250:
+            self.card_rng.counter = 250
+        elif 250 < c < 500:
+            self.card_rng.counter = 500
+        elif 500 < c < 750:
+            self.card_rng.counter = 750
     def _generate_encounter_tables(self):
         """Generate encounter tables for the current act using monsterRng."""
         act = self.run_state.act
@@ -322,6 +376,7 @@ class GameRunner:
         self._boss_name = boss
         self._monster_index = 0
         self._elite_index = 0
+        self._sync_rng_counters()
 
     def _log(self, message: str):
         """Print a message if verbose mode is enabled."""
@@ -376,6 +431,310 @@ class GameRunner:
     # Action Interface
     # =========================================================================
 
+    def _phase_to_action_phase(self, phase: Optional[GamePhase] = None) -> str:
+        """Map GamePhase to JSON action phase string."""
+        phase = phase or self.phase
+        mapping = {
+            GamePhase.MAP_NAVIGATION: "map",
+            GamePhase.COMBAT: "combat",
+            GamePhase.COMBAT_REWARDS: "reward",
+            GamePhase.BOSS_REWARDS: "reward",
+            GamePhase.EVENT: "event",
+            GamePhase.SHOP: "shop",
+            GamePhase.REST: "rest",
+            GamePhase.TREASURE: "treasure",
+            GamePhase.NEOW: "neow",
+            GamePhase.RUN_COMPLETE: "complete",
+        }
+        return mapping.get(phase, "unknown")
+
+    def _make_action_id(self, action_type: str, params: Dict[str, Any]) -> str:
+        """Deterministic action id from type + sorted params."""
+        parts = [action_type]
+        for key in sorted(params.keys()):
+            value = params[key]
+            if isinstance(value, list):
+                value_str = ",".join(str(v) for v in value)
+            else:
+                value_str = str(value)
+            parts.append(f"{key}={value_str}")
+        return "|".join(parts)
+
+    def _action_to_dict(self, action: GameAction) -> ActionDict:
+        """Convert a GameAction dataclass into a JSON action dict."""
+        phase = self._phase_to_action_phase()
+        action_type = "unknown"
+        params: Dict[str, Any] = {}
+        label = ""
+
+        if isinstance(action, PathAction):
+            action_type = "path_choice"
+            params = {"node_index": action.node_index}
+            label = f"Path to node {action.node_index}"
+        elif isinstance(action, NeowAction):
+            action_type = "neow_choice"
+            params = {"choice_index": action.choice_index}
+            label = f"Neow choice {action.choice_index}"
+        elif isinstance(action, CombatAction):
+            action_type = action.action_type
+            if action.action_type == "play_card":
+                params = {"card_index": action.card_idx}
+                if action.target_idx >= 0:
+                    params["target_index"] = action.target_idx
+                label = f"Play card {action.card_idx}"
+            elif action.action_type == "use_potion":
+                params = {"potion_slot": action.potion_idx}
+                if action.target_idx >= 0:
+                    params["target_index"] = action.target_idx
+                label = f"Use potion {action.potion_idx}"
+            elif action.action_type == "end_turn":
+                params = {}
+                label = "End turn"
+        elif isinstance(action, RewardAction):
+            if action.reward_type == "card":
+                card_reward_idx = action.choice_index // 100
+                card_idx = action.choice_index % 100
+                action_type = "pick_card"
+                params = {"card_reward_index": card_reward_idx, "card_index": card_idx}
+                label = f"Pick card {card_idx} (reward {card_reward_idx})"
+            elif action.reward_type == "skip_card":
+                action_type = "skip_card"
+                params = {"card_reward_index": action.choice_index}
+                label = f"Skip card reward {action.choice_index}"
+            elif action.reward_type == "singing_bowl":
+                action_type = "singing_bowl"
+                params = {"card_reward_index": action.choice_index}
+                label = f"Singing Bowl (reward {action.choice_index})"
+            elif action.reward_type == "gold":
+                action_type = "claim_gold"
+                params = {}
+                label = "Claim gold"
+            elif action.reward_type == "potion":
+                action_type = "claim_potion"
+                params = {"potion_reward_index": 0}
+                label = "Claim potion"
+            elif action.reward_type == "skip_potion":
+                action_type = "skip_potion"
+                params = {"potion_reward_index": 0}
+                label = "Skip potion"
+            elif action.reward_type == "relic":
+                action_type = "claim_relic"
+                params = {"relic_reward_index": 0}
+                label = "Claim relic"
+            elif action.reward_type == "emerald_key":
+                action_type = "claim_emerald_key"
+                params = {}
+                label = "Claim emerald key"
+            elif action.reward_type == "skip_emerald_key":
+                action_type = "skip_emerald_key"
+                params = {}
+                label = "Skip emerald key"
+            elif action.reward_type == "proceed":
+                action_type = "proceed_from_rewards"
+                params = {}
+                label = "Proceed from rewards"
+        elif isinstance(action, EventAction):
+            action_type = "event_choice"
+            params = {"choice_index": action.choice_index}
+            label = f"Event choice {action.choice_index}"
+        elif isinstance(action, ShopAction):
+            if action.action_type == "buy_colored_card":
+                action_type = "buy_card"
+                params = {"item_index": action.item_index, "card_pool": "colored"}
+                label = f"Buy colored card {action.item_index}"
+            elif action.action_type == "buy_colorless_card":
+                action_type = "buy_card"
+                params = {"item_index": action.item_index, "card_pool": "colorless"}
+                label = f"Buy colorless card {action.item_index}"
+            elif action.action_type == "buy_relic":
+                action_type = "buy_relic"
+                params = {"item_index": action.item_index}
+                label = f"Buy relic {action.item_index}"
+            elif action.action_type == "buy_potion":
+                action_type = "buy_potion"
+                params = {"item_index": action.item_index}
+                label = f"Buy potion {action.item_index}"
+            elif action.action_type == "remove_card":
+                action_type = "remove_card"
+                params = {"card_index": action.item_index}
+                label = f"Remove card {action.item_index}"
+            elif action.action_type == "leave":
+                action_type = "leave_shop"
+                params = {}
+                label = "Leave shop"
+        elif isinstance(action, RestAction):
+            if action.action_type == "rest":
+                action_type = "rest"
+                params = {}
+                label = "Rest"
+            elif action.action_type == "upgrade":
+                action_type = "smith"
+                params = {"card_index": action.card_index}
+                label = f"Smith card {action.card_index}"
+            elif action.action_type == "dig":
+                action_type = "dig"
+                params = {}
+                label = "Dig"
+            elif action.action_type == "lift":
+                action_type = "lift"
+                params = {}
+                label = "Lift"
+            elif action.action_type == "toke":
+                action_type = "toke"
+                params = {"card_index": action.card_index}
+                label = f"Toke card {action.card_index}"
+            elif action.action_type == "recall":
+                action_type = "recall"
+                params = {}
+                label = "Recall"
+            elif action.action_type == "ruby_key":
+                action_type = "recall"
+                params = {}
+                label = "Recall ruby key"
+        elif isinstance(action, TreasureAction):
+            if action.action_type == "take_relic":
+                action_type = "take_relic"
+                params = {}
+                label = "Take relic"
+            elif action.action_type == "sapphire_key":
+                action_type = "sapphire_key"
+                params = {}
+                label = "Take sapphire key"
+            elif action.action_type == "leave":
+                action_type = "leave_treasure"
+                params = {}
+                label = "Leave treasure"
+        elif isinstance(action, BossRewardAction):
+            action_type = "pick_boss_relic"
+            params = {"relic_index": action.relic_index}
+            label = f"Pick boss relic {action.relic_index}"
+
+        action_id = self._make_action_id(action_type, params)
+        return {
+            "id": action_id,
+            "type": action_type,
+            "label": label,
+            "params": params,
+            "phase": phase,
+        }
+
+    def _dict_to_action(self, action_dict: ActionDict) -> GameAction:
+        """Convert JSON action dict into a GameAction dataclass."""
+        action_type = action_dict.get("type")
+        params = action_dict.get("params", {}) or {}
+
+        if action_type == "path_choice":
+            return PathAction(node_index=int(params["node_index"]))
+        if action_type == "neow_choice":
+            return NeowAction(choice_index=int(params["choice_index"]))
+        if action_type == "play_card":
+            return CombatAction(
+                action_type="play_card",
+                card_idx=int(params["card_index"]),
+                target_idx=int(params.get("target_index", -1)),
+            )
+        if action_type == "use_potion":
+            return CombatAction(
+                action_type="use_potion",
+                potion_idx=int(params["potion_slot"]),
+                target_idx=int(params.get("target_index", -1)),
+            )
+        if action_type == "end_turn":
+            return CombatAction(action_type="end_turn")
+        if action_type == "event_choice":
+            return EventAction(choice_index=int(params["choice_index"]))
+        if action_type == "pick_card":
+            card_reward_index = int(params["card_reward_index"])
+            card_index = int(params["card_index"])
+            choice_index = card_reward_index * 100 + card_index
+            return RewardAction(reward_type="card", choice_index=choice_index)
+        if action_type == "skip_card":
+            card_reward_index = int(params.get("card_reward_index", 0))
+            return RewardAction(reward_type="skip_card", choice_index=card_reward_index)
+        if action_type == "singing_bowl":
+            card_reward_index = int(params.get("card_reward_index", 0))
+            return RewardAction(reward_type="singing_bowl", choice_index=card_reward_index)
+        if action_type == "claim_gold":
+            return RewardAction(reward_type="gold", choice_index=0)
+        if action_type == "claim_potion":
+            return RewardAction(reward_type="potion", choice_index=0)
+        if action_type == "skip_potion":
+            return RewardAction(reward_type="skip_potion", choice_index=0)
+        if action_type == "claim_relic":
+            return RewardAction(reward_type="relic", choice_index=0)
+        if action_type == "claim_emerald_key":
+            return RewardAction(reward_type="emerald_key", choice_index=0)
+        if action_type == "skip_emerald_key":
+            return RewardAction(reward_type="skip_emerald_key", choice_index=0)
+        if action_type == "proceed_from_rewards":
+            return RewardAction(reward_type="proceed", choice_index=0)
+        if action_type == "pick_boss_relic":
+            return BossRewardAction(relic_index=int(params["relic_index"]))
+        if action_type == "skip_boss_relic":
+            return BossRewardAction(relic_index=-1)
+        if action_type == "buy_card":
+            pool = params.get("card_pool", "colored")
+            action_type_value = "buy_colorless_card" if pool == "colorless" else "buy_colored_card"
+            return ShopAction(action_type=action_type_value, item_index=int(params["item_index"]))
+        if action_type == "buy_colored_card":
+            return ShopAction(action_type="buy_colored_card", item_index=int(params["item_index"]))
+        if action_type == "buy_colorless_card":
+            return ShopAction(action_type="buy_colorless_card", item_index=int(params["item_index"]))
+        if action_type == "buy_relic":
+            return ShopAction(action_type="buy_relic", item_index=int(params["item_index"]))
+        if action_type == "buy_potion":
+            return ShopAction(action_type="buy_potion", item_index=int(params["item_index"]))
+        if action_type == "remove_card":
+            card_index = int(params["card_index"])
+            return ShopAction(action_type="remove_card", item_index=card_index)
+        if action_type == "leave_shop":
+            return ShopAction(action_type="leave", item_index=0)
+        if action_type == "leave":
+            return ShopAction(action_type="leave", item_index=0)
+        if action_type == "rest":
+            return RestAction(action_type="rest")
+        if action_type == "smith":
+            return RestAction(action_type="upgrade", card_index=int(params["card_index"]))
+        if action_type == "dig":
+            return RestAction(action_type="dig")
+        if action_type == "lift":
+            return RestAction(action_type="lift")
+        if action_type == "toke":
+            return RestAction(action_type="toke", card_index=int(params["card_index"]))
+        if action_type == "recall":
+            return RestAction(action_type="ruby_key")
+        if action_type == "take_relic":
+            return TreasureAction(action_type="take_relic")
+        if action_type == "sapphire_key":
+            return TreasureAction(action_type="sapphire_key")
+        if action_type == "leave_treasure":
+            return TreasureAction(action_type="leave")
+
+        raise ValueError(f"Unknown action type: {action_type}")
+
+    def get_available_action_dicts(self) -> List[ActionDict]:
+        """Get all valid actions as JSON-serializable dicts."""
+        actions = [self._action_to_dict(a) for a in self.get_available_actions()]
+        if self.phase == GamePhase.BOSS_REWARDS:
+            unresolved = True
+            if self.current_rewards and self.current_rewards.boss_relics:
+                unresolved = not self.current_rewards.boss_relics.is_resolved
+            if unresolved:
+                skip_action = {
+                    "type": "skip_boss_relic",
+                    "label": "Skip boss relic",
+                    "params": {},
+                    "phase": self._phase_to_action_phase(),
+                }
+                skip_action["id"] = self._make_action_id(skip_action["type"], skip_action["params"])
+                actions.append(skip_action)
+        return actions
+
+    def take_action_dict(self, action_dict: ActionDict) -> bool:
+        """Execute a JSON action dict via the dataclass adapter."""
+        action = self._dict_to_action(action_dict)
+        return self.take_action(action)
+
     def get_available_actions(self) -> List[GameAction]:
         """
         Get all valid actions for the current game state.
@@ -425,7 +784,7 @@ class GameRunner:
 
         return actions
 
-    def take_action(self, action: GameAction) -> bool:
+    def take_action(self, action: Union[GameAction, ActionDict]) -> bool:
         """
         Execute an action and advance the game state.
 
@@ -437,6 +796,12 @@ class GameRunner:
         """
         if self.game_over:
             return False
+
+        if isinstance(action, dict):
+            try:
+                action = self._dict_to_action(action)
+            except (KeyError, TypeError, ValueError):
+                return False
 
         # Log the decision
         available = self.get_available_actions()
@@ -476,6 +841,285 @@ class GameRunner:
         self.decision_log.append(log_entry)
 
         return success
+
+    # =========================================================================
+    # Observation Interface
+    # =========================================================================
+
+    def get_observation(self) -> Dict[str, Any]:
+        """Return a JSON-serializable observation for the current state."""
+        # Ensure map exists for current act
+        if self.run_state.get_current_map() is None:
+            self.run_state.generate_map_for_act(self.run_state.act)
+
+        return {
+            "phase": self._phase_to_action_phase(),
+            "run": self._build_run_observation(),
+            "map": self._build_map_observation(),
+            "combat": self._build_combat_observation() if self.phase == GamePhase.COMBAT else None,
+            "event": self._build_event_observation() if self.phase == GamePhase.EVENT else None,
+            "reward": self._build_reward_observation()
+            if self.phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS)
+            else None,
+            "shop": self._build_shop_observation() if self.phase == GamePhase.SHOP else None,
+            "rest": self._build_rest_observation() if self.phase == GamePhase.REST else None,
+            "treasure": self._build_treasure_observation() if self.phase == GamePhase.TREASURE else None,
+        }
+
+    def _build_run_observation(self) -> Dict[str, Any]:
+        """Serialize run-level state."""
+        return {
+            "seed": self.seed_string,
+            "ascension": self.run_state.ascension,
+            "act": self.run_state.act,
+            "floor": self.run_state.floor,
+            "gold": self.run_state.gold,
+            "current_hp": self.run_state.current_hp,
+            "max_hp": self.run_state.max_hp,
+            "deck": [
+                {"id": c.id, "upgraded": c.upgraded, "misc_value": c.misc_value}
+                for c in self.run_state.deck
+            ],
+            "relics": [
+                {
+                    "id": r.id,
+                    "counter": r.counter,
+                    "triggered_this_combat": r.triggered_this_combat,
+                    "triggered_this_turn": r.triggered_this_turn,
+                }
+                for r in self.run_state.relics
+            ],
+            "potions": [s.potion_id for s in self.run_state.potion_slots],
+            "keys": {
+                "ruby": self.run_state.has_ruby_key,
+                "emerald": self.run_state.has_emerald_key,
+                "sapphire": self.run_state.has_sapphire_key,
+            },
+            "map_position": {
+                "x": self.run_state.map_position.x,
+                "y": self.run_state.map_position.y,
+            },
+            "rng_counters": dict(self.run_state.rng_counters),
+        }
+
+    def _build_map_observation(self) -> Dict[str, Any]:
+        """Serialize full current-act map visibility."""
+        current_map = self.run_state.get_current_map() or []
+        nodes: List[Dict[str, Any]] = []
+        edges: List[Dict[str, Any]] = []
+        for row in current_map:
+            for node in row:
+                nodes.append({
+                    "x": node.x,
+                    "y": node.y,
+                    "room_type": node.room_type.name if node.room_type else None,
+                    "has_emerald_key": node.has_emerald_key,
+                })
+                for edge in node.edges:
+                    edges.append({
+                        "src_x": edge.src_x,
+                        "src_y": edge.src_y,
+                        "dst_x": edge.dst_x,
+                        "dst_y": edge.dst_y,
+                        "is_boss": edge.is_boss,
+                    })
+
+        available_paths = [
+            {"x": node.x, "y": node.y, "room_type": node.room_type.name if node.room_type else None}
+            for node in self.run_state.get_available_paths()
+        ]
+
+        visited_nodes = [
+            {"act": act, "x": x, "y": y} for (act, x, y) in self.run_state.visited_nodes
+        ]
+
+        return {
+            "act": self.run_state.act,
+            "nodes": nodes,
+            "edges": edges,
+            "available_paths": available_paths,
+            "visited_nodes": visited_nodes,
+        }
+
+    def _build_combat_observation(self) -> Optional[Dict[str, Any]]:
+        """Serialize combat state."""
+        if not self.current_combat:
+            return None
+        state = self.current_combat.state
+        return {
+            "player": {
+                "hp": state.player.hp,
+                "max_hp": state.player.max_hp,
+                "block": state.player.block,
+                "statuses": dict(state.player.statuses),
+            },
+            "energy": state.energy,
+            "max_energy": state.max_energy,
+            "stance": state.stance,
+            "mantra": state.mantra,
+            "hand": list(state.hand),
+            "draw_pile": list(state.draw_pile),
+            "discard_pile": list(state.discard_pile),
+            "exhaust_pile": list(state.exhaust_pile),
+            "enemies": [
+                {
+                    "id": e.id,
+                    "hp": e.hp,
+                    "max_hp": e.max_hp,
+                    "block": e.block,
+                    "statuses": dict(e.statuses),
+                    "move_id": e.move_id,
+                    "move_damage": e.move_damage,
+                    "move_hits": e.move_hits,
+                    "move_block": e.move_block,
+                    "move_effects": dict(e.move_effects),
+                }
+                for e in state.enemies
+            ],
+            "turn": state.turn,
+            "cards_played_this_turn": state.cards_played_this_turn,
+            "attacks_played_this_turn": state.attacks_played_this_turn,
+            "skills_played_this_turn": state.skills_played_this_turn,
+            "powers_played_this_turn": state.powers_played_this_turn,
+            "relic_counters": dict(state.relic_counters),
+            "card_costs": dict(state.card_costs),
+        }
+
+    def _build_event_observation(self) -> Optional[Dict[str, Any]]:
+        """Serialize event state and choices."""
+        if not self.current_event_state:
+            return None
+        choices = self.event_handler.get_available_choices(self.current_event_state, self.run_state)
+        choice_obs = []
+        for choice in choices:
+            requires_selection = (
+                choice.requires_upgradable_cards or
+                choice.requires_removable_cards or
+                choice.requires_transformable_cards
+            )
+            selection_type = None
+            if choice.requires_upgradable_cards:
+                selection_type = "upgrade"
+            elif choice.requires_removable_cards:
+                selection_type = "remove"
+            elif choice.requires_transformable_cards:
+                selection_type = "transform"
+            choice_obs.append({
+                "choice_index": choice.index,
+                "label": choice.text,
+                "requires_card_selection": requires_selection,
+                "card_selection_type": selection_type,
+                "card_selection_count": 1 if requires_selection else 0,
+            })
+
+        return {
+            "event_id": self.current_event_state.event_id,
+            "phase": self.current_event_state.phase.name,
+            "attempt_count": self.current_event_state.attempt_count,
+            "hp_cost_modifier": self.current_event_state.hp_cost_modifier,
+            "choices": choice_obs,
+            "pending_rewards": dict(self.current_event_state.pending_rewards),
+        }
+
+    def _build_reward_observation(self) -> Optional[Dict[str, Any]]:
+        """Serialize reward state."""
+        rewards = self.current_rewards
+        if not rewards:
+            return None
+        card_rewards = []
+        for cr in rewards.card_rewards:
+            card_rewards.append({
+                "cards": [
+                    {
+                        "id": c.id,
+                        "upgraded": c.upgraded,
+                        "rarity": c.rarity.name if hasattr(c, "rarity") and c.rarity else None,
+                    }
+                    for c in cr.cards
+                ],
+                "claimed_index": cr.claimed_index,
+                "skipped": cr.skipped,
+                "singing_bowl_used": cr.singing_bowl_used,
+            })
+
+        boss_relics = None
+        if rewards.boss_relics:
+            boss_relics = {
+                "relics": [r.id for r in rewards.boss_relics.relics],
+                "chosen_index": rewards.boss_relics.chosen_index,
+            }
+
+        return {
+            "gold": {"amount": rewards.gold.amount, "claimed": rewards.gold.claimed} if rewards.gold else None,
+            "potion": {
+                "id": rewards.potion.potion.id,
+                "claimed": rewards.potion.claimed,
+                "skipped": rewards.potion.skipped,
+            } if rewards.potion else None,
+            "card_rewards": card_rewards,
+            "relic": {
+                "id": rewards.relic.relic.id,
+                "claimed": rewards.relic.claimed,
+            } if rewards.relic else None,
+            "second_relic": {
+                "id": rewards.second_relic.relic.id,
+                "claimed": rewards.second_relic.claimed,
+            } if rewards.second_relic else None,
+            "boss_relics": boss_relics,
+            "emerald_key": {
+                "available": rewards.emerald_key is not None,
+                "claimed": rewards.emerald_key.claimed if rewards.emerald_key else False,
+            },
+        }
+
+    def _build_shop_observation(self) -> Optional[Dict[str, Any]]:
+        """Serialize shop inventory."""
+        if not self.current_shop:
+            return None
+        return {
+            "colored_cards": [
+                {
+                    "id": c.card.id,
+                    "upgraded": c.card.upgraded,
+                    "price": c.price,
+                    "purchased": c.purchased,
+                }
+                for c in self.current_shop.colored_cards
+            ],
+            "colorless_cards": [
+                {
+                    "id": c.card.id,
+                    "upgraded": c.card.upgraded,
+                    "price": c.price,
+                    "purchased": c.purchased,
+                }
+                for c in self.current_shop.colorless_cards
+            ],
+            "relics": [
+                {"id": r.relic.id, "price": r.price, "purchased": r.purchased}
+                for r in self.current_shop.relics
+            ],
+            "potions": [
+                {"id": p.potion.id, "price": p.price, "purchased": p.purchased}
+                for p in self.current_shop.potions
+            ],
+            "purge_cost": self.current_shop.purge_cost,
+            "purge_available": self.current_shop.purge_available,
+        }
+
+    def _build_rest_observation(self) -> Dict[str, Any]:
+        """Serialize rest site options."""
+        actions = self._get_rest_actions()
+        return {
+            "available_actions": [self._action_to_dict(a)["type"] for a in actions],
+        }
+
+    def _build_treasure_observation(self) -> Dict[str, Any]:
+        """Serialize treasure room options."""
+        actions = self._get_treasure_actions()
+        return {
+            "available_actions": [self._action_to_dict(a)["type"] for a in actions],
+        }
 
     # =========================================================================
     # Action Generators
@@ -816,6 +1460,8 @@ class GameRunner:
         self.neow_blessings = None
         self.phase = GamePhase.MAP_NAVIGATION
 
+        self._sync_rng_counters()
+
         return True, {
             "choice": action.choice_index,
             "blessing_type": blessing.blessing_type.value,
@@ -866,6 +1512,7 @@ class GameRunner:
                 self._end_combat(victory=False)
             return True, result
 
+        self._sync_rng_counters()
         return True, result
 
     def _handle_reward_action(self, action: RewardAction) -> Tuple[bool, Dict]:
@@ -889,9 +1536,11 @@ class GameRunner:
                         relic_rng=self.relic_rng,
                     )
                     self.phase = GamePhase.BOSS_REWARDS
+                self._sync_rng_counters()
                 return True, {"proceeded_to_boss_rewards": True}
             self.current_rewards = None
             self.phase = GamePhase.MAP_NAVIGATION
+            self._sync_rng_counters()
             return True, {"proceeded": True}
 
         # If no rewards, just proceed
@@ -1031,6 +1680,8 @@ class GameRunner:
                 self.event_rng,
                 card_idx=None,
             )
+
+        self._sync_rng_counters()
 
         # Log the result
         self._log(f"Event choice: {result.choice_name}")
@@ -1292,22 +1943,21 @@ class GameRunner:
         result = {}
 
         if action.action_type == "rest":
-            # Heal 30% of max HP
-            heal_amount = int(self.run_state.max_hp * 0.30)
-            if self.run_state.has_relic("RegalPillow"):
-                heal_amount += 15
-            old_hp = self.run_state.current_hp
-            self.run_state.heal(heal_amount)
-            actual_heal = self.run_state.current_hp - old_hp
-            self._log(f"Rested: healed {actual_heal} HP ({self.run_state.current_hp}/{self.run_state.max_hp})")
-            result = {"healed": actual_heal}
+            rest_result = RestHandler.rest(self.run_state)
+            if rest_result.hp_healed:
+                self._log(
+                    f"Rested: healed {rest_result.hp_healed} HP "
+                    f"({self.run_state.current_hp}/{self.run_state.max_hp})"
+                )
+            result = {"healed": rest_result.hp_healed}
 
             # Dream Catcher: generate card reward after resting
-            if self.run_state.has_relic("Dream Catcher"):
+            if rest_result.dream_catcher_triggered:
                 from .generation.rewards import RewardState, generate_card_rewards
                 reward_state = RewardState()
                 cards = generate_card_rewards(
-                    self.card_rng, reward_state,
+                    self.card_rng,
+                    reward_state,
                     act=self.run_state.act,
                     player_class=self.run_state.character,
                     ascension=self.run_state.ascension,
@@ -1315,7 +1965,7 @@ class GameRunner:
                     num_cards=3,
                 )
                 if cards:
-                    self._log(f"Dream Catcher: choose a card reward")
+                    self._log("Dream Catcher: choose a card reward")
                     # Store card choices and transition to a card reward selection
                     # For now, auto-skip (full implementation would need a sub-phase)
                     self._log(f"  Available: {[c.name for c in cards]}")
@@ -1323,34 +1973,39 @@ class GameRunner:
 
         elif action.action_type == "upgrade":
             if action.card_index >= 0:
-                card = self.run_state.deck[action.card_index]
-                self.run_state.upgrade_card(action.card_index)
-                self._log(f"Upgraded: {card}")
-                result = {"upgraded": str(card)}
+                rest_result = RestHandler.smith(self.run_state, action.card_index)
+                if rest_result.card_upgraded:
+                    self._log(f"Upgraded: {rest_result.card_upgraded}")
+                    result = {"upgraded": rest_result.card_upgraded}
 
-        elif action.action_type == "ruby_key":
-            self.run_state.obtain_ruby_key()
-            self._log("Obtained Ruby Key (skipped rest)")
-            result = {"ruby_key": True}
+        elif action.action_type in ("ruby_key", "recall"):
+            rest_result = RestHandler.recall(self.run_state)
+            if self.run_state.has_ruby_key:
+                self._log("Obtained Ruby Key (skipped rest)")
+                result = {"ruby_key": True}
 
         elif action.action_type == "dig":
-            self._log("Dug with Shovel (would get relic)")
-            result = {"dug": True}
+            rest_result = RestHandler.dig(self.run_state, self.relic_rng)
+            if rest_result.relic_gained:
+                self._log(f"Dug with Shovel: gained {rest_result.relic_gained}")
+                result = {"dug": rest_result.relic_gained}
 
         elif action.action_type == "lift":
-            self.run_state.increment_relic_counter("Girya")
-            self._log("Lifted with Girya (gained Strength)")
-            result = {"lifted": True}
+            rest_result = RestHandler.lift(self.run_state)
+            if rest_result.strength_gained:
+                self._log("Lifted with Girya (gained Strength)")
+                result = {"lifted": True}
 
         elif action.action_type == "toke":
             # Peace Pipe: remove a card
             if action.card_index >= 0 and action.card_index < len(self.run_state.deck):
-                removed = self.run_state.remove_card(action.card_index)
-                if removed:
-                    self._log(f"Toked (Peace Pipe): removed {removed.id}")
-                    result = {"toked": removed.id}
+                rest_result = RestHandler.toke(self.run_state, action.card_index)
+                if rest_result.card_removed:
+                    self._log(f"Toked (Peace Pipe): removed {rest_result.card_removed}")
+                    result = {"toked": rest_result.card_removed}
 
         self.phase = GamePhase.MAP_NAVIGATION
+        self._sync_rng_counters()
         return True, result
 
     def _handle_treasure_action(self, action: TreasureAction) -> Tuple[bool, Dict]:
@@ -1362,6 +2017,7 @@ class GameRunner:
                 relic_rng=self.relic_rng,
                 take_sapphire_key=False,
             )
+            self._sync_rng_counters()
             self._log(f"Opened {reward.chest_type.value} chest: {reward.relic_name} ({reward.relic_tier})")
             if reward.curse_added:
                 self._log(f"  Cursed Key: gained {reward.curse_added}")
@@ -1384,6 +2040,7 @@ class GameRunner:
                 relic_rng=self.relic_rng,
                 take_sapphire_key=True,
             )
+            self._sync_rng_counters()
             self._log("Obtained Sapphire Key (skipped relic)")
             self.phase = GamePhase.MAP_NAVIGATION
             return True, {"sapphire_key": True}
@@ -1397,7 +2054,11 @@ class GameRunner:
         # If we have boss rewards generated, pick from those
         if self.current_rewards and self.current_rewards.boss_relics:
             boss_relics = self.current_rewards.boss_relics
-            if not boss_relics.is_resolved and 0 <= action.relic_index < len(boss_relics.relics):
+            if not boss_relics.is_resolved and action.relic_index < 0:
+                boss_relics.chosen_index = -1
+                self._log("Boss relic skipped")
+                result["skipped"] = True
+            elif not boss_relics.is_resolved and 0 <= action.relic_index < len(boss_relics.relics):
                 relic = boss_relics.relics[action.relic_index]
 
                 # Handle boss relic pickup effects (starter relic replacement)
@@ -1422,6 +2083,7 @@ class GameRunner:
         if self.run_state.act < 3:
             # Act 1 -> Act 2, Act 2 -> Act 3
             self.run_state.advance_act()
+            self._apply_act_transition_rng_snaps()
             self._generate_encounter_tables()
             self._log(f"\n=== Entering Act {self.run_state.act} ===")
             self.phase = GamePhase.MAP_NAVIGATION
@@ -1434,6 +2096,7 @@ class GameRunner:
             )
             if has_all_keys:
                 self.run_state.advance_act()
+                self._apply_act_transition_rng_snaps()
                 self._generate_encounter_tables()
                 self._log(f"\n=== Entering Act 4 (The Ending) ===")
                 self.phase = GamePhase.MAP_NAVIGATION
@@ -1618,6 +2281,8 @@ class GameRunner:
             self.phase = GamePhase.RUN_COMPLETE
             self._log(f"Combat defeat - GAME OVER")
 
+        self._sync_rng_counters()
+
     def _trigger_post_combat_relics(self):
         """Trigger between-floor relic effects after combat victory."""
         rs = self.run_state
@@ -1661,6 +2326,7 @@ class GameRunner:
             self.run_state,
             self.event_rng
         )
+        self._sync_rng_counters()
 
         if self.current_event_state is None:
             # No event available, skip
@@ -1696,7 +2362,13 @@ class GameRunner:
                 self._log(f"Meal Ticket: healed {actual_heal} HP")
 
         # Generate shop inventory
-        self.current_shop = ShopHandler.create_shop(self.run_state, self.merchant_rng)
+        self.current_shop = ShopHandler.create_shop(
+            self.run_state,
+            self.merchant_rng,
+            self.card_rng,
+            self.potion_rng,
+        )
+        self._sync_rng_counters()
 
         # Log shop contents
         self._log(f"Shop inventory:")

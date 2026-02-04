@@ -483,7 +483,7 @@ Extracted from decompiled source: `/Users/jackswitzer/Desktop/SlayTheSpireRL/dec
 
 ---
 
-### Foresight (Wireheading)
+### Foresight
 | Property | Base | Upgraded |
 |----------|------|----------|
 | Type | Power | Power |
@@ -628,7 +628,7 @@ Extracted from decompiled source: `/Users/jackswitzer/Desktop/SlayTheSpireRL/dec
 
 ---
 
-### Rushdown (Adaptation)
+### Rushdown
 | Property | Base | Upgraded |
 |----------|------|----------|
 | Type | Power | Power |

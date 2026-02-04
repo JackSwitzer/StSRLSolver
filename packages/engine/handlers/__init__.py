@@ -16,18 +16,21 @@ Room Handlers:
 
 from .combat import CombatRunner, CombatResult, create_enemies_from_encounter, ENCOUNTER_TABLE
 from .rooms import (
-    # Handlers (legacy - EventHandler moved to event_handler.py)
-    EventHandler as LegacyEventHandler,
-    ShopHandler,
     RestHandler,
     TreasureHandler,
-    RewardHandler,
 
     # Result dataclasses
-    EventResult,
-    ShopResult,
     RestResult,
     TreasureResult,
+)
+
+from .shop_handler import (
+    ShopHandler,
+    ShopResult,
+)
+
+from .reward_handler import (
+    RewardHandler,
     CombatRewards,
     RewardResult,
 )
@@ -73,7 +76,6 @@ __all__ = [
     "RewardHandler",
 
     # Result types
-    "EventResult",
     "ShopResult",
     "RestResult",
     "TreasureResult",

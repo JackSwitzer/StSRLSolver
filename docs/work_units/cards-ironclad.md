@@ -3,6 +3,7 @@
 ## Scope summary
 - Implement missing Ironclad card effects in the effects registry/executor and wire any needed combat or power hooks.
 - Keep card data effect names resolvable (align names or add handlers), and add focused tests for each mechanic.
+- Model-facing actions only (no UI); see `docs/work_units/granular-actions.md`.
 
 ## Missing Ironclad effects (by mechanic)
 ### Pile manipulation & card creation

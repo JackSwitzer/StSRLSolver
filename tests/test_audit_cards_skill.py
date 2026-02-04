@@ -63,13 +63,13 @@ JAVA_SKILL_VALUES = [
 
 JAVA_POWER_VALUES = [
     # (id, cost, upgrade_cost, baseMagic, upgMagic, rarity)
-    ("Adaptation",      1, 0,    2, 0, CardRarity.UNCOMMON),  # Rushdown
+    ("Rushdown",        1, 0,    2, 0, CardRarity.UNCOMMON),
     ("MentalFortress",  1, None, 4, 2, CardRarity.UNCOMMON),
     ("BattleHymn",      1, None, 1, 0, CardRarity.UNCOMMON),
     ("Establishment",   1, None, 1, 0, CardRarity.RARE),
     ("LikeWater",       1, None, 5, 2, CardRarity.UNCOMMON),
     ("Devotion",        1, None, 2, 1, CardRarity.RARE),
-    ("Wireheading",     1, None, 3, 1, CardRarity.UNCOMMON),  # Foresight
+    ("Foresight",       1, None, 3, 1, CardRarity.UNCOMMON),
     ("Study",           2, 1,    1, 0, CardRarity.UNCOMMON),
 ]
 
@@ -328,7 +328,7 @@ class TestUpgradedCosts:
         ("Omniscience", 4, 3),
         ("Scrawl", 1, 0),
         ("Vault", 3, 2),
-        ("Adaptation", 1, 0),  # Rushdown
+        ("Rushdown", 1, 0),
         ("Study", 2, 1),
     ])
     def test_upgrade_cost(self, card_id, base_cost, upg_cost):

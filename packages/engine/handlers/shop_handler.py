@@ -229,6 +229,7 @@ def generate_shop_inventory(
         purge_count=purge_count,
         has_membership_card=run_state.has_relic("Membership Card"),
         has_the_courier=run_state.has_relic("The Courier"),
+        has_prismatic_shard=run_state.has_relic("PrismaticShard"),
     )
 
     inv = result.inventory
@@ -327,6 +328,7 @@ def generate_shop_inventory_simple(
         purge_count=purge_count,
         has_membership_card=run_state.has_relic("Membership Card"),
         has_the_courier=run_state.has_relic("The Courier"),
+        has_prismatic_shard=run_state.has_relic("PrismaticShard"),
     )
 
     # Convert to ShopState
@@ -436,13 +438,18 @@ class ShopHandler:
     Handles all shop interactions.
 
     Usage with GameRunner:
-        1. When entering shop: shop_state = ShopHandler.create_shop(run_state, rng)
+        1. When entering shop: shop_state = ShopHandler.create_shop(run_state, merchant_rng, card_rng, potion_rng)
         2. Get actions: actions = ShopHandler.get_available_actions(shop_state, run_state)
         3. Execute action: result = ShopHandler.execute_action(action, shop_state, run_state)
     """
 
     @staticmethod
-    def create_shop(run_state: 'RunState', merchant_rng: 'Random') -> ShopState:
+    def create_shop(
+        run_state: 'RunState',
+        merchant_rng: 'Random',
+        card_rng: Optional['Random'] = None,
+        potion_rng: Optional['Random'] = None,
+    ) -> ShopState:
         """
         Create a new shop for the current floor.
 
@@ -453,7 +460,10 @@ class ShopHandler:
         Returns:
             ShopState with generated inventory
         """
-        return generate_shop_inventory_simple(run_state, merchant_rng)
+        if card_rng is None or potion_rng is None:
+            return generate_shop_inventory_simple(run_state, merchant_rng)
+
+        return generate_shop_inventory(run_state, merchant_rng, card_rng, potion_rng)
 
     @staticmethod
     def get_available_actions(
@@ -876,7 +886,9 @@ if __name__ == "__main__":
 
     # Create shop
     merchant_rng = Random(seed_to_long(seed_str) + 1000)
-    shop = ShopHandler.create_shop(run, merchant_rng)
+    card_rng = Random(seed_to_long(seed_str) + 5000)
+    potion_rng = Random(seed_to_long(seed_str) + 7000)
+    shop = ShopHandler.create_shop(run, merchant_rng, card_rng, potion_rng)
 
     # Print shop summary
     print(ShopHandler.get_shop_summary(shop))

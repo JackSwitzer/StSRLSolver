@@ -990,7 +990,7 @@ class CombatEngine:
         for i, potion_id in enumerate(self.state.potions):
             if potion_id == "FairyPotion":
                 # Calculate heal amount (30% base, 60% with Sacred Bark)
-                has_sacred_bark = self.state.has_relic("Sacred Bark")
+                has_sacred_bark = self.state.has_relic("SacredBark")
                 heal_percent = 60 if has_sacred_bark else 30
                 heal_to = int(self.state.player.max_hp * heal_percent / 100)
 
@@ -1521,7 +1521,7 @@ class CombatEngine:
         result = {"success": True, "potion": potion_id, "effects": []}
 
         # Check for Sacred Bark relic
-        has_sacred_bark = self.state.has_relic("Sacred Bark")
+        has_sacred_bark = self.state.has_relic("SacredBark")
 
         # Get potion data from content
         from .content.potions import get_potion_by_id

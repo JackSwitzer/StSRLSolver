@@ -3150,17 +3150,33 @@ ALL_CARDS: Dict[str, Card] = {
     **WATCHER_CARDS,
     **IRONCLAD_CARDS,
     **SILENT_CARDS,
+    **DEFECT_CARDS,
     **COLORLESS_CARDS,
     **CURSE_CARDS,
     **STATUS_CARDS,
 }
 
+# Modern-name aliases for legacy Java IDs.
+# Keep canonical IDs in ALL_CARDS; use aliases for lookups only.
+CARD_ID_ALIASES = {
+    "Rushdown": "Adaptation",
+    "Foresight": "Wireheading",
+    "Wraith Form": "Wraith Form v2",
+    "WraithForm": "Wraith Form v2",
+}
+
+
+def resolve_card_id(card_id: str) -> str:
+    """Resolve modern display IDs to canonical Java IDs."""
+    return CARD_ID_ALIASES.get(card_id, card_id)
+
 
 def get_card(card_id: str, upgraded: bool = False) -> Card:
     """Get a copy of a card by ID."""
-    if card_id not in ALL_CARDS:
+    resolved_id = resolve_card_id(card_id)
+    if resolved_id not in ALL_CARDS:
         raise ValueError(f"Unknown card: {card_id}")
-    card = ALL_CARDS[card_id].copy()
+    card = ALL_CARDS[resolved_id].copy()
     if upgraded:
         card.upgrade()
     return card
@@ -3174,10 +3190,13 @@ def normalize_card_id(java_id: str) -> tuple:
     Returns (base_id, upgraded) tuple. If base_id is not in ALL_CARDS,
     returns as-is and lets the caller handle it.
     """
+    upgraded = False
+    base_id = java_id
     if "+" in java_id:
         base_id = java_id.rsplit("+", 1)[0]
-        return (base_id, True)
-    return (java_id, False)
+        upgraded = True
+    base_id = resolve_card_id(base_id)
+    return (base_id, upgraded)
 
 
 def get_starting_deck() -> List[Card]:

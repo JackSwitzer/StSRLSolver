@@ -24,7 +24,6 @@ from packages.engine.state.rng import Random, seed_to_long
 from packages.engine.handlers.rooms import (
     RestHandler, TreasureHandler, NeowHandler, ChestType, ChestReward,
     NeowBlessingType, NeowDrawbackType, NeowBlessing, NeowResult,
-    EventHandler, ShopHandler as RoomsShopHandler, RewardHandler as RoomsRewardHandler,
 )
 from packages.engine.handlers.reward_handler import (
     RewardHandler, CombatRewards, BossRelicChoices, GoldReward, PotionReward,

@@ -4,16 +4,16 @@
 - Implement missing Silent (GREEN) card effects in the effect registry/executor.
 - Add any needed combat-state hooks for per-turn, on-draw, and on-discard triggers.
 - Update card data only if effect lists need corrections, and add tests for each batch.
+- Model-facing actions only (no UI); see `docs/work_units/granular-actions.md`.
 
 ## Missing card effects (by card)
-Legacy IDs are noted in parentheses where they differ from display names.
 | Card | Missing effects |
 | --- | --- |
 | A Thousand Cuts | `deal_damage_per_card_played` |
 | Accuracy | `shivs_deal_more_damage` |
 | Acrobatics | `draw_x`, `discard_1` |
 | After Image | `gain_1_block_per_card_played` |
-| Alchemize (id Venomology) | `obtain_random_potion` |
+| Alchemize | `obtain_random_potion` |
 | All-Out Attack | `discard_random_1` |
 | Bane | `double_damage_if_poisoned` |
 | Blade Dance | `add_shivs_to_hand` |
@@ -50,7 +50,7 @@ Legacy IDs are noted in parentheses where they differ from display names.
 | Infinite Blades | `add_shiv_each_turn` |
 | Malaise | `apply_weak_x`, `apply_strength_down_x` |
 | Masterful Stab | `cost_increases_when_damaged` |
-| Nightmare (id Night Terror) | `copy_card_to_hand_next_turn` |
+| Nightmare | `copy_card_to_hand_next_turn` |
 | Noxious Fumes | `apply_poison_all_each_turn` |
 | Outmaneuver | `gain_energy_next_turn` |
 | Phantasmal Killer | `double_damage_next_turn` |
@@ -61,14 +61,14 @@ Legacy IDs are noted in parentheses where they differ from display names.
 | Reflex | `when_discarded_draw` |
 | Setup | `put_card_on_draw_pile_cost_0` |
 | Skewer | `damage_x_times_energy` |
-| Sneaky Strike (id Underhanded Strike) | `refund_2_energy_if_discarded_this_turn` |
+| Sneaky Strike | `refund_2_energy_if_discarded_this_turn` |
 | Storm of Steel | `discard_hand`, `add_shivs_equal_to_discarded` |
 | Survivor | `discard_1` |
 | Tactician | `when_discarded_gain_energy` |
 | Tools of the Trade | `draw_1_discard_1_each_turn` |
 | Unload | `discard_non_attacks` |
 | Well-Laid Plans | `retain_cards_each_turn` |
-| Wraith Form (id Wraith Form v2) | `gain_intangible`, `lose_1_dexterity_each_turn` |
+| Wraith Form | `gain_intangible`, `lose_1_dexterity_each_turn` |
 
 ## Suggested small task batches (with acceptance criteria)
 - **Poison + debuff core**: implement `apply_poison`, `apply_poison_all`, `apply_poison_random_3_times`, `apply_poison_all_each_turn`, `double_poison`, `attacks_apply_poison`, `apply_corpse_explosion`, `apply_choke`, `reduce_strength_all_enemies`, `apply_weak_2_all`, `apply_weak_x`, `apply_strength_down_x`; Acceptance: poison/debuff statuses update correctly on target/all/envenom triggers, and poison tick behavior remains intact.

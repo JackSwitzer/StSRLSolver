@@ -27,6 +27,7 @@ from packages.engine.content.powers import (
     DamageType,
     PowerManager,
     POWER_DATA,
+    get_power_data,
     # Constants
     WEAK_MULTIPLIER,
     WEAK_MULTIPLIER_PAPER_CRANE,
@@ -525,9 +526,9 @@ class TestWatcherPowers:
     """Test Watcher-specific powers."""
 
     def test_foresight_data(self):
-        """Foresight (Wireheading) scries at start of turn."""
-        assert "WireheadingPower" in POWER_DATA
-        data = POWER_DATA["WireheadingPower"]
+        """Foresight scries at start of turn."""
+        data = get_power_data("Foresight")
+        assert data is not None
         assert data["name"] == "Foresight"
         assert "at_start_of_turn" in data["mechanics"]
 
@@ -597,9 +598,9 @@ class TestStanceRelatedPowers:
         assert "on_change_stance" in data["mechanics"]
 
     def test_rushdown_data(self):
-        """Rushdown (Adaptation) draws when entering Wrath."""
-        assert "Adaptation" in POWER_DATA
-        data = POWER_DATA["Adaptation"]
+        """Rushdown draws when entering Wrath."""
+        data = get_power_data("Rushdown")
+        assert data is not None
         assert data["name"] == "Rushdown"
         assert "on_change_stance" in data["mechanics"]
 

@@ -31,7 +31,7 @@ import os
 # Add core to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from packages.engine.state.run import create_watcher_run, WATCHER_BASE_HP, WATCHER_BASE_GOLD, CardInstance
+from packages.engine.state.run import create_watcher_run, WATCHER_BASE_HP, BASE_STARTING_GOLD, CardInstance
 from packages.engine.state.rng import Random
 from packages.engine.content.enemies import (
     JawWorm, Cultist, AcidSlimeM, SpikeSlimeL,

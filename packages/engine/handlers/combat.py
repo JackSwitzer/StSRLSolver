@@ -850,6 +850,8 @@ class CombatRunner:
         potion_id = self.state.potions[potion_idx]
         if not potion_id:
             return {"success": False, "error": "Empty potion slot"}
+        if potion_id == "FairyPotion":
+            return {"success": False, "error": "Fairy Potion triggers automatically"}
 
         result = {"success": True, "potion": potion_id, "effects": []}
 
@@ -1081,6 +1083,14 @@ class CombatRunner:
 
         # Player dead?
         if self.state.player.hp <= 0:
+            if "FairyPotion" in self.state.potions:
+                idx = self.state.potions.index("FairyPotion")
+                self.state.potions[idx] = ""
+                heal_percent = 0.6 if self.state.has_relic("SacredBark") else 0.3
+                revived_hp = max(1, int(self.state.player.max_hp * heal_percent))
+                self.state.player.hp = revived_hp
+                self.potions_used.append("FairyPotion")
+                return
             self.combat_over = True
             self.victory = False
             self.phase = CombatPhase.COMBAT_END

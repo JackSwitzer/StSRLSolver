@@ -1,11 +1,11 @@
 """
 Tests for handler modules:
-- EventHandler (rooms.py)
-- ShopHandler (rooms.py)
+- EventHandler (event_handler.py)
+- ShopHandler (shop_handler.py)
 - RestHandler (rooms.py)
 - TreasureHandler (rooms.py)
 - NeowHandler (rooms.py)
-- RewardHandler (rooms.py)
+- RewardHandler (reward_handler.py)
 """
 
 import pytest
@@ -16,15 +16,23 @@ sys.path.insert(0, "/Users/jackswitzer/Desktop/SlayTheSpireRL")
 from packages.engine.state.run import create_watcher_run
 from packages.engine.state.rng import Random, seed_to_long
 from packages.engine.handlers.rooms import (
-    EventHandler,
-    ShopHandler,
     RestHandler,
     TreasureHandler,
     NeowHandler,
-    RewardHandler,
     NeowBlessingType,
     NeowDrawbackType,
     ChestType,
+)
+from packages.engine.handlers.event_handler import EventHandler
+from packages.engine.handlers.shop_handler import (
+    ShopHandler, ShopAction, ShopActionType,
+)
+from packages.engine.handlers.reward_handler import (
+    RewardHandler,
+    ClaimGoldAction, ClaimPotionAction, SkipPotionAction,
+    PickCardAction, SkipCardAction, SingingBowlAction,
+    ClaimRelicAction, ClaimEmeraldKeyAction, SkipEmeraldKeyAction,
+    PickBossRelicAction, ProceedFromRewardsAction,
 )
 from packages.engine.content.events import Act, get_events_for_act
 
@@ -45,30 +53,39 @@ def _make_rng(offset=0):
     return Random(SEED_LONG + offset)
 
 
+def _make_shop(run, offset=1000):
+    merchant_rng = _make_rng(offset)
+    card_rng = _make_rng(offset + 4000)
+    potion_rng = _make_rng(offset + 6000)
+    return ShopHandler.create_shop(run, merchant_rng, card_rng, potion_rng)
+
+
 # =============================================================================
 # EventHandler Tests
 # =============================================================================
 
 
 class TestEventHandler:
-    """Tests for EventHandler in rooms.py."""
+    """Tests for EventHandler in event_handler.py."""
 
     def test_get_event_returns_event(self):
         run = _make_run()
         rng = _make_rng()
-        event = EventHandler.get_event(run, rng)
-        assert event is not None
-        assert hasattr(event, "id")
-        assert hasattr(event, "choices")
-        assert len(event.choices) > 0
+        handler = EventHandler()
+        event_state = handler.select_event(run, rng)
+        assert event_state is not None
+        assert hasattr(event_state, "event_id")
+        assert event_state.event_id is not None
 
     def test_get_event_deterministic(self):
         """Same seed + state = same event."""
         run1 = _make_run()
         run2 = _make_run()
-        event1 = EventHandler.get_event(run1, Random(SEED_LONG))
-        event2 = EventHandler.get_event(run2, Random(SEED_LONG))
-        assert event1.id == event2.id
+        handler1 = EventHandler()
+        handler2 = EventHandler()
+        event1 = handler1.select_event(run1, Random(SEED_LONG))
+        event2 = handler2.select_event(run2, Random(SEED_LONG))
+        assert event1.event_id == event2.event_id
 
     def test_get_event_different_seeds(self):
         """Different seeds can produce different events."""
@@ -76,43 +93,45 @@ class TestEventHandler:
         for i in range(10):
             run = _make_run(seed=f"EVTSEED{i}")
             rng = Random(seed_to_long(f"EVTSEED{i}"))
-            ev = EventHandler.get_event(run, rng)
+            handler = EventHandler()
+            ev = handler.select_event(run, rng)
             if ev:
-                events.add(ev.id)
+                events.add(ev.event_id)
         # With 10 different seeds we should get at least 2 different events
         assert len(events) >= 2
 
     def test_get_choices_returns_list(self):
         run = _make_run()
         rng = _make_rng()
-        event = EventHandler.get_event(run, rng)
-        choices = EventHandler.get_choices(event, run)
+        handler = EventHandler()
+        event = handler.select_event(run, rng)
+        choices = handler.get_available_choices(event, run)
         assert isinstance(choices, list)
         assert len(choices) > 0
 
     def test_apply_choice_returns_result(self):
         run = _make_run()
-        rng = _make_rng()
-        event = EventHandler.get_event(run, rng)
-        result = EventHandler.apply_choice(event, 0, run, _make_rng(100))
-        assert result.event_id == event.id
+        handler = EventHandler()
+        event = handler.select_event(run, _make_rng())
+        result = handler.execute_choice(event, 0, run, _make_rng(100), misc_rng=_make_rng(200))
+        assert result.event_id == event.event_id
         assert result.choice_idx == 0
 
     def test_apply_choice_out_of_range(self):
         run = _make_run()
-        rng = _make_rng()
-        event = EventHandler.get_event(run, rng)
-        result = EventHandler.apply_choice(event, 999, run, _make_rng(100))
+        handler = EventHandler()
+        event = handler.select_event(run, _make_rng())
+        result = handler.execute_choice(event, 999, run, _make_rng(100), misc_rng=_make_rng(200))
         # Should not crash, just return empty result
-        assert result.event_id == event.id
+        assert result.event_id == event.event_id
 
     def test_event_choices_filtered_by_gold(self):
         """Choices requiring gold are filtered when broke."""
         run = _make_run()
         run.lose_gold(run.gold)  # Zero gold
-        rng = _make_rng()
-        event = EventHandler.get_event(run, rng)
-        choices = EventHandler.get_choices(event, run)
+        handler = EventHandler()
+        event = handler.select_event(run, _make_rng())
+        choices = handler.get_available_choices(event, run)
         for c in choices:
             if c.requires_gold is not None:
                 assert c.requires_gold <= 0
@@ -123,7 +142,8 @@ class TestEventHandler:
             run = _make_run()
             run.act = act_num
             rng = Random(SEED_LONG + act_num * 1000)
-            event = EventHandler.get_event(run, rng)
+            handler = EventHandler()
+            event = handler.select_event(run, rng)
             assert event is not None, f"No event for act {act_num}"
 
 
@@ -133,12 +153,11 @@ class TestEventHandler:
 
 
 class TestShopHandler:
-    """Tests for ShopHandler in rooms.py."""
+    """Tests for ShopHandler in shop_handler.py."""
 
     def test_generate_shop_returns_inventory(self):
         run = _make_run()
-        rng = _make_rng(1000)
-        shop = ShopHandler.generate_shop(run, rng)
+        shop = _make_shop(run)
         assert hasattr(shop, "colored_cards")
         assert hasattr(shop, "relics")
         assert hasattr(shop, "potions")
@@ -147,53 +166,56 @@ class TestShopHandler:
 
     def test_shop_has_cards(self):
         run = _make_run()
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         assert len(shop.colored_cards) >= 3
         assert len(shop.colorless_cards) >= 1
 
     def test_shop_has_relics(self):
         run = _make_run()
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         assert len(shop.relics) >= 1
 
     def test_shop_has_potions(self):
         run = _make_run()
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         assert len(shop.potions) >= 1
 
     def test_shop_purge_cost_positive(self):
         run = _make_run()
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         assert shop.purge_cost > 0
 
     def test_shop_deterministic(self):
         """Same seed = same shop."""
         run1 = _make_run()
         run2 = _make_run()
-        shop1 = ShopHandler.generate_shop(run1, Random(SEED_LONG + 1000))
-        shop2 = ShopHandler.generate_shop(run2, Random(SEED_LONG + 1000))
+        shop1 = _make_shop(run1, offset=1000)
+        shop2 = _make_shop(run2, offset=1000)
         assert len(shop1.colored_cards) == len(shop2.colored_cards)
         for c1, c2 in zip(shop1.colored_cards, shop2.colored_cards):
-            assert c1[0].id == c2[0].id
-            assert c1[1] == c2[1]
+            assert c1.card.id == c2.card.id
+            assert c1.price == c2.price
 
     def test_purchasable_items_respect_gold(self):
         run = _make_run()
         run.lose_gold(run.gold)  # Zero gold
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        purchasable = ShopHandler.get_purchasable_items(shop, run)
-        assert len(purchasable["colored_cards"]) == 0
-        assert len(purchasable["relics"]) == 0
-        assert purchasable["purge"] is False
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        assert all(a.action_type == ShopActionType.LEAVE for a in actions)
 
     def test_buy_card_success(self):
         run = _make_run()
         run.add_gold(500)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        if shop.colored_cards:
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        buy_action = next(
+            (a for a in actions if a.action_type == ShopActionType.BUY_COLORED_CARD),
+            None,
+        )
+        if buy_action:
             initial_deck = len(run.deck)
             initial_gold = run.gold
-            result = ShopHandler.buy_card(shop, 0, run, is_colorless=False)
+            result = ShopHandler.execute_action(buy_action, shop, run)
             assert result.success
             assert result.gold_spent > 0
             assert len(run.deck) == initial_deck + 1
@@ -202,45 +224,71 @@ class TestShopHandler:
     def test_buy_card_not_enough_gold(self):
         run = _make_run()
         run.lose_gold(run.gold)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         if shop.colored_cards:
-            result = ShopHandler.buy_card(shop, 0, run, is_colorless=False)
+            action = ShopAction(
+                action_type=ShopActionType.BUY_COLORED_CARD,
+                item_index=shop.colored_cards[0].slot_index,
+            )
+            result = ShopHandler.execute_action(action, shop, run)
             assert not result.success
 
     def test_purge_card(self):
         run = _make_run()
         run.add_gold(500)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        initial_deck = len(run.deck)
-        result = ShopHandler.purge_card(shop, run, 0)
-        assert result.success
-        assert len(run.deck) == initial_deck - 1
-        assert not shop.purge_available
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        remove_action = next(
+            (a for a in actions if a.action_type == ShopActionType.REMOVE_CARD),
+            None,
+        )
+        if remove_action:
+            initial_deck = len(run.deck)
+            result = ShopHandler.execute_action(remove_action, shop, run)
+            assert result.success
+            assert len(run.deck) == initial_deck - 1
+            assert not shop.purge_available
 
     def test_purge_twice_fails(self):
         run = _make_run()
         run.add_gold(500)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        ShopHandler.purge_card(shop, run, 0)
-        result = ShopHandler.purge_card(shop, run, 0)
-        assert not result.success
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        remove_action = next(
+            (a for a in actions if a.action_type == ShopActionType.REMOVE_CARD),
+            None,
+        )
+        if remove_action:
+            ShopHandler.execute_action(remove_action, shop, run)
+            result = ShopHandler.execute_action(remove_action, shop, run)
+            assert not result.success
 
     def test_buy_relic(self):
         run = _make_run()
         run.add_gold(500)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        if shop.relics:
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        buy_action = next(
+            (a for a in actions if a.action_type == ShopActionType.BUY_RELIC),
+            None,
+        )
+        if buy_action:
             initial_relics = len(run.relics)
-            result = ShopHandler.buy_relic(shop, 0, run)
+            result = ShopHandler.execute_action(buy_action, shop, run)
             assert result.success
             assert len(run.relics) == initial_relics + 1
 
     def test_buy_potion(self):
         run = _make_run()
         run.add_gold(500)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
-        if shop.potions:
-            result = ShopHandler.buy_potion(shop, 0, run)
+        shop = _make_shop(run)
+        actions = ShopHandler.get_available_actions(shop, run)
+        buy_action = next(
+            (a for a in actions if a.action_type == ShopActionType.BUY_POTION),
+            None,
+        )
+        if buy_action:
+            result = ShopHandler.execute_action(buy_action, shop, run)
             assert result.success
 
     def test_buy_potion_no_slots(self):
@@ -249,14 +297,18 @@ class TestShopHandler:
         # Fill all potion slots
         for slot in run.potion_slots:
             slot.potion_id = "FakePotion"
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         if shop.potions:
-            result = ShopHandler.buy_potion(shop, 0, run)
+            action = ShopAction(
+                action_type=ShopActionType.BUY_POTION,
+                item_index=shop.potions[0].slot_index,
+            )
+            result = ShopHandler.execute_action(action, shop, run)
             assert not result.success
 
     def test_ascension_purge_cost(self):
         run = _make_run(ascension=15)
-        shop = ShopHandler.generate_shop(run, _make_rng(1000))
+        shop = _make_shop(run)
         # A15+ has purge cost cap at 175
         assert shop.purge_cost <= 175
 
@@ -606,16 +658,17 @@ class TestNeowHandler:
 
 
 class TestRewardHandler:
-    """Tests for RewardHandler in rooms.py."""
+    """Tests for RewardHandler in reward_handler.py."""
 
     def test_generate_combat_rewards_normal(self):
         run = _make_run()
         rewards = RewardHandler.generate_combat_rewards(
-            run, "normal",
+            run, "monster",
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
         )
-        assert rewards.gold > 0
-        assert len(rewards.card_choices) > 0
+        assert rewards.gold is not None
+        assert rewards.gold.amount > 0
+        assert len(rewards.card_rewards) > 0
 
     def test_generate_combat_rewards_elite(self):
         run = _make_run()
@@ -623,87 +676,105 @@ class TestRewardHandler:
             run, "elite",
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
         )
-        assert rewards.gold > 0
+        assert rewards.gold is not None
+        assert rewards.gold.amount > 0
         assert rewards.relic is not None
 
     def test_generate_combat_rewards_deterministic(self):
         run1 = _make_run()
         run2 = _make_run()
         r1 = RewardHandler.generate_combat_rewards(
-            run1, "normal",
+            run1, "monster",
             Random(SEED_LONG + 100), Random(SEED_LONG + 200),
             Random(SEED_LONG + 300), Random(SEED_LONG + 400),
         )
         r2 = RewardHandler.generate_combat_rewards(
-            run2, "normal",
+            run2, "monster",
             Random(SEED_LONG + 100), Random(SEED_LONG + 200),
             Random(SEED_LONG + 300), Random(SEED_LONG + 400),
         )
-        assert r1.gold == r2.gold
-        assert [c.id for c in r1.card_choices] == [c.id for c in r2.card_choices]
+        assert r1.gold.amount == r2.gold.amount
+        assert [c.id for c in r1.card_rewards[0].cards] == [c.id for c in r2.card_rewards[0].cards]
 
     def test_take_gold(self):
         run = _make_run()
+        rewards = RewardHandler.generate_combat_rewards(
+            run, "monster",
+            _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
+        )
         old_gold = run.gold
-        result = RewardHandler.take_gold(run, 50)
-        assert result.success
-        assert run.gold == old_gold + 50
+        result = RewardHandler.execute_action(run, rewards, ClaimGoldAction())
+        assert result["success"]
+        assert run.gold == old_gold + rewards.gold.amount
 
     def test_take_card(self):
         run = _make_run()
         rewards = RewardHandler.generate_combat_rewards(
-            run, "normal",
+            run, "monster",
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
         )
-        if rewards.card_choices:
-            card = rewards.card_choices[0]
+        if rewards.card_rewards:
             initial_deck = len(run.deck)
-            result = RewardHandler.take_card_reward(run, card)
-            assert result.success
+            action = PickCardAction(card_reward_index=0, card_index=0)
+            result = RewardHandler.execute_action(run, rewards, action)
+            assert result["success"]
             assert len(run.deck) == initial_deck + 1
 
     def test_take_potion(self):
         run = _make_run()
-        # Generate rewards until we get a potion (try multiple seeds)
-        potion = None
-        for i in range(20):
-            rewards = RewardHandler.generate_combat_rewards(
-                run, "normal",
-                Random(SEED_LONG + i * 10), Random(SEED_LONG + i * 10 + 1),
-                Random(SEED_LONG + i * 10 + 2), Random(SEED_LONG + i * 10 + 3),
-            )
-            if rewards.potion:
-                potion = rewards.potion
-                break
-        if potion:
-            result = RewardHandler.take_potion(run, potion)
-            assert result.success
+        rewards = RewardHandler.generate_combat_rewards(
+            run, "monster",
+            _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
+        )
+        actions = RewardHandler.get_available_actions(run, rewards)
+        potion_action = next((a for a in actions if isinstance(a, ClaimPotionAction)), None)
+        if potion_action:
+            result = RewardHandler.execute_action(run, rewards, potion_action)
+            assert result["success"]
 
     def test_take_potion_no_slots(self):
+        from packages.engine.content.potions import ALL_POTIONS
+        from packages.engine.handlers.reward_handler import CombatRewards, PotionReward
         run = _make_run()
         for slot in run.potion_slots:
             slot.potion_id = "FakePotion"
-        from packages.engine.content.potions import ALL_POTIONS
         potion = list(ALL_POTIONS.values())[0]
-        result = RewardHandler.take_potion(run, potion)
-        assert not result.success
+        rewards = CombatRewards(room_type="monster", enemies_killed=1)
+        rewards.potion = PotionReward(potion=potion)
+        result = RewardHandler.execute_action(run, rewards, ClaimPotionAction())
+        assert not result["success"]
 
     def test_take_emerald_key(self):
         run = _make_run()
-        result = RewardHandler.take_emerald_key(run)
-        assert result.success
+        rewards = RewardHandler.generate_combat_rewards(
+            run, "elite",
+            _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
+            is_burning_elite=True,
+        )
+        result = RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
+        assert result["success"]
         assert run.has_emerald_key
 
     def test_take_emerald_key_twice(self):
         run = _make_run()
-        RewardHandler.take_emerald_key(run)
-        result = RewardHandler.take_emerald_key(run)
-        assert not result.success
+        rewards = RewardHandler.generate_combat_rewards(
+            run, "elite",
+            _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
+            is_burning_elite=True,
+        )
+        RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
+        result = RewardHandler.execute_action(run, rewards, ClaimEmeraldKeyAction())
+        assert not result["success"]
 
     def test_skip_rewards(self):
         run = _make_run()
-        result = RewardHandler.skip_rewards(run)
-        assert result.success
+        rewards = RewardHandler.generate_combat_rewards(
+            run, "monster",
+            _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
+        )
+        result = RewardHandler.execute_action(run, rewards, ProceedFromRewardsAction())
+        assert result["success"]
+        assert result.get("proceeding_to_map") is True
 
     def test_burning_elite_has_emerald_key(self):
         run = _make_run()
@@ -712,4 +783,4 @@ class TestRewardHandler:
             _make_rng(100), _make_rng(200), _make_rng(300), _make_rng(400),
             is_burning_elite=True,
         )
-        assert rewards.emerald_key_available
+        assert rewards.emerald_key is not None

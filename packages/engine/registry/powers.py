@@ -343,8 +343,21 @@ def frail_end_round(ctx: PowerContext) -> None:
 @power_trigger("onUseCard", power="Vigor")
 def vigor_on_use(ctx: PowerContext) -> None:
     """Vigor: Consumed when first attack is played (handled in damage calc)."""
-    # Vigor is handled in damage calculation, just mark for removal after attack
-    pass
+    card = ctx.card
+    if card is None:
+        return
+    try:
+        from ..content.cards import CardType, get_card
+        if isinstance(card, str):
+            card_obj = get_card(card)
+        else:
+            card_obj = card
+        if card_obj.card_type == CardType.ATTACK:
+            if ctx.owner and "Vigor" in ctx.owner.statuses:
+                del ctx.owner.statuses["Vigor"]
+    except Exception:
+        # If card lookup fails, ignore
+        return
 
 
 @power_trigger("onUseCard", power="AfterImage")

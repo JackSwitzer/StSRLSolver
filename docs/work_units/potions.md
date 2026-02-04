@@ -4,17 +4,18 @@
 - Complete potion effects/usage to match Java behavior (combat + out of combat).
 - Add missing choice flows, RNG parity, and auto-trigger/restrictions.
 - Keep potion data and drop prediction logic as-is.
+- Model-facing actions only (no UI); see `docs/work_units/granular-actions.md`.
 
 ## Missing/partial behaviors
-- Discovery potions (Attack/Skill/Power/Colorless): choose 1 of 3, use card RNG, Sacred Bark adds 2 copies, cost 0 this turn.
-- Distilled Chaos: should play top N cards (3/6) for free with proper targeting/triggers; not just draw.
-- Liquid Memories: choose from discard (1/2), set cost 0 for turn, handle empty pile/hand limit.
-- Entropic Brew: use class potion pool + potionRng, respect Sozu, fill empty slots only, usable out of combat.
-- Fairy Potion: auto-trigger on death, heal to % max HP, consume potion, Sacred Bark doubles; not manual use.
-- Gambler's Brew / Elixir / Stance Potion: choice-driven discard/exhaust/stance selection.
-- Snecko Oil: randomize hand costs via cardRandomRng; affect cost-for-turn only.
+- Discovery potions (Attack/Skill/Power/Colorless): still auto-select deterministically; need choose-1-of-3 with cardRng, Sacred Bark adds 2 copies, cost 0 this turn.
+- Distilled Chaos: still draws top N; should play top N cards (3/6) for free with proper targeting/triggers.
+- Liquid Memories: returns last discard; needs discard selection (1/2), cost 0 for turn, handle empty pile/hand limit.
+- Entropic Brew: deterministic fill + Sozu check implemented; still needs potionRng parity, class pool, and out-of-combat use.
+- Fairy Potion: auto-trigger + manual use block implemented; verify parity details (heal %, consumption rules).
+- Gambler's Brew / Elixir / Stance Potion: Elixir now exhausts all and Stance toggles; still needs choice-driven discard/exhaust/stance selection.
+- Snecko Oil: randomize hand costs via cardRandomRng; affect cost-for-turn only (no `random` module).
 - Smoke Bomb: cannot use vs bosses or BackAttack; set escape and suppress rewards.
-- Potion targeting/actions: hard-coded targets are wrong/incomplete; use potion metadata; onUsePotion relic hooks not fired.
+- Potion targeting/actions: hard-coded targets still incomplete; onUsePotion relic hooks now fire, but should use potion metadata/target types.
 
 ## Task batches (unit-sized)
 1) Choice/selection infrastructure
@@ -36,15 +37,14 @@ Acceptance: N cards removed from draw pile, on-play triggers fire, target select
 Acceptance: respects hand limit, empty discard, Sacred Bark doubles Liquid Memories.
 
 5) Auto-trigger + restrictions + RNG parity
-- Fairy Potion auto-trigger on death and consume potion; apply max HP % heal.
+- Fairy Potion auto-trigger on death and consume potion implemented; verify parity details.
 - Smoke Bomb gating (boss/BackAttack) and escape state effects.
-- Entropic Brew uses potionRng + class pool; Sozu check; out-of-combat use.
+- Entropic Brew uses potionRng + class pool; out-of-combat use.
 - Snecko Oil uses cardRandomRng and cost-for-turn only.
-Acceptance: each restriction enforced, RNG is deterministic (no `random` module), correct effects applied.
+Acceptance: remaining restrictions enforced, RNG is deterministic (no `random` module), correct effects applied.
 
 6) Targeting + relic hooks
 - Use `PotionTargetType` for action generation and targeting; fix thrown/AoE cases.
-- Trigger onUsePotion relic hooks (Toy Ornithopter).
 Acceptance: available potion actions reflect correct targets; relics react to potion use.
 
 ## Files to touch

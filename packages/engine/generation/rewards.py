@@ -297,6 +297,7 @@ def _get_card_pool(
     Returns:
         List of cards matching the rarity, in HashMap iteration order
     """
+    player_class = (player_class or "WATCHER").upper()
     rarity_str = rarity.name  # "COMMON", "UNCOMMON", "RARE"
 
     # Import the card library order module (handles its own imports)
@@ -535,6 +536,7 @@ def _get_relic_pool(
 
     Also handles class restrictions and act restrictions (e.g., Ectoplasm Act 1 only).
     """
+    player_class = (player_class or "WATCHER").upper()
     if tier == RelicTier.COMMON:
         pool = COMMON_RELICS.copy()
     elif tier == RelicTier.UNCOMMON:
@@ -745,6 +747,7 @@ def generate_boss_relics(
 
 def _get_potion_pool(player_class: str) -> List[Potion]:
     """Get the potion pool for a player class."""
+    player_class = (player_class or "WATCHER").upper()
     # Map string class to enum
     class_map = {
         "WATCHER": PotionPlayerClass.WATCHER,
@@ -763,6 +766,7 @@ def check_potion_drop(
     has_white_beast_statue: bool = False,
     has_sozu: bool = False,
     current_rewards: int = 0,
+    player_class: str = "WATCHER",
 ) -> Tuple[bool, Optional[Potion]]:
     """
     Check if a potion drops and generate it.
@@ -803,7 +807,7 @@ def check_potion_drop(
 
     if roll < chance:
         reward_state.potion_blizzard.on_drop()
-        potion = _roll_potion(rng, "WATCHER")
+        potion = _roll_potion(rng, player_class)
         return (True, potion)
     else:
         reward_state.potion_blizzard.on_no_drop()
@@ -974,6 +978,7 @@ def generate_shop_inventory(
     purge_count: int = 0,
     has_membership_card: bool = False,
     has_the_courier: bool = False,
+    has_prismatic_shard: bool = False,
 ) -> ShopInventory:
     """
     Generate a complete shop inventory.
@@ -994,6 +999,7 @@ def generate_shop_inventory(
         purge_count: Number of previous card removals
         has_membership_card: 50% discount relic
         has_the_courier: 20% discount + always has removal
+        has_prismatic_shard: Allows any class cards in colored slots
 
     Returns:
         ShopInventory with all items and prices
@@ -1018,7 +1024,7 @@ def generate_shop_inventory(
 
     card_ids_used: Set[str] = set()
     for rarity in shop_rarities:
-        pool = _get_card_pool(player_class, rarity)
+        pool = _get_card_pool(player_class, rarity, has_prismatic_shard=has_prismatic_shard)
         pool = [c for c in pool if c.id not in card_ids_used]
 
         if pool:

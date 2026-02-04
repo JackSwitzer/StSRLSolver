@@ -694,6 +694,16 @@ class RunState:
         self.floor += 1
         self.floors_climbed += 1
 
+    # ----- RNG COUNTER HELPERS -----
+
+    def sync_rng_counters(self, counters: Dict[str, int]) -> None:
+        """Replace RNG counters with the latest values."""
+        self.rng_counters = {k: int(v) for k, v in counters.items()}
+
+    def get_rng_counter(self, key: str, default: int = 0) -> int:
+        """Get a stored RNG counter value."""
+        return int(self.rng_counters.get(key, default))
+
     # ----- KEY MANAGEMENT -----
 
     def has_all_keys(self) -> bool:
@@ -857,7 +867,9 @@ class RunState:
         )
 
 
-# ==================== WATCHER STARTING STATE ====================
+# ==================== STARTING STATE ====================
+
+BASE_STARTING_GOLD = 99
 
 # Watcher starting deck
 WATCHER_STARTING_DECK = [
@@ -876,22 +888,75 @@ WATCHER_STARTING_DECK = [
 # Watcher starting relic
 WATCHER_STARTING_RELIC = "PureWater"  # At start of combat, add Miracle to hand
 
+# Ironclad starting deck
+IRONCLAD_STARTING_DECK = [
+    ("Strike_R", False),  # 5 Strikes
+    ("Strike_R", False),
+    ("Strike_R", False),
+    ("Strike_R", False),
+    ("Strike_R", False),
+    ("Defend_R", False),  # 4 Defends
+    ("Defend_R", False),
+    ("Defend_R", False),
+    ("Defend_R", False),
+    ("Bash", False),      # Starter attack
+]
+
+# Ironclad starting relic
+IRONCLAD_STARTING_RELIC = "Burning Blood"
+
+# Silent starting deck
+SILENT_STARTING_DECK = [
+    ("Strike_G", False),  # 5 Strikes
+    ("Strike_G", False),
+    ("Strike_G", False),
+    ("Strike_G", False),
+    ("Strike_G", False),
+    ("Defend_G", False),  # 5 Defends
+    ("Defend_G", False),
+    ("Defend_G", False),
+    ("Defend_G", False),
+    ("Defend_G", False),
+    ("Neutralize", False),
+    ("Survivor", False),
+]
+
+# Silent starting relic
+SILENT_STARTING_RELIC = "Ring of the Snake"
+
+# Defect starting deck
+DEFECT_STARTING_DECK = [
+    ("Strike_B", False),  # 4 Strikes
+    ("Strike_B", False),
+    ("Strike_B", False),
+    ("Strike_B", False),
+    ("Defend_B", False),  # 4 Defends
+    ("Defend_B", False),
+    ("Defend_B", False),
+    ("Defend_B", False),
+    ("Zap", False),
+    ("Dualcast", False),
+]
+
+# Defect starting relic
+DEFECT_STARTING_RELIC = "Cracked Core"
+
 # Base stats
 WATCHER_BASE_HP = 72
-WATCHER_BASE_GOLD = 99
+IRONCLAD_BASE_HP = 80
+SILENT_BASE_HP = 70
+DEFECT_BASE_HP = 75
 
 
-def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
-    """
-    Create a new Watcher run with starting deck/relic.
-
-    Args:
-        seed: Seed string (e.g., "ABC123") or numeric seed
-        ascension: Ascension level (0-20)
-
-    Returns:
-        RunState initialized for a new Watcher run
-    """
+def _create_character_run(
+    seed: str,
+    ascension: int,
+    character: str,
+    base_hp: int,
+    starting_deck: List[Tuple[str, bool]],
+    starting_relic: str,
+) -> RunState:
+    """Create a new run with character-specific starting state."""
     # Parse seed
     if isinstance(seed, str):
         seed_string = seed.upper()
@@ -903,9 +968,9 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
     # Calculate starting HP based on ascension
     if ascension >= 14:
         # A14+: -4 max HP
-        max_hp = WATCHER_BASE_HP - 4
+        max_hp = base_hp - 4
     else:
-        max_hp = WATCHER_BASE_HP
+        max_hp = base_hp
 
     # A6+: start at 90% current HP (applied after max HP reduction)
     if ascension >= 6:
@@ -913,8 +978,8 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
     else:
         current_hp = max_hp
 
-    # Starting gold is always base (99 for Watcher) -- A15 only affects events, not starting gold
-    gold = WATCHER_BASE_GOLD
+    # Starting gold is always base (99) -- A15 only affects events, not starting gold
+    gold = BASE_STARTING_GOLD
 
     # Calculate potion slots based on ascension
     if ascension >= 11:
@@ -929,7 +994,7 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
         seed=seed_long,
         seed_string=seed_string,
         ascension=ascension,
-        character="Watcher",
+        character=character,
         current_hp=current_hp,
         max_hp=max_hp,
         gold=gold,
@@ -939,7 +1004,7 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
     state.potion_slots = [PotionSlot() for _ in range(potion_slot_count)]
 
     # Add starting deck
-    for card_id, upgraded in WATCHER_STARTING_DECK:
+    for card_id, upgraded in starting_deck:
         state.deck.append(CardInstance(id=card_id, upgraded=upgraded))
 
     # Add Ascender's Bane at A10+
@@ -947,12 +1012,69 @@ def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
         state.deck.append(CardInstance(id="AscendersBane", upgraded=False))
 
     # Add starting relic
-    state.add_relic(WATCHER_STARTING_RELIC)
+    state.add_relic(starting_relic)
 
     # Generate Act 1 map
     state.generate_map_for_act(1)
 
     return state
+
+
+def create_watcher_run(seed: str, ascension: int = 20) -> RunState:
+    """
+    Create a new Watcher run with starting deck/relic.
+
+    Args:
+        seed: Seed string (e.g., "ABC123") or numeric seed
+        ascension: Ascension level (0-20)
+
+    Returns:
+        RunState initialized for a new Watcher run
+    """
+    return _create_character_run(
+        seed=seed,
+        ascension=ascension,
+        character="Watcher",
+        base_hp=WATCHER_BASE_HP,
+        starting_deck=WATCHER_STARTING_DECK,
+        starting_relic=WATCHER_STARTING_RELIC,
+    )
+
+
+def create_ironclad_run(seed: str, ascension: int = 20) -> RunState:
+    """Create a new Ironclad run with starting deck/relic."""
+    return _create_character_run(
+        seed=seed,
+        ascension=ascension,
+        character="Ironclad",
+        base_hp=IRONCLAD_BASE_HP,
+        starting_deck=IRONCLAD_STARTING_DECK,
+        starting_relic=IRONCLAD_STARTING_RELIC,
+    )
+
+
+def create_silent_run(seed: str, ascension: int = 20) -> RunState:
+    """Create a new Silent run with starting deck/relic."""
+    return _create_character_run(
+        seed=seed,
+        ascension=ascension,
+        character="Silent",
+        base_hp=SILENT_BASE_HP,
+        starting_deck=SILENT_STARTING_DECK,
+        starting_relic=SILENT_STARTING_RELIC,
+    )
+
+
+def create_defect_run(seed: str, ascension: int = 20) -> RunState:
+    """Create a new Defect run with starting deck/relic."""
+    return _create_character_run(
+        seed=seed,
+        ascension=ascension,
+        character="Defect",
+        base_hp=DEFECT_BASE_HP,
+        starting_deck=DEFECT_STARTING_DECK,
+        starting_relic=DEFECT_STARTING_RELIC,
+    )
 
 
 def create_run_from_save(save_data: dict) -> RunState:

@@ -392,8 +392,8 @@ class CombatState:
             "Fire Potion",
             "Explosive Potion",
             "Poison Potion",
-            "Cunning Potion",
-            "Fear Potion",
+            "CunningPotion",
+            "FearPotion",
             "Weak Potion",
         }
         if potion_id in enemy_target_potions:

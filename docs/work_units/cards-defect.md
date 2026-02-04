@@ -4,10 +4,10 @@
 - Implement missing Defect card effects from `packages/engine/content/cards.py`.
 - Add orb system prerequisites (slots, channel/evoke, passives, Focus/Lock-On) needed by those cards.
 - Keep scope to engine logic only (no UI, balance tuning, or non-Defect features).
+- Model-facing actions only (no UI); see `docs/work_units/granular-actions.md`.
 
 ## Missing Defect card effects (by card)
 Note: base-only cards are already handled (Strike_B, Defend_B, Leap, Boot Sequence, Beam Cell, Core Surge, Skim, Sweeping Beam).
-Legacy IDs are noted in parentheses where they differ from display names.
 
 Orb/Focus/Slot effects:
 - Zap — `channel_lightning`
@@ -24,7 +24,7 @@ Orb/Focus/Slot effects:
 - Tempest — `channel_x_lightning`
 - Rainbow — `channel_lightning_frost_dark`
 - Meteor Strike — `channel_3_plasma`
-- Recursion (id Redo) — `evoke_then_channel_same_orb`
+- Recursion — `evoke_then_channel_same_orb`
 - Fission — `remove_orbs_gain_energy_and_draw`
 - Multi-Cast — `evoke_first_orb_x_times`
 - Barrage — `damage_per_orb`
@@ -50,7 +50,7 @@ Non-orb effects:
 - Auto-Shields — `only_if_no_block`
 - Buffer — `prevent_next_hp_loss`
 - Claw — `increase_all_claw_damage`
-- Charge Battery (id Conserve Battery) — `gain_1_energy_next_turn`
+- Charge Battery — `gain_1_energy_next_turn`
 - Creative AI — `add_random_power_each_turn`
 - Double Energy — `double_energy`
 - Echo Form — `play_first_card_twice`
@@ -72,12 +72,12 @@ Non-orb effects:
 - Seek — `search_draw_pile`
 - Self Repair — `heal_at_end_of_combat`
 - Stack — `block_equals_discard_size`
-- Steam Barrier (id Steam) — `lose_1_block_permanently`
-- Overclock (id Steam Power) — `draw`, `add_burn_to_discard`
+- Steam Barrier — `lose_1_block_permanently`
+- Overclock — `draw`, `add_burn_to_discard`
 - Streamline — `reduce_cost_permanently`
 - Sunder — `if_fatal_gain_3_energy`
 - Turbo — `add_void_to_discard`
-- Equilibrium (id Undo) — `retain_hand`
+- Equilibrium — `retain_hand`
 - White Noise — `add_random_power_to_hand_cost_0`
 
 ## Orb-system prerequisites

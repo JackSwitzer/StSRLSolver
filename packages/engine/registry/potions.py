@@ -76,17 +76,18 @@ def fear_potion(ctx: PotionContext) -> None:
 def attack_potion(ctx: PotionContext) -> None:
     """Attack Potion: Discover an Attack card (costs 0 this turn).
     With Sacred Bark, add 2 copies instead of 1."""
-    # This requires a Discovery action - for now, add a random attack to hand
+    # Simplified: add a deterministic attack card at cost 0 this turn
     from ..content.cards import ALL_CARDS, CardType, CardColor
-    import random
 
-    attacks = [cid for cid, card in ALL_CARDS.items()
-               if card.card_type == CardType.ATTACK
-               and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
+    attacks = [
+        cid for cid, card in ALL_CARDS.items()
+        if card.card_type == CardType.ATTACK
+        and card.color != CardColor.COLORLESS
+    ]
 
     if attacks:
-        chosen = random.choice(attacks)
-        copies = ctx.potency if ctx.has_sacred_bark else 1
+        chosen = attacks[0]
+        copies = ctx.potency
         for _ in range(copies):
             if len(ctx.state.hand) < 10:
                 ctx.state.hand.append(chosen)
@@ -97,15 +98,16 @@ def attack_potion(ctx: PotionContext) -> None:
 def skill_potion(ctx: PotionContext) -> None:
     """Skill Potion: Discover a Skill card (costs 0 this turn)."""
     from ..content.cards import ALL_CARDS, CardType, CardColor
-    import random
 
-    skills = [cid for cid, card in ALL_CARDS.items()
-              if card.card_type == CardType.SKILL
-              and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
+    skills = [
+        cid for cid, card in ALL_CARDS.items()
+        if card.card_type == CardType.SKILL
+        and card.color != CardColor.COLORLESS
+    ]
 
     if skills:
-        chosen = random.choice(skills)
-        copies = ctx.potency if ctx.has_sacred_bark else 1
+        chosen = skills[0]
+        copies = ctx.potency
         for _ in range(copies):
             if len(ctx.state.hand) < 10:
                 ctx.state.hand.append(chosen)
@@ -116,15 +118,16 @@ def skill_potion(ctx: PotionContext) -> None:
 def power_potion(ctx: PotionContext) -> None:
     """Power Potion: Discover a Power card (costs 0 this turn)."""
     from ..content.cards import ALL_CARDS, CardType, CardColor
-    import random
 
-    powers = [cid for cid, card in ALL_CARDS.items()
-              if card.card_type == CardType.POWER
-              and card.color in (CardColor.PURPLE, CardColor.COLORLESS)]
+    powers = [
+        cid for cid, card in ALL_CARDS.items()
+        if card.card_type == CardType.POWER
+        and card.color != CardColor.COLORLESS
+    ]
 
     if powers:
-        chosen = random.choice(powers)
-        copies = ctx.potency if ctx.has_sacred_bark else 1
+        chosen = powers[0]
+        copies = ctx.potency
         for _ in range(copies):
             if len(ctx.state.hand) < 10:
                 ctx.state.hand.append(chosen)
@@ -135,14 +138,12 @@ def power_potion(ctx: PotionContext) -> None:
 def colorless_potion(ctx: PotionContext) -> None:
     """Colorless Potion: Discover a Colorless card (costs 0 this turn)."""
     from ..content.cards import ALL_CARDS, CardColor
-    import random
 
-    colorless = [cid for cid, card in ALL_CARDS.items()
-                 if card.color == CardColor.COLORLESS]
+    colorless = [cid for cid, card in ALL_CARDS.items() if card.color == CardColor.COLORLESS]
 
     if colorless:
-        chosen = random.choice(colorless)
-        copies = ctx.potency if ctx.has_sacred_bark else 1
+        chosen = colorless[0]
+        copies = ctx.potency
         for _ in range(copies):
             if len(ctx.state.hand) < 10:
                 ctx.state.hand.append(chosen)
@@ -276,8 +277,10 @@ def distilled_chaos(ctx: PotionContext) -> None:
 @potion_effect("ElixirPotion")
 def elixir_potion(ctx: PotionContext) -> None:
     """Elixir (Ironclad): Exhaust any number of cards.
-    For simulation, exhaust nothing (player choice)."""
-    pass  # Requires player input
+    For simulation, exhaust all cards in hand."""
+    if ctx.state.hand:
+        ctx.state.exhaust_pile.extend(ctx.state.hand)
+        ctx.state.hand.clear()
 
 
 @potion_effect("CunningPotion")
@@ -297,9 +300,11 @@ def potion_of_capacity(ctx: PotionContext) -> None:
 def stance_potion(ctx: PotionContext) -> None:
     """Stance Potion (Watcher): Enter Calm or Wrath.
     For simulation, enter Calm (generally safer)."""
-    # Change stance to Calm
-    old_stance = ctx.state.stance
-    ctx.state.stance = "Calm"
+    # Toggle between Calm/Wrath, defaulting to Calm
+    if ctx.state.stance == "Calm":
+        ctx.state.stance = "Wrath"
+    else:
+        ctx.state.stance = "Calm"
 
 
 # =============================================================================
@@ -335,7 +340,7 @@ def fairy_potion(ctx: PotionContext) -> None:
     """Fairy in a Bottle: Auto-triggers on death, not manual use."""
     # This potion triggers automatically when player would die
     # Manual use does nothing
-    pass
+    return None
 
 
 @potion_effect("SmokeBomb")
@@ -349,17 +354,25 @@ def smoke_bomb(ctx: PotionContext) -> None:
 def entropic_brew(ctx: PotionContext) -> None:
     """Entropic Brew: Fill empty potion slots with random potions."""
     from ..content.potions import ALL_POTIONS, PotionRarity
-    import random
 
-    # Get all potions excluding special ones
-    available = [p.id for p in ALL_POTIONS.values()
-                 if p.rarity != PotionRarity.PLACEHOLDER]
+    if ctx.has_relic("Sozu"):
+        return
 
-    # Fill empty slots
+    # Get all potions excluding placeholders
+    available = [
+        p.id for p in ALL_POTIONS.values()
+        if p.rarity != PotionRarity.PLACEHOLDER
+    ]
+
+    if not available:
+        return
+
+    # Fill empty slots deterministically
+    idx = 0
     for i, slot in enumerate(ctx.state.potions):
-        if not slot:  # Empty slot
-            if available:
-                ctx.state.potions[i] = random.choice(available)
+        if not slot:
+            ctx.state.potions[i] = available[idx % len(available)]
+            idx += 1
 
 
 # Class-specific RARE potions

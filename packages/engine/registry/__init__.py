@@ -570,6 +570,7 @@ def execute_potion_effect(potion_id: str, state: CombatState,
     handler = POTION_REGISTRY.get_handler("onUsePotion", potion_id)
     if handler:
         handler(ctx)
+        execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
         return {"success": True, "potion": potion_id, "potency": potency}
 
     return {"success": False, "error": f"No effect handler for: {potion_id}"}

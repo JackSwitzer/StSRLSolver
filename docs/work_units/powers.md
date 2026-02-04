@@ -7,6 +7,7 @@
 - Implement missing power handlers (player, enemy, colorless) with correct
   timing and stack rules.
 - Extend targeted tests for each new trigger (no full-suite runs).
+- Model-facing actions only (no UI); see `docs/work_units/granular-actions.md`.
 
 ## Missing power triggers (grouped)
 ### System / Shared

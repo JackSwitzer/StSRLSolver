@@ -16,7 +16,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Optional, Dict, Set, Tuple, Any, Callable, TYPE_CHECKING
+import re
 from copy import deepcopy
+
+from ..content.cards import CardRarity, CardType, ALL_CARDS
+from ..generation.rewards import _get_card_pool as _get_reward_card_pool
 
 if TYPE_CHECKING:
     from ..state.run import RunState
@@ -100,6 +104,49 @@ class EventChoiceResult:
 
     # Outcome description
     description: str = ""
+
+
+# ============================================================================
+# EVENT ID NORMALIZATION
+# ============================================================================
+
+# Maps display/legacy names to canonical handler IDs (lowercase keys)
+EVENT_ID_ALIASES: Dict[str, str] = {
+    "accursed blacksmith": "AccursedBlacksmith",
+    "back to basics": "BackToBasics",
+    "big fish": "BigFish",
+    "bonfire elementals": "BonfireElementals",
+    "cursed tome": "CursedTome",
+    "dead adventurer": "DeadAdventurer",
+    "drug dealer": "Augmenter",
+    "forgotten altar": "ForgottenAltar",
+    "fountain of cleansing": "FountainOfCleansing",
+    "golden idol": "GoldenIdol",
+    "golden shrine": "GoldenShrine",
+    "golden wing": "WingStatue",
+    "knowing skull": "KnowingSkull",
+    "lab": "TheLab",
+    "liars game": "Sssserpent",
+    "living wall": "LivingWall",
+    "masked bandits": "MaskedBandits",
+    "match and keep!": "GremlinMatchGame",
+    "mysterious sphere": "MysteriousSphere",
+    "n'loth": "Nloth",
+    "scrap ooze": "ScrapOoze",
+    "shining light": "ShiningLight",
+    "the cleric": "TheCleric",
+    "the joust": "TheJoust",
+    "the library": "TheLibrary",
+    "the mausoleum": "TheMausoleum",
+    "the moai head": "MoaiHead",
+    "the woman in blue": "WomanInBlue",
+    "tomb of lord red mask": "TombOfLordRedMask",
+    "transmorgrifier": "Transmogrifier",
+    "upgrade shrine": "UpgradeShrine",
+    "wheel of change": "GremlinWheelGame",
+    "winding halls": "WindingHalls",
+    "world of goop": "WorldOfGoop",
+}
 
 
 # ============================================================================
@@ -194,14 +241,6 @@ class EventHandler:
     # Non-removable curses
     UNREMOVABLE_CURSES = ["AscendersBane", "CurseOfTheBell", "Necronomicurse"]
 
-    # Basic cards (for "requires_non_basic_card" check)
-    BASIC_CARDS = {"Strike_P", "Defend_P", "Eruption", "Vigilance", "AscendersBane"}
-
-    # Card type mappings (simplified - would need full card data)
-    ATTACK_CARDS = {"Strike_P", "Eruption", "Tantrum", "Ragnarok", "Wallop", "CutThroughFate"}
-    SKILL_CARDS = {"Defend_P", "Vigilance", "InnerPeace", "Meditate", "ThirdEye", "Evaluate"}
-    POWER_CARDS = {"Rushdown", "MentalFortress", "LikeWater", "DevaForm", "Establishment"}
-
     # Relic pools by tier (actual game relics)
     COMMON_RELICS = [
         "Anchor", "AncientTeaSet", "ArtOfWar", "Bag of Marbles", "BagOfPreparation",
@@ -229,30 +268,6 @@ class EventHandler:
         "TungstenRod", "Turnip", "UnceasingTop", "WarpedTongs",
     ]
 
-    # Card pools by rarity for Watcher
-    WATCHER_COMMON_CARDS = [
-        "Bowling Bash", "Consecrate", "CrushJoints", "CutThroughFate",
-        "EmptyBody", "EmptyFist", "Evaluate", "Flurry of Blows",
-        "Flying Sleeves", "FollowUp", "Halt", "JustLucky",
-        "PressurePoints", "Prostrate", "Protect", "SashWhip",
-        "Tranquility",
-    ]
-    WATCHER_UNCOMMON_CARDS = [
-        "BattleHymn", "Carve Reality", "Conclude", "Deceive Reality",
-        "EmptyMind", "FearNoEvil", "ForeignInfluence", "Indignation",
-        "InnerPeace", "LikeWater", "Meditate", "MentalFortress",
-        "Nirvana", "Perseverance", "ReachHeaven", "Rushdown",
-        "SandsOfTime", "SignatureMove", "SimmeringFury", "Study",
-        "Swivel", "TalkToTheHand", "Tantrum", "ThirdEye",
-        "WaveOfTheHand", "WheelKick", "WindmillStrike", "Worship",
-        "WreathOfFlame",
-    ]
-    WATCHER_RARE_CARDS = [
-        "Alpha", "Blasphemy", "ConjureBlade", "DevaForm",
-        "Establishment", "Judgement", "LessonLearned", "MasterReality",
-        "Omniscience", "Ragnarok", "SpiritShield", "Vault",
-        "Wish", "Scrawl",
-    ]
     COLORLESS_UNCOMMON_CARDS = [
         "BandageUp", "Blind", "DarkShackles", "DeepBreath",
         "Discovery", "DramaticEntrance", "Enlightenment", "Finesse",
@@ -312,22 +327,72 @@ class EventHandler:
 
     def _get_card_pool(self, run_state: 'RunState', rarity: str) -> List[str]:
         """Get card pool by rarity."""
-        if rarity == "rare":
-            return self.WATCHER_RARE_CARDS
-        elif rarity == "uncommon":
-            return self.WATCHER_UNCOMMON_CARDS
-        elif rarity == "colorless_uncommon":
+        if rarity == "colorless_uncommon":
             return self.COLORLESS_UNCOMMON_CARDS
-        elif rarity == "colorless_rare":
+        if rarity == "colorless_rare":
             return self.COLORLESS_RARE_CARDS
-        elif rarity == "colorless":
+        if rarity == "colorless":
             return self.COLORLESS_UNCOMMON_CARDS + self.COLORLESS_RARE_CARDS
-        else:
-            return self.WATCHER_COMMON_CARDS
+
+        rarity_map = {
+            "common": CardRarity.COMMON,
+            "uncommon": CardRarity.UNCOMMON,
+            "rare": CardRarity.RARE,
+        }
+        card_rarity = rarity_map.get(rarity, CardRarity.COMMON)
+        cards = _get_reward_card_pool(
+            player_class=run_state.character.upper(),
+            rarity=card_rarity,
+            has_prismatic_shard=run_state.has_relic("PrismaticShard"),
+        )
+        return [c.id for c in cards]
+
+    def _get_card_def(self, card_id: str):
+        """Fetch a card definition by ID, if present."""
+        return ALL_CARDS.get(card_id)
+
+    def _card_is_basic(self, card_id: str) -> bool:
+        """Return True for basic starter cards or unremovable curses."""
+        card = self._get_card_def(card_id)
+        if card and card.rarity == CardRarity.BASIC:
+            return True
+        return card_id in self.UNREMOVABLE_CURSES
+
+    def _card_is_type(self, card_id: str, card_type: CardType) -> bool:
+        """Return True if the card matches the requested type."""
+        card = self._get_card_def(card_id)
+        return card is not None and card.card_type == card_type
 
     def _get_random_potion(self, rng: 'Random') -> str:
         """Get a random potion."""
         return self.POTIONS[rng.random(len(self.POTIONS))]
+
+    def _normalize_event_id(self, event_id: Optional[str]) -> Optional[str]:
+        """Normalize event IDs from display/legacy names to canonical handler IDs."""
+        if not event_id:
+            return event_id
+
+        key = event_id.strip()
+        lower = key.lower()
+        if lower in EVENT_ID_ALIASES:
+            return EVENT_ID_ALIASES[lower]
+
+        all_ids = (
+            list(ACT1_EVENTS.keys())
+            + list(ACT2_EVENTS.keys())
+            + list(ACT3_EVENTS.keys())
+            + list(SHRINE_EVENTS.keys())
+            + list(SPECIAL_ONE_TIME_EVENTS.keys())
+        )
+        if key in all_ids:
+            return key
+
+        stripped = re.sub(r"[^a-z0-9]", "", lower)
+        for candidate in all_ids:
+            if stripped == re.sub(r"[^a-z0-9]", "", candidate.lower()):
+                return candidate
+
+        return event_id
 
     # =========================================================================
     # EVENT SELECTION
@@ -360,7 +425,7 @@ class EventHandler:
 
         # Select random event
         idx = event_rng.random(len(pool) - 1)
-        event_id = pool[idx]
+        event_id = self._normalize_event_id(pool[idx])
 
         # Mark one-time events as seen
         event_def = self._get_event_definition(event_id)
@@ -443,6 +508,7 @@ class EventHandler:
 
     def _get_event_definition(self, event_id: str) -> Optional[EventDefinition]:
         """Get event definition by ID."""
+        event_id = self._normalize_event_id(event_id)
         if event_id in ACT1_EVENTS:
             return ACT1_EVENTS[event_id]
         if event_id in ACT2_EVENTS:
@@ -474,7 +540,7 @@ class EventHandler:
         Returns:
             List of available EventChoice objects
         """
-        event_id = event_state.event_id
+        event_id = self._normalize_event_id(event_state.event_id)
         phase = event_state.phase
 
         # Get choices for this event/phase
@@ -540,7 +606,7 @@ class EventHandler:
 
         # Transformable cards (non-basic)
         if choice.requires_transformable_cards:
-            transformable = [c for c in run_state.deck if c.id not in self.BASIC_CARDS]
+            transformable = [c for c in run_state.deck if not self._card_is_basic(c.id)]
             if not transformable:
                 return False
 
@@ -554,11 +620,11 @@ class EventHandler:
         if choice.requires_card_type is not None:
             card_type = choice.requires_card_type
             if card_type == "ATTACK":
-                has_type = any(c.id in self.ATTACK_CARDS for c in run_state.deck)
+                has_type = any(self._card_is_type(c.id, CardType.ATTACK) for c in run_state.deck)
             elif card_type == "SKILL":
-                has_type = any(c.id in self.SKILL_CARDS for c in run_state.deck)
+                has_type = any(self._card_is_type(c.id, CardType.SKILL) for c in run_state.deck)
             elif card_type == "POWER":
-                has_type = any(c.id in self.POWER_CARDS for c in run_state.deck)
+                has_type = any(self._card_is_type(c.id, CardType.POWER) for c in run_state.deck)
             else:
                 has_type = True
             if not has_type:
@@ -576,7 +642,7 @@ class EventHandler:
 
         # Non-basic card
         if choice.requires_non_basic_card:
-            has_non_basic = any(c.id not in self.BASIC_CARDS for c in run_state.deck)
+            has_non_basic = any(not self._card_is_basic(c.id) for c in run_state.deck)
             if not has_non_basic:
                 return False
 
@@ -609,7 +675,7 @@ class EventHandler:
         Returns:
             EventChoiceResult with all changes made
         """
-        event_id = event_state.event_id
+        event_id = self._normalize_event_id(event_state.event_id)
 
         # Dispatch to specific event handler
         handler = EVENT_HANDLERS.get(event_id)
@@ -2079,11 +2145,20 @@ def _handle_falling(
 
     # Find random card of that type and remove it
     if card_type == "SKILL":
-        candidates = [i for i, c in enumerate(run_state.deck) if c.id in handler.SKILL_CARDS]
+        candidates = [
+            i for i, c in enumerate(run_state.deck)
+            if handler._card_is_type(c.id, CardType.SKILL)
+        ]
     elif card_type == "POWER":
-        candidates = [i for i, c in enumerate(run_state.deck) if c.id in handler.POWER_CARDS]
+        candidates = [
+            i for i, c in enumerate(run_state.deck)
+            if handler._card_is_type(c.id, CardType.POWER)
+        ]
     else:
-        candidates = [i for i, c in enumerate(run_state.deck) if c.id in handler.ATTACK_CARDS]
+        candidates = [
+            i for i, c in enumerate(run_state.deck)
+            if handler._card_is_type(c.id, CardType.ATTACK)
+        ]
 
     if candidates:
         idx = misc_rng.random(len(candidates) - 1)
@@ -3469,6 +3544,7 @@ def _get_event_choices_impl(
     run_state: 'RunState'
 ) -> List[EventChoice]:
     """Get choices for an event."""
+    event_id = handler._normalize_event_id(event_id)
     generator = EVENT_CHOICE_GENERATORS.get(event_id)
     if generator:
         return generator(handler, event_id, phase, event_state, run_state)

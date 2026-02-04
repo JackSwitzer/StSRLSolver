@@ -19,7 +19,7 @@ PASSIVE_RELICS = {
 
     # Modify game constants
     "Runic Pyramid": {"no_discard_at_turn_end": True},
-    "Sacred Bark": {"double_potion_effect": True},
+    "SacredBark": {"double_potion_effect": True},
     "Membership Card": {"shop_discount": 0.5},
     "The Courier": {"shop_always_has_relic": True},
     "Smiling Mask": {"card_remove_cost": 0},

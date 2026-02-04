@@ -381,13 +381,13 @@ class TestScryMechanics:
 
     def test_foresight_power(self):
         """Foresight: scry each turn."""
-        card = get_card("Wireheading")  # Java ID for Foresight
+        card = get_card("Foresight")
         assert card.cost == 1
         assert card.card_type == CardType.POWER
         assert card.magic_number == 3
         assert "scry_each_turn" in card.effects
 
-        upgraded = get_card("Wireheading", upgraded=True)
+        upgraded = get_card("Foresight", upgraded=True)
         assert upgraded.magic_number == 4
 
     def test_nirvana_power(self):
@@ -575,12 +575,12 @@ class TestStanceEffects:
 
     def test_rushdown_power(self):
         """Rushdown: draw on entering Wrath."""
-        card = get_card("Adaptation")  # Java ID for Rushdown
+        card = get_card("Rushdown")
         assert card.card_type == CardType.POWER
         assert card.magic_number == 2
         assert "on_wrath_draw" in card.effects
 
-        upgraded = get_card("Adaptation", upgraded=True)
+        upgraded = get_card("Rushdown", upgraded=True)
         assert upgraded.current_cost == 0  # Upgrade reduces cost
 
     def test_like_water_power(self):
