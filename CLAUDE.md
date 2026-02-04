@@ -7,7 +7,7 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ```
 packages/engine/     # Pure Python game engine (source of truth)
 packages/parity/     # Seed catalog + parity verification tools
-tests/               # 4100+ tests (pytest)
+tests/               # 4500+ tests (pytest)
 mod/                 # Java EVTracker mod
 decompiled/          # Java source reference
 docs/vault/          # Game mechanics ground truth
@@ -16,26 +16,42 @@ docs/                # ARCHITECTURE.md
 
 ## Testing
 ```bash
-uv run pytest tests/ -q              # Run all 4100+ tests
+uv run pytest tests/ -q              # Run all 4500+ tests
 uv run pytest tests/test_parity.py   # Parity verification
 uv run pytest tests/ --cov=packages/engine  # Coverage (~68%)
 ```
 
-## Java Parity Status (Verified 2026-02-03)
+## Java Parity Status (Verified 2026-02-04)
 
-| Domain | Parity | Status |
-|--------|--------|--------|
-| **RNG System** | 100% | ✅ PRODUCTION READY |
-| **Damage/Block Calc** | 100% | ✅ Exact match |
-| **Enemies** | 100% | ✅ All 66 verified |
-| **Stances** | 100% | ✅ Divinity timing fixed |
-| **Cards** | 97% | ✅ 6 cards fixed |
-| **Powers** | 84% | ⚠️ Most triggers working |
-| **Events** | 95% | ⚠️ Minor issues |
-| **Potions (Data)** | 100% | ✅ All 42 correct |
-| **Potions (Effects)** | 40% | ⚠️ 25 missing effects |
-| **Relics (Active)** | 65% | ⚠️ 117/180 triggers implemented |
-| **Relics (Passive)** | 15% | ✅ Data-driven (27/180) |
+### Core Mechanics (100% Parity)
+| Domain | Status | Notes |
+|--------|--------|-------|
+| **RNG System** | ✅ 100% | All 13 streams verified, production ready |
+| **Damage Calculation** | ✅ 100% | Vuln 1.5x, Weak 0.75x, floor operations exact |
+| **Block Calculation** | ✅ 100% | Dex before Frail, floor operations exact |
+| **Stances** | ✅ 100% | Wrath/Calm/Divinity/Neutral verified |
+| **Enemies** | ✅ 100% | All 66 enemies verified |
+| **Map Generation** | ✅ 100% | Java quirks included |
+| **Shop** | ✅ 100% | Prices and pools match |
+| **Card Rewards** | ✅ 100% | HashMap order + pity timer |
+| **Card Data** | ✅ 100% | All characters verified |
+| **Potions (Data)** | ✅ 100% | All 42 potions correct |
+
+### Partial / Missing (Implementation Gaps)
+- **Power triggers**: 30/94 implemented (64 missing).
+- **Relics**: 44 missing all + rest-site/pickup/chest/bottled gaps (see skipped tests).
+- **Events**: 17/50 choice generators implemented; 2 handlers missing.
+- **Potions (effects)**: discovery/selection and several effects partial.
+- **Rewards**: JSON action layer implemented; fidelity still depends on relic/potion/event gaps.
+
+### Missing Features (138 Skipped Tests by markers)
+| Category | Count | Priority | Description |
+|----------|-------|----------|-------------|
+| Rest Site Relics | 36 | HIGH | Dream Catcher, Regal Pillow, Girya, Peace Pipe, Shovel |
+| Relic Pickup Effects | 34 | HIGH | War Paint, Whetstone, Astrolabe, Calling Bell, etc. |
+| Chest Relic Acquisition | 30 | HIGH | Tiny Chest, Matryoshka, Black Star, Cursed Key |
+| Bottled Relics | 20 | MED | Bottled Flame/Lightning/Tornado innate hands |
+| Out-of-Combat Triggers | 13 | MED | Shop relics, Ectoplasm tracking |
 
 See test files and `docs/ARCHITECTURE.md` for implementation details.
 
@@ -45,8 +61,8 @@ from packages.engine import GameRunner, GamePhase
 
 runner = GameRunner(seed="SEED", ascension=20)
 while not runner.game_over:
-    actions = runner.get_available_actions()  # Decision point
-    runner.take_action(actions[0])            # Execute action
+    actions = runner.get_available_action_dicts()  # JSON actions
+    runner.take_action_dict(actions[0])            # Execute action
     # runner.run_state = full observable state
     # runner.phase = current GamePhase
 ```
@@ -258,6 +274,13 @@ Tier 2: InnerPeace, CutThroughFate, WheelKick, Conclude
 - Calm exit: +2 (Violet Lotus: +3)
 - Divinity enter: +3
 - Deva Form: +1/turn stacking
+
+### Scry Mechanics
+- Scry X: Look at top X cards of draw pile, choose which to DISCARD (rest stay on top)
+- Golden Eye relic: +2 to ALL scry amounts
+- Melange relic: Scry 3 on shuffle
+- Nirvana power: Gain block once per scry ACTION (not per card)
+- Agent decides which cards to discard via `SelectScryDiscard` action
 
 ## RNG Prediction System (✅ Verified 100% Java Parity)
 

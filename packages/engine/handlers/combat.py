@@ -25,7 +25,7 @@ from enum import Enum
 
 from ..state.combat import (
     CombatState, EntityState, EnemyCombatState,
-    PlayCard, UsePotion, EndTurn, Action,
+    PlayCard, UsePotion, EndTurn, SelectScryDiscard, Action,
     create_combat, create_enemy,
 )
 from ..state.rng import Random, GameRNG
@@ -387,6 +387,7 @@ class CombatRunner:
         self.state.cards_played_this_turn = 0
         self.state.attacks_played_this_turn = 0
         self.state.skills_played_this_turn = 0
+        self.state.discarded_this_turn = 0
         self.state.powers_played_this_turn = 0
 
         # Execute registry-based atTurnStart triggers (handles counter resets and energy effects)
@@ -516,7 +517,7 @@ class CombatRunner:
         Execute a single action.
 
         Args:
-            action: Action to execute (PlayCard, UsePotion, EndTurn)
+            action: Action to execute (PlayCard, UsePotion, EndTurn, SelectScryDiscard)
 
         Returns:
             Dict with action results
@@ -525,10 +526,51 @@ class CombatRunner:
             return self.play_card(action.card_idx, action.target_idx)
         elif isinstance(action, UsePotion):
             return self.use_potion(action.potion_idx, action.target_idx)
+        elif isinstance(action, SelectScryDiscard):
+            return self.execute_scry_selection(action.discard_indices)
         elif isinstance(action, EndTurn):
             return {"action": "end_turn"}
         else:
             return {"error": "Unknown action type"}
+
+    def execute_scry_selection(self, discard_indices: tuple) -> Dict[str, Any]:
+        """
+        Execute a scry discard selection.
+
+        Args:
+            discard_indices: Tuple of indices into pending_scry_cards to discard
+
+        Returns:
+            Dict with action results
+        """
+        if not self.state.pending_scry_selection:
+            return {"success": False, "error": "No pending scry selection"}
+
+        cards = self.state.pending_scry_cards
+        kept = []
+        discarded = []
+
+        for i, card in enumerate(cards):
+            if i in discard_indices:
+                self.state.discard_pile.append(card)
+                discarded.append(card)
+            else:
+                kept.append(card)
+
+        # Put kept cards back on top of draw pile (in reverse order so first is on top)
+        for card in reversed(kept):
+            self.state.draw_pile.append(card)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
+
+        return {
+            "success": True,
+            "action": "scry_selection",
+            "kept": kept,
+            "discarded": discarded,
+        }
 
     def play_card(self, card_idx: int, target_idx: int = -1) -> Dict[str, Any]:
         """
@@ -592,6 +634,8 @@ class CombatRunner:
                 execute_relic_triggers("onExhaust", self.state, {"card": card})
                 # Trigger onExhaust power triggers (Dark Embrace, Feel No Pain)
                 execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+                if card.id == "Sentinel":
+                    self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
             # Insert at random position in draw pile
             pos = self.shuffle_rng.random(len(self.state.draw_pile)) if self.state.draw_pile else 0

@@ -2,8 +2,6 @@
 Test Sacred Bark and new potion implementations.
 """
 import pytest
-import sys
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
 from packages.engine.combat_engine import CombatEngine
 from packages.engine.state.combat import CombatState, EntityState, EnemyCombatState

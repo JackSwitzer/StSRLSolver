@@ -596,10 +596,25 @@ class TestCombatTriggerEvents:
         """Colosseum triggers combat."""
         assert any(o.type == OutcomeType.COMBAT for o in COLOSSEUM.choices[0].outcomes)
 
-    def test_vampires_fight_option(self):
-        """Vampires refuse triggers combat."""
-        refuse_choice = VAMPIRES.choices[1]
-        assert any(o.type == OutcomeType.COMBAT for o in refuse_choice.outcomes)
+    def test_vampires_blood_vial_option(self):
+        """Vampires Blood Vial trade option requires Blood Vial relic.
+
+        Java (Vampires.java): If player has Blood Vial, option 1 lets them
+        trade it for Bites without HP loss. Refuse (final option) does NOT
+        trigger combat - it just leaves.
+        """
+        vial_choice = VAMPIRES.choices[1]  # Blood Vial trade option
+        assert vial_choice.requires_relic == "Blood Vial"
+        assert any(o.type == OutcomeType.RELIC_LOSE for o in vial_choice.outcomes)
+
+    def test_vampires_refuse_no_combat(self):
+        """Vampires refuse option does NOT trigger combat (just leaves).
+
+        Java (Vampires.java): Refuse simply updates the dialog and exits.
+        """
+        refuse_choice = VAMPIRES.choices[2]  # Refuse is now index 2
+        assert not any(o.type == OutcomeType.COMBAT for o in refuse_choice.outcomes)
+        assert any(o.type == OutcomeType.NOTHING for o in refuse_choice.outcomes)
 
 
 # =============================================================================

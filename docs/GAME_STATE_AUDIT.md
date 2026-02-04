@@ -50,11 +50,11 @@ Note:
 ### Phase/Flow State (`GameRunner`)
 Implemented:
 - Full phase machine: map navigation, combat, rewards, events, shops, rest, treasure, boss rewards, Neow.
-- Action types for all phases for RL integration.
+- JSON action layer + observation API for RL integration.
 
 Present but partial:
 - `GameRunner` supports Watcher/Ironclad/Silent/Defect run factories.
-- Some phase-specific actions are defined but their handler types are still stubs (see Reward actions).
+- Some phase outcomes still depend on missing relic/potion/event behaviors.
 
 ### Room/Modal State
 Implemented dataclasses:
@@ -63,30 +63,26 @@ Implemented dataclasses:
 - Reward types (`CombatRewards`, `CardReward`, etc.).
 
 Present but partial:
-- Reward action dataclasses are `pass` (claim/skip/proceed actions are not fully implemented).
+- Reward action processing is implemented, but fidelity depends on missing relic/potion/event hooks.
 - Event choice generators and handler coverage are incomplete; ID normalization now handled via alias mapping.
 
 ## What’s Missing / Needs Work
 
 ### Core State Gaps
 - **Orb system**: channel/evoke, slots, Focus/Lock‑On, orb-specific state in `CombatState`.
-- **Reward action processing**: Claim/skip actions in `RewardHandler` (currently stubs).
 - **Event normalization**: alias mapping added; full content/handler unification and missing choice generators remain.
 
 ### Combat/State Hooks
 - Combat‑time relic hooks are incomplete (`Snecko Eye`, Ice Cream, etc.).
 - Potion effect behaviors are still simplified (Discovery choices, Distilled Chaos auto-play, Entropic Brew RNG parity, Smoke Bomb restrictions).
-- Power triggers missing across multiple hooks (see `docs/work_units/powers.md`).
+- Power triggers missing across multiple hooks (see `docs/work_units/granular-powers.md`).
 
 ### Data/Pool Consistency
 - Legacy Java IDs remain canonical, but modern names are now supported via alias mapping (Rushdown → `Adaptation`, Foresight → `Wireheading`, Wraith Form → `Wraith Form v2`).
 
-### Tests and Known Failures (latest run)
-Full test run: `uv run pytest tests/ -ra` (2026-02-04)
-- Collected 3950 tests; run aborted during collection with 3 import errors:
-  - `tests/test_ascension.py`: import error for `WATCHER_BASE_GOLD` (removed in favor of `BASE_STARTING_GOLD`).
-  - `tests/test_coverage_boost.py`: import error for `EventHandler` from `handlers.rooms` (moved to `handlers.event_handler`).
-  - `tests/test_handlers.py`: import error for `EventHandler` from `handlers.rooms` (moved to `handlers.event_handler`).
+### Tests and Known Failures (latest known)
+- Skip markers indicate **~138 skipped tests**, mostly relic pickup/rest-site/chest mechanics.
+- Targeted readiness tests for JSON actions + observations now pass.
 
 ### Watcher RL Readiness (current max)
 Safe (high parity):
@@ -102,9 +98,8 @@ Cautious (partial parity; usable with constraints):
 - Events: missing choice generators default to leave; pool coverage incomplete.
 
 Risky (training fidelity compromised):
-- Reward action processing still incomplete (claim/skip action classes are stubs).
 - Defect orb system missing (avoid Prismatic Shard/cross-class reliance).
-- Known test import errors indicate test suite needs refactor updates before using tests as regression guard.
+- Some relic/potion/event behavior gaps can bias learning if not constrained.
 
 Practical constraints to “push max” now:
 - Prefer Watcher-only runs; avoid Prismatic Shard and cross-class effects.
@@ -121,7 +116,6 @@ Implemented:
 
 Missing / Partial:
 - Orb system and Defect state.
-- Reward action processing.
 - Event ID normalization and missing choice generators.
 - Combat relic/potion hooks and power trigger coverage.
 

@@ -158,6 +158,7 @@ class EffectContext:
             self.state.hand.remove(card_id)
             self.state.discard_pile.append(card_id)
             self.cards_discarded.append(card_id)
+            self._handle_manual_discard(card_id)
             return True
         return False
 
@@ -167,8 +168,38 @@ class EffectContext:
             card = self.state.hand.pop(idx)
             self.state.discard_pile.append(card)
             self.cards_discarded.append(card)
+            self._handle_manual_discard(card)
             return card
         return None
+
+    def _handle_manual_discard(self, card_id: str) -> None:
+        """Handle manual discard triggers (Reflex/Tactician, relics, tracking)."""
+        self.state.discarded_this_turn = getattr(self.state, "discarded_this_turn", 0) + 1
+
+        card_obj = None
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+        try:
+            from ..content.cards import get_card, normalize_card_id
+            base_id, upgraded = normalize_card_id(card_id)
+            card_obj = get_card(base_id, upgraded=upgraded)
+        except Exception:
+            card_obj = None
+
+        trigger_data = {"card_id": card_id}
+        if card_obj is not None:
+            trigger_data["card"] = card_obj
+
+        from ..registry import execute_relic_triggers, execute_power_triggers
+        execute_relic_triggers("onManualDiscard", self.state, trigger_data)
+        execute_power_triggers("onManualDiscard", self.state, self.state.player, trigger_data)
+
+        if base_id == "Reflex":
+            draw_amount = card_obj.magic_number if card_obj and card_obj.magic_number > 0 else (3 if upgraded else 2)
+            self.draw_cards(draw_amount)
+        elif base_id == "Tactician":
+            energy_amount = card_obj.magic_number if card_obj and card_obj.magic_number > 0 else (2 if upgraded else 1)
+            self.gain_energy(energy_amount)
 
     def exhaust_card(self, card_id: str, from_hand: bool = True) -> bool:
         """Exhaust a card."""
@@ -176,6 +207,7 @@ class EffectContext:
             self.state.hand.remove(card_id)
             self.state.exhaust_pile.append(card_id)
             self.cards_exhausted.append(card_id)
+            self._handle_exhaust(card_id)
             return True
         return False
 
@@ -185,8 +217,32 @@ class EffectContext:
             card = self.state.hand.pop(idx)
             self.state.exhaust_pile.append(card)
             self.cards_exhausted.append(card)
+            self._handle_exhaust(card)
             return card
         return None
+
+    def _handle_exhaust(self, card_id: str) -> None:
+        """Handle on-exhaust triggers (relics, powers, Sentinel)."""
+        card_obj = None
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+        try:
+            from ..content.cards import get_card, normalize_card_id
+            base_id, upgraded = normalize_card_id(card_id)
+            card_obj = get_card(base_id, upgraded=upgraded)
+        except Exception:
+            card_obj = None
+
+        trigger_data = {"card_id": card_id}
+        if card_obj is not None:
+            trigger_data["card"] = card_obj
+
+        from ..registry import execute_relic_triggers, execute_power_triggers
+        execute_relic_triggers("onExhaust", self.state, trigger_data)
+        execute_power_triggers("onExhaust", self.state, self.state.player, trigger_data)
+
+        if base_id == "Sentinel":
+            self.gain_energy(3 if upgraded else 2)
 
     def add_card_to_hand(self, card_id: str) -> bool:
         """Add a card to hand (up to hand limit of 10)."""
@@ -279,6 +335,54 @@ class EffectContext:
             enemy.hp = 0
 
         return hp_damage
+
+    def calculate_card_damage(self, base_damage: int, target: Optional[EnemyCombatState] = None) -> int:
+        """
+        Calculate card damage with all modifiers (Strength, Weak, Vulnerable, Stance).
+
+        This mimics Java's AbstractCard.calculateCardDamage() for cards like Body Slam
+        that need to set their base damage dynamically and then apply all modifiers.
+        """
+        player = self.state.player
+
+        # Get player modifiers
+        strength = player.statuses.get("Strength", 0)
+        vigor = player.statuses.get("Vigor", 0)
+        weak = player.statuses.get("Weak", 0) > 0
+
+        # Get stance multiplier
+        stance = self.state.stance
+        stance_mult = 1.0
+        if stance == "Wrath":
+            stance_mult = 2.0
+        elif stance == "Divinity":
+            stance_mult = 3.0
+
+        # Apply additive modifiers first (Strength, Vigor)
+        damage = base_damage + strength + vigor
+
+        # Apply multiplicative modifiers
+        if weak:
+            damage = int(damage * 0.75)
+
+        damage = int(damage * stance_mult)
+
+        # Apply Vulnerable on target
+        enemy = target or self.target
+        if enemy and enemy.statuses.get("Vulnerable", 0) > 0:
+            damage = int(damage * 1.5)
+
+        return max(0, damage)
+
+    def deal_card_damage_to_enemy(self, enemy: EnemyCombatState, base_damage: int) -> int:
+        """
+        Deal card damage with full damage calculation pipeline.
+
+        This calculates damage including Strength, Weak, Vulnerable, Stance modifiers,
+        then applies it to the enemy (accounting for block).
+        """
+        calculated_damage = self.calculate_card_damage(base_damage, enemy)
+        return self.deal_damage_to_enemy(enemy, calculated_damage)
 
     def gain_block(self, amount: int) -> int:
         """Gain block for the player."""
@@ -508,15 +612,20 @@ class EffectContext:
     # Scry
     # ------------------------------------------------------------------
 
-    def scry(self, amount: int) -> List[str]:
+    def scry(self, amount: int, auto_keep_all: bool = True) -> List[str]:
         """
         Scry X cards.
 
-        In a real implementation, this would let the player choose which
-        cards to discard. For simulation, we'll just reveal the cards.
+        If auto_keep_all is True (simulation mode), all cards are kept on top.
+        Otherwise, sets pending_scry_selection=True for agent to choose
+        which cards to discard via SelectScryDiscard action.
 
         Returns list of cards that were scryed.
         """
+        # Golden Eye: Scry 2 additional cards
+        if self.has_relic("GoldenEye") or self.has_relic("Golden Eye"):
+            amount += 2
+
         cards_to_scry = []
 
         for _ in range(amount):
@@ -527,20 +636,50 @@ class EffectContext:
 
         self.scried_cards = cards_to_scry
 
-        # Trigger Nirvana (gain block on scry)
+        # Trigger Nirvana (gain block on scry) - once per scry action, not per card
         nirvana = self.get_player_status("Nirvana")
         if nirvana > 0:
-            self.gain_block(nirvana * len(cards_to_scry))
+            self.gain_block(nirvana)
 
         # Trigger Weave (play from discard on scry)
         self._trigger_weave()
 
-        # Put cards back on top of draw pile (in reverse order so first is on top)
-        # In actual game, player chooses which go to discard
-        for card in reversed(cards_to_scry):
-            self.state.draw_pile.append(card)
+        if auto_keep_all or not cards_to_scry:
+            # Simulation mode: put all cards back on top
+            for card in reversed(cards_to_scry):
+                self.state.draw_pile.append(card)
+        else:
+            # Agent decision mode: set pending state
+            self.state.pending_scry_cards = cards_to_scry
+            self.state.pending_scry_selection = True
 
         return cards_to_scry
+
+    def complete_scry(self, discard_indices: List[int]) -> None:
+        """
+        Complete a pending scry by choosing which cards to discard.
+
+        Args:
+            discard_indices: Indices into pending_scry_cards to discard
+        """
+        if not self.state.pending_scry_selection:
+            return
+
+        cards = self.state.pending_scry_cards
+        kept = []
+        for i, card in enumerate(cards):
+            if i in discard_indices:
+                self.state.discard_pile.append(card)
+            else:
+                kept.append(card)
+
+        # Put kept cards back on top of draw pile (in reverse order so first is on top)
+        for card in reversed(kept):
+            self.state.draw_pile.append(card)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
 
     def _trigger_weave(self) -> None:
         """Move Weave from discard to hand on scry."""

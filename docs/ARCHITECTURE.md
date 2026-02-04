@@ -42,7 +42,7 @@ SlayTheSpireRL/
 │   └── combat_engine.py    # Turn-based combat engine
 ├── packages/parity/         # Seed parity verification tools
 │   └── comparison/         # State comparators, RNG trackers, game simulator
-├── tests/                   # 2480+ pytest tests
+├── tests/                   # 4500+ pytest tests
 ├── mod/                     # Java EVTracker mod
 ├── docs/                    # Documentation
 │   └── vault/              # Verified game mechanics ground truth
