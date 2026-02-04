@@ -1694,12 +1694,21 @@ def apply_weak_2_all(ctx: EffectContext) -> None:
 
 @effect_simple("apply_poison_random_3_times")
 def apply_poison_random_3_times(ctx: EffectContext) -> None:
-    """Apply Poison to random enemies 3 times (Bouncing Flask)."""
+    """Apply Poison to random enemies 3 times (Bouncing Flask).
+
+    Uses deterministic RNG based on combat state for reproducibility.
+    In Java, this uses AbstractDungeon.cardRandomRng.
+    """
     amount = ctx.magic_number if ctx.magic_number > 0 else 3
     living = ctx.living_enemies
     if living:
-        for _ in range(3):
-            target = random.choice(living)
+        # Use deterministic selection based on card_rng_state for reproducibility
+        # This ensures the same seed produces the same targeting
+        seed0, seed1 = ctx.state.card_rng_state
+        for i in range(3):
+            # Simple deterministic index based on RNG state, turn, and bounce number
+            idx = (seed0 + seed1 + ctx.state.turn * 7 + i * 13) % len(living)
+            target = living[idx]
             ctx.apply_status_to_enemy(target, "Poison", amount)
 
 

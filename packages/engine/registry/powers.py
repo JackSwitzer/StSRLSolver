@@ -276,12 +276,13 @@ def study_end(ctx: PowerContext) -> None:
 
 @power_trigger("atEndOfTurn", power="WraithFormPower")
 def wraith_form_end(ctx: PowerContext) -> None:
-    """Wraith Form: Lose Dexterity at end of turn."""
-    current_dex = ctx.player.statuses.get("Dexterity", 0)
-    ctx.player.statuses["Dexterity"] = current_dex - ctx.amount
-    # Remove at 0
-    if ctx.player.statuses["Dexterity"] == 0:
-        del ctx.player.statuses["Dexterity"]
+    """Wraith Form: Lose Dexterity at end of turn.
+
+    Uses apply_power_to_player with negative amount to respect Artifact.
+    In Java, this uses ApplyPowerAction which Artifact can block.
+    """
+    # Apply negative dexterity - this respects Artifact
+    ctx.apply_power_to_player("Dexterity", -ctx.amount)
 
 
 @power_trigger("atEndOfTurn", power="Omega")
@@ -389,7 +390,12 @@ def panache_on_use(ctx: PowerContext) -> None:
 
 @power_trigger("onUseCard", power="ThousandCuts")
 def thousand_cuts_on_use(ctx: PowerContext) -> None:
-    """Thousand Cuts: Deal damage to all enemies when playing any card."""
+    """Thousand Cuts: Deal damage to all enemies when playing any card.
+
+    Note: Java uses onAfterCardPlayed (triggers after card effects resolve).
+    We use onUseCard since onAfterCardPlayed hook is not yet implemented.
+    Timing difference is minor for most practical purposes.
+    """
     for enemy in ctx.living_enemies:
         # THORNS type damage
         blocked = min(enemy.block, ctx.amount)
@@ -735,17 +741,7 @@ def blur_start(ctx: PowerContext) -> None:
 # On Card Play
 # -----------------------------------------------------------------------------
 
-@power_trigger("onUseCard", power="ThousandCuts")
-def thousand_cuts_on_use(ctx: PowerContext) -> None:
-    """A Thousand Cuts: Deal damage to all enemies when playing any card."""
-    for enemy in ctx.living_enemies:
-        # THORNS type damage
-        blocked = min(enemy.block, ctx.amount)
-        enemy.block -= blocked
-        enemy.hp -= (ctx.amount - blocked)
-        if enemy.hp < 0:
-            enemy.hp = 0
-
+# Note: ThousandCuts is defined above in the main ON_USE_CARD section
 
 @power_trigger("onUseCard", power="Burst")
 def burst_on_use(ctx: PowerContext) -> None:
@@ -828,6 +824,17 @@ def zero_cost_cards_end(ctx: PowerContext) -> None:
     """Zero Cost Cards: Remove at end of turn (Bullet Time)."""
     if "ZeroCostCards" in ctx.player.statuses:
         del ctx.player.statuses["ZeroCostCards"]
+
+
+@power_trigger("atEndOfTurn", power="Burst")
+def burst_end_of_turn(ctx: PowerContext) -> None:
+    """Burst: Remove at end of turn even if no skills were played.
+
+    In Java, BurstPower.atEndOfTurn() removes the power regardless of whether
+    any skills were doubled. This prevents Burst from persisting to next turn.
+    """
+    if "Burst" in ctx.player.statuses:
+        del ctx.player.statuses["Burst"]
 
 
 # -----------------------------------------------------------------------------

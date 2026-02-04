@@ -153,8 +153,12 @@ class BaseContext:
             target_obj = target
 
         # Check artifact for debuffs
+        # Standard debuffs that are always blocked by Artifact
         debuffs = {"Weak", "Weakened", "Vulnerable", "Frail", "Poison", "Constricted"}
-        if power_id in debuffs:
+        # Negative Strength/Dexterity applications are also debuffs (e.g., from Wraith Form)
+        is_stat_debuff = power_id in {"Strength", "Dexterity"} and amount < 0
+
+        if power_id in debuffs or is_stat_debuff:
             artifact = target_obj.statuses.get("Artifact", 0)
             if artifact > 0:
                 target_obj.statuses["Artifact"] = artifact - 1
@@ -164,6 +168,9 @@ class BaseContext:
 
         current = target_obj.statuses.get(power_id, 0)
         target_obj.statuses[power_id] = current + amount
+        # Clean up if stat reduced to 0
+        if power_id in {"Strength", "Dexterity"} and target_obj.statuses[power_id] == 0:
+            del target_obj.statuses[power_id]
         return True
 
     def apply_power_to_player(self, power_id: str, amount: int) -> bool:
