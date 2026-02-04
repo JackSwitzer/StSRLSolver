@@ -387,6 +387,7 @@ class CombatRunner:
         self.state.cards_played_this_turn = 0
         self.state.attacks_played_this_turn = 0
         self.state.skills_played_this_turn = 0
+        self.state.discarded_this_turn = 0
         self.state.powers_played_this_turn = 0
 
         # Execute registry-based atTurnStart triggers (handles counter resets and energy effects)
@@ -633,6 +634,8 @@ class CombatRunner:
                 execute_relic_triggers("onExhaust", self.state, {"card": card})
                 # Trigger onExhaust power triggers (Dark Embrace, Feel No Pain)
                 execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+                if card.id == "Sentinel":
+                    self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
             # Insert at random position in draw pile
             pos = self.shuffle_rng.random(len(self.state.draw_pile)) if self.state.draw_pile else 0
@@ -1127,7 +1130,7 @@ class CombatRunner:
             if "FairyPotion" in self.state.potions:
                 idx = self.state.potions.index("FairyPotion")
                 self.state.potions[idx] = ""
-                heal_percent = 0.6 if self.state.has_relic("Sacred Bark") else 0.3
+                heal_percent = 0.6 if self.state.has_relic("SacredBark") else 0.3
                 revived_hp = max(1, int(self.state.player.max_hp * heal_percent))
                 self.state.player.hp = revived_hp
                 self.potions_used.append("FairyPotion")

@@ -158,6 +158,7 @@ class EffectContext:
             self.state.hand.remove(card_id)
             self.state.discard_pile.append(card_id)
             self.cards_discarded.append(card_id)
+            self._handle_manual_discard(card_id)
             return True
         return False
 
@@ -167,8 +168,38 @@ class EffectContext:
             card = self.state.hand.pop(idx)
             self.state.discard_pile.append(card)
             self.cards_discarded.append(card)
+            self._handle_manual_discard(card)
             return card
         return None
+
+    def _handle_manual_discard(self, card_id: str) -> None:
+        """Handle manual discard triggers (Reflex/Tactician, relics, tracking)."""
+        self.state.discarded_this_turn = getattr(self.state, "discarded_this_turn", 0) + 1
+
+        card_obj = None
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+        try:
+            from ..content.cards import get_card, normalize_card_id
+            base_id, upgraded = normalize_card_id(card_id)
+            card_obj = get_card(base_id, upgraded=upgraded)
+        except Exception:
+            card_obj = None
+
+        trigger_data = {"card_id": card_id}
+        if card_obj is not None:
+            trigger_data["card"] = card_obj
+
+        from ..registry import execute_relic_triggers, execute_power_triggers
+        execute_relic_triggers("onManualDiscard", self.state, trigger_data)
+        execute_power_triggers("onManualDiscard", self.state, self.state.player, trigger_data)
+
+        if base_id == "Reflex":
+            draw_amount = card_obj.magic_number if card_obj and card_obj.magic_number > 0 else (3 if upgraded else 2)
+            self.draw_cards(draw_amount)
+        elif base_id == "Tactician":
+            energy_amount = card_obj.magic_number if card_obj and card_obj.magic_number > 0 else (2 if upgraded else 1)
+            self.gain_energy(energy_amount)
 
     def exhaust_card(self, card_id: str, from_hand: bool = True) -> bool:
         """Exhaust a card."""
@@ -176,6 +207,7 @@ class EffectContext:
             self.state.hand.remove(card_id)
             self.state.exhaust_pile.append(card_id)
             self.cards_exhausted.append(card_id)
+            self._handle_exhaust(card_id)
             return True
         return False
 
@@ -185,8 +217,32 @@ class EffectContext:
             card = self.state.hand.pop(idx)
             self.state.exhaust_pile.append(card)
             self.cards_exhausted.append(card)
+            self._handle_exhaust(card)
             return card
         return None
+
+    def _handle_exhaust(self, card_id: str) -> None:
+        """Handle on-exhaust triggers (relics, powers, Sentinel)."""
+        card_obj = None
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+        try:
+            from ..content.cards import get_card, normalize_card_id
+            base_id, upgraded = normalize_card_id(card_id)
+            card_obj = get_card(base_id, upgraded=upgraded)
+        except Exception:
+            card_obj = None
+
+        trigger_data = {"card_id": card_id}
+        if card_obj is not None:
+            trigger_data["card"] = card_obj
+
+        from ..registry import execute_relic_triggers, execute_power_triggers
+        execute_relic_triggers("onExhaust", self.state, trigger_data)
+        execute_power_triggers("onExhaust", self.state, self.state.player, trigger_data)
+
+        if base_id == "Sentinel":
+            self.gain_energy(3 if upgraded else 2)
 
     def add_card_to_hand(self, card_id: str) -> bool:
         """Add a card to hand (up to hand limit of 10)."""

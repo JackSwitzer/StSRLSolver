@@ -14,8 +14,6 @@ Comprehensive tests for all Silent card implementations covering:
 """
 
 import pytest
-import sys
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
 
 from packages.engine.content.cards import (
     Card, CardType, CardRarity, CardTarget, CardColor,

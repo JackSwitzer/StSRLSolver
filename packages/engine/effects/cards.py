@@ -1814,9 +1814,9 @@ def add_random_attack_cost_0(ctx: EffectContext) -> None:
         card_id = random.choice(attacks)
         ctx.add_card_to_hand(card_id)
         # Mark card as cost 0 this turn
-        if not hasattr(ctx.state, 'cost_0_this_turn'):
-            ctx.state.cost_0_this_turn = []
-        ctx.state.cost_0_this_turn.append(card_id)
+        if not hasattr(ctx.state, "card_costs"):
+            ctx.state.card_costs = {}
+        ctx.state.card_costs[card_id] = 0
 
 
 @effect_simple("put_card_from_discard_on_draw")
@@ -1995,13 +1995,8 @@ def damage_per_strike(ctx: EffectContext) -> None:
 @effect_simple("strength_multiplier")
 def strength_multiplier(ctx: EffectContext) -> None:
     """Heavy Blade - Strength affects this card 3/5 times instead of 1."""
-    # This is handled in damage calculation - mark the card
-    multiplier = ctx.magic_number if ctx.magic_number > 0 else 3
-    strength = ctx.state.player.statuses.get("Strength", 0)
-    # Extra damage = strength * (multiplier - 1) since base strength is already applied
-    extra_damage = strength * (multiplier - 1)
-    if ctx.target and extra_damage > 0:
-        ctx.deal_damage_to_enemy(ctx.target, extra_damage)
+    # Handled in damage calculation (executor/combat engine).
+    pass
 
 
 @effect_simple("increase_damage_on_use")
@@ -2239,19 +2234,40 @@ def play_attacks_twice(ctx: EffectContext) -> None:
 @effect_simple("play_top_card")
 def play_top_card(ctx: EffectContext) -> None:
     """Havoc - Play the top card of draw pile and Exhaust it."""
-    if ctx.state.draw_pile:
-        card = ctx.state.draw_pile.pop()
-        # Mark for auto-play and exhaust
-        if not hasattr(ctx.state, 'cards_to_auto_play'):
-            ctx.state.cards_to_auto_play = []
-        ctx.state.cards_to_auto_play.append((card, True))  # True = exhaust after
+    if not ctx.state.draw_pile:
+        return
+
+    card_id = ctx.state.draw_pile.pop()
+    from ..content.cards import get_card, normalize_card_id, CardTarget
+    base_id, upgraded = normalize_card_id(card_id)
+    try:
+        card = get_card(base_id, upgraded=upgraded)
+    except Exception:
+        ctx.state.exhaust_pile.append(card_id)
+        ctx.cards_exhausted.append(card_id)
+        return
+
+    if card.cost != -2 and "unplayable" not in card.effects:
+        from .executor import EffectExecutor
+        target_idx = -1
+        if card.target == CardTarget.ENEMY:
+            living_indices = [
+                i for i, enemy in enumerate(ctx.state.enemies) if not enemy.is_dead
+            ]
+            if living_indices:
+                target_idx = random.choice(living_indices)
+        executor = EffectExecutor(ctx.state)
+        executor.play_card(card, target_idx=target_idx, free=True)
+
+    ctx.state.exhaust_pile.append(card_id)
+    ctx.cards_exhausted.append(card_id)
 
 
 @effect_simple("gain_energy_on_exhaust_2_3")
 def gain_energy_on_exhaust_2_3(ctx: EffectContext) -> None:
     """Sentinel - If exhausted, gain 2/3 energy."""
-    # This effect is tracked on the card, triggers when exhausted
-    ctx.extra_data["sentinel_energy"] = 3 if ctx.is_upgraded else 2
+    # Handled when a Sentinel card is exhausted.
+    pass
 
 
 # -----------------------------------------------------------------------------
@@ -2602,7 +2618,7 @@ def cost_reduces_per_discard(ctx: EffectContext) -> None:
 @effect_simple("refund_2_energy_if_discarded_this_turn")
 def refund_2_energy_if_discarded_this_turn(ctx: EffectContext) -> None:
     """Refund 2 energy if a card was discarded this turn (Sneaky Strike)."""
-    discarded_this_turn = ctx.extra_data.get("discarded_this_turn", 0)
+    discarded_this_turn = getattr(ctx.state, "discarded_this_turn", 0)
     if discarded_this_turn > 0:
         ctx.gain_energy(2)
 
@@ -3101,7 +3117,3 @@ SILENT_CARD_EFFECTS = {
 }
 
 
-def get_silent_card_effects(card_id: str) -> List[str]:
-    """Get the effect names for a Silent card."""
-    base_id = card_id.rstrip("+")
-    return SILENT_CARD_EFFECTS.get(base_id, [])

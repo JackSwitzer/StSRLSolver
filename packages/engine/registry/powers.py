@@ -773,6 +773,10 @@ def rage_start(ctx: PowerContext) -> None:
 def rage_on_attack(ctx: PowerContext) -> None:
     """Rage: Gain Block when playing an Attack card."""
     from ..content.cards import ALL_CARDS, CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        ctx.gain_block(ctx.amount)
+        return
     card_id = ctx.trigger_data.get("card_id", "")
     base_id = card_id.rstrip("+")
     if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
@@ -783,6 +787,16 @@ def rage_on_attack(ctx: PowerContext) -> None:
 def double_tap_on_attack(ctx: PowerContext) -> None:
     """Double Tap: Play Attack card twice (handled by combat engine)."""
     from ..content.cards import ALL_CARDS, CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        # Mark that this attack should be played again
+        ctx.state.play_card_again = True
+        # Decrement DoubleTap counter
+        if ctx.amount > 1:
+            ctx.player.statuses["DoubleTap"] = ctx.amount - 1
+        else:
+            del ctx.player.statuses["DoubleTap"]
+        return
     card_id = ctx.trigger_data.get("card_id", "")
     base_id = card_id.rstrip("+")
     if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
@@ -851,8 +865,13 @@ def blur_start(ctx: PowerContext) -> None:
 def burst_on_use(ctx: PowerContext) -> None:
     """Burst: Play the next skill(s) twice."""
     from ..content.cards import ALL_CARDS, CardType
-    card_id = ctx.trigger_data.get("card_id", "")
-    if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.SKILL:
+    card = ctx.trigger_data.get("card")
+    card_id = getattr(card, "id", "") if card is not None else ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    card_type = getattr(card, "card_type", None)
+    if card_type is None and base_id in ALL_CARDS:
+        card_type = ALL_CARDS[base_id].card_type
+    if card_type == CardType.SKILL and base_id != "Burst":
         # Mark for double play
         ctx.state.play_again = True
         # Decrement Burst

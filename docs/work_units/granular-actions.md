@@ -85,7 +85,6 @@ Rest:
 Treasure:
 - `take_relic`: `{}`
 - `sapphire_key`: `{}`
-- `leave_treasure`: `{}`
 
 ## Engine behavior
 - `get_available_action_dicts()` returns JSON action dicts valid for the current phase.

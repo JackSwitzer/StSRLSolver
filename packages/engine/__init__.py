@@ -130,6 +130,6 @@ from .state.run import RunState, CardInstance, RelicInstance, PotionSlot, MapPos
 from .combat_engine import CombatEngine
 
 # Agent API (JSON-serializable action/observation interface)
-# Import patches GameRunner with get_available_action_dicts, take_action_dict, get_observation
+# GameRunner implements JSON methods directly; agent_api is a compatibility shim.
 from . import agent_api
 from .agent_api import ActionDict, ActionResult, ObservationDict

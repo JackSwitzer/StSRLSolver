@@ -389,11 +389,12 @@ class OrbManager:
         """Increase max orb slots."""
         self.max_slots += amount
 
-    def remove_orb_slot(self, amount: int = 1) -> None:
-        """Decrease max orb slots (minimum 0)."""
+    def remove_orb_slot(self, amount: int = 1, state: Optional['CombatState'] = None) -> None:
+        """Decrease max orb slots (minimum 0) and evoke excess orbs."""
         self.max_slots = max(0, self.max_slots - amount)
-        # If we have more orbs than slots, evoke leftmost
-        # (This shouldn't happen in normal gameplay, but handle it)
+        if state is not None:
+            while len(self.orbs) > self.max_slots:
+                self.evoke(state)
 
     def modify_focus(self, amount: int) -> None:
         """Modify focus amount."""

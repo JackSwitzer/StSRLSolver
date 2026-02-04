@@ -145,7 +145,7 @@ class RestAction:
 @dataclass(frozen=True)
 class TreasureAction:
     """Action at treasure room."""
-    action_type: str  # "take_relic", "sapphire_key", "leave"
+    action_type: str  # "take_relic", "sapphire_key"
 
 
 @dataclass(frozen=True)
@@ -600,10 +600,6 @@ class GameRunner:
                 action_type = "sapphire_key"
                 params = {}
                 label = "Take sapphire key"
-            elif action.action_type == "leave":
-                action_type = "leave_treasure"
-                params = {}
-                label = "Leave treasure"
         elif isinstance(action, BossRewardAction):
             action_type = "pick_boss_relic"
             params = {"relic_index": action.relic_index}
@@ -707,8 +703,6 @@ class GameRunner:
             return TreasureAction(action_type="take_relic")
         if action_type == "sapphire_key":
             return TreasureAction(action_type="sapphire_key")
-        if action_type == "leave_treasure":
-            return TreasureAction(action_type="leave")
 
         raise ValueError(f"Unknown action type: {action_type}")
 

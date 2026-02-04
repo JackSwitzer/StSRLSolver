@@ -319,6 +319,7 @@ class CombatEngine:
         self.state.skills_played_this_turn = 0
         self.state.powers_played_this_turn = 0
         self.state.last_card_type = ""
+        self.state.discarded_this_turn = 0
 
         # Execute registry-based atTurnStart relic triggers
         execute_relic_triggers("atTurnStart", self.state)
@@ -990,7 +991,7 @@ class CombatEngine:
         for i, potion_id in enumerate(self.state.potions):
             if potion_id == "FairyPotion":
                 # Calculate heal amount (30% base, 60% with Sacred Bark)
-                has_sacred_bark = self.state.has_relic("Sacred Bark")
+                has_sacred_bark = self.state.has_relic("SacredBark")
                 heal_percent = 60 if has_sacred_bark else 30
                 heal_to = int(self.state.player.max_hp * heal_percent / 100)
 
@@ -1174,6 +1175,8 @@ class CombatEngine:
             # Trigger registry-based onExhaust relics and powers
             execute_relic_triggers("onExhaust", self.state, {"card": card})
             execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+            if card.id == "Sentinel":
+                self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
             # Random position in draw pile
             pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
@@ -1302,14 +1305,17 @@ class CombatEngine:
 
         # Calculate damage per hit (includes vuln in single-chain calculation)
         base_damage = card.damage
-        damage_per_hit = self._calculate_card_damage(base_damage, target_index)
+        strength_mult = 1
+        if "strength_multiplier" in card.effects:
+            strength_mult = card.magic_number if card.magic_number > 0 else 3
+        damage_per_hit = self._calculate_card_damage(base_damage, target_index, strength_mult)
 
         # For ALL_ENEMY cards, pre-compute per-enemy damage before vigor consumption
         enemy_damages = {}
         if card.target == CardTarget.ALL_ENEMY:
             for i, enemy in enumerate(self.state.enemies):
                 if enemy.hp > 0:
-                    enemy_damages[i] = self._calculate_card_damage(base_damage, i)
+                    enemy_damages[i] = self._calculate_card_damage(base_damage, i, strength_mult)
 
         # Consume Vigor after first attack card uses it
         if self.state.player.statuses.get("Vigor", 0) > 0:
@@ -1521,7 +1527,7 @@ class CombatEngine:
         result = {"success": True, "potion": potion_id, "effects": []}
 
         # Check for Sacred Bark relic
-        has_sacred_bark = self.state.has_relic("Sacred Bark")
+        has_sacred_bark = self.state.has_relic("SacredBark")
 
         # Get potion data from content
         from .content.potions import get_potion_by_id
@@ -1643,12 +1649,17 @@ class CombatEngine:
     # Damage Calculation
     # =========================================================================
 
-    def _calculate_card_damage(self, base_damage: int, target_index: int = -1) -> int:
+    def _calculate_card_damage(
+        self,
+        base_damage: int,
+        target_index: int = -1,
+        strength_multiplier: int = 1,
+    ) -> int:
         """Calculate damage for a card attack."""
         player = self.state.player
 
         # Get player modifiers
-        strength = player.statuses.get("Strength", 0)
+        strength = player.statuses.get("Strength", 0) * strength_multiplier
         vigor = player.statuses.get("Vigor", 0)
         weak = player.statuses.get("Weak", 0) > 0
 

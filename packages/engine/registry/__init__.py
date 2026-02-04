@@ -557,7 +557,7 @@ def execute_potion_effect(potion_id: str, state: CombatState,
     if not potion:
         return {"success": False, "error": f"Unknown potion: {potion_id}"}
 
-    has_sacred_bark = state.has_relic("Sacred Bark")
+    has_sacred_bark = state.has_relic("SacredBark")
     potency = potion.get_effective_potency(has_sacred_bark)
 
     target = None

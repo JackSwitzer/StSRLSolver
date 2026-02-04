@@ -216,9 +216,12 @@ class EffectExecutor:
         """Execute card's base damage."""
         base_damage = card.damage
 
-        # Apply strength
+        # Apply strength (Heavy Blade multiplies Strength)
         strength = self.state.player.statuses.get("Strength", 0)
-        damage = base_damage + strength
+        strength_mult = 1
+        if "strength_multiplier" in card.effects:
+            strength_mult = card.magic_number if card.magic_number > 0 else 3
+        damage = base_damage + (strength * strength_mult)
 
         # Apply Vigor (first attack only)
         vigor = self.state.player.statuses.get("Vigor", 0)
@@ -378,6 +381,14 @@ class EffectExecutor:
         elif effect == "if_last_skill_draw_2" and last == "SKILL":
             ctx.draw_cards(2)
 
+    def _if_calm_draw_else_calm(self, ctx: EffectContext, card: Card, result: EffectResult) -> None:
+        """Inner Peace/Tranquility alias: draw if Calm, else enter Calm."""
+        draw_amount = 4 if ctx.is_upgraded else 3
+        if ctx.stance == "Calm":
+            ctx.draw_cards(draw_amount)
+        else:
+            ctx.change_stance("Calm")
+
     # Effect handler dispatch table - maps effect name to (self, ctx, card, result) handler
     _EFFECT_HANDLERS = {
         # Conditional effects
@@ -389,8 +400,8 @@ class EffectExecutor:
         "if_enemy_attacking_enter_calm": lambda s, c, cd, r: c.change_stance("Calm") if c.is_enemy_attacking() else None,
 
         # Calm/Wrath conditionals
-        "if_calm_draw_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),
-        "if_calm_draw_3_else_calm": lambda s, c, cd, r: c.draw_cards(4 if c.is_upgraded else 3) if c.stance == "Calm" else c.change_stance("Calm"),  # Alias
+        "if_calm_draw_else_calm": _if_calm_draw_else_calm,
+        "if_calm_draw_3_else_calm": _if_calm_draw_else_calm,  # Alias
         "if_wrath_gain_mantra_else_wrath": lambda s, c, cd, r: c.gain_mantra(5 if c.is_upgraded else 3) if c.stance == "Wrath" else c.change_stance("Wrath"),
 
         # Damage effects

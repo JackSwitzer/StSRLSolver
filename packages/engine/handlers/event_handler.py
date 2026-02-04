@@ -3655,11 +3655,11 @@ def _get_addict_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Addict: Help or Steal."""
+    """Addict: Pay, Refuse, or Rob."""
     return [
-        EventChoice(index=0, name="help", text="[Help] Give gold for relic"),
-        EventChoice(index=1, name="steal", text="[Steal] Gain Shame curse"),
-        EventChoice(index=2, name="leave", text="[Leave]"),
+        EventChoice(index=0, name="pay", text="[Pay] Give 85 gold for relic"),
+        EventChoice(index=1, name="refuse", text="[Refuse] Gain Shame curse"),
+        EventChoice(index=2, name="rob", text="[Rob] Gain relic + Shame"),
     ]
 
 
@@ -3974,9 +3974,16 @@ def _get_fountain_of_cleansing_choices(
     run_state: 'RunState'
 ) -> List[EventChoice]:
     """Fountain of Cleansing: Drink or Leave."""
-    has_curses = any(c.id in handler.CURSE_CARDS or c.id in handler.UNREMOVABLE_CURSES for c in run_state.deck)
+    has_curses = any(
+        c.id in handler.CURSE_CARDS and c.id not in handler.UNREMOVABLE_CURSES
+        for c in run_state.deck
+    )
     return [
-        EventChoice(index=0, name="drink", text="[Drink] Remove a curse" if has_curses else "[Drink] (No curses)"),
+        EventChoice(
+            index=0,
+            name="drink",
+            text="[Drink] Remove a curse" if has_curses else "[Drink] (No removable curses)",
+        ),
         EventChoice(index=1, name="leave", text="[Leave]"),
     ]
 

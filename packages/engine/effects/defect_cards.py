@@ -34,6 +34,21 @@ if TYPE_CHECKING:
 # Orb Channeling Effects
 # =============================================================================
 
+def _is_zero_cost_card(ctx: EffectContext, card_id: str) -> bool:
+    """Check if a card is 0-cost, respecting per-turn overrides."""
+    card_cost = ctx.state.card_costs.get(card_id)
+    if card_cost is None:
+        base_id = card_id.rstrip("+")
+        card_cost = ctx.state.card_costs.get(base_id)
+    if card_cost is None:
+        try:
+            from ..content.cards import get_card, normalize_card_id
+            base_id, upgraded = normalize_card_id(card_id)
+            card_cost = get_card(base_id, upgraded=upgraded).current_cost
+        except Exception:
+            return False
+    return card_cost == 0
+
 @effect_simple("channel_lightning")
 def channel_lightning_effect(ctx: EffectContext) -> None:
     """Channel 1 Lightning orb (Zap, Ball Lightning)."""
@@ -196,7 +211,7 @@ def consume_effect(ctx: EffectContext) -> None:
 
     manager = get_orb_manager(ctx.state)
     manager.modify_focus(focus_amount)
-    manager.remove_orb_slot(1)
+    manager.remove_orb_slot(1, ctx.state)
 
 
 @effect_simple("gain_focus_lose_focus_each_turn")
@@ -393,21 +408,10 @@ def amplify_effect(ctx: EffectContext) -> None:
 @effect_simple("return_all_0_cost_from_discard")
 def all_for_one_effect(ctx: EffectContext) -> None:
     """Return all 0-cost cards from discard to hand (All For One)."""
-    zero_cost_cards = []
-
-    # Find all 0-cost cards in discard
-    for card_id in ctx.state.discard_pile[:]:
-        # Check card cost (would need card registry in real impl)
-        # For now, check known 0-cost cards
-        base_id = card_id.rstrip("+")
-        zero_cost_ids = {
-            "Claw", "Go for the Eyes", "Zap", "Turbo", "Steam", "Reboot",
-            "Seek", "Fission", "Rainbow"
-        }
-        card_cost = ctx.state.card_costs.get(card_id, -1)
-
-        if base_id in zero_cost_ids or card_cost == 0:
-            zero_cost_cards.append(card_id)
+    zero_cost_cards = [
+        card_id for card_id in ctx.state.discard_pile[:]
+        if _is_zero_cost_card(ctx, card_id)
+    ]
 
     # Move to hand (up to hand limit)
     for card_id in zero_cost_cards:
@@ -555,14 +559,7 @@ def scrape_effect(ctx: EffectContext) -> None:
 
     # Discard non-0-cost cards that were drawn
     for card_id in drawn:
-        base_id = card_id.rstrip("+")
-        zero_cost_ids = {
-            "Claw", "Go for the Eyes", "Zap", "Turbo", "Steam", "Reboot",
-            "Seek", "Fission", "Rainbow", "FTL", "Beam Cell"
-        }
-        card_cost = ctx.state.card_costs.get(card_id, 1)
-
-        if base_id not in zero_cost_ids and card_cost != 0:
+        if not _is_zero_cost_card(ctx, card_id):
             if card_id in ctx.state.hand:
                 ctx.discard_card(card_id)
 
