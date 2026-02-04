@@ -264,12 +264,12 @@ class TestScryEffects:
         assert len(ctx_basic.draw_pile) == initial_draw
 
     def test_nirvana_block_on_scry(self, ctx_basic):
-        """Nirvana grants block when scrying."""
+        """Nirvana grants block when scrying (once per scry action, matches Java)."""
         ctx_basic.state.player.statuses["Nirvana"] = 3
         initial_block = ctx_basic.player.block
         ctx_basic.scry(2)
-        # Nirvana grants block per card scried
-        assert ctx_basic.player.block == initial_block + (3 * 2)
+        # Nirvana grants block once per scry action (not per card)
+        assert ctx_basic.player.block == initial_block + 3
 
     def test_weave_moves_to_hand_on_scry(self, ctx_basic):
         """Weave moves from discard to hand on scry."""

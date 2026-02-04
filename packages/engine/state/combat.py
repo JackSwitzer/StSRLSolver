@@ -41,7 +41,14 @@ class EndTurn:
     pass
 
 
-Action = Union[PlayCard, UsePotion, EndTurn]
+@dataclass(frozen=True)
+class SelectScryDiscard:
+    """Select which scried cards to discard (indices into pending_scry_cards)."""
+
+    discard_indices: tuple  # Tuple of indices to discard, e.g. (0, 2) to discard first and third
+
+
+Action = Union[PlayCard, UsePotion, EndTurn, SelectScryDiscard]
 
 
 # =============================================================================
@@ -217,6 +224,10 @@ class CombatState:
     mantra: int = 0
     last_card_type: str = ""  # "ATTACK", "SKILL", "POWER", or ""
 
+    # Scry pending state (for agent selection)
+    pending_scry_cards: List[str] = field(default_factory=list)
+    pending_scry_selection: bool = False
+
     # RNG state for deterministic simulation (seed0, seed1)
     shuffle_rng_state: tuple = (0, 0)
     card_rng_state: tuple = (0, 0)
@@ -273,6 +284,9 @@ class CombatState:
             # Watcher-specific
             mantra=self.mantra,
             last_card_type=self.last_card_type,
+            # Scry pending state
+            pending_scry_cards=self.pending_scry_cards.copy(),
+            pending_scry_selection=self.pending_scry_selection,
             # RNG state
             shuffle_rng_state=self.shuffle_rng_state,
             card_rng_state=self.card_rng_state,
@@ -327,6 +341,10 @@ class CombatState:
             List of legal Action objects.
         """
         actions: List[Action] = []
+
+        # If scry selection is pending, only return scry discard options
+        if self.pending_scry_selection and self.pending_scry_cards:
+            return self._get_scry_actions()
 
         # Get living enemy indices
         living_enemies = [i for i, e in enumerate(self.enemies) if not e.is_dead]
@@ -399,6 +417,26 @@ class CombatState:
         if potion_id in enemy_target_potions:
             return "enemy"
         return "self"
+
+    def _get_scry_actions(self) -> List[Action]:
+        """
+        Get all possible scry discard selections.
+
+        For N scried cards, generates 2^N options (all subsets of cards to discard).
+        """
+        from itertools import combinations
+
+        n = len(self.pending_scry_cards)
+        actions: List[Action] = []
+
+        # Generate all possible subsets of indices to discard
+        # For each possible number of cards to discard (0 to n)
+        for num_discard in range(n + 1):
+            # For each combination of that many indices
+            for indices in combinations(range(n), num_discard):
+                actions.append(SelectScryDiscard(discard_indices=indices))
+
+        return actions
 
     # -------------------------------------------------------------------------
     # Utility Methods

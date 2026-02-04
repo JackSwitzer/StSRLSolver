@@ -25,7 +25,7 @@ from enum import Enum
 
 from ..state.combat import (
     CombatState, EntityState, EnemyCombatState,
-    PlayCard, UsePotion, EndTurn, Action,
+    PlayCard, UsePotion, EndTurn, SelectScryDiscard, Action,
     create_combat, create_enemy,
 )
 from ..state.rng import Random, GameRNG
@@ -516,7 +516,7 @@ class CombatRunner:
         Execute a single action.
 
         Args:
-            action: Action to execute (PlayCard, UsePotion, EndTurn)
+            action: Action to execute (PlayCard, UsePotion, EndTurn, SelectScryDiscard)
 
         Returns:
             Dict with action results
@@ -525,10 +525,51 @@ class CombatRunner:
             return self.play_card(action.card_idx, action.target_idx)
         elif isinstance(action, UsePotion):
             return self.use_potion(action.potion_idx, action.target_idx)
+        elif isinstance(action, SelectScryDiscard):
+            return self.execute_scry_selection(action.discard_indices)
         elif isinstance(action, EndTurn):
             return {"action": "end_turn"}
         else:
             return {"error": "Unknown action type"}
+
+    def execute_scry_selection(self, discard_indices: tuple) -> Dict[str, Any]:
+        """
+        Execute a scry discard selection.
+
+        Args:
+            discard_indices: Tuple of indices into pending_scry_cards to discard
+
+        Returns:
+            Dict with action results
+        """
+        if not self.state.pending_scry_selection:
+            return {"success": False, "error": "No pending scry selection"}
+
+        cards = self.state.pending_scry_cards
+        kept = []
+        discarded = []
+
+        for i, card in enumerate(cards):
+            if i in discard_indices:
+                self.state.discard_pile.append(card)
+                discarded.append(card)
+            else:
+                kept.append(card)
+
+        # Put kept cards back on top of draw pile (in reverse order so first is on top)
+        for card in reversed(kept):
+            self.state.draw_pile.append(card)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
+
+        return {
+            "success": True,
+            "action": "scry_selection",
+            "kept": kept,
+            "discarded": discarded,
+        }
 
     def play_card(self, card_idx: int, target_idx: int = -1) -> Dict[str, Any]:
         """

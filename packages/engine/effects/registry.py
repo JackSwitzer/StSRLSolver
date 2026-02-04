@@ -508,15 +508,20 @@ class EffectContext:
     # Scry
     # ------------------------------------------------------------------
 
-    def scry(self, amount: int) -> List[str]:
+    def scry(self, amount: int, auto_keep_all: bool = True) -> List[str]:
         """
         Scry X cards.
 
-        In a real implementation, this would let the player choose which
-        cards to discard. For simulation, we'll just reveal the cards.
+        If auto_keep_all is True (simulation mode), all cards are kept on top.
+        Otherwise, sets pending_scry_selection=True for agent to choose
+        which cards to discard via SelectScryDiscard action.
 
         Returns list of cards that were scryed.
         """
+        # Golden Eye: Scry 2 additional cards
+        if self.has_relic("GoldenEye") or self.has_relic("Golden Eye"):
+            amount += 2
+
         cards_to_scry = []
 
         for _ in range(amount):
@@ -527,20 +532,50 @@ class EffectContext:
 
         self.scried_cards = cards_to_scry
 
-        # Trigger Nirvana (gain block on scry)
+        # Trigger Nirvana (gain block on scry) - once per scry action, not per card
         nirvana = self.get_player_status("Nirvana")
         if nirvana > 0:
-            self.gain_block(nirvana * len(cards_to_scry))
+            self.gain_block(nirvana)
 
         # Trigger Weave (play from discard on scry)
         self._trigger_weave()
 
-        # Put cards back on top of draw pile (in reverse order so first is on top)
-        # In actual game, player chooses which go to discard
-        for card in reversed(cards_to_scry):
-            self.state.draw_pile.append(card)
+        if auto_keep_all or not cards_to_scry:
+            # Simulation mode: put all cards back on top
+            for card in reversed(cards_to_scry):
+                self.state.draw_pile.append(card)
+        else:
+            # Agent decision mode: set pending state
+            self.state.pending_scry_cards = cards_to_scry
+            self.state.pending_scry_selection = True
 
         return cards_to_scry
+
+    def complete_scry(self, discard_indices: List[int]) -> None:
+        """
+        Complete a pending scry by choosing which cards to discard.
+
+        Args:
+            discard_indices: Indices into pending_scry_cards to discard
+        """
+        if not self.state.pending_scry_selection:
+            return
+
+        cards = self.state.pending_scry_cards
+        kept = []
+        for i, card in enumerate(cards):
+            if i in discard_indices:
+                self.state.discard_pile.append(card)
+            else:
+                kept.append(card)
+
+        # Put kept cards back on top of draw pile (in reverse order so first is on top)
+        for card in reversed(kept):
+            self.state.draw_pile.append(card)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
 
     def _trigger_weave(self) -> None:
         """Move Weave from discard to hand on scry."""
