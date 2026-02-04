@@ -468,7 +468,26 @@ class CombatState:
 
     def has_relic(self, relic_id: str) -> bool:
         """Check if player has a specific relic."""
-        return relic_id in self.relics
+        if relic_id in self.relics:
+            return True
+        try:
+            from ..content.relics import ALL_RELICS
+        except Exception:
+            return False
+        canonical_id = None
+        if relic_id in ALL_RELICS:
+            canonical_id = relic_id
+        else:
+            for rid, relic in ALL_RELICS.items():
+                if relic.name == relic_id:
+                    canonical_id = rid
+                    break
+        if canonical_id is None:
+            return False
+        if canonical_id in self.relics:
+            return True
+        canonical_name = ALL_RELICS[canonical_id].name
+        return canonical_name in self.relics
 
     def get_relic_counter(self, relic_id: str, default: int = 0) -> int:
         """Get a relic's counter value."""
