@@ -280,6 +280,54 @@ class EffectContext:
 
         return hp_damage
 
+    def calculate_card_damage(self, base_damage: int, target: Optional[EnemyCombatState] = None) -> int:
+        """
+        Calculate card damage with all modifiers (Strength, Weak, Vulnerable, Stance).
+
+        This mimics Java's AbstractCard.calculateCardDamage() for cards like Body Slam
+        that need to set their base damage dynamically and then apply all modifiers.
+        """
+        player = self.state.player
+
+        # Get player modifiers
+        strength = player.statuses.get("Strength", 0)
+        vigor = player.statuses.get("Vigor", 0)
+        weak = player.statuses.get("Weak", 0) > 0
+
+        # Get stance multiplier
+        stance = self.state.stance
+        stance_mult = 1.0
+        if stance == "Wrath":
+            stance_mult = 2.0
+        elif stance == "Divinity":
+            stance_mult = 3.0
+
+        # Apply additive modifiers first (Strength, Vigor)
+        damage = base_damage + strength + vigor
+
+        # Apply multiplicative modifiers
+        if weak:
+            damage = int(damage * 0.75)
+
+        damage = int(damage * stance_mult)
+
+        # Apply Vulnerable on target
+        enemy = target or self.target
+        if enemy and enemy.statuses.get("Vulnerable", 0) > 0:
+            damage = int(damage * 1.5)
+
+        return max(0, damage)
+
+    def deal_card_damage_to_enemy(self, enemy: EnemyCombatState, base_damage: int) -> int:
+        """
+        Deal card damage with full damage calculation pipeline.
+
+        This calculates damage including Strength, Weak, Vulnerable, Stance modifiers,
+        then applies it to the enemy (accounting for block).
+        """
+        calculated_damage = self.calculate_card_damage(base_damage, enemy)
+        return self.deal_damage_to_enemy(enemy, calculated_damage)
+
     def gain_block(self, amount: int) -> int:
         """Gain block for the player."""
         if amount > 0:

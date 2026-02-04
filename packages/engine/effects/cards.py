@@ -1686,9 +1686,11 @@ def reduce_enemy_strength(ctx: EffectContext) -> None:
 
 @effect_simple("double_strength")
 def double_strength(ctx: EffectContext) -> None:
-    """Limit Break - Double current Strength."""
+    """Limit Break - Double current Strength (Java: doubles any non-zero strength including negative)."""
     current = ctx.state.player.statuses.get("Strength", 0)
-    if current > 0:
+    if current != 0:
+        # Java: hasPower("Strength") check + apply strAmt more
+        # This effectively doubles the strength (positive or negative)
         ctx.apply_status_to_player("Strength", current)
 
 
@@ -1949,10 +1951,12 @@ def exhaust_hand_damage_per_card(ctx: EffectContext) -> None:
 
 @effect_simple("damage_equals_block")
 def damage_equals_block(ctx: EffectContext) -> None:
-    """Body Slam - Deal damage equal to current Block."""
-    damage = ctx.state.player.block
-    if ctx.target and damage > 0:
-        ctx.deal_damage_to_enemy(ctx.target, damage)
+    """Body Slam - Deal damage equal to current Block (Java: uses calculateCardDamage pipeline)."""
+    # Java sets baseDamage = p.currentBlock, then calls calculateCardDamage(m)
+    # which applies Strength, Weak, Vulnerable, Stance modifiers
+    base_damage = ctx.state.player.block
+    if ctx.target and base_damage >= 0:
+        ctx.deal_card_damage_to_enemy(ctx.target, base_damage)
 
 
 @effect_simple("damage_per_strike")

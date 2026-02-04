@@ -566,10 +566,12 @@ def buffer_change_damage(ctx: PowerContext) -> int:
 
 @power_trigger("wasHPLost", power="Rupture")
 def rupture_hp_lost(ctx: PowerContext) -> None:
-    """Rupture: Gain Strength when losing HP from cards."""
-    # Only triggers from card HP loss, not enemy attacks
-    source = ctx.trigger_data.get("source", "")
-    if source == "card":
+    """Rupture: Gain Strength when losing HP from self-damage (Java: info.owner == this.owner)."""
+    # Triggers from ANY self-damage (cards, powers, effects) - not just cards
+    # Java checks: damageAmount > 0 && info.owner == this.owner
+    damage_amount = ctx.trigger_data.get("damage", 0)
+    is_self_damage = ctx.trigger_data.get("is_self_damage", False)
+    if damage_amount > 0 and is_self_damage:
         ctx.apply_power_to_player("Strength", ctx.amount)
 
 
@@ -683,9 +685,9 @@ def energized_energy(ctx: PowerContext) -> None:
     del ctx.player.statuses["Energized"]
 
 
-@power_trigger("onEnergyRecharge", power="Berserk")
+@power_trigger("atStartOfTurn", power="Berserk")
 def berserk_energy(ctx: PowerContext) -> None:
-    """Berserk: Gain 1 energy at start of each turn."""
+    """Berserk: Gain 1 energy at start of each turn (Java: BerserkPower.atStartOfTurn)."""
     ctx.gain_energy(ctx.amount)
 
 
@@ -693,11 +695,27 @@ def berserk_energy(ctx: PowerContext) -> None:
 # ADDITIONAL IRONCLAD POWER TRIGGERS
 # =============================================================================
 
-@power_trigger("atStartOfTurnPostDraw", power="Corruption")
-def corruption_start(ctx: PowerContext) -> None:
-    """Corruption: Skills cost 0 (handled in card cost calculation)."""
-    # Flag is set, cost modification is handled in card execution
-    pass
+@power_trigger("onCardDraw", power="Corruption")
+def corruption_on_draw(ctx: PowerContext) -> None:
+    """Corruption: Skills cost 0 when drawn (Java: card.setCostForTurn(-9))."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.SKILL:
+        # Mark this card as cost 0 for this turn
+        # The combat engine should check for Corruption and set skill cost to 0
+        ctx.trigger_data["set_cost_to_zero"] = True
+
+
+@power_trigger("onUseCard", power="Corruption")
+def corruption_on_use(ctx: PowerContext) -> None:
+    """Corruption: Exhaust Skills when played (Java: action.exhaustCard = true)."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.SKILL:
+        # Mark this card to be exhausted after playing
+        ctx.trigger_data["exhaust_card"] = True
 
 
 @power_trigger("atStartOfTurnPostDraw", power="Barricade")
