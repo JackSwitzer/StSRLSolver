@@ -49,7 +49,7 @@ from .state.combat import (
     create_combat,
 )
 from .content.cards import Card, CardType, CardTarget, CardColor, get_card, ALL_CARDS
-from .content.enemies import Enemy, Intent, MoveInfo, EnemyState
+from .content.enemies import Enemy, Intent, MoveInfo, EnemyState, create_enemy as create_enemy_object
 from .content.stances import StanceID, StanceEffect, STANCES, StanceManager
 from .content.powers import PowerType, DamageType, create_power, POWER_DATA
 from .calc.damage import (
@@ -1425,19 +1425,31 @@ class CombatEngine:
         if not hasattr(real_enemy, 'check_split'):
             return
 
-        spawn_info = real_enemy.check_split()
-        if spawn_info is None:
+        spawn_info = real_enemy.check_split(enemy.hp)
+        if not spawn_info:
             return
+        if isinstance(spawn_info, bool):
+            if not hasattr(real_enemy, "get_split_spawn_info"):
+                return
+            spawn_info = real_enemy.get_split_spawn_info()
+        if isinstance(spawn_info, dict) and "ascension" not in spawn_info:
+            if hasattr(real_enemy, "ascension"):
+                spawn_info["ascension"] = real_enemy.ascension
 
         # Kill the parent
         enemy.hp = 0
         self._spawn_enemies(spawn_info)
 
-    def _spawn_enemies(self, spawn_info: list):
-        """Spawn new enemies from split/summon. spawn_info is list of (enemy_id, hp, max_hp) tuples."""
+    def _spawn_enemies(self, spawn_info):
+        """Spawn new enemies from split/summon."""
+        if not spawn_info:
+            return
+        if isinstance(spawn_info, (EnemyCombatState, dict, tuple)):
+            spawn_info = [spawn_info]
         for info in spawn_info:
             if isinstance(info, EnemyCombatState):
                 self.state.enemies.append(info)
+                self._roll_enemy_move(info)
             elif isinstance(info, tuple) and len(info) >= 3:
                 enemy_id, hp, max_hp = info[0], info[1], info[2]
                 new_enemy = EnemyCombatState(
@@ -1449,6 +1461,55 @@ class CombatEngine:
                 self.state.enemies.append(new_enemy)
                 # Roll initial move
                 self._roll_enemy_move(new_enemy)
+            elif isinstance(info, dict):
+                enemy_id = info.get("enemy_class") or info.get("enemy_id") or info.get("id")
+                if not enemy_id:
+                    continue
+                count = int(info.get("count", 1))
+                starting_hp = info.get("hp")
+                poison_amount = info.get("poison", 0)
+                ascension = info.get("ascension", 0)
+                for _ in range(count):
+                    try:
+                        kwargs = {}
+                        if starting_hp is not None:
+                            kwargs["starting_hp"] = starting_hp
+                        if poison_amount:
+                            kwargs["poison_amount"] = poison_amount
+                        real_spawn = create_enemy_object(
+                            enemy_id,
+                            self.ai_rng,
+                            ascension=ascension,
+                            **kwargs,
+                        )
+                    except TypeError:
+                        real_spawn = create_enemy_object(
+                            enemy_id,
+                            self.ai_rng,
+                            ascension=ascension,
+                        )
+                    new_enemy = EnemyCombatState(
+                        hp=real_spawn.state.current_hp,
+                        max_hp=real_spawn.state.max_hp,
+                        block=real_spawn.state.block,
+                        statuses=dict(real_spawn.state.powers),
+                        id=real_spawn.ID,
+                        name=real_spawn.NAME,
+                        enemy_type=str(real_spawn.TYPE.value) if hasattr(real_spawn.TYPE, "value") else str(real_spawn.TYPE),
+                        move_history=list(real_spawn.state.move_history),
+                        first_turn=real_spawn.state.first_turn,
+                    )
+                    if real_spawn.state.next_move:
+                        move = real_spawn.state.next_move
+                        new_enemy.move_id = move.move_id
+                        new_enemy.move_damage = move.base_damage
+                        new_enemy.move_hits = move.hits
+                        new_enemy.move_block = move.block
+                        new_enemy.move_effects = dict(move.effects) if move.effects else {}
+                    self.state.enemies.append(new_enemy)
+                    if self.enemy_objects and len(self.enemy_objects) == len(self.state.enemies) - 1:
+                        self.enemy_objects.append(real_spawn)
+                    self._roll_enemy_move(new_enemy)
 
     def _on_enemy_death(self, enemy: EnemyCombatState):
         """Handle enemy death triggers."""

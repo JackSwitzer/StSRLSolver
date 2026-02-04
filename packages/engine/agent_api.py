@@ -951,8 +951,10 @@ def get_available_action_dicts(runner) -> List[ActionDict]:
 def take_action_dict(runner, action: ActionDict) -> ActionResult:
     """Execute a JSON action dict via GameRunner."""
     try:
-        success = runner.take_action_dict(action)
-        return {"success": success, "data": {}}
+        result = runner.take_action_dict(action)
+        if isinstance(result, dict):
+            return result
+        return {"success": bool(result), "data": {}}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 

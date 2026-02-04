@@ -724,10 +724,21 @@ class GameRunner:
                 actions.append(skip_action)
         return actions
 
-    def take_action_dict(self, action_dict: ActionDict) -> bool:
+    def take_action_dict(self, action_dict: ActionDict) -> Dict[str, Any]:
         """Execute a JSON action dict via the dataclass adapter."""
-        action = self._dict_to_action(action_dict)
-        return self.take_action(action)
+        try:
+            action = self._dict_to_action(action_dict)
+        except Exception as exc:  # invalid action dict
+            return {"success": False, "error": str(exc)}
+
+        try:
+            success = self.take_action(action)
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+        if not success:
+            return {"success": False, "error": "Invalid action for current state"}
+        return {"success": True, "data": {}}
 
     def get_available_actions(self) -> List[GameAction]:
         """
