@@ -11,8 +11,10 @@ This module provides reusable fixtures for:
 import pytest
 import sys
 
-# Ensure project root is in path
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
+# Ensure project root is in path (use the correct path for worktrees)
+import os
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _project_root)
 
 from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,

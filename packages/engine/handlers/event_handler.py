@@ -3440,24 +3440,534 @@ def _get_shrine_choices(
     return [EventChoice(index=0, name="leave", text="[Leave]")]
 
 
+# ============================================================================
+# ACT 1 CHOICE GENERATORS
+# ============================================================================
+
+def _get_sssserpent_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Sssserpent: Agree or Disagree."""
+    return [
+        EventChoice(index=0, name="agree", text="[Agree] Gain gold, obtain Doubt curse"),
+        EventChoice(index=1, name="disagree", text="[Disagree] Leave"),
+    ]
+
+
+def _get_mushrooms_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Mushrooms: Stomp or Eat."""
+    return [
+        EventChoice(index=0, name="stomp", text="[Stomp] Fight mushrooms for Odd Mushroom"),
+        EventChoice(index=1, name="eat", text="[Eat] Heal, obtain Parasite curse"),
+    ]
+
+
+def _get_shining_light_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Shining Light: Enter or Leave."""
+    return [
+        EventChoice(index=0, name="enter", text="[Enter] Take damage, upgrade 2 cards"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_dead_adventurer_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Dead Adventurer: Search or Leave."""
+    return [
+        EventChoice(index=0, name="search", text="[Search] Risk elite fight for reward"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_wing_statue_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Wing Statue: Purify or Leave."""
+    return [
+        EventChoice(index=0, name="purify", text="[Purify] Lose 7 HP, remove a card", requires_removable_cards=True),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+# ============================================================================
+# ACT 2 CHOICE GENERATORS
+# ============================================================================
+
+def _get_addict_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Addict: Help or Steal."""
+    return [
+        EventChoice(index=0, name="help", text="[Help] Give gold for relic"),
+        EventChoice(index=1, name="steal", text="[Steal] Gain Shame curse"),
+        EventChoice(index=2, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_augmenter_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Augmenter: Test or Leave."""
+    return [
+        EventChoice(index=0, name="test", text="[Test] Transform 2 cards, upgrade them"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_back_to_basics_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Back to Basics: Simplicity or Leave."""
+    return [
+        EventChoice(index=0, name="simplicity", text="[Simplicity] Remove all Strikes and Defends"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_beggar_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Beggar: Give gold or Leave."""
+    return [
+        EventChoice(index=0, name="give", text="[Give 75 Gold] Remove a card"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_cursed_tome_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Cursed Tome: Read or Stop."""
+    return [
+        EventChoice(index=0, name="read", text="[Read] Take 1/2/3 damage for colorless card reward"),
+        EventChoice(index=1, name="stop", text="[Stop] Leave"),
+    ]
+
+
+def _get_forgotten_altar_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Forgotten Altar: Sacrifice or Desecrate."""
+    return [
+        EventChoice(index=0, name="sacrifice", text="[Sacrifice] Take damage, gain 5 Max HP"),
+        EventChoice(index=1, name="desecrate", text="[Desecrate] Gain Decay curse"),
+        EventChoice(index=2, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_ghosts_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Ghosts: Accept or Refuse."""
+    return [
+        EventChoice(index=0, name="accept", text="[Accept] Lose 50% max HP, gain Apparitions"),
+        EventChoice(index=1, name="refuse", text="[Refuse] Leave"),
+    ]
+
+
+def _get_nest_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Nest: Steal or Smash."""
+    return [
+        EventChoice(index=0, name="steal", text="[Steal] Gain 99 gold"),
+        EventChoice(index=1, name="smash", text="[Smash] Take damage, get Dagger"),
+    ]
+
+
+def _get_vampires_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Vampires: Accept or Refuse."""
+    return [
+        EventChoice(index=0, name="accept", text="[Accept] Lose 30% max HP, trade Strikes for Bites"),
+        EventChoice(index=1, name="refuse", text="[Refuse] Fight the vampires"),
+    ]
+
+
+# ============================================================================
+# ACT 3 CHOICE GENERATORS
+# ============================================================================
+
+def _get_falling_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Falling: Land on Skill, Power, or Attack."""
+    choices = []
+    # Check if player has cards of each type
+    has_skill = any(c.id in handler.SKILL_CARDS for c in run_state.deck)
+    has_power = any(c.id in handler.POWER_CARDS for c in run_state.deck)
+    has_attack = any(c.id in handler.ATTACK_CARDS for c in run_state.deck)
+
+    if has_skill:
+        choices.append(EventChoice(index=0, name="skill", text="[Land on Skill] Lose a random Skill"))
+    if has_power:
+        choices.append(EventChoice(index=1, name="power", text="[Land on Power] Lose a random Power"))
+    if has_attack:
+        choices.append(EventChoice(index=2, name="attack", text="[Land on Attack] Lose a random Attack"))
+
+    return choices if choices else [EventChoice(index=0, name="land", text="[Land]")]
+
+
+def _get_moai_head_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Moai Head: Enter or Leave."""
+    return [
+        EventChoice(index=0, name="enter", text="[Enter] Gain 5 Max HP"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_mysterious_sphere_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Mysterious Sphere: Open or Leave."""
+    return [
+        EventChoice(index=0, name="open", text="[Open] Fight 2 Orb Walkers for relic"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_secret_portal_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Secret Portal: Enter or Leave."""
+    return [
+        EventChoice(index=0, name="enter", text="[Enter] Go to the Heart"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_sensory_stone_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Sensory Stone: Recall or Leave."""
+    return [
+        EventChoice(index=0, name="recall", text="[Recall] Gain random colorless cards"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_tomb_of_lord_red_mask_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Tomb of Lord Red Mask: Offer gold or Don mask."""
+    return [
+        EventChoice(index=0, name="offer", text="[Offer Gold] Give all gold for Red Mask"),
+        EventChoice(index=1, name="don", text="[Don Mask] Gain Red Mask, curse"),
+        EventChoice(index=2, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_winding_halls_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Winding Halls: Explore or Leave."""
+    return [
+        EventChoice(index=0, name="explore", text="[Explore] Random outcome (heal/damage/curse)"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+# ============================================================================
+# SPECIAL EVENT CHOICE GENERATORS
+# ============================================================================
+
+def _get_accursed_blacksmith_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Accursed Blacksmith: Forge or Leave."""
+    return [
+        EventChoice(index=0, name="forge", text="[Forge] Upgrade a card for curse"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_bonfire_elementals_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Bonfire Elementals: Approach or Leave."""
+    return [
+        EventChoice(index=0, name="approach", text="[Approach] Heal or fight"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_designer_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Designer: Remove, Upgrade, or Transform."""
+    return [
+        EventChoice(index=0, name="remove", text="[Remove] Pay 50-75 gold, remove card"),
+        EventChoice(index=1, name="upgrade", text="[Upgrade] Pay 40-60 gold, upgrade card"),
+        EventChoice(index=2, name="transform", text="[Transform] Pay 75-110 gold, transform card"),
+        EventChoice(index=3, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_face_trader_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Face Trader: Trade or Leave."""
+    return [
+        EventChoice(index=0, name="trade", text="[Trade] Lose face, gain gold"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_fountain_of_cleansing_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Fountain of Cleansing: Drink or Leave."""
+    has_curses = any(c.id in handler.CURSE_CARDS or c.id in handler.UNREMOVABLE_CURSES for c in run_state.deck)
+    return [
+        EventChoice(index=0, name="drink", text="[Drink] Remove a curse" if has_curses else "[Drink] (No curses)"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_the_joust_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """The Joust: Bet on Champion or Murderer."""
+    return [
+        EventChoice(index=0, name="champion", text="[Bet on Champion] Win: 100 gold"),
+        EventChoice(index=1, name="murderer", text="[Bet on Murderer] Win: 250 gold"),
+    ]
+
+
+def _get_the_lab_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """The Lab: Accept or Leave."""
+    return [
+        EventChoice(index=0, name="accept", text="[Accept] Get 3 random potions"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_nloth_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """N'loth: Gift or Leave."""
+    return [
+        EventChoice(index=0, name="gift", text="[Gift] Give relic for N'loth's Gift"),
+        EventChoice(index=1, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_we_meet_again_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """We Meet Again: Attack, Give Potion, or Give Gold."""
+    return [
+        EventChoice(index=0, name="attack", text="[Attack] Damage or relic"),
+        EventChoice(index=1, name="potion", text="[Give Potion] Get relic"),
+        EventChoice(index=2, name="gold", text="[Give Gold] Get relic"),
+        EventChoice(index=3, name="leave", text="[Leave]"),
+    ]
+
+
+def _get_woman_in_blue_choices(
+    handler: EventHandler,
+    event_id: str,
+    phase: EventPhase,
+    event_state: EventState,
+    run_state: 'RunState'
+) -> List[EventChoice]:
+    """Woman in Blue: Buy potions or Leave."""
+    return [
+        EventChoice(index=0, name="buy1", text="[Buy 1] Pay 20 gold for 1 potion"),
+        EventChoice(index=1, name="buy2", text="[Buy 2] Pay 30 gold for 2 potions"),
+        EventChoice(index=2, name="buy3", text="[Buy 3] Pay 40 gold for 3 potions"),
+        EventChoice(index=3, name="leave", text="[Leave]"),
+    ]
+
+
 EVENT_CHOICE_GENERATORS: Dict[str, Callable] = {
+    # Act 1
     "BigFish": _get_big_fish_choices,
     "TheCleric": _get_the_cleric_choices,
     "GoldenIdol": _get_golden_idol_choices,
     "WorldOfGoop": _get_world_of_goop_choices,
     "LivingWall": _get_living_wall_choices,
     "ScrapOoze": _get_scrap_ooze_choices,
+    "Sssserpent": _get_sssserpent_choices,
+    "Mushrooms": _get_mushrooms_choices,
+    "ShiningLight": _get_shining_light_choices,
+    "DeadAdventurer": _get_dead_adventurer_choices,
+    "WingStatue": _get_wing_statue_choices,
+
+    # Act 2
     "Colosseum": _get_colosseum_choices,
     "TheLibrary": _get_the_library_choices,
     "TheMausoleum": _get_the_mausoleum_choices,
     "MaskedBandits": _get_masked_bandits_choices,
     "KnowingSkull": _get_knowing_skull_choices,
+    "Addict": _get_addict_choices,
+    "Augmenter": _get_augmenter_choices,
+    "BackToBasics": _get_back_to_basics_choices,
+    "Beggar": _get_beggar_choices,
+    "CursedTome": _get_cursed_tome_choices,
+    "ForgottenAltar": _get_forgotten_altar_choices,
+    "Ghosts": _get_ghosts_choices,
+    "Nest": _get_nest_choices,
+    "Vampires": _get_vampires_choices,
+
+    # Act 3
+    "Falling": _get_falling_choices,
     "MindBloom": _get_mind_bloom_choices,
+    "MoaiHead": _get_moai_head_choices,
+    "MysteriousSphere": _get_mysterious_sphere_choices,
+    "SecretPortal": _get_secret_portal_choices,
+    "SensoryStone": _get_sensory_stone_choices,
+    "TombOfLordRedMask": _get_tomb_of_lord_red_mask_choices,
+    "WindingHalls": _get_winding_halls_choices,
+
+    # Shrines
     "Purifier": _get_shrine_choices,
     "Transmogrifier": _get_shrine_choices,
     "UpgradeShrine": _get_shrine_choices,
     "Duplicator": _get_shrine_choices,
     "GoldenShrine": _get_shrine_choices,
+
+    # Special one-time events
+    "AccursedBlacksmith": _get_accursed_blacksmith_choices,
+    "BonfireElementals": _get_bonfire_elementals_choices,
+    "Designer": _get_designer_choices,
+    "FaceTrader": _get_face_trader_choices,
+    "FountainOfCleansing": _get_fountain_of_cleansing_choices,
+    "TheJoust": _get_the_joust_choices,
+    "TheLab": _get_the_lab_choices,
+    "Nloth": _get_nloth_choices,
+    "WeMeetAgain": _get_we_meet_again_choices,
+    "WomanInBlue": _get_woman_in_blue_choices,
 }
 
 
