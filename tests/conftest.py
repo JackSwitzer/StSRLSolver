@@ -10,9 +10,11 @@ This module provides reusable fixtures for:
 
 import pytest
 import sys
+import os
 
-# Ensure project root is in path
-sys.path.insert(0, '/Users/jackswitzer/Desktop/SlayTheSpireRL')
+# Ensure project root is in path (use the directory containing this conftest.py)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _PROJECT_ROOT)
 
 from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
