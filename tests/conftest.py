@@ -12,6 +12,7 @@ import pytest
 import sys
 
 # Ensure project root is in path - works for both main repo and worktrees
+# Ensure project root is in path (use the correct path for worktrees)
 import os
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _project_root)
