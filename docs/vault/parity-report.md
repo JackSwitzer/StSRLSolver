@@ -1,7 +1,7 @@
 # Python vs Java Parity Report
 
 **Generated**: 2026-02-04
-**Status**: All critical systems at 100% parity - 4512 tests passing
+**Status**: Core mechanics at 100% parity; several systems remain partial (see Missing Features)
 
 ---
 
@@ -21,11 +21,8 @@
 | Potions (Data) | 100% | All 42 potions |
 | Card Data (All Classes) | 100% | Ironclad, Silent, Defect, Watcher |
 | Enemy Data | 100% | All 66 enemies |
-| Events | 100% | All handlers working |
-| Power Triggers | 100% | Timing matches Java |
-| Combat Relics | 100% | atBattleStart, onPlayCard, etc. |
 
-### Missing Features (139 Skipped Tests)
+### Missing Features (138 Skipped Tests by markers)
 | Category | Count | Priority |
 |----------|-------|----------|
 | Rest Site Relics | 36 | HIGH |
@@ -33,6 +30,12 @@
 | Chest Relic Acquisition | 30 | HIGH |
 | Bottled Relics | 20 | MED |
 | Out-of-Combat Triggers | 13 | MED |
+
+### Partial Systems (implementation gaps)
+- **Power Triggers**: 30/94 implemented; missing 64 triggers.
+- **Events**: 17/50 choice generators implemented; 2 handlers missing.
+- **Relics**: 44 relics missing all triggers plus rest‑site/pickup/chest gaps.
+- **Potions (effects)**: discovery/selection and several effects partial.
 
 ---
 

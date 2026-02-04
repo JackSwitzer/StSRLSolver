@@ -1,3 +1,7 @@
+# ARCHIVED (use granular work units)
+
+This legacy work unit is archived. Use `docs/work_units/granular-relics.md`.
+
 # Relic Triggers & Watcher-Critical Relics - Work Units
 
 ## Scope summary

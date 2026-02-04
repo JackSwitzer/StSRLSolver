@@ -1,3 +1,7 @@
+# ARCHIVED (use granular work units)
+
+This legacy work unit is archived. Use `docs/work_units/granular-cards-defect.md` and `docs/work_units/granular-orbs.md`.
+
 # cards-defect work units
 
 ## Scope summary

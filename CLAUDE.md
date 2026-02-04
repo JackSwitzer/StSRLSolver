@@ -27,17 +27,24 @@ uv run pytest tests/ --cov=packages/engine  # Coverage (~68%)
 | Domain | Status | Notes |
 |--------|--------|-------|
 | **RNG System** | ✅ 100% | All 13 streams verified, production ready |
-| **Damage Calculation** | ✅ 100% | Vuln 1.5x, Weak 0.75x, floor operations, order of ops exact |
+| **Damage Calculation** | ✅ 100% | Vuln 1.5x, Weak 0.75x, floor operations exact |
 | **Block Calculation** | ✅ 100% | Dex before Frail, floor operations exact |
-| **Stances** | ✅ 100% | Wrath 2x out/in, Divinity 3x out/1x in, Calm +2 energy |
+| **Stances** | ✅ 100% | Wrath/Calm/Divinity/Neutral verified |
 | **Enemies** | ✅ 100% | All 66 enemies verified |
-| **Cards (All Classes)** | ✅ 100% | Ironclad, Silent, Defect, Watcher all verified |
-| **Power Triggers** | ✅ 100% | atDamageGive, atDamageReceive, onChangeStance timing |
-| **Combat Relics** | ✅ 100% | atBattleStart, onPlayCard, wasHPLost triggers |
+| **Map Generation** | ✅ 100% | Java quirks included |
+| **Shop** | ✅ 100% | Prices and pools match |
+| **Card Rewards** | ✅ 100% | HashMap order + pity timer |
+| **Card Data** | ✅ 100% | All characters verified |
 | **Potions (Data)** | ✅ 100% | All 42 potions correct |
-| **Events** | ✅ 95% | All handlers working, minor edge cases |
 
-### Missing Features (139 Skipped Tests)
+### Partial / Missing (Implementation Gaps)
+- **Power triggers**: 30/94 implemented (64 missing).
+- **Relics**: 44 missing all + rest-site/pickup/chest/bottled gaps (see skipped tests).
+- **Events**: 17/50 choice generators implemented; 2 handlers missing.
+- **Potions (effects)**: discovery/selection and several effects partial.
+- **Rewards**: JSON action layer implemented; fidelity still depends on relic/potion/event gaps.
+
+### Missing Features (138 Skipped Tests by markers)
 | Category | Count | Priority | Description |
 |----------|-------|----------|-------------|
 | Rest Site Relics | 36 | HIGH | Dream Catcher, Regal Pillow, Girya, Peace Pipe, Shovel |
@@ -45,7 +52,6 @@ uv run pytest tests/ --cov=packages/engine  # Coverage (~68%)
 | Chest Relic Acquisition | 30 | HIGH | Tiny Chest, Matryoshka, Black Star, Cursed Key |
 | Bottled Relics | 20 | MED | Bottled Flame/Lightning/Tornado innate hands |
 | Out-of-Combat Triggers | 13 | MED | Shop relics, Ectoplasm tracking |
-| Test Infrastructure | 6 | LOW | Boss relic screen, White Beast Statue |
 
 See test files and `docs/ARCHITECTURE.md` for implementation details.
 
@@ -55,8 +61,8 @@ from packages.engine import GameRunner, GamePhase
 
 runner = GameRunner(seed="SEED", ascension=20)
 while not runner.game_over:
-    actions = runner.get_available_actions()  # Decision point
-    runner.take_action(actions[0])            # Execute action
+    actions = runner.get_available_action_dicts()  # JSON actions
+    runner.take_action_dict(actions[0])            # Execute action
     # runner.run_state = full observable state
     # runner.phase = current GamePhase
 ```

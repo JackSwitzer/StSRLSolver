@@ -4,28 +4,34 @@ This spec summarizes what is implemented vs missing for a full Python clone (all
 
 ## High-Level Status (Updated 2026-02-04)
 
-- **Character support**: Run factories exist for Watcher/Ironclad/Silent/Defect (starting decks/relics + ascension HP). All character cards verified against Java.
+- **Character support**: Run factories exist for Watcher/Ironclad/Silent/Defect (starting decks/relics + ascension HP). Card data verified against Java.
 - **Core mechanics (100% parity)**:
-  - RNG system: 100% (all 13 streams)
-  - Damage/block calc: 100% (order of operations exact)
-  - Enemies: 100% (all 66 verified)
-  - Stances: 100% (all 4 stances)
-  - Cards: 100% (all characters verified)
-  - Power triggers: 100%
-  - Combat relics: 100%
-  - Events: 100% (all handlers working)
-  - Potions (data): 100%
-- **Missing features (139 skipped tests)**:
+  - RNG system: all 13 streams
+  - Damage/block calc: order of operations exact
+  - Enemies: all 66 verified
+  - Stances: all 4 stances
+  - Map generation + encounters
+  - Shop generation + pricing
+  - Card rewards generation
+  - Potion data tables
+- **Partial mechanics (implementation gaps remain)**:
+  - Power triggers: 30/94 implemented (64 missing)
+  - Relic triggers/pickups/rest-site: major gaps (see skipped tests)
+  - Events: 17/50 choice generators implemented, 2 handlers missing
+  - Potion effects: discovery/selection and several effects still partial
+  - Reward flow: JSON action layer implemented, but correctness still depends on missing relic/potion/event behaviors
+- **Missing features (138 skipped tests by current markers)**:
   - Rest site relics: 36 tests
   - Relic pickup effects: 34 tests
   - Chest relic acquisition: 30 tests
   - Bottled relics: 20 tests
   - Out-of-combat triggers: 13 tests
-- **Tests**: 4512 passing, 139 skipped; coverage ~68% (`uv run pytest tests/ --cov=packages/engine`).
+- **Tests**: last known full run (2026-02-04): 4512 passing, 138 skipped; coverage ~68% (`uv run pytest tests/ --cov=packages/engine`).
 
 ## Useful Code Map (Where To Look)
 
 - **Game loop**: `packages/engine/game.py` (GameRunner) and `packages/engine/combat_engine.py`
+- **Agent JSON API**: `GameRunner.get_available_action_dicts()` / `get_observation()` in `packages/engine/game.py`
 - **State**: `packages/engine/state/` (RNG, run/combat state)
 - **Damage & combat math**: `packages/engine/calc/`
 - **Content definitions**: `packages/engine/content/` (cards, relics, potions, enemies, events, powers, stances)
@@ -48,11 +54,7 @@ Totals by group (all supported):
 - Curse: 14 cards ✅
 - Status: 5 cards ✅
 
-**Key fixes applied (2026-02-04)**:
-- Ironclad: Berserk, Rupture, Limit Break, Body Slam, Corruption
-- Silent: Wraith Form Artifact interaction, Burst end-of-turn, Bouncing Flask RNG
-- Defect: Loop timing, Electrodynamics Lightning count
-- Watcher: InnerPeace if_calm_draw_else_calm
+**Note**: Card data is verified, but several effect handlers remain incomplete; see `docs/work_units/granular-cards-*.md`.
 
 ## Relics (Per-Entity Status)
 
@@ -159,17 +161,8 @@ Known TODOs and pass stubs (non-exhaustive):
 
 ## Work Units (Small-Model Tasks)
 
-These unit-sized tasks are split by domain to keep scope manageable and parallelizable:
-
-- Cards (Watcher): [docs/work_units/cards-watcher.md](docs/work_units/cards-watcher.md)
-- Cards (Ironclad): [docs/work_units/cards-ironclad.md](docs/work_units/cards-ironclad.md)
-- Cards (Silent): [docs/work_units/cards-silent.md](docs/work_units/cards-silent.md)
-- Cards (Defect): [docs/work_units/cards-defect.md](docs/work_units/cards-defect.md)
-- Potions: [docs/work_units/potions.md](docs/work_units/potions.md)
-- Powers: [docs/work_units/powers.md](docs/work_units/powers.md)
-- Events: [docs/work_units/events.md](docs/work_units/events.md)
-- Rewards: [docs/work_units/rewards.md](docs/work_units/rewards.md)
-- Relics: [docs/work_units/relics.md](docs/work_units/relics.md)
+Active work units are listed in: [docs/work_units/ACTIVE.md](docs/work_units/ACTIVE.md).
+Legacy non‑granular work units have been archived in `docs/work_units/archive/`.
 
 Ultra-granular checklists (per-category):
 - Action spec (model-facing): [docs/work_units/granular-actions.md](docs/work_units/granular-actions.md)
@@ -193,7 +186,7 @@ Granular checklists incorporate the latest failed/skip test mappings (2026-02-04
 Model‑facing actions are prioritized over UI (choices should be traversable via explicit actions). Parameter signatures are explicit in the granular specs and defined in `granular-actions.md`.
 
 ## Agent Readiness Gates (minimum for RL)
-1. **Action API**: `get_available_actions()` / `take_action()` adhere to `granular-actions.md` with deterministic IDs and no dead‑ends.
+1. **Action API**: `get_available_action_dicts()` / `take_action_dict()` adhere to `granular-actions.md` with deterministic IDs and no dead‑ends.
 2. **Observation schema**: `get_observation()` returns stable, JSON‑serializable payloads per `granular-observation.md`.
 3. **Determinism**: RNG streams and counters are synchronized; identical seed+actions yield identical outcomes (`granular-determinism.md`).
 4. **Phase flow**: transitions obey the state machine (`granular-phase-flow.md`) and never strand the agent.
@@ -214,12 +207,12 @@ Model‑facing actions are prioritized over UI (choices should be traversable vi
 4. **Relics**: implement missing active triggers (44 relics missing all + xfail buckets: bottled, pickup, acquisition, rest-site).
 5. **Potions**: finish TODOs and discovery/selection logic for interactive potions.
 6. **Events**: unify definitions and implement missing handlers/choice generators.
-7. **Rewards/actions**: implement reward handler actions and ensure reward resolution mirrors Java.
+7. **Rewards/actions**: JSON action layer is implemented; remaining reward fidelity depends on relic/potion/event gaps.
 
 ### Watcher RL readiness (current max)
 Safe (high parity): RNG, damage/block, enemy AI, Watcher stances.
 Cautious (partial parity): potions, powers, relic triggers, events.
-Risky (low fidelity): reward action processing, cross-class systems (Prismatic Shard/Defect orbs).
+Risky (low fidelity): cross-class systems (Prismatic Shard/Defect orbs).
 
 Suggested constraints if starting now:
 - Prefer Watcher-only runs; avoid Prismatic Shard and cross-class dependencies.
