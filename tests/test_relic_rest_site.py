@@ -7,8 +7,10 @@ Tests for relics that modify rest site behavior:
 - Girya: Can use "Lift" option at rest to gain +1 Strength (3 uses total)
 - Peace Pipe: Can "Toke" to remove a card
 - Shovel: Can "Dig" for a relic
-- Golden Eye (Watcher): Scry 5 when resting (rest only, not upgrade)
-- Melange: Scry 3 whenever resting
+
+NOTE: Golden Eye and Melange are NOT rest site relics:
+- Golden Eye (Watcher): Adds +2 to ALL scry amounts (passive modifier in ScryAction constructor)
+- Melange (Watcher): onShuffle trigger - Scry 3 whenever draw pile is shuffled
 
 These are failing tests that document expected behavior.
 """
@@ -85,20 +87,13 @@ class MockRestHandler:
         # Dream Catcher: Triggers card reward after resting
         dream_catcher_triggered = run.has_relic("Dream Catcher")
 
-        # Golden Eye (Watcher): Scry 5 when resting
-        golden_eye_scry = 0
-        if run.has_relic("Golden Eye"):
-            golden_eye_scry = 5
-
-        # Melange: Scry 3 when resting
-        melange_scry = 0
-        if run.has_relic("Melange"):
-            melange_scry = 3
+        # NOTE: Golden Eye and Melange are NOT rest site relics.
+        # - Golden Eye: Adds +2 to all scry amounts (passive modifier)
+        # - Melange: Triggers on shuffle (onShuffle), not on rest
 
         return {
             "hp_healed": base_heal,
             "dream_catcher_triggered": dream_catcher_triggered,
-            "scry_count": golden_eye_scry + melange_scry,
         }
 
 
@@ -420,88 +415,82 @@ class TestShovel:
 # =============================================================================
 # GOLDEN EYE (WATCHER) TESTS
 # =============================================================================
+# NOTE: Golden Eye is NOT a rest site relic. It adds +2 to ALL scry amounts.
+# These tests have been moved to test_relic_scry.py (or should be created there).
+# The effect is implemented as a passive modifier checked in ScryAction constructor.
 
 class TestGoldenEye:
-    """Golden Eye: Scry 5 when resting (Watcher-specific relic)."""
+    """Golden Eye: Adds +2 to all scry amounts (Watcher-specific relic).
 
-    @pytest.mark.skip(reason="Golden Eye scry not implemented")
-    def test_golden_eye_scry_on_rest(self, watcher_run):
-        """Golden Eye: Resting triggers Scry 5 at start of next combat."""
-        watcher_run.add_relic("Golden Eye")
-        watcher_run.damage(30)
+    IMPORTANT: Golden Eye is NOT triggered by resting. It modifies ALL scry actions.
+    The +2 bonus is added in the ScryAction constructor when player has Golden Eye.
+    """
 
-        result = MockRestHandler.rest(watcher_run)
+    @pytest.mark.skip(reason="Golden Eye scry bonus not implemented - see test_relic_scry.py")
+    def test_golden_eye_adds_2_to_scry(self, watcher_run):
+        """Golden Eye: Any scry action gets +2 cards."""
+        watcher_run.add_relic("GoldenEye")
 
-        # Should have scry effect queued
-        assert result["scry_count"] == 5
+        # When scrying 3, should actually scry 5
+        # This would be tested with a card like Third Eye (Scry 3 -> Scry 5)
 
-    @pytest.mark.skip(reason="Golden Eye scry not implemented")
-    def test_golden_eye_does_not_scry_on_smith(self, watcher_run):
-        """Golden Eye: Only triggers on REST, not on Smith."""
-        watcher_run.add_relic("Golden Eye")
+    @pytest.mark.skip(reason="Golden Eye scry bonus not implemented")
+    def test_golden_eye_with_melange_shuffle(self, watcher_run):
+        """Golden Eye + Melange: Melange's Scry 3 becomes Scry 5."""
+        watcher_run.add_relic("GoldenEye")
+        watcher_run.add_relic("Melange")
 
-        # Smithing should not trigger scry
-        # This would be tested with a smith action
+        # When Melange triggers on shuffle (Scry 3), Golden Eye adds +2 -> Scry 5
 
-    @pytest.mark.skip(reason="Golden Eye scry not implemented")
-    def test_golden_eye_scry_applies_next_combat(self, watcher_run):
-        """Golden Eye: Scry effect should apply at start of next combat."""
-        watcher_run.add_relic("Golden Eye")
-        watcher_run.damage(30)
-
-        MockRestHandler.rest(watcher_run)
-
-        # In next combat, should start with "Scry 5" effect
-        # This would be tested in combat initialization
-
-    @pytest.mark.skip(reason="Golden Eye scry not implemented")
+    @pytest.mark.skip(reason="Golden Eye scry bonus not implemented")
     def test_golden_eye_watcher_exclusive(self):
         """Golden Eye: Should only appear for Watcher (class-specific relic)."""
-        # Verify relic metadata indicates Watcher-only
-        # This would be checked in relic pool generation
+        from packages.engine.content.relics import GOLDEN_EYE, PlayerClass
+        assert GOLDEN_EYE.player_class == PlayerClass.WATCHER
 
 
 # =============================================================================
 # MELANGE TESTS
 # =============================================================================
+# NOTE: Melange is NOT a rest site relic. It triggers onShuffle (when draw pile shuffles).
 
 class TestMelange:
-    """Melange: Scry 3 whenever you rest (Watcher-specific relic)."""
+    """Melange: Scry 3 whenever you shuffle your draw pile (Watcher-specific relic).
 
-    @pytest.mark.skip(reason="Melange scry not implemented")
-    def test_melange_scry_on_rest(self, watcher_run):
-        """Melange: Resting triggers Scry 3 at start of next combat."""
+    IMPORTANT: Melange is NOT triggered by resting. It triggers when the draw pile
+    is shuffled during combat. With Golden Eye, the Scry 3 becomes Scry 5.
+    """
+
+    @pytest.mark.skip(reason="Melange shuffle trigger not implemented")
+    def test_melange_scry_on_shuffle(self, watcher_run):
+        """Melange: Shuffling draw pile triggers Scry 3."""
+        watcher_run.add_relic("Melange")
+
+        # Enter combat, exhaust draw pile to trigger shuffle
+        # When shuffle occurs, should Scry 3
+
+    @pytest.mark.skip(reason="Melange shuffle trigger not implemented")
+    def test_melange_with_golden_eye(self, watcher_run):
+        """Melange + Golden Eye: Scry 3 becomes Scry 5 on shuffle."""
+        watcher_run.add_relic("Melange")
+        watcher_run.add_relic("GoldenEye")
+
+        # When Melange triggers (Scry 3), Golden Eye adds +2 -> Scry 5
+
+    @pytest.mark.skip(reason="Melange shuffle trigger not implemented")
+    def test_melange_does_not_trigger_on_rest(self, watcher_run):
+        """Melange: Does NOT trigger when resting - only on shuffle."""
         watcher_run.add_relic("Melange")
         watcher_run.damage(30)
 
-        result = MockRestHandler.rest(watcher_run)
+        # Resting should NOT trigger Melange
+        # Melange only triggers during combat when draw pile shuffles
 
-        # Should have scry effect queued
-        assert result["scry_count"] == 3
-
-    @pytest.mark.skip(reason="Melange scry not implemented")
-    def test_melange_stacks_with_golden_eye(self, watcher_run):
-        """Melange + Golden Eye: Should scry 8 total (5 + 3)."""
-        watcher_run.add_relic("Melange")
-        watcher_run.add_relic("Golden Eye")
-        watcher_run.damage(30)
-
-        result = MockRestHandler.rest(watcher_run)
-
-        # Both should trigger: 5 + 3 = 8
-        assert result["scry_count"] == 8
-
-    @pytest.mark.skip(reason="Melange scry not implemented")
-    def test_melange_does_not_scry_on_smith(self, watcher_run):
-        """Melange: Only triggers on REST, not on Smith."""
-        watcher_run.add_relic("Melange")
-
-        # Smithing should not trigger scry
-
-    @pytest.mark.skip(reason="Melange scry not implemented")
+    @pytest.mark.skip(reason="Melange shuffle trigger not implemented")
     def test_melange_watcher_exclusive(self):
         """Melange: Should only appear for Watcher (class-specific relic)."""
-        # Verify relic metadata indicates Watcher-only
+        from packages.engine.content.relics import MELANGE, PlayerClass
+        assert MELANGE.player_class == PlayerClass.WATCHER
 
 
 # =============================================================================
@@ -527,17 +516,16 @@ class TestRestSiteRelicCombinations:
         # Dream Catcher: Card reward
         assert result["dream_catcher_triggered"] is True
 
-    @pytest.mark.skip(reason="Rest site relic combinations not implemented")
-    def test_all_scry_relics_stack(self, watcher_run):
-        """Golden Eye + Melange: Should stack scry effects."""
-        watcher_run.add_relic("Golden Eye")
-        watcher_run.add_relic("Melange")
-        watcher_run.damage(30)
+    @pytest.mark.skip(reason="See TestGoldenEye and TestMelange - these are shuffle/scry relics, not rest relics")
+    def test_golden_eye_and_melange_interaction(self, watcher_run):
+        """Golden Eye + Melange: Golden Eye adds +2 to Melange's Scry 3 on shuffle.
 
-        result = MockRestHandler.rest(watcher_run)
-
-        # 5 (Golden Eye) + 3 (Melange) = 8
-        assert result["scry_count"] == 8
+        NOTE: Neither Golden Eye nor Melange trigger on rest.
+        - Melange: onShuffle -> Scry 3
+        - Golden Eye: passive -> all scrys get +2
+        - Combined: on shuffle, Scry 5 (3 + 2)
+        """
+        pass  # See test_relic_scry.py for actual implementation tests
 
     @pytest.mark.skip(reason="Rest site relic combinations not implemented")
     def test_girya_and_peace_pipe(self, watcher_run):

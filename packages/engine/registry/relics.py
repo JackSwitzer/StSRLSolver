@@ -1002,6 +1002,29 @@ def abacus_shuffle(ctx: RelicContext) -> None:
     ctx.gain_block(6)
 
 
+@relic_trigger("onShuffle", relic="Melange")
+def melange_shuffle(ctx: RelicContext) -> None:
+    """Melange: Whenever you shuffle your draw pile, Scry 3.
+
+    Note: The scry will get +2 from Golden Eye if present.
+    Golden Eye's bonus is applied in the scry amount calculation,
+    matching Java's ScryAction constructor behavior.
+    """
+    # Calculate scry amount
+    scry_amount = 3
+
+    # Golden Eye: +2 to all scry amounts
+    if ctx.has_relic("GoldenEye"):
+        scry_amount += 2
+
+    # Mark that a scry action should occur
+    # The actual scry implementation would look at the top N cards of draw pile
+    # and allow player to choose which to discard
+    if not hasattr(ctx.state, 'pending_scry') or ctx.state.pending_scry is None:
+        ctx.state.pending_scry = 0
+    ctx.state.pending_scry += scry_amount
+
+
 # =============================================================================
 # ON_CHANGE_STANCE Triggers (Watcher)
 # =============================================================================
