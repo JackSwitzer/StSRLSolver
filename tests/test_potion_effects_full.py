@@ -53,7 +53,7 @@ def combat_with_sacred_bark():
         deck=["Strike", "Strike", "Defend", "Defend"],
         energy=3,
         max_energy=3,
-        relics=["SacredBark"],
+        relics=["Sacred Bark"],
         potions=["", "", ""],
     )
 
