@@ -1615,6 +1615,7 @@ def _is_attack_card(card_id: str) -> bool:
     """Check if a card is an Attack type."""
     # List of known attack card IDs
     attack_ids = {
+        # Watcher
         "Strike_P", "Eruption", "BowlingBash", "CutThroughFate",
         "EmptyFist", "FlurryOfBlows", "FlyingSleeves", "FollowUp",
         "JustLucky", "SashWhip", "Consecrate", "CrushJoints",
@@ -1625,6 +1626,14 @@ def _is_attack_card(card_id: str) -> bool:
         "Smite", "ThroughViolence", "Expunger",
         # Ironclad
         "Strike_R", "Bash", "Anger", "Cleave", "Clothesline",
+        # Silent
+        "Strike_G", "Neutralize", "Bane", "Dagger Spray", "Dagger Throw",
+        "Flying Knee", "Poisoned Stab", "Quick Slash", "Slice",
+        "Underhanded Strike", "Sucker Punch", "All Out Attack", "Backstab",
+        "Choke", "Dash", "Endless Agony", "Eviscerate", "Finisher",
+        "Flechettes", "Heel Hook", "Masterful Stab", "Predator",
+        "Riddle With Holes", "Skewer", "Die Die Die", "Glass Knife",
+        "Grand Finale", "Unload", "Shiv",
     }
     base_id = card_id.rstrip("+")
     return base_id in attack_ids
@@ -1642,3 +1651,705 @@ def _ensure_effects_registered():
 
 # Auto-register on import
 _ensure_effects_registered()
+
+
+# =============================================================================
+# SILENT CARD EFFECTS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Poison Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("apply_poison")
+def apply_poison(ctx: EffectContext) -> None:
+    """Apply Poison to target (Deadly Poison, Poisoned Stab, etc.)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 5
+    ctx.apply_status_to_target("Poison", amount)
+
+
+@effect_simple("double_poison")
+def double_poison(ctx: EffectContext) -> None:
+    """Double (or triple if upgraded) the target's Poison (Catalyst)."""
+    if ctx.target:
+        current_poison = ctx.target.statuses.get("Poison", 0)
+        if current_poison > 0:
+            multiplier = 3 if ctx.is_upgraded else 2
+            new_poison = current_poison * (multiplier - 1)  # Add the difference
+            ctx.apply_status_to_target("Poison", new_poison)
+
+
+@effect_simple("apply_poison_all")
+def apply_poison_all(ctx: EffectContext) -> None:
+    """Apply Poison to all enemies (Crippling Poison)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 4
+    ctx.apply_status_to_all_enemies("Poison", amount)
+
+
+@effect_simple("apply_weak_2_all")
+def apply_weak_2_all(ctx: EffectContext) -> None:
+    """Apply Weak to all enemies (Crippling Poison)."""
+    ctx.apply_status_to_all_enemies("Weak", 2)
+
+
+@effect_simple("apply_poison_random_3_times")
+def apply_poison_random_3_times(ctx: EffectContext) -> None:
+    """Apply Poison to random enemies 3 times (Bouncing Flask)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    living = ctx.living_enemies
+    if living:
+        for _ in range(3):
+            target = random.choice(living)
+            ctx.apply_status_to_enemy(target, "Poison", amount)
+
+
+@effect_simple("apply_poison_all_each_turn")
+def apply_poison_all_each_turn(ctx: EffectContext) -> None:
+    """Noxious Fumes - Apply Poison to all enemies at start of turn (power)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("NoxiousFumes", amount)
+
+
+@effect_simple("apply_corpse_explosion")
+def apply_corpse_explosion(ctx: EffectContext) -> None:
+    """Apply Corpse Explosion to target (Corpse Explosion)."""
+    ctx.apply_status_to_target("CorpseExplosion", 1)
+
+
+# -----------------------------------------------------------------------------
+# Shiv Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("add_shivs_to_hand")
+def add_shivs_to_hand(ctx: EffectContext) -> None:
+    """Add Shivs to hand (Blade Dance, Cloak and Dagger)."""
+    count = ctx.magic_number if ctx.magic_number > 0 else 3
+    # Check Master Reality for upgrades
+    upgraded = ctx.get_player_status("MasterReality") > 0
+    # Check Accuracy for shiv damage bonus (applied via power, not here)
+    for _ in range(count):
+        card_id = "Shiv+" if upgraded else "Shiv"
+        ctx.add_card_to_hand(card_id)
+
+
+@effect_simple("add_shiv_each_turn")
+def add_shiv_each_turn(ctx: EffectContext) -> None:
+    """Infinite Blades - Add a Shiv to hand at start of each turn (power)."""
+    ctx.apply_status_to_player("InfiniteBlades", 1)
+
+
+@effect_simple("shivs_deal_more_damage")
+def shivs_deal_more_damage(ctx: EffectContext) -> None:
+    """Accuracy - Shivs deal extra damage (power)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 4
+    ctx.apply_status_to_player("Accuracy", amount)
+
+
+@effect_simple("add_shivs_equal_to_discarded")
+def add_shivs_equal_to_discarded(ctx: EffectContext) -> None:
+    """Add Shivs equal to cards discarded (Storm of Steel)."""
+    # Cards are discarded first, count is stored in extra_data
+    count = ctx.extra_data.get("cards_discarded_count", len(ctx.hand))
+    upgraded = ctx.is_upgraded or ctx.get_player_status("MasterReality") > 0
+    for _ in range(count):
+        card_id = "Shiv+" if upgraded else "Shiv"
+        ctx.add_card_to_hand(card_id)
+
+
+# -----------------------------------------------------------------------------
+# Discard Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("discard_1")
+def discard_1(ctx: EffectContext) -> None:
+    """Discard 1 card (Survivor, Dagger Throw, Acrobatics)."""
+    # In simulation, discard first non-essential card
+    # In actual game, this requires selection
+    if ctx.hand:
+        # Mark that discard selection is needed
+        ctx.extra_data["discard_selection_needed"] = 1
+        # For simulation, discard the last card
+        card = ctx.hand[-1]
+        ctx.discard_card(card)
+
+
+@effect_simple("discard_x")
+def discard_x(ctx: EffectContext) -> None:
+    """Discard X cards (Prepared, Concentrate)."""
+    count = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.extra_data["discard_selection_needed"] = count
+    # For simulation, discard from end of hand
+    for _ in range(min(count, len(ctx.hand))):
+        if ctx.hand:
+            card = ctx.hand[-1]
+            ctx.discard_card(card)
+
+
+@effect_simple("discard_random_1")
+def discard_random_1(ctx: EffectContext) -> None:
+    """Discard a random card (All-Out Attack)."""
+    if ctx.hand:
+        card = random.choice(ctx.hand)
+        ctx.discard_card(card)
+
+
+@effect_simple("discard_hand")
+def discard_hand(ctx: EffectContext) -> None:
+    """Discard entire hand (Storm of Steel, Calculated Gamble)."""
+    count = len(ctx.hand)
+    ctx.extra_data["cards_discarded_count"] = count
+    for card in ctx.hand.copy():
+        ctx.discard_card(card)
+
+
+@effect_simple("discard_hand_draw_same")
+def discard_hand_draw_same(ctx: EffectContext) -> None:
+    """Discard hand and draw same number (Calculated Gamble)."""
+    count = len(ctx.hand)
+    # Discard all cards
+    for card in ctx.hand.copy():
+        ctx.discard_card(card)
+    # Draw same number
+    ctx.draw_cards(count)
+
+
+@effect_simple("discard_non_attacks")
+def discard_non_attacks(ctx: EffectContext) -> None:
+    """Discard all non-Attack cards (Unload)."""
+    for card_id in ctx.hand.copy():
+        if not _is_attack_card(card_id):
+            ctx.discard_card(card_id)
+
+
+# -----------------------------------------------------------------------------
+# Discard Trigger Effects (Reflex, Tactician)
+# -----------------------------------------------------------------------------
+
+@effect_simple("when_discarded_draw")
+def when_discarded_draw(ctx: EffectContext) -> None:
+    """When discarded, draw cards (Reflex)."""
+    # This is a passive effect handled by the discard system
+    # The power marker is set here for tracking
+    pass
+
+
+@effect_simple("when_discarded_gain_energy")
+def when_discarded_gain_energy(ctx: EffectContext) -> None:
+    """When discarded, gain energy (Tactician)."""
+    # This is a passive effect handled by the discard system
+    pass
+
+
+@effect_simple("cost_reduces_per_discard")
+def cost_reduces_per_discard(ctx: EffectContext) -> None:
+    """Cost reduces by 1 for each card discarded this turn (Eviscerate)."""
+    # This is tracked by the combat system
+    pass
+
+
+@effect_simple("refund_2_energy_if_discarded_this_turn")
+def refund_2_energy_if_discarded_this_turn(ctx: EffectContext) -> None:
+    """Refund 2 energy if a card was discarded this turn (Sneaky Strike)."""
+    discarded_this_turn = ctx.extra_data.get("discarded_this_turn", 0)
+    if discarded_this_turn > 0:
+        ctx.gain_energy(2)
+
+
+# -----------------------------------------------------------------------------
+# Draw Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("draw_x")
+def draw_x(ctx: EffectContext) -> None:
+    """Draw X cards based on magic number (Acrobatics, Prepared)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.draw_cards(amount)
+
+
+@effect_simple("draw_to_x_cards")
+def draw_to_x_cards(ctx: EffectContext) -> None:
+    """Draw until you have X cards in hand (Expertise)."""
+    target_hand_size = ctx.magic_number if ctx.magic_number > 0 else 6
+    cards_to_draw = max(0, target_hand_size - len(ctx.hand))
+    if cards_to_draw > 0:
+        ctx.draw_cards(cards_to_draw)
+
+
+@effect_simple("draw_2_next_turn")
+def draw_2_next_turn(ctx: EffectContext) -> None:
+    """Draw 2 cards next turn (Predator)."""
+    ctx.apply_status_to_player("NextTurnDraw", 2)
+
+
+@effect_simple("draw_x_next_turn")
+def draw_x_next_turn(ctx: EffectContext) -> None:
+    """Draw X cards next turn (Doppelganger)."""
+    x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
+    bonus = 1 if ctx.is_upgraded else 0
+    ctx.apply_status_to_player("NextTurnDraw", x + bonus)
+
+
+@effect_simple("draw_1_discard_1_each_turn")
+def draw_1_discard_1_each_turn(ctx: EffectContext) -> None:
+    """Tools of the Trade - Draw 1, discard 1 at start of each turn (power)."""
+    ctx.apply_status_to_player("ToolsOfTheTrade", 1)
+
+
+# -----------------------------------------------------------------------------
+# Block Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("block_next_turn")
+def block_next_turn(ctx: EffectContext) -> None:
+    """Gain block at start of next turn (Dodge and Roll)."""
+    # The block amount is the card's base block
+    amount = ctx.card.block if ctx.card else 4
+    ctx.apply_status_to_player("NextTurnBlock", amount)
+
+
+@effect_simple("block_not_removed_next_turn")
+def block_not_removed_next_turn(ctx: EffectContext) -> None:
+    """Block is not removed at start of next turn (Blur)."""
+    ctx.apply_status_to_player("Blur", 1)
+
+
+@effect_simple("gain_1_block_per_card_played")
+def gain_1_block_per_card_played(ctx: EffectContext) -> None:
+    """After Image - Gain 1 block when playing any card (power)."""
+    ctx.apply_status_to_player("AfterImage", 1)
+
+
+@effect_simple("if_skill_drawn_gain_block")
+def if_skill_drawn_gain_block(ctx: EffectContext) -> None:
+    """If the card drawn was a Skill, gain block (Escape Plan)."""
+    # The draw happens first, then we check what was drawn
+    if ctx.cards_drawn:
+        last_drawn = ctx.cards_drawn[-1]
+        if _is_skill_card(last_drawn):
+            # Gain the card's block again
+            amount = ctx.card.block if ctx.card else 3
+            ctx.gain_block(amount)
+
+
+# -----------------------------------------------------------------------------
+# Energy Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("gain_energy_next_turn")
+def gain_energy_next_turn(ctx: EffectContext) -> None:
+    """Gain energy next turn (Outmaneuver)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("NextTurnEnergy", amount)
+
+
+@effect_simple("gain_energy_next_turn_1")
+def gain_energy_next_turn_1(ctx: EffectContext) -> None:
+    """Gain 1 energy next turn (Flying Knee)."""
+    ctx.apply_status_to_player("NextTurnEnergy", 1)
+
+
+@effect_simple("gain_x_energy_next_turn")
+def gain_x_energy_next_turn(ctx: EffectContext) -> None:
+    """Gain X energy next turn (Doppelganger)."""
+    x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
+    bonus = 1 if ctx.is_upgraded else 0
+    ctx.apply_status_to_player("NextTurnEnergy", x + bonus)
+
+
+@effect_simple("gain_energy_2")
+def gain_energy_2(ctx: EffectContext) -> None:
+    """Gain 2 energy (Concentrate)."""
+    ctx.gain_energy(2)
+
+
+# -----------------------------------------------------------------------------
+# Damage Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("double_damage_if_poisoned")
+def double_damage_if_poisoned(ctx: EffectContext) -> None:
+    """Deal double damage if target is poisoned (Bane)."""
+    if ctx.target and ctx.target.statuses.get("Poison", 0) > 0:
+        # Deal additional damage equal to base damage
+        damage = ctx.card.damage if ctx.card else 7
+        ctx.deal_damage_to_target(damage)
+
+
+@effect_simple("damage_all_x_times")
+def damage_all_x_times(ctx: EffectContext) -> None:
+    """Deal damage to all enemies X times (Dagger Spray)."""
+    hits = ctx.magic_number if ctx.magic_number > 0 else 2
+    damage = ctx.card.damage if ctx.card else 4
+    for _ in range(hits):
+        for enemy in ctx.living_enemies:
+            ctx.deal_damage_to_enemy(enemy, damage)
+
+
+@effect_simple("damage_per_attack_this_turn")
+def damage_per_attack_this_turn(ctx: EffectContext) -> None:
+    """Deal damage for each attack played this turn (Finisher)."""
+    attacks_played = ctx.state.attacks_played_this_turn
+    damage = ctx.card.damage if ctx.card else 6
+    for _ in range(attacks_played):
+        ctx.deal_damage_to_target(damage)
+
+
+@effect_simple("damage_per_skill_in_hand")
+def damage_per_skill_in_hand(ctx: EffectContext) -> None:
+    """Deal damage for each skill in hand (Flechettes)."""
+    skill_count = sum(1 for c in ctx.hand if _is_skill_card(c))
+    damage = ctx.card.damage if ctx.card else 4
+    for _ in range(skill_count):
+        ctx.deal_damage_to_target(damage)
+
+
+@effect_simple("damage_x_times_energy")
+def damage_x_times_energy(ctx: EffectContext) -> None:
+    """Deal damage X times where X is energy spent (Skewer)."""
+    x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
+    damage = ctx.card.damage if ctx.card else 7
+    for _ in range(x):
+        ctx.deal_damage_to_target(damage)
+
+
+@effect_simple("reduce_damage_by_2")
+def reduce_damage_by_2(ctx: EffectContext) -> None:
+    """Reduce card's damage by 2 after playing (Glass Knife)."""
+    # This is tracked by the combat system for the card instance
+    ctx.extra_data["reduce_damage_this_combat"] = 2
+
+
+@effect_simple("deal_damage_per_card_played")
+def deal_damage_per_card_played(ctx: EffectContext) -> None:
+    """A Thousand Cuts - Deal damage to all enemies per card played (power)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("ThousandCuts", amount)
+
+
+# -----------------------------------------------------------------------------
+# Conditional Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("if_target_weak_gain_energy_draw")
+def if_target_weak_gain_energy_draw(ctx: EffectContext) -> None:
+    """If target is Weak, gain energy and draw (Heel Hook)."""
+    if ctx.target and ctx.target.statuses.get("Weak", 0) > 0:
+        ctx.gain_energy(1)
+        ctx.draw_cards(1)
+
+
+@effect_simple("cost_increases_when_damaged")
+def cost_increases_when_damaged(ctx: EffectContext) -> None:
+    """Cost increases by 1 each time you take damage (Masterful Stab)."""
+    # This is tracked by the combat system
+    pass
+
+
+@effect_simple("only_playable_if_draw_pile_empty")
+def only_playable_if_draw_pile_empty(ctx: EffectContext) -> None:
+    """Grand Finale - only playable if draw pile is empty."""
+    # This is a playability check, handled in can_play_card
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Power Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("gain_dexterity")
+def gain_dexterity(ctx: EffectContext) -> None:
+    """Gain Dexterity (Footwork)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("Dexterity", amount)
+
+
+@effect_simple("gain_thorns")
+def gain_thorns(ctx: EffectContext) -> None:
+    """Gain Thorns (Caltrops)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_player("Thorns", amount)
+
+
+@effect_simple("retain_cards_each_turn")
+def retain_cards_each_turn(ctx: EffectContext) -> None:
+    """Well-Laid Plans - Retain cards at end of turn (power)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("WellLaidPlans", amount)
+
+
+@effect_simple("attacks_apply_poison")
+def attacks_apply_poison(ctx: EffectContext) -> None:
+    """Envenom - Attacks apply Poison (power)."""
+    ctx.apply_status_to_player("Envenom", 1)
+
+
+@effect_simple("gain_intangible")
+def gain_intangible(ctx: EffectContext) -> None:
+    """Gain Intangible (Wraith Form)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("Intangible", amount)
+
+
+@effect_simple("lose_1_dexterity_each_turn")
+def lose_1_dexterity_each_turn(ctx: EffectContext) -> None:
+    """Lose 1 Dexterity at end of each turn (Wraith Form)."""
+    ctx.apply_status_to_player("WraithFormPower", 1)
+
+
+@effect_simple("double_damage_next_turn")
+def double_damage_next_turn(ctx: EffectContext) -> None:
+    """Double damage dealt next turn (Phantasmal Killer)."""
+    ctx.apply_status_to_player("PhantasmalKiller", 1)
+
+
+# -----------------------------------------------------------------------------
+# Strength Reduction Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("reduce_strength_all_enemies")
+def reduce_strength_all_enemies(ctx: EffectContext) -> None:
+    """Reduce Strength of all enemies (Piercing Wail)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 6
+    for enemy in ctx.living_enemies:
+        current = enemy.statuses.get("Strength", 0)
+        enemy.statuses["Strength"] = current - amount
+        # Also track temporary strength loss so it returns at end of turn
+        current_loss = enemy.statuses.get("TempStrengthLoss", 0)
+        enemy.statuses["TempStrengthLoss"] = current_loss + amount
+
+
+@effect_simple("apply_choke")
+def apply_choke(ctx: EffectContext) -> None:
+    """Apply Choke to target (Choke)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.apply_status_to_target("Choked", amount)
+
+
+# -----------------------------------------------------------------------------
+# X-Cost Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("apply_weak_x")
+def apply_weak_x(ctx: EffectContext) -> None:
+    """Apply X Weak to target (Malaise)."""
+    x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
+    bonus = 1 if ctx.is_upgraded else 0
+    ctx.apply_status_to_target("Weak", x + bonus)
+
+
+@effect_simple("apply_strength_down_x")
+def apply_strength_down_x(ctx: EffectContext) -> None:
+    """Apply X permanent Strength down to target (Malaise)."""
+    x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
+    bonus = 1 if ctx.is_upgraded else 0
+    if ctx.target:
+        current = ctx.target.statuses.get("Strength", 0)
+        ctx.target.statuses["Strength"] = current - (x + bonus)
+
+
+# -----------------------------------------------------------------------------
+# Special Card Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("double_next_skills")
+def double_next_skills(ctx: EffectContext) -> None:
+    """Next X skills are played twice (Burst)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.apply_status_to_player("Burst", amount)
+
+
+@effect_simple("copy_to_hand_when_drawn")
+def copy_to_hand_when_drawn(ctx: EffectContext) -> None:
+    """Copy to hand when drawn (Endless Agony)."""
+    # This is a triggered effect handled by the draw system
+    pass
+
+
+@effect_simple("copy_card_to_hand_next_turn")
+def copy_card_to_hand_next_turn(ctx: EffectContext) -> None:
+    """Copy a card to hand at start of next turn (Nightmare)."""
+    # This requires card selection
+    # Store that Nightmare was played
+    copies = ctx.magic_number if ctx.magic_number > 0 else 3
+    ctx.extra_data["nightmare_copies"] = copies
+    ctx.extra_data["nightmare_selection_needed"] = True
+
+
+@effect_simple("put_card_on_draw_pile_cost_0")
+def put_card_on_draw_pile_cost_0(ctx: EffectContext) -> None:
+    """Put a card from hand on top of draw pile; it costs 0 (Setup)."""
+    ctx.extra_data["setup_selection_needed"] = True
+
+
+@effect_simple("add_random_skill_cost_0")
+def add_random_skill_cost_0(ctx: EffectContext) -> None:
+    """Add a random Skill to hand that costs 0 (Distraction)."""
+    from ..content.cards import ALL_CARDS, CardType, CardColor
+    skills = [
+        cid for cid, c in ALL_CARDS.items()
+        if c.card_type == CardType.SKILL and c.color == CardColor.GREEN
+        and c.rarity.value not in ["SPECIAL", "CURSE", "STATUS"]
+    ]
+    if skills:
+        card_id = random.choice(skills)
+        ctx.add_card_to_hand(card_id)
+        # Mark card as cost 0 this turn
+        ctx.state.card_costs = getattr(ctx.state, 'card_costs', {})
+        ctx.state.card_costs[card_id] = 0
+
+
+@effect_simple("no_draw_this_turn")
+def no_draw_this_turn(ctx: EffectContext) -> None:
+    """Cannot draw cards for rest of turn (Bullet Time)."""
+    ctx.apply_status_to_player("NoDraw", 1)
+
+
+@effect_simple("cards_cost_0_this_turn")
+def cards_cost_0_this_turn(ctx: EffectContext) -> None:
+    """All cards cost 0 for rest of turn (Bullet Time)."""
+    ctx.apply_status_to_player("ZeroCostCards", 1)
+
+
+@effect_simple("obtain_random_potion")
+def obtain_random_potion(ctx: EffectContext) -> None:
+    """Obtain a random potion (Alchemize)."""
+    ctx.extra_data["obtain_potion"] = True
+
+
+# -----------------------------------------------------------------------------
+# Helper Functions
+# -----------------------------------------------------------------------------
+
+def _is_skill_card(card_id: str) -> bool:
+    """Check if a card is a Skill type."""
+    skill_ids = {
+        "Defend_P", "Defend_G", "Defend_R", "Defend_B",
+        "Vigilance", "ClearTheMind", "Crescendo", "EmptyBody", "EmptyMind",
+        "Evaluate", "Halt", "InnerPeace", "PathToVictory", "Protect",
+        "ThirdEye", "Prostrate", "Collect", "DeceiveReality", "Indignation",
+        "Meditate", "Perseverance", "Pray", "Sanctity", "Swivel",
+        "WaveOfTheHand", "Worship", "WreathOfFlame", "Alpha", "Blasphemy",
+        "ConjureBlade", "Omniscience", "Scrawl", "SpiritShield", "Vault", "Wish",
+        # Silent skills
+        "Survivor", "Acrobatics", "Backflip", "Blade Dance", "Cloak And Dagger",
+        "Deadly Poison", "Deflect", "Dodge and Roll", "Outmaneuver",
+        "PiercingWail", "Prepared", "Blur", "Bouncing Flask",
+        "Calculated Gamble", "Catalyst", "Concentrate", "Crippling Poison",
+        "Distraction", "Escape Plan", "Expertise", "Leg Sweep", "Reflex",
+        "Setup", "Tactician", "Terror", "Adrenaline", "Venomology",
+        "Bullet Time", "Burst", "Corpse Explosion", "Doppelganger",
+        "Malaise", "Night Terror", "Phantasmal Killer", "Storm of Steel",
+        # Special
+        "Miracle", "Insight", "Safety",
+    }
+    base_id = card_id.rstrip("+")
+    return base_id in skill_ids
+
+
+# =============================================================================
+# SILENT CARD EFFECTS REGISTRY
+# =============================================================================
+
+SILENT_CARD_EFFECTS = {
+    # === BASIC ===
+    "Strike_G": [],  # Just damage
+    "Defend_G": [],  # Just block
+    "Neutralize": ["apply_weak"],
+    "Survivor": ["discard_1"],
+
+    # === COMMON ATTACKS ===
+    "Bane": ["double_damage_if_poisoned"],
+    "Dagger Spray": ["damage_all_x_times"],
+    "Dagger Throw": ["draw_1", "discard_1"],
+    "Flying Knee": ["gain_energy_next_turn_1"],
+    "Poisoned Stab": ["apply_poison"],
+    "Quick Slash": ["draw_1"],
+    "Slice": [],  # Just damage
+    "Underhanded Strike": ["refund_2_energy_if_discarded_this_turn"],
+    "Sucker Punch": ["apply_weak"],
+
+    # === COMMON SKILLS ===
+    "Acrobatics": ["draw_x", "discard_1"],
+    "Backflip": ["draw_2"],
+    "Blade Dance": ["add_shivs_to_hand"],
+    "Cloak And Dagger": ["add_shivs_to_hand"],
+    "Deadly Poison": ["apply_poison"],
+    "Deflect": [],  # Just block
+    "Dodge and Roll": ["block_next_turn"],
+    "Outmaneuver": ["gain_energy_next_turn"],
+    "PiercingWail": ["reduce_strength_all_enemies"],
+    "Prepared": ["draw_x", "discard_x"],
+
+    # === UNCOMMON ATTACKS ===
+    "All Out Attack": ["discard_random_1"],
+    "Backstab": [],  # Just damage
+    "Choke": ["apply_choke"],
+    "Dash": [],  # Damage + block handled by base stats
+    "Endless Agony": ["copy_to_hand_when_drawn"],
+    "Eviscerate": ["cost_reduces_per_discard", "damage_x_times"],
+    "Finisher": ["damage_per_attack_this_turn"],
+    "Flechettes": ["damage_per_skill_in_hand"],
+    "Heel Hook": ["if_target_weak_gain_energy_draw"],
+    "Masterful Stab": ["cost_increases_when_damaged"],
+    "Predator": ["draw_2_next_turn"],
+    "Riddle With Holes": ["damage_x_times"],
+    "Skewer": ["damage_x_times_energy"],
+
+    # === UNCOMMON SKILLS ===
+    "Blur": ["block_not_removed_next_turn"],
+    "Bouncing Flask": ["apply_poison_random_3_times"],
+    "Calculated Gamble": ["discard_hand_draw_same"],
+    "Catalyst": ["double_poison"],
+    "Concentrate": ["discard_x", "gain_energy_2"],
+    "Crippling Poison": ["apply_poison_all", "apply_weak_2_all"],
+    "Distraction": ["add_random_skill_cost_0"],
+    "Escape Plan": ["draw_1", "if_skill_drawn_gain_block"],
+    "Expertise": ["draw_to_x_cards"],
+    "Leg Sweep": ["apply_weak"],
+    "Reflex": ["unplayable", "when_discarded_draw"],
+    "Setup": ["put_card_on_draw_pile_cost_0"],
+    "Tactician": ["unplayable", "when_discarded_gain_energy"],
+    "Terror": ["apply_vulnerable"],
+
+    # === UNCOMMON POWERS ===
+    "Accuracy": ["shivs_deal_more_damage"],
+    "Caltrops": ["gain_thorns"],
+    "Footwork": ["gain_dexterity"],
+    "Infinite Blades": ["add_shiv_each_turn"],
+    "Noxious Fumes": ["apply_poison_all_each_turn"],
+    "Well Laid Plans": ["retain_cards_each_turn"],
+
+    # === RARE ATTACKS ===
+    "Die Die Die": [],  # Just AoE damage + exhaust
+    "Glass Knife": ["damage_x_times", "reduce_damage_by_2"],
+    "Grand Finale": ["only_playable_if_draw_pile_empty"],
+    "Unload": ["discard_non_attacks"],
+
+    # === RARE SKILLS ===
+    "Adrenaline": ["gain_energy", "draw_2"],
+    "Venomology": ["obtain_random_potion"],  # Alchemize
+    "Bullet Time": ["no_draw_this_turn", "cards_cost_0_this_turn"],
+    "Burst": ["double_next_skills"],
+    "Corpse Explosion": ["apply_poison", "apply_corpse_explosion"],
+    "Doppelganger": ["draw_x_next_turn", "gain_x_energy_next_turn"],
+    "Malaise": ["apply_weak_x", "apply_strength_down_x"],
+    "Night Terror": ["copy_card_to_hand_next_turn"],  # Nightmare
+    "Phantasmal Killer": ["double_damage_next_turn"],
+    "Storm of Steel": ["discard_hand", "add_shivs_equal_to_discarded"],
+
+    # === RARE POWERS ===
+    "After Image": ["gain_1_block_per_card_played"],
+    "A Thousand Cuts": ["deal_damage_per_card_played"],
+    "Envenom": ["attacks_apply_poison"],
+    "Tools of the Trade": ["draw_1_discard_1_each_turn"],
+    "Wraith Form v2": ["gain_intangible", "lose_1_dexterity_each_turn"],
+
+    # === SPECIAL ===
+    "Shiv": [],  # Just damage + exhaust
+}
+
+
+def get_silent_card_effects(card_id: str) -> List[str]:
+    """Get the effect names for a Silent card."""
+    base_id = card_id.rstrip("+")
+    return SILENT_CARD_EFFECTS.get(base_id, [])
