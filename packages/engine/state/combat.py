@@ -10,7 +10,7 @@ Optimized for:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 
 # =============================================================================
@@ -236,6 +236,9 @@ class CombatState:
     # Card costs cache (card_id -> cost, for cards with modified costs)
     card_costs: Dict[str, int] = field(default_factory=dict)
 
+    # Defect-specific: Orb manager (lazy initialized)
+    orb_manager: Any = None
+
     # -------------------------------------------------------------------------
     # Core Methods
     # -------------------------------------------------------------------------
@@ -286,6 +289,8 @@ class CombatState:
             relics=self.relics.copy(),
             # Card costs cache
             card_costs=self.card_costs.copy(),
+            # Defect orb manager
+            orb_manager=self.orb_manager.copy() if self.orb_manager else None,
         )
 
     def is_victory(self) -> bool:
