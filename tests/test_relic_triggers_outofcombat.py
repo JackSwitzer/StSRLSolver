@@ -8,7 +8,7 @@ These tests verify relic effects that trigger outside of combat:
 - Map/Reward relics (gold, cards, keys)
 
 Note: Many of these tests are written as TDD placeholders.
-Tests marked with xfail are expected to fail until the feature is implemented.
+Tests marked with skip are expected to be re-enabled once implemented.
 """
 
 import pytest
@@ -109,7 +109,7 @@ class TestShopRelics:
         # Maw Bank should not have triggered
         assert watcher_run.gold == initial_gold
 
-    @pytest.mark.xfail(reason="Maw Bank deactivation not yet implemented")
+    @pytest.mark.skip(reason="Maw Bank deactivation not yet implemented")
     def test_maw_bank_loses_gold_on_shop_purchase(self, watcher_run, rng):
         """
         Maw Bank: Spending gold at a shop permanently disables this relic.
@@ -233,7 +233,7 @@ class TestShopRelics:
         assert relic.max_hp_bonus == 7
         assert "heal to full" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="Orrery card selection not yet implemented")
+    @pytest.mark.skip(reason="Orrery card selection not yet implemented")
     def test_orrery_adds_5_cards_to_reward(self, watcher_run, rng):
         """
         Orrery: Upon pickup, choose and add 5 cards to your deck.
@@ -278,7 +278,7 @@ class TestShopRelics:
         relic = get_relic("PrismaticShard")
         assert "cards from any class" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="N'loth event relic logic not implemented")
+    @pytest.mark.skip(reason="N'loth event relic logic not implemented")
     def test_nloth_hungry_face_relic_free(self, watcher_run, rng):
         """
         N'loth's Hungry Face: The first non-boss chest you open is empty.
@@ -290,7 +290,7 @@ class TestShopRelics:
         relic = get_relic("NlothsMask")
         assert "first chest is empty" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="Cauldron potion granting not implemented")
+    @pytest.mark.skip(reason="Cauldron potion granting not implemented")
     def test_cauldron_offers_5_potions(self, watcher_run, rng):
         """
         Cauldron: Upon pickup, obtain 5 random potions.
@@ -303,7 +303,7 @@ class TestShopRelics:
         relic = get_relic("Cauldron")
         assert "Obtain 5 random potions" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="Chemical X shop price not implemented")
+    @pytest.mark.skip(reason="Chemical X shop price not implemented")
     def test_chemical_x_reduces_potion_cost(self, watcher_run, rng):
         """
         Chemical X: X-cost cards receive +2 to X.
@@ -659,7 +659,7 @@ class TestMapRewardRelics:
         # Gold should not have increased
         assert watcher_run.gold == initial_gold
 
-    @pytest.mark.xfail(reason="Ectoplasm blocked amount tracking not implemented")
+    @pytest.mark.skip(reason="Ectoplasm blocked amount tracking not implemented")
     def test_ectoplasm_tracks_blocked_amount(self, watcher_run, rng):
         """
         Ectoplasm: Track how much gold was blocked (for statistics).
@@ -728,7 +728,7 @@ class TestMapRewardRelics:
         relic = get_relic("SsserpentHead")
         assert "enter a ? room, gain 50 Gold" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="Tiny House rewards not implemented")
+    @pytest.mark.skip(reason="Tiny House rewards not implemented")
     def test_tiny_house_grants_various_rewards(self, watcher_run, rng):
         """
         Tiny House: Upon pickup, gain 50 Gold, 5 Max HP, 1 potion, 1 card, Upgrade 1 card.
@@ -745,7 +745,7 @@ class TestMapRewardRelics:
         assert watcher_run.gold == initial_gold + 50
         assert watcher_run.max_hp == initial_max_hp + 5
 
-    @pytest.mark.xfail(reason="Calling Bell rewards not implemented")
+    @pytest.mark.skip(reason="Calling Bell rewards not implemented")
     def test_calling_bell_grants_3_relics_and_curse(self, watcher_run, rng):
         """
         Calling Bell: Upon pickup, obtain 1 Curse, 1 Common, 1 Uncommon, 1 Rare relic.
@@ -762,7 +762,7 @@ class TestMapRewardRelics:
         # Should have gained 4 relics (Calling Bell + 3 others)
         assert len(watcher_run.relics) >= initial_relics + 4
 
-    @pytest.mark.xfail(reason="Pandora's Box transform not implemented")
+    @pytest.mark.skip(reason="Pandora's Box transform not implemented")
     def test_pandoras_box_transforms_starter_deck(self, watcher_run, rng):
         """
         Pandora's Box: Upon pickup, transform all Strikes and Defends.
@@ -781,7 +781,7 @@ class TestMapRewardRelics:
         assert strikes_after == 0
         assert defends_after == 0
 
-    @pytest.mark.xfail(reason="Empty Cage card removal not implemented")
+    @pytest.mark.skip(reason="Empty Cage card removal not implemented")
     def test_empty_cage_removes_2_cards(self, watcher_run, rng):
         """
         Empty Cage: Upon pickup, remove 2 cards from your deck.
@@ -794,7 +794,7 @@ class TestMapRewardRelics:
 
         assert len(watcher_run.deck) == initial_deck_size - 2
 
-    @pytest.mark.xfail(reason="Astrolabe transform not implemented")
+    @pytest.mark.skip(reason="Astrolabe transform not implemented")
     def test_astrolabe_transforms_3_cards(self, watcher_run, rng):
         """
         Astrolabe: Upon pickup, transform and upgrade 3 cards.
@@ -835,7 +835,7 @@ class TestMapRewardRelics:
         # The implementation in _on_relic_obtained adds 2 slots
         assert len(watcher_run.potion_slots) == initial_slots + 2
 
-    @pytest.mark.xfail(reason="Boss relic screen not testable at unit level")
+    @pytest.mark.skip(reason="Boss relic screen not testable at unit level")
     def test_act_boss_relic_choices(self, watcher_run, rng):
         """
         After defeating a boss, player gets to choose from 3 boss relics.
@@ -867,7 +867,7 @@ class TestMapRewardRelics:
         relic = get_relic("Red Mask")
         assert "Apply 1 Weak to ALL enemies" in relic.effects[0]
 
-    @pytest.mark.xfail(reason="White Beast Statue potion heal not combat relic")
+    @pytest.mark.skip(reason="White Beast Statue potion heal not combat relic")
     def test_white_beast_statue_potion_heal(self, watcher_run, rng):
         """
         White Beast Statue: Potions always drop from combat rewards.

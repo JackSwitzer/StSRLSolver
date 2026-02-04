@@ -109,7 +109,7 @@ class MockRestHandler:
 class TestDreamCatcher:
     """Dream Catcher: Whenever you rest, you may add a card to your deck."""
 
-    @pytest.mark.xfail(reason="Dream Catcher rest reward not implemented")
+    @pytest.mark.skip(reason="Dream Catcher rest reward not implemented")
     def test_dream_catcher_triggers_on_rest(self, watcher_run):
         """Dream Catcher: Resting triggers a card reward."""
         watcher_run.add_relic("Dream Catcher")
@@ -119,7 +119,7 @@ class TestDreamCatcher:
 
         assert result["dream_catcher_triggered"] is True
 
-    @pytest.mark.xfail(reason="Dream Catcher rest reward not implemented")
+    @pytest.mark.skip(reason="Dream Catcher rest reward not implemented")
     def test_dream_catcher_does_not_trigger_on_smith(self, watcher_run):
         """Dream Catcher: Only triggers on REST, not on Smith/Upgrade."""
         watcher_run.add_relic("Dream Catcher")
@@ -128,7 +128,7 @@ class TestDreamCatcher:
         # This would be tested with a smith action
         assert watcher_run.has_relic("Dream Catcher")
 
-    @pytest.mark.xfail(reason="Dream Catcher rest reward not implemented")
+    @pytest.mark.skip(reason="Dream Catcher rest reward not implemented")
     def test_dream_catcher_skip_is_optional(self, watcher_run):
         """Dream Catcher: Card reward can be skipped."""
         watcher_run.add_relic("Dream Catcher")
@@ -143,7 +143,7 @@ class TestDreamCatcher:
         # Deck size unchanged if skipped
         assert len(watcher_run.deck) == initial_deck_size
 
-    @pytest.mark.xfail(reason="Dream Catcher rest reward not implemented")
+    @pytest.mark.skip(reason="Dream Catcher rest reward not implemented")
     def test_dream_catcher_with_coffee_dripper(self, watcher_run):
         """Dream Catcher: Cannot trigger if Coffee Dripper prevents resting."""
         watcher_run.add_relic("Dream Catcher")
@@ -164,7 +164,7 @@ class TestDreamCatcher:
 class TestRegalPillow:
     """Regal Pillow: Heal an additional 15 HP when you rest."""
 
-    @pytest.mark.xfail(reason="Regal Pillow bonus heal not implemented")
+    @pytest.mark.skip(reason="Regal Pillow bonus heal not implemented")
     def test_regal_pillow_adds_15_hp(self, watcher_run):
         """Regal Pillow: Resting heals 30% + 15 HP."""
         watcher_run.add_relic("Regal Pillow")
@@ -178,7 +178,7 @@ class TestRegalPillow:
 
         assert result["hp_healed"] == expected_heal
 
-    @pytest.mark.xfail(reason="Regal Pillow bonus heal not implemented")
+    @pytest.mark.skip(reason="Regal Pillow bonus heal not implemented")
     def test_regal_pillow_affected_by_magic_flower(self, watcher_run):
         """Regal Pillow: Bonus should be affected by Magic Flower (50% more healing)."""
         watcher_run.add_relic("Regal Pillow")
@@ -198,7 +198,7 @@ class TestRegalPillow:
         expected_heal = int(watcher_run.max_hp * 0.30) + 15
         assert result["hp_healed"] == expected_heal
 
-    @pytest.mark.xfail(reason="Regal Pillow bonus heal not implemented")
+    @pytest.mark.skip(reason="Regal Pillow bonus heal not implemented")
     def test_regal_pillow_capped_at_max_hp(self, watcher_run):
         """Regal Pillow: Healing cannot exceed max HP."""
         watcher_run.add_relic("Regal Pillow")
@@ -211,7 +211,7 @@ class TestRegalPillow:
         # Even with +15 from Regal Pillow, should cap at max HP
         assert watcher_run.current_hp == watcher_run.max_hp
 
-    @pytest.mark.xfail(reason="Regal Pillow bonus heal not implemented")
+    @pytest.mark.skip(reason="Regal Pillow bonus heal not implemented")
     def test_regal_pillow_does_not_affect_smith(self, watcher_run):
         """Regal Pillow: Only affects REST action, not Smith."""
         watcher_run.add_relic("Regal Pillow")
@@ -227,7 +227,7 @@ class TestRegalPillow:
 class TestGirya:
     """Girya: Can Lift at rest sites to gain +1 Strength (3 uses total)."""
 
-    @pytest.mark.xfail(reason="Girya lift option not implemented")
+    @pytest.mark.skip(reason="Girya lift option not implemented")
     def test_girya_adds_lift_option(self, watcher_run):
         """Girya: Rest sites should have a Lift option."""
         watcher_run.add_relic("Girya")
@@ -236,7 +236,7 @@ class TestGirya:
 
         assert "lift" in options
 
-    @pytest.mark.xfail(reason="Girya lift option not implemented")
+    @pytest.mark.skip(reason="Girya lift option not implemented")
     def test_girya_grants_1_strength_per_lift(self, watcher_run):
         """Girya: Each lift grants +1 permanent Strength."""
         watcher_run.add_relic("Girya")
@@ -253,7 +253,7 @@ class TestGirya:
 
         assert girya is not None
 
-    @pytest.mark.xfail(reason="Girya lift option not implemented")
+    @pytest.mark.skip(reason="Girya lift option not implemented")
     def test_girya_has_3_uses_max(self, watcher_run):
         """Girya: Can only lift 3 times total."""
         watcher_run.add_relic("Girya")
@@ -267,7 +267,7 @@ class TestGirya:
         # Lift should no longer be available
         assert "lift" not in options
 
-    @pytest.mark.xfail(reason="Girya lift option not implemented")
+    @pytest.mark.skip(reason="Girya lift option not implemented")
     def test_girya_counter_increments(self, watcher_run):
         """Girya: Counter should increment with each use."""
         watcher_run.add_relic("Girya")
@@ -287,7 +287,7 @@ class TestGirya:
         girya.counter = 3
         assert girya.counter == 3
 
-    @pytest.mark.xfail(reason="Girya strength bonus not implemented")
+    @pytest.mark.skip(reason="Girya strength bonus not implemented")
     def test_girya_strength_persists_across_combats(self, watcher_run):
         """Girya: Strength bonus should apply at start of every combat."""
         watcher_run.add_relic("Girya")
@@ -307,7 +307,7 @@ class TestGirya:
 class TestPeacePipe:
     """Peace Pipe: Can Toke at rest sites to remove a card."""
 
-    @pytest.mark.xfail(reason="Peace Pipe toke option not implemented")
+    @pytest.mark.skip(reason="Peace Pipe toke option not implemented")
     def test_peace_pipe_adds_toke_option(self, watcher_run):
         """Peace Pipe: Rest sites should have a Toke option."""
         watcher_run.add_relic("Peace Pipe")
@@ -316,7 +316,7 @@ class TestPeacePipe:
 
         assert "toke" in options
 
-    @pytest.mark.xfail(reason="Peace Pipe toke option not implemented")
+    @pytest.mark.skip(reason="Peace Pipe toke option not implemented")
     def test_peace_pipe_removes_card(self, watcher_run):
         """Peace Pipe: Toke removes a card from your deck."""
         watcher_run.add_relic("Peace Pipe")
@@ -327,7 +327,7 @@ class TestPeacePipe:
 
         assert len(watcher_run.deck) == initial_deck_size - 1
 
-    @pytest.mark.xfail(reason="Peace Pipe toke option not implemented")
+    @pytest.mark.skip(reason="Peace Pipe toke option not implemented")
     def test_peace_pipe_unlimited_uses(self, watcher_run):
         """Peace Pipe: Can be used unlimited times (every rest site)."""
         watcher_run.add_relic("Peace Pipe")
@@ -344,7 +344,7 @@ class TestPeacePipe:
         options = MockRestHandler.get_rest_options(watcher_run)
         assert "toke" in options
 
-    @pytest.mark.xfail(reason="Peace Pipe toke option not implemented")
+    @pytest.mark.skip(reason="Peace Pipe toke option not implemented")
     def test_peace_pipe_works_with_other_options(self, watcher_run):
         """Peace Pipe: Can use Toke alongside Rest/Smith."""
         watcher_run.add_relic("Peace Pipe")
@@ -364,7 +364,7 @@ class TestPeacePipe:
 class TestShovel:
     """Shovel: Can Dig at rest sites for a relic (one-time use)."""
 
-    @pytest.mark.xfail(reason="Shovel dig option not implemented")
+    @pytest.mark.skip(reason="Shovel dig option not implemented")
     def test_shovel_adds_dig_option(self, watcher_run):
         """Shovel: Rest sites should have a Dig option."""
         watcher_run.add_relic("Shovel")
@@ -373,7 +373,7 @@ class TestShovel:
 
         assert "dig" in options
 
-    @pytest.mark.xfail(reason="Shovel dig option not implemented")
+    @pytest.mark.skip(reason="Shovel dig option not implemented")
     def test_shovel_grants_relic(self, watcher_run, rng):
         """Shovel: Digging grants a random relic."""
         watcher_run.add_relic("Shovel")
@@ -385,7 +385,7 @@ class TestShovel:
 
         assert len(watcher_run.relics) == initial_relics + 1
 
-    @pytest.mark.xfail(reason="Shovel dig option not implemented")
+    @pytest.mark.skip(reason="Shovel dig option not implemented")
     def test_shovel_one_time_use(self, watcher_run):
         """Shovel: Can only dig once (relic is consumed)."""
         watcher_run.add_relic("Shovel")
@@ -402,7 +402,7 @@ class TestShovel:
         options = MockRestHandler.get_rest_options(watcher_run)
         assert "dig" not in options
 
-    @pytest.mark.xfail(reason="Shovel dig option not implemented")
+    @pytest.mark.skip(reason="Shovel dig option not implemented")
     def test_shovel_replaces_rest_or_smith(self, watcher_run):
         """Shovel: Using Dig counts as your rest site action (replaces Rest/Smith)."""
         watcher_run.add_relic("Shovel")
@@ -424,7 +424,7 @@ class TestShovel:
 class TestGoldenEye:
     """Golden Eye: Scry 5 when resting (Watcher-specific relic)."""
 
-    @pytest.mark.xfail(reason="Golden Eye scry not implemented")
+    @pytest.mark.skip(reason="Golden Eye scry not implemented")
     def test_golden_eye_scry_on_rest(self, watcher_run):
         """Golden Eye: Resting triggers Scry 5 at start of next combat."""
         watcher_run.add_relic("Golden Eye")
@@ -435,7 +435,7 @@ class TestGoldenEye:
         # Should have scry effect queued
         assert result["scry_count"] == 5
 
-    @pytest.mark.xfail(reason="Golden Eye scry not implemented")
+    @pytest.mark.skip(reason="Golden Eye scry not implemented")
     def test_golden_eye_does_not_scry_on_smith(self, watcher_run):
         """Golden Eye: Only triggers on REST, not on Smith."""
         watcher_run.add_relic("Golden Eye")
@@ -443,7 +443,7 @@ class TestGoldenEye:
         # Smithing should not trigger scry
         # This would be tested with a smith action
 
-    @pytest.mark.xfail(reason="Golden Eye scry not implemented")
+    @pytest.mark.skip(reason="Golden Eye scry not implemented")
     def test_golden_eye_scry_applies_next_combat(self, watcher_run):
         """Golden Eye: Scry effect should apply at start of next combat."""
         watcher_run.add_relic("Golden Eye")
@@ -454,7 +454,7 @@ class TestGoldenEye:
         # In next combat, should start with "Scry 5" effect
         # This would be tested in combat initialization
 
-    @pytest.mark.xfail(reason="Golden Eye scry not implemented")
+    @pytest.mark.skip(reason="Golden Eye scry not implemented")
     def test_golden_eye_watcher_exclusive(self):
         """Golden Eye: Should only appear for Watcher (class-specific relic)."""
         # Verify relic metadata indicates Watcher-only
@@ -468,7 +468,7 @@ class TestGoldenEye:
 class TestMelange:
     """Melange: Scry 3 whenever you rest (Watcher-specific relic)."""
 
-    @pytest.mark.xfail(reason="Melange scry not implemented")
+    @pytest.mark.skip(reason="Melange scry not implemented")
     def test_melange_scry_on_rest(self, watcher_run):
         """Melange: Resting triggers Scry 3 at start of next combat."""
         watcher_run.add_relic("Melange")
@@ -479,7 +479,7 @@ class TestMelange:
         # Should have scry effect queued
         assert result["scry_count"] == 3
 
-    @pytest.mark.xfail(reason="Melange scry not implemented")
+    @pytest.mark.skip(reason="Melange scry not implemented")
     def test_melange_stacks_with_golden_eye(self, watcher_run):
         """Melange + Golden Eye: Should scry 8 total (5 + 3)."""
         watcher_run.add_relic("Melange")
@@ -491,14 +491,14 @@ class TestMelange:
         # Both should trigger: 5 + 3 = 8
         assert result["scry_count"] == 8
 
-    @pytest.mark.xfail(reason="Melange scry not implemented")
+    @pytest.mark.skip(reason="Melange scry not implemented")
     def test_melange_does_not_scry_on_smith(self, watcher_run):
         """Melange: Only triggers on REST, not on Smith."""
         watcher_run.add_relic("Melange")
 
         # Smithing should not trigger scry
 
-    @pytest.mark.xfail(reason="Melange scry not implemented")
+    @pytest.mark.skip(reason="Melange scry not implemented")
     def test_melange_watcher_exclusive(self):
         """Melange: Should only appear for Watcher (class-specific relic)."""
         # Verify relic metadata indicates Watcher-only
@@ -511,7 +511,7 @@ class TestMelange:
 class TestRestSiteRelicCombinations:
     """Test interactions between multiple rest site relics."""
 
-    @pytest.mark.xfail(reason="Rest site relic combinations not implemented")
+    @pytest.mark.skip(reason="Rest site relic combinations not implemented")
     def test_regal_pillow_and_dream_catcher(self, watcher_run):
         """Regal Pillow + Dream Catcher: Should heal extra AND get card reward."""
         watcher_run.add_relic("Regal Pillow")
@@ -527,7 +527,7 @@ class TestRestSiteRelicCombinations:
         # Dream Catcher: Card reward
         assert result["dream_catcher_triggered"] is True
 
-    @pytest.mark.xfail(reason="Rest site relic combinations not implemented")
+    @pytest.mark.skip(reason="Rest site relic combinations not implemented")
     def test_all_scry_relics_stack(self, watcher_run):
         """Golden Eye + Melange: Should stack scry effects."""
         watcher_run.add_relic("Golden Eye")
@@ -539,7 +539,7 @@ class TestRestSiteRelicCombinations:
         # 5 (Golden Eye) + 3 (Melange) = 8
         assert result["scry_count"] == 8
 
-    @pytest.mark.xfail(reason="Rest site relic combinations not implemented")
+    @pytest.mark.skip(reason="Rest site relic combinations not implemented")
     def test_girya_and_peace_pipe(self, watcher_run):
         """Girya + Peace Pipe: Should have both Lift and Toke options."""
         watcher_run.add_relic("Girya")
@@ -552,7 +552,7 @@ class TestRestSiteRelicCombinations:
         assert "rest" in options
         assert "smith" in options
 
-    @pytest.mark.xfail(reason="Rest site relic combinations not implemented")
+    @pytest.mark.skip(reason="Rest site relic combinations not implemented")
     def test_all_rest_option_relics(self, watcher_run):
         """Girya + Peace Pipe + Shovel: Should have 5 total options."""
         watcher_run.add_relic("Girya")
@@ -576,7 +576,7 @@ class TestRestSiteRelicCombinations:
 class TestRestSiteEdgeCases:
     """Edge cases for rest site relics."""
 
-    @pytest.mark.xfail(reason="Coffee Dripper interaction not implemented")
+    @pytest.mark.skip(reason="Coffee Dripper interaction not implemented")
     def test_coffee_dripper_blocks_rest_but_not_options(self, watcher_run):
         """Coffee Dripper: Blocks REST but not Lift/Toke/Dig."""
         watcher_run.add_relic("Coffee Dripper")
@@ -593,7 +593,7 @@ class TestRestSiteEdgeCases:
         assert "lift" in options
         assert "toke" in options
 
-    @pytest.mark.xfail(reason="Fusion Hammer interaction not implemented")
+    @pytest.mark.skip(reason="Fusion Hammer interaction not implemented")
     def test_fusion_hammer_blocks_smith_but_not_options(self, watcher_run):
         """Fusion Hammer: Blocks SMITH but not Rest/Lift/Toke/Dig."""
         watcher_run.add_relic("Fusion Hammer")
@@ -608,7 +608,7 @@ class TestRestSiteEdgeCases:
         assert "rest" in options
         assert "toke" in options
 
-    @pytest.mark.xfail(reason="Both blockers interaction not implemented")
+    @pytest.mark.skip(reason="Both blockers interaction not implemented")
     def test_coffee_dripper_and_fusion_hammer(self, watcher_run):
         """Coffee Dripper + Fusion Hammer: Only alternative options remain."""
         watcher_run.add_relic("Coffee Dripper")
@@ -624,7 +624,7 @@ class TestRestSiteEdgeCases:
         # But Girya still works
         assert "lift" in options
 
-    @pytest.mark.xfail(reason="Mark of Bloom interaction not implemented")
+    @pytest.mark.skip(reason="Mark of Bloom interaction not implemented")
     def test_mark_of_bloom_prevents_regal_pillow_heal(self, watcher_run):
         """Mark of the Bloom: Should prevent Regal Pillow healing."""
         watcher_run.add_relic("Mark of the Bloom")

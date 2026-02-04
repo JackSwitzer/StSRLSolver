@@ -9,47 +9,26 @@ Reinforcement learning bot for Slay the Spire targeting **Watcher A20 with >96% 
 uv sync
 
 # Run parity tests (compare Python predictions vs game)
-./scripts/dev/parity.sh
+uv run pytest tests/test_parity.py
 
-# Launch web dashboard (STS Oracle)
-uv run python web/server.py
-# Open http://localhost:8080
-
-# Test engine with specific seed
-./scripts/dev/engine.sh 1234567890
+# Run the full test suite
+uv run pytest tests/ -q
 ```
 
 ## Project Structure
 
 ```
-core/               # Python game engine
+packages/engine/    # Python game engine (source of truth)
   state/            # RNG system, game state tracking
   content/          # Cards, relics, potions, enemies, powers, stances
   generation/       # Map, encounters, shops, treasures, rewards
   calc/             # Damage/block calculations, CombatSimulator
   game.py           # GameRunner for full run simulation
 
-web/                # Live dashboard (STS Oracle)
-  server.py         # FastAPI server with SSE for real-time updates
-  index.html        # Single-page dashboard
-
-tools/              # Utilities
-  game_viewer.py    # Interactive game state viewer
-  launcher.py       # Game launcher with mod support
-  test_engine.py    # Engine testing tool
-
-scripts/dev/        # Development scripts
-  parity.sh         # Run parity tests
-  engine.sh         # Test engine with seed
-  save.sh           # Read current save file
-  launch_sts.sh     # Launch game with mods
-
-vod/                # VOD extraction tools
-  run_extraction.py # Extract game data from VODs
-  orchestrator.py   # Multi-step extraction pipeline
-  verification.py   # RNG verification against extracted data
-
-assets/             # Extracted game assets (cards, relics, enemies, UI)
+packages/parity/    # Seed catalog + parity verification tools
+tests/              # pytest suite (4100+ tests)
+docs/               # Architecture docs + vault mechanics
+scripts/            # Utility scripts
 ```
 
 ## Key Features
@@ -106,6 +85,9 @@ Full run simulation supporting:
 - Event resolution logic
 - RL training pipeline
 - Card effect implementation
+
+### Documentation
+- [Implementation Spec](docs/IMPLEMENTATION_SPEC.md) - What is implemented vs missing for a full Python clone
 
 ## Architecture Notes
 

@@ -2,7 +2,7 @@
 Audit tests: card-play-triggered relic parity with decompiled Java.
 
 These tests verify the Python engine's on-card-play relic triggers match
-the decompiled Java behavior. Tests marked with xfail document known bugs.
+the decompiled Java behavior. Tests marked with skip document known gaps.
 """
 
 import pytest

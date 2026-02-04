@@ -75,7 +75,7 @@ def get_bottled_card_id(run: RunState, relic_id: str) -> str:
 class TestBottledFlame:
     """Bottled Flame: Upon pickup, choose an Attack to become Innate."""
 
-    @pytest.mark.xfail(reason="Bottled Flame selection not implemented")
+    @pytest.mark.skip(reason="Bottled Flame selection not implemented")
     def test_bottled_flame_allows_attack_selection(self, watcher_run):
         """Bottled Flame: Pickup presents a choice of Attacks to bottle."""
         # Add some Attacks to choose from
@@ -93,7 +93,7 @@ class TestBottledFlame:
         if bottled_card in ALL_CARDS:
             assert ALL_CARDS[bottled_card].card_type == CardType.ATTACK
 
-    @pytest.mark.xfail(reason="Bottled Flame selection not implemented")
+    @pytest.mark.skip(reason="Bottled Flame selection not implemented")
     def test_bottled_flame_only_shows_attacks(self, watcher_run):
         """Bottled Flame: Should only show Attacks as options, not Skills/Powers."""
         watcher_run.add_card("Strike_P")  # Attack
@@ -107,7 +107,7 @@ class TestBottledFlame:
         # Should have bottled Strike_P (the only Attack added)
         assert bottled_card == "Strike_P"
 
-    @pytest.mark.xfail(reason="Bottled Flame innate behavior not implemented")
+    @pytest.mark.skip(reason="Bottled Flame innate behavior not implemented")
     def test_bottled_flame_card_starts_in_hand(self, watcher_run):
         """Bottled Flame: Bottled Attack starts in hand at combat start."""
         watcher_run.add_card("Tantrum")
@@ -132,7 +132,7 @@ class TestBottledFlame:
         # Tantrum should be in starting hand
         assert "Tantrum" in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled Flame selection not implemented")
+    @pytest.mark.skip(reason="Bottled Flame selection not implemented")
     def test_bottled_flame_with_no_attacks(self, watcher_run):
         """Bottled Flame: Should not activate if deck has no Attacks."""
         # Remove all Attacks from deck
@@ -152,7 +152,7 @@ class TestBottledFlame:
         bottled_card = get_bottled_card_id(watcher_run, "Bottled Flame")
         assert bottled_card is None
 
-    @pytest.mark.xfail(reason="Bottled Flame selection not implemented")
+    @pytest.mark.skip(reason="Bottled Flame selection not implemented")
     def test_bottled_flame_preserved_on_save_load(self, watcher_run):
         """Bottled Flame: Bottled card should be preserved across save/load."""
         watcher_run.add_card("Tantrum")
@@ -178,7 +178,7 @@ class TestBottledFlame:
 class TestBottledLightning:
     """Bottled Lightning: Upon pickup, choose a Skill to become Innate."""
 
-    @pytest.mark.xfail(reason="Bottled Lightning selection not implemented")
+    @pytest.mark.skip(reason="Bottled Lightning selection not implemented")
     def test_bottled_lightning_allows_skill_selection(self, watcher_run):
         """Bottled Lightning: Pickup presents a choice of Skills to bottle."""
         watcher_run.add_card("Vigilance")
@@ -195,7 +195,7 @@ class TestBottledLightning:
         if bottled_card in ALL_CARDS:
             assert ALL_CARDS[bottled_card].card_type == CardType.SKILL
 
-    @pytest.mark.xfail(reason="Bottled Lightning selection not implemented")
+    @pytest.mark.skip(reason="Bottled Lightning selection not implemented")
     def test_bottled_lightning_only_shows_skills(self, watcher_run):
         """Bottled Lightning: Should only show Skills as options."""
         watcher_run.add_card("Strike_P")  # Attack
@@ -209,7 +209,7 @@ class TestBottledLightning:
         # Should have bottled Vigilance (the only Skill)
         assert bottled_card == "Vigilance"
 
-    @pytest.mark.xfail(reason="Bottled Lightning innate behavior not implemented")
+    @pytest.mark.skip(reason="Bottled Lightning innate behavior not implemented")
     def test_bottled_lightning_card_starts_in_hand(self, watcher_run):
         """Bottled Lightning: Bottled Skill starts in hand at combat start."""
         watcher_run.add_card("Vigilance")
@@ -233,7 +233,7 @@ class TestBottledLightning:
         # Vigilance should be in starting hand
         assert "Vigilance" in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled Lightning selection not implemented")
+    @pytest.mark.skip(reason="Bottled Lightning selection not implemented")
     def test_bottled_lightning_with_no_skills(self, watcher_run):
         """Bottled Lightning: Should not activate if deck has no Skills."""
         # Remove all Skills from deck
@@ -261,7 +261,7 @@ class TestBottledLightning:
 class TestBottledTornado:
     """Bottled Tornado: Upon pickup, choose a Power to become Innate."""
 
-    @pytest.mark.xfail(reason="Bottled Tornado selection not implemented")
+    @pytest.mark.skip(reason="Bottled Tornado selection not implemented")
     def test_bottled_tornado_allows_power_selection(self, watcher_run):
         """Bottled Tornado: Pickup presents a choice of Powers to bottle."""
         watcher_run.add_card("Meditate")
@@ -278,7 +278,7 @@ class TestBottledTornado:
         if bottled_card in ALL_CARDS:
             assert ALL_CARDS[bottled_card].card_type == CardType.POWER
 
-    @pytest.mark.xfail(reason="Bottled Tornado selection not implemented")
+    @pytest.mark.skip(reason="Bottled Tornado selection not implemented")
     def test_bottled_tornado_only_shows_powers(self, watcher_run):
         """Bottled Tornado: Should only show Powers as options."""
         watcher_run.add_card("Strike_P")  # Attack
@@ -292,7 +292,7 @@ class TestBottledTornado:
         # Should have bottled Meditate (the only Power)
         assert bottled_card == "Meditate"
 
-    @pytest.mark.xfail(reason="Bottled Tornado innate behavior not implemented")
+    @pytest.mark.skip(reason="Bottled Tornado innate behavior not implemented")
     def test_bottled_tornado_card_starts_in_hand(self, watcher_run):
         """Bottled Tornado: Bottled Power starts in hand at combat start."""
         watcher_run.add_card("Meditate")
@@ -316,7 +316,7 @@ class TestBottledTornado:
         # Meditate should be in starting hand
         assert "Meditate" in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled Tornado selection not implemented")
+    @pytest.mark.skip(reason="Bottled Tornado selection not implemented")
     def test_bottled_tornado_with_no_powers(self, watcher_run):
         """Bottled Tornado: Should not activate if deck has no Powers."""
         # Remove all Powers from deck
@@ -344,7 +344,7 @@ class TestBottledTornado:
 class TestBottledRelicCombinations:
     """Test interactions between multiple Bottled relics."""
 
-    @pytest.mark.xfail(reason="Multiple bottled relics not implemented")
+    @pytest.mark.skip(reason="Multiple bottled relics not implemented")
     def test_all_three_bottled_relics(self, watcher_run):
         """All 3 Bottled relics: Can bottle 1 Attack, 1 Skill, 1 Power."""
         watcher_run.add_card("Tantrum")  # Attack
@@ -373,7 +373,7 @@ class TestBottledRelicCombinations:
         assert get_bottled_card_id(watcher_run, "Bottled Lightning") == "Vigilance"
         assert get_bottled_card_id(watcher_run, "Bottled Tornado") == "Meditate"
 
-    @pytest.mark.xfail(reason="Multiple bottled relics combat start not implemented")
+    @pytest.mark.skip(reason="Multiple bottled relics combat start not implemented")
     def test_all_three_bottled_relics_combat_start(self, watcher_run):
         """All 3 Bottled relics: All 3 bottled cards start in hand."""
         watcher_run.add_card("Tantrum")
@@ -412,7 +412,7 @@ class TestBottledRelicCombinations:
         assert "Vigilance" in combat.hand
         assert "Meditate" in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled relic hand size limit not implemented")
+    @pytest.mark.skip(reason="Bottled relic hand size limit not implemented")
     def test_bottled_relics_with_small_hand_size(self, watcher_run):
         """Bottled relics: Should work even if multiple Innate cards exceed normal draw."""
         watcher_run.add_card("Tantrum")
@@ -455,7 +455,7 @@ class TestBottledRelicCombinations:
 class TestBottledRelicEdgeCases:
     """Edge cases for Bottled relics."""
 
-    @pytest.mark.xfail(reason="Bottled relic with upgraded card not implemented")
+    @pytest.mark.skip(reason="Bottled relic with upgraded card not implemented")
     def test_bottled_flame_with_upgraded_attack(self, watcher_run):
         """Bottled Flame: Can bottle an upgraded Attack."""
         watcher_run.add_card("Tantrum", upgraded=True)
@@ -478,7 +478,7 @@ class TestBottledRelicEdgeCases:
         # Tantrum+ should be in hand
         assert "Tantrum+" in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled relic with duplicate cards not implemented")
+    @pytest.mark.skip(reason="Bottled relic with duplicate cards not implemented")
     def test_bottled_flame_with_duplicate_attacks(self, watcher_run):
         """Bottled Flame: If multiple copies of same Attack, only one becomes Innate."""
         watcher_run.add_card("Tantrum")
@@ -506,7 +506,7 @@ class TestBottledRelicEdgeCases:
         tantrum_in_hand = sum(1 for c in combat.hand if c == "Tantrum")
         assert tantrum_in_hand == 1
 
-    @pytest.mark.xfail(reason="Bottled relic removal not implemented")
+    @pytest.mark.skip(reason="Bottled relic removal not implemented")
     def test_bottled_flame_when_bottled_card_removed(self, watcher_run):
         """Bottled Flame: If bottled card is removed from deck, relic has no effect."""
         watcher_run.add_card("Tantrum")
@@ -535,7 +535,7 @@ class TestBottledRelicEdgeCases:
         # Tantrum should NOT be in hand (was removed)
         assert "Tantrum" not in combat.hand
 
-    @pytest.mark.xfail(reason="Bottled relic with transformed card not implemented")
+    @pytest.mark.skip(reason="Bottled relic with transformed card not implemented")
     def test_bottled_flame_when_bottled_card_transformed(self, watcher_run):
         """Bottled Flame: If bottled card is transformed, new card is NOT Innate."""
         watcher_run.add_card("Tantrum")

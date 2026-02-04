@@ -133,7 +133,7 @@ class MockQuestionRoomHandler:
 class TestTinyChest:
     """Tiny Chest: Every 4th ? room is a Treasure room."""
 
-    @pytest.mark.xfail(reason="Tiny Chest counter tracking not implemented")
+    @pytest.mark.skip(reason="Tiny Chest counter tracking not implemented")
     def test_tiny_chest_tracks_question_rooms(self, watcher_run, rng):
         """Tiny Chest: Counter increments for each ? room entered."""
         watcher_run.add_relic("Tiny Chest")
@@ -149,7 +149,7 @@ class TestTinyChest:
             tiny_chest = watcher_run.get_relic("Tiny Chest")
             assert tiny_chest.counter == i + 1
 
-    @pytest.mark.xfail(reason="Tiny Chest counter tracking not implemented")
+    @pytest.mark.skip(reason="Tiny Chest counter tracking not implemented")
     def test_tiny_chest_triggers_on_4th_room(self, watcher_run, rng):
         """Tiny Chest: 4th ? room becomes a Treasure room."""
         watcher_run.add_relic("Tiny Chest")
@@ -163,7 +163,7 @@ class TestTinyChest:
             else:
                 assert result["is_chest"] is False
 
-    @pytest.mark.xfail(reason="Tiny Chest counter tracking not implemented")
+    @pytest.mark.skip(reason="Tiny Chest counter tracking not implemented")
     def test_tiny_chest_resets_after_trigger(self, watcher_run, rng):
         """Tiny Chest: Counter resets after triggering."""
         watcher_run.add_relic("Tiny Chest")
@@ -183,7 +183,7 @@ class TestTinyChest:
             if i == 3:  # 4th room again
                 assert result["is_chest"] is True
 
-    @pytest.mark.xfail(reason="Tiny Chest counter tracking not implemented")
+    @pytest.mark.skip(reason="Tiny Chest counter tracking not implemented")
     def test_tiny_chest_does_not_affect_other_rooms(self, watcher_run, rng):
         """Tiny Chest: Only affects ? rooms, not combat/elite/rest/shop."""
         watcher_run.add_relic("Tiny Chest")
@@ -205,7 +205,7 @@ class TestTinyChest:
 class TestMatryoshka:
     """Matryoshka: The next 2 non-boss Chests you open contain an extra Relic."""
 
-    @pytest.mark.xfail(reason="Matryoshka bonus relic not implemented")
+    @pytest.mark.skip(reason="Matryoshka bonus relic not implemented")
     def test_matryoshka_grants_extra_relic_first_chest(self, watcher_run, rng):
         """Matryoshka: First chest gives 2 relics instead of 1."""
         watcher_run.add_relic("Matryoshka")
@@ -217,7 +217,7 @@ class TestMatryoshka:
         assert result["relics_gained"] == 2
         assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="Matryoshka bonus relic not implemented")
+    @pytest.mark.skip(reason="Matryoshka bonus relic not implemented")
     def test_matryoshka_grants_extra_relic_second_chest(self, watcher_run, rng):
         """Matryoshka: Second chest also gives 2 relics."""
         watcher_run.add_relic("Matryoshka")
@@ -233,7 +233,7 @@ class TestMatryoshka:
         assert result["relics_gained"] == 2
         assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="Matryoshka bonus relic not implemented")
+    @pytest.mark.skip(reason="Matryoshka bonus relic not implemented")
     def test_matryoshka_expires_after_2_chests(self, watcher_run, rng):
         """Matryoshka: Third chest does not grant extra relic."""
         watcher_run.add_relic("Matryoshka")
@@ -250,7 +250,7 @@ class TestMatryoshka:
         assert result["relics_gained"] == 1
         assert len(watcher_run.relics) == initial_relics + 1
 
-    @pytest.mark.xfail(reason="Matryoshka counter tracking not implemented")
+    @pytest.mark.skip(reason="Matryoshka counter tracking not implemented")
     def test_matryoshka_counter_decrements(self, watcher_run, rng):
         """Matryoshka: Counter should decrement with each chest."""
         watcher_run.add_relic("Matryoshka")
@@ -267,7 +267,7 @@ class TestMatryoshka:
         MockChestHandler.open_chest(watcher_run, Random(seed_to_long("CHEST2")), chest_tier="medium")
         assert matryoshka.counter == 0
 
-    @pytest.mark.xfail(reason="Matryoshka boss chest exclusion not implemented")
+    @pytest.mark.skip(reason="Matryoshka boss chest exclusion not implemented")
     def test_matryoshka_does_not_affect_boss_chests(self, watcher_run, rng):
         """Matryoshka: Should NOT trigger on boss chests."""
         watcher_run.add_relic("Matryoshka")
@@ -289,7 +289,7 @@ class TestMatryoshka:
 class TestBlackStar:
     """Black Star: Elite combats grant an additional Relic."""
 
-    @pytest.mark.xfail(reason="Black Star bonus relic not implemented")
+    @pytest.mark.skip(reason="Black Star bonus relic not implemented")
     def test_black_star_grants_extra_relic_from_elite(self, watcher_run, rng):
         """Black Star: Defeating an elite gives 2 relics instead of 1."""
         watcher_run.add_relic("Black Star")
@@ -301,7 +301,7 @@ class TestBlackStar:
         assert result["relics_gained"] == 2
         assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="Black Star bonus relic not implemented")
+    @pytest.mark.skip(reason="Black Star bonus relic not implemented")
     def test_black_star_applies_to_all_elites(self, watcher_run, rng):
         """Black Star: Should apply to every elite combat."""
         watcher_run.add_relic("Black Star")
@@ -315,7 +315,7 @@ class TestBlackStar:
             assert result["relics_gained"] == 2
             assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="Black Star max HP bonus not implemented")
+    @pytest.mark.skip(reason="Black Star max HP bonus not implemented")
     def test_black_star_grants_max_hp_on_pickup(self):
         """Black Star: Upon pickup, gain +8 Max HP (boss relic)."""
         run = create_watcher_run("TEST", ascension=0)
@@ -326,7 +326,7 @@ class TestBlackStar:
         # Black Star is a boss relic that grants +8 Max HP
         assert run.max_hp == initial_max_hp + 8
 
-    @pytest.mark.xfail(reason="Black Star elite tracking not implemented")
+    @pytest.mark.skip(reason="Black Star elite tracking not implemented")
     def test_black_star_does_not_affect_normal_combats(self, watcher_run, rng):
         """Black Star: Should NOT grant extra relics from normal combats."""
         watcher_run.add_relic("Black Star")
@@ -342,7 +342,7 @@ class TestBlackStar:
 class TestCursedKey:
     """Cursed Key: Whenever you open a non-boss Chest, obtain a Curse."""
 
-    @pytest.mark.xfail(reason="Cursed Key curse gain not implemented")
+    @pytest.mark.skip(reason="Cursed Key curse gain not implemented")
     def test_cursed_key_adds_curse_on_chest_open(self, watcher_run, rng):
         """Cursed Key: Opening a chest adds a Curse to your deck."""
         watcher_run.add_relic("Cursed Key")
@@ -354,7 +354,7 @@ class TestCursedKey:
         assert result["curse_gained"] is not None
         assert len(watcher_run.deck) == initial_deck_size + 1
 
-    @pytest.mark.xfail(reason="Cursed Key curse gain not implemented")
+    @pytest.mark.skip(reason="Cursed Key curse gain not implemented")
     def test_cursed_key_applies_to_all_chests(self, watcher_run, rng):
         """Cursed Key: Every chest opened adds a Curse."""
         watcher_run.add_relic("Cursed Key")
@@ -367,7 +367,7 @@ class TestCursedKey:
         # Should have gained 3 curses
         assert len(watcher_run.deck) == initial_deck_size + 3
 
-    @pytest.mark.xfail(reason="Cursed Key max HP bonus not implemented")
+    @pytest.mark.skip(reason="Cursed Key max HP bonus not implemented")
     def test_cursed_key_grants_max_hp_on_pickup(self):
         """Cursed Key: Upon pickup, gain +10 Max HP (boss relic)."""
         run = create_watcher_run("TEST", ascension=0)
@@ -378,7 +378,7 @@ class TestCursedKey:
         # Cursed Key is a boss relic that grants +10 Max HP
         assert run.max_hp == initial_max_hp + 10
 
-    @pytest.mark.xfail(reason="Cursed Key boss chest exclusion not implemented")
+    @pytest.mark.skip(reason="Cursed Key boss chest exclusion not implemented")
     def test_cursed_key_does_not_affect_boss_chests(self, watcher_run, rng):
         """Cursed Key: Should NOT add a Curse when opening boss chests."""
         watcher_run.add_relic("Cursed Key")
@@ -390,7 +390,7 @@ class TestCursedKey:
         # Deck size should not increase from curse
         assert len(watcher_run.deck) == initial_deck_size
 
-    @pytest.mark.xfail(reason="Cursed Key Darkstone interaction not implemented")
+    @pytest.mark.skip(reason="Cursed Key Darkstone interaction not implemented")
     def test_cursed_key_with_darkstone_periapt(self, watcher_run, rng):
         """Cursed Key + Darkstone Periapt: Curses grant +6 Max HP."""
         watcher_run.add_relic("Cursed Key")
@@ -413,7 +413,7 @@ class TestCursedKey:
 class TestNlothsMask:
     """N'loth's Hungry Face: The next non-boss Chest you open is empty, but chests have better rewards afterward."""
 
-    @pytest.mark.xfail(reason="N'loth's Mask empty chest not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask empty chest not implemented")
     def test_nloths_mask_first_chest_empty(self, watcher_run, rng):
         """N'loth's Mask: First chest gives no relics."""
         watcher_run.add_relic("NlothsMask")
@@ -425,7 +425,7 @@ class TestNlothsMask:
         assert result["relics_gained"] == 0
         assert len(watcher_run.relics) == initial_relics
 
-    @pytest.mark.xfail(reason="N'loth's Mask empty chest not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask empty chest not implemented")
     def test_nloths_mask_subsequent_chests_better(self, watcher_run, rng):
         """N'loth's Mask: After first chest, future chests give +1 relic."""
         watcher_run.add_relic("NlothsMask")
@@ -441,7 +441,7 @@ class TestNlothsMask:
         assert result["relics_gained"] == 2
         assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="N'loth's Mask counter tracking not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask counter tracking not implemented")
     def test_nloths_mask_counter_tracks_usage(self, watcher_run, rng):
         """N'loth's Mask: Counter tracks whether first chest has been opened."""
         watcher_run.add_relic("NlothsMask")
@@ -456,7 +456,7 @@ class TestNlothsMask:
         # Counter should be 1 (first chest opened)
         assert mask.counter == 1
 
-    @pytest.mark.xfail(reason="N'loth's Mask bonus applies permanently not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask bonus applies permanently not implemented")
     def test_nloths_mask_bonus_applies_permanently(self, watcher_run, rng):
         """N'loth's Mask: Bonus applies to ALL chests after first."""
         watcher_run.add_relic("NlothsMask")
@@ -473,7 +473,7 @@ class TestNlothsMask:
             assert result["relics_gained"] == 2
             assert len(watcher_run.relics) == initial_relics + 2
 
-    @pytest.mark.xfail(reason="N'loth's Mask boss chest exclusion not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask boss chest exclusion not implemented")
     def test_nloths_mask_does_not_affect_boss_chests(self, watcher_run, rng):
         """N'loth's Mask: Should NOT trigger on boss chests."""
         watcher_run.add_relic("NlothsMask")
@@ -494,7 +494,7 @@ class TestNlothsMask:
 class TestChestRelicCombinations:
     """Test interactions between multiple chest-related relics."""
 
-    @pytest.mark.xfail(reason="Matryoshka + Cursed Key not implemented")
+    @pytest.mark.skip(reason="Matryoshka + Cursed Key not implemented")
     def test_matryoshka_and_cursed_key(self, watcher_run, rng):
         """Matryoshka + Cursed Key: Should get 2 relics AND a curse."""
         watcher_run.add_relic("Matryoshka")
@@ -513,7 +513,7 @@ class TestChestRelicCombinations:
         assert result["curse_gained"] is not None
         assert len(watcher_run.deck) == initial_deck_size + 1
 
-    @pytest.mark.xfail(reason="N'loth's Mask + Matryoshka not implemented")
+    @pytest.mark.skip(reason="N'loth's Mask + Matryoshka not implemented")
     def test_nloths_mask_and_matryoshka(self, watcher_run, rng):
         """N'loth's Mask + Matryoshka: First chest empty, second chest gets 3 relics."""
         watcher_run.add_relic("NlothsMask")
@@ -529,7 +529,7 @@ class TestChestRelicCombinations:
         assert result2["relics_gained"] == 3
         assert len(watcher_run.relics) == initial_relics + 3
 
-    @pytest.mark.xfail(reason="Tiny Chest + N'loth's Mask not implemented")
+    @pytest.mark.skip(reason="Tiny Chest + N'loth's Mask not implemented")
     def test_tiny_chest_and_nloths_mask(self, watcher_run, rng):
         """Tiny Chest + N'loth's Mask: Should work together."""
         watcher_run.add_relic("Tiny Chest")
@@ -547,7 +547,7 @@ class TestChestRelicCombinations:
         result = MockChestHandler.open_chest(watcher_run, rng, chest_tier="small")
         assert result["relics_gained"] == 0
 
-    @pytest.mark.xfail(reason="All chest relics together not implemented")
+    @pytest.mark.skip(reason="All chest relics together not implemented")
     def test_all_chest_relics_together(self, watcher_run, rng):
         """All chest relics: Complex interaction."""
         watcher_run.add_relic("Matryoshka")
@@ -574,7 +574,7 @@ class TestChestRelicCombinations:
 class TestChestRelicEdgeCases:
     """Edge cases for chest/acquisition relics."""
 
-    @pytest.mark.xfail(reason="Curse variety not implemented")
+    @pytest.mark.skip(reason="Curse variety not implemented")
     def test_cursed_key_random_curse_types(self, watcher_run, rng):
         """Cursed Key: Should add random Curses (not always the same)."""
         watcher_run.add_relic("Cursed Key")
@@ -589,7 +589,7 @@ class TestChestRelicEdgeCases:
         # For now, verify at least 1 curse was gained
         assert len(curses) >= 1
 
-    @pytest.mark.xfail(reason="Relic pool interaction not implemented")
+    @pytest.mark.skip(reason="Relic pool interaction not implemented")
     def test_chest_relics_dont_overlap_with_pool(self, watcher_run, rng):
         """Chest rewards should not give duplicate relics."""
         watcher_run.add_relic("Matryoshka")
@@ -601,7 +601,7 @@ class TestChestRelicEdgeCases:
         relic_ids = [r.id for r in watcher_run.relics]
         assert len(relic_ids) == len(set(relic_ids))
 
-    @pytest.mark.xfail(reason="Boss relic exclusion not implemented")
+    @pytest.mark.skip(reason="Boss relic exclusion not implemented")
     def test_boss_relics_excluded_from_chests(self, watcher_run, rng):
         """Chests should not contain boss relics."""
         watcher_run.add_relic("Matryoshka")

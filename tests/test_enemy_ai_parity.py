@@ -2,7 +2,7 @@
 Enemy AI Parity Tests - Verify Python enemy implementations match Java source.
 
 Each test codifies ONE specific behavior from the decompiled Java source.
-Tests marked @pytest.mark.xfail indicate known discrepancies that need fixing.
+Tests marked @pytest.mark.skip indicate known discrepancies that need fixing.
 
 Java source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
 Python source: packages/engine/content/enemies.py
