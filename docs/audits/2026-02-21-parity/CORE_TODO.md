@@ -2,6 +2,8 @@
 
 Last updated: 2026-02-21
 
+Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
+
 ## Current baseline
 - Full tests: `4602 passed, 0 skipped, 0 failed`
 - Command: `uv run pytest tests/ -ra`
