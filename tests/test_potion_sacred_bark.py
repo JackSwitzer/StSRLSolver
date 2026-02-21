@@ -99,7 +99,7 @@ class TestSacredBarkDoubling:
 
         result = engine.use_potion(0)
         assert result["success"]
-        assert len(state.hand) == initial_hand + 6  # Should draw 6 more
+        assert len(state.hand) == min(initial_hand + 6, 10)  # Hand size capped at 10
 
 
 class TestFairyInBottle:
@@ -251,3 +251,81 @@ class TestNewPotionImplementations:
         result = engine.use_potion(0)
         assert result["success"]
         assert state.player.statuses.get("Duplication", 0) == 2
+
+
+class TestDistilledChaosRuntimeParity:
+    """Runtime parity tests for Distilled Chaos in CombatEngine."""
+
+    def test_distilled_chaos_plays_top_cards_not_draws(self):
+        state = CombatState(
+            player=EntityState(hp=50, max_hp=80, block=0),
+            energy=3,
+            max_energy=3,
+            hand=[],
+            draw_pile=["Defend_P", "Strike_P", "Strike_P", "Vigilance"],
+            discard_pile=[],
+            potions=["DistilledChaos"],
+            relics=[],
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="Cultist", name="Cultist")],
+        )
+        engine = CombatEngine(state)
+        initial_hp = state.enemies[0].hp
+
+        result = engine.use_potion(0)
+
+        assert result["success"]
+        assert state.potions[0] == ""
+        assert len(state.hand) == 0
+        assert state.enemies[0].hp < initial_hp
+        assert state.total_cards_played >= 1
+
+    def test_distilled_chaos_sacred_bark_plays_six_cards(self):
+        state = CombatState(
+            player=EntityState(hp=50, max_hp=80, block=0),
+            energy=3,
+            max_energy=3,
+            hand=[],
+            draw_pile=["Defend_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P"],
+            discard_pile=[],
+            potions=["DistilledChaos"],
+            relics=["Sacred Bark"],
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="Cultist", name="Cultist")],
+        )
+        engine = CombatEngine(state)
+
+        result = engine.use_potion(0)
+
+        assert result["success"]
+        assert state.potions[0] == ""
+        assert state.total_cards_played >= 6
+        assert len(state.discard_pile) + len(state.exhaust_pile) >= 6
+
+
+class TestSmokeBombValidation:
+    """Validation checks for Smoke Bomb restrictions."""
+
+    def test_smoke_bomb_blocked_by_back_attack(self):
+        state = CombatState(
+            player=EntityState(hp=50, max_hp=80, block=0),
+            energy=3,
+            max_energy=3,
+            potions=["SmokeBomb"],
+            relics=[],
+            enemies=[
+                EnemyCombatState(
+                    hp=50,
+                    max_hp=50,
+                    id="SpireSpear",
+                    name="Spire Spear",
+                    statuses={"BackAttack": 1},
+                )
+            ],
+        )
+        engine = CombatEngine(state)
+        engine.start_combat()
+
+        result = engine.use_potion(0)
+
+        assert result["success"] is False
+        assert state.potions[0] == "SmokeBomb"
+        assert getattr(state, "escaped", False) is False

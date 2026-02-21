@@ -25,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Union, Any, Tuple
+import itertools
 import random
 
 from .state.run import (
@@ -46,7 +47,7 @@ from .combat_engine import (
     create_combat_from_enemies,
 )
 from .handlers.combat import create_enemies_from_encounter, ENCOUNTER_TABLE
-from .content.cards import get_card, CardTarget, CardType
+from .content.cards import get_card, CardTarget, CardType, CardColor, ALL_CARDS
 from .generation.encounters import (
     generate_exordium_encounters, generate_city_encounters,
     generate_beyond_encounters, generate_ending_encounters,
@@ -70,6 +71,7 @@ from .handlers.rooms import (
 from .handlers.event_handler import (
     EventHandler as NewEventHandler, EventState, EventPhase, EventChoiceResult,
 )
+from .registry import execute_relic_triggers
 
 
 # =============================================================================
@@ -179,6 +181,20 @@ class DecisionLogEntry:
     result: Optional[Dict[str, Any]] = None  # Outcome of the action
 
 
+@dataclass
+class PendingSelectionContext:
+    """State for a required follow-up selection action."""
+    selection_type: str  # "card_select" | "stance_select"
+    source_action_type: str
+    pile: str
+    min_cards: int
+    max_cards: int
+    candidate_indices: List[int] = field(default_factory=list)
+    candidate_values: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    parent_action_id: str = ""
+
+
 # =============================================================================
 # Game Runner
 # =============================================================================
@@ -254,6 +270,7 @@ class GameRunner:
         self.current_rewards: Optional[CombatRewards] = None
         self.current_room_type: str = "monster"  # "monster", "elite", "boss"
         self.is_burning_elite: bool = False  # Track if current elite is burning
+        self.pending_selection: Optional[PendingSelectionContext] = None
 
         # Current event state (when in event)
         self.current_event: Optional[Dict] = None  # Legacy format
@@ -459,6 +476,280 @@ class GameRunner:
                 value_str = str(value)
             parts.append(f"{key}={value_str}")
         return "|".join(parts)
+
+    def _get_combat_potion_id(self, potion_slot: int) -> Optional[str]:
+        """Get potion id in a combat slot, if valid."""
+        if not self.current_combat:
+            return None
+        potions = self.current_combat.state.potions
+        if potion_slot < 0 or potion_slot >= len(potions):
+            return None
+        potion_id = potions[potion_slot]
+        return potion_id or None
+
+    def _build_discovery_offer(self, potion_id: str, count: int = 3) -> List[str]:
+        """Build deterministic card offers for discovery-style potions."""
+        if potion_id == "AttackPotion":
+            pool = [
+                cid for cid, card in ALL_CARDS.items()
+                if card.card_type == CardType.ATTACK and card.color != CardColor.COLORLESS
+            ]
+        elif potion_id == "SkillPotion":
+            pool = [
+                cid for cid, card in ALL_CARDS.items()
+                if card.card_type == CardType.SKILL and card.color != CardColor.COLORLESS
+            ]
+        elif potion_id == "PowerPotion":
+            pool = [
+                cid for cid, card in ALL_CARDS.items()
+                if card.card_type == CardType.POWER and card.color != CardColor.COLORLESS
+            ]
+        else:
+            pool = [cid for cid, card in ALL_CARDS.items() if card.color == CardColor.COLORLESS]
+
+        if not pool:
+            return []
+
+        # Deterministic, unique sampling via card RNG stream.
+        chosen: List[str] = []
+        pool_local = list(pool)
+        rng = getattr(self.current_combat.state, "card_rng", None) or self.card_rng
+        while pool_local and len(chosen) < count:
+            idx = rng.random(len(pool_local) - 1) if rng else 0
+            chosen.append(pool_local.pop(idx))
+        return chosen
+
+    def _build_pending_selection_for_potion(
+        self,
+        potion_slot: int,
+        potion_id: str,
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Create selection context for potions that require additional input."""
+        state = self.current_combat.state if self.current_combat else None
+        if state is None:
+            return None
+
+        has_sacred_bark = state.has_relic("SacredBark")
+
+        if potion_id in ("AttackPotion", "SkillPotion", "PowerPotion", "ColorlessPotion"):
+            offer = self._build_discovery_offer(potion_id, count=3)
+            return PendingSelectionContext(
+                selection_type="card_select",
+                source_action_type="use_potion",
+                pile="offer",
+                min_cards=1,
+                max_cards=1,
+                candidate_indices=list(range(len(offer))),
+                metadata={"potion_slot": potion_slot, "potion_id": potion_id, "offer_cards": offer},
+                parent_action_id=parent_action_id,
+            )
+
+        if potion_id == "LiquidMemories":
+            discard_count = len(state.discard_pile)
+            max_cards = min(2 if has_sacred_bark else 1, discard_count)
+            min_cards = 1 if discard_count > 0 else 0
+            return PendingSelectionContext(
+                selection_type="card_select",
+                source_action_type="use_potion",
+                pile="discard",
+                min_cards=min_cards,
+                max_cards=max_cards,
+                candidate_indices=list(range(len(state.discard_pile))),
+                metadata={"potion_slot": potion_slot, "potion_id": potion_id},
+                parent_action_id=parent_action_id,
+            )
+
+        if potion_id in ("GamblersBrew", "ElixirPotion"):
+            return PendingSelectionContext(
+                selection_type="card_select",
+                source_action_type="use_potion",
+                pile="hand",
+                min_cards=0,
+                max_cards=len(state.hand),
+                candidate_indices=list(range(len(state.hand))),
+                metadata={"potion_slot": potion_slot, "potion_id": potion_id},
+                parent_action_id=parent_action_id,
+            )
+
+        if potion_id == "StancePotion":
+            return PendingSelectionContext(
+                selection_type="stance_select",
+                source_action_type="use_potion",
+                pile="",
+                min_cards=1,
+                max_cards=1,
+                candidate_values=["Calm", "Wrath"],
+                metadata={"potion_slot": potion_slot, "potion_id": potion_id},
+                parent_action_id=parent_action_id,
+            )
+
+        return None
+
+    def _selection_context_actions(self) -> List[ActionDict]:
+        """Emit explicit follow-up actions for pending selection state."""
+        if not self.pending_selection:
+            return []
+        ctx = self.pending_selection
+        actions: List[ActionDict] = []
+
+        if ctx.selection_type == "stance_select":
+            for stance in ctx.candidate_values:
+                params = {"stance": stance, "parent_action_id": ctx.parent_action_id}
+                actions.append({
+                    "id": self._make_action_id("select_stance", params),
+                    "type": "select_stance",
+                    "label": f"Select stance: {stance}",
+                    "params": params,
+                    "phase": self._phase_to_action_phase(),
+                })
+            return actions
+
+        candidates = list(ctx.candidate_indices)
+        if not candidates and ctx.min_cards > 0:
+            return []
+
+        # Exhaustive only for small bounded selections; otherwise provide practical candidates.
+        if ctx.max_cards <= 2:
+            for size in range(ctx.min_cards, ctx.max_cards + 1):
+                for combo in itertools.combinations(candidates, size):
+                    params = {
+                        "pile": ctx.pile,
+                        "card_indices": list(combo),
+                        "min_cards": ctx.min_cards,
+                        "max_cards": ctx.max_cards,
+                        "parent_action_id": ctx.parent_action_id,
+                    }
+                    actions.append({
+                        "id": self._make_action_id("select_cards", params),
+                        "type": "select_cards",
+                        "label": f"Select {ctx.pile} cards: {list(combo)}",
+                        "params": params,
+                        "phase": self._phase_to_action_phase(),
+                    })
+            return actions
+
+        # Hand-wide selections (Gamblers/Elixir): include no-op, singles, and full-set candidates.
+        representative_sets: List[List[int]] = [[]]
+        representative_sets.extend([[idx] for idx in candidates])
+        if candidates:
+            representative_sets.append(list(candidates))
+
+        for selected in representative_sets:
+            if len(selected) < ctx.min_cards or len(selected) > ctx.max_cards:
+                continue
+            params = {
+                "pile": ctx.pile,
+                "card_indices": selected,
+                "min_cards": ctx.min_cards,
+                "max_cards": ctx.max_cards,
+                "parent_action_id": ctx.parent_action_id,
+            }
+            actions.append({
+                "id": self._make_action_id("select_cards", params),
+                "type": "select_cards",
+                "label": f"Select {ctx.pile} cards: {selected}",
+                "params": params,
+                "phase": self._phase_to_action_phase(),
+            })
+        return actions
+
+    def _apply_pending_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
+        """Execute pending selection and resolve the parent potion action."""
+        if not self.pending_selection or not self.current_combat:
+            return {"success": False, "error": "No pending selection"}
+
+        ctx = self.pending_selection
+        state = self.current_combat.state
+        params = action_dict.get("params", {}) or {}
+        action_type = action_dict.get("type")
+        potion_slot = int(ctx.metadata.get("potion_slot", -1))
+        potion_id = ctx.metadata.get("potion_id")
+
+        if action_type == "select_stance":
+            stance = str(params.get("stance", ""))
+            if stance not in ("Calm", "Wrath"):
+                return {"success": False, "error": "Invalid stance selection"}
+            # Consume potion then change stance with full trigger path.
+            if 0 <= potion_slot < len(state.potions):
+                state.potions[potion_slot] = ""
+            self.current_combat._change_stance(self.current_combat._parse_stance(stance))
+            execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
+            self.pending_selection = None
+            return {"success": True, "data": {"potion": potion_id, "selected_stance": stance}}
+
+        if action_type != "select_cards":
+            return {"success": False, "error": "Expected select_cards/select_stance action"}
+
+        card_indices = [int(i) for i in params.get("card_indices", [])]
+        if len(card_indices) < ctx.min_cards or len(card_indices) > ctx.max_cards:
+            return {"success": False, "error": "Invalid number of selected cards"}
+
+        # Consume potion before applying side effects.
+        if 0 <= potion_slot < len(state.potions):
+            state.potions[potion_slot] = ""
+
+        if potion_id in ("AttackPotion", "SkillPotion", "PowerPotion", "ColorlessPotion"):
+            offer_cards = list(ctx.metadata.get("offer_cards", []))
+            if not card_indices:
+                return {"success": False, "error": "Must select one offered card"}
+            selected_idx = card_indices[0]
+            if selected_idx < 0 or selected_idx >= len(offer_cards):
+                return {"success": False, "error": "Invalid offered card index"}
+            chosen_card = offer_cards[selected_idx]
+            copies = 2 if state.has_relic("SacredBark") else 1
+            added = 0
+            for _ in range(copies):
+                if len(state.hand) >= 10:
+                    break
+                state.hand.append(chosen_card)
+                state.card_costs[chosen_card] = 0
+                added += 1
+            execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
+            self.pending_selection = None
+            return {"success": True, "data": {"potion": potion_id, "cards_added": added, "card": chosen_card}}
+
+        if potion_id == "LiquidMemories":
+            moved: List[str] = []
+            for idx in sorted(card_indices, reverse=True):
+                if idx < 0 or idx >= len(state.discard_pile):
+                    continue
+                if len(state.hand) >= 10:
+                    break
+                card_id = state.discard_pile.pop(idx)
+                state.hand.append(card_id)
+                state.card_costs[card_id] = 0
+                moved.append(card_id)
+            execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
+            self.pending_selection = None
+            return {"success": True, "data": {"potion": potion_id, "cards_moved": moved}}
+
+        if potion_id == "GamblersBrew":
+            discarded: List[str] = []
+            for idx in sorted(card_indices, reverse=True):
+                if idx < 0 or idx >= len(state.hand):
+                    continue
+                discarded.append(state.hand.pop(idx))
+            state.discard_pile.extend(discarded)
+            if discarded:
+                self.current_combat._draw_cards(len(discarded))
+            execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
+            self.pending_selection = None
+            return {"success": True, "data": {"potion": potion_id, "cards_discarded": list(reversed(discarded))}}
+
+        if potion_id == "ElixirPotion":
+            exhausted: List[str] = []
+            for idx in sorted(card_indices, reverse=True):
+                if idx < 0 or idx >= len(state.hand):
+                    continue
+                exhausted.append(state.hand.pop(idx))
+            state.exhaust_pile.extend(exhausted)
+            execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
+            self.pending_selection = None
+            return {"success": True, "data": {"potion": potion_id, "cards_exhausted": list(reversed(exhausted))}}
+
+        self.pending_selection = None
+        return {"success": False, "error": f"Unsupported selection potion: {potion_id}"}
 
     def _action_to_dict(self, action: GameAction) -> ActionDict:
         """Convert a GameAction dataclass into a JSON action dict."""
@@ -708,7 +999,38 @@ class GameRunner:
 
     def get_available_action_dicts(self) -> List[ActionDict]:
         """Get all valid actions as JSON-serializable dicts."""
+        if self.pending_selection is not None:
+            return self._selection_context_actions()
+
         actions = [self._action_to_dict(a) for a in self.get_available_actions()]
+
+        # Enrich selection-required potion actions with explicit requirements.
+        if self.phase == GamePhase.COMBAT and self.current_combat is not None:
+            selection_potions = {
+                "AttackPotion",
+                "SkillPotion",
+                "PowerPotion",
+                "ColorlessPotion",
+                "LiquidMemories",
+                "GamblersBrew",
+                "ElixirPotion",
+                "StancePotion",
+            }
+            for action in actions:
+                if action.get("type") != "use_potion":
+                    continue
+                params = action.get("params", {}) or {}
+                potion_slot = int(params.get("potion_slot", -1))
+                potion_id = self._get_combat_potion_id(potion_slot)
+                if potion_id not in selection_potions:
+                    continue
+                if potion_id == "StancePotion":
+                    action["requires"] = ["stance"]
+                elif potion_id in ("LiquidMemories", "GamblersBrew", "ElixirPotion"):
+                    action["requires"] = ["card_indices"]
+                else:
+                    action["requires"] = ["card_indices"]
+
         if self.phase == GamePhase.BOSS_REWARDS:
             unresolved = True
             if self.current_rewards and self.current_rewards.boss_relics:
@@ -726,6 +1048,62 @@ class GameRunner:
 
     def take_action_dict(self, action_dict: ActionDict) -> Dict[str, Any]:
         """Execute a JSON action dict via the dataclass adapter."""
+        if self.pending_selection is not None:
+            return self._apply_pending_selection(action_dict)
+
+        # Intercept selection-required potions so caller can resolve via explicit actions.
+        if self.phase == GamePhase.COMBAT and action_dict.get("type") == "use_potion":
+            params = action_dict.get("params", {}) or {}
+            if "potion_slot" not in params:
+                return {"success": False, "error": "Missing potion_slot"}
+            potion_slot = int(params.get("potion_slot", -1))
+            potion_id = self._get_combat_potion_id(potion_slot)
+            if potion_id is None:
+                return {"success": False, "error": "Invalid or empty potion slot"}
+            if (
+                potion_id == "LiquidMemories"
+                and self.current_combat
+                and len(self.current_combat.state.discard_pile) == 0
+            ):
+                return {"success": False, "error": "No cards in discard pile"}
+
+            selection_ctx = self._build_pending_selection_for_potion(
+                potion_slot=potion_slot,
+                potion_id=potion_id,
+                parent_action_id=str(action_dict.get("id", "")),
+            )
+            if selection_ctx is not None:
+                self.pending_selection = selection_ctx
+                # If caller already provided selection params, execute immediately.
+                if potion_id == "StancePotion" and "stance" in params:
+                    selection_action = {
+                        "type": "select_stance",
+                        "params": {
+                            "stance": params.get("stance"),
+                            "parent_action_id": selection_ctx.parent_action_id,
+                        },
+                    }
+                    return self._apply_pending_selection(selection_action)
+                if "card_indices" in params:
+                    selection_action = {
+                        "type": "select_cards",
+                        "params": {
+                            "pile": selection_ctx.pile,
+                            "card_indices": params.get("card_indices", []),
+                            "min_cards": selection_ctx.min_cards,
+                            "max_cards": selection_ctx.max_cards,
+                            "parent_action_id": selection_ctx.parent_action_id,
+                        },
+                    }
+                    return self._apply_pending_selection(selection_action)
+
+                return {
+                    "success": False,
+                    "error": "Selection required",
+                    "requires_selection": True,
+                    "candidate_actions": self._selection_context_actions(),
+                }
+
         try:
             action = self._dict_to_action(action_dict)
         except Exception as exc:  # invalid action dict
@@ -1506,6 +1884,17 @@ class GameRunner:
             result = {"type": "end_turn"}
             self._log("End turn")
 
+        # Smoke Bomb escape path: leave combat with no rewards and no defeat.
+        if self.current_combat and getattr(self.current_combat.state, "escaped", False):
+            self.run_state.current_hp = self.current_combat.state.player.hp
+            self.current_combat = None
+            self.current_rewards = None
+            self.phase = GamePhase.MAP_NAVIGATION
+            result["escaped"] = True
+            self._log("Escaped combat with Smoke Bomb (no rewards)")
+            self._sync_rng_counters()
+            return True, result
+
         # Check if combat is over
         if self.current_combat.is_combat_over():
             if self.current_combat.is_victory():
@@ -1629,7 +2018,13 @@ class GameRunner:
         # Handle relic
         elif action.reward_type == "relic":
             if rewards.relic and not rewards.relic.claimed:
-                self.run_state.add_relic(rewards.relic.relic.id)
+                self.run_state.add_relic(
+                    rewards.relic.relic.id,
+                    misc_rng=self.misc_rng,
+                    card_rng=self.card_rng,
+                    relic_rng=self.relic_rng,
+                    potion_rng=self.potion_rng,
+                )
                 rewards.relic.claimed = True
                 self._log(f"Gained relic: {rewards.relic.relic.name}")
                 result["relic_gained"] = rewards.relic.relic.name
@@ -1816,7 +2211,7 @@ class GameRunner:
                 return False, {"error": "Not enough gold"}
 
             # Process purchase
-            self.run_state.lose_gold(shop_card.price)
+            self.run_state.spend_gold(shop_card.price)
             self.run_state.add_card(shop_card.card.id, shop_card.card.upgraded)
             shop_card.purchased = True
 
@@ -1842,7 +2237,7 @@ class GameRunner:
                 return False, {"error": "Not enough gold"}
 
             # Process purchase
-            self.run_state.lose_gold(shop_card.price)
+            self.run_state.spend_gold(shop_card.price)
             self.run_state.add_card(shop_card.card.id, shop_card.card.upgraded)
             shop_card.purchased = True
 
@@ -1868,8 +2263,14 @@ class GameRunner:
                 return False, {"error": "Not enough gold"}
 
             # Process purchase
-            self.run_state.lose_gold(shop_relic.price)
-            self.run_state.add_relic(shop_relic.relic.id)
+            self.run_state.spend_gold(shop_relic.price)
+            self.run_state.add_relic(
+                shop_relic.relic.id,
+                misc_rng=self.misc_rng,
+                card_rng=self.card_rng,
+                relic_rng=self.relic_rng,
+                potion_rng=self.potion_rng,
+            )
             shop_relic.purchased = True
 
             self._log(f"Purchased {shop_relic.relic.name} for {shop_relic.price} gold")
@@ -1897,7 +2298,7 @@ class GameRunner:
                 return False, {"error": "Not enough gold"}
 
             # Process purchase
-            self.run_state.lose_gold(shop_potion.price)
+            self.run_state.spend_gold(shop_potion.price)
             self.run_state.add_potion(shop_potion.potion.id)
             shop_potion.purchased = True
 
@@ -1926,7 +2327,7 @@ class GameRunner:
 
             # Process removal
             cost = self.current_shop.purge_cost
-            self.run_state.lose_gold(cost)
+            self.run_state.spend_gold(cost)
             self.run_state.remove_card(card_idx)
             self.current_shop.purge_available = False
 
@@ -1990,7 +2391,13 @@ class GameRunner:
                 result = {"ruby_key": True}
 
         elif action.action_type == "dig":
-            rest_result = RestHandler.dig(self.run_state, self.relic_rng)
+            rest_result = RestHandler.dig(
+                self.run_state,
+                self.relic_rng,
+                misc_rng=self.misc_rng,
+                card_rng=self.card_rng,
+                potion_rng=self.potion_rng,
+            )
             if rest_result.relic_gained:
                 self._log(f"Dug with Shovel: gained {rest_result.relic_gained}")
                 result = {"dug": rest_result.relic_gained}
@@ -2021,6 +2428,9 @@ class GameRunner:
                 treasure_rng=self.treasure_rng,
                 relic_rng=self.relic_rng,
                 take_sapphire_key=False,
+                misc_rng=self.misc_rng,
+                card_rng=self.card_rng,
+                potion_rng=self.potion_rng,
             )
             self._sync_rng_counters()
             self._log(f"Opened {reward.chest_type.value} chest: {reward.relic_name} ({reward.relic_tier})")
@@ -2044,6 +2454,9 @@ class GameRunner:
                 treasure_rng=self.treasure_rng,
                 relic_rng=self.relic_rng,
                 take_sapphire_key=True,
+                misc_rng=self.misc_rng,
+                card_rng=self.card_rng,
+                potion_rng=self.potion_rng,
             )
             self._sync_rng_counters()
             self._log("Obtained Sapphire Key (skipped relic)")
@@ -2070,7 +2483,13 @@ class GameRunner:
                 RewardHandler._handle_boss_relic_pickup(self.run_state, relic)
 
                 # Add the relic
-                self.run_state.add_relic(relic.id)
+                self.run_state.add_relic(
+                    relic.id,
+                    misc_rng=self.misc_rng,
+                    card_rng=self.card_rng,
+                    relic_rng=self.relic_rng,
+                    potion_rng=self.potion_rng,
+                )
                 boss_relics.chosen_index = action.relic_index
 
                 self._log(f"Boss relic chosen: {relic.name}")
@@ -2124,9 +2543,21 @@ class GameRunner:
     # Room Entry Handlers
     # =========================================================================
 
+    def _apply_room_entry_relics(self, room_type: RoomType) -> None:
+        """Apply out-of-combat relic effects that trigger on room entry."""
+        # Java Maw Bank: gain 12 gold on every room entry until spent.
+        maw_bank = self.run_state.get_relic("MawBank")
+        if maw_bank and maw_bank.counter != -2:
+            self.run_state.add_gold(12)
+
+        # Ssserpent Head: gain 50 gold on entering ? rooms.
+        if room_type == RoomType.EVENT and self.run_state.has_relic("SsserpentHead"):
+            self.run_state.add_gold(50)
+
     def _enter_room(self, node: MapRoomNode):
         """Enter a room and set up appropriate phase."""
         room_type = node.room_type
+        self._apply_room_entry_relics(room_type)
 
         if room_type == RoomType.MONSTER:
             self._enter_combat(is_elite=False, is_boss=False)
@@ -2196,6 +2627,7 @@ class GameRunner:
                 relics=relics,
                 potions=potions,
                 ascension=self.run_state.ascension,
+                bottled_cards=self.run_state.get_bottled_cards(),
             )
         else:
             # Fallback to simple combat for unknown encounters
@@ -2208,6 +2640,15 @@ class GameRunner:
                 deck=deck_ids,
             )
             self.current_combat.state.potions = potions
+
+        # Attach room metadata + RNG streams so combat/potion handlers can use proper context.
+        self.current_combat.state.current_room_type = self.current_room_type
+        self.current_combat.state.is_boss_combat = bool(is_boss)
+        self.current_combat.state.card_rng = self.card_rng
+        self.current_combat.state.card_random_rng = self.card_random_rng
+        self.current_combat.state.potion_rng = self.potion_rng
+        self.current_combat.state.relic_rng = self.relic_rng
+        self.current_combat.state.player_class = str(self.run_state.character).upper()
 
         # Start combat
         self.current_combat.start_combat()
@@ -2329,7 +2770,8 @@ class GameRunner:
         # Select an event using the event handler
         self.current_event_state = self.event_handler.select_event(
             self.run_state,
-            self.event_rng
+            self.event_rng,
+            misc_rng=self.misc_rng
         )
         self._sync_rng_counters()
 

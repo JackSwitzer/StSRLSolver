@@ -17,6 +17,8 @@ from packages.engine import (
     GameRunner, GamePhase,
     ActionDict, ActionResult, ObservationDict,
 )
+from packages.engine.combat_engine import CombatEngine
+from packages.engine.state.combat import create_combat, create_enemy
 
 
 # =============================================================================
@@ -124,7 +126,9 @@ class TestActionDictGeneration:
         _navigate_to_room_type(runner, "SHOP")
 
         if runner.phase != GamePhase.SHOP:
-            pytest.skip("Could not reach shop")
+            # Deterministic fallback: force-enter shop to validate action surface.
+            runner = GameRunner(seed="AGENTTEST_SHOP", ascension=20, verbose=False)
+            runner._enter_shop()
 
         actions = runner.get_available_action_dicts()
 
@@ -138,7 +142,9 @@ class TestActionDictGeneration:
         _navigate_to_room_type(runner, "REST")
 
         if runner.phase != GamePhase.REST:
-            pytest.skip("Could not reach rest site")
+            # Deterministic fallback: force-enter rest to validate action surface.
+            runner = GameRunner(seed="AGENTTEST_REST", ascension=20, verbose=False)
+            runner._enter_rest()
 
         actions = runner.get_available_action_dicts()
 
@@ -263,6 +269,129 @@ class TestActionExecution:
         })
 
         assert result.get("success", False), f"End turn should succeed: {result}"
+
+    def test_selection_potion_returns_candidate_actions_when_params_missing(self, runner):
+        """Selection-required potions should return explicit candidate actions."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = ["Strike_P", "Defend_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        result = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert len(candidates) >= 1
+        assert all(a.get("type") == "select_cards" for a in candidates)
+
+    def test_selection_potion_roundtrip_with_select_cards(self, runner):
+        """Agent should resolve Liquid Memories via follow-up select_cards action."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = ["Strike_P", "Defend_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        first = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates, "Expected select_cards candidates"
+
+        second = runner.take_action_dict(candidates[0])
+        assert second.get("success") is True
+        assert runner.current_combat.state.potions[0] == ""
+        assert len(runner.current_combat.state.hand) >= 1
+
+    def test_selection_potion_empty_discard_returns_error(self, runner):
+        """Liquid Memories should fail cleanly when discard pile is empty."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P"],
+            relics=[],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = []
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        result = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+
+        assert result.get("success") is False
+        assert "discard" in result.get("error", "").lower()
+        assert runner.current_combat.state.potions[0] == "LiquidMemories"
+
+    def test_selection_potion_triggers_on_use_potion_relics(self, runner):
+        """Selection potion flows should trigger onUsePotion relic hooks."""
+        state = create_combat(
+            player_hp=40,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P"],
+            relics=["Toy Ornithopter"],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = ["Strike_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        result = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0, "card_indices": [0]},
+        })
+
+        assert result.get("success") is True
+        assert runner.current_combat.state.player.hp == 45
+        assert runner.current_combat.state.potions[0] == ""
+
+    def test_stance_potion_roundtrip_with_select_stance(self, runner):
+        """Stance Potion should emit select_stance actions and apply chosen stance."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["StancePotion", "", ""],
+        )
+        state.stance = "Neutral"
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        first = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates, "Expected select_stance candidates"
+        assert all(a.get("type") == "select_stance" for a in candidates)
+
+        second = runner.take_action_dict(candidates[0])
+        assert second.get("success") is True
+        assert runner.current_combat.state.stance in ("Calm", "Wrath")
 
 
 # =============================================================================
