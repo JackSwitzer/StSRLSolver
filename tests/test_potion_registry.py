@@ -66,7 +66,7 @@ class TestFirePotion:
 
     def test_fire_potion_with_sacred_bark(self):
         """Fire Potion with Sacred Bark should deal 40 damage."""
-        state = self._create_combat_state(relics=["SacredBark"])
+        state = self._create_combat_state(relics=["Sacred Bark"])
         initial_hp = state.enemies[0].hp
 
         result = execute_potion_effect("Fire Potion", state, target_idx=0)
@@ -116,7 +116,7 @@ class TestBlockPotion:
 
     def test_block_potion_with_sacred_bark(self):
         """Block Potion with Sacred Bark should gain 24 block."""
-        state = self._create_combat_state(relics=["SacredBark"])
+        state = self._create_combat_state(relics=["Sacred Bark"])
 
         result = execute_potion_effect("Block Potion", state, target_idx=-1)
 
@@ -153,7 +153,7 @@ class TestStrengthPotion:
 
     def test_strength_potion_with_sacred_bark(self):
         """Strength Potion with Sacred Bark should gain 4 Strength."""
-        state = self._create_combat_state(relics=["SacredBark"])
+        state = self._create_combat_state(relics=["Sacred Bark"])
 
         result = execute_potion_effect("Strength Potion", state, target_idx=-1)
 
@@ -199,7 +199,7 @@ class TestWeakPotion:
 
     def test_weak_potion_with_sacred_bark(self):
         """Weak Potion with Sacred Bark should apply 6 Weak."""
-        state = self._create_combat_state(relics=["SacredBark"])
+        state = self._create_combat_state(relics=["Sacred Bark"])
 
         result = execute_potion_effect("Weak Potion", state, target_idx=0)
 
@@ -236,7 +236,7 @@ class TestEnergyPotion:
 
     def test_energy_potion_with_sacred_bark(self):
         """Energy Potion with Sacred Bark should gain 4 energy."""
-        state = self._create_combat_state(relics=["SacredBark"])
+        state = self._create_combat_state(relics=["Sacred Bark"])
         assert state.energy == 3
 
         result = execute_potion_effect("Energy Potion", state, target_idx=-1)
@@ -274,7 +274,7 @@ class TestCombatRunnerPotionIntegration:
         """CombatRunner with Sacred Bark should double potion potency."""
         run = create_watcher_run("TEST123", ascension=0)
         run.potion_slots[0].potion_id = "Strength Potion"
-        run.relics.append(type("Relic", (), {"id": "SacredBark"})())
+        run.relics.append(type("Relic", (), {"id": "Sacred Bark"})())
 
         rng = Random(12345)
         enemies = [JawWorm(ai_rng=rng, ascension=0, hp_rng=rng)]
@@ -422,7 +422,7 @@ class TestPotionsSacredBarkExempt:
 
     def test_blessing_of_forge_not_doubled(self):
         """Blessing of the Forge should upgrade hand, not doubled by Sacred Bark."""
-        state = self._create_combat_state(["BlessingOfTheForge"], relics=["SacredBark"])
+        state = self._create_combat_state(["BlessingOfTheForge"], relics=["Sacred Bark"])
         state.hand = ["Strike", "Defend"]
 
         result = execute_potion_effect("BlessingOfTheForge", state, target_idx=-1)
@@ -434,7 +434,7 @@ class TestPotionsSacredBarkExempt:
 
     def test_gamblers_brew_not_doubled(self):
         """Gambler's Brew should reshuffle hand, not doubled by Sacred Bark."""
-        state = self._create_combat_state(["GamblersBrew"], relics=["SacredBark"])
+        state = self._create_combat_state(["GamblersBrew"], relics=["Sacred Bark"])
         state.hand = ["Card1", "Card2"]
         state.draw_pile = ["Card3", "Card4"]
 

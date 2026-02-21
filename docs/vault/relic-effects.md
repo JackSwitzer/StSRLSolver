@@ -71,10 +71,10 @@ Extracted from decompiled source code. Includes mechanical effects, trigger cond
 ### Golden Eye
 - **ID:** `GoldenEye`
 - **Tier:** Rare (Watcher exclusive)
-- **Trigger:** `onShuffle()`
-- **Effect:** Scry 2 whenever you shuffle your draw pile
-- **Counter:** Uses counter to track (sets to 2 on shuffle)
-- **Code:** `new ScryAction(2)`
+- **Trigger:** Passive (modifies ScryAction constructor)
+- **Effect:** Whenever you Scry, Scry 2 additional cards
+- **Code:** In `ScryAction` constructor: `if (player.hasRelic("Golden Eye")) this.amount += 2`
+- **Note:** This is a passive modifier applied at the point of scry creation, not a triggered effect
 
 ---
 

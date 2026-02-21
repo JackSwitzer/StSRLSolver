@@ -1019,7 +1019,7 @@ MEDICAL_KIT = Relic(
 MELANGE = Relic(
     id="Melange", name="Melange", tier=RelicTier.SHOP,
     player_class=PlayerClass.WATCHER,
-    effects=["onEnterRestRoom: Scry 3"],
+    effects=["onShuffle: Scry 3"],
 )
 
 MEMBERSHIP_CARD = Relic(

@@ -41,8 +41,9 @@ PASSIVE_RELICS = {
     "Girya": {"lift_option": True, "lift_uses": 3},
     "Peace Pipe": {"toke_option": True},
     "Shovel": {"dig_option": True},
-    "Golden Eye": {"scry_on_rest": 5},  # Watcher only
-    "Melange": {"scry_on_rest": 3},  # Watcher only
+
+    # Scry modifiers (Watcher)
+    "Golden Eye": {"scry_bonus": 2},  # Adds +2 to all scry amounts
 
     # Event modifiers
     "Juzu Bracelet": {"no_monster_rooms": True},
