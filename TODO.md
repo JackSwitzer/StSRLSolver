@@ -9,7 +9,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
-- [x] Merged chain verified through PR `#22`; stale PR `#8` closed as superseded.
+- [x] Merged chain verified through PR `#23`; stale PR `#8` closed as superseded.
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).
@@ -67,22 +67,27 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `RWD-003` proceed gating parity.
 - [x] `RWD-004` reward modifier interaction parity.
 
-### R4: Powers + orbs closure
+### R4: Cards long-tail (non-Defect first)
+- [ ] `CRD-INV-001` non-Defect card manifest (`exact|approximate|missing`) with Java refs.
+- [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-WA-*`, `CRD-SH-*` closure.
+
+### R5: Powers + orbs closure
 - [ ] `POW-001` power inventory closure with Java references.
 - [ ] `POW-002` remaining hook/timing parity fixes.
 - [ ] `ORB-001` orb infrastructure required for relic/power parity.
 - [ ] `POW-003` power/orb/relic integration tests.
+- [ ] `CONS-001B` remaining deterministic RNG normalization in relic/potion/orb paths.
 
-### R5: Cards long-tail
-- [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-DE-*`, `CRD-WA-*` closure.
+### R6: Defect cards
+- [ ] `CRD-DE-*` closure.
 
-### R6: Final audit + RL gate
+### R7: Final audit + RL gate
 - [ ] `AUD-001` clean Java-vs-Python diff manifests.
 - [ ] `AUD-002` normal CI to `0 skipped, 0 failed`.
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `POW-001` power inventory closure with Java refs + behavior locks.
+1. `CRD-INV-001` non-Defect card manifest and traceability rows.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

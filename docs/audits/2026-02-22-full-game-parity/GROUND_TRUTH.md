@@ -1,12 +1,12 @@
 # Ground Truth: Java Parity + Agent Contract
 
 Last updated: 2026-02-22  
-Main branch baseline commit: `609943ce943b45ecfcef51211609f6f61009b7d4`
+Main branch baseline commit: `bc329dc261364bde8a4672a4fe58f1682dd6f197`
 
 ## Current baseline
 - Command: `uv run pytest tests/ -q`
 - Result: `4659 passed, 5 skipped, 0 failed`
-- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22)
+- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23)
 
 ## Source-of-truth references
 - Java source root used in this campaign:
