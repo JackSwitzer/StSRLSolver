@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4652 passed, 5 skipped, 0 failed`
+- Suite baseline: `4654 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -39,8 +39,8 @@ Last updated: 2026-02-22
 - `EVT-004` event alias/inventory parity (completed)
 
 ### Batch R3
-- `RWD-001` canonical reward action emission path
-- `RWD-002` canonical reward action execution path
+- `RWD-001` canonical reward action emission path (completed)
+- `RWD-002` canonical reward action execution path (completed)
 - `RWD-003` proceed gating parity
 - `RWD-004` reward modifiers parity
 
