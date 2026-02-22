@@ -788,17 +788,18 @@ class GameRunner:
             source_metadata = {"item_index": item_index}
 
         elif action_type == "claim_relic":
-            if (
-                self.phase != GamePhase.COMBAT_REWARDS
-                or self.current_rewards is None
-                or self.current_rewards.relic is None
-                or self.current_rewards.relic.claimed
-            ):
+            if self.phase != GamePhase.COMBAT_REWARDS or self.current_rewards is None:
                 return None
             reward_index = int(params.get("relic_reward_index", 0))
-            if reward_index != 0:
+            if reward_index == 0:
+                relic_reward = self.current_rewards.relic
+            elif reward_index == 1:
+                relic_reward = self.current_rewards.second_relic
+            else:
                 return None
-            relic_id = self.current_rewards.relic.relic.id
+            if relic_reward is None or relic_reward.claimed:
+                return None
+            relic_id = relic_reward.relic.id
             source_action_type = "claim_relic"
             source_metadata = {"relic_reward_index": reward_index}
 
@@ -1237,8 +1238,8 @@ class GameRunner:
                 label = "Skip potion"
             elif action.reward_type == "relic":
                 action_type = "claim_relic"
-                params = {"relic_reward_index": 0}
-                label = "Claim relic"
+                params = {"relic_reward_index": action.choice_index}
+                label = f"Claim relic {action.choice_index}"
             elif action.reward_type == "emerald_key":
                 action_type = "claim_emerald_key"
                 params = {}
@@ -1375,7 +1376,8 @@ class GameRunner:
         if action_type == "skip_potion":
             return RewardAction(reward_type="skip_potion", choice_index=0)
         if action_type == "claim_relic":
-            return RewardAction(reward_type="relic", choice_index=0)
+            relic_reward_index = int(params.get("relic_reward_index", 0))
+            return RewardAction(reward_type="relic", choice_index=relic_reward_index)
         if action_type == "claim_emerald_key":
             return RewardAction(reward_type="emerald_key", choice_index=0)
         if action_type == "skip_emerald_key":
@@ -1504,22 +1506,31 @@ class GameRunner:
                 if shop_relic is not None and shop_relic.relic.id in selection_relics:
                     action["requires"] = ["card_indices"]
 
-        if (
-            self.phase == GamePhase.COMBAT_REWARDS
-            and self.current_rewards is not None
-            and self.current_rewards.relic is not None
-            and not self.current_rewards.relic.claimed
-        ):
-            if self.current_rewards.relic.relic.id in {
+        if self.phase == GamePhase.COMBAT_REWARDS and self.current_rewards is not None:
+            selection_relics = {
                 "Orrery",
                 "Bottled Flame",
                 "Bottled Lightning",
                 "Bottled Tornado",
                 "DollysMirror",
-            }:
-                for action in actions:
-                    if action.get("type") == "claim_relic":
-                        action["requires"] = ["card_indices"]
+            }
+            for action in actions:
+                if action.get("type") != "claim_relic":
+                    continue
+                params = action.get("params", {}) or {}
+                reward_index = int(params.get("relic_reward_index", 0))
+                if reward_index == 0:
+                    relic_reward = self.current_rewards.relic
+                elif reward_index == 1:
+                    relic_reward = self.current_rewards.second_relic
+                else:
+                    continue
+                if (
+                    relic_reward is not None
+                    and not relic_reward.claimed
+                    and relic_reward.relic.id in selection_relics
+                ):
+                    action["requires"] = ["card_indices"]
 
         if self.phase == GamePhase.EVENT and self.current_event_state is not None:
             for action in actions:
@@ -2182,7 +2193,7 @@ class GameRunner:
         if isinstance(action, SingingBowlAction):
             return RewardAction(reward_type="singing_bowl", choice_index=action.card_reward_index)
         if isinstance(action, ClaimRelicAction):
-            return RewardAction(reward_type="relic", choice_index=0)
+            return RewardAction(reward_type="relic", choice_index=action.reward_index)
         if isinstance(action, ClaimEmeraldKeyAction):
             return RewardAction(reward_type="emerald_key", choice_index=0)
         if isinstance(action, SkipEmeraldKeyAction):
@@ -2211,7 +2222,7 @@ class GameRunner:
         if action.reward_type == "singing_bowl":
             return SingingBowlAction(card_reward_index=action.choice_index)
         if action.reward_type == "relic":
-            return ClaimRelicAction()
+            return ClaimRelicAction(reward_index=action.choice_index)
         if action.reward_type == "emerald_key":
             return ClaimEmeraldKeyAction()
         if action.reward_type == "skip_emerald_key":
@@ -2230,6 +2241,8 @@ class GameRunner:
 
         # Elite relic is mandatory (can't skip)
         if rewards.relic and not rewards.relic.claimed:
+            return False
+        if rewards.second_relic and not rewards.second_relic.claimed:
             return False
 
         # Potion and emerald key are optional

@@ -198,6 +198,8 @@ class CombatRewards:
         # Relic must be claimed (can't skip elite relic)
         if self.relic and not self.relic.claimed:
             return False
+        if self.second_relic and not self.second_relic.claimed:
+            return False
 
         # Emerald key is optional
         # Boss relics must be chosen
@@ -218,6 +220,8 @@ class CombatRewards:
                 unclaimed.append(f"card_{i}")
         if self.relic and not self.relic.claimed:
             unclaimed.append("relic")
+        if self.second_relic and not self.second_relic.claimed:
+            unclaimed.append("second_relic")
         if self.emerald_key and not self.emerald_key.claimed:
             unclaimed.append("emerald_key")
         if self.boss_relics and not self.boss_relics.is_resolved:
@@ -269,7 +273,7 @@ class SingingBowlAction:
 @dataclass(frozen=True)
 class ClaimRelicAction:
     """Claim relic reward (elite only)."""
-    pass
+    reward_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -610,7 +614,9 @@ class RewardHandler:
 
         # Relic actions (elite)
         if rewards.relic and not rewards.relic.claimed:
-            actions.append(ClaimRelicAction())
+            actions.append(ClaimRelicAction(reward_index=0))
+        if rewards.second_relic and not rewards.second_relic.claimed:
+            actions.append(ClaimRelicAction(reward_index=1))
 
         # Emerald key actions
         if rewards.emerald_key and not rewards.emerald_key.claimed:
@@ -638,6 +644,8 @@ class RewardHandler:
                 break
 
         if rewards.relic and not rewards.relic.claimed:
+            mandatory_resolved = False
+        if rewards.second_relic and not rewards.second_relic.claimed:
             mandatory_resolved = False
 
         if rewards.boss_relics and not rewards.boss_relics.is_resolved:
@@ -760,21 +768,33 @@ class RewardHandler:
                     result["error"] = "Invalid card reward index"
 
         elif isinstance(action, ClaimRelicAction):
-            if rewards.relic and not rewards.relic.claimed:
-                run_state.add_relic(
-                    rewards.relic.relic.id,
-                    misc_rng=misc_rng,
-                    card_rng=card_rng,
-                    relic_rng=relic_rng,
-                    potion_rng=potion_rng,
-                    selection_card_indices=selection_card_indices,
-                )
-                rewards.relic.claimed = True
-                result["relic_id"] = rewards.relic.relic.id
-                result["relic_name"] = rewards.relic.relic.name
+            reward_index = int(action.reward_index)
+            if reward_index == 0:
+                relic_reward = rewards.relic
+            elif reward_index == 1:
+                relic_reward = rewards.second_relic
             else:
                 result["success"] = False
-                result["error"] = "No relic to claim"
+                result["error"] = f"Invalid relic reward index: {reward_index}"
+                relic_reward = None
+
+            if result.get("success", False):
+                if relic_reward is None or relic_reward.claimed:
+                    result["success"] = False
+                    result["error"] = f"No relic to claim at index {reward_index}"
+                else:
+                    run_state.add_relic(
+                        relic_reward.relic.id,
+                        misc_rng=misc_rng,
+                        card_rng=card_rng,
+                        relic_rng=relic_rng,
+                        potion_rng=potion_rng,
+                        selection_card_indices=selection_card_indices,
+                    )
+                    relic_reward.claimed = True
+                    result["relic_id"] = relic_reward.relic.id
+                    result["relic_name"] = relic_reward.relic.name
+                    result["relic_reward_index"] = reward_index
 
         elif isinstance(action, ClaimEmeraldKeyAction):
             if rewards.emerald_key and not rewards.emerald_key.claimed:

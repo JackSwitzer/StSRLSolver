@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4656 passed, 5 skipped, 0 failed`
+- Suite baseline: `4659 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -42,7 +42,7 @@ Last updated: 2026-02-22
 - `RWD-001` canonical reward action emission path (completed)
 - `RWD-002` canonical reward action execution path (completed)
 - `RWD-003` proceed gating parity (completed)
-- `RWD-004` reward modifiers parity
+- `RWD-004` reward modifiers parity (completed)
 
 ### Batch R4+
 - `POW-001`, `POW-002`, `ORB-001`, `POW-003`
