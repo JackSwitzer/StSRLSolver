@@ -9,11 +9,11 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4663 passed`
+- `4669 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified on `main` after `CRD-SH-001` shared card-runtime closure.
+Re-verified on working `main` after `CRD-INV-002` card inventory closure slice.
 
 ## Structural inventory
 - Test files: `70`

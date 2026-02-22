@@ -4,6 +4,15 @@
 - Defect closure is intentionally sequenced after `ORB-001` and `POW-*` stabilization.
 - Do not mark Defect rows `exact` until orb timing/runtime parity is locked.
 
+## Inventory closure slice (`CRD-INV-002`)
+- [x] Add missing Java-ID card `Impulse` (Defect) with behavior mapping and tests.
+- [x] Add Java-ID alias coverage for `Gash` -> `Claw` and lock with inventory tests/docs.
+
+### `CRD-INV-002` closure notes
+- Java refs: `cards/blue/Impulse.java`, `actions/defect/ImpulseAction.java`, `cards/blue/Claw.java` (`ID = "Gash"`).
+- Python implementation: `content/cards.py` adds `Impulse`; `effects/defect_cards.py` adds `trigger_orb_start_end` (includes `Cables` rightmost-orb extra trigger behavior).
+- Tests: `tests/test_defect_cards.py` validates `get_card("Gash")`, `get_card("Impulse")`, and Impulse orb-passive execution.
+
 ## Model-facing actions (no UI)
 - [ ] All card effects that require choices/targets must emit explicit action options. (action: play_card{card_index,target_index})
 

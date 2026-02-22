@@ -9,7 +9,7 @@ This file tracks what Java contains and where parity closure still requires expl
 
 | domain | java source scope | java count | python count | delta notes |
 |---|---|---:|---:|---|
-| cards (core) | `cards/{red,green,purple,colorless,curses,status,blue}/*.java` (excluding `deprecated`, `optionCards`, `tempCards`) | 361 | 358 overlap with Python core IDs | Java-only IDs in local decompile are `Discipline`, `Gash`, `Impulse`; see non-Defect manifest for per-row status |
+| cards (core) | `cards/{red,green,purple,colorless,curses,status,blue}/*.java` (excluding `deprecated`, `optionCards`, `tempCards`) | 361 | 360 raw-key overlap (`361/361` via lookup alias resolution) | `Discipline` and `Impulse` are implemented; remaining raw-key variance is Java `Gash` resolved by alias to Python `Claw` |
 | relics | `relics/*.java` (excluding `AbstractRelic`, `Test*`) | 181 | 181 (`content/relics.py`) | inventory count parity reached; alias forms resolved via canonical lookup |
 | events | `events/**/*.java` (excluding framework classes) | 51 | 51 (event definitions in handler) | counts match; Java/display alias normalization locked in handler |
 | powers | `powers/*.java` + `powers/watcher/*.java` (excluding `AbstractPower`) | 149 | 94 (`content/powers.py::POWER_DATA`) | large inventory gap remains |
@@ -41,7 +41,7 @@ All of these aliases are now normalized by `handlers/event_handler.py::EVENT_ID_
 
 ## Intake checklist
 - [x] Add explicit alias rows for relic/event naming mismatches.
-- [ ] Convert card inventory deltas (`Discipline`, `Gash`, `Impulse`) into explicit disposition rows (`alias`, `legacy-decompile`, `implement`) in card manifests.
+- [x] Convert card inventory deltas (`Discipline`, `Gash`, `Impulse`) into explicit disposition rows (`alias`, `legacy-decompile`, `implement`) in card manifests.
 - [ ] Convert powers inventory gap list into per-class manifest rows (`POW-001-*`).
 - [ ] Restore or link local Java potion class inventory for fully auditable potion-class parity.
 - [ ] Link each gap row to exact Java class and method where behavior is asserted.

@@ -686,6 +686,12 @@ DEVOTION = Card(
     effects=["gain_mantra_each_turn"],
 )
 
+DISCIPLINE = Card(
+    id="Discipline", name="Discipline", card_type=CardType.POWER, rarity=CardRarity.RARE,
+    target=CardTarget.SELF, cost=2, upgrade_cost=1,
+    effects=["apply_discipline_power"],
+)
+
 FASTING = Card(
     id="Fasting2", name="Fasting", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
     # Java cardID is "Fasting2", not "Fasting"
@@ -2007,6 +2013,12 @@ WHITE_NOISE = Card(
     exhaust=True, effects=["add_random_power_to_hand_cost_0"],
 )
 
+IMPULSE = Card(
+    id="Impulse", name="Impulse", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
+    color=CardColor.BLUE, target=CardTarget.SELF, cost=1,
+    exhaust=True, upgrade_exhaust=False, effects=["trigger_orb_start_end"],
+)
+
 
 # === UNCOMMON POWERS ===
 
@@ -2223,6 +2235,7 @@ DEFECT_CARDS: Dict[str, Card] = {
     "Genetic Algorithm": GENETIC_ALGORITHM,
     "Glacier": GLACIER,
     "Steam Power": OVERCLOCK,
+    "Impulse": IMPULSE,
     "Recycle": RECYCLE,
     "Reinforced Body": REINFORCED_BODY,
     "Reprogram": REPROGRAM,
@@ -2347,6 +2360,7 @@ WATCHER_CARDS: Dict[str, Card] = {
     # Rare Powers
     "DevaForm": DEVA_FORM,
     "Devotion": DEVOTION,
+    "Discipline": DISCIPLINE,
     "Fasting2": FASTING,  # Java ID is "Fasting2", not "Fasting"
     "MasterReality": MASTER_REALITY,
     # Special
@@ -3163,6 +3177,7 @@ CARD_ID_ALIASES = {
     "Foresight": "Wireheading",
     "Wraith Form": "Wraith Form v2",
     "WraithForm": "Wraith Form v2",
+    "Gash": "Claw",
 }
 
 

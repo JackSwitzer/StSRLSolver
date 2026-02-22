@@ -5,7 +5,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4663 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4669 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
@@ -52,6 +52,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `RWD-004` indexed secondary relic claim/gating parity
 
 ### R4 cards (non-Defect first)
+- [x] `CRD-INV-002` Java-ID inventory closure slice (`Discipline`, `Impulse`, `Gash` alias coverage)
 - [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure (Burn/Decay/Doubt/Shame/Regret/Pride + Void draw lock)
 - [ ] `CRD-IC-*` Ironclad closure
 - [ ] `CRD-SI-*` Silent closure

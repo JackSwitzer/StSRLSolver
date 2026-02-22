@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `main` (current merged baseline, includes PR `#25`)
-- Suite baseline: `4663 passed, 5 skipped, 0 failed`
+- Suite baseline: `4669 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -46,6 +46,7 @@ Last updated: 2026-02-22
 
 ### Batch R4 (cards non-Defect, docs/tests/code loop)
 - `CRD-INV-001` non-Defect card manifest and Java->Python mapping rows
+- `CRD-INV-002` inventory closure slice for `Discipline`, `Impulse`, and `Gash` alias path (completed)
 - `CRD-SH-001` shared curse/status end-of-turn runtime closure (completed)
 - `CRD-IC-*` Ironclad parity clusters
 - `CRD-SI-*` Silent parity clusters

@@ -683,6 +683,12 @@ def devotion_power(ctx: EffectContext) -> None:
     ctx.apply_status_to_player("Devotion", amount)
 
 
+@effect_simple("apply_discipline_power")
+def discipline_power(ctx: EffectContext) -> None:
+    """Discipline - apply deprecated DisciplinePower with -1 sentinel amount."""
+    ctx.apply_status_to_player("DisciplinePower", -1)
+
+
 @effect_simple("retained_cards_cost_less")
 def establishment_power(ctx: EffectContext) -> None:
     """Establishment - Retained cards cost 1 less."""
@@ -1201,6 +1207,7 @@ WATCHER_CARD_EFFECTS = {
     "Wireheading": ["scry_each_turn"],  # Foresight
     "DevaForm": ["gain_energy_each_turn_stacking"],
     "Devotion": ["gain_mantra_each_turn"],
+    "Discipline": ["apply_discipline_power"],
     "Fasting2": ["gain_strength_and_dex_lose_focus"],  # Fasting
     "MasterReality": ["created_cards_upgraded"],
 

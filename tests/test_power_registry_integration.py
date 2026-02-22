@@ -74,6 +74,11 @@ class TestPowerRegistrySetup:
         """Bias should be registered for atStartOfTurn."""
         assert POWER_REGISTRY.has_handler("atStartOfTurn", "Bias")
 
+    def test_discipline_power_registered_start_and_end(self):
+        """DisciplinePower should be registered for start and end of turn."""
+        assert POWER_REGISTRY.has_handler("atStartOfTurn", "DisciplinePower")
+        assert POWER_REGISTRY.has_handler("atEndOfTurn", "DisciplinePower")
+
 
 class TestAtEndOfTurnPreEndTurnCards:
     """Test powers that trigger before discarding at end of turn."""
@@ -169,6 +174,24 @@ class TestAtStartOfTurn:
 
         assert enemy.hp == 29  # 30 - 1 poison damage
         assert "Poison" not in enemy.statuses  # Removed
+
+    def test_discipline_draws_saved_energy(self):
+        """DisciplinePower should draw saved energy count then reset."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[EnemyCombatState(hp=30, max_hp=30, id="test")],
+            deck=["A", "B", "C", "D", "E"],
+        )
+        state.hand = []
+        state.energy = 3
+        state.player.statuses["DisciplinePower"] = -1
+
+        execute_power_triggers("atEndOfTurn", state, state.player)
+        assert state.player.statuses["DisciplinePower"] == 3
+
+        execute_power_triggers("atStartOfTurn", state, state.player)
+        assert len(state.hand) == 3
+        assert state.player.statuses["DisciplinePower"] == -1
 
 
 class TestAtEndOfRound:

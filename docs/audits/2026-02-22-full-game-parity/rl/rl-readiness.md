@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Current status snapshot
-- [x] Merged parity chain for `R1` to `R3` is on `main` (through PR #21).
+- [x] Merged parity chain for `R1` to `R3` is on `main` (through PR #25).
 - [x] Reward/event/relic action-surface critical fixes are integrated.
 - [ ] Powers inventory and long-tail behavior parity are complete.
 - [ ] Orb infrastructure parity is complete.
@@ -27,7 +27,7 @@ Last updated: 2026-02-22
 - [ ] Replay/seed checks are reproducible in automation profile.
 
 ## Test quality gate
-- [x] Full suite currently green (`4663 passed, 5 skipped, 0 failed`).
+- [x] Full suite currently green (`4669 passed, 5 skipped, 0 failed`).
 - [ ] Default CI has no skips.
 - [ ] Replay artifact checks moved to dedicated parity job/profile.
 - [ ] Contingency skips in core API tests replaced by deterministic fixtures.

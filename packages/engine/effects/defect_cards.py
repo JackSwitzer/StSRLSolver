@@ -323,6 +323,23 @@ def loop_effect(ctx: EffectContext) -> None:
     manager.loop_stacks += amount
 
 
+@effect_simple("trigger_orb_start_end")
+def impulse_effect(ctx: EffectContext) -> None:
+    """Impulse: trigger each orb's start/end behavior once, then Cables bonus."""
+    manager = get_orb_manager(ctx.state)
+    if not manager.orbs:
+        return
+
+    # Java ImpulseAction iterates all player orbs and calls onStartOfTurn/onEndOfTurn.
+    # For core orb types in this engine, passive behavior is represented by _execute_passive.
+    for orb in list(manager.orbs):
+        manager._execute_passive(orb, ctx.state, manager.focus)
+
+    # Java relic check uses ID "Cables" for Gold-Plated Cables and triggers rightmost again.
+    if ctx.state.has_relic("Cables") and manager.orbs:
+        manager._execute_passive(manager.orbs[-1], ctx.state, manager.focus)
+
+
 @effect_simple("lightning_hits_all")
 def electrodynamics_lightning_all_effect(ctx: EffectContext) -> None:
     """Lightning orbs now hit ALL enemies (Electrodynamics)."""
@@ -717,6 +734,7 @@ DEFECT_CARD_EFFECTS = {
     "Barrage": ["damage_per_orb"],
     "Beam Cell": ["apply_vulnerable"],
     "Claw": ["increase_all_claw_damage"],
+    "Gash": ["increase_all_claw_damage"],
     "Cold Snap": ["channel_frost"],
     "Compile Driver": ["draw_per_unique_orb"],
     "Go for the Eyes": ["if_attacking_apply_weak"],
@@ -759,6 +777,7 @@ DEFECT_CARD_EFFECTS = {
     "Genetic Algorithm": ["block_increases_permanently"],
     "Glacier": ["channel_2_frost"],
     "Steam Power": ["add_burn_to_discard"],
+    "Impulse": ["trigger_orb_start_end"],
     "Recycle": ["exhaust_card_gain_energy"],
     "Reinforced Body": ["block_x_times"],
     "Reprogram": ["lose_focus_gain_strength_dex"],

@@ -9,7 +9,7 @@ Baseline merge commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff` (PR #25)
 - Stale historical PR [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) is closed and treated as archival only
 - Full suite baseline is stable:
   - `uv run pytest tests/ -q`
-  - `4663 passed, 5 skipped, 0 failed`
+  - `4669 passed, 5 skipped, 0 failed`
 
 ## Inventory parity snapshot (Java vs Python)
 
@@ -18,16 +18,15 @@ Baseline merge commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff` (PR #25)
 | Relics | 181 | 181 | 100.0% | Inventory parity complete; remaining work is behavior-level (`ORB-001` interactions) |
 | Events | 51 | 51 | 100.0% | Definitions, handlers, and choice generators are all 51/51/51 |
 | Powers | 149 | 94 | 63.1% | Largest remaining inventory gap |
-| Cards (core set) | 361 | 358 overlap | 99.2% overlap | Core Java IDs exclude `optionCards` and `tempCards`; 3 Java IDs still unmatched |
+| Cards (core set) | 361 | 360 key overlap (`361/361` resolvable by lookup) | 99.7% key overlap | `Discipline` and `Impulse` now implemented; `Gash` resolves via alias to `Claw` |
 | Potions | unavailable in local Java snapshot | 42 | n/a | Local decompile lacks a reliable potion class inventory root |
 
 ### Card ID variance details
-- Java-only IDs in current decompile snapshot: `Discipline`, `Gash`, `Impulse`
+- Java-only IDs in raw key comparison: `Gash`
 - Python-only IDs: `Beta`, `Claw`, `Expunger`, `Insight`, `Miracle`, `Omega`, `Safety`, `Shiv`, `Smite`, `ThroughViolence`
 - Interpretation:
   - Python-only IDs are mostly generated/temp cards used at runtime
-  - `Gash` corresponds to the Java `Claw.java` decompile ID and should be normalized in inventory manifests
-  - `Discipline` and `Impulse` require explicit policy labeling (`legacy-decompile`, `intentional-missing`, or implementation target)
+  - `Gash` is now normalized via `CARD_ID_ALIASES` (`Gash` -> `Claw`), so Java IDs are fully resolvable through `get_card(...)`
 
 ## Action/API contract status
 - Stable public runner API remains:

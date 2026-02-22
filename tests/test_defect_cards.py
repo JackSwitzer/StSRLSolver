@@ -52,6 +52,7 @@ from packages.engine.state.combat import (
 from packages.engine.effects.orbs import (
     OrbManager, OrbType, Orb, get_orb_manager, channel_orb, evoke_orb
 )
+from packages.engine.effects.registry import execute_effect, EffectContext
 
 
 # =============================================================================
@@ -802,6 +803,38 @@ class TestSpecialMechanics:
         upgraded = get_card("Claw", upgraded=True)
         assert upgraded.damage == 5
 
+    def test_gash_java_id_alias_stats(self):
+        """Gash should resolve as the Java ID alias for Claw."""
+        card = get_card("Gash")
+        assert card.cost == 0
+        assert card.damage == 3
+        assert "increase_all_claw_damage" in card.effects
+
+    def test_impulse_stats(self):
+        """Impulse: 1 cost Skill, exhaust; triggers orb start/end effects."""
+        card = get_card("Impulse")
+        assert card.cost == 1
+        assert card.card_type == CardType.SKILL
+        assert card.rarity == CardRarity.UNCOMMON
+        assert card.target == CardTarget.SELF
+        assert card.exhaust is True
+        assert "trigger_orb_start_end" in card.effects
+
+    def test_impulse_effect_triggers_orb_passives(self):
+        """Impulse should trigger orb passive behavior when orbs are present."""
+        state = create_combat(
+            player_hp=70, player_max_hp=70,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike_B"],
+        )
+        channel_orb(state, "Lightning")
+        before_hp = state.enemies[0].hp
+
+        ctx = EffectContext(state=state, card=get_card("Impulse"))
+        execute_effect("trigger_orb_start_end", ctx)
+
+        assert state.enemies[0].hp < before_hp
+
     def test_streamline_stats(self):
         """Streamline: 2 cost, 15 damage (20 upgraded), cost reduces by 1 permanently."""
         card = get_card("Streamline")
@@ -879,7 +912,7 @@ class TestDefectCardRegistry:
             "Rebound", "Streamline", "Sweeping Beam",
             # Common Skills
             "Conserve Battery", "Coolheaded", "Hologram", "Leap",
-            "Redo", "Stack", "Steam", "Turbo",
+            "Redo", "Stack", "Steam", "Turbo", "Impulse",
             # Uncommon Attacks
             "Blizzard", "Doom and Gloom", "FTL", "Lockon",
             "Melter", "Rip and Tear", "Scrape", "Sunder",

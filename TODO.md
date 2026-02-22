@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4663 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4669 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
@@ -68,7 +68,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `RWD-004` reward modifier interaction parity.
 
 ### R4: Cards long-tail (non-Defect first)
-- [ ] `CRD-INV-001` non-Defect card manifest (`exact|approximate|missing`) with Java refs.
+- [x] `CRD-INV-001` non-Defect card manifest (`exact|approximate|missing`) with Java refs.
+- [x] `CRD-INV-002` card inventory closure slice (`Discipline`, `Impulse`, `Gash` alias coverage).
 - [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure + Void draw lock.
 - [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-WA-*`, `CRD-SH-*` closure.
 
@@ -88,7 +89,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `CRD-INV-001` non-Defect card manifest and traceability rows.
+1. `POW-001` Java power inventory closure and per-class manifest rows.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

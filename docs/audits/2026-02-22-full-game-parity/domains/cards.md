@@ -9,8 +9,8 @@
 - Non-Defect manifest: [`cards-manifest-non-defect.md`](./cards-manifest-non-defect.md)
 - Snapshot from manifest:
   - Java rows in non-Defect scope: `285`
-  - Python mapped rows: `284`
-  - Missing Java IDs in non-Defect scope: `1` (`Discipline`)
+  - Python mapped rows: `285`
+  - Missing Java IDs in non-Defect scope: `0`
   - Rows with unresolved effect-handler keys: `23` (primarily remaining colorless utilities)
 
 ## Recent closure
