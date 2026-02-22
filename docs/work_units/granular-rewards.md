@@ -1,5 +1,14 @@
 # Ultra-Granular Work Units: Rewards
 
+## Current parity slice (authoritative for next commit)
+- [x] `RWD-001` Route runner reward action emission through `RewardHandler.get_available_actions`.
+- [x] `RWD-002` Route runner reward claim/skip execution through `RewardHandler.handle_action`.
+- [x] Add tests for invalid claim semantics (`success=False`) and handler/runner action-surface consistency.
+
+## Notes
+- This file contains legacy checklist items from earlier audits.
+- For active priority and completion state, use `docs/audits/2026-02-22-full-game-parity/domains/rewards.md` and `TODO.md`.
+
 ## Model-facing actions (no UI)
 - [ ] Expose all reward decisions as explicit action objects with required params. (action: pick_card{card_reward_index,card_index})
 - [ ] If parameters are missing, return action lists instead of failing. (action: pick_card{card_reward_index,card_index})

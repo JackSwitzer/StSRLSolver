@@ -20,8 +20,23 @@ from packages.engine import (
 from packages.engine.combat_engine import CombatEngine
 from packages.engine.content.relics import get_relic
 from packages.engine.handlers.event_handler import EventPhase, EventState
-from packages.engine.handlers.reward_handler import CombatRewards, BossRelicChoices
-from packages.engine.handlers.reward_handler import RelicReward
+from packages.engine.handlers.reward_handler import (
+    RewardHandler,
+    CombatRewards,
+    BossRelicChoices,
+    RelicReward,
+    GoldReward,
+    ClaimGoldAction,
+    ClaimPotionAction,
+    SkipPotionAction,
+    PickCardAction,
+    SkipCardAction,
+    SingingBowlAction,
+    ClaimRelicAction,
+    ClaimEmeraldKeyAction,
+    SkipEmeraldKeyAction,
+    ProceedFromRewardsAction,
+)
 from packages.engine.state.combat import create_combat, create_enemy
 
 
@@ -993,6 +1008,58 @@ class TestActionExecution:
         followup_ids_1 = [action["id"] for action in runner.get_available_action_dicts()]
         followup_ids_2 = [action["id"] for action in runner2.get_available_action_dicts()]
         assert followup_ids_1 == followup_ids_2
+
+    def test_reward_action_surface_matches_reward_handler(self, runner):
+        """Reward action emission should mirror RewardHandler available actions."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="monster",
+            gold=GoldReward(amount=25, claimed=False),
+        )
+
+        actions = runner.get_available_action_dicts()
+        action_types = {action["type"] for action in actions}
+
+        expected_types = set()
+        for handler_action in RewardHandler.get_available_actions(runner.run_state, runner.current_rewards):
+            if isinstance(handler_action, ClaimGoldAction):
+                expected_types.add("claim_gold")
+            elif isinstance(handler_action, ClaimPotionAction):
+                expected_types.add("claim_potion")
+            elif isinstance(handler_action, SkipPotionAction):
+                expected_types.add("skip_potion")
+            elif isinstance(handler_action, PickCardAction):
+                expected_types.add("pick_card")
+            elif isinstance(handler_action, SkipCardAction):
+                expected_types.add("skip_card")
+            elif isinstance(handler_action, SingingBowlAction):
+                expected_types.add("singing_bowl")
+            elif isinstance(handler_action, ClaimRelicAction):
+                expected_types.add("claim_relic")
+            elif isinstance(handler_action, ClaimEmeraldKeyAction):
+                expected_types.add("claim_emerald_key")
+            elif isinstance(handler_action, SkipEmeraldKeyAction):
+                expected_types.add("skip_emerald_key")
+            elif isinstance(handler_action, ProceedFromRewardsAction):
+                expected_types.add("proceed_from_rewards")
+
+        assert action_types == expected_types
+
+    def test_claim_gold_returns_error_when_already_claimed(self, runner):
+        """Claiming gold twice should return success=False with an error."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="monster",
+            gold=GoldReward(amount=10, claimed=True),
+        )
+
+        result = runner.take_action_dict({
+            "type": "claim_gold",
+            "params": {},
+        })
+
+        assert result.get("success") is False
+        assert "gold" in result.get("error", "").lower()
 
 
 # =============================================================================

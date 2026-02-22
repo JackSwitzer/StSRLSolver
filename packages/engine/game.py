@@ -1700,7 +1700,12 @@ class GameRunner:
             return {"success": False, "error": str(exc)}
 
         if not success:
-            return {"success": False, "error": "Invalid action for current state"}
+            error = "Invalid action for current state"
+            if self.decision_log:
+                last_result = self.decision_log[-1].result
+                if isinstance(last_result, dict) and last_result.get("error"):
+                    error = str(last_result["error"])
+            return {"success": False, "error": error}
         return {"success": True, "data": {}}
 
     def get_available_actions(self) -> List[GameAction]:
@@ -2143,55 +2148,77 @@ class GameRunner:
         return actions
 
     def _get_reward_actions(self) -> List[GameAction]:
-        """Get available reward choices using the RewardHandler system."""
-        actions = []
-
-        # If no rewards generated yet, only allow proceed
+        """Get available reward choices using RewardHandler as canonical source."""
         if self.current_rewards is None:
-            actions.append(RewardAction(reward_type="proceed", choice_index=0))
-            return actions
+            return [RewardAction(reward_type="proceed", choice_index=0)]
 
-        rewards = self.current_rewards
-
-        # Gold (auto-claimed, but include explicit action for clarity)
-        if rewards.gold and not rewards.gold.claimed:
-            actions.append(RewardAction(reward_type="gold", choice_index=0))
-
-        # Potion rewards
-        if rewards.potion and not rewards.potion.claimed and not rewards.potion.skipped:
-            if self.run_state.count_empty_potion_slots() > 0:
-                actions.append(RewardAction(reward_type="potion", choice_index=0))
-            actions.append(RewardAction(reward_type="skip_potion", choice_index=0))
-
-        # Card rewards (can have multiple with Prayer Wheel)
-        for i, card_reward in enumerate(rewards.card_rewards):
-            if not card_reward.is_resolved:
-                # Can pick any card from this reward
-                for j, card in enumerate(card_reward.cards):
-                    # Encode card_reward_index and card_index: i * 100 + j
-                    actions.append(RewardAction(reward_type="card", choice_index=i * 100 + j))
-
-                # Can skip this card reward
-                actions.append(RewardAction(reward_type="skip_card", choice_index=i))
-
-                # Singing Bowl option (+2 max HP instead of card)
-                if self.run_state.has_relic("Singing Bowl"):
-                    actions.append(RewardAction(reward_type="singing_bowl", choice_index=i))
-
-        # Relic rewards (elite only)
-        if rewards.relic and not rewards.relic.claimed:
-            actions.append(RewardAction(reward_type="relic", choice_index=0))
-
-        # Emerald key (burning elite only)
-        if rewards.emerald_key and not rewards.emerald_key.claimed:
-            actions.append(RewardAction(reward_type="emerald_key", choice_index=0))
-            actions.append(RewardAction(reward_type="skip_emerald_key", choice_index=0))
-
-        # Can proceed if mandatory rewards are resolved
-        if self._mandatory_rewards_resolved(rewards):
-            actions.append(RewardAction(reward_type="proceed", choice_index=0))
-
+        handler_actions = RewardHandler.get_available_actions(
+            self.run_state,
+            self.current_rewards,
+        )
+        actions: List[GameAction] = []
+        for handler_action in handler_actions:
+            mapped = self._reward_handler_action_to_game_action(handler_action)
+            if mapped is not None:
+                actions.append(mapped)
         return actions
+
+    def _reward_handler_action_to_game_action(
+        self,
+        action: RewardHandlerAction,
+    ) -> Optional[RewardAction]:
+        """Map RewardHandler action objects into GameRunner reward actions."""
+        if isinstance(action, ClaimGoldAction):
+            return RewardAction(reward_type="gold", choice_index=0)
+        if isinstance(action, ClaimPotionAction):
+            return RewardAction(reward_type="potion", choice_index=0)
+        if isinstance(action, SkipPotionAction):
+            return RewardAction(reward_type="skip_potion", choice_index=0)
+        if isinstance(action, PickCardAction):
+            encoded = action.card_reward_index * 100 + action.card_index
+            return RewardAction(reward_type="card", choice_index=encoded)
+        if isinstance(action, SkipCardAction):
+            return RewardAction(reward_type="skip_card", choice_index=action.card_reward_index)
+        if isinstance(action, SingingBowlAction):
+            return RewardAction(reward_type="singing_bowl", choice_index=action.card_reward_index)
+        if isinstance(action, ClaimRelicAction):
+            return RewardAction(reward_type="relic", choice_index=0)
+        if isinstance(action, ClaimEmeraldKeyAction):
+            return RewardAction(reward_type="emerald_key", choice_index=0)
+        if isinstance(action, SkipEmeraldKeyAction):
+            return RewardAction(reward_type="skip_emerald_key", choice_index=0)
+        if isinstance(action, ProceedFromRewardsAction):
+            return RewardAction(reward_type="proceed", choice_index=0)
+        return None
+
+    def _game_reward_action_to_handler_action(
+        self,
+        action: RewardAction,
+    ) -> Optional[RewardHandlerAction]:
+        """Map GameRunner reward action into RewardHandler action object."""
+        if action.reward_type == "gold":
+            return ClaimGoldAction()
+        if action.reward_type == "potion":
+            return ClaimPotionAction()
+        if action.reward_type == "skip_potion":
+            return SkipPotionAction()
+        if action.reward_type == "card":
+            card_reward_idx = action.choice_index // 100
+            card_idx = action.choice_index % 100
+            return PickCardAction(card_reward_index=card_reward_idx, card_index=card_idx)
+        if action.reward_type == "skip_card":
+            return SkipCardAction(card_reward_index=action.choice_index)
+        if action.reward_type == "singing_bowl":
+            return SingingBowlAction(card_reward_index=action.choice_index)
+        if action.reward_type == "relic":
+            return ClaimRelicAction()
+        if action.reward_type == "emerald_key":
+            return ClaimEmeraldKeyAction()
+        if action.reward_type == "skip_emerald_key":
+            return SkipEmeraldKeyAction()
+        if action.reward_type == "proceed":
+            return ProceedFromRewardsAction()
+        return None
 
     def _mandatory_rewards_resolved(self, rewards: CombatRewards) -> bool:
         """Check if all mandatory rewards have been resolved (allowing proceed)."""
@@ -2499,6 +2526,10 @@ class GameRunner:
         # Handle proceed action
         if action.reward_type == "proceed":
             self._log("Proceeding from rewards")
+            if self.current_rewards is not None:
+                auto_claimed = RewardHandler.auto_claim_gold(self.run_state, self.current_rewards)
+                if auto_claimed:
+                    self._log(f"Auto-claimed {auto_claimed} gold")
             if self._boss_fight_pending_boss_rewards:
                 # After collecting combat rewards from boss, go to BOSS_REWARDS
                 self._boss_fight_pending_boss_rewards = False
@@ -2528,129 +2559,36 @@ class GameRunner:
             return True, {"no_rewards": True}
 
         rewards = self.current_rewards
-        result = {"reward_type": action.reward_type, "success": True}
+        handler_action = self._game_reward_action_to_handler_action(action)
+        if handler_action is None:
+            return False, {"error": f"Unknown reward action: {action.reward_type}"}
 
-        # Handle gold
-        if action.reward_type == "gold":
-            if rewards.gold and not rewards.gold.claimed:
-                amount = rewards.gold.amount
-                self.run_state.add_gold(amount)
-                rewards.gold.claimed = True
-                self._log(f"Gained {amount} gold (total: {self.run_state.gold})")
-                result["gold_gained"] = amount
+        selection_indices = (
+            list(self._pending_relic_selection_indices)
+            if action.reward_type == "relic" and self._pending_relic_selection_indices is not None
+            else None
+        )
+        result = RewardHandler.handle_action(
+            handler_action,
+            self.run_state,
+            rewards,
+            misc_rng=self.misc_rng,
+            card_rng=self.card_rng,
+            relic_rng=self.relic_rng,
+            potion_rng=self.potion_rng,
+            selection_card_indices=selection_indices,
+        )
+        if action.reward_type == "relic":
+            self._pending_relic_selection_indices = None
 
-        # Handle potion
-        elif action.reward_type == "potion":
-            if rewards.potion and not rewards.potion.claimed:
-                if self.run_state.count_empty_potion_slots() > 0:
-                    self.run_state.add_potion(rewards.potion.potion.id)
-                    rewards.potion.claimed = True
-                    self._log(f"Gained potion: {rewards.potion.potion.name}")
-                    result["potion_gained"] = rewards.potion.potion.name
-                else:
-                    result["success"] = False
-                    result["error"] = "No empty potion slots"
+        if not result.get("success", False):
+            return False, result
 
-        elif action.reward_type == "skip_potion":
-            if rewards.potion and not rewards.potion.claimed:
-                rewards.potion.skipped = True
-                self._log("Skipped potion")
-                result["potion_skipped"] = True
-
-        # Handle card
-        elif action.reward_type == "card":
-            # Decode card_reward_index and card_index from choice_index
-            card_reward_idx = action.choice_index // 100
-            card_idx = action.choice_index % 100
-
-            if card_reward_idx < len(rewards.card_rewards):
-                card_reward = rewards.card_rewards[card_reward_idx]
-                if not card_reward.is_resolved and card_idx < len(card_reward.cards):
-                    card = card_reward.cards[card_idx]
-                    self.run_state.add_card(card.id, card.upgraded)
-                    card_reward.claimed_index = card_idx
-                    self._log(f"Added {card.name} to deck")
-                    result["card_added"] = card.name
-                    result["card_rarity"] = card.rarity.name if hasattr(card, 'rarity') else "UNKNOWN"
-                else:
-                    result["success"] = False
-                    result["error"] = "Invalid card choice"
-            else:
-                result["success"] = False
-                result["error"] = "Invalid card reward index"
-
-        elif action.reward_type == "skip_card":
-            card_reward_idx = action.choice_index
-            if card_reward_idx < len(rewards.card_rewards):
-                card_reward = rewards.card_rewards[card_reward_idx]
-                if not card_reward.is_resolved:
-                    card_reward.skipped = True
-                    self._log("Skipped card reward")
-                    result["card_skipped"] = True
-
-        elif action.reward_type == "singing_bowl":
-            if self.run_state.has_relic("Singing Bowl"):
-                card_reward_idx = action.choice_index
-                if card_reward_idx < len(rewards.card_rewards):
-                    card_reward = rewards.card_rewards[card_reward_idx]
-                    if not card_reward.is_resolved:
-                        self.run_state.gain_max_hp(2)
-                        self.run_state.heal(2)
-                        card_reward.singing_bowl_used = True
-                        self._log("Singing Bowl: +2 Max HP")
-                        result["max_hp_gained"] = 2
-
-        # Handle relic
-        elif action.reward_type == "relic":
-            if rewards.relic and not rewards.relic.claimed:
-                selection_relics = {
-                    "Orrery",
-                    "Bottled Flame",
-                    "Bottled Lightning",
-                    "Bottled Tornado",
-                    "DollysMirror",
-                }
-                selection_indices = (
-                    list(self._pending_relic_selection_indices)
-                    if rewards.relic.relic.id in selection_relics
-                    and self._pending_relic_selection_indices is not None
-                    else None
-                )
-                self.run_state.add_relic(
-                    rewards.relic.relic.id,
-                    misc_rng=self.misc_rng,
-                    card_rng=self.card_rng,
-                    relic_rng=self.relic_rng,
-                    potion_rng=self.potion_rng,
-                    selection_card_indices=selection_indices,
-                )
-                self._pending_relic_selection_indices = None
-                rewards.relic.claimed = True
-                self._log(f"Gained relic: {rewards.relic.relic.name}")
-                result["relic_gained"] = rewards.relic.relic.name
-
-        # Handle emerald key
-        elif action.reward_type == "emerald_key":
-            if rewards.emerald_key and not rewards.emerald_key.claimed:
-                self.run_state.obtain_emerald_key()
-                rewards.emerald_key.claimed = True
-                self._log("Obtained Emerald Key")
-                result["emerald_key"] = True
-
-        elif action.reward_type == "skip_emerald_key":
-            if rewards.emerald_key and not rewards.emerald_key.claimed:
-                rewards.emerald_key.claimed = True  # Mark as resolved
-                self._log("Skipped Emerald Key")
-                result["emerald_key_skipped"] = True
-
-        # Auto-proceed if all mandatory rewards resolved
+        # Preserve previous auto-claim behavior once non-gold mandatory rewards are resolved.
         if self._mandatory_rewards_resolved(rewards):
-            # Auto-claim gold if not yet claimed
-            if rewards.gold and not rewards.gold.claimed:
-                amount = rewards.gold.amount
-                self.run_state.add_gold(amount)
-                rewards.gold.claimed = True
-                self._log(f"Auto-claimed {amount} gold")
+            auto_claimed = RewardHandler.auto_claim_gold(self.run_state, rewards)
+            if auto_claimed:
+                self._log(f"Auto-claimed {auto_claimed} gold")
 
         return True, result
 

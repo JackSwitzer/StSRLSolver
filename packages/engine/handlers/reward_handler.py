@@ -658,6 +658,7 @@ class RewardHandler:
         card_rng: Optional[Random] = None,
         relic_rng: Optional[Random] = None,
         potion_rng: Optional[Random] = None,
+        selection_card_indices: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         """
         Process a reward action and update state.
@@ -766,6 +767,7 @@ class RewardHandler:
                     card_rng=card_rng,
                     relic_rng=relic_rng,
                     potion_rng=potion_rng,
+                    selection_card_indices=selection_card_indices,
                 )
                 rewards.relic.claimed = True
                 result["relic_id"] = rewards.relic.relic.id
