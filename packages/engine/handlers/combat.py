@@ -932,7 +932,9 @@ class CombatRunner:
             target = self.state.enemies[target_idx]
 
         # Apply potion effect
-        self._apply_potion_effect(potion_id, target, result)
+        applied = self._apply_potion_effect(potion_id, target, result)
+        if not applied:
+            return result
 
         # Remove potion
         self.state.potions[potion_idx] = ""
@@ -943,7 +945,7 @@ class CombatRunner:
 
         return result
 
-    def _apply_potion_effect(self, potion_id: str, target: Optional[EnemyCombatState], result: dict):
+    def _apply_potion_effect(self, potion_id: str, target: Optional[EnemyCombatState], result: dict) -> bool:
         """Apply a potion's effect using the registry system."""
         from ..registry import execute_potion_effect
 
@@ -959,9 +961,12 @@ class CombatRunner:
         if registry_result.get("success"):
             potency = registry_result.get("potency", 0)
             result["effects"].append({"type": "potion_used", "potion": potion_id, "potency": potency})
+            return True
         else:
-            # Fallback for any potions not yet in registry (should not happen)
-            result["effects"].append({"type": "error", "error": registry_result.get("error", "Unknown error")})
+            result["success"] = False
+            result["error"] = registry_result.get("error", "Unknown error")
+            result["effects"].append({"type": "error", "error": result["error"]})
+            return False
 
     def _end_player_turn(self):
         """End player turn and start enemy turn."""

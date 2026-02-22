@@ -50,3 +50,6 @@
 
 ## Remaining potion-domain items
 - Normalize/centralize duplicate potion execution between registry and `CombatEngine` (single authoritative path).
+  - `POT-001` target scope:
+    - route Distilled Chaos runtime execution through active combat engine when present
+    - align Smoke Bomb blocked-use semantics across `execute_potion_effect` and `CombatEngine.use_potion`

@@ -162,6 +162,8 @@ class CombatEngine:
             ai_rng: RNG for enemy AI
         """
         self.state = state
+        # Registry handlers (e.g., Distilled Chaos) can reuse the live runtime engine.
+        self.state._combat_engine_ref = self
         self.enemy_data = enemy_data or {}
         # Index-based enemy objects (parallel to state.enemies). Set by
         # create_combat_from_enemies or manually after construction.
@@ -213,6 +215,7 @@ class CombatEngine:
         """Create a copy of the combat engine with copied state."""
         new_engine = CombatEngine.__new__(CombatEngine)
         new_engine.state = self.state.copy()
+        new_engine.state._combat_engine_ref = new_engine
         new_engine.enemy_data = self.enemy_data
         new_engine.enemy_objects = list(self.enemy_objects)
         new_engine.shuffle_rng = self.shuffle_rng.copy() if hasattr(self.shuffle_rng, 'copy') else self.shuffle_rng
@@ -1760,39 +1763,25 @@ class CombatEngine:
             if self.state.enemies[target_index].hp <= 0:
                 return {"success": False, "error": "Potion target is not alive"}
 
-        if potion_id == "SmokeBomb":
-            has_back_attack = any(
-                enemy.hp > 0 and enemy.statuses.get("BackAttack", 0) > 0
-                for enemy in self.state.enemies
-            )
-            if (
-                getattr(self.state, "is_boss_combat", False)
-                or getattr(self.state, "cannot_escape", False)
-                or has_back_attack
-            ):
-                return {"success": False, "error": "Smoke Bomb cannot be used in this combat"}
-
         has_sacred_bark = self.state.has_relic("SacredBark")
         potency = potion_data.get_effective_potency(has_sacred_bark)
 
         # Consume potion before applying effect (Java ordering).
         self.state.potions[potion_index] = ""
         result: Dict[str, Any] = {"success": True, "potion": potion_id, "effects": [], "potency": potency}
+        registry_result = execute_potion_effect(potion_id, self.state, target_idx=target_index)
+        if not registry_result.get("success"):
+            # Keep behavior deterministic and non-destructive on unexpected failures.
+            self.state.potions[potion_index] = potion_id
+            return {"success": False, "error": registry_result.get("error", "Failed to use potion")}
 
-        if potion_id == "DistilledChaos":
-            played_cards = self._play_top_cards_from_draw_pile(potency)
-            execute_relic_triggers("onUsePotion", self.state, {"potion": potion_id})
-            result["effects"].append({"type": "play_top_cards", "amount": len(played_cards)})
-            result["played_cards"] = played_cards
-        else:
-            registry_result = execute_potion_effect(potion_id, self.state, target_idx=target_index)
-            if not registry_result.get("success"):
-                # Keep behavior deterministic and non-destructive on unexpected failures.
-                self.state.potions[potion_index] = potion_id
-                return {"success": False, "error": registry_result.get("error", "Failed to use potion")}
-            result["potency"] = registry_result.get("potency", potency)
-            if potion_id == "SmokeBomb" and getattr(self.state, "escaped", False):
-                result["effects"].append({"type": "escape"})
+        result["potency"] = registry_result.get("potency", potency)
+        if "effects" in registry_result and isinstance(registry_result["effects"], list):
+            result["effects"].extend(registry_result["effects"])
+        if "played_cards" in registry_result:
+            result["played_cards"] = registry_result["played_cards"]
+        if potion_id == "SmokeBomb" and getattr(self.state, "escaped", False):
+            result["effects"].append({"type": "escape"})
 
         self.log.log(self.state.turn, "use_potion", potion=potion_id, effects=result["effects"])
         self._check_combat_end()

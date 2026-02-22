@@ -290,6 +290,7 @@ class PotionContext(BaseContext):
     target: Optional[EnemyCombatState] = None
     target_idx: int = -1
     has_sacred_bark: bool = False
+    result_data: Dict[str, Any] = field(default_factory=dict)
 
     def deal_damage_to_target(self, amount: int) -> int:
         """Deal damage to the potion target."""
@@ -578,8 +579,20 @@ def execute_potion_effect(potion_id: str, state: CombatState,
     handler = POTION_REGISTRY.get_handler("onUsePotion", potion_id)
     if handler:
         handler(ctx)
+        if ctx.result_data.get("success") is False:
+            return {
+                "success": False,
+                "error": ctx.result_data.get("error", f"Potion cannot be used: {potion_id}"),
+                "potion": potion_id,
+            }
+
         execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
-        return {"success": True, "potion": potion_id, "potency": potency}
+        result = {"success": True, "potion": potion_id, "potency": potency}
+        for key, value in ctx.result_data.items():
+            if key in {"success", "error"}:
+                continue
+            result[key] = value
+        return result
 
     return {"success": False, "error": f"No effect handler for: {potion_id}"}
 
