@@ -1,18 +1,25 @@
 # Powers Domain Audit
 
 ## Status
-- Critical hook-order fixes landed (including `onAfterUseCard` / `onAfterCardPlayed` path updates).
-- Inventory-level parity is still incomplete and must be closed systematically.
+- Critical hook-order path fixes are landed in combat handling.
+- Inventory-level parity is still the largest remaining behavior gap.
 
 ## Confirmed inventory snapshot
-- Java classes (local decompile): 149 (excluding `AbstractPower`)
-- Python power entries: 94 (`packages/engine/content/powers.py::POWER_DATA`)
-- Normalized unmatched Java candidates: 69
+- Java power classes (local decompile, excluding `AbstractPower`): `149`
+- Python power entries (`packages/engine/content/powers.py::POWER_DATA`): `94`
+- Normalized unmatched Java candidates: `69`
+
+## Confirmed implemented fixes
+- `onAfterUseCard` / `onAfterCardPlayed` registration and trigger path updates.
+- Hook ordering improvements in combat flow for parity-critical cases.
 
 ## Confirmed open gaps
-- [ ] `POW-001` map all unmatched Java classes to Python status (`exact|missing|alias-only`).
-- [ ] `POW-002` implement remaining missing hook/timing behaviors for parity-critical classes.
-- [ ] `POW-003` add integration tests for power interactions with relics/orbs/combat order.
+- [ ] `POW-001` map unmatched Java power classes to explicit status (`exact`, `missing`, `alias-only`, `intentional defer`).
+- [ ] `POW-002` close remaining hook/timing behavior mismatches class-by-class.
+- [ ] `POW-003` add interaction tests with relics/orbs and turn-order semantics.
+
+## Dependency note
+- Some powers cannot be fully parity-closed until `ORB-001` is implemented.
 
 ## Java references
 - `com/megacrit/cardcrawl/powers/*.java`
@@ -22,6 +29,3 @@
 - `packages/engine/content/powers.py`
 - `packages/engine/registry/powers.py`
 - `packages/engine/handlers/combat.py`
-
-## Dependency note
-- Some missing power behavior depends on orb infrastructure tracked under `ORB-001`.

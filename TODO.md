@@ -7,6 +7,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] Full test suite green: `4659 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
+- [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
 
 ## Locked execution policy
@@ -19,6 +20,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `DOC-001` canonical audit suite + legacy pointer wiring.
 - [x] `DOC-002` parity-core-loop skill pack for repeatable swarm/integrator loop.
 - [x] `DOC-003` evidence refresh: baseline, inventory snapshots, prioritized gap queue.
+- [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, PR ledger, consolidation review).
 
 ## Evidence-based remaining gaps
 

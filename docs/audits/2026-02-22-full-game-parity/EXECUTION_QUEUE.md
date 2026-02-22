@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Baseline
-- Branch: `codex/parity-core-loop`
+- Branch: `main` (current merged baseline), active docs branch: `codex/docs-ground-truth-audit`
 - Suite baseline: `4659 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
