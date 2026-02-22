@@ -219,6 +219,7 @@ class CombatState:
     powers_played_this_turn: int = 0
     combat_over: bool = False
     player_won: bool = False
+    combat_type: str = "normal"  # "normal", "elite", or "boss"
 
     # Watcher-specific tracking
     mantra: int = 0
@@ -287,6 +288,7 @@ class CombatState:
             powers_played_this_turn=self.powers_played_this_turn,
             combat_over=self.combat_over,
             player_won=self.player_won,
+            combat_type=self.combat_type,
             # Watcher-specific
             mantra=self.mantra,
             last_card_type=self.last_card_type,

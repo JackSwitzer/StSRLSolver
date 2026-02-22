@@ -3094,6 +3094,9 @@ class GameRunner:
 
         # Attach room metadata + RNG streams so combat/potion handlers can use proper context.
         self.current_combat.state.current_room_type = self.current_room_type
+        self.current_combat.state.combat_type = (
+            "boss" if is_boss else ("elite" if is_elite else "normal")
+        )
         self.current_combat.state.is_boss_combat = bool(is_boss)
         self.current_combat.state.card_rng = self.card_rng
         self.current_combat.state.card_random_rng = self.card_random_rng
@@ -3152,8 +3155,10 @@ class GameRunner:
                 )
                 self.phase = GamePhase.COMBAT_REWARDS
 
-            # Between-floor relic triggers
-            self._trigger_post_combat_relics()
+            # Fallback-only onVictory handling:
+            # CombatEngine already executes onVictory triggers before returning result.
+            if combat_result is None:
+                self._trigger_post_combat_relics()
 
             # Auto-claim gold (in StS, gold is always auto-collected)
             if self.current_rewards and self.current_rewards.gold:
@@ -3199,22 +3204,14 @@ class GameRunner:
             if healed > 0:
                 self._log(f"  Black Blood: healed {healed} HP")
 
-        # Meat on the Bone: If HP < 50%, heal 12
-        if rs.has_relic("MeatOnTheBone") or rs.has_relic("Meat on the Bone"):
-            if rs.current_hp < rs.max_hp * 0.5:
+        # Meat on the Bone: If HP <= 50%, heal 12
+        if rs.has_relic("Meat on the Bone"):
+            if rs.current_hp <= rs.max_hp * 0.5:
                 old_hp = rs.current_hp
                 rs.heal(12)
                 healed = rs.current_hp - old_hp
                 if healed > 0:
                     self._log(f"  Meat on the Bone: healed {healed} HP")
-
-        # Blood Vial: Heal 2 at end of combat
-        if rs.has_relic("BloodVial") or rs.has_relic("Blood Vial"):
-            old_hp = rs.current_hp
-            rs.heal(2)
-            healed = rs.current_hp - old_hp
-            if healed > 0:
-                self._log(f"  Blood Vial: healed {healed} HP")
 
     def _enter_event(self):
         """Enter an event room and select event using EventHandler."""

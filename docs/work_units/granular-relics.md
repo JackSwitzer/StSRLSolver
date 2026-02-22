@@ -24,6 +24,8 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] Ice Cream - unused energy carries over. (action: none{})
 - [ ] Incense Burner - Intangible every 6 turns (verify counter timing). (action: none{})
 - [ ] Pen Nib - double damage every 10th attack. (action: none{})
+- [x] Preserved Insect - elite combat start applies 25% HP reduction to elite enemies. (action: none{})
+- [x] Combat context includes stable `combat_type` so elite/boss-conditional relic hooks (`Sling`, `Pantograph`, `Slaver's Collar`) do not crash. (action: none{})
 
 ## Chest counters / on-open triggers
 - [x] Tiny Chest - increment counter on room entry, trigger chest at 4, reset timing. (action: none{})
@@ -92,6 +94,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] Maw Bank gains 12 on room entry and deactivates after spending gold. (action: none{})
 - [x] N'loth's Hungry Face chest-removal behavior. (action: none{})
 - [x] Ectoplasm blocks gold gain and adjusts energy on equip/unequip; track blocked amount. (action: none{})
+- [x] Fallback post-combat relic logic does not duplicate combat-engine `onVictory` effects; Meat on the Bone uses Java `<= 50%` threshold; Blood Vial is not applied post-combat. (action: none{})
 
 ## Skipped-test mapping (utilities / coverage)
 - [x] `RunState.get_starter_relic` helper for coverage tests. (action: none{})

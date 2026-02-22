@@ -216,7 +216,7 @@ def oddly_smooth_stone_start(ctx: RelicContext) -> None:
 @relic_trigger("atBattleStart", relic="Pantograph")
 def pantograph_start(ctx: RelicContext) -> None:
     """Pantograph: Heal 25 HP in boss combats."""
-    if ctx.state.combat_type == "boss":
+    if getattr(ctx.state, "combat_type", "normal") == "boss":
         ctx.heal_player(25)
 
 
@@ -253,7 +253,7 @@ def red_skull_init(ctx: RelicContext) -> None:
 @relic_trigger("atBattleStart", relic="Sling")
 def sling_start(ctx: RelicContext) -> None:
     """Sling of Courage: Gain 2 Strength in Elite combats."""
-    if ctx.state.combat_type == "elite":
+    if getattr(ctx.state, "combat_type", "normal") == "elite":
         ctx.apply_power_to_player("Strength", 2)
 
 
@@ -306,17 +306,15 @@ def symbiotic_virus_start(ctx: RelicContext) -> None:
 @relic_trigger("atBattleStart", relic="Preserved Insect")
 def preserved_insect_start(ctx: RelicContext) -> None:
     """Preserved Insect: Elites have 25% less HP."""
-    for enemy in ctx.state.enemies:
-        if hasattr(enemy, 'is_elite') and enemy.is_elite:
-            # Reduce max HP by 25%
-            original_max = enemy.max_hp
-            new_max = int(original_max * 0.75)
-            enemy.max_hp = new_max
-            # Also reduce current HP proportionally if enemy is at full HP
-            if enemy.hp == original_max:
-                enemy.hp = new_max
-            elif enemy.hp > new_max:
-                enemy.hp = new_max
+    if getattr(ctx.state, "combat_type", "normal") != "elite":
+        return
+
+    for enemy in ctx.living_enemies:
+        original_max = enemy.max_hp
+        new_max = max(1, int(original_max * 0.75))
+        enemy.max_hp = new_max
+        if enemy.hp >= new_max:
+            enemy.hp = new_max
 
 
 @relic_trigger("atBattleStart", relic="InkBottle")
@@ -583,7 +581,7 @@ def brimstone_turn_start(ctx: RelicContext) -> None:
 @relic_trigger("atTurnStart", relic="SlaversCollar")
 def slavers_collar_turn_start(ctx: RelicContext) -> None:
     """Slaver's Collar: Gain +1 Energy at start of turn in Elite/Boss fights."""
-    if ctx.state.combat_type in ("elite", "boss"):
+    if getattr(ctx.state, "combat_type", "normal") in ("elite", "boss"):
         ctx.gain_energy(1)
 
 

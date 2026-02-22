@@ -179,34 +179,25 @@ class TestOnVictoryRelics:
         assert run.current_hp == old_hp + 12
 
     def test_meat_on_the_bone_threshold_is_lte_50_percent(self):
-        """BUG: Java uses <= for 50% check, Python uses <.
-        Java: if (p.currentHealth <= p.maxHealth / 2.0f && p.currentHealth > 0) heal(12)
-        Python: if rs.current_hp < rs.max_hp * 0.5  (WRONG - should be <=)
+        """Java: if HP <= 50% at victory, Meat on the Bone heals 12."""
+        from packages.engine.game import GameRunner
 
-        This test documents the bug: at exactly 50% HP, Java heals but Python does not.
-        """
-        from packages.engine.state.run import create_watcher_run
-        run = create_watcher_run("TEST", ascension=0)
-        run.max_hp = 80
-        run.current_hp = 40  # Exactly 50%
+        runner = GameRunner(seed="AUDIT_MEAT_LTE", ascension=0, verbose=False)
+        runner.run_state.max_hp = 80
+        runner.run_state.current_hp = 40  # Exactly 50%
+        runner.run_state.add_relic("Meat on the Bone")
 
-        # Java behavior: should heal at exactly 50%
-        java_threshold = run.current_hp <= run.max_hp / 2.0
-        assert java_threshold, "Java uses <= so at exactly 50% it heals"
+        runner._trigger_post_combat_relics()
 
-        # Python (game.py:1607) uses < instead of <=
-        python_threshold = run.current_hp < run.max_hp * 0.5
-        assert not python_threshold, (
-            "Documenting bug: Python uses < instead of <= for Meat on the Bone threshold"
-        )
+        assert runner.run_state.current_hp == 52
 
 
 # =============================================================================
 # Bug Documentation Tests
 # =============================================================================
 
-class TestDocumentedBugs:
-    """Tests that document known bugs found during audit."""
+class TestRelicParityFixes:
+    """Regression locks for previously documented relic parity bugs."""
 
     def test_blood_vial_triggers_at_battle_start(self):
         """Java BloodVial.atBattleStart heals 2 at combat START.
@@ -234,19 +225,26 @@ class TestDocumentedBugs:
             "Orichalcum should be registered for onPlayerEndTurn trigger"
         )
 
-    def test_preserved_insect_not_implemented_in_combat(self):
-        """BUG: Java PreservedInsect.atBattleStart reduces elite HP by 25%.
-        Python has only a comment saying 'should be handled when creating enemies'.
-        """
-        import inspect
-        from packages.engine.handlers.combat import CombatRunner
-        source = inspect.getsource(CombatRunner._trigger_start_of_combat_relics)
-        # Check it's just a comment, not actual implementation
-        lines = [l.strip() for l in source.split('\n') if 'Preserved' in l or 'PreservedInsect' in l]
-        for line in lines:
-            assert line.startswith('#'), (
-                f"Expected Preserved Insect to be commented out, found: {line}"
-            )
+    def test_preserved_insect_reduces_elite_hp_by_25_percent(self):
+        """Java PreservedInsect.atBattleStart reduces elite HP by 25%."""
+        from packages.engine.registry import RELIC_REGISTRY, execute_relic_triggers
+        from packages.engine.state.combat import create_combat, create_enemy
+
+        assert RELIC_REGISTRY.has_handler("atBattleStart", "Preserved Insect")
+
+        state = create_combat(
+            player_hp=70,
+            player_max_hp=70,
+            enemies=[create_enemy("AuditElite", hp=100, max_hp=100, enemy_type="ELITE")],
+            deck=["Strike_P"],
+            relics=["Preserved Insect"],
+        )
+        state.combat_type = "elite"
+
+        execute_relic_triggers("atBattleStart", state)
+
+        assert state.enemies[0].max_hp == 75
+        assert state.enemies[0].hp == 75
 
 
 # =============================================================================

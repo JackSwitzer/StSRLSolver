@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Baseline
-- Full suite baseline: `4633 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4638 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Skips are artifact-dependent (`tests/test_parity.py` replay file missing)
 
@@ -35,7 +35,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `REL-008` Dolly's Mirror explicit duplicate selection
 - [x] `REL-005` deterministic selection IDs + validation
 - [x] `REL-006` alias normalization + Java ID coverage (`Toolbox`)
-- [ ] `REL-007` boss/chest/reward ordering regressions
+- [x] `REL-007` boss/chest/reward ordering regressions
 
 ### R2 event selection surface
 - [ ] `EVT-001` event selection follow-up actions
@@ -68,7 +68,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Confirmed high-impact open gaps
 - [ ] `GameRunner._handle_event_action` still forces `card_idx=None`.
-- [ ] `REL-007` ordering regressions are the highest-impact remaining relic gap.
+- [ ] `EVT-001/EVT-002` event selection surface gaps are now the highest-impact open action-path issues.
 - [ ] Power inventory has large class-level residuals.
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.
 

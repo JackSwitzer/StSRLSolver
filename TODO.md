@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4633 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4638 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -49,7 +49,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-008` Dolly's Mirror explicit selection.
 - [x] `REL-005` deterministic selection IDs + validation hardening.
 - [x] `REL-006` relic alias normalization + `Toolbox` inventory closure.
-- [ ] `REL-007` boss/chest/reward ordering edge regressions.
+- [x] `REL-007` boss/chest/reward ordering edge regressions.
 
 ### R2: Event selection surface
 - [ ] `EVT-001` emit pending-selection actions for event card-required choices.
@@ -78,10 +78,10 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `REL-007` boss/chest/reward ordering edge regressions.
-2. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
-3. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
-4. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
+1. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
+2. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
+3. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
+4. `POW-001` power inventory closure with Java refs + behavior locks.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.
