@@ -733,6 +733,30 @@ class GameRunner:
             parent_action_id=parent_action_id,
         )
 
+    def _build_pending_selection_for_dollys_mirror(
+        self,
+        source_action_type: str,
+        source_metadata: Dict[str, Any],
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Build selection context for DollysMirror duplication choice."""
+        if not self.run_state.deck:
+            return None
+
+        metadata = {"relic_id": "DollysMirror"}
+        metadata.update(source_metadata)
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type=source_action_type,
+            pile="deck",
+            min_cards=1,
+            max_cards=1,
+            candidate_indices=list(range(len(self.run_state.deck))),
+            metadata=metadata,
+            parent_action_id=parent_action_id,
+        )
+
     def _build_pending_selection_for_relic_action(
         self,
         action_type: str,
@@ -786,6 +810,13 @@ class GameRunner:
         if relic_id in {"Bottled Flame", "Bottled Lightning", "Bottled Tornado"}:
             return self._build_pending_selection_for_bottled_relic(
                 relic_id=relic_id,
+                source_action_type=source_action_type,
+                source_metadata=source_metadata,
+                parent_action_id=parent_action_id,
+            )
+
+        if relic_id == "DollysMirror":
+            return self._build_pending_selection_for_dollys_mirror(
                 source_action_type=source_action_type,
                 source_metadata=source_metadata,
                 parent_action_id=parent_action_id,
@@ -1324,7 +1355,13 @@ class GameRunner:
                 actions.append(skip_action)
 
         if self.phase == GamePhase.SHOP and self.current_shop is not None:
-            selection_relics = {"Orrery", "Bottled Flame", "Bottled Lightning", "Bottled Tornado"}
+            selection_relics = {
+                "Orrery",
+                "Bottled Flame",
+                "Bottled Lightning",
+                "Bottled Tornado",
+                "DollysMirror",
+            }
             for action in actions:
                 if action.get("type") != "buy_relic":
                     continue
@@ -1351,6 +1388,7 @@ class GameRunner:
                 "Bottled Flame",
                 "Bottled Lightning",
                 "Bottled Tornado",
+                "DollysMirror",
             }:
                 for action in actions:
                     if action.get("type") == "claim_relic":
@@ -2397,6 +2435,7 @@ class GameRunner:
                     "Bottled Flame",
                     "Bottled Lightning",
                     "Bottled Tornado",
+                    "DollysMirror",
                 }
                 selection_indices = (
                     list(self._pending_relic_selection_indices)
@@ -2657,6 +2696,7 @@ class GameRunner:
                 "Bottled Flame",
                 "Bottled Lightning",
                 "Bottled Tornado",
+                "DollysMirror",
             }
             selection_indices = (
                 list(self._pending_relic_selection_indices)

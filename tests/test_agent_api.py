@@ -710,6 +710,87 @@ class TestActionExecution:
         assert all(a.get("type") == "select_cards" for a in candidates)
         assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
 
+    def test_shop_dollys_mirror_requires_card_selection(self, runner):
+        """Buying DollysMirror should require explicit deck-card selection."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("DollysMirror")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        result = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
+
+    def test_shop_dollys_mirror_roundtrip_duplicates_selected_card(self, runner):
+        """DollysMirror buy should duplicate the selected card after select_cards."""
+        runner.run_state.add_card("Nirvana", upgraded=True)
+        target_index = len(runner.run_state.deck) - 1
+        initial_copies = runner.run_state.count_card("Nirvana", upgraded_only=True)
+        initial_deck_size = len(runner.run_state.deck)
+
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("DollysMirror")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        selected = next(
+            (
+                action for action in candidates
+                if action.get("params", {}).get("card_indices") == [target_index]
+            ),
+            candidates[0],
+        )
+        second = runner.take_action_dict(selected)
+        assert second.get("success") is True
+        assert runner.run_state.has_relic("DollysMirror")
+        assert len(runner.run_state.deck) == initial_deck_size + 1
+        assert runner.run_state.count_card("Nirvana", upgraded_only=True) == initial_copies + 1
+
+    def test_reward_dollys_mirror_requires_card_selection(self, runner):
+        """Claiming DollysMirror reward should require explicit selection."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            relic=RelicReward(relic=get_relic("DollysMirror")),
+        )
+
+        result = runner.take_action_dict({
+            "type": "claim_relic",
+            "params": {"relic_reward_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
+
 
 # =============================================================================
 # Observation Schema Tests

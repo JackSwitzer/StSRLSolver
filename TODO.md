@@ -25,7 +25,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### P0: Action-surface completeness (agent traversal)
 - [x] `REL-003` Orrery purchase/reward flow now exposes explicit `select_cards` follow-up actions.
 - [x] `REL-004` Bottled relic acquisition now exposes explicit selection actions in reward/shop action flow.
-- [ ] `REL-008` Dolly's Mirror acquisition must expose explicit selection action.
+- [x] `REL-008` Dolly's Mirror acquisition now exposes explicit selection action in reward/shop action flow.
 - [ ] `EVT-001` Event choices that require card pick/remove/transform/upgrade need explicit follow-up actions.
 - [ ] `EVT-002` `event_choice` execution must pass selected card index (currently forced `card_idx=None`).
 - [ ] `RWD-001/RWD-002` reward/shop relic acquisition paths should route through one selection-aware execution surface.
@@ -46,7 +46,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### R1: Relic selection surface
 - [x] `REL-003` Orrery explicit selection.
 - [x] `REL-004` Bottled relic explicit assignment.
-- [ ] `REL-008` Dolly's Mirror explicit selection.
+- [x] `REL-008` Dolly's Mirror explicit selection.
 - [ ] `REL-005` deterministic selection IDs + validation hardening.
 - [ ] `REL-006` relic alias normalization + `Toolbox` inventory closure.
 - [ ] `REL-007` boss/chest/reward ordering edge regressions.
@@ -78,10 +78,10 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `REL-008` docs rows + Dolly selection tests -> implement selection plumbing.
-2. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
-3. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
-4. `REL-005` deterministic selection IDs + validation hardening.
+1. `REL-005` deterministic selection IDs + validation hardening.
+2. `REL-006` relic alias normalization + missing Java ID closure (`Toolbox`).
+3. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
+4. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

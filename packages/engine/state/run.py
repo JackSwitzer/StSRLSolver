@@ -758,7 +758,13 @@ class RunState:
         # Dolly's Mirror: duplicate a card in deck
         if relic_id == "DollysMirror":
             if self.deck:
-                chosen = self.deck[0]
+                chosen_idx = 0
+                if selection_card_indices:
+                    for idx in selection_card_indices:
+                        if 0 <= idx < len(self.deck):
+                            chosen_idx = idx
+                            break
+                chosen = self.deck[chosen_idx]
                 self.add_card(chosen.id, upgraded=chosen.upgraded, misc_value=chosen.misc_value)
 
         # Orrery: add 5 cards (one pick from each generated 3-card offer)
