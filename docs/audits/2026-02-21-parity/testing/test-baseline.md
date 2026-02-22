@@ -8,7 +8,7 @@ uv run pytest tests/ -ra
 ```
 
 Result:
-- `4606 passed`
+- `4608 passed`
 - `5 skipped`
 - `0 failed`
 
@@ -37,6 +37,8 @@ Skip details:
   - `tests/test_potion_sacred_bark.py`
 - Added runtime/registry de-dup coverage:
   - `tests/test_potion_runtime_dedup.py`
+- Added relic action-surface coverage:
+  - `tests/test_agent_api.py` (Astrolabe boss-relic pick requires and resolves `select_cards` flow)
 
 ## Focused verification commands
 ```bash
