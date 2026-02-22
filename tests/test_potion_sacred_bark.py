@@ -162,6 +162,27 @@ class TestFairyInBottle:
         assert not fairy_triggered
         assert state.potions[0] == "FairyPotion"  # Potion still there
 
+    def test_fairy_prevents_defeat_when_combat_end_check_runs(self):
+        """Combat end check should revive with Fairy instead of ending combat in defeat."""
+        state = CombatState(
+            player=EntityState(hp=1, max_hp=80, block=0),
+            energy=3,
+            max_energy=3,
+            potions=["FairyPotion"],
+            relics=[],
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="Cultist", name="Cultist")],
+        )
+        engine = CombatEngine(state)
+        engine.start_combat()
+
+        state.player.hp = 0
+        ended = engine._check_combat_end()
+
+        assert ended is False
+        assert state.player.hp == 24
+        assert state.combat_over is False
+        assert state.player_won is False
+
 
 class TestNewPotionImplementations:
     """Test newly implemented potions."""

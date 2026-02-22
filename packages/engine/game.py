@@ -609,49 +609,26 @@ class GameRunner:
         if not candidates and ctx.min_cards > 0:
             return []
 
-        # Exhaustive only for small bounded selections; otherwise provide practical candidates.
-        if ctx.max_cards <= 2:
-            for size in range(ctx.min_cards, ctx.max_cards + 1):
-                for combo in itertools.combinations(candidates, size):
-                    params = {
-                        "pile": ctx.pile,
-                        "card_indices": list(combo),
-                        "min_cards": ctx.min_cards,
-                        "max_cards": ctx.max_cards,
-                        "parent_action_id": ctx.parent_action_id,
-                    }
-                    actions.append({
-                        "id": self._make_action_id("select_cards", params),
-                        "type": "select_cards",
-                        "label": f"Select {ctx.pile} cards: {list(combo)}",
-                        "params": params,
-                        "phase": self._phase_to_action_phase(),
-                    })
-            return actions
-
-        # Hand-wide selections (Gamblers/Elixir): include no-op, singles, and full-set candidates.
-        representative_sets: List[List[int]] = [[]]
-        representative_sets.extend([[idx] for idx in candidates])
-        if candidates:
-            representative_sets.append(list(candidates))
-
-        for selected in representative_sets:
-            if len(selected) < ctx.min_cards or len(selected) > ctx.max_cards:
-                continue
-            params = {
-                "pile": ctx.pile,
-                "card_indices": selected,
-                "min_cards": ctx.min_cards,
-                "max_cards": ctx.max_cards,
-                "parent_action_id": ctx.parent_action_id,
-            }
-            actions.append({
-                "id": self._make_action_id("select_cards", params),
-                "type": "select_cards",
-                "label": f"Select {ctx.pile} cards: {selected}",
-                "params": params,
-                "phase": self._phase_to_action_phase(),
-            })
+        # Emit the complete legal action surface for card selections.
+        # Hand-size is capped at 10, so exhaustive subsets remain tractable.
+        max_cards = min(ctx.max_cards, len(candidates))
+        for size in range(ctx.min_cards, max_cards + 1):
+            for combo in itertools.combinations(candidates, size):
+                selected = list(combo)
+                params = {
+                    "pile": ctx.pile,
+                    "card_indices": selected,
+                    "min_cards": ctx.min_cards,
+                    "max_cards": ctx.max_cards,
+                    "parent_action_id": ctx.parent_action_id,
+                }
+                actions.append({
+                    "id": self._make_action_id("select_cards", params),
+                    "type": "select_cards",
+                    "label": f"Select {ctx.pile} cards: {selected}",
+                    "params": params,
+                    "phase": self._phase_to_action_phase(),
+                })
         return actions
 
     def _apply_pending_selection(self, action_dict: ActionDict) -> Dict[str, Any]:

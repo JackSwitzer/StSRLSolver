@@ -393,6 +393,70 @@ class TestActionExecution:
         assert second.get("success") is True
         assert runner.current_combat.state.stance in ("Calm", "Wrath")
 
+    def test_gamblers_brew_emits_all_selection_subsets(self, runner):
+        """Gamblers Brew should emit every legal hand-subset selection action."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["GamblersBrew", "", ""],
+        )
+        state.hand = ["Strike_P", "Defend_P", "Vigilance"]
+        state.draw_pile = ["Eruption", "EmptyBody", "Defend_P", "Strike_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        first = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+        assert first.get("requires_selection") is True
+
+        candidates = first.get("candidate_actions", [])
+        subsets = {
+            tuple(action.get("params", {}).get("card_indices", []))
+            for action in candidates
+            if action.get("type") == "select_cards"
+        }
+
+        # For hand size 3, legal subset count is 2^3 = 8.
+        assert len(subsets) == 8
+        assert () in subsets
+        assert (0, 1, 2) in subsets
+
+    def test_elixir_emits_all_selection_subsets(self, runner):
+        """Elixir should emit every legal hand-subset selection action."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["ElixirPotion", "", ""],
+        )
+        state.hand = ["Strike_P", "Defend_P", "Vigilance"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        first = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+        assert first.get("requires_selection") is True
+
+        candidates = first.get("candidate_actions", [])
+        subsets = {
+            tuple(action.get("params", {}).get("card_indices", []))
+            for action in candidates
+            if action.get("type") == "select_cards"
+        }
+
+        assert len(subsets) == 8
+        assert () in subsets
+        assert (0, 1, 2) in subsets
+
 
 # =============================================================================
 # Observation Schema Tests
