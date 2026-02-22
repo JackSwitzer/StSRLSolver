@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Baseline
-- Branch: `main` (current merged baseline, includes PR `#24`)
+- Branch: `main` (current merged baseline, includes PR `#25`)
 - Suite baseline: `4663 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
