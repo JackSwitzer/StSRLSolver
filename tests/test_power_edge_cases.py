@@ -854,7 +854,7 @@ class TestMultipleEnemiesInteractions:
         )
         state.player.statuses["ThousandCuts"] = 2
 
-        execute_power_triggers("onUseCard", state, state.player)
+        execute_power_triggers("onAfterCardPlayed", state, state.player)
 
         assert state.enemies[0].hp == 28
         assert state.enemies[1].hp == 23

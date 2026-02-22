@@ -87,8 +87,6 @@ class TestBustedCrown:
         )
         # Result: 3 - 2 + 1 = 2
         assert len(reward) == 2
-
-    @pytest.mark.skip(reason="Busted Crown max HP bonus happens at pickup time")
     def test_busted_crown_grants_max_hp_on_pickup(self):
         """Busted Crown: Upon pickup, gain +8 Max HP."""
         run = create_watcher_run("TEST", ascension=0)
@@ -294,8 +292,6 @@ class TestCardRewardEdgeCases:
 
 class TestRunStateCardRewardIntegration:
     """Test card reward relic behavior integrated with RunState."""
-
-    @pytest.mark.skip(reason="Card reward count calculation needs integration")
     def test_run_calculates_card_count_from_relics(self):
         """RunState should calculate card count based on relics."""
         run = create_watcher_run("TEST", ascension=0)
@@ -311,8 +307,6 @@ class TestRunStateCardRewardIntegration:
 
         run.add_relic("BustedCrown")
         assert run.get_card_reward_count() == 3  # 5 - 2
-
-    @pytest.mark.skip(reason="Singing Bowl onSkipCardReward not implemented")
     def test_singing_bowl_triggers_on_skip(self):
         """Singing Bowl should trigger when card reward is skipped."""
         run = make_run_with_relic("Singing Bowl")

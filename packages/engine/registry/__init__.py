@@ -58,6 +58,7 @@ class TriggerHook(Enum):
     ON_CARD_DRAW = "onCardDraw"
     ON_USE_CARD = "onUseCard"
     ON_AFTER_USE_CARD = "onAfterUseCard"
+    ON_AFTER_CARD_PLAYED = "onAfterCardPlayed"
     ON_PLAY_CARD = "onPlayCard"
     ON_EXHAUST = "onExhaust"
     ON_MANUAL_DISCARD = "onManualDiscard"

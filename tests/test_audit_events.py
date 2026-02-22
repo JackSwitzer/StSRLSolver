@@ -434,10 +434,39 @@ from packages.engine.handlers.event_handler import (
     EventState,
     EventPhase,
     EventChoiceResult,
+    ACT2_EVENTS,
+    ACT3_EVENTS,
+    SPECIAL_ONE_TIME_EVENTS,
+    EVENT_HANDLERS,
+    EVENT_CHOICE_GENERATORS,
 )
 from packages.engine.content.cards import CardType
 from packages.engine.state.run import create_watcher_run, RunState
 from packages.engine.state.rng import Random
+
+
+class TestEventHandlerPools:
+    """Ensure handler event pools align with content classification."""
+
+    def test_knowing_skull_act2_pool(self):
+        assert "KnowingSkull" in ACT2_EVENTS
+        assert "KnowingSkull" not in SPECIAL_ONE_TIME_EVENTS
+
+    def test_secret_portal_act3_pool(self):
+        assert "SecretPortal" in ACT3_EVENTS
+        assert "SecretPortal" not in SPECIAL_ONE_TIME_EVENTS
+
+    def test_note_for_yourself_special_pool(self):
+        assert "NoteForYourself" in SPECIAL_ONE_TIME_EVENTS
+
+
+class TestEventHandlerRegistries:
+    """Ensure new event handlers and choice generators are registered."""
+
+    def test_gremlin_and_note_handlers_registered(self):
+        for event_id in ["GremlinMatchGame", "GremlinWheelGame", "NoteForYourself"]:
+            assert event_id in EVENT_HANDLERS
+            assert event_id in EVENT_CHOICE_GENERATORS
 
 
 class TestGoldenShrineHandlerBehavior:
@@ -898,11 +927,81 @@ class TestMindBloomHandlerBehavior:
         assert any(c.id == "Doubt" for c in run.deck)
 
 
+class TestDeadAdventurerHandlerBehavior:
+    """Behavior tests for Dead Adventurer event handler."""
+
+    def test_reward_order_is_rng_shuffled(self):
+        """Reward pool order is shuffled using misc RNG."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        event_state = EventState(event_id="DeadAdventurer")
+
+        misc_rng = Random(12345)
+        handler._ensure_dead_adventurer_rewards(event_state, misc_rng)
+
+        expected_rng = Random(12345)
+        expected = ["gold", "relic", "nothing"]
+        for i in range(len(expected) - 1, 0, -1):
+            j = expected_rng.random(i)
+            expected[i], expected[j] = expected[j], expected[i]
+
+        assert event_state.dead_adventurer_rewards == expected
+
+    def test_elite_selection_uses_misc_rng(self):
+        """Elite encounter selection follows misc RNG."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        event_state = EventState(event_id="DeadAdventurer")
+        event_state.dead_adventurer_rewards = ["gold", "relic", "nothing"]
+
+        class FixedRandom:
+            def __init__(self):
+                self._floats = [0.0]  # force fight
+                self._ints = [1]      # pick Gremlin Nob
+
+            def random_float(self):
+                return self._floats.pop(0)
+
+            def random(self, range_val):
+                return self._ints.pop(0)
+
+        misc_rng = FixedRandom()
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "Gremlin Nob"
+
+
+class TestKnowingSkullHandlerBehavior:
+    """Behavior tests for Knowing Skull event handler."""
+
+    def test_costs_escalate_per_option(self):
+        """Each option's cost increases independently by 1."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        event_state = EventState(event_id="KnowingSkull")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result1 = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+        assert result1.hp_change == -6
+
+        result2 = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+        assert result2.hp_change == -7
+
+        result3 = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+        assert result3.hp_change == -6
+
+        result4 = handler.execute_choice(event_state, 3, run, event_rng, misc_rng=misc_rng)
+        assert result4.hp_change == -6
+
+
 class TestFallingHandlerBehavior:
     """Behavior tests for Falling event handler."""
 
-    def test_skill_choice_removes_skill(self):
-        """Choosing skill removes a random skill card."""
+    def test_skill_choice_removes_preselected_skill(self):
+        """Choosing skill removes the preselected skill card."""
         handler = EventHandler()
         run = create_watcher_run("TESTSEED", ascension=10)
 
@@ -910,55 +1009,59 @@ class TestFallingHandlerBehavior:
         run.add_card("Meditate")
         run.add_card("InnerPeace")
 
-        skills_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.SKILL))
-
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
         event_rng = Random(12345)
+        handler._ensure_falling_preselect(event_state, run, misc_rng)
 
-        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+        choices = handler.get_available_choices(event_state, run)
+        choice_names = {c.name for c in choices}
+        assert "skill" in choice_names
+        assert "power" not in choice_names  # No powers in deck
 
-        skills_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.SKILL))
-        assert skills_after == skills_before - 1
-        assert len(result.cards_removed) == 1
+        skill_choice = next(c for c in choices if c.name == "skill")
+        preselected = event_state.falling_preselected["SKILL"][1]
+        assert preselected in skill_choice.text
 
-    def test_power_choice_removes_power(self):
-        """Choosing power removes a random power card."""
+        result = handler.execute_choice(event_state, skill_choice.index, run, event_rng, misc_rng=misc_rng)
+        assert result.cards_removed == [preselected]
+
+    def test_power_choice_removes_preselected_power(self):
+        """Choosing power removes the preselected power card."""
         handler = EventHandler()
         run = create_watcher_run("TESTSEED", ascension=10)
 
-        # Add some power cards to test
         run.add_card("Rushdown")
         run.add_card("MentalFortress")
 
-        powers_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.POWER))
-
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
         event_rng = Random(12345)
+        handler._ensure_falling_preselect(event_state, run, misc_rng)
 
-        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+        choices = handler.get_available_choices(event_state, run)
+        power_choice = next(c for c in choices if c.name == "power")
+        preselected = event_state.falling_preselected["POWER"][1]
 
-        powers_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.POWER))
-        assert powers_after == powers_before - 1
-        assert len(result.cards_removed) == 1
+        result = handler.execute_choice(event_state, power_choice.index, run, event_rng, misc_rng=misc_rng)
+        assert result.cards_removed == [preselected]
 
-    def test_attack_choice_removes_attack(self):
-        """Choosing attack removes a random attack card."""
+    def test_attack_choice_removes_preselected_attack(self):
+        """Choosing attack removes the preselected attack card."""
         handler = EventHandler()
         run = create_watcher_run("TESTSEED", ascension=10)
 
-        attacks_before = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.ATTACK))
-
         event_state = EventState(event_id="Falling")
         misc_rng = Random(12345)
         event_rng = Random(12345)
+        handler._ensure_falling_preselect(event_state, run, misc_rng)
 
-        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+        choices = handler.get_available_choices(event_state, run)
+        attack_choice = next(c for c in choices if c.name == "attack")
+        preselected = event_state.falling_preselected["ATTACK"][1]
 
-        attacks_after = sum(1 for c in run.deck if handler._card_is_type(c.id, CardType.ATTACK))
-        assert attacks_after == attacks_before - 1
-        assert len(result.cards_removed) == 1
+        result = handler.execute_choice(event_state, attack_choice.index, run, event_rng, misc_rng=misc_rng)
+        assert result.cards_removed == [preselected]
 
 
 class TestGoldenIdolHandlerBehavior:

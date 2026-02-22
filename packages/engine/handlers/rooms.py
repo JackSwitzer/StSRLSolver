@@ -178,7 +178,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(price)
+        run_state.spend_gold(price)
         run_state.add_card(card.id, card.upgraded)
 
         # Remove from shop
@@ -230,7 +230,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(price)
+        run_state.spend_gold(price)
         run_state.add_relic(relic.id)  # add_relic handles on-obtain effects
 
         # Remove from shop
@@ -291,7 +291,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(price)
+        run_state.spend_gold(price)
         run_state.add_potion(potion.id)
 
         # Remove from shop
@@ -351,7 +351,7 @@ class ShopHandler:
 
         # Process purge
         removed_card = run_state.remove_card(card_idx)
-        run_state.lose_gold(shop.purge_cost)
+        run_state.spend_gold(shop.purge_cost)
         shop.purge_available = False
         run_state.purge_count = getattr(run_state, 'purge_count', 0) + 1
 
@@ -476,6 +476,13 @@ class RestHandler:
         if run_state.has_relic("Coffee Dripper"):
             return RestResult(action="rest", hp_healed=0)
 
+        # Mark of the Bloom prevents all healing.
+        if run_state.has_relic("MarkOfBloom"):
+            result = RestResult(action="rest", hp_healed=0)
+            if run_state.has_relic("Dream Catcher"):
+                result.dream_catcher_triggered = True
+            return result
+
         # Base heal: 30% of max HP, rounded down
         heal_amount = int(run_state.max_hp * RestHandler.REST_HEAL_PERCENT)
 
@@ -534,7 +541,14 @@ class RestHandler:
         return RestHandler.smith(run_state, card_idx)
 
     @staticmethod
-    def dig(run_state: RunState, relic_rng: Random) -> RestResult:
+    def dig(
+        run_state: RunState,
+        relic_rng: Random,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
+    ) -> RestResult:
         """
         Dig for a relic with the Shovel.
 
@@ -556,7 +570,13 @@ class RestHandler:
         )
 
         if relic:
-            run_state.add_relic(relic.id)
+            run_state.add_relic(
+                relic.id,
+                misc_rng=misc_rng,
+                card_rng=card_rng,
+                relic_rng=relic_rng,
+                potion_rng=potion_rng,
+            )
             return RestResult(
                 action="dig",
                 relic_gained=relic.id
@@ -777,6 +797,10 @@ class TreasureHandler:
         relic_rng: Random,
         take_sapphire_key: bool = False,
         chest_type: Optional[ChestType] = None,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
     ) -> ChestReward:
         """
         Open a treasure chest and get the reward.
@@ -795,6 +819,9 @@ class TreasureHandler:
             relic_rng: Relic RNG stream (for relic selection)
             take_sapphire_key: If True, take key instead of relic
             chest_type: Override chest type (if known from map generation)
+            misc_rng: Optional misc RNG stream for on-equip effects
+            card_rng: Optional card RNG stream for on-equip effects
+            potion_rng: Optional potion RNG stream for on-equip effects
 
         Returns:
             ChestReward with all reward details
@@ -802,6 +829,15 @@ class TreasureHandler:
         # Step 1: Determine chest type
         if chest_type is None:
             chest_type = TreasureHandler.determine_chest_type(treasure_rng)
+
+        # N'loth's Hungry Face: remove one relic from next non-boss chest.
+        nloths_mask = run_state.get_relic("NlothsMask")
+        remove_one_relic = False
+        if nloths_mask and nloths_mask.counter > 0:
+            remove_one_relic = True
+            nloths_mask.counter -= 1
+            if nloths_mask.counter == 0:
+                nloths_mask.counter = -2
 
         # Step 2: Roll relic tier
         relic_tier = TreasureHandler.roll_relic_tier(treasure_rng, chest_type)
@@ -826,6 +862,7 @@ class TreasureHandler:
             relic_id=relic.id if relic else "Circlet",
             relic_name=relic.name if relic else "Circlet",
         )
+        relics_taken = 0
 
         # Handle Sapphire Key (Act 3)
         if take_sapphire_key and not run_state.has_sapphire_key and run_state.act == 3:
@@ -834,19 +871,29 @@ class TreasureHandler:
             return result
 
         # Take the relic
-        if relic:
-            run_state.add_relic(relic.id)
+        if relic and not remove_one_relic:
+            run_state.add_relic(
+                relic.id,
+                misc_rng=misc_rng,
+                card_rng=card_rng,
+                relic_rng=relic_rng,
+                potion_rng=potion_rng,
+            )
+            relics_taken += 1
+        elif remove_one_relic:
+            result.relic_id = "None"
+            result.relic_name = "None"
 
         # Step 4: Handle Matryoshka (2 relics from first 2 non-boss chests)
         if run_state.has_relic("Matryoshka"):
             matryoshka = run_state.get_relic("Matryoshka")
-            if matryoshka and (matryoshka.counter < 2 or matryoshka.counter == -1):
-                if matryoshka.counter == -1:
-                    matryoshka.counter = 0
-
-                if chest_type in (ChestType.SMALL, ChestType.MEDIUM, ChestType.LARGE):
+            if matryoshka:
+                # Initialize counter if missing
+                if matryoshka.counter < 0:
+                    matryoshka.counter = 2
+                if matryoshka.counter > 0:
+                    matryoshka.counter -= 1
                     # Get a second relic
-                    matryoshka.counter += 1
                     reward_state.owned_relics.add(relic.id if relic else "Circlet")
                     second_tier = TreasureHandler.roll_relic_tier(treasure_rng, chest_type)
                     second_relic = generate_relic_reward(
@@ -854,11 +901,24 @@ class TreasureHandler:
                         run_state.character, run_state.act
                     )
                     if second_relic:
-                        run_state.add_relic(second_relic.id)
-                        result.matryoshka_relics = [second_relic.id]
+                        run_state.add_relic(
+                            second_relic.id,
+                            misc_rng=misc_rng,
+                            card_rng=card_rng,
+                            relic_rng=relic_rng,
+                            potion_rng=potion_rng,
+                        )
+                        relics_taken += 1
+                        if remove_one_relic and result.relic_id == "None":
+                            # If N'loth removed the base relic, the Matryoshka relic
+                            # becomes the only relic reward from this chest.
+                            result.relic_id = second_relic.id
+                            result.relic_name = second_relic.name
+                        else:
+                            result.matryoshka_relics = [second_relic.id]
 
         # Step 5: Handle Cursed Key (adds curse when taking relic)
-        if run_state.has_relic("Cursed Key") and not result.sapphire_key_taken:
+        if run_state.has_relic("Cursed Key") and not result.sapphire_key_taken and relics_taken > 0:
             curse = TreasureHandler.apply_cursed_key(run_state, relic_rng)
             result.curse_added = curse
 
@@ -904,6 +964,27 @@ class TreasureHandler:
             actions.append("take_sapphire_key")
 
         return actions
+
+    @staticmethod
+    def on_enter_question_room(run_state: RunState) -> bool:
+        """
+        Handle Tiny Chest counter when entering a ? room.
+
+        Returns:
+            True if the room should become a treasure room.
+        """
+        if not run_state.has_relic("Tiny Chest"):
+            return False
+        tiny_chest = run_state.get_relic("Tiny Chest")
+        if not tiny_chest:
+            return False
+        if tiny_chest.counter < 0:
+            tiny_chest.counter = 0
+        tiny_chest.counter += 1
+        if tiny_chest.counter >= 4:
+            tiny_chest.counter = 0
+            return True
+        return False
 
 
 # ============================================================================
@@ -1195,7 +1276,12 @@ class NeowHandler:
                 run_state.character, 1
             )
             if relic:
-                run_state.add_relic(relic.id)
+                run_state.add_relic(
+                    relic.id,
+                    card_rng=card_rng,
+                    relic_rng=relic_rng,
+                    potion_rng=potion_rng,
+                )
                 result.relics_gained.append(relic.id)
                 result.blessing_applied = f"Obtained {relic.name}"
 
@@ -1314,7 +1400,12 @@ class NeowHandler:
                 run_state.character, 1
             )
             if relic:
-                run_state.add_relic(relic.id)
+                run_state.add_relic(
+                    relic.id,
+                    card_rng=card_rng,
+                    relic_rng=relic_rng,
+                    potion_rng=potion_rng,
+                )
                 result.relics_gained.append(relic.id)
                 result.blessing_applied = f"Obtained {relic.name}"
 
@@ -1335,7 +1426,12 @@ class NeowHandler:
                     run_state.character, 1
                 )
                 if boss_relic:
-                    run_state.add_relic(boss_relic.id)
+                    run_state.add_relic(
+                        boss_relic.id,
+                        card_rng=card_rng,
+                        relic_rng=relic_rng,
+                        potion_rng=potion_rng,
+                    )
                     result.relics_gained.append(boss_relic.id)
                     result.blessing_applied += f" for {boss_relic.name}"
 

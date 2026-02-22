@@ -160,6 +160,15 @@ def loop_start(ctx: PowerContext) -> None:
             manager._execute_passive(rightmost_orb, ctx.state, manager.focus)
 
 
+@power_trigger("atStartOfTurn", power="Bias")
+def bias_start(ctx: PowerContext) -> None:
+    """Bias: Lose Focus at start of turn (Biased Cognition timing)."""
+    current_focus = ctx.player.statuses.get("Focus", 0)
+    ctx.player.statuses["Focus"] = current_focus - ctx.amount
+    if ctx.player.statuses["Focus"] == 0:
+        del ctx.player.statuses["Focus"]
+
+
 # =============================================================================
 # AT_START_OF_TURN_POST_DRAW Triggers (after draw)
 # =============================================================================
@@ -314,15 +323,6 @@ def omega_end(ctx: PowerContext) -> None:
             enemy.hp = 0
 
 
-@power_trigger("atEndOfTurn", power="Bias")
-def bias_end(ctx: PowerContext) -> None:
-    """Bias: Lose Focus at start of turn (processed at end of prev turn)."""
-    current_focus = ctx.player.statuses.get("Focus", 0)
-    ctx.player.statuses["Focus"] = current_focus - ctx.amount
-    if ctx.player.statuses["Focus"] == 0:
-        del ctx.player.statuses["Focus"]
-
-
 # =============================================================================
 # AT_END_OF_ROUND Triggers (after all turns)
 # =============================================================================
@@ -352,6 +352,13 @@ def frail_end_round(ctx: PowerContext) -> None:
         ctx.owner.statuses["Frail"] -= 1
         if ctx.owner.statuses["Frail"] <= 0:
             del ctx.owner.statuses["Frail"]
+
+
+@power_trigger("atEndOfRound", power="Slow")
+def slow_end_round(ctx: PowerContext) -> None:
+    """Slow: Reset stacks at end of round (power persists)."""
+    if ctx.owner and "Slow" in ctx.owner.statuses:
+        ctx.owner.statuses["Slow"] = 0
 
 
 # =============================================================================
@@ -418,23 +425,6 @@ def panache_on_use(ctx: PowerContext) -> None:
     ctx.player.statuses["PanacheCounter"] = counter
 
 
-@power_trigger("onUseCard", power="ThousandCuts")
-def thousand_cuts_on_use(ctx: PowerContext) -> None:
-    """Thousand Cuts: Deal damage to all enemies when playing any card.
-
-    Note: Java uses onAfterCardPlayed (triggers after card effects resolve).
-    We use onUseCard since onAfterCardPlayed hook is not yet implemented.
-    Timing difference is minor for most practical purposes.
-    """
-    for enemy in ctx.living_enemies:
-        # THORNS type damage
-        blocked = min(enemy.block, ctx.amount)
-        enemy.block -= blocked
-        enemy.hp -= (ctx.amount - blocked)
-        if enemy.hp < 0:
-            enemy.hp = 0
-
-
 @power_trigger("onUseCard", power="Heatsink")
 def heatsink_on_use(ctx: PowerContext) -> None:
     """Heatsink: Draw cards when playing a Power card."""
@@ -442,6 +432,61 @@ def heatsink_on_use(ctx: PowerContext) -> None:
     card_id = ctx.trigger_data.get("card_id", "")
     if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.POWER:
         ctx.draw_cards(ctx.amount)
+
+
+# =============================================================================
+# ON_AFTER_USE_CARD Triggers
+# =============================================================================
+
+@power_trigger("onAfterUseCard", power="BeatOfDeath")
+def beat_of_death_after_use(ctx: PowerContext) -> None:
+    """Beat of Death: Deal THORNS damage to player after each card."""
+    if ctx.amount <= 0:
+        return
+    blocked = min(ctx.player.block, ctx.amount)
+    hp_damage = ctx.amount - blocked
+    ctx.player.block -= blocked
+    ctx.player.hp -= hp_damage
+    if ctx.player.hp < 0:
+        ctx.player.hp = 0
+    ctx.state.total_damage_taken += hp_damage
+
+
+@power_trigger("onAfterUseCard", power="Slow")
+def slow_after_use(ctx: PowerContext) -> None:
+    """Slow: Increase stacks by 1 whenever a card is played."""
+    if ctx.owner is None:
+        return
+    ctx.owner.statuses["Slow"] = ctx.owner.statuses.get("Slow", 0) + 1
+
+
+@power_trigger("onAfterUseCard", power="Time Warp")
+def time_warp_after_use(ctx: PowerContext) -> None:
+    """Time Warp: Count cards; at 12, end turn and all enemies gain Strength."""
+    if ctx.owner is None:
+        return
+    counter = ctx.owner.statuses.get("Time Warp", 0) + 1
+    if counter >= 12:
+        counter = 0
+        for enemy in ctx.living_enemies:
+            enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + 2
+        ctx.trigger_data["force_end_turn"] = True
+    ctx.owner.statuses["Time Warp"] = counter
+
+
+# =============================================================================
+# ON_AFTER_CARD_PLAYED Triggers
+# =============================================================================
+
+@power_trigger("onAfterCardPlayed", power="ThousandCuts")
+def thousand_cuts_after_played(ctx: PowerContext) -> None:
+    """Thousand Cuts: Deal THORNS damage to all enemies after a card is played."""
+    for enemy in ctx.living_enemies:
+        blocked = min(enemy.block, ctx.amount)
+        enemy.block -= blocked
+        enemy.hp -= (ctx.amount - blocked)
+        if enemy.hp < 0:
+            enemy.hp = 0
 
 
 # =============================================================================
@@ -572,6 +617,15 @@ def vulnerable_damage_receive(ctx: PowerContext) -> int:
     """Vulnerable: Take 50% more damage."""
     base_damage = ctx.trigger_data.get("value", 0)
     return int(base_damage * 1.5)
+
+
+@power_trigger("atDamageReceive", power="Slow")
+def slow_damage_receive(ctx: PowerContext) -> int:
+    """Slow: Increase NORMAL damage taken by 10% per stack."""
+    base_damage = ctx.trigger_data.get("value", 0)
+    if ctx.damage_type != "NORMAL" or ctx.amount <= 0:
+        return base_damage
+    return int(base_damage * (1 + (ctx.amount * 0.1)))
 
 
 @power_trigger("atDamageFinalReceive", power="Intangible", priority=1)
@@ -859,7 +913,7 @@ def blur_start(ctx: PowerContext) -> None:
 # On Card Play
 # -----------------------------------------------------------------------------
 
-# Note: ThousandCuts is defined above in the main ON_USE_CARD section
+# Note: ThousandCuts is defined above in the ON_AFTER_CARD_PLAYED section
 
 @power_trigger("onUseCard", power="Burst")
 def burst_on_use(ctx: PowerContext) -> None:

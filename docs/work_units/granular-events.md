@@ -11,6 +11,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] GremlinMatchGame - add handler + registry entry. (action: none{})
 - [ ] GremlinWheelGame - add handler + registry entry. (action: none{})
 - [ ] NoteForYourself - add definition to handler pools + handler + registry. (action: none{})
+- [ ] Register existing `_get_*_choices` in `EVENT_CHOICE_GENERATORS` (many already implemented but unregistered). (action: none{})
 
 ## Missing choice generators (Act 1)
 - [ ] DeadAdventurer - _get_choices implementation. (action: event_choice{choice_index})
@@ -60,6 +61,11 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] Align `SecretPortal` act/special classification across content and handler. (action: none{})
 - [ ] Ensure every `EventDefinition` has a handler + choice generator. (action: none{})
 - [ ] Add tests to assert pool membership and alias normalization. (action: none{})
+
+## Logic parity fixes (Java vs Python)
+- [ ] DeadAdventurer: randomize reward order (gold/relic/nothing) and select elite type from Sentries/Nob/Lagavulin via miscRng. (action: event_choice{choice_index})
+- [ ] Falling: preselect cards by type, disable options when no cards available, and remove the exact selected card. (action: event_choice{choice_index,card_index})
+- [ ] KnowingSkull: implement escalating costs per reward and match Java cost progression. (action: event_choice{choice_index})
 
 ## Failed-tests mapping (2026-02-04)
 - [ ] Add `EventHandler.SKILL_CARDS`, `POWER_CARDS`, `ATTACK_CARDS` pools used by `Falling` and derived from card types. (action: none{})
