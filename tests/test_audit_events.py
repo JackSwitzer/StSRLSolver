@@ -469,6 +469,29 @@ class TestEventHandlerRegistries:
             assert event_id in EVENT_CHOICE_GENERATORS
 
 
+class TestEventAliasNormalization:
+    """Ensure Java class-name aliases normalize to canonical Python event IDs."""
+
+    @pytest.mark.parametrize(
+        ("alias_id", "canonical_id"),
+        [
+            ("Cleric", "TheCleric"),
+            ("DrugDealer", "Augmenter"),
+            ("FountainOfCurseRemoval", "FountainOfCleansing"),
+            ("GoldShrine", "GoldenShrine"),
+            ("GoldenWing", "WingStatue"),
+            ("GoopPuddle", "WorldOfGoop"),
+            ("Lab", "TheLab"),
+            ("PurificationShrine", "Purifier"),
+            ("TombRedMask", "TombOfLordRedMask"),
+            ("Bonfire", "BonfireElementals"),
+        ],
+    )
+    def test_java_aliases_normalize_to_canonical_ids(self, alias_id, canonical_id):
+        handler = EventHandler()
+        assert handler._normalize_event_id(alias_id) == canonical_id
+
+
 class TestGoldenShrineHandlerBehavior:
     """Behavior tests for Golden Shrine event handler."""
 

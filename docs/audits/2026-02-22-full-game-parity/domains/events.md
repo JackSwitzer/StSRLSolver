@@ -4,7 +4,8 @@
 - Event coverage is structurally complete in the handler layer.
 - Event action-surface now supports explicit card-selection follow-up for single-card event choices.
 - Deterministic multi-phase runner transition coverage is now locked by explicit action-surface tests.
-- Remaining event gap is alias/inventory hardening.
+- Event alias/inventory normalization is now locked against Java class-name variants.
+- Event-domain queue (`EVT-001`..`EVT-004`) is complete.
 
 ## Confirmed facts
 - [x] Event definitions registered: 51
@@ -15,7 +16,7 @@
 - [x] `EVT-001` card-required event choices expose explicit follow-up selection actions.
 - [x] `EVT-002` selected card indices are passed to event execution (`card_idx` no longer forced to `None`).
 - [x] `EVT-003` deterministic multi-phase transitions now have explicit action-surface tests.
-- [ ] `EVT-004` alias mapping should be hardened and tested against Java class names.
+- [x] `EVT-004` alias mapping is hardened and tested against Java class names.
 
 ## EVT-001 / EVT-002 implementation result
 - `take_action_dict({"type":"event_choice"})` now performs selection detection via copied-state preview and returns:
@@ -35,7 +36,11 @@
   - validates phase continuity (`GamePhase.EVENT`) and explicit secondary actions.
 - `tests/test_agent_api.py::TestActionExecution::test_event_multiphase_golden_idol_followup_action_ids_are_deterministic`
   - validates deterministic follow-up action IDs across equivalent multi-phase states.
-- Full suite after change: `4642 passed, 5 skipped, 0 failed`.
+- `tests/test_audit_events.py::TestEventAliasNormalization::test_java_aliases_normalize_to_canonical_ids`
+  - validates Java class-name aliases:
+    - `Cleric`, `DrugDealer`, `FountainOfCurseRemoval`, `GoldShrine`, `GoldenWing`
+    - `GoopPuddle`, `Lab`, `PurificationShrine`, `TombRedMask`, `Bonfire`
+- Full suite after change: `4652 passed, 5 skipped, 0 failed`.
 
 ## Java references
 - `com/megacrit/cardcrawl/events/exordium/**`
@@ -46,6 +51,3 @@
 ## Python touchpoints
 - `packages/engine/handlers/event_handler.py`
 - `packages/engine/game.py` (`get_available_action_dicts`, `take_action_dict`, `_apply_pending_selection`, `_handle_event_action`)
-
-## Next commit order
-1. `EVT-004`
