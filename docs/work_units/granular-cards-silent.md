@@ -1,5 +1,9 @@
 # Ultra-Granular Work Units: Cards (Silent)
 
+## Current parity source
+- Non-Defect manifest row source: `docs/audits/2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`green` section)
+- Phase target: close Silent rows from `approximate` to Java-audited `exact`
+
 ## Model-facing actions (no UI)
 - [ ] All card effects that require choices/targets must emit explicit action options. (action: play_card{card_index,target_index})
 

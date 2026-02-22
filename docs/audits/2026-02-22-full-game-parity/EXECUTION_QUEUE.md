@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Baseline
-- Branch: `main` (current merged baseline), active docs branch: `codex/docs-ground-truth-audit`
+- Branch: `main` (current merged baseline, includes PR `#23`)
 - Suite baseline: `4659 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
@@ -44,11 +44,22 @@ Last updated: 2026-02-22
 - `RWD-003` proceed gating parity (completed)
 - `RWD-004` reward modifiers parity (completed)
 
-### Batch R4+
-- `CONS-001` deterministic RNG normalization sweep (cards/powers/effect contexts first)
+### Batch R4 (cards non-Defect, docs/tests/code loop)
+- `CRD-INV-001` non-Defect card manifest and Java->Python mapping rows
+- `CRD-IC-*` Ironclad parity clusters
+- `CRD-SI-*` Silent parity clusters
+- `CRD-WA-*` Watcher parity clusters
+- `CRD-SH-*` shared colorless/curse/status parity clusters
+
+### Batch R5 (orbs + powers)
 - `POW-001`, `POW-002`, `ORB-001`, `POW-003`
-- `CRD-*`
-- `AUD-*`
+- `CONS-001B` remaining deterministic RNG normalization (relic/potion/orb runtime callsites)
+
+### Batch R6 (Defect cards)
+- `CRD-DE-*` Defect parity closure after orb semantics are stable
+
+### Batch R7 (final audit and RL gate)
+- `AUD-001`, `AUD-002`, `AUD-003`
 
 ## Merge gates per feature
 - targeted tests green

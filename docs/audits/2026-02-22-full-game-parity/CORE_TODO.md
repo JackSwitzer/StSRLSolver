@@ -10,7 +10,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
-- [x] PR history synced through merged PR [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22).
+- [x] PR history synced through merged PR [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23).
 - [x] Regions `R1` to `R3` closed and merged to `main`.
 - [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
 - [ ] Every parity-critical choice interaction is explicit in action dict flow.
@@ -18,9 +18,10 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [ ] RL readiness checklist is fully green.
 
 ## Region order (locked)
-1. `R4` powers + orbs closure
-2. `R5` cards long-tail closure
-3. `R6` final re-audit + RL gate
+1. `R4` cards closure (non-Defect first)
+2. `R5` powers + orbs closure
+3. `R6` Defect cards closure
+4. `R7` final re-audit + RL gate
 
 ## Region status
 
@@ -50,20 +51,23 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `RWD-003` proceed gating parity
 - [x] `RWD-004` indexed secondary relic claim/gating parity
 
-### R4 powers + orbs
+### R4 cards (non-Defect first)
+- [ ] `CRD-IC-*` Ironclad closure
+- [ ] `CRD-SI-*` Silent closure
+- [ ] `CRD-WA-*` Watcher closure
+- [ ] `CRD-SH-*` shared colorless/curse/status closure
+
+### R5 powers + orbs
 - [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
 - [ ] `POW-001` Java power inventory closure
 - [ ] `POW-002` residual hook/timing closure
 - [ ] `ORB-001` orb infrastructure for parity-critical behaviors
 - [ ] `POW-003` integration tests
 
-### R5 cards
-- [ ] `CRD-IC-*` Ironclad closure
-- [ ] `CRD-SI-*` Silent closure
+### R6 cards (Defect)
 - [ ] `CRD-DE-*` Defect closure
-- [ ] `CRD-WA-*` Watcher closure
 
-### R6 final audit + RL gate
+### R7 final audit + RL gate
 - [ ] `AUD-001` final Java-vs-Python diff pass
 - [ ] `AUD-002` zero-skip normal CI confirmation
 - [ ] `AUD-003` RL readiness sign-off

@@ -1,5 +1,9 @@
 # Ultra-Granular Work Units: Cards (Defect)
 
+## Phase note
+- Defect closure is intentionally sequenced after `ORB-001` and `POW-*` stabilization.
+- Do not mark Defect rows `exact` until orb timing/runtime parity is locked.
+
 ## Model-facing actions (no UI)
 - [ ] All card effects that require choices/targets must emit explicit action options. (action: play_card{card_index,target_index})
 

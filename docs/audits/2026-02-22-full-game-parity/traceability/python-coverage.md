@@ -11,7 +11,7 @@ This file records implemented coverage in this repo and remaining parity-critica
 | events | `packages/engine/handlers/event_handler.py`, `packages/engine/game.py` | strong | definitions/handlers/choice generators are complete (`51/51/51`), plus explicit event selection action flow |
 | powers | `packages/engine/content/powers.py`, `packages/engine/registry/powers.py`, `packages/engine/handlers/combat.py` | partial | hook-order fixes landed, but inventory and long-tail behavior remain incomplete (`POW-*`) |
 | rewards/shops/rest/map | `packages/engine/handlers/reward_handler.py`, `shop_handler.py`, `rooms.py`, `game.py` | strong | `RWD-001..004` closed (canonical reward emission/execution, proceed gating, indexed secondary relic claims) |
-| cards | `packages/engine/effects/cards.py`, `packages/engine/effects/defect_cards.py` | partial | broad behavior support exists; full class-by-class parity closure remains in `CRD-*` tracks |
+| cards | `packages/engine/effects/cards.py`, `packages/engine/effects/defect_cards.py`, `content/cards.py` | partial | non-Defect manifest published (`domains/cards-manifest-non-defect.md`); full class-by-class parity closure remains in `CRD-*` tracks |
 | orbs | `packages/engine/effects/orbs.py`, `packages/engine/registry/relics.py` | open | orb parity remains a blocker; placeholder TODO logic remains in orb-linked relic hooks |
 
 ## Confirmed implementation facts
@@ -34,4 +34,4 @@ This file records implemented coverage in this repo and remaining parity-critica
 - [ ] Close `POW-001` inventory mapping and add per-class parity assertions.
 - [ ] Close `ORB-001` and remove orb placeholder branches in relic/power hooks.
 - [ ] Complete `CRD-*` long-tail behavior closure.
-- [ ] Remove gameplay-critical direct Python `random` usage in engine logic and enforce owned RNG streams.
+- [ ] Remove gameplay-critical direct Python `random` usage in engine logic and enforce owned RNG streams (23 callsites remain after `CONS-001`).

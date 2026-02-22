@@ -17,6 +17,7 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 - Core TODO: [`CORE_TODO.md`](./CORE_TODO.md)
 - Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
+- Remaining parity audit: [`REMAINING_PARITY_AUDIT.md`](./REMAINING_PARITY_AUDIT.md)
 - PR history: [`PR_HISTORY.md`](./PR_HISTORY.md)
 - Consolidation/code review: [`CODE_CONSOLIDATION_REVIEW.md`](./CODE_CONSOLIDATION_REVIEW.md)
 - Test baseline: [`testing/test-baseline.md`](./testing/test-baseline.md)
