@@ -6,6 +6,7 @@
 - [x] `EVT-002` Selected card indices are passed to `EventHandler.execute_choice(..., card_idx=...)`.
 - [x] `EVT-002` Add action-surface tests proving non-default selected indices apply correctly.
 - [x] `EVT-003` Add deterministic multi-phase runner action-surface tests (phase continuity + follow-up action IDs).
+- [x] `EVT-004` Harden event alias normalization for Java class-name variants and lock with tests.
 
 ## Notes
 - This file contains legacy checklist items from earlier audits.

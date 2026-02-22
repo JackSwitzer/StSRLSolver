@@ -10,7 +10,7 @@ This file tracks what Java contains and where parity closure still requires expl
 | domain | java source scope | java count | python count | delta notes |
 |---|---|---:|---:|---|
 | relics | `relics/*.java` (excluding `AbstractRelic`, `Test*`) | 181 | 181 (`content/relics.py`) | inventory count parity reached; alias forms resolved via canonical lookup |
-| events | `events/**/*.java` (excluding framework classes) | 51 | 51 (event definitions in handler) | counts match; alias map still needed |
+| events | `events/**/*.java` (excluding framework classes) | 51 | 51 (event definitions in handler) | counts match; Java/display alias normalization locked in handler |
 | powers | `powers/*.java` + `powers/watcher/*.java` (excluding `AbstractPower`) | 149 | 94 (`content/powers.py::POWER_DATA`) | large inventory gap remains |
 | potions | `potions/*.java` | unavailable in local decompile snapshot | 42 (`content/potions.py`) | must use other Java refs until local class set is restored |
 
@@ -19,7 +19,7 @@ This file tracks what Java contains and where parity closure still requires expl
 - Java/class-name alias forms (`Abacus`, `Courier`, `Waffle`, `WhiteBeast`, `WingBoots`, etc.) are resolved by `content/relics.py::resolve_relic_id`.
 - Remaining relic work is behavior-level (`REL-007`/`ORB-001`), not inventory count mismatch.
 
-## Confirmed event alias mismatches (counts match)
+## Event alias mapping coverage (closed)
 Java stems not directly equal to Python event IDs include:
 - `Cleric` vs `TheCleric`
 - `DrugDealer` vs `Augmenter`
@@ -31,6 +31,7 @@ Java stems not directly equal to Python event IDs include:
 - `PurificationShrine` vs `Purifier`
 - `TombRedMask` vs `TombOfLordRedMask`
 - `Bonfire` vs `BonfireElementals`
+All of these aliases are now normalized by `handlers/event_handler.py::EVENT_ID_ALIASES` and locked by `tests/test_audit_events.py::TestEventAliasNormalization`.
 
 ## Confirmed powers inventory gap
 - 149 Java power classes vs 94 Python power entries.
@@ -38,7 +39,7 @@ Java stems not directly equal to Python event IDs include:
 - This is tracked as `POW-001` in the manifest.
 
 ## Intake checklist
-- [ ] Add explicit alias rows for relic/event naming mismatches.
+- [x] Add explicit alias rows for relic/event naming mismatches.
 - [ ] Convert powers inventory gap list into per-class manifest rows (`POW-001-*`).
 - [ ] Restore or link local Java potion class inventory for fully auditable potion-class parity.
 - [ ] Link each gap row to exact Java class and method where behavior is asserted.

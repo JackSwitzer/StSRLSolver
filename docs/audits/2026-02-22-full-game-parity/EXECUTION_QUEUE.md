@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4642 passed, 5 skipped, 0 failed`
+- Suite baseline: `4652 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -36,7 +36,7 @@ Last updated: 2026-02-22
 - `EVT-001` event selection follow-up actions (completed)
 - `EVT-002` wire selected card index to handler execution (completed)
 - `EVT-003` deterministic multi-phase transitions (completed)
-- `EVT-004` event alias/inventory parity
+- `EVT-004` event alias/inventory parity (completed)
 
 ### Batch R3
 - `RWD-001` canonical reward action emission path
