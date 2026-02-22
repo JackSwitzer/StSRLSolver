@@ -2,34 +2,35 @@
 
 Last updated: 2026-02-22
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
+Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
 - Full suite baseline: `4659 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
-- Skips are artifact-dependent (`tests/test_parity.py` replay file missing)
+- Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
-- [ ] Canonical traceability manifest complete for all parity-critical gaps.
-- [ ] Every choice interaction uses explicit action dict flow.
-- [ ] Normal CI is `0 skipped, 0 failed`.
+- [x] PR history synced through merged PR [#21](https://github.com/JackSwitzer/StSRLSolver/pull/21).
+- [x] Regions `R1` to `R3` closed and merged to `main`.
+- [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
+- [ ] Every parity-critical choice interaction is explicit in action dict flow.
+- [ ] Normal CI path is `0 skipped, 0 failed`.
 - [ ] RL readiness checklist is fully green.
 
 ## Region order (locked)
-1. R1 relic selection surface
-2. R2 event selection surface
-3. R3 reward/shop/rest/map normalization
-4. R4 powers + orbs closure
-5. R5 cards long-tail closure
-6. R6 final re-audit + RL gate
+1. `R4` powers + orbs closure
+2. `R5` cards long-tail closure
+3. `R6` final re-audit + RL gate
 
 ## Region status
 
-### R0 docs + scaffolding (completed)
+### R0 docs + scaffolding
 - [x] `DOC-001` canonical suite + legacy archive pointer
 - [x] `DOC-002` skill pack and core-loop process docs
 - [x] `DOC-003` evidence refresh with inventory counts and gap queue
+- [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, `PR_HISTORY`, consolidation review)
 
-### R1 relic selection surface (active)
+### R1 relic selection surface
 - [x] `REL-003` Orrery explicit selection actions
 - [x] `REL-004` bottled relic assignment explicit actions
 - [x] `REL-008` Dolly's Mirror explicit duplicate selection
@@ -47,7 +48,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `RWD-001` canonical reward action emission path
 - [x] `RWD-002` canonical reward action execution path
 - [x] `RWD-003` proceed gating parity
-- [x] `RWD-004` modifier interaction parity
+- [x] `RWD-004` indexed secondary relic claim/gating parity
 
 ### R4 powers + orbs
 - [ ] `POW-001` Java power inventory closure
@@ -62,13 +63,14 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [ ] `CRD-WA-*` Watcher closure
 
 ### R6 final audit + RL gate
-- [ ] `AUD-001` final diff pass
+- [ ] `AUD-001` final Java-vs-Python diff pass
 - [ ] `AUD-002` zero-skip normal CI confirmation
 - [ ] `AUD-003` RL readiness sign-off
 
 ## Confirmed high-impact open gaps
-- [ ] Power inventory has large class-level residuals.
+- [ ] Power inventory has large class-level residuals (`149` Java vs `94` Python).
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.
+- [ ] Engine logic still contains direct Python `random` usage in parity-critical modules.
 
 ## Policy reminders
 - [ ] Per feature loop: `docs -> tests -> code -> commit -> todo update`.
