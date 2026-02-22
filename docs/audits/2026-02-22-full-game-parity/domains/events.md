@@ -2,7 +2,8 @@
 
 ## Status
 - Event coverage is structurally complete in the handler layer.
-- Action-surface completeness is still incomplete at the runner/action API boundary.
+- Event action-surface now supports explicit card-selection follow-up for single-card event choices.
+- Remaining event gaps are deterministic transition coverage and alias/inventory hardening.
 
 ## Confirmed facts
 - [x] Event definitions registered: 51
@@ -10,10 +11,26 @@
 - [x] Event handlers registered: 51
 
 ## Confirmed open gaps
-- [ ] `EVT-001` card-required event choices do not expose explicit follow-up selection actions.
-- [ ] `EVT-002` selected card indices are not passed to event execution (`card_idx` forced to `None`).
+- [x] `EVT-001` card-required event choices expose explicit follow-up selection actions.
+- [x] `EVT-002` selected card indices are passed to event execution (`card_idx` no longer forced to `None`).
 - [ ] `EVT-003` deterministic multi-phase transitions need explicit action-surface tests.
 - [ ] `EVT-004` alias mapping should be hardened and tested against Java class names.
+
+## EVT-001 / EVT-002 implementation result
+- `take_action_dict({"type":"event_choice"})` now performs selection detection via copied-state preview and returns:
+  - `requires_selection: true`
+  - deterministic `candidate_actions` (`select_cards`)
+  - no live-state mutation on the first call.
+- Event follow-up selection now routes through pending selection context and validates selected indices before dispatch.
+- `_handle_event_action` now forwards selected card index to `EventHandler.execute_choice(..., card_idx=...)` and clears pending event selection state.
+- `get_available_action_dicts()` marks event choices with `requires=["card_indices"]` when selection is required.
+
+## Tests added in this slice
+- `tests/test_agent_api.py::TestActionExecution::test_event_choice_requires_selection_without_state_mutation`
+  - validates selection-required response and no first-call mutation.
+- `tests/test_agent_api.py::TestActionExecution::test_event_choice_selection_roundtrip_uses_selected_card_index`
+  - validates selected non-default index is the card actually removed.
+- Full suite after change: `4640 passed, 5 skipped, 0 failed`.
 
 ## Java references
 - `com/megacrit/cardcrawl/events/exordium/**`
@@ -23,10 +40,8 @@
 
 ## Python touchpoints
 - `packages/engine/handlers/event_handler.py`
-- `packages/engine/game.py` (`_handle_event_action`, `take_action_dict`)
+- `packages/engine/game.py` (`get_available_action_dicts`, `take_action_dict`, `_apply_pending_selection`, `_handle_event_action`)
 
 ## Next commit order
-1. `EVT-001`
-2. `EVT-002`
-3. `EVT-003`
-4. `EVT-004`
+1. `EVT-003`
+2. `EVT-004`

@@ -25,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Union, Any, Tuple
+import copy
 import itertools
 import random
 
@@ -273,6 +274,7 @@ class GameRunner:
         self.is_burning_elite: bool = False  # Track if current elite is burning
         self.pending_selection: Optional[PendingSelectionContext] = None
         self._pending_relic_selection_indices: Optional[List[int]] = None
+        self._pending_event_selection_indices: Optional[List[int]] = None
 
         # Current event state (when in event)
         self.current_event: Optional[Dict] = None  # Legacy format
@@ -824,6 +826,91 @@ class GameRunner:
 
         return None
 
+    def _preview_event_choice_result(self, choice_index: int) -> Optional[EventChoiceResult]:
+        """Execute an event choice on copied state to detect selection requirements."""
+        if self.current_event_state is None:
+            return None
+
+        event_state_preview = copy.deepcopy(self.current_event_state)
+        run_state_preview = self.run_state.copy()
+        event_rng_preview = self.event_rng.copy()
+        misc_rng_preview = self.misc_rng.copy()
+
+        try:
+            return self.event_handler.execute_choice(
+                event_state_preview,
+                choice_index,
+                run_state_preview,
+                event_rng_preview,
+                card_idx=None,
+                misc_rng=misc_rng_preview,
+            )
+        except TypeError:
+            return self.event_handler.execute_choice(
+                event_state_preview,
+                choice_index,
+                run_state_preview,
+                event_rng_preview,
+                card_idx=None,
+            )
+        except Exception:
+            return None
+
+    def _build_pending_selection_for_event_choice(
+        self,
+        choice_index: int,
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Build selection context for event choices that require card input."""
+        preview = self._preview_event_choice_result(choice_index)
+        if preview is None or not preview.requires_card_selection:
+            return None
+
+        selection_type = str(preview.card_selection_type or "")
+        required_count = max(1, int(preview.card_selection_count or 1))
+        # Current EventHandler execute path accepts one card index per action.
+        if required_count != 1:
+            return None
+
+        pile = "deck"
+        candidate_indices: List[int] = []
+        metadata: Dict[str, Any] = {
+            "event_choice_index": choice_index,
+            "event_id": preview.event_id,
+            "event_selection_type": selection_type,
+        }
+
+        if selection_type in {"remove", "transform"}:
+            candidate_indices = [idx for idx, _ in self.run_state.get_removable_cards()]
+        elif selection_type == "upgrade":
+            candidate_indices = [idx for idx, _ in self.run_state.get_upgradeable_cards()]
+        elif selection_type == "duplicate":
+            candidate_indices = list(range(len(self.run_state.deck)))
+        elif selection_type == "choose":
+            pool = list(preview.card_selection_pool)
+            pile = "offer"
+            candidate_indices = list(range(len(pool)))
+            metadata["offer_cards"] = [
+                card.id if hasattr(card, "id") else str(card)
+                for card in pool
+            ]
+        else:
+            return None
+
+        if not candidate_indices:
+            return None
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type="event_choice",
+            pile=pile,
+            min_cards=1,
+            max_cards=1,
+            candidate_indices=candidate_indices,
+            metadata=metadata,
+            parent_action_id=parent_action_id,
+        )
+
     def _selection_context_actions(self) -> List[ActionDict]:
         """Emit explicit follow-up actions for pending selection state."""
         if not self.pending_selection:
@@ -948,6 +1035,44 @@ class GameRunner:
             self._pending_relic_selection_indices = None
         return result
 
+    def _apply_pending_event_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
+        """Resolve pending event card selection and dispatch parent event action."""
+        if not self.pending_selection:
+            return {"success": False, "error": "No pending selection"}
+
+        ctx = self.pending_selection
+        if ctx.source_action_type != "event_choice":
+            return {"success": False, "error": "Unsupported pending event selection source"}
+        if action_dict.get("type") != "select_cards":
+            return {"success": False, "error": "Expected select_cards action"}
+
+        params = action_dict.get("params", {}) or {}
+        selected = [int(i) for i in params.get("card_indices", [])]
+        if len(selected) < ctx.min_cards or len(selected) > ctx.max_cards:
+            return {"success": False, "error": "Invalid number of selected cards"}
+        if len(set(selected)) != len(selected):
+            return {"success": False, "error": "Duplicate selected cards are not allowed"}
+
+        allowed = set(ctx.candidate_indices)
+        if any(idx not in allowed for idx in selected):
+            return {"success": False, "error": "Invalid selected card index"}
+
+        choice_index = int(ctx.metadata.get("event_choice_index", -1))
+        if choice_index < 0:
+            return {"success": False, "error": "Missing event choice index in selection context"}
+
+        self.pending_selection = None
+        self._pending_event_selection_indices = selected
+
+        parent_action: ActionDict = {
+            "type": "event_choice",
+            "params": {"choice_index": choice_index},
+        }
+        result = self.take_action_dict(parent_action)
+        if not result.get("success"):
+            self._pending_event_selection_indices = None
+        return result
+
     def _apply_pending_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
         """Execute pending selection and resolve the parent potion action."""
         if not self.pending_selection:
@@ -956,6 +1081,8 @@ class GameRunner:
         ctx = self.pending_selection
         if ctx.source_action_type in {"pick_boss_relic", "buy_relic", "claim_relic"}:
             return self._apply_pending_relic_selection(action_dict)
+        if ctx.source_action_type == "event_choice":
+            return self._apply_pending_event_selection(action_dict)
 
         if not self.current_combat:
             return {"success": False, "error": "No combat context for selection"}
@@ -1393,12 +1520,58 @@ class GameRunner:
                 for action in actions:
                     if action.get("type") == "claim_relic":
                         action["requires"] = ["card_indices"]
+
+        if self.phase == GamePhase.EVENT and self.current_event_state is not None:
+            for action in actions:
+                if action.get("type") != "event_choice":
+                    continue
+                params = action.get("params", {}) or {}
+                choice_index = int(params.get("choice_index", -1))
+                selection_ctx = self._build_pending_selection_for_event_choice(
+                    choice_index=choice_index,
+                    parent_action_id=str(action.get("id", "")),
+                )
+                if selection_ctx is not None:
+                    action["requires"] = ["card_indices"]
         return actions
 
     def take_action_dict(self, action_dict: ActionDict) -> Dict[str, Any]:
         """Execute a JSON action dict via the dataclass adapter."""
         if self.pending_selection is not None:
             return self._apply_pending_selection(action_dict)
+
+        # Intercept event choices requiring explicit card selection.
+        if self.phase == GamePhase.EVENT and action_dict.get("type") == "event_choice":
+            params = action_dict.get("params", {}) or {}
+            if "choice_index" not in params:
+                return {"success": False, "error": "Missing choice_index"}
+            choice_index = int(params.get("choice_index", -1))
+
+            if self._pending_event_selection_indices is None:
+                selection_ctx = self._build_pending_selection_for_event_choice(
+                    choice_index=choice_index,
+                    parent_action_id=str(action_dict.get("id", "")),
+                )
+                if selection_ctx is not None:
+                    self.pending_selection = selection_ctx
+                    if "card_indices" in params:
+                        selection_action = {
+                            "type": "select_cards",
+                            "params": {
+                                "pile": selection_ctx.pile,
+                                "card_indices": params.get("card_indices", []),
+                                "min_cards": selection_ctx.min_cards,
+                                "max_cards": selection_ctx.max_cards,
+                                "parent_action_id": selection_ctx.parent_action_id,
+                            },
+                        }
+                        return self._apply_pending_selection(selection_action)
+                    return {
+                        "success": False,
+                        "error": "Selection required",
+                        "requires_selection": True,
+                        "candidate_actions": self._selection_context_actions(),
+                    }
 
         # Intercept selection-required potions so caller can resolve via explicit actions.
         if self.phase == GamePhase.COMBAT and action_dict.get("type") == "use_potion":
@@ -2488,6 +2661,14 @@ class GameRunner:
             self.phase = GamePhase.MAP_NAVIGATION
             return True, {"choice": action.choice_index}
 
+        selected_indices = (
+            list(self._pending_event_selection_indices)
+            if self._pending_event_selection_indices is not None
+            else None
+        )
+        card_idx = selected_indices[0] if selected_indices else None
+        self._pending_event_selection_indices = None
+
         # Execute the choice, passing misc_rng if the handler supports it
         try:
             result = self.event_handler.execute_choice(
@@ -2495,7 +2676,7 @@ class GameRunner:
                 action.choice_index,
                 self.run_state,
                 self.event_rng,
-                card_idx=None,  # Would be passed for card selection events
+                card_idx=card_idx,
                 misc_rng=self.misc_rng,
             )
         except TypeError:
@@ -2505,7 +2686,7 @@ class GameRunner:
                 action.choice_index,
                 self.run_state,
                 self.event_rng,
-                card_idx=None,
+                card_idx=card_idx,
             )
 
         self._sync_rng_counters()

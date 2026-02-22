@@ -19,6 +19,7 @@ from packages.engine import (
 )
 from packages.engine.combat_engine import CombatEngine
 from packages.engine.content.relics import get_relic
+from packages.engine.handlers.event_handler import EventPhase, EventState
 from packages.engine.handlers.reward_handler import CombatRewards, BossRelicChoices
 from packages.engine.handlers.reward_handler import RelicReward
 from packages.engine.state.combat import create_combat, create_enemy
@@ -877,6 +878,71 @@ class TestActionExecution:
         })
         assert invalid.get("success") is False
         assert "Invalid selected card index" in invalid.get("error", "")
+
+    def test_event_choice_requires_selection_without_state_mutation(self, runner):
+        """Card-select event choices should return candidate actions without mutating live state."""
+        runner.phase = GamePhase.EVENT
+        runner.current_event_state = EventState(event_id="LivingWall", phase=EventPhase.INITIAL)
+
+        before_deck = [(card.id, card.upgraded, card.misc_value) for card in runner.run_state.deck]
+        before_phase = runner.phase
+
+        first = runner.take_action_dict({
+            "type": "event_choice",
+            "params": {"choice_index": 0},  # LivingWall forget -> remove
+        })
+
+        assert first.get("success") is False
+        assert first.get("requires_selection") is True
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
+
+        removable = {idx for idx, _ in runner.run_state.get_removable_cards()}
+        candidate_indices = {
+            a.get("params", {}).get("card_indices", [None])[0]
+            for a in candidates
+        }
+        assert candidate_indices == removable
+
+        after_deck = [(card.id, card.upgraded, card.misc_value) for card in runner.run_state.deck]
+        assert before_deck == after_deck
+        assert runner.phase == before_phase == GamePhase.EVENT
+        assert runner.current_event_state is not None
+
+    def test_event_choice_selection_roundtrip_uses_selected_card_index(self, runner):
+        """select_cards follow-up should execute event choice with the selected deck index."""
+        runner.phase = GamePhase.EVENT
+        runner.current_event_state = EventState(event_id="LivingWall", phase=EventPhase.INITIAL)
+
+        removable = [idx for idx, _ in runner.run_state.get_removable_cards()]
+        assert removable
+        target_index = removable[-1]
+        target_card = runner.run_state.deck[target_index]
+        target_before_count = sum(1 for card in runner.run_state.deck if card.id == target_card.id)
+
+        first = runner.take_action_dict({
+            "type": "event_choice",
+            "params": {"choice_index": 0},  # LivingWall forget -> remove
+        })
+        assert first.get("requires_selection") is True
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        selected = next(
+            action
+            for action in candidates
+            if action.get("params", {}).get("card_indices") == [target_index]
+        )
+        second = runner.take_action_dict(selected)
+
+        assert second.get("success") is True
+        assert runner.current_event_state is None
+        assert runner.phase == GamePhase.MAP_NAVIGATION
+
+        target_after_count = sum(1 for card in runner.run_state.deck if card.id == target_card.id)
+        assert target_after_count == target_before_count - 1
 
 
 # =============================================================================
