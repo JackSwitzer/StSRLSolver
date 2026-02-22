@@ -2,34 +2,42 @@
 
 ## Status
 - Reward generation is centralized in `RewardHandler`.
-- Runner reward action emission/execution now routes through `RewardHandler`.
-- Proceed gating parity is now locked with explicit unresolved-mandatory tests.
-- Remaining reward gap is modifier interaction closure.
+- Runner reward action emission/execution routes through `RewardHandler`.
+- Proceed gating parity is locked with explicit unresolved-mandatory tests.
+- Black Star second-relic indexing/gating parity is now explicitly covered.
+- Reward-domain queue (`RWD-001`..`RWD-004`) is complete.
 
-## Confirmed open gaps
+## Queue status
 - [x] `RWD-001` `GameRunner._get_reward_actions` uses canonical `RewardHandler.get_available_actions`.
 - [x] `RWD-002` `GameRunner._handle_reward_action` uses canonical `RewardHandler.handle_action` result semantics for claim/skip actions.
-- [x] `RWD-003` proceed gating and gold-claim invariants now have explicit parity lock tests.
-- [ ] `RWD-004` reward modifier interactions (Question Card / Prayer Wheel / Busted Crown / Black Star / key flow) need closure.
+- [x] `RWD-003` proceed gating and gold-claim invariants have explicit parity lock tests.
+- [x] `RWD-004` indexed relic-claim support for Black Star second relic rewards.
 
-## RWD-001 / RWD-002 implementation result
-- `GameRunner._get_reward_actions` now maps from `RewardHandler.get_available_actions(...)` via action adapters.
-- `GameRunner._handle_reward_action` now maps to `RewardHandler.handle_action(...)` and propagates invalid-claim failures (`success=False`) through runner action execution.
-- `RewardHandler.handle_action` now accepts optional `selection_card_indices` so runner relic-selection flows remain wired for selection-required relic rewards.
-- `take_action_dict` now surfaces handler-provided action errors when action execution fails, instead of generic invalid-action text.
-
-## Python touchpoints
-- `packages/engine/game.py`
-- `packages/engine/handlers/reward_handler.py`
-- `tests/test_agent_api.py`
-- `tests/test_rewards.py`
+## RWD-004 implementation result
+- `ClaimRelicAction` now carries `reward_index` and reward action emission includes both relic entries when present:
+  - `claim_relic{relic_reward_index:0}` for `relic`
+  - `claim_relic{relic_reward_index:1}` for `second_relic`
+- Relic claim execution now resolves by reward index and returns `relic_reward_index` in result metadata.
+- Mandatory proceed gating now treats `second_relic` as mandatory (both handler and runner checks).
+- Selection-required relic handling for `claim_relic` now resolves the selected reward index (primary or second) before building `select_cards` follow-up actions.
+- `get_available_action_dicts()` now annotates `claim_relic` with `requires=["card_indices"]` per indexed relic reward when that relic requires card selection.
 
 ## Tests added in this slice
-- `tests/test_agent_api.py::TestActionExecution::test_reward_action_surface_matches_reward_handler`
-- `tests/test_agent_api.py::TestActionExecution::test_claim_gold_returns_error_when_already_claimed`
-- `tests/test_agent_api.py::TestActionExecution::test_proceed_from_rewards_fails_with_unresolved_card_reward`
-- `tests/test_agent_api.py::TestActionExecution::test_proceed_from_rewards_fails_with_unresolved_relic_reward`
-- Full suite after change: `4656 passed, 5 skipped, 0 failed`.
+- `tests/test_agent_api.py::TestActionExecution::test_reward_actions_include_second_relic_claim_index`
+- `tests/test_agent_api.py::TestActionExecution::test_claim_second_relic_by_index`
+- `tests/test_agent_api.py::TestActionExecution::test_proceed_blocked_until_second_relic_claimed`
+- Full suite after change: `4659 passed, 5 skipped, 0 failed`.
 
-## Next commit order
-1. `RWD-004`
+## Java references
+- `com.megacrit.cardcrawl.relics.BlackStar`
+- `com.megacrit.cardcrawl.rewards.RewardItem`
+- `com.megacrit.cardcrawl.screens.CombatRewardScreen`
+
+## RNG notes
+- No new RNG stream introduced for indexed relic-claim handling.
+- Existing relic pickup side-effect routing remains unchanged (`misc_rng`, `card_rng`, `relic_rng`, `potion_rng`).
+
+## Python touchpoints
+- `packages/engine/handlers/reward_handler.py`
+- `packages/engine/game.py`
+- `tests/test_agent_api.py`

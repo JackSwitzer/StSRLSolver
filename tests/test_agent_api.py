@@ -1100,6 +1100,69 @@ class TestActionExecution:
         assert runner.phase == GamePhase.COMBAT_REWARDS
         assert runner.current_rewards is not None
 
+    def test_reward_actions_include_second_relic_claim_index(self, runner):
+        """Black Star-style reward state should expose claim actions for both relic indices."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            gold=GoldReward(amount=10, claimed=True),
+            relic=RelicReward(relic=get_relic("Anchor")),
+            second_relic=RelicReward(relic=get_relic("Bag of Preparation")),
+        )
+
+        actions = runner.get_available_action_dicts()
+        claim_relic_actions = [a for a in actions if a.get("type") == "claim_relic"]
+        indices = {
+            int(action.get("params", {}).get("relic_reward_index", -1))
+            for action in claim_relic_actions
+        }
+        assert indices == {0, 1}
+
+    def test_claim_second_relic_by_index(self, runner):
+        """claim_relic with relic_reward_index=1 should claim second relic reward."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            gold=GoldReward(amount=10, claimed=True),
+            relic=RelicReward(relic=get_relic("Anchor")),
+            second_relic=RelicReward(relic=get_relic("Bag of Preparation")),
+        )
+
+        result = runner.take_action_dict({
+            "type": "claim_relic",
+            "params": {"relic_reward_index": 1},
+        })
+
+        assert result.get("success") is True
+        assert runner.current_rewards is not None
+        assert runner.current_rewards.second_relic is not None
+        assert runner.current_rewards.second_relic.claimed is True
+        assert runner.run_state.has_relic("Bag of Preparation")
+
+    def test_proceed_blocked_until_second_relic_claimed(self, runner):
+        """Proceed should remain blocked while second mandatory relic reward is unclaimed."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            gold=GoldReward(amount=10, claimed=True),
+            relic=RelicReward(relic=get_relic("Anchor")),
+            second_relic=RelicReward(relic=get_relic("Bag of Preparation")),
+        )
+
+        claim_primary = runner.take_action_dict({
+            "type": "claim_relic",
+            "params": {"relic_reward_index": 0},
+        })
+        assert claim_primary.get("success") is True
+
+        blocked = runner.take_action_dict({
+            "type": "proceed_from_rewards",
+            "params": {},
+        })
+        assert blocked.get("success") is False
+        assert "proceed" in blocked.get("error", "").lower()
+        assert runner.phase == GamePhase.COMBAT_REWARDS
+
 
 # =============================================================================
 # Observation Schema Tests

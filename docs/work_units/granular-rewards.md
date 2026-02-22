@@ -5,6 +5,7 @@
 - [x] `RWD-002` Route runner reward claim/skip execution through `RewardHandler.handle_action`.
 - [x] Add tests for invalid claim semantics (`success=False`) and handler/runner action-surface consistency.
 - [x] `RWD-003` Validate proceed gating against unresolved mandatory rewards.
+- [x] `RWD-004` Add indexed relic-claim support for Black Star second relic rewards.
 
 ## Notes
 - This file contains legacy checklist items from earlier audits.
