@@ -2,6 +2,8 @@
 
 This audit consolidates remaining Java -> Python parity work before RL training.
 
+> Legacy note: this suite is archived for historical context. Active campaign tracking now lives in `docs/audits/2026-02-22-full-game-parity/`.
+
 ## Entry points
 - Core TODO list: [`CORE_TODO.md`](./CORE_TODO.md)
 - Test baseline and commands: [`testing/test-baseline.md`](./testing/test-baseline.md)
