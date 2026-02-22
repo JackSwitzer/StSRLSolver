@@ -3,7 +3,7 @@
 ## Status
 - `P0 potion parity blockers addressed in runtime path`
 - Selection-required potions are action-surface complete through `take_action_dict`.
-- Full suite after this pass: `4604 passed, 5 skipped, 0 failed`.
+- Full suite after this pass: `4606 passed, 5 skipped, 0 failed`.
 
 ## Implemented in this pass
 - `DistilledChaos` now plays top cards (3/6 with Sacred Bark) instead of draw fallback.
@@ -25,6 +25,10 @@
     - `decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RandomizeHandCostAction.java`
 - `SmokeBomb` validation now blocks when boss/cannot-escape/BackAttack is present in runtime path.
   - Java reference: `SmokeBomb.canUse` constraints (boss + BackAttack).
+- `POT-001` runtime/registry de-dup completed:
+  - `CombatEngine` now attaches live engine reference to state and registry Distilled Chaos uses that active engine path when available.
+  - Smoke Bomb blocked-use now returns structured failure in `execute_potion_effect`, aligning registry and runtime failure semantics.
+  - Combat runner path now preserves potion slot on failed potion use.
 - `PotionTargetType` now drives runtime potion target emission (`CombatEngine._get_potion_target`), removing hardcoded target lists.
 - `onUsePotion` relic hooks now fire across selection potion paths (`LiquidMemories`, `GamblersBrew`, `ElixirPotion`, `StancePotion`, discovery family) in `GameRunner`.
 
@@ -47,9 +51,8 @@
   - `tests/test_potion_rng_streams.py` (`card_rng`, `card_random_rng`, `potion_rng` advancement for Discovery/Snecko/Entropic/Distilled paths).
 - Added Fairy defeat-prevention combat-end invariant:
   - `tests/test_potion_sacred_bark.py` (`_check_combat_end` revives with Fairy instead of ending combat).
+- Added runtime/registry de-dup tests:
+  - `tests/test_potion_runtime_dedup.py` (Distilled Chaos engine reuse + Smoke Bomb blocked-use failure in registry path).
 
 ## Remaining potion-domain items
-- Normalize/centralize duplicate potion execution between registry and `CombatEngine` (single authoritative path).
-  - `POT-001` target scope:
-    - route Distilled Chaos runtime execution through active combat engine when present
-    - align Smoke Bomb blocked-use semantics across `execute_potion_effect` and `CombatEngine.use_potion`
+- No open potion items in this domain queue; move active work to Relics (`R2`).
