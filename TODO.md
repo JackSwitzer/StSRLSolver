@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4652 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4654 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -28,7 +28,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-008` Dolly's Mirror acquisition now exposes explicit selection action in reward/shop action flow.
 - [x] `EVT-001` Event choices that require card pick/remove/transform/upgrade now expose explicit follow-up actions.
 - [x] `EVT-002` `event_choice` execution now passes selected card index to handler execution.
-- [ ] `RWD-001/RWD-002` reward/shop relic acquisition paths should route through one selection-aware execution surface.
+- [x] `RWD-001/RWD-002` runner reward action emission/execution now route through a single RewardHandler-backed surface.
 
 ### P1: Java inventory parity and correctness
 - [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
@@ -58,8 +58,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `EVT-004` alias/inventory normalization and audit lock.
 
 ### R3: Reward/shop/rest/map normalization
-- [ ] `RWD-001` canonical reward action emission path.
-- [ ] `RWD-002` canonical reward action execution path.
+- [x] `RWD-001` canonical reward action emission path.
+- [x] `RWD-002` canonical reward action execution path.
 - [ ] `RWD-003` proceed gating parity.
 - [ ] `RWD-004` reward modifier interaction parity.
 
@@ -78,8 +78,9 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
-2. `POW-001` power inventory closure with Java refs + behavior locks.
+1. `RWD-003` proceed gating parity.
+2. `RWD-004` reward modifier interaction parity.
+3. `POW-001` power inventory closure with Java refs + behavior locks.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.
