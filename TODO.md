@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4640 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4642 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -54,7 +54,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### R2: Event selection surface
 - [x] `EVT-001` emit pending-selection actions for event card-required choices.
 - [x] `EVT-002` wire selected card index through `take_action_dict -> EventHandler.execute_choice`.
-- [ ] `EVT-003` deterministic multi-phase event transition coverage.
+- [x] `EVT-003` deterministic multi-phase event transition coverage.
 - [ ] `EVT-004` alias/inventory normalization and audit lock.
 
 ### R3: Reward/shop/rest/map normalization
@@ -78,10 +78,9 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `EVT-003` deterministic multi-phase event transition coverage.
-2. `EVT-004` alias/inventory normalization and audit lock.
-3. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
-4. `POW-001` power inventory closure with Java refs + behavior locks.
+1. `EVT-004` alias/inventory normalization and audit lock.
+2. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
+3. `POW-001` power inventory closure with Java refs + behavior locks.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.
