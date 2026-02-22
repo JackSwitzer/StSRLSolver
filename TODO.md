@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4638 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4640 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -26,8 +26,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-003` Orrery purchase/reward flow now exposes explicit `select_cards` follow-up actions.
 - [x] `REL-004` Bottled relic acquisition now exposes explicit selection actions in reward/shop action flow.
 - [x] `REL-008` Dolly's Mirror acquisition now exposes explicit selection action in reward/shop action flow.
-- [ ] `EVT-001` Event choices that require card pick/remove/transform/upgrade need explicit follow-up actions.
-- [ ] `EVT-002` `event_choice` execution must pass selected card index (currently forced `card_idx=None`).
+- [x] `EVT-001` Event choices that require card pick/remove/transform/upgrade now expose explicit follow-up actions.
+- [x] `EVT-002` `event_choice` execution now passes selected card index to handler execution.
 - [ ] `RWD-001/RWD-002` reward/shop relic acquisition paths should route through one selection-aware execution surface.
 
 ### P1: Java inventory parity and correctness
@@ -52,8 +52,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-007` boss/chest/reward ordering edge regressions.
 
 ### R2: Event selection surface
-- [ ] `EVT-001` emit pending-selection actions for event card-required choices.
-- [ ] `EVT-002` wire selected card index through `take_action_dict -> EventHandler.execute_choice`.
+- [x] `EVT-001` emit pending-selection actions for event card-required choices.
+- [x] `EVT-002` wire selected card index through `take_action_dict -> EventHandler.execute_choice`.
 - [ ] `EVT-003` deterministic multi-phase event transition coverage.
 - [ ] `EVT-004` alias/inventory normalization and audit lock.
 
@@ -78,8 +78,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
-2. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
+1. `EVT-003` deterministic multi-phase event transition coverage.
+2. `EVT-004` alias/inventory normalization and audit lock.
 3. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
 4. `POW-001` power inventory closure with Java refs + behavior locks.
 

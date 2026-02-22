@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Baseline
-- Full suite baseline: `4638 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4640 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Skips are artifact-dependent (`tests/test_parity.py` replay file missing)
 
@@ -38,8 +38,8 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `REL-007` boss/chest/reward ordering regressions
 
 ### R2 event selection surface
-- [ ] `EVT-001` event selection follow-up actions
-- [ ] `EVT-002` pass selected card indices through action handling
+- [x] `EVT-001` event selection follow-up actions
+- [x] `EVT-002` pass selected card indices through action handling
 - [ ] `EVT-003` deterministic multi-phase transition coverage
 - [ ] `EVT-004` alias/inventory normalization
 
@@ -67,8 +67,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [ ] `AUD-003` RL readiness sign-off
 
 ## Confirmed high-impact open gaps
-- [ ] `GameRunner._handle_event_action` still forces `card_idx=None`.
-- [ ] `EVT-001/EVT-002` event selection surface gaps are now the highest-impact open action-path issues.
+- [ ] `EVT-003/EVT-004` event surface closure (multi-phase determinism + alias lock) remains open.
 - [ ] Power inventory has large class-level residuals.
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.
 

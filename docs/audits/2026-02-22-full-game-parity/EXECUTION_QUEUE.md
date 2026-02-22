@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4638 passed, 5 skipped, 0 failed`
+- Suite baseline: `4640 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -33,8 +33,8 @@ Last updated: 2026-02-22
 - `REL-007` boss/chest/reward ordering edge cases (completed)
 
 ### Batch R2
-- `EVT-001` event selection follow-up actions
-- `EVT-002` wire selected card index to handler execution
+- `EVT-001` event selection follow-up actions (completed)
+- `EVT-002` wire selected card index to handler execution (completed)
 - `EVT-003` deterministic multi-phase transitions
 - `EVT-004` event alias/inventory parity
 
