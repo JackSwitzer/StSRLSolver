@@ -1,73 +1,108 @@
 # Parity Execution Queue
 
-Last updated: 2026-02-21
+Last updated: 2026-02-22
 
 ## Baseline
 - Full suite: `4602 passed, 0 skipped, 0 failed`
-- Branch: `consolidation/clean-base-2026-02-03`
+- Core branch: `consolidation/clean-base-2026-02-03`
+- Active work branch: `codex/parity-core-loop`
 - Policy: `1 PR region = 1 domain`, `1 feature = 1 code commit`
 
-## Delivery Workflow (locked)
-For each feature, execution order is:
-1. `docs` (scope + Java refs + intended behavior)
-2. `tests` (new/updated assertions for that feature)
-3. `code` (implementation)
-4. `commit` (feature code commit)
-5. `todo update` (post-commit tracker update)
+## Locked Core Loop (required per feature)
+1. `docs` - update scope, Java refs, RNG stream notes, and expected API behavior.
+2. `tests` - add/update tests that fail before implementation.
+3. `code` - implement minimal parity-correct fix.
+4. `commit` - commit feature change (single feature ID).
+5. `todo update` - post-commit update of `CORE_TODO.md` + domain audit + test baseline.
 
-## PR Region R1: Events Parity Closure
-Owner scope: `packages/engine/handlers/event_handler.py`, event tests, event docs.
+## PR Region Order (user-locked)
+1. Potions
+2. Relics
+3. Events
+4. Powers
+5. Cards
+6. Rewards/shops/rest/map flow
+7. Final audit + RL gate
+
+## PR Region R1: Potions Determinism + API Completion (ACTIVE)
+Owner scope: `packages/engine/game.py`, `packages/engine/combat_engine.py`, `packages/engine/registry/potions.py`, potion tests/docs.
 
 Feature commits:
-- `EVT-001` Register all existing `_get_*_choices` in `EVENT_CHOICE_GENERATORS`.
-- `EVT-002` Add/finish handlers for `GremlinMatchGame`, `GremlinWheelGame`, `NoteForYourself`.
-- `EVT-003` Dead Adventurer Java parity (`miscRng` reward/elite behavior).
-- `EVT-004` Falling Java parity (preselection pools, disabling invalid options, exact-card removal).
-- `EVT-005` Knowing Skull Java parity (escalating cost progression).
-- `EVT-006` Pool consistency (`KnowingSkull`, `SecretPortal`) + alias normalization tests.
-- `EVT-007` Deterministic multi-phase event action tests (choice availability + transitions).
+- `POT-001` Remove duplicate potion semantics where runtime path and registry diverge; keep one authoritative combat execution behavior.
+- `POT-002` Add explicit RNG-counter advancement tests for `card_rng`, `card_random_rng`, and `potion_rng` on RNG-sensitive potions.
+- `POT-003` Expand action roundtrip tests for all selection potions (missing params -> candidate actions -> apply selection).
+- `POT-004` Close Fairy in a Bottle invariants (death hook, consumption, Sacred Bark % heal, combat-loss suppression).
 
 ## PR Region R2: Relic Agent-Selection Completeness
-Owner scope: `packages/engine/game.py`, run/reward/room handlers, relic tests, relic docs.
+Owner scope: run/reward/room handlers, `packages/engine/state/run.py`, `packages/engine/game.py`, relic tests/docs.
 
 Feature commits:
-- `REL-001` Agent-facing selection actions for Astrolabe (`select_cards` on deck transforms).
-- `REL-002` Agent-facing selection actions for Empty Cage (remove 2 cards).
-- `REL-003` Agent-facing selection actions for Orrery (5-card reward selection path).
+- `REL-001` Agent-facing selection actions for Astrolabe transforms.
+- `REL-002` Agent-facing selection actions for Empty Cage removals.
+- `REL-003` Agent-facing selection actions for Orrery picks.
 - `REL-004` Agent-facing selection actions for bottled relic assignment.
-- `REL-005` Deterministic action IDs + validation for relic-selection contexts.
-- `REL-006` Cross-handler relic ID alias normalization (`MawBank`/`Maw Bank`, etc.).
-- `REL-007` Boss/chest/reward ordering regression tests for remaining edge interactions.
+- `REL-005` Deterministic action IDs + validation in relic-selection contexts.
+- `REL-006` Relic ID alias normalization (`MawBank` / `Maw Bank`, etc.) across handlers.
+- `REL-007` Boss/chest/reward ordering regression coverage for remaining edge interactions.
 
-## PR Region R3: Powers Long-Tail Parity
-Owner scope: `packages/engine/registry/powers.py`, combat trigger order, power tests, power docs.
+## PR Region R3: Event Java-Exact Closure
+Owner scope: `packages/engine/handlers/event_handler.py`, event tests/docs.
 
 Feature commits:
-- `POW-001` Re-audit trigger ordering beyond existing `onAfter*` fixes (hook-order snapshot tests).
+- `EVT-001` Register all existing `_get_*_choices` in `EVENT_CHOICE_GENERATORS` and assert full registration.
+- `EVT-002` Finish/verify handlers for `GremlinMatchGame`, `GremlinWheelGame`, `NoteForYourself`.
+- `EVT-003` Dead Adventurer parity (`miscRng` behavior and elite/reward flow).
+- `EVT-004` Falling parity (valid card pools, disabled options, exact card removals).
+- `EVT-005` Knowing Skull parity (cost escalation and choice transitions).
+- `EVT-006` Event pool consistency (`KnowingSkull`, `SecretPortal`) + alias normalization tests.
+- `EVT-007` Deterministic multi-phase event action tests (choice availability + transition integrity).
+
+## PR Region R4: Powers Long-Tail Parity
+Owner scope: `packages/engine/registry/powers.py`, combat hook ordering, power tests/docs.
+
+Feature commits:
+- `POW-001` Re-audit and assert hook ordering beyond existing `onAfter*` fixes.
 - `POW-002` System powers: Slow, Lock-On, Draw/No Draw, Draw Reduction, Entangled, NoBlockPower.
-- `POW-003` Retention/cost powers: Establishment/Equilibrium/retain-selection paths.
+- `POW-003` Retention/cost powers: Establishment, Equilibrium, retain-selection paths.
 - `POW-004` Enemy/boss timing powers: Time Warp, Beat of Death, Invincible, Growth/Ritual/Fading.
-- `POW-005` Class-specific residuals (Corruption, Accuracy, Storm, Static Discharge, etc.).
+- `POW-005` Class residuals: Corruption, Accuracy, Storm, Static Discharge, etc.
 
-## PR Region R4: Potion Cleanup + Determinism Hardening
-Owner scope: `packages/engine/combat_engine.py`, `packages/engine/registry/potions.py`, potion tests/docs.
-
-Feature commits:
-- `POT-001` Remove remaining duplicate potion semantics (single authoritative execution path).
-- `POT-002` Add explicit RNG-counter advancement tests (`card_rng`, `card_random_rng`, `potion_rng`).
-- `POT-003` Expand selection roundtrip tests for all selection potions (missing-param -> candidate-actions -> apply).
-- `POT-004` Fairy in a Bottle auto-trigger invariants (death hook, consumption, Sacred Bark %) with focused tests.
-
-## PR Region R5: Audit + RL Readiness Gate
-Owner scope: audit docs/scripts/tests.
+## PR Region R5: Card Interaction Completion
+Owner scope: card execution + action surface + class card tests/docs.
 
 Feature commits:
-- `AUD-001` Re-run and snapshot Java-vs-Python parity diffs (events/potions/relics/powers).
-- `AUD-002` Add parity snapshot tests and keep them green under CI.
-- `AUD-003` Final RL readiness gate: full suite green + domain docs + core todo consistency.
+- `CRD-001` Core card action-surface guarantees (all choice/target cards emit explicit actions).
+- `CRD-002` Ironclad checklist closure (`granular-cards-ironclad.md`).
+- `CRD-003` Silent checklist closure (`granular-cards-silent.md`).
+- `CRD-004` Defect checklist closure (`granular-cards-defect.md`).
+- `CRD-005` Watcher checklist closure (`granular-cards-watcher.md`).
 
-## Known Open Issues (cross-region)
-- Remaining explicit-agent selection surface for some relic acquisition flows.
-- Event action-surface is still uneven for multi-step/choice-heavy rooms.
-- Powers long-tail parity has many unchecked work-units outside already-fixed `onAfter*` path.
-- Potion runtime/registry still has cleanup debt despite major parity fixes.
+## PR Region R6: Rewards, Shops, Rest, Map Flow Parity
+Owner scope: reward/shop/rest/map handlers and domain docs/tests.
+
+Feature commits:
+- `RSM-001` Reward generation and reward-choice parity (`granular-rewards.md`).
+- `RSM-002` Rest options/blockers + cross-relic interactions parity.
+- `RSM-003` Shop pricing/inventory/relic interactions parity.
+- `RSM-004` Map flow and path/room transition invariants.
+
+## PR Region R7: Final Audit + RL Readiness Gate
+Owner scope: audit scripts/docs/tests.
+
+Feature commits:
+- `AUD-001` Re-run Java-vs-Python parity diffs (events/potions/relics/powers/cards/rewards).
+- `AUD-002` Snapshot tests for parity deltas and domain regressions.
+- `AUD-003` RL readiness sign-off (`full suite green`, docs synced, TODO closed).
+
+## Known Open Issue Inventory (docs scan)
+Unchecked work-unit items currently:
+- `68` in `docs/work_units/granular-cards-defect.md`
+- `62` in `docs/work_units/granular-cards-ironclad.md`
+- `61` in `docs/work_units/granular-cards-silent.md`
+- `49` in `docs/work_units/granular-events.md`
+- `47` in `docs/work_units/granular-powers.md`
+- `29` in `docs/work_units/granular-rewards.md`
+- `15` in `docs/work_units/granular-relics.md`
+- `14` in `docs/work_units/granular-orbs.md`
+- `6` in `docs/work_units/granular-cards-watcher.md`
+- `1` in `docs/work_units/granular-potions.md`
