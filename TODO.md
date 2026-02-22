@@ -9,6 +9,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
+- [x] Merged chain verified through PR `#22`; stale PR `#8` closed as superseded.
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).
@@ -36,6 +37,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
 - [ ] `POW-001` Java power inventory closure (149 Java classes vs 94 Python entries; 69 normalized missing candidates).
 - [ ] `ORB-001` remove placeholder orb-linked relic behavior in `packages/engine/registry/relics.py`.
+- [ ] `CONS-001` finish deterministic RNG normalization in remaining parity-critical runtime paths (relic/potion/orb).
 - [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
 
 ### P2: CI/readiness cleanup

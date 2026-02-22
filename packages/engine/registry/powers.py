@@ -118,7 +118,6 @@ def mayhem_start(ctx: PowerContext) -> None:
 @power_trigger("atStartOfTurn", power="Magnetism")
 def magnetism_start(ctx: PowerContext) -> None:
     """Magnetism: Add random colorless card to hand at start of turn."""
-    import random
     from ..content.cards import ALL_CARDS, CardColor
     colorless_cards = [
         cid for cid, c in ALL_CARDS.items()
@@ -126,13 +125,12 @@ def magnetism_start(ctx: PowerContext) -> None:
     ]
     for _ in range(ctx.amount):
         if colorless_cards and len(ctx.state.hand) < 10:
-            ctx.state.hand.append(random.choice(colorless_cards))
+            ctx.state.hand.append(ctx.random_choice(colorless_cards))
 
 
 @power_trigger("atStartOfTurn", power="CreativeAI")
 def creative_ai_start(ctx: PowerContext) -> None:
     """Creative AI: Add random Power card to hand at start of turn."""
-    import random
     from ..content.cards import ALL_CARDS, CardType
     power_cards = [
         cid for cid, c in ALL_CARDS.items()
@@ -140,7 +138,7 @@ def creative_ai_start(ctx: PowerContext) -> None:
     ]
     for _ in range(ctx.amount):
         if power_cards and len(ctx.state.hand) < 10:
-            ctx.state.hand.append(random.choice(power_cards))
+            ctx.state.hand.append(ctx.random_choice(power_cards))
 
 
 @power_trigger("atStartOfTurn", power="Loop")
@@ -293,11 +291,10 @@ def intangible_end(ctx: PowerContext) -> None:
 @power_trigger("atEndOfTurn", power="Study")
 def study_end(ctx: PowerContext) -> None:
     """Study: Shuffle Insight into draw pile at end of turn."""
-    import random
     for _ in range(ctx.amount):
         ctx.state.draw_pile.append("Insight")
     # Shuffle to random position
-    random.shuffle(ctx.state.draw_pile)
+    ctx.shuffle_in_place(ctx.state.draw_pile)
 
 
 @power_trigger("atEndOfTurn", power="WraithFormPower")
@@ -720,9 +717,8 @@ def flame_barrier_attacked(ctx: PowerContext) -> None:
 @power_trigger("onGainBlock", power="Juggernaut")
 def juggernaut_gain_block(ctx: PowerContext) -> None:
     """Juggernaut: Deal damage to random enemy when gaining block."""
-    import random
     if ctx.living_enemies:
-        target = random.choice(ctx.living_enemies)
+        target = ctx.random_choice(ctx.living_enemies)
         blocked = min(target.block, ctx.amount)
         target.block -= blocked
         target.hp -= (ctx.amount - blocked)

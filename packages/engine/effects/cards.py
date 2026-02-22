@@ -111,7 +111,6 @@ SPECIAL/GENERATED CARDS:
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional
-import random
 
 from .registry import (
     effect, effect_simple, effect_custom, EffectContext
@@ -1049,10 +1048,10 @@ def foreign_influence_effect(ctx: EffectContext) -> None:
     """
     # In simulation, add a generic strong card
     attacks = ["Smite", "PommelStrike", "Cleave"]
-    card_id = random.choice(attacks)
+    card_id = ctx.random_choice(attacks)
     ctx.add_card_to_hand(card_id)
     if ctx.is_upgraded:
-        ctx.add_card_to_hand(random.choice(attacks))
+        ctx.add_card_to_hand(ctx.random_choice(attacks))
 
 
 @effect_simple("play_card_from_draw_twice")
@@ -1811,7 +1810,7 @@ def add_random_attack_cost_0(ctx: EffectContext) -> None:
         and c.rarity.value not in ["BASIC", "SPECIAL", "CURSE"]
     ]
     if attacks:
-        card_id = random.choice(attacks)
+        card_id = ctx.random_choice(attacks)
         ctx.add_card_to_hand(card_id)
         # Mark card as cost 0 this turn
         if not hasattr(ctx.state, "card_costs"):
@@ -1901,7 +1900,7 @@ def draw_then_put_on_draw(ctx: EffectContext) -> None:
 def exhaust_random_card(ctx: EffectContext) -> None:
     """True Grit (base) - Exhaust a random card from hand."""
     if ctx.state.hand:
-        card = random.choice(ctx.state.hand)
+        card = ctx.random_choice(ctx.state.hand)
         ctx.exhaust_card(card)
 
 
@@ -2255,7 +2254,7 @@ def play_top_card(ctx: EffectContext) -> None:
                 i for i, enemy in enumerate(ctx.state.enemies) if not enemy.is_dead
             ]
             if living_indices:
-                target_idx = random.choice(living_indices)
+                target_idx = ctx.random_choice(living_indices)
         executor = EffectExecutor(ctx.state)
         executor.play_card(card, target_idx=target_idx, free=True)
 
@@ -2557,7 +2556,7 @@ def discard_x(ctx: EffectContext) -> None:
 def discard_random_1(ctx: EffectContext) -> None:
     """Discard a random card (All-Out Attack)."""
     if ctx.hand:
-        card = random.choice(ctx.hand)
+        card = ctx.random_choice(ctx.hand)
         ctx.discard_card(card)
 
 
@@ -2959,7 +2958,7 @@ def add_random_skill_cost_0(ctx: EffectContext) -> None:
         and c.rarity.value not in ["SPECIAL", "CURSE", "STATUS"]
     ]
     if skills:
-        card_id = random.choice(skills)
+        card_id = ctx.random_choice(skills)
         ctx.add_card_to_hand(card_id)
         # Mark card as cost 0 this turn
         ctx.state.card_costs = getattr(ctx.state, 'card_costs', {})
@@ -3115,5 +3114,4 @@ SILENT_CARD_EFFECTS = {
     # === SPECIAL ===
     "Shiv": [],  # Just damage + exhaust
 }
-
 

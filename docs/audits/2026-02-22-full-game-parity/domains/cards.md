@@ -2,6 +2,7 @@
 
 ## Status
 - Largest remaining surface area.
+- Phase-0 deterministic hardening landed in shared card effects: random selection paths in `packages/engine/effects/cards.py` now route through effect-context RNG helpers.
 - Work tracked by class-specific granular checklists.
 
 ## Closure tracks

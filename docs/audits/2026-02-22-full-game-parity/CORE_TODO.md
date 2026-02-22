@@ -10,7 +10,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
-- [x] PR history synced through merged PR [#21](https://github.com/JackSwitzer/StSRLSolver/pull/21).
+- [x] PR history synced through merged PR [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22).
 - [x] Regions `R1` to `R3` closed and merged to `main`.
 - [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
 - [ ] Every parity-critical choice interaction is explicit in action dict flow.
@@ -51,6 +51,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `RWD-004` indexed secondary relic claim/gating parity
 
 ### R4 powers + orbs
+- [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
 - [ ] `POW-001` Java power inventory closure
 - [ ] `POW-002` residual hook/timing closure
 - [ ] `ORB-001` orb infrastructure for parity-critical behaviors
@@ -70,7 +71,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 ## Confirmed high-impact open gaps
 - [ ] Power inventory has large class-level residuals (`149` Java vs `94` Python).
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.
-- [ ] Engine logic still contains direct Python `random` usage in parity-critical modules.
+- [ ] Engine logic still contains direct Python `random` usage in parity-critical modules (relic/potion/orb long-tail after Phase-0 card/power/context hardening).
 
 ## Policy reminders
 - [ ] Per feature loop: `docs -> tests -> code -> commit -> todo update`.

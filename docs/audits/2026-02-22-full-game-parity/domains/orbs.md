@@ -8,6 +8,7 @@
 - [ ] Orb slot/channel/evoke/passive timing infrastructure parity.
 - [ ] Focus and Lock-On interactions where applicable.
 - [ ] Remove parity-critical placeholder behavior from relic/power hooks.
+- [ ] Replace residual direct Python `random` usage in orb runtime with owned RNG streams as part of `ORB-001`.
 
 ## Feature IDs
 - `ORB-001` foundational orb parity implementation

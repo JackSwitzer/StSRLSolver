@@ -15,8 +15,9 @@ Merged branch lineage covered here: `codex/parity-core-loop` -> `main`
 | [#19](https://github.com/JackSwitzer/StSRLSolver/pull/19) | 2026-02-22T18:38:53Z | `RWD-001`, `RWD-002` | Canonical reward action emission/execution path | `packages/engine/game.py`, `packages/engine/handlers/reward_handler.py` | `tests/test_agent_api.py` reward action mapping tests |
 | [#20](https://github.com/JackSwitzer/StSRLSolver/pull/20) | 2026-02-22T18:42:38Z | `RWD-003` | Proceed gating for unresolved mandatory rewards | `packages/engine/game.py` | `tests/test_agent_api.py` proceed gating tests |
 | [#21](https://github.com/JackSwitzer/StSRLSolver/pull/21) | 2026-02-22T19:07:48Z | `RWD-004` | Indexed Black Star relic claims + secondary relic gating | `packages/engine/game.py`, `packages/engine/handlers/reward_handler.py` | `tests/test_agent_api.py` second-relic indexed tests |
+| [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22) | 2026-02-22T19:18:24Z | `DOC-004` | Merged-ground-truth docs pack + consolidation roadmap | `docs/audits/2026-02-22-full-game-parity/*` | Documentation-only |
 
-## Cumulative outcome through #21
+## Cumulative outcome through #22
 - Region closure:
   - `R1` relic action-surface and ordering fixes: complete.
   - `R2` event action-surface completeness and alias normalization: complete.
@@ -26,4 +27,4 @@ Merged branch lineage covered here: `codex/parity-core-loop` -> `main`
   - `4659 passed, 5 skipped, 0 failed`.
 
 ## Work not in this lineage
-- [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) is open on `consolidation/clean-base-2026-02-03` and is not part of the `codex/parity-core-loop` merge chain above.
+- [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) on `consolidation/clean-base-2026-02-03` was closed on 2026-02-22 as stale/superseded by the merged `main` chain (`#14` to `#22`).
