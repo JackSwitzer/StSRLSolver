@@ -9,7 +9,7 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4642 passed`
+- `4652 passed`
 - `5 skipped`
 - `0 failed`
 
