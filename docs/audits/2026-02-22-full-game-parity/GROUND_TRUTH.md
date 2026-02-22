@@ -1,12 +1,12 @@
 # Ground Truth: Java Parity + Agent Contract
 
 Last updated: 2026-02-22  
-Main branch baseline commit: `bc329dc261364bde8a4672a4fe58f1682dd6f197`
+Main branch baseline commit: `4fff19ba0dc5ae219adbe0185d7af8a9425ef1c3`
 
 ## Current baseline
 - Command: `uv run pytest tests/ -q`
-- Result: `4659 passed, 5 skipped, 0 failed`
-- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23)
+- Result: `4663 passed, 5 skipped, 0 failed`
+- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24)
 
 ## Source-of-truth references
 - Java source root used in this campaign:
@@ -74,7 +74,7 @@ Main branch baseline commit: `bc329dc261364bde8a4672a4fe58f1682dd6f197`
 ### Structural inventory
 - Test files: `70`
 - Test function definitions: `4086` (static count by `def test_` scan)
-- Baseline pass result: `4659 passed, 5 skipped, 0 failed`
+- Baseline pass result: `4663 passed, 5 skipped, 0 failed`
 
 ### Skip inventory
 - Executed skips in normal run: `5`

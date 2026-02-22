@@ -26,7 +26,7 @@ This file records implemented coverage in this repo and remaining parity-critica
 
 ## Test-surface quality notes
 - Current suite baseline:
-  - `4659 passed, 5 skipped, 0 failed`
+  - `4663 passed, 5 skipped, 0 failed`
 - Executed skips in normal run are artifact-dependent replay skips from `tests/test_parity.py`.
 - Additional contingency `pytest.skip(...)` callsites remain in some tests and should be hardened for strict CI.
 

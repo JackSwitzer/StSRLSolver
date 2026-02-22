@@ -972,6 +972,14 @@ class CombatRunner:
         """End player turn and start enemy turn."""
         self.phase = CombatPhase.PLAYER_TURN_END
 
+        # Trigger card-in-hand end-of-turn effects before discard/exhaust.
+        self._trigger_end_of_turn_hand_cards()
+        if self.state.player.hp <= 0:
+            self.combat_over = True
+            self.victory = False
+            self.phase = CombatPhase.COMBAT_END
+            return
+
         # Discard hand (except retained cards)
         retained = []
         for card_id in self.state.hand:
@@ -992,10 +1000,44 @@ class CombatRunner:
 
         # Trigger end-of-turn effects
         self._trigger_end_of_turn()
+        if self.state.player.hp <= 0:
+            self.combat_over = True
+            self.victory = False
+            self.phase = CombatPhase.COMBAT_END
+            return
 
         # Enemy turns
         if not self.combat_over:
             self._do_enemy_turns()
+
+    def _trigger_end_of_turn_hand_cards(self):
+        """Trigger end-of-turn effects from cards currently in hand."""
+        from ..effects.registry import EffectContext, execute_effect
+
+        for card_id in self.state.hand.copy():
+            card = self._get_card(card_id)
+            if card is None:
+                continue
+
+            end_turn_effects = [
+                effect_name
+                for effect_name in card.effects
+                if effect_name.startswith("end_of_turn_")
+            ]
+            if not end_turn_effects:
+                continue
+
+            ctx = EffectContext(
+                state=self.state,
+                card=card,
+                is_upgraded=card.upgraded,
+                magic_number=card.magic_number,
+            )
+            for effect_name in end_turn_effects:
+                execute_effect(effect_name, ctx)
+
+            if self.state.player.hp <= 0:
+                return
 
     def _trigger_end_of_turn(self):
         """Trigger end-of-turn effects using registry system."""

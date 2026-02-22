@@ -9,11 +9,11 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4659 passed`
+- `4663 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified on branch `codex/phase0-core-lock` after Phase-0 deterministic RNG hardening with unchanged totals.
+Re-verified on `main` after `CRD-SH-001` shared card-runtime closure.
 
 ## Structural inventory
 - Test files: `70`
