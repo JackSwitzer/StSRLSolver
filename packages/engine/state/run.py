@@ -674,7 +674,19 @@ class RunState:
         if relic_id == "Empty Cage":
             removable = self.get_removable_cards()
             if removable:
-                indices = [idx for idx, _ in removable][:2]
+                removable_indices = [idx for idx, _ in removable]
+                max_count = min(2, len(removable_indices))
+                if selection_card_indices is not None:
+                    selected: List[int] = []
+                    allowed = set(removable_indices)
+                    for idx in selection_card_indices:
+                        if idx in allowed and idx not in selected:
+                            selected.append(idx)
+                        if len(selected) == max_count:
+                            break
+                    indices = selected if len(selected) == max_count else removable_indices[:max_count]
+                else:
+                    indices = removable_indices[:max_count]
                 for idx in sorted(indices, reverse=True):
                     self.remove_card(idx)
 
