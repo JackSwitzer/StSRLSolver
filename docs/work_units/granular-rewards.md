@@ -4,6 +4,7 @@
 - [x] `RWD-001` Route runner reward action emission through `RewardHandler.get_available_actions`.
 - [x] `RWD-002` Route runner reward claim/skip execution through `RewardHandler.handle_action`.
 - [x] Add tests for invalid claim semantics (`success=False`) and handler/runner action-surface consistency.
+- [x] `RWD-003` Validate proceed gating against unresolved mandatory rewards.
 
 ## Notes
 - This file contains legacy checklist items from earlier audits.

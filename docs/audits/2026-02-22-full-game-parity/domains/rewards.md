@@ -3,12 +3,13 @@
 ## Status
 - Reward generation is centralized in `RewardHandler`.
 - Runner reward action emission/execution now routes through `RewardHandler`.
-- Remaining reward gaps are proceed gating parity and modifier interaction closure.
+- Proceed gating parity is now locked with explicit unresolved-mandatory tests.
+- Remaining reward gap is modifier interaction closure.
 
 ## Confirmed open gaps
 - [x] `RWD-001` `GameRunner._get_reward_actions` uses canonical `RewardHandler.get_available_actions`.
 - [x] `RWD-002` `GameRunner._handle_reward_action` uses canonical `RewardHandler.handle_action` result semantics for claim/skip actions.
-- [ ] `RWD-003` proceed gating and gold-claim invariants need explicit parity lock tests.
+- [x] `RWD-003` proceed gating and gold-claim invariants now have explicit parity lock tests.
 - [ ] `RWD-004` reward modifier interactions (Question Card / Prayer Wheel / Busted Crown / Black Star / key flow) need closure.
 
 ## RWD-001 / RWD-002 implementation result
@@ -26,8 +27,9 @@
 ## Tests added in this slice
 - `tests/test_agent_api.py::TestActionExecution::test_reward_action_surface_matches_reward_handler`
 - `tests/test_agent_api.py::TestActionExecution::test_claim_gold_returns_error_when_already_claimed`
-- Full suite after change: `4654 passed, 5 skipped, 0 failed`.
+- `tests/test_agent_api.py::TestActionExecution::test_proceed_from_rewards_fails_with_unresolved_card_reward`
+- `tests/test_agent_api.py::TestActionExecution::test_proceed_from_rewards_fails_with_unresolved_relic_reward`
+- Full suite after change: `4656 passed, 5 skipped, 0 failed`.
 
 ## Next commit order
-1. `RWD-003`
-2. `RWD-004`
+1. `RWD-004`

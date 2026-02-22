@@ -2525,6 +2525,14 @@ class GameRunner:
         """Handle reward choice using the RewardHandler system."""
         # Handle proceed action
         if action.reward_type == "proceed":
+            if self.current_rewards is not None:
+                if self._boss_fight_pending_boss_rewards:
+                    can_proceed = self._mandatory_rewards_resolved(self.current_rewards)
+                else:
+                    available = RewardHandler.get_available_actions(self.run_state, self.current_rewards)
+                    can_proceed = any(isinstance(a, ProceedFromRewardsAction) for a in available)
+                if not can_proceed:
+                    return False, {"error": "Cannot proceed while mandatory rewards are unresolved"}
             self._log("Proceeding from rewards")
             if self.current_rewards is not None:
                 auto_claimed = RewardHandler.auto_claim_gold(self.run_state, self.current_rewards)
