@@ -692,6 +692,47 @@ class GameRunner:
             parent_action_id=parent_action_id,
         )
 
+    def _build_pending_selection_for_bottled_relic(
+        self,
+        relic_id: str,
+        source_action_type: str,
+        source_metadata: Dict[str, Any],
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Build selection context for bottled relic acquisition."""
+        required_type: Optional[CardType] = None
+        if relic_id == "Bottled Flame":
+            required_type = CardType.ATTACK
+        elif relic_id == "Bottled Lightning":
+            required_type = CardType.SKILL
+        elif relic_id == "Bottled Tornado":
+            required_type = CardType.POWER
+
+        if required_type is None:
+            return None
+
+        eligible = [
+            idx
+            for idx, card in enumerate(self.run_state.deck)
+            if ALL_CARDS.get(card.id) and ALL_CARDS[card.id].card_type == required_type
+        ]
+        if not eligible:
+            return None
+
+        metadata = {"relic_id": relic_id}
+        metadata.update(source_metadata)
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type=source_action_type,
+            pile="deck",
+            min_cards=1,
+            max_cards=1,
+            candidate_indices=eligible,
+            metadata=metadata,
+            parent_action_id=parent_action_id,
+        )
+
     def _build_pending_selection_for_relic_action(
         self,
         action_type: str,
@@ -699,6 +740,10 @@ class GameRunner:
         parent_action_id: str,
     ) -> Optional[PendingSelectionContext]:
         """Build selection context for relic acquisition actions that need card picks."""
+        relic_id: Optional[str] = None
+        source_action_type: str = action_type
+        source_metadata: Dict[str, Any] = {}
+
         if action_type == "buy_relic":
             if self.phase != GamePhase.SHOP or self.current_shop is None:
                 return None
@@ -710,15 +755,13 @@ class GameRunner:
                 ),
                 None,
             )
-            if shop_relic is None or shop_relic.relic.id != "Orrery":
+            if shop_relic is None:
                 return None
-            return self._build_pending_selection_for_orrery(
-                source_action_type="buy_relic",
-                source_metadata={"item_index": item_index},
-                parent_action_id=parent_action_id,
-            )
+            relic_id = shop_relic.relic.id
+            source_action_type = "buy_relic"
+            source_metadata = {"item_index": item_index}
 
-        if action_type == "claim_relic":
+        elif action_type == "claim_relic":
             if (
                 self.phase != GamePhase.COMBAT_REWARDS
                 or self.current_rewards is None
@@ -727,11 +770,24 @@ class GameRunner:
             ):
                 return None
             reward_index = int(params.get("relic_reward_index", 0))
-            if reward_index != 0 or self.current_rewards.relic.relic.id != "Orrery":
+            if reward_index != 0:
                 return None
+            relic_id = self.current_rewards.relic.relic.id
+            source_action_type = "claim_relic"
+            source_metadata = {"relic_reward_index": reward_index}
+
+        if relic_id == "Orrery":
             return self._build_pending_selection_for_orrery(
-                source_action_type="claim_relic",
-                source_metadata={"relic_reward_index": reward_index},
+                source_action_type=source_action_type,
+                source_metadata=source_metadata,
+                parent_action_id=parent_action_id,
+            )
+
+        if relic_id in {"Bottled Flame", "Bottled Lightning", "Bottled Tornado"}:
+            return self._build_pending_selection_for_bottled_relic(
+                relic_id=relic_id,
+                source_action_type=source_action_type,
+                source_metadata=source_metadata,
                 parent_action_id=parent_action_id,
             )
 
@@ -1268,6 +1324,7 @@ class GameRunner:
                 actions.append(skip_action)
 
         if self.phase == GamePhase.SHOP and self.current_shop is not None:
+            selection_relics = {"Orrery", "Bottled Flame", "Bottled Lightning", "Bottled Tornado"}
             for action in actions:
                 if action.get("type") != "buy_relic":
                     continue
@@ -1280,7 +1337,7 @@ class GameRunner:
                     ),
                     None,
                 )
-                if shop_relic is not None and shop_relic.relic.id == "Orrery":
+                if shop_relic is not None and shop_relic.relic.id in selection_relics:
                     action["requires"] = ["card_indices"]
 
         if (
@@ -1289,7 +1346,12 @@ class GameRunner:
             and self.current_rewards.relic is not None
             and not self.current_rewards.relic.claimed
         ):
-            if self.current_rewards.relic.relic.id == "Orrery":
+            if self.current_rewards.relic.relic.id in {
+                "Orrery",
+                "Bottled Flame",
+                "Bottled Lightning",
+                "Bottled Tornado",
+            }:
                 for action in actions:
                     if action.get("type") == "claim_relic":
                         action["requires"] = ["card_indices"]
@@ -2330,9 +2392,15 @@ class GameRunner:
         # Handle relic
         elif action.reward_type == "relic":
             if rewards.relic and not rewards.relic.claimed:
+                selection_relics = {
+                    "Orrery",
+                    "Bottled Flame",
+                    "Bottled Lightning",
+                    "Bottled Tornado",
+                }
                 selection_indices = (
                     list(self._pending_relic_selection_indices)
-                    if rewards.relic.relic.id == "Orrery"
+                    if rewards.relic.relic.id in selection_relics
                     and self._pending_relic_selection_indices is not None
                     else None
                 )
@@ -2584,9 +2652,15 @@ class GameRunner:
 
             # Process purchase
             self.run_state.spend_gold(shop_relic.price)
+            selection_relics = {
+                "Orrery",
+                "Bottled Flame",
+                "Bottled Lightning",
+                "Bottled Tornado",
+            }
             selection_indices = (
                 list(self._pending_relic_selection_indices)
-                if shop_relic.relic.id == "Orrery"
+                if shop_relic.relic.id in selection_relics
                 and self._pending_relic_selection_indices is not None
                 else None
             )

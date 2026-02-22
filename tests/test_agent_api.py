@@ -635,6 +635,81 @@ class TestActionExecution:
         assert all(a.get("type") == "select_cards" for a in candidates)
         assert all(len(a.get("params", {}).get("card_indices", [])) == 5 for a in candidates)
 
+    def test_shop_bottled_flame_requires_card_selection(self, runner):
+        """Buying Bottled Flame should require explicit attack-card selection."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("Bottled Flame")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        result = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
+
+    def test_shop_bottled_flame_selection_roundtrip_sets_card(self, runner):
+        """Bottled Flame buy should complete after select_cards and set bottled card ID."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("Bottled Flame")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        selected = candidates[0]
+        selected_idx = selected.get("params", {}).get("card_indices", [None])[0]
+        assert selected_idx is not None
+        expected_card = runner.run_state.deck[selected_idx]
+        expected_card_id = f"{expected_card.id}+" if expected_card.upgraded else expected_card.id
+
+        second = runner.take_action_dict(selected)
+        assert second.get("success") is True
+        relic = runner.run_state.get_relic("Bottled Flame")
+        assert relic is not None
+        assert relic.card_id == expected_card_id
+
+    def test_reward_bottled_lightning_requires_card_selection(self, runner):
+        """Claiming Bottled Lightning reward should require explicit skill-card selection."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            relic=RelicReward(relic=get_relic("Bottled Lightning")),
+        )
+
+        result = runner.take_action_dict({
+            "type": "claim_relic",
+            "params": {"relic_reward_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
+
 
 # =============================================================================
 # Observation Schema Tests

@@ -635,7 +635,14 @@ class RunState:
                     eligible = [i for i, c in enumerate(self.deck)
                                 if ALL_CARDS.get(c.id) and ALL_CARDS[c.id].card_type == CardType.POWER]
                 if eligible:
-                    chosen = self.deck[eligible[0]]
+                    chosen_index = eligible[0]
+                    if selection_card_indices:
+                        allowed = set(eligible)
+                        for idx in selection_card_indices:
+                            if idx in allowed:
+                                chosen_index = idx
+                                break
+                    chosen = self.deck[chosen_index]
                     relic.card_id = f"{chosen.id}+" if chosen.upgraded else chosen.id
 
         # Astrolabe: transform and upgrade up to 3 purgeable cards
