@@ -23,7 +23,7 @@ Last updated: 2026-02-22
 ## Immediate execution batches
 
 ### Batch R1-A (active)
-- `REL-003` Orrery explicit selection surface
+- `REL-003` Orrery explicit selection surface (completed)
 - `REL-004` Bottled relic assignment selection surface
 - `REL-008` Dolly's Mirror explicit selection surface
 

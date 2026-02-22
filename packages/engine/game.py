@@ -52,6 +52,7 @@ from .generation.encounters import (
     generate_exordium_encounters, generate_city_encounters,
     generate_beyond_encounters, generate_ending_encounters,
 )
+from .generation.rewards import RewardState, generate_card_rewards
 from .handlers.shop_handler import (
     ShopHandler, ShopState, ShopAction as ShopHandlerAction,
     ShopActionType, ShopResult,
@@ -629,6 +630,113 @@ class GameRunner:
             parent_action_id=parent_action_id,
         )
 
+    def _build_pending_selection_for_orrery(
+        self,
+        source_action_type: str,
+        source_metadata: Dict[str, Any],
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Build deterministic Orrery selection context without mutating live RNG."""
+        # Use a copy so candidate generation does not advance runtime RNG.
+        card_rng_copy = self.card_rng.copy()
+        offer_groups: List[List[str]] = []
+
+        for _ in range(5):
+            cards = generate_card_rewards(
+                card_rng_copy,
+                RewardState(),
+                act=self.run_state.act,
+                player_class=self.run_state.character,
+                ascension=self.run_state.ascension,
+                room_type="normal",
+                num_cards=3,
+            )
+            offer_groups.append([card.id for card in cards])
+
+        if not offer_groups:
+            return None
+
+        offer_cards: List[str] = []
+        group_offsets: List[int] = []
+        for group in offer_groups:
+            group_offsets.append(len(offer_cards))
+            offer_cards.extend(group)
+
+        if not offer_cards:
+            return None
+
+        valid_combinations: List[List[int]] = []
+        choice_ranges = [range(len(group)) for group in offer_groups]
+        for picks in itertools.product(*choice_ranges):
+            combo: List[int] = []
+            for group_idx, pick in enumerate(picks):
+                combo.append(group_offsets[group_idx] + pick)
+            valid_combinations.append(combo)
+
+        metadata = {
+            "relic_id": "Orrery",
+            "offer_groups": offer_groups,
+            "offer_cards": offer_cards,
+            "valid_combinations": valid_combinations,
+        }
+        metadata.update(source_metadata)
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type=source_action_type,
+            pile="offer",
+            min_cards=len(offer_groups),
+            max_cards=len(offer_groups),
+            candidate_indices=list(range(len(offer_cards))),
+            metadata=metadata,
+            parent_action_id=parent_action_id,
+        )
+
+    def _build_pending_selection_for_relic_action(
+        self,
+        action_type: str,
+        params: Dict[str, Any],
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Build selection context for relic acquisition actions that need card picks."""
+        if action_type == "buy_relic":
+            if self.phase != GamePhase.SHOP or self.current_shop is None:
+                return None
+            item_index = int(params.get("item_index", -1))
+            shop_relic = next(
+                (
+                    r for r in self.current_shop.relics
+                    if r.slot_index == item_index and not r.purchased
+                ),
+                None,
+            )
+            if shop_relic is None or shop_relic.relic.id != "Orrery":
+                return None
+            return self._build_pending_selection_for_orrery(
+                source_action_type="buy_relic",
+                source_metadata={"item_index": item_index},
+                parent_action_id=parent_action_id,
+            )
+
+        if action_type == "claim_relic":
+            if (
+                self.phase != GamePhase.COMBAT_REWARDS
+                or self.current_rewards is None
+                or self.current_rewards.relic is None
+                or self.current_rewards.relic.claimed
+            ):
+                return None
+            reward_index = int(params.get("relic_reward_index", 0))
+            if reward_index != 0 or self.current_rewards.relic.relic.id != "Orrery":
+                return None
+            return self._build_pending_selection_for_orrery(
+                source_action_type="claim_relic",
+                source_metadata={"relic_reward_index": reward_index},
+                parent_action_id=parent_action_id,
+            )
+
+        return None
+
     def _selection_context_actions(self) -> List[ActionDict]:
         """Emit explicit follow-up actions for pending selection state."""
         if not self.pending_selection:
@@ -651,6 +759,26 @@ class GameRunner:
         candidates = list(ctx.candidate_indices)
         if not candidates and ctx.min_cards > 0:
             return []
+
+        valid_combinations = ctx.metadata.get("valid_combinations")
+        if valid_combinations:
+            for combo in valid_combinations:
+                selected = list(combo)
+                params = {
+                    "pile": ctx.pile,
+                    "card_indices": selected,
+                    "min_cards": ctx.min_cards,
+                    "max_cards": ctx.max_cards,
+                    "parent_action_id": ctx.parent_action_id,
+                }
+                actions.append({
+                    "id": self._make_action_id("select_cards", params),
+                    "type": "select_cards",
+                    "label": f"Select {ctx.pile} cards: {selected}",
+                    "params": params,
+                    "phase": self._phase_to_action_phase(),
+                })
+            return actions
 
         # Emit the complete legal action surface for card selections.
         # Hand-size is capped at 10, so exhaustive subsets remain tractable.
@@ -680,7 +808,7 @@ class GameRunner:
             return {"success": False, "error": "No pending selection"}
 
         ctx = self.pending_selection
-        if ctx.source_action_type != "pick_boss_relic":
+        if ctx.source_action_type not in {"pick_boss_relic", "buy_relic", "claim_relic"}:
             return {"success": False, "error": "Unsupported pending relic selection source"}
         if action_dict.get("type") != "select_cards":
             return {"success": False, "error": "Expected select_cards action"}
@@ -696,14 +824,39 @@ class GameRunner:
         if any(idx not in allowed for idx in selected):
             return {"success": False, "error": "Invalid selected card index"}
 
-        relic_index = int(ctx.metadata.get("relic_index", -1))
+        valid_combinations = ctx.metadata.get("valid_combinations")
+        if valid_combinations:
+            normalized = tuple(sorted(selected))
+            allowed_combos = {tuple(sorted(combo)) for combo in valid_combinations}
+            if normalized not in allowed_combos:
+                return {"success": False, "error": "Invalid selection combination"}
+
+        parent_action: Optional[ActionDict] = None
+        if ctx.source_action_type == "pick_boss_relic":
+            parent_action = {
+                "type": "pick_boss_relic",
+                "params": {"relic_index": int(ctx.metadata.get("relic_index", -1))},
+            }
+        elif ctx.source_action_type == "buy_relic":
+            parent_action = {
+                "type": "buy_relic",
+                "params": {"item_index": int(ctx.metadata.get("item_index", -1))},
+            }
+        elif ctx.source_action_type == "claim_relic":
+            parent_action = {
+                "type": "claim_relic",
+                "params": {
+                    "relic_reward_index": int(ctx.metadata.get("relic_reward_index", 0)),
+                },
+            }
+
+        if parent_action is None:
+            return {"success": False, "error": "Unable to replay parent relic action"}
+
         self.pending_selection = None
         self._pending_relic_selection_indices = selected
 
-        result = self.take_action_dict({
-            "type": "pick_boss_relic",
-            "params": {"relic_index": relic_index},
-        })
+        result = self.take_action_dict(parent_action)
         if not result.get("success"):
             self._pending_relic_selection_indices = None
         return result
@@ -714,7 +867,7 @@ class GameRunner:
             return {"success": False, "error": "No pending selection"}
 
         ctx = self.pending_selection
-        if ctx.source_action_type == "pick_boss_relic":
+        if ctx.source_action_type in {"pick_boss_relic", "buy_relic", "claim_relic"}:
             return self._apply_pending_relic_selection(action_dict)
 
         if not self.current_combat:
@@ -1113,6 +1266,33 @@ class GameRunner:
                 }
                 skip_action["id"] = self._make_action_id(skip_action["type"], skip_action["params"])
                 actions.append(skip_action)
+
+        if self.phase == GamePhase.SHOP and self.current_shop is not None:
+            for action in actions:
+                if action.get("type") != "buy_relic":
+                    continue
+                params = action.get("params", {}) or {}
+                item_index = int(params.get("item_index", -1))
+                shop_relic = next(
+                    (
+                        r for r in self.current_shop.relics
+                        if r.slot_index == item_index and not r.purchased
+                    ),
+                    None,
+                )
+                if shop_relic is not None and shop_relic.relic.id == "Orrery":
+                    action["requires"] = ["card_indices"]
+
+        if (
+            self.phase == GamePhase.COMBAT_REWARDS
+            and self.current_rewards is not None
+            and self.current_rewards.relic is not None
+            and not self.current_rewards.relic.claimed
+        ):
+            if self.current_rewards.relic.relic.id == "Orrery":
+                for action in actions:
+                    if action.get("type") == "claim_relic":
+                        action["requires"] = ["card_indices"]
         return actions
 
     def take_action_dict(self, action_dict: ActionDict) -> Dict[str, Any]:
@@ -1183,6 +1363,36 @@ class GameRunner:
             if self._pending_relic_selection_indices is None:
                 selection_ctx = self._build_pending_selection_for_boss_relic(
                     relic_index=relic_index,
+                    parent_action_id=str(action_dict.get("id", "")),
+                )
+                if selection_ctx is not None:
+                    self.pending_selection = selection_ctx
+                    if "card_indices" in params:
+                        selection_action = {
+                            "type": "select_cards",
+                            "params": {
+                                "pile": selection_ctx.pile,
+                                "card_indices": params.get("card_indices", []),
+                                "min_cards": selection_ctx.min_cards,
+                                "max_cards": selection_ctx.max_cards,
+                                "parent_action_id": selection_ctx.parent_action_id,
+                            },
+                        }
+                        return self._apply_pending_selection(selection_action)
+                    return {
+                        "success": False,
+                        "error": "Selection required",
+                        "requires_selection": True,
+                        "candidate_actions": self._selection_context_actions(),
+                    }
+
+        # Intercept relic acquisition actions that require follow-up selection.
+        if action_dict.get("type") in {"buy_relic", "claim_relic"}:
+            params = action_dict.get("params", {}) or {}
+            if self._pending_relic_selection_indices is None:
+                selection_ctx = self._build_pending_selection_for_relic_action(
+                    action_type=str(action_dict.get("type")),
+                    params=params,
                     parent_action_id=str(action_dict.get("id", "")),
                 )
                 if selection_ctx is not None:
@@ -2120,13 +2330,21 @@ class GameRunner:
         # Handle relic
         elif action.reward_type == "relic":
             if rewards.relic and not rewards.relic.claimed:
+                selection_indices = (
+                    list(self._pending_relic_selection_indices)
+                    if rewards.relic.relic.id == "Orrery"
+                    and self._pending_relic_selection_indices is not None
+                    else None
+                )
                 self.run_state.add_relic(
                     rewards.relic.relic.id,
                     misc_rng=self.misc_rng,
                     card_rng=self.card_rng,
                     relic_rng=self.relic_rng,
                     potion_rng=self.potion_rng,
+                    selection_card_indices=selection_indices,
                 )
+                self._pending_relic_selection_indices = None
                 rewards.relic.claimed = True
                 self._log(f"Gained relic: {rewards.relic.relic.name}")
                 result["relic_gained"] = rewards.relic.relic.name
@@ -2366,13 +2584,21 @@ class GameRunner:
 
             # Process purchase
             self.run_state.spend_gold(shop_relic.price)
+            selection_indices = (
+                list(self._pending_relic_selection_indices)
+                if shop_relic.relic.id == "Orrery"
+                and self._pending_relic_selection_indices is not None
+                else None
+            )
             self.run_state.add_relic(
                 shop_relic.relic.id,
                 misc_rng=self.misc_rng,
                 card_rng=self.card_rng,
                 relic_rng=self.relic_rng,
                 potion_rng=self.potion_rng,
+                selection_card_indices=selection_indices,
             )
+            self._pending_relic_selection_indices = None
             shop_relic.purchased = True
 
             self._log(f"Purchased {shop_relic.relic.name} for {shop_relic.price} gold")

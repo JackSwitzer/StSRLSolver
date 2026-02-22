@@ -23,7 +23,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ## Evidence-based remaining gaps
 
 ### P0: Action-surface completeness (agent traversal)
-- [ ] `REL-003` Orrery purchase/reward flow must expose explicit `select_cards` follow-up actions.
+- [x] `REL-003` Orrery purchase/reward flow now exposes explicit `select_cards` follow-up actions.
 - [ ] `REL-004` Bottled relic acquisition must expose explicit selection actions (no auto-first fallback).
 - [ ] `REL-008` Dolly's Mirror acquisition must expose explicit selection action.
 - [ ] `EVT-001` Event choices that require card pick/remove/transform/upgrade need explicit follow-up actions.
@@ -44,7 +44,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ## Region plan (PR boundaries)
 
 ### R1: Relic selection surface
-- [ ] `REL-003` Orrery explicit selection.
+- [x] `REL-003` Orrery explicit selection.
 - [ ] `REL-004` Bottled relic explicit assignment.
 - [ ] `REL-008` Dolly's Mirror explicit selection.
 - [ ] `REL-005` deterministic selection IDs + validation hardening.
@@ -78,8 +78,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `REL-003` docs rows + action-surface tests for Orrery -> implement selection plumbing.
-2. `REL-004` docs rows + bottled selection tests -> implement selection plumbing.
+1. `REL-004` docs rows + bottled selection tests -> implement selection plumbing.
+2. `REL-008` docs rows + Dolly selection tests -> implement selection plumbing.
 3. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
 4. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
 

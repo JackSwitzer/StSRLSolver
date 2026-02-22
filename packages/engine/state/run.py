@@ -754,10 +754,14 @@ class RunState:
                 chosen = self.deck[0]
                 self.add_card(chosen.id, upgraded=chosen.upgraded, misc_value=chosen.misc_value)
 
-        # Orrery: add 5 cards (auto-pick first from each reward)
+        # Orrery: add 5 cards (one pick from each generated 3-card offer)
         if relic_id == "Orrery":
             used_card = self._get_rng("card", card_rng)
-            for _ in range(5):
+            flattened_mode = False
+            if selection_card_indices:
+                flattened_mode = any(idx >= 3 for idx in selection_card_indices)
+            flat_offset = 0
+            for offer_idx in range(5):
                 cards = generate_card_rewards(
                     used_card,
                     RewardState(),
@@ -768,8 +772,22 @@ class RunState:
                     num_cards=3,
                 )
                 if cards:
-                    card = cards[0]
+                    chosen_idx = 0
+                    if selection_card_indices:
+                        if flattened_mode:
+                            start = flat_offset
+                            end = start + len(cards)
+                            for raw_idx in selection_card_indices:
+                                if start <= raw_idx < end:
+                                    chosen_idx = raw_idx - start
+                                    break
+                        elif offer_idx < len(selection_card_indices):
+                            local_idx = selection_card_indices[offer_idx]
+                            if 0 <= local_idx < len(cards):
+                                chosen_idx = local_idx
+                    card = cards[chosen_idx]
                     self.add_card(card.id, upgraded=card.upgraded)
+                    flat_offset += len(cards)
 
         # Pandora's Box: transform all Strikes and Defends
         if relic_id == "Pandora's Box":

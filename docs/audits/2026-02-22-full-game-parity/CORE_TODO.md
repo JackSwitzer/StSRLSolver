@@ -30,7 +30,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `DOC-003` evidence refresh with inventory counts and gap queue
 
 ### R1 relic selection surface (active)
-- [ ] `REL-003` Orrery explicit selection actions
+- [x] `REL-003` Orrery explicit selection actions
 - [ ] `REL-004` bottled relic assignment explicit actions
 - [ ] `REL-008` Dolly's Mirror explicit duplicate selection
 - [ ] `REL-005` deterministic selection IDs + validation
@@ -68,7 +68,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Confirmed high-impact open gaps
 - [ ] `GameRunner._handle_event_action` still forces `card_idx=None`.
-- [ ] `RunState._on_relic_obtained` still auto-picks for Orrery/Bottled/Dolly paths.
+- [ ] `RunState._on_relic_obtained` still auto-picks for Bottled/Dolly paths.
 - [ ] `Toolbox` still not present in content registry.
 - [ ] Power inventory has large class-level residuals.
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.

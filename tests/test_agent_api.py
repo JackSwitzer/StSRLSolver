@@ -20,6 +20,7 @@ from packages.engine import (
 from packages.engine.combat_engine import CombatEngine
 from packages.engine.content.relics import get_relic
 from packages.engine.handlers.reward_handler import CombatRewards, BossRelicChoices
+from packages.engine.handlers.reward_handler import RelicReward
 from packages.engine.state.combat import create_combat, create_enemy
 
 
@@ -564,6 +565,75 @@ class TestActionExecution:
         assert second.get("success") is True
         assert runner.run_state.has_relic("Empty Cage")
         assert len(runner.run_state.deck) == before_deck_size - 2
+
+    def test_shop_orrery_requires_card_selection(self, runner):
+        """Buying Orrery should require explicit select_cards follow-up."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("Orrery")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        result = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 5 for a in candidates)
+
+    def test_shop_orrery_selection_roundtrip_adds_five_cards(self, runner):
+        """Buying Orrery should complete after select_cards and add five cards."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics, "Expected at least one relic slot in shop"
+
+        runner.current_shop.relics[0].relic = get_relic("Orrery")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+        before_deck_size = len(runner.run_state.deck)
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        second = runner.take_action_dict(candidates[0])
+        assert second.get("success") is True
+        assert runner.run_state.has_relic("Orrery")
+        assert len(runner.run_state.deck) == before_deck_size + 5
+
+    def test_reward_orrery_requires_card_selection(self, runner):
+        """Claiming an Orrery relic reward should require explicit selection."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            relic=RelicReward(relic=get_relic("Orrery")),
+        )
+
+        result = runner.take_action_dict({
+            "type": "claim_relic",
+            "params": {"relic_reward_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 5 for a in candidates)
 
 
 # =============================================================================
