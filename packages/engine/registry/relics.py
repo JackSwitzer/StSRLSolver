@@ -24,6 +24,53 @@ def akabeko_start(ctx: RelicContext) -> None:
     ctx.apply_power_to_player("Vigor", 8)
 
 
+def _move_bottled_card_to_hand(ctx: RelicContext, card_id: str) -> None:
+    """Move a bottled card from draw pile to hand if present."""
+    if not card_id:
+        return
+    # Prefer exact match (including +), then fall back to base ID match.
+    if card_id in ctx.state.draw_pile:
+        ctx.state.draw_pile.remove(card_id)
+        if len(ctx.state.hand) < 10:
+            ctx.state.hand.append(card_id)
+        else:
+            ctx.state.discard_pile.append(card_id)
+        return
+    base = card_id.rstrip("+")
+    for i, cid in enumerate(ctx.state.draw_pile):
+        if cid.rstrip("+") == base:
+            picked = ctx.state.draw_pile.pop(i)
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(picked)
+            else:
+                ctx.state.discard_pile.append(picked)
+            return
+
+
+@relic_trigger("atBattleStart", relic="Bottled Flame")
+def bottled_flame_start(ctx: RelicContext) -> None:
+    """Bottled Flame: Bottled Attack starts in hand."""
+    card_id = getattr(ctx.state, "bottled_cards", {}).get("Bottled Flame")
+    if card_id:
+        _move_bottled_card_to_hand(ctx, card_id)
+
+
+@relic_trigger("atBattleStart", relic="Bottled Lightning")
+def bottled_lightning_start(ctx: RelicContext) -> None:
+    """Bottled Lightning: Bottled Skill starts in hand."""
+    card_id = getattr(ctx.state, "bottled_cards", {}).get("Bottled Lightning")
+    if card_id:
+        _move_bottled_card_to_hand(ctx, card_id)
+
+
+@relic_trigger("atBattleStart", relic="Bottled Tornado")
+def bottled_tornado_start(ctx: RelicContext) -> None:
+    """Bottled Tornado: Bottled Power starts in hand."""
+    card_id = getattr(ctx.state, "bottled_cards", {}).get("Bottled Tornado")
+    if card_id:
+        _move_bottled_card_to_hand(ctx, card_id)
+
+
 @relic_trigger("atBattleStart", relic="ClockworkSouvenir")
 def clockwork_souvenir_start(ctx: RelicContext) -> None:
     """Clockwork Souvenir: Gain 1 Artifact at combat start."""
@@ -1000,6 +1047,29 @@ counter_relic(
 def abacus_shuffle(ctx: RelicContext) -> None:
     """The Abacus: Gain 6 Block when shuffling."""
     ctx.gain_block(6)
+
+
+@relic_trigger("onShuffle", relic="Melange")
+def melange_shuffle(ctx: RelicContext) -> None:
+    """Melange: Whenever you shuffle your draw pile, Scry 3.
+
+    Note: The scry will get +2 from Golden Eye if present.
+    Golden Eye's bonus is applied in the scry amount calculation,
+    matching Java's ScryAction constructor behavior.
+    """
+    # Calculate scry amount
+    scry_amount = 3
+
+    # Golden Eye: +2 to all scry amounts
+    if ctx.has_relic("GoldenEye"):
+        scry_amount += 2
+
+    # Mark that a scry action should occur
+    # The actual scry implementation would look at the top N cards of draw pile
+    # and allow player to choose which to discard
+    if not hasattr(ctx.state, 'pending_scry') or ctx.state.pending_scry is None:
+        ctx.state.pending_scry = 0
+    ctx.state.pending_scry += scry_amount
 
 
 # =============================================================================

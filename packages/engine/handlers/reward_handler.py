@@ -141,14 +141,20 @@ class EmeraldKeyReward:
 class BossRelicChoices:
     """Boss relic choices (pick 1 of 3)."""
     relics: List[Relic]
-    chosen_index: Optional[int] = None
+    chosen_index: Optional[int] = None  # -1 means skipped
 
     @property
     def is_resolved(self) -> bool:
         return self.chosen_index is not None
 
+    @property
+    def is_skipped(self) -> bool:
+        return self.chosen_index == -1
+
     def __repr__(self) -> str:
-        if self.chosen_index is not None:
+        if self.chosen_index == -1:
+            return "Boss Relic: (skipped)"
+        if self.chosen_index is not None and 0 <= self.chosen_index < len(self.relics):
             return f"Boss Relic: {self.relics[self.chosen_index].name} (chosen)"
         names = [r.name for r in self.relics]
         return f"Boss Relic choices: {names}"
@@ -285,6 +291,12 @@ class PickBossRelicAction:
 
 
 @dataclass(frozen=True)
+class SkipBossRelicAction:
+    """Skip boss relic selection."""
+    pass
+
+
+@dataclass(frozen=True)
 class ProceedFromRewardsAction:
     """Done with rewards, return to map."""
     pass
@@ -294,7 +306,7 @@ RewardAction = Union[
     ClaimGoldAction, ClaimPotionAction, SkipPotionAction,
     PickCardAction, SkipCardAction, SingingBowlAction,
     ClaimRelicAction, ClaimEmeraldKeyAction, SkipEmeraldKeyAction,
-    PickBossRelicAction, ProceedFromRewardsAction
+    PickBossRelicAction, SkipBossRelicAction, ProceedFromRewardsAction
 ]
 
 
@@ -609,6 +621,8 @@ class RewardHandler:
         if rewards.boss_relics and not rewards.boss_relics.is_resolved:
             for i in range(len(rewards.boss_relics.relics)):
                 actions.append(PickBossRelicAction(relic_index=i))
+            # Allow explicit skip
+            actions.append(SkipBossRelicAction())
 
         # Can proceed if all mandatory rewards resolved
         # Mandatory: gold (auto), card (pick/skip), relic (claim), boss relic (pick)
@@ -639,6 +653,11 @@ class RewardHandler:
         action: RewardAction,
         run_state: RunState,
         rewards: CombatRewards,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        relic_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
     ) -> Dict[str, Any]:
         """
         Process a reward action and update state.
@@ -741,7 +760,13 @@ class RewardHandler:
 
         elif isinstance(action, ClaimRelicAction):
             if rewards.relic and not rewards.relic.claimed:
-                run_state.add_relic(rewards.relic.relic.id)
+                run_state.add_relic(
+                    rewards.relic.relic.id,
+                    misc_rng=misc_rng,
+                    card_rng=card_rng,
+                    relic_rng=relic_rng,
+                    potion_rng=potion_rng,
+                )
                 rewards.relic.claimed = True
                 result["relic_id"] = rewards.relic.relic.id
                 result["relic_name"] = rewards.relic.relic.name
@@ -778,7 +803,13 @@ class RewardHandler:
                         run_state, relic
                     )
 
-                    run_state.add_relic(relic.id)
+                    run_state.add_relic(
+                        relic.id,
+                        misc_rng=misc_rng,
+                        card_rng=card_rng,
+                        relic_rng=relic_rng,
+                        potion_rng=potion_rng,
+                    )
                     rewards.boss_relics.chosen_index = idx
 
                     result["relic_id"] = relic.id
@@ -792,10 +823,22 @@ class RewardHandler:
                 result["success"] = False
                 result["error"] = "No boss relic to pick"
 
+        elif isinstance(action, SkipBossRelicAction):
+            if rewards.boss_relics and not rewards.boss_relics.is_resolved:
+                # Mark boss relic as skipped (use -1 to indicate skip)
+                rewards.boss_relics.chosen_index = -1
+                result["boss_relic_skipped"] = True
+            else:
+                result["success"] = False
+                result["error"] = "No boss relic to skip"
+
         elif isinstance(action, ProceedFromRewardsAction):
             result["proceeding_to_map"] = True
 
         return result
+
+    # Alias for API compatibility
+    execute_action = handle_action
 
     @staticmethod
     def _handle_boss_relic_pickup(

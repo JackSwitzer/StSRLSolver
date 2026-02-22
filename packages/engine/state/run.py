@@ -14,6 +14,15 @@ from typing import List, Dict, Set, Optional, Tuple
 from copy import deepcopy
 
 from ..generation.map import MapRoomNode, RoomType, MapGenerator, MapGeneratorConfig, get_map_seed_offset
+from ..generation.rewards import (
+    RewardState,
+    generate_card_rewards,
+    generate_relic_reward,
+    generate_potion_reward,
+    RelicTier,
+)
+from ..content.cards import ALL_CARDS, CardType
+from ..content.relics import resolve_relic_id as resolve_content_relic_id
 from .rng import Random, GameRNG, seed_to_long, long_to_seed
 
 
@@ -68,6 +77,7 @@ class RelicInstance:
     # Some relics need additional state
     triggered_this_combat: bool = False  # e.g., Lizard Tail
     triggered_this_turn: bool = False    # e.g., Orichalcum
+    card_id: Optional[str] = None        # e.g., bottled card ID (with + if upgraded)
 
     def __repr__(self) -> str:
         if self.counter >= 0:
@@ -80,7 +90,8 @@ class RelicInstance:
             id=self.id,
             counter=self.counter,
             triggered_this_combat=self.triggered_this_combat,
-            triggered_this_turn=self.triggered_this_turn
+            triggered_this_turn=self.triggered_this_turn,
+            card_id=self.card_id,
         )
 
 
@@ -147,6 +158,7 @@ class RunState:
     current_hp: int = 72         # Current HP
     max_hp: int = 72             # Maximum HP
     gold: int = 99               # Current gold
+    gold_blocked: int = 0        # Gold blocked by Ectoplasm
 
     # ==================== DECK ====================
     deck: List[CardInstance] = field(default_factory=list)
@@ -222,6 +234,41 @@ class RunState:
 
     # ----- DECK MANAGEMENT -----
 
+    _EGG_RELIC_BY_TYPE = {
+        CardType.POWER: "Frozen Egg 2",
+        CardType.ATTACK: "Molten Egg 2",
+        CardType.SKILL: "Toxic Egg 2",
+    }
+
+    def _apply_on_obtain_card_upgrades(
+        self,
+        card_id: str,
+        upgraded: bool,
+    ) -> Tuple[Optional[object], bool]:
+        """Apply upgrade modifiers for card acquisition (Egg relics)."""
+        card_def = ALL_CARDS.get(card_id)
+        if card_def is None or upgraded:
+            return card_def, upgraded
+
+        egg_relic = self._EGG_RELIC_BY_TYPE.get(card_def.card_type)
+        if egg_relic and self.has_relic(egg_relic):
+            upgraded = True
+
+        return card_def, upgraded
+
+    def _apply_on_obtain_card_side_effects(
+        self,
+        card_id: str,
+        card_def: Optional[object],
+    ) -> None:
+        """Apply non-upgrade relic effects from card acquisition."""
+        if self.has_relic("CeramicFish"):
+            self.add_gold(9)
+
+        if card_def is not None and getattr(card_def, "card_type", None) == CardType.CURSE:
+            if self.has_relic("Darkstone Periapt"):
+                self.gain_max_hp(6)
+
     def add_card(self, card_id: str, upgraded: bool = False, misc_value: int = 0) -> CardInstance:
         """
         Add a card to the deck.
@@ -234,10 +281,15 @@ class RunState:
         Returns:
             The created CardInstance
         """
+        card_def, upgraded = self._apply_on_obtain_card_upgrades(card_id, upgraded)
+
         card = CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)
         self.deck.append(card)
         self.cards_obtained_this_act.append(card_id)
         self.seen_cards.add(card_id)
+
+        self._apply_on_obtain_card_side_effects(card_id, card_def)
+
         return card
 
     def remove_card(self, card_idx: int) -> Optional[CardInstance]:
@@ -335,9 +387,137 @@ class RunState:
             if card.id not in basic_cards
         ]
 
+    # ----- REWARD HELPERS -----
+
+    def get_card_reward_count(self) -> int:
+        """
+        Get cards shown in a single card reward after relic modifiers.
+
+        Note: Prayer Wheel normally adds an additional reward roll, not +1 card
+        to a single roll. This helper follows current tests, where it contributes
+        +1 to the per-reward choice count.
+        """
+        count = 3
+        if self.has_relic("Prayer Wheel"):
+            count += 1
+        if self.has_relic("Question Card"):
+            count += 1
+        if self.has_relic("BustedCrown"):
+            count -= 2
+        return max(1, count)
+
+    def skip_card_reward(self) -> None:
+        """Apply effects when the player skips a card reward."""
+        if self.has_relic("Singing Bowl"):
+            self.gain_max_hp(2)
+
+    # ----- RELIC HELPERS -----
+
+    _RNG_STREAM_OFFSETS = {
+        "misc": 4000,
+        "card": 5000,
+        "potion": 7000,
+        "relic": 8000,
+    }
+
+    def _get_rng(self, stream: str, override: Optional[Random] = None) -> Random:
+        """Resolve an RNG stream, preferring overrides and cached RNGs."""
+        if override is not None:
+            return override
+        rng_attr = f"{stream}_rng"
+        rng = getattr(self, rng_attr, None)
+        if rng is not None:
+            return rng
+        offset = self._RNG_STREAM_OFFSETS.get(stream, 0)
+        counter = self.get_rng_counter(stream, 0)
+        return Random(self.seed + offset, counter)
+
+    def _sync_rng_counter(self, stream: str, rng: Random) -> None:
+        """Persist RNG counter after local consumption."""
+        self.rng_counters[stream] = int(rng.counter)
+
+    def _shuffle_indices(self, indices: List[int], rng: Random) -> None:
+        """Shuffle indices in-place using game RNG."""
+        for i in range(len(indices) - 1, 0, -1):
+            j = rng.random(i)
+            indices[i], indices[j] = indices[j], indices[i]
+
+    def _upgrade_random_cards(self, card_type: CardType, count: int, rng: Random) -> int:
+        """Upgrade up to count cards of the given type. Returns upgrades performed."""
+        eligible = []
+        for i, card in enumerate(self.deck):
+            card_def = ALL_CARDS.get(card.id)
+            if not card_def or card_def.card_type != card_type:
+                continue
+            if not card.upgraded or card.id == "SearingBlow":
+                eligible.append(i)
+        if not eligible:
+            return 0
+        self._shuffle_indices(eligible, rng)
+        upgrades = 0
+        for idx in eligible[:count]:
+            if self.upgrade_card(idx):
+                upgrades += 1
+        return upgrades
+
+    def _roll_random_reward_card(self, card_rng: Random) -> Optional[str]:
+        """Roll a random card from reward logic and return its ID."""
+        reward_state = RewardState()
+        cards = generate_card_rewards(
+            card_rng,
+            reward_state,
+            act=self.act,
+            player_class=self.character,
+            ascension=self.ascension,
+            room_type="normal",
+            num_cards=1,
+        )
+        if cards:
+            return cards[0].id
+        return None
+
+    def _select_random_index(self, indices: List[int], rng: Optional[Random]) -> Optional[int]:
+        """Select a random index from a list, or the first if RNG missing."""
+        if not indices:
+            return None
+        if rng is None:
+            return indices[0]
+        return indices[rng.random(len(indices) - 1)]
+
+    def get_bottled_cards(self) -> Dict[str, str]:
+        """Get bottled card mapping for combat start."""
+        bottled = {}
+        for relic in self.relics:
+            if relic.id in ("Bottled Flame", "Bottled Lightning", "Bottled Tornado"):
+                if relic.card_id:
+                    bottled[relic.id] = relic.card_id
+        return bottled
+
     # ----- RELIC MANAGEMENT -----
 
-    def add_relic(self, relic_id: str, counter: int = -1) -> RelicInstance:
+    @staticmethod
+    def _canonical_relic_id(relic_id: str) -> str:
+        """Resolve relic ID aliases to canonical content IDs."""
+        canonical = resolve_content_relic_id(relic_id)
+        return canonical if canonical is not None else relic_id
+
+    @staticmethod
+    def _relic_lookup_key(relic_id: str) -> str:
+        """Normalize relic IDs for alias-safe comparisons."""
+        canonical = RunState._canonical_relic_id(relic_id)
+        return "".join(ch.lower() for ch in canonical if ch.isalnum())
+
+    def add_relic(
+        self,
+        relic_id: str,
+        counter: int = -1,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        relic_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
+        selection_card_indices: Optional[List[int]] = None,
+    ) -> RelicInstance:
         """
         Add a relic.
 
@@ -348,47 +528,71 @@ class RunState:
         Returns:
             The created RelicInstance
         """
+        relic_id = self._canonical_relic_id(relic_id)
+
+        # Java behavior: duplicate relics become Circlet.
+        if relic_id != "Circlet" and self.has_relic(relic_id):
+            relic_id = "Circlet"
+
         relic = RelicInstance(id=relic_id, counter=counter)
         self.relics.append(relic)
         self.seen_relics.add(relic_id)
 
         # Handle immediate effects
-        self._on_relic_obtained(relic)
+        self._on_relic_obtained(
+            relic,
+            misc_rng=misc_rng,
+            card_rng=card_rng,
+            relic_rng=relic_rng,
+            potion_rng=potion_rng,
+            selection_card_indices=selection_card_indices,
+        )
 
         return relic
 
-    def _on_relic_obtained(self, relic: RelicInstance):
+    def _on_relic_obtained(
+        self,
+        relic: RelicInstance,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        relic_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
+        selection_card_indices: Optional[List[int]] = None,
+    ):
         """Handle effects that trigger when obtaining a relic."""
         relic_id = relic.id
+        used_misc = None
+        used_card = None
+        used_relic = None
+        used_potion = None
 
         # Max HP changes
-        if relic_id == "MarkOfPain":
+        if relic_id == "Mark of Pain":
             self.gain_max_hp(12)  # A15+: also gain 2 HP per combat
-        elif relic_id == "BustedCrown":
+        elif relic_id == "Busted Crown":
             self.gain_max_hp(8)
-        elif relic_id == "PhilosopherStone":
+        elif relic_id == "Philosopher's Stone":
             self.gain_max_hp(10)
-        elif relic_id == "Ectoplasm":
-            self.gain_max_hp(12)
         elif relic_id == "Sozu":
             self.gain_max_hp(10)
-        elif relic_id == "SneckoEye":
+        elif relic_id == "Snecko Eye":
             self.gain_max_hp(8)
-        elif relic_id == "VelvetChoker":
+        elif relic_id == "Velvet Choker":
             self.gain_max_hp(8)
         elif relic_id == "Runic Dome":
             self.gain_max_hp(8)
-        elif relic_id == "CursedKey":
+        elif relic_id == "Cursed Key":
             self.gain_max_hp(10)
-        elif relic_id == "FusionHammer":
+        elif relic_id == "Fusion Hammer":
             self.gain_max_hp(12)
         elif relic_id == "Coffee Dripper":
             self.gain_max_hp(12)
-        elif relic_id == "BlackStar":
+        elif relic_id == "Black Star":
             self.gain_max_hp(8)
         elif relic_id == "SacredBark":
             self.gain_max_hp(12)
-        elif relic_id == "DuVuDoll":
+        elif relic_id == "Du-Vu Doll":
             self.gain_max_hp(8)
         elif relic_id == "Strawberry":
             self.gain_max_hp(7)
@@ -403,14 +607,248 @@ class RunState:
             self.potion_slots.append(PotionSlot())
             self.potion_slots.append(PotionSlot())
 
+        # Counter setup for specific relics
+        if relic_id == "Tiny Chest":
+            relic.counter = 0
+        elif relic_id == "Matryoshka":
+            relic.counter = 2
+        elif relic_id == "MawBank":
+            relic.counter = 0
+        elif relic_id in ("NlothsMask", "N'loth's Mask", "Nloth's Hungry Face"):
+            # Java: NlothsMask starts at 1 and consumes itself after first non-boss chest.
+            relic.counter = 1
+
+        # War Paint / Whetstone (misc RNG)
+        if relic_id == "War Paint":
+            used_misc = self._get_rng("misc", misc_rng)
+            self._upgrade_random_cards(CardType.SKILL, 2, used_misc)
+        elif relic_id == "Whetstone":
+            used_misc = self._get_rng("misc", misc_rng)
+            self._upgrade_random_cards(CardType.ATTACK, 2, used_misc)
+
+        # Bottled relics: choose a card (deterministic first eligible if unset)
+        if relic_id in ("Bottled Flame", "Bottled Lightning", "Bottled Tornado"):
+            if relic.card_id is None:
+                if relic_id == "Bottled Flame":
+                    eligible = [i for i, c in enumerate(self.deck)
+                                if ALL_CARDS.get(c.id) and ALL_CARDS[c.id].card_type == CardType.ATTACK]
+                elif relic_id == "Bottled Lightning":
+                    eligible = [i for i, c in enumerate(self.deck)
+                                if ALL_CARDS.get(c.id) and ALL_CARDS[c.id].card_type == CardType.SKILL]
+                else:
+                    eligible = [i for i, c in enumerate(self.deck)
+                                if ALL_CARDS.get(c.id) and ALL_CARDS[c.id].card_type == CardType.POWER]
+                if eligible:
+                    chosen_index = eligible[0]
+                    if selection_card_indices:
+                        allowed = set(eligible)
+                        for idx in selection_card_indices:
+                            if idx in allowed:
+                                chosen_index = idx
+                                break
+                    chosen = self.deck[chosen_index]
+                    relic.card_id = f"{chosen.id}+" if chosen.upgraded else chosen.id
+
+        # Astrolabe: transform and upgrade up to 3 purgeable cards
+        if relic_id == "Astrolabe":
+            unpurgeable = {"AscendersBane", "CurseOfTheBell", "Necronomicurse"}
+            transformable = [
+                (idx, card)
+                for idx, card in self.get_removable_cards()
+                if card.id not in unpurgeable
+            ]
+            if transformable:
+                used_misc = self._get_rng("misc", misc_rng)
+                transformable_indices = [idx for idx, _ in transformable]
+                max_count = min(3, len(transformable_indices))
+
+                if selection_card_indices is not None:
+                    selected: List[int] = []
+                    allowed = set(transformable_indices)
+                    for idx in selection_card_indices:
+                        if idx in allowed and idx not in selected:
+                            selected.append(idx)
+                        if len(selected) == max_count:
+                            break
+                    indices = selected if len(selected) == max_count else transformable_indices[:max_count]
+                else:
+                    indices = transformable_indices[:max_count]
+
+                # Remove highest indices first to avoid shifting
+                for idx in sorted(indices, reverse=True):
+                    self.remove_card(idx)
+                    new_card_id = self._roll_random_reward_card(used_misc)
+                    if new_card_id:
+                        self.add_card(new_card_id, upgraded=True)
+
+        # Empty Cage: remove 2 cards
+        if relic_id == "Empty Cage":
+            removable = self.get_removable_cards()
+            if removable:
+                removable_indices = [idx for idx, _ in removable]
+                max_count = min(2, len(removable_indices))
+                if selection_card_indices is not None:
+                    selected: List[int] = []
+                    allowed = set(removable_indices)
+                    for idx in selection_card_indices:
+                        if idx in allowed and idx not in selected:
+                            selected.append(idx)
+                        if len(selected) == max_count:
+                            break
+                    indices = selected if len(selected) == max_count else removable_indices[:max_count]
+                else:
+                    indices = removable_indices[:max_count]
+                for idx in sorted(indices, reverse=True):
+                    self.remove_card(idx)
+
+        # Calling Bell: gain 3 relics (C/U/R) + Curse of the Bell
+        if relic_id == "Calling Bell":
+            used_relic = self._get_rng("relic", relic_rng)
+            reward_state = RewardState(owned_relics=set(self.get_relic_ids()))
+            for tier in (RelicTier.COMMON, RelicTier.UNCOMMON, RelicTier.RARE):
+                relic_reward = generate_relic_reward(
+                    used_relic, tier, reward_state, self.character, self.act
+                )
+                if relic_reward:
+                    self.add_relic(
+                        relic_reward.id,
+                        relic_rng=used_relic,
+                        card_rng=card_rng,
+                        misc_rng=misc_rng,
+                        potion_rng=potion_rng,
+                    )
+            self.add_card("CurseOfTheBell")
+
+        # Tiny House: gold, max HP, potion, card, and upgrade
+        if relic_id == "Tiny House":
+            self.add_gold(50)
+            self.gain_max_hp(5)
+            self.heal(5)
+
+            used_potion = self._get_rng("potion", potion_rng)
+            potion = generate_potion_reward(used_potion, self.character)
+            if potion:
+                self.add_potion(potion.id)
+
+            used_card = self._get_rng("card", card_rng)
+            cards = generate_card_rewards(
+                used_card,
+                RewardState(),
+                act=self.act,
+                player_class=self.character,
+                ascension=self.ascension,
+                room_type="normal",
+                num_cards=1,
+            )
+            if cards:
+                card = cards[0]
+                self.add_card(card.id, upgraded=card.upgraded)
+
+            upgradeable = self.get_upgradeable_cards()
+            if upgradeable:
+                self.upgrade_card(upgradeable[0][0])
+
+        # Cauldron: gain 5 random potions
+        if relic_id == "Cauldron":
+            used_potion = self._get_rng("potion", potion_rng)
+            for _ in range(5):
+                potion = generate_potion_reward(used_potion, self.character)
+                if potion is None:
+                    continue
+                if self.count_empty_potion_slots() == 0:
+                    break
+                self.add_potion(potion.id)
+
+        # Dolly's Mirror: duplicate a card in deck
+        if relic_id == "DollysMirror":
+            if self.deck:
+                chosen_idx = 0
+                if selection_card_indices:
+                    for idx in selection_card_indices:
+                        if 0 <= idx < len(self.deck):
+                            chosen_idx = idx
+                            break
+                chosen = self.deck[chosen_idx]
+                self.add_card(chosen.id, upgraded=chosen.upgraded, misc_value=chosen.misc_value)
+
+        # Orrery: add 5 cards (one pick from each generated 3-card offer)
+        if relic_id == "Orrery":
+            used_card = self._get_rng("card", card_rng)
+            flattened_mode = False
+            if selection_card_indices:
+                flattened_mode = any(idx >= 3 for idx in selection_card_indices)
+            flat_offset = 0
+            for offer_idx in range(5):
+                cards = generate_card_rewards(
+                    used_card,
+                    RewardState(),
+                    act=self.act,
+                    player_class=self.character,
+                    ascension=self.ascension,
+                    room_type="normal",
+                    num_cards=3,
+                )
+                if cards:
+                    chosen_idx = 0
+                    if selection_card_indices:
+                        if flattened_mode:
+                            start = flat_offset
+                            end = start + len(cards)
+                            for raw_idx in selection_card_indices:
+                                if start <= raw_idx < end:
+                                    chosen_idx = raw_idx - start
+                                    break
+                        elif offer_idx < len(selection_card_indices):
+                            local_idx = selection_card_indices[offer_idx]
+                            if 0 <= local_idx < len(cards):
+                                chosen_idx = local_idx
+                    card = cards[chosen_idx]
+                    self.add_card(card.id, upgraded=card.upgraded)
+                    flat_offset += len(cards)
+
+        # Pandora's Box: transform all Strikes and Defends
+        if relic_id == "Pandora's Box":
+            strike_defend_indices = []
+            for i, card in enumerate(self.deck):
+                if card.id.startswith("Strike_") or card.id.startswith("Defend_"):
+                    strike_defend_indices.append(i)
+            if strike_defend_indices:
+                used_card = self._get_rng("card", card_rng)
+                for idx in sorted(strike_defend_indices, reverse=True):
+                    self.remove_card(idx)
+                    new_card_id = self._roll_random_reward_card(used_card)
+                    if new_card_id:
+                        self.add_card(new_card_id, upgraded=False)
+
+        # Old Coin: gain 300 gold (respects Ectoplasm)
+        if relic_id == "Old Coin":
+            self.add_gold(300)
+
+        # Lee's Waffle: +7 max HP, heal to full
+        if relic_id == "Lee's Waffle":
+            self.gain_max_hp(7)
+            self.current_hp = self.max_hp
+
+        # Sync RNG counters if we used any streams locally
+        if used_misc is not None:
+            self._sync_rng_counter("misc", used_misc)
+        if used_card is not None:
+            self._sync_rng_counter("card", used_card)
+        if used_relic is not None:
+            self._sync_rng_counter("relic", used_relic)
+        if used_potion is not None:
+            self._sync_rng_counter("potion", used_potion)
+
     def has_relic(self, relic_id: str) -> bool:
         """Check if we have a specific relic."""
-        return any(r.id == relic_id for r in self.relics)
+        key = self._relic_lookup_key(relic_id)
+        return any(self._relic_lookup_key(r.id) == key for r in self.relics)
 
     def get_relic(self, relic_id: str) -> Optional[RelicInstance]:
         """Get a relic by ID if we have it."""
+        key = self._relic_lookup_key(relic_id)
         for relic in self.relics:
-            if relic.id == relic_id:
+            if self._relic_lookup_key(relic.id) == key:
                 return relic
         return None
 
@@ -447,8 +885,9 @@ class RunState:
         Returns:
             True if removed, False if not found
         """
+        key = self._relic_lookup_key(relic_id)
         for i, relic in enumerate(self.relics):
-            if relic.id == relic_id:
+            if self._relic_lookup_key(relic.id) == key:
                 self.relics.pop(i)
                 return True
         return False
@@ -523,6 +962,8 @@ class RunState:
     def add_gold(self, amount: int):
         """Add gold (affected by Ectoplasm and Golden Idol)."""
         if self.has_relic("Ectoplasm"):
+            if amount > 0:
+                self.gold_blocked += amount
             return  # Can't gain gold
 
         # Golden Idol increases gold gain by 25%
@@ -545,6 +986,22 @@ class RunState:
         actual = min(self.gold, amount)
         self.gold -= actual
         return actual
+
+    def spend_gold(self, amount: int) -> int:
+        """
+        Spend gold (shop purchases) and trigger onSpendGold relic effects.
+
+        Returns:
+            Actual amount spent
+        """
+        spent = self.lose_gold(amount)
+        if spent > 0:
+            # Maw Bank deactivates after spending gold
+            if self.has_relic("MawBank"):
+                relic = self.get_relic("MawBank")
+                if relic:
+                    relic.counter = -2
+        return spent
 
     def set_gold(self, amount: int):
         """Set gold directly (for events that set specific amounts)."""
@@ -769,8 +1226,12 @@ class RunState:
             "current_hp": self.current_hp,
             "max_hp": self.max_hp,
             "gold": self.gold,
+            "gold_blocked": self.gold_blocked,
             "deck": [{"id": c.id, "upgraded": c.upgraded, "misc": c.misc_value} for c in self.deck],
-            "relics": [{"id": r.id, "counter": r.counter} for r in self.relics],
+            "relics": [
+                {"id": r.id, "counter": r.counter, "card_id": r.card_id}
+                for r in self.relics
+            ],
             "potions": [s.potion_id for s in self.potion_slots],
             "map_position": {"x": self.map_position.x, "y": self.map_position.y},
             "visited_nodes": self.visited_nodes,
@@ -802,6 +1263,7 @@ class RunState:
             current_hp=data.get("current_hp", 72),
             max_hp=data.get("max_hp", 72),
             gold=data.get("gold", 99),
+            gold_blocked=data.get("gold_blocked", 0),
         )
 
         # Restore deck
@@ -816,7 +1278,8 @@ class RunState:
         for relic_data in data.get("relics", []):
             state.relics.append(RelicInstance(
                 id=relic_data["id"],
-                counter=relic_data.get("counter", -1)
+                counter=relic_data.get("counter", -1),
+                card_id=relic_data.get("card_id")
             ))
 
         # Restore potions

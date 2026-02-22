@@ -34,7 +34,7 @@ def combat_with_potions():
     return create_combat(
         player_hp=50,
         player_max_hp=80,
-        enemies=[create_enemy(50, 50, "TestEnemy")],
+        enemies=[create_enemy("TestEnemy", 50, 50)],
         deck=["Strike", "Strike", "Defend", "Defend", "Eruption", "Vigilance"],
         energy=3,
         max_energy=3,
@@ -49,11 +49,11 @@ def combat_with_sacred_bark():
     return create_combat(
         player_hp=50,
         player_max_hp=80,
-        enemies=[create_enemy(50, 50, "TestEnemy")],
+        enemies=[create_enemy("TestEnemy", 50, 50)],
         deck=["Strike", "Strike", "Defend", "Defend"],
         energy=3,
         max_energy=3,
-        relics=["SacredBark"],
+        relics=["Sacred Bark"],
         potions=["", "", ""],
     )
 
@@ -65,9 +65,9 @@ def combat_multiple_enemies():
         player_hp=50,
         player_max_hp=80,
         enemies=[
-            create_enemy(30, 30, "Enemy1"),
-            create_enemy(40, 40, "Enemy2"),
-            create_enemy(50, 50, "Enemy3"),
+            create_enemy("Enemy1", 30, 30),
+            create_enemy("Enemy2", 40, 40),
+            create_enemy("Enemy3", 50, 50),
         ],
         deck=["Strike", "Defend"],
         energy=3,
@@ -83,7 +83,7 @@ def combat_with_hand():
     state = create_combat(
         player_hp=50,
         player_max_hp=80,
-        enemies=[create_enemy(50, 50, "TestEnemy")],
+        enemies=[create_enemy("TestEnemy", 50, 50)],
         deck=["Strike", "Defend", "Eruption"],
         energy=3,
         max_energy=3,
@@ -128,14 +128,17 @@ class TestDistilledChaos:
     def test_distilled_chaos_plays_random_card(self, combat_with_potions):
         """Use Distilled Chaos -> play top 3 cards from draw pile."""
         state = combat_with_potions
-        state.draw_pile = ["Card1", "Card2", "Card3", "Card4"]
+        state.draw_pile = ["Defend_P", "Strike_P", "Strike_P", "Vigilance"]
         state.hand = []
+        initial_hp = state.enemies[0].hp
 
         result = execute_potion_effect("DistilledChaos", state, target_idx=-1)
 
         assert result["success"] is True
-        # The potion draws 3 cards (simplified implementation)
-        assert len(state.hand) == 3
+        # Distilled Chaos auto-plays from draw pile; cards do not stay in hand.
+        assert len(state.hand) == 0
+        assert state.enemies[0].hp < initial_hp
+        assert len(state.discard_pile) >= 1
 
 
 class TestBlessingOfForge:
@@ -234,6 +237,16 @@ class TestSmokeBomb:
 
         assert result["success"] is True
         assert hasattr(state, 'escaped') and state.escaped is True
+
+    def test_smoke_bomb_blocked_in_boss_combat(self, combat_with_potions):
+        """Smoke Bomb cannot escape in boss combat."""
+        state = combat_with_potions
+        state.is_boss_combat = True
+
+        result = execute_potion_effect("SmokeBomb", state, target_idx=-1)
+
+        assert result["success"] is False
+        assert getattr(state, "escaped", False) is False
 
 
 class TestEssenceOfSteel:
@@ -449,6 +462,25 @@ class TestEntropicBrew:
         # At least some slots should be filled
         filled_slots = [p for p in state.potions if p]
         assert len(filled_slots) > 0
+
+    def test_entropic_brew_uses_class_pool(self, combat_with_potions):
+        """Entropic Brew should use the player's class-specific potion pool."""
+        state = combat_with_potions
+        state.player_class = "WATCHER"
+        state.potions = ["EntropicBrew", "", ""]
+
+        class FixedZeroRng:
+            def random(self, range_val):
+                return 0
+
+        state.potion_rng = FixedZeroRng()
+
+        result = execute_potion_effect("EntropicBrew", state, target_idx=-1)
+
+        assert result["success"] is True
+        # WATCHER pool starts with BottledMiracle in PotionHelper order.
+        assert state.potions[1] == "BottledMiracle"
+        assert state.potions[2] == "BottledMiracle"
 
 
 class TestFairyPotion:
@@ -755,7 +787,7 @@ class TestWhiteBeastStatueHeals:
         state = create_combat(
             player_hp=40,
             player_max_hp=80,
-            enemies=[create_enemy(50, 50, "TestEnemy")],
+            enemies=[create_enemy("TestEnemy", 50, 50)],
             deck=["Strike"],
             energy=3,
             max_energy=3,
@@ -776,7 +808,7 @@ class TestToyOrnithopterHeals:
         state = create_combat(
             player_hp=40,
             player_max_hp=80,
-            enemies=[create_enemy(50, 50, "TestEnemy")],
+            enemies=[create_enemy("TestEnemy", 50, 50)],
             deck=["Strike"],
             energy=3,
             max_energy=3,

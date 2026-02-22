@@ -826,7 +826,7 @@ VAMPIRES = Event(
     id="Vampires",
     name="Vampires(?)",
     act=Act.ACT_2,
-    description="Vampires offer to transform you.",
+    description="Vampires offer to transform you. Blood Vial trade option available if you have the relic.",
     choices=[
         EventChoice(
             index=0,
@@ -834,14 +834,24 @@ VAMPIRES = Event(
             outcomes=[
                 Outcome(OutcomeType.CARD_REMOVE, description="Remove all Strikes"),
                 Outcome(OutcomeType.CARD_GAIN, card_id="Bite", count=5, description="Obtain 5 Bites"),
-                Outcome(OutcomeType.MAX_HP_CHANGE, value_percent=-0.30, description="Lose 30% Max HP")
+                Outcome(OutcomeType.MAX_HP_CHANGE, value_percent=-0.30, description="Lose 30% Max HP", rounding="ceil")
             ]
         ),
         EventChoice(
             index=1,
-            description="Refuse: Fight 3 Spikers and 2 Vampires",
+            description="Trade Blood Vial (requires Blood Vial): Lose Blood Vial, gain 5 Bites (no HP loss)",
+            requires_relic="Blood Vial",
             outcomes=[
-                Outcome(OutcomeType.COMBAT, description="Fight vampires")
+                Outcome(OutcomeType.RELIC_LOSE, relic_id="Blood Vial", description="Lose Blood Vial"),
+                Outcome(OutcomeType.CARD_REMOVE, description="Remove all Strikes"),
+                Outcome(OutcomeType.CARD_GAIN, card_id="Bite", count=5, description="Obtain 5 Bites"),
+            ]
+        ),
+        EventChoice(
+            index=2,
+            description="Refuse: Leave (no combat)",
+            outcomes=[
+                Outcome(OutcomeType.NOTHING, description="Leave peacefully")
             ]
         ),
     ]

@@ -229,6 +229,7 @@ def generate_shop_inventory(
         purge_count=purge_count,
         has_membership_card=run_state.has_relic("Membership Card"),
         has_the_courier=run_state.has_relic("The Courier"),
+        has_smiling_mask=run_state.has_relic("Smiling Mask"),
         has_prismatic_shard=run_state.has_relic("PrismaticShard"),
     )
 
@@ -613,7 +614,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(shop_card.price)
+        run_state.spend_gold(shop_card.price)
         run_state.add_card(shop_card.card.id, shop_card.card.upgraded)
         shop_card.purchased = True
 
@@ -657,7 +658,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(shop_card.price)
+        run_state.spend_gold(shop_card.price)
         run_state.add_card(shop_card.card.id, shop_card.card.upgraded)
         shop_card.purchased = True
 
@@ -701,7 +702,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(shop_relic.price)
+        run_state.spend_gold(shop_relic.price)
         run_state.add_relic(shop_relic.relic.id)
         shop_relic.purchased = True
 
@@ -754,7 +755,7 @@ class ShopHandler:
             )
 
         # Process purchase
-        run_state.lose_gold(shop_potion.price)
+        run_state.spend_gold(shop_potion.price)
         run_state.add_potion(shop_potion.potion.id)
         shop_potion.purchased = True
 
@@ -801,7 +802,7 @@ class ShopHandler:
 
         # Process removal
         cost = shop_state.purge_cost
-        run_state.lose_gold(cost)
+        run_state.spend_gold(cost)
         run_state.remove_card(action.card_index)
         shop_state.purge_available = False
 

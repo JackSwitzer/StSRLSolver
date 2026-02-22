@@ -333,8 +333,8 @@ class TestEffectContext:
         state = make_state(draw=["A", "B"], hand=[], player_statuses={"Nirvana": 3})
         ctx = make_ctx(state=state)
         ctx.scry(2)
-        # Nirvana gives block per card scried
-        assert state.player.block == 6  # 3 * 2
+        # Nirvana gives block once per scry action (matches Java)
+        assert state.player.block == 3
 
     def test_end_turn_flag(self):
         ctx = make_ctx()

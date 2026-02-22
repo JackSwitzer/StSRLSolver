@@ -10,7 +10,7 @@ Optimized for:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 
 # =============================================================================
@@ -41,7 +41,14 @@ class EndTurn:
     pass
 
 
-Action = Union[PlayCard, UsePotion, EndTurn]
+@dataclass(frozen=True)
+class SelectScryDiscard:
+    """Select which scried cards to discard (indices into pending_scry_cards)."""
+
+    discard_indices: tuple  # Tuple of indices to discard, e.g. (0, 2) to discard first and third
+
+
+Action = Union[PlayCard, UsePotion, EndTurn, SelectScryDiscard]
 
 
 # =============================================================================
@@ -217,6 +224,10 @@ class CombatState:
     mantra: int = 0
     last_card_type: str = ""  # "ATTACK", "SKILL", "POWER", or ""
 
+    # Scry pending state (for agent selection)
+    pending_scry_cards: List[str] = field(default_factory=list)
+    pending_scry_selection: bool = False
+
     # RNG state for deterministic simulation (seed0, seed1)
     shuffle_rng_state: tuple = (0, 0)
     card_rng_state: tuple = (0, 0)
@@ -233,8 +244,14 @@ class CombatState:
     # Relics the player has (for checking effects)
     relics: List[str] = field(default_factory=list)
 
+    # Bottled relic selections (relic_id -> card_id)
+    bottled_cards: Dict[str, str] = field(default_factory=dict)
+
     # Card costs cache (card_id -> cost, for cards with modified costs)
     card_costs: Dict[str, int] = field(default_factory=dict)
+
+    # Defect-specific: Orb manager (lazy initialized)
+    orb_manager: Any = None
 
     # -------------------------------------------------------------------------
     # Core Methods
@@ -273,6 +290,9 @@ class CombatState:
             # Watcher-specific
             mantra=self.mantra,
             last_card_type=self.last_card_type,
+            # Scry pending state
+            pending_scry_cards=self.pending_scry_cards.copy(),
+            pending_scry_selection=self.pending_scry_selection,
             # RNG state
             shuffle_rng_state=self.shuffle_rng_state,
             card_rng_state=self.card_rng_state,
@@ -284,8 +304,11 @@ class CombatState:
             # Relic counters - shallow copy (string keys, int values)
             relic_counters=self.relic_counters.copy(),
             relics=self.relics.copy(),
+            bottled_cards=self.bottled_cards.copy(),
             # Card costs cache
             card_costs=self.card_costs.copy(),
+            # Defect orb manager
+            orb_manager=self.orb_manager.copy() if self.orb_manager else None,
         )
 
     def is_victory(self) -> bool:
@@ -327,6 +350,10 @@ class CombatState:
             List of legal Action objects.
         """
         actions: List[Action] = []
+
+        # If scry selection is pending, only return scry discard options
+        if self.pending_scry_selection and self.pending_scry_cards:
+            return self._get_scry_actions()
 
         # Get living enemy indices
         living_enemies = [i for i, e in enumerate(self.enemies) if not e.is_dead]
@@ -400,6 +427,26 @@ class CombatState:
             return "enemy"
         return "self"
 
+    def _get_scry_actions(self) -> List[Action]:
+        """
+        Get all possible scry discard selections.
+
+        For N scried cards, generates 2^N options (all subsets of cards to discard).
+        """
+        from itertools import combinations
+
+        n = len(self.pending_scry_cards)
+        actions: List[Action] = []
+
+        # Generate all possible subsets of indices to discard
+        # For each possible number of cards to discard (0 to n)
+        for num_discard in range(n + 1):
+            # For each combination of that many indices
+            for indices in combinations(range(n), num_discard):
+                actions.append(SelectScryDiscard(discard_indices=indices))
+
+        return actions
+
     # -------------------------------------------------------------------------
     # Utility Methods
     # -------------------------------------------------------------------------
@@ -425,7 +472,26 @@ class CombatState:
 
     def has_relic(self, relic_id: str) -> bool:
         """Check if player has a specific relic."""
-        return relic_id in self.relics
+        if relic_id in self.relics:
+            return True
+        try:
+            from ..content.relics import ALL_RELICS
+        except Exception:
+            return False
+        canonical_id = None
+        if relic_id in ALL_RELICS:
+            canonical_id = relic_id
+        else:
+            for rid, relic in ALL_RELICS.items():
+                if relic.name == relic_id:
+                    canonical_id = rid
+                    break
+        if canonical_id is None:
+            return False
+        if canonical_id in self.relics:
+            return True
+        canonical_name = ALL_RELICS[canonical_id].name
+        return canonical_name in self.relics
 
     def get_relic_counter(self, relic_id: str, default: int = 0) -> int:
         """Get a relic's counter value."""
@@ -525,6 +591,7 @@ def create_combat(
     max_energy: int = 3,
     relics: List[str] = None,
     potions: List[str] = None,
+    bottled_cards: Dict[str, str] = None,
 ) -> CombatState:
     """
     Create a new combat state with initial setup.
@@ -542,4 +609,5 @@ def create_combat(
         enemies=enemies,
         relics=relics or [],
         potions=potions or ["", "", ""],  # 3 empty potion slots by default
+        bottled_cards=bottled_cards or {},
     )

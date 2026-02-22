@@ -25,7 +25,7 @@ from enum import Enum
 
 from ..state.combat import (
     CombatState, EntityState, EnemyCombatState,
-    PlayCard, UsePotion, EndTurn, Action,
+    PlayCard, UsePotion, EndTurn, SelectScryDiscard, Action,
     create_combat, create_enemy,
 )
 from ..state.rng import Random, GameRNG
@@ -234,6 +234,7 @@ class CombatRunner:
             max_energy=base_energy,
             relics=self.run_state.get_relic_ids(),
             potions=potions,
+            bottled_cards=self.run_state.get_bottled_cards(),
         )
 
     def _shuffle_deck(self, deck: List[str]) -> List[str]:
@@ -387,6 +388,7 @@ class CombatRunner:
         self.state.cards_played_this_turn = 0
         self.state.attacks_played_this_turn = 0
         self.state.skills_played_this_turn = 0
+        self.state.discarded_this_turn = 0
         self.state.powers_played_this_turn = 0
 
         # Execute registry-based atTurnStart triggers (handles counter resets and energy effects)
@@ -516,7 +518,7 @@ class CombatRunner:
         Execute a single action.
 
         Args:
-            action: Action to execute (PlayCard, UsePotion, EndTurn)
+            action: Action to execute (PlayCard, UsePotion, EndTurn, SelectScryDiscard)
 
         Returns:
             Dict with action results
@@ -525,10 +527,51 @@ class CombatRunner:
             return self.play_card(action.card_idx, action.target_idx)
         elif isinstance(action, UsePotion):
             return self.use_potion(action.potion_idx, action.target_idx)
+        elif isinstance(action, SelectScryDiscard):
+            return self.execute_scry_selection(action.discard_indices)
         elif isinstance(action, EndTurn):
             return {"action": "end_turn"}
         else:
             return {"error": "Unknown action type"}
+
+    def execute_scry_selection(self, discard_indices: tuple) -> Dict[str, Any]:
+        """
+        Execute a scry discard selection.
+
+        Args:
+            discard_indices: Tuple of indices into pending_scry_cards to discard
+
+        Returns:
+            Dict with action results
+        """
+        if not self.state.pending_scry_selection:
+            return {"success": False, "error": "No pending scry selection"}
+
+        cards = self.state.pending_scry_cards
+        kept = []
+        discarded = []
+
+        for i, card in enumerate(cards):
+            if i in discard_indices:
+                self.state.discard_pile.append(card)
+                discarded.append(card)
+            else:
+                kept.append(card)
+
+        # Put kept cards back on top of draw pile (in reverse order so first is on top)
+        for card in reversed(kept):
+            self.state.draw_pile.append(card)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
+
+        return {
+            "success": True,
+            "action": "scry_selection",
+            "kept": kept,
+            "discarded": discarded,
+        }
 
     def play_card(self, card_idx: int, target_idx: int = -1) -> Dict[str, Any]:
         """
@@ -592,6 +635,8 @@ class CombatRunner:
                 execute_relic_triggers("onExhaust", self.state, {"card": card})
                 # Trigger onExhaust power triggers (Dark Embrace, Feel No Pain)
                 execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+                if card.id == "Sentinel":
+                    self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
             # Insert at random position in draw pile
             pos = self.shuffle_rng.random(len(self.state.draw_pile)) if self.state.draw_pile else 0
@@ -603,13 +648,39 @@ class CombatRunner:
         execute_relic_triggers("onPlayCard", self.state, {"card": card})
 
         # Trigger onUseCard power triggers (After Image, Choked, Duplication)
-        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card})
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+
+        # Trigger onAfterUseCard power triggers (Beat of Death, Slow, Time Warp)
+        force_end_turn = False
+        after_use_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterUseCard", self.state, self.state.player, after_use_data)
+        if after_use_data.get("force_end_turn"):
+            force_end_turn = True
+        for enemy in self.state.enemies:
+            if enemy.is_dead:
+                continue
+            enemy_trigger = {"card": card, "card_id": card.id}
+            execute_power_triggers("onAfterUseCard", self.state, enemy, enemy_trigger)
+            if enemy_trigger.get("force_end_turn"):
+                force_end_turn = True
+
+        # Trigger onAfterCardPlayed power triggers (Thousand Cuts)
+        after_play_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterCardPlayed", self.state, self.state.player, after_play_data)
+        for enemy in self.state.enemies:
+            if enemy.is_dead:
+                continue
+            execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
 
         # Unceasing Top - if hand is empty after playing card, draw 1
         if self.state.has_relic("Unceasing Top"):
             if not self.state.hand and self.state.draw_pile:
                 self._draw_cards(1)
 
+
+        # Time Warp can force end of turn after the card resolves
+        if force_end_turn:
+            self.end_turn()
 
         # Check combat end
         self._check_combat_end()
@@ -861,7 +932,9 @@ class CombatRunner:
             target = self.state.enemies[target_idx]
 
         # Apply potion effect
-        self._apply_potion_effect(potion_id, target, result)
+        applied = self._apply_potion_effect(potion_id, target, result)
+        if not applied:
+            return result
 
         # Remove potion
         self.state.potions[potion_idx] = ""
@@ -872,7 +945,7 @@ class CombatRunner:
 
         return result
 
-    def _apply_potion_effect(self, potion_id: str, target: Optional[EnemyCombatState], result: dict):
+    def _apply_potion_effect(self, potion_id: str, target: Optional[EnemyCombatState], result: dict) -> bool:
         """Apply a potion's effect using the registry system."""
         from ..registry import execute_potion_effect
 
@@ -888,9 +961,12 @@ class CombatRunner:
         if registry_result.get("success"):
             potency = registry_result.get("potency", 0)
             result["effects"].append({"type": "potion_used", "potion": potion_id, "potency": potency})
+            return True
         else:
-            # Fallback for any potions not yet in registry (should not happen)
-            result["effects"].append({"type": "error", "error": registry_result.get("error", "Unknown error")})
+            result["success"] = False
+            result["error"] = registry_result.get("error", "Unknown error")
+            result["effects"].append({"type": "error", "error": result["error"]})
+            return False
 
     def _end_player_turn(self):
         """End player turn and start enemy turn."""

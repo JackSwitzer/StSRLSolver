@@ -12,6 +12,15 @@ from __future__ import annotations
 from . import potion_effect, PotionContext
 
 
+def _get_rng(state, *attrs):
+    """Best-effort RNG resolver from state-attached RNG references."""
+    for attr in attrs:
+        rng = getattr(state, attr, None)
+        if rng is not None:
+            return rng
+    return None
+
+
 # =============================================================================
 # COMMON POTIONS
 # =============================================================================
@@ -243,8 +252,7 @@ def liquid_bronze(ctx: PotionContext) -> None:
 def liquid_memories(ctx: PotionContext) -> None:
     """Liquid Memories: Return card(s) from discard to hand (cost 0).
     With Sacred Bark, return 2 cards."""
-    # For simulation, return last card(s) from discard
-    cards_to_return = ctx.potency if ctx.has_sacred_bark else 1
+    cards_to_return = ctx.potency
     for _ in range(cards_to_return):
         if ctx.state.discard_pile and len(ctx.state.hand) < 10:
             card = ctx.state.discard_pile.pop()
@@ -267,9 +275,17 @@ def duplication_potion(ctx: PotionContext) -> None:
 @potion_effect("DistilledChaos")
 def distilled_chaos(ctx: PotionContext) -> None:
     """Distilled Chaos: Play top 3 cards of draw pile (6 with Sacred Bark)."""
-    # For simulation, just draw and auto-play would be complex
-    # Simplified: draw the cards
-    ctx.draw_cards(ctx.potency)
+    engine = getattr(ctx.state, "_combat_engine_ref", None)
+    if engine is not None and hasattr(engine, "play_top_cards_from_draw_pile"):
+        played_cards = engine.play_top_cards_from_draw_pile(ctx.potency)
+    else:
+        # Fallback for direct registry calls without an active runtime engine.
+        from ..combat_engine import CombatEngine
+        fallback_engine = CombatEngine(ctx.state)
+        played_cards = fallback_engine.play_top_cards_from_draw_pile(ctx.potency)
+
+    ctx.result_data["played_cards"] = played_cards
+    ctx.result_data["effects"] = [{"type": "play_top_cards", "amount": len(played_cards)}]
 
 
 # Class-specific UNCOMMON potions
@@ -329,10 +345,33 @@ def fruit_juice(ctx: PotionContext) -> None:
 def snecko_oil(ctx: PotionContext) -> None:
     """Snecko Oil: Draw 5 cards and randomize all hand costs (0-3)."""
     import random
+    from ..content.cards import get_card
+
     ctx.draw_cards(ctx.potency)
+    rng = _get_rng(ctx.state, "card_random_rng", "card_rng")
     # Randomize all card costs in hand
     for card_id in ctx.state.hand:
-        ctx.state.card_costs[card_id] = random.randint(0, 3)
+        base_cost = None
+        try:
+            base = card_id.rstrip("+")
+            upgraded = card_id.endswith("+")
+            base_cost = get_card(base, upgraded).cost
+        except Exception:
+            base_cost = None
+
+        # X-cost/unplayable/status costs are not randomized by the base game action.
+        if base_cost is not None and base_cost < 0:
+            continue
+
+        if rng is not None:
+            new_cost = rng.random(3)
+        else:
+            new_cost = random.randint(0, 3)
+
+        # Preserve exact no-op behavior when cost does not change.
+        if base_cost is not None and base_cost == new_cost:
+            continue
+        ctx.state.card_costs[card_id] = new_cost
 
 
 @potion_effect("FairyPotion")
@@ -346,6 +385,16 @@ def fairy_potion(ctx: PotionContext) -> None:
 @potion_effect("SmokeBomb")
 def smoke_bomb(ctx: PotionContext) -> None:
     """Smoke Bomb: Escape from non-boss combat."""
+    has_back_attack = any(enemy.statuses.get("BackAttack", 0) > 0 for enemy in ctx.living_enemies)
+    if (
+        getattr(ctx.state, "is_boss_combat", False)
+        or getattr(ctx.state, "cannot_escape", False)
+        or has_back_attack
+    ):
+        ctx.state.escape_blocked_reason = "cannot_escape"
+        ctx.result_data["success"] = False
+        ctx.result_data["error"] = "Smoke Bomb cannot be used in this combat"
+        return
     # Set combat end flag - handled by combat engine
     ctx.state.escaped = True
 
@@ -353,26 +402,28 @@ def smoke_bomb(ctx: PotionContext) -> None:
 @potion_effect("EntropicBrew")
 def entropic_brew(ctx: PotionContext) -> None:
     """Entropic Brew: Fill empty potion slots with random potions."""
-    from ..content.potions import ALL_POTIONS, PotionRarity
+    from ..generation.potions import get_potion_pool_for_class
 
     if ctx.has_relic("Sozu"):
         return
 
-    # Get all potions excluding placeholders
-    available = [
-        p.id for p in ALL_POTIONS.values()
-        if p.rarity != PotionRarity.PLACEHOLDER
-    ]
+    player_class = str(getattr(ctx.state, "player_class", "WATCHER")).upper()
+    available = list(get_potion_pool_for_class(player_class))
 
     if not available:
         return
 
-    # Fill empty slots deterministically
-    idx = 0
+    rng = _get_rng(ctx.state, "potion_rng")
+
+    # Fill all empty slots
     for i, slot in enumerate(ctx.state.potions):
         if not slot:
-            ctx.state.potions[i] = available[idx % len(available)]
-            idx += 1
+            if rng is not None:
+                idx = rng.random(len(available) - 1)
+                ctx.state.potions[i] = available[idx]
+            else:
+                import random
+                ctx.state.potions[i] = random.choice(available)
 
 
 # Class-specific RARE potions

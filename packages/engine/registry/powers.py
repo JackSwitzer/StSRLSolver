@@ -143,6 +143,32 @@ def creative_ai_start(ctx: PowerContext) -> None:
             ctx.state.hand.append(random.choice(power_cards))
 
 
+@power_trigger("atStartOfTurn", power="Loop")
+def loop_start(ctx: PowerContext) -> None:
+    """Loop: Trigger rightmost orb's passive at start of turn.
+
+    Java: LoopPower.atStartOfTurn() calls both onStartOfTurn() AND onEndOfTurn()
+    on orbs.get(0), which is the rightmost orb. This triggers the passive effect.
+    """
+    from ..effects.orbs import get_orb_manager
+    manager = get_orb_manager(ctx.state)
+    if manager.orbs:
+        # Trigger rightmost orb's passive ctx.amount times
+        # Note: rightmost orb is at index -1 (end of list)
+        rightmost_orb = manager.orbs[-1]
+        for _ in range(ctx.amount):
+            manager._execute_passive(rightmost_orb, ctx.state, manager.focus)
+
+
+@power_trigger("atStartOfTurn", power="Bias")
+def bias_start(ctx: PowerContext) -> None:
+    """Bias: Lose Focus at start of turn (Biased Cognition timing)."""
+    current_focus = ctx.player.statuses.get("Focus", 0)
+    ctx.player.statuses["Focus"] = current_focus - ctx.amount
+    if ctx.player.statuses["Focus"] == 0:
+        del ctx.player.statuses["Focus"]
+
+
 # =============================================================================
 # AT_START_OF_TURN_POST_DRAW Triggers (after draw)
 # =============================================================================
@@ -276,12 +302,13 @@ def study_end(ctx: PowerContext) -> None:
 
 @power_trigger("atEndOfTurn", power="WraithFormPower")
 def wraith_form_end(ctx: PowerContext) -> None:
-    """Wraith Form: Lose Dexterity at end of turn."""
-    current_dex = ctx.player.statuses.get("Dexterity", 0)
-    ctx.player.statuses["Dexterity"] = current_dex - ctx.amount
-    # Remove at 0
-    if ctx.player.statuses["Dexterity"] == 0:
-        del ctx.player.statuses["Dexterity"]
+    """Wraith Form: Lose Dexterity at end of turn.
+
+    Uses apply_power_to_player with negative amount to respect Artifact.
+    In Java, this uses ApplyPowerAction which Artifact can block.
+    """
+    # Apply negative dexterity - this respects Artifact
+    ctx.apply_power_to_player("Dexterity", -ctx.amount)
 
 
 @power_trigger("atEndOfTurn", power="Omega")
@@ -294,15 +321,6 @@ def omega_end(ctx: PowerContext) -> None:
         enemy.hp -= (ctx.amount - blocked)
         if enemy.hp < 0:
             enemy.hp = 0
-
-
-@power_trigger("atEndOfTurn", power="Bias")
-def bias_end(ctx: PowerContext) -> None:
-    """Bias: Lose Focus at start of turn (processed at end of prev turn)."""
-    current_focus = ctx.player.statuses.get("Focus", 0)
-    ctx.player.statuses["Focus"] = current_focus - ctx.amount
-    if ctx.player.statuses["Focus"] == 0:
-        del ctx.player.statuses["Focus"]
 
 
 # =============================================================================
@@ -334,6 +352,13 @@ def frail_end_round(ctx: PowerContext) -> None:
         ctx.owner.statuses["Frail"] -= 1
         if ctx.owner.statuses["Frail"] <= 0:
             del ctx.owner.statuses["Frail"]
+
+
+@power_trigger("atEndOfRound", power="Slow")
+def slow_end_round(ctx: PowerContext) -> None:
+    """Slow: Reset stacks at end of round (power persists)."""
+    if ctx.owner and "Slow" in ctx.owner.statuses:
+        ctx.owner.statuses["Slow"] = 0
 
 
 # =============================================================================
@@ -400,18 +425,6 @@ def panache_on_use(ctx: PowerContext) -> None:
     ctx.player.statuses["PanacheCounter"] = counter
 
 
-@power_trigger("onUseCard", power="ThousandCuts")
-def thousand_cuts_on_use(ctx: PowerContext) -> None:
-    """Thousand Cuts: Deal damage to all enemies when playing any card."""
-    for enemy in ctx.living_enemies:
-        # THORNS type damage
-        blocked = min(enemy.block, ctx.amount)
-        enemy.block -= blocked
-        enemy.hp -= (ctx.amount - blocked)
-        if enemy.hp < 0:
-            enemy.hp = 0
-
-
 @power_trigger("onUseCard", power="Heatsink")
 def heatsink_on_use(ctx: PowerContext) -> None:
     """Heatsink: Draw cards when playing a Power card."""
@@ -419,6 +432,61 @@ def heatsink_on_use(ctx: PowerContext) -> None:
     card_id = ctx.trigger_data.get("card_id", "")
     if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.POWER:
         ctx.draw_cards(ctx.amount)
+
+
+# =============================================================================
+# ON_AFTER_USE_CARD Triggers
+# =============================================================================
+
+@power_trigger("onAfterUseCard", power="BeatOfDeath")
+def beat_of_death_after_use(ctx: PowerContext) -> None:
+    """Beat of Death: Deal THORNS damage to player after each card."""
+    if ctx.amount <= 0:
+        return
+    blocked = min(ctx.player.block, ctx.amount)
+    hp_damage = ctx.amount - blocked
+    ctx.player.block -= blocked
+    ctx.player.hp -= hp_damage
+    if ctx.player.hp < 0:
+        ctx.player.hp = 0
+    ctx.state.total_damage_taken += hp_damage
+
+
+@power_trigger("onAfterUseCard", power="Slow")
+def slow_after_use(ctx: PowerContext) -> None:
+    """Slow: Increase stacks by 1 whenever a card is played."""
+    if ctx.owner is None:
+        return
+    ctx.owner.statuses["Slow"] = ctx.owner.statuses.get("Slow", 0) + 1
+
+
+@power_trigger("onAfterUseCard", power="Time Warp")
+def time_warp_after_use(ctx: PowerContext) -> None:
+    """Time Warp: Count cards; at 12, end turn and all enemies gain Strength."""
+    if ctx.owner is None:
+        return
+    counter = ctx.owner.statuses.get("Time Warp", 0) + 1
+    if counter >= 12:
+        counter = 0
+        for enemy in ctx.living_enemies:
+            enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + 2
+        ctx.trigger_data["force_end_turn"] = True
+    ctx.owner.statuses["Time Warp"] = counter
+
+
+# =============================================================================
+# ON_AFTER_CARD_PLAYED Triggers
+# =============================================================================
+
+@power_trigger("onAfterCardPlayed", power="ThousandCuts")
+def thousand_cuts_after_played(ctx: PowerContext) -> None:
+    """Thousand Cuts: Deal THORNS damage to all enemies after a card is played."""
+    for enemy in ctx.living_enemies:
+        blocked = min(enemy.block, ctx.amount)
+        enemy.block -= blocked
+        enemy.hp -= (ctx.amount - blocked)
+        if enemy.hp < 0:
+            enemy.hp = 0
 
 
 # =============================================================================
@@ -551,6 +619,15 @@ def vulnerable_damage_receive(ctx: PowerContext) -> int:
     return int(base_damage * 1.5)
 
 
+@power_trigger("atDamageReceive", power="Slow")
+def slow_damage_receive(ctx: PowerContext) -> int:
+    """Slow: Increase NORMAL damage taken by 10% per stack."""
+    base_damage = ctx.trigger_data.get("value", 0)
+    if ctx.damage_type != "NORMAL" or ctx.amount <= 0:
+        return base_damage
+    return int(base_damage * (1 + (ctx.amount * 0.1)))
+
+
 @power_trigger("atDamageFinalReceive", power="Intangible", priority=1)
 def intangible_damage_final(ctx: PowerContext) -> int:
     """Intangible: Reduce all damage to 1."""
@@ -579,10 +656,12 @@ def buffer_change_damage(ctx: PowerContext) -> int:
 
 @power_trigger("wasHPLost", power="Rupture")
 def rupture_hp_lost(ctx: PowerContext) -> None:
-    """Rupture: Gain Strength when losing HP from cards."""
-    # Only triggers from card HP loss, not enemy attacks
-    source = ctx.trigger_data.get("source", "")
-    if source == "card":
+    """Rupture: Gain Strength when losing HP from self-damage (Java: info.owner == this.owner)."""
+    # Triggers from ANY self-damage (cards, powers, effects) - not just cards
+    # Java checks: damageAmount > 0 && info.owner == this.owner
+    damage_amount = ctx.trigger_data.get("damage", 0)
+    is_self_damage = ctx.trigger_data.get("is_self_damage", False)
+    if damage_amount > 0 and is_self_damage:
         ctx.apply_power_to_player("Strength", ctx.amount)
 
 
@@ -694,3 +773,280 @@ def energized_energy(ctx: PowerContext) -> None:
     """Energized: Gain energy next turn, then remove."""
     ctx.gain_energy(ctx.amount)
     del ctx.player.statuses["Energized"]
+
+
+@power_trigger("atStartOfTurn", power="Berserk")
+def berserk_energy(ctx: PowerContext) -> None:
+    """Berserk: Gain 1 energy at start of each turn (Java: BerserkPower.atStartOfTurn)."""
+    ctx.gain_energy(ctx.amount)
+
+
+# =============================================================================
+# ADDITIONAL IRONCLAD POWER TRIGGERS
+# =============================================================================
+
+@power_trigger("onCardDraw", power="Corruption")
+def corruption_on_draw(ctx: PowerContext) -> None:
+    """Corruption: Skills cost 0 when drawn (Java: card.setCostForTurn(-9))."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.SKILL:
+        # Mark this card as cost 0 for this turn
+        # The combat engine should check for Corruption and set skill cost to 0
+        ctx.trigger_data["set_cost_to_zero"] = True
+
+
+@power_trigger("onUseCard", power="Corruption")
+def corruption_on_use(ctx: PowerContext) -> None:
+    """Corruption: Exhaust Skills when played (Java: action.exhaustCard = true)."""
+    from ..content.cards import ALL_CARDS, CardType
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.SKILL:
+        # Mark this card to be exhausted after playing
+        ctx.trigger_data["exhaust_card"] = True
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Barricade")
+def barricade_start(ctx: PowerContext) -> None:
+    """Barricade: Block is not removed at start of turn."""
+    # This is handled by preventing block reset in combat engine
+    pass
+
+
+@power_trigger("atStartOfTurnPostDraw", power="Rage")
+def rage_start(ctx: PowerContext) -> None:
+    """Rage: Reset at start of turn (lasts this turn only)."""
+    # Rage is applied fresh each turn, previous turn's Rage is removed
+    if "Rage" in ctx.player.statuses:
+        del ctx.player.statuses["Rage"]
+
+
+@power_trigger("onUseCard", power="Rage")
+def rage_on_attack(ctx: PowerContext) -> None:
+    """Rage: Gain Block when playing an Attack card."""
+    from ..content.cards import ALL_CARDS, CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        ctx.gain_block(ctx.amount)
+        return
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
+        ctx.gain_block(ctx.amount)
+
+
+@power_trigger("onUseCard", power="DoubleTap")
+def double_tap_on_attack(ctx: PowerContext) -> None:
+    """Double Tap: Play Attack card twice (handled by combat engine)."""
+    from ..content.cards import ALL_CARDS, CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        # Mark that this attack should be played again
+        ctx.state.play_card_again = True
+        # Decrement DoubleTap counter
+        if ctx.amount > 1:
+            ctx.player.statuses["DoubleTap"] = ctx.amount - 1
+        else:
+            del ctx.player.statuses["DoubleTap"]
+        return
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    if base_id in ALL_CARDS and ALL_CARDS[base_id].card_type == CardType.ATTACK:
+        # Mark that this attack should be played again
+        ctx.state.play_card_again = True
+        # Decrement DoubleTap counter
+        if ctx.amount > 1:
+            ctx.player.statuses["DoubleTap"] = ctx.amount - 1
+        else:
+            del ctx.player.statuses["DoubleTap"]
+# =============================================================================
+# SILENT POWER TRIGGERS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Start of Turn
+# -----------------------------------------------------------------------------
+
+@power_trigger("atStartOfTurn", power="ToolsOfTheTrade")
+def tools_of_trade_start(ctx: PowerContext) -> None:
+    """Tools of the Trade: Draw 1 card at start of turn (discard handled after draw)."""
+    ctx.draw_cards(1)
+    # Mark that discard is needed
+    ctx.state.pending_tools_discard = True
+
+
+@power_trigger("atStartOfTurn", power="NextTurnDraw")
+def next_turn_draw_start(ctx: PowerContext) -> None:
+    """Next Turn Draw: Draw cards, then remove."""
+    ctx.draw_cards(ctx.amount)
+    del ctx.player.statuses["NextTurnDraw"]
+
+
+@power_trigger("atStartOfTurn", power="NextTurnEnergy")
+def next_turn_energy_start(ctx: PowerContext) -> None:
+    """Next Turn Energy: Gain energy, then remove."""
+    ctx.gain_energy(ctx.amount)
+    del ctx.player.statuses["NextTurnEnergy"]
+
+
+@power_trigger("atStartOfTurn", power="PhantasmalKiller")
+def phantasmal_killer_start(ctx: PowerContext) -> None:
+    """Phantasmal Killer: Double damage this turn, then remove."""
+    # Mark that damage should be doubled
+    ctx.state.double_damage_this_turn = True
+    del ctx.player.statuses["PhantasmalKiller"]
+
+
+@power_trigger("atStartOfTurn", power="Blur")
+def blur_start(ctx: PowerContext) -> None:
+    """Blur: Don't remove block (already handled), but decrement Blur."""
+    current = ctx.player.statuses.get("Blur", 0)
+    if current > 1:
+        ctx.player.statuses["Blur"] = current - 1
+    else:
+        del ctx.player.statuses["Blur"]
+
+
+# -----------------------------------------------------------------------------
+# On Card Play
+# -----------------------------------------------------------------------------
+
+# Note: ThousandCuts is defined above in the ON_AFTER_CARD_PLAYED section
+
+@power_trigger("onUseCard", power="Burst")
+def burst_on_use(ctx: PowerContext) -> None:
+    """Burst: Play the next skill(s) twice."""
+    from ..content.cards import ALL_CARDS, CardType
+    card = ctx.trigger_data.get("card")
+    card_id = getattr(card, "id", "") if card is not None else ctx.trigger_data.get("card_id", "")
+    base_id = card_id.rstrip("+")
+    card_type = getattr(card, "card_type", None)
+    if card_type is None and base_id in ALL_CARDS:
+        card_type = ALL_CARDS[base_id].card_type
+    if card_type == CardType.SKILL and base_id != "Burst":
+        # Mark for double play
+        ctx.state.play_again = True
+        # Decrement Burst
+        current = ctx.player.statuses.get("Burst", 0)
+        if current > 1:
+            ctx.player.statuses["Burst"] = current - 1
+        else:
+            del ctx.player.statuses["Burst"]
+
+
+@power_trigger("onUseCard", power="Accuracy")
+def accuracy_on_shiv(ctx: PowerContext) -> None:
+    """Accuracy: Shivs deal extra damage (applied in damage calculation)."""
+    # This is handled in damage calculation, not on card play
+    pass
+
+
+# -----------------------------------------------------------------------------
+# On Discard
+# -----------------------------------------------------------------------------
+
+@power_trigger("onManualDiscard", power="Reflex")
+def reflex_on_discard(ctx: PowerContext) -> None:
+    """Reflex: Draw cards when discarded."""
+    card_id = ctx.trigger_data.get("card_id", "")
+    if card_id.startswith("Reflex"):
+        # Get amount from the card itself (magic_number)
+        from ..content.cards import ALL_CARDS
+        if card_id in ALL_CARDS:
+            card = ALL_CARDS[card_id]
+            draw_amount = card.magic_number if card.magic_number > 0 else 2
+            ctx.draw_cards(draw_amount)
+
+
+@power_trigger("onManualDiscard", power="Tactician")
+def tactician_on_discard(ctx: PowerContext) -> None:
+    """Tactician: Gain energy when discarded."""
+    card_id = ctx.trigger_data.get("card_id", "")
+    if card_id.startswith("Tactician"):
+        # Get amount from the card itself (magic_number)
+        from ..content.cards import ALL_CARDS
+        if card_id in ALL_CARDS:
+            card = ALL_CARDS[card_id]
+            energy_amount = card.magic_number if card.magic_number > 0 else 1
+            ctx.gain_energy(energy_amount)
+
+
+@power_trigger("onManualDiscard", power="SneakyStrike")
+def sneaky_strike_discard_tracker(ctx: PowerContext) -> None:
+    """Track that a card was discarded this turn for Sneaky Strike."""
+    ctx.state.discarded_this_turn = getattr(ctx.state, 'discarded_this_turn', 0) + 1
+
+
+# -----------------------------------------------------------------------------
+# End of Turn
+# -----------------------------------------------------------------------------
+
+@power_trigger("atEndOfTurn", power="WellLaidPlans")
+def well_laid_plans_end(ctx: PowerContext) -> None:
+    """Well-Laid Plans: Mark cards to retain (selection happens in UI)."""
+    ctx.state.retain_selection_count = ctx.amount
+
+
+@power_trigger("atEndOfTurn", power="NoDraw")
+def no_draw_end(ctx: PowerContext) -> None:
+    """NoDraw (from Battle Trance): Remove at end of turn."""
+    if "NoDraw" in ctx.player.statuses:
+        del ctx.player.statuses["NoDraw"]
+    """No Draw: Remove at end of turn (Bullet Time)."""
+    if "NoDraw" in ctx.player.statuses:
+        del ctx.player.statuses["NoDraw"]
+
+
+@power_trigger("atEndOfTurn", power="ZeroCostCards")
+def zero_cost_cards_end(ctx: PowerContext) -> None:
+    """Zero Cost Cards: Remove at end of turn (Bullet Time)."""
+    if "ZeroCostCards" in ctx.player.statuses:
+        del ctx.player.statuses["ZeroCostCards"]
+
+
+@power_trigger("atEndOfTurn", power="Burst")
+def burst_end_of_turn(ctx: PowerContext) -> None:
+    """Burst: Remove at end of turn even if no skills were played.
+
+    In Java, BurstPower.atEndOfTurn() removes the power regardless of whether
+    any skills were doubled. This prevents Burst from persisting to next turn.
+    """
+    if "Burst" in ctx.player.statuses:
+        del ctx.player.statuses["Burst"]
+
+
+# -----------------------------------------------------------------------------
+# Damage Modifiers
+# -----------------------------------------------------------------------------
+
+@power_trigger("atDamageGive", power="Accuracy")
+def accuracy_damage_give(ctx: PowerContext) -> int:
+    """Accuracy: Shivs deal extra damage."""
+    card_id = ctx.trigger_data.get("card_id", "")
+    base_damage = ctx.trigger_data.get("value", 0)
+    if card_id.startswith("Shiv"):
+        return base_damage + ctx.amount
+    return base_damage
+
+
+# -----------------------------------------------------------------------------
+# On Death (Corpse Explosion)
+# -----------------------------------------------------------------------------
+
+@power_trigger("onDeath", power="CorpseExplosion")
+def corpse_explosion_on_death(ctx: PowerContext) -> None:
+    """Corpse Explosion: Deal damage to all enemies when enemy dies."""
+    dying_enemy = ctx.trigger_data.get("dying_enemy")
+    if dying_enemy:
+        # Deal damage equal to dying enemy's max HP to all other enemies
+        max_hp = dying_enemy.max_hp
+        for enemy in ctx.living_enemies:
+            if enemy != dying_enemy:
+                # THORNS type damage (bypasses block? Actually uses attack damage calculation)
+                blocked = min(enemy.block, max_hp)
+                enemy.block -= blocked
+                enemy.hp -= (max_hp - blocked)
+                if enemy.hp < 0:
+                    enemy.hp = 0

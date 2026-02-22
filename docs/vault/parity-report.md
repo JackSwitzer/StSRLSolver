@@ -1,24 +1,41 @@
 # Python vs Java Parity Report
 
-**Generated**: 2026-01-27
-**Status**: All critical systems at 100% parity after fixes applied
+**Generated**: 2026-02-04
+**Status**: Core mechanics at 100% parity; several systems remain partial (see Missing Features)
 
 ---
 
 ## Executive Summary
 
+### Core Mechanics (100% Verified)
 | System | Parity | Status |
 |--------|--------|--------|
-| RNG System | 100% | Perfect match |
-| Card Rewards | 100% | Perfect match |
-| Encounters | 100% | Fixed (exclusions corrected) |
-| Relics | 100% | Fixed (canSpawn added) |
-| Map Generation | 100% | Perfect match (includes Java quirk) |
+| RNG System | 100% | All 13 streams verified |
+| Damage Calculation | 100% | Vuln/Weak/Strength order exact |
+| Block Calculation | 100% | Dex before Frail exact |
+| Stance Mechanics | 100% | All 4 stances (Wrath/Calm/Divinity/Neutral) |
+| Card Rewards | 100% | HashMap order, pity timer |
+| Encounters | 100% | Exclusions corrected |
+| Map Generation | 100% | Includes Java quirk |
 | Shop | 100% | Perfect match |
-| Potions | 100% | Perfect match |
-| Card Data | 100% | Fixed (14 Watcher cards corrected) |
-| Enemy Data | 100% | Perfect match |
-| Events | 100% | Fixed (categorization corrected) |
+| Potions (Data) | 100% | All 42 potions |
+| Card Data (All Classes) | 100% | Ironclad, Silent, Defect, Watcher |
+| Enemy Data | 100% | All 66 enemies |
+
+### Missing Features (138 Skipped Tests by markers)
+| Category | Count | Priority |
+|----------|-------|----------|
+| Rest Site Relics | 36 | HIGH |
+| Relic Pickup Effects | 34 | HIGH |
+| Chest Relic Acquisition | 30 | HIGH |
+| Bottled Relics | 20 | MED |
+| Out-of-Combat Triggers | 13 | MED |
+
+### Partial Systems (implementation gaps)
+- **Power Triggers**: 30/94 implemented; missing 64 triggers.
+- **Events**: 17/50 choice generators implemented; 2 handlers missing.
+- **Relics**: 44 relics missing all triggers plus rest‑site/pickup/chest gaps.
+- **Potions (effects)**: discovery/selection and several effects partial.
 
 ---
 

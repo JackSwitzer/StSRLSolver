@@ -1,3 +1,7 @@
+# ARCHIVED (use granular work units)
+
+This legacy work unit is archived. Use `docs/work_units/granular-rewards.md`.
+
 # Reward Actions & Skip Flow - Work Units
 
 ## Scope summary

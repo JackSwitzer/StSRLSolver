@@ -49,7 +49,7 @@ from .state.combat import (
     create_combat,
 )
 from .content.cards import Card, CardType, CardTarget, CardColor, get_card, ALL_CARDS
-from .content.enemies import Enemy, Intent, MoveInfo, EnemyState
+from .content.enemies import Enemy, Intent, MoveInfo, EnemyState, create_enemy as create_enemy_object
 from .content.stances import StanceID, StanceEffect, STANCES, StanceManager
 from .content.powers import PowerType, DamageType, create_power, POWER_DATA
 from .calc.damage import (
@@ -63,7 +63,7 @@ from .calc.damage import (
     WRATH_MULT,
     DIVINITY_MULT,
 )
-from .registry import execute_relic_triggers, execute_power_triggers
+from .registry import execute_relic_triggers, execute_power_triggers, execute_potion_effect
 
 
 # =============================================================================
@@ -162,6 +162,8 @@ class CombatEngine:
             ai_rng: RNG for enemy AI
         """
         self.state = state
+        # Registry handlers (e.g., Distilled Chaos) can reuse the live runtime engine.
+        self.state._combat_engine_ref = self
         self.enemy_data = enemy_data or {}
         # Index-based enemy objects (parallel to state.enemies). Set by
         # create_combat_from_enemies or manually after construction.
@@ -213,6 +215,7 @@ class CombatEngine:
         """Create a copy of the combat engine with copied state."""
         new_engine = CombatEngine.__new__(CombatEngine)
         new_engine.state = self.state.copy()
+        new_engine.state._combat_engine_ref = new_engine
         new_engine.enemy_data = self.enemy_data
         new_engine.enemy_objects = list(self.enemy_objects)
         new_engine.shuffle_rng = self.shuffle_rng.copy() if hasattr(self.shuffle_rng, 'copy') else self.shuffle_rng
@@ -319,6 +322,7 @@ class CombatEngine:
         self.state.skills_played_this_turn = 0
         self.state.powers_played_this_turn = 0
         self.state.last_card_type = ""
+        self.state.discarded_this_turn = 0
 
         # Execute registry-based atTurnStart relic triggers
         execute_relic_triggers("atTurnStart", self.state)
@@ -1165,6 +1169,9 @@ class CombatEngine:
             if target_enemy.hp <= 0:
                 target_enemy = None
 
+        # Trigger registry-based onPlayCard relics (Shuriken, Kunai, etc.)
+        execute_relic_triggers("onPlayCard", self.state, {"card": card})
+
         # Apply card effects
         self._apply_card_effects(card, target_index, result)
 
@@ -1174,6 +1181,8 @@ class CombatEngine:
             # Trigger registry-based onExhaust relics and powers
             execute_relic_triggers("onExhaust", self.state, {"card": card})
             execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+            if card.id == "Sentinel":
+                self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
             # Random position in draw pile
             pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
@@ -1181,11 +1190,30 @@ class CombatEngine:
         else:
             self.state.discard_pile.append(card_id)
 
-        # Trigger registry-based onPlayCard relics (Shuriken, Kunai, etc.)
-        execute_relic_triggers("onPlayCard", self.state, {"card": card})
-
         # Trigger onUseCard power triggers (After Image, Duplication, etc.)
-        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card})
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+
+        # Trigger onAfterUseCard power triggers (Beat of Death, Slow, Time Warp)
+        force_end_turn = False
+        after_use_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterUseCard", self.state, self.state.player, after_use_data)
+        if after_use_data.get("force_end_turn"):
+            force_end_turn = True
+        for enemy in self.state.enemies:
+            if enemy.hp <= 0:
+                continue
+            enemy_trigger = {"card": card, "card_id": card.id}
+            execute_power_triggers("onAfterUseCard", self.state, enemy, enemy_trigger)
+            if enemy_trigger.get("force_end_turn"):
+                force_end_turn = True
+
+        # Trigger onAfterCardPlayed power triggers (Thousand Cuts)
+        after_play_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterCardPlayed", self.state, self.state.player, after_play_data)
+        for enemy in self.state.enemies:
+            if enemy.hp <= 0:
+                continue
+            execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
 
         # Log
         self.log.log(self.state.turn, "play_card",
@@ -1197,7 +1225,7 @@ class CombatEngine:
         self._check_time_eater_numen()
 
         # End turn effect
-        if "end_turn" in card.effects:
+        if force_end_turn or "end_turn" in card.effects:
             self.end_turn()
 
         # Check combat end
@@ -1302,14 +1330,17 @@ class CombatEngine:
 
         # Calculate damage per hit (includes vuln in single-chain calculation)
         base_damage = card.damage
-        damage_per_hit = self._calculate_card_damage(base_damage, target_index)
+        strength_mult = 1
+        if "strength_multiplier" in card.effects:
+            strength_mult = card.magic_number if card.magic_number > 0 else 3
+        damage_per_hit = self._calculate_card_damage(base_damage, target_index, strength_mult)
 
         # For ALL_ENEMY cards, pre-compute per-enemy damage before vigor consumption
         enemy_damages = {}
         if card.target == CardTarget.ALL_ENEMY:
             for i, enemy in enumerate(self.state.enemies):
                 if enemy.hp > 0:
-                    enemy_damages[i] = self._calculate_card_damage(base_damage, i)
+                    enemy_damages[i] = self._calculate_card_damage(base_damage, i, strength_mult)
 
         # Consume Vigor after first attack card uses it
         if self.state.player.statuses.get("Vigor", 0) > 0:
@@ -1419,19 +1450,31 @@ class CombatEngine:
         if not hasattr(real_enemy, 'check_split'):
             return
 
-        spawn_info = real_enemy.check_split()
-        if spawn_info is None:
+        spawn_info = real_enemy.check_split(enemy.hp)
+        if not spawn_info:
             return
+        if isinstance(spawn_info, bool):
+            if not hasattr(real_enemy, "get_split_spawn_info"):
+                return
+            spawn_info = real_enemy.get_split_spawn_info()
+        if isinstance(spawn_info, dict) and "ascension" not in spawn_info:
+            if hasattr(real_enemy, "ascension"):
+                spawn_info["ascension"] = real_enemy.ascension
 
         # Kill the parent
         enemy.hp = 0
         self._spawn_enemies(spawn_info)
 
-    def _spawn_enemies(self, spawn_info: list):
-        """Spawn new enemies from split/summon. spawn_info is list of (enemy_id, hp, max_hp) tuples."""
+    def _spawn_enemies(self, spawn_info):
+        """Spawn new enemies from split/summon."""
+        if not spawn_info:
+            return
+        if isinstance(spawn_info, (EnemyCombatState, dict, tuple)):
+            spawn_info = [spawn_info]
         for info in spawn_info:
             if isinstance(info, EnemyCombatState):
                 self.state.enemies.append(info)
+                self._roll_enemy_move(info)
             elif isinstance(info, tuple) and len(info) >= 3:
                 enemy_id, hp, max_hp = info[0], info[1], info[2]
                 new_enemy = EnemyCombatState(
@@ -1443,6 +1486,55 @@ class CombatEngine:
                 self.state.enemies.append(new_enemy)
                 # Roll initial move
                 self._roll_enemy_move(new_enemy)
+            elif isinstance(info, dict):
+                enemy_id = info.get("enemy_class") or info.get("enemy_id") or info.get("id")
+                if not enemy_id:
+                    continue
+                count = int(info.get("count", 1))
+                starting_hp = info.get("hp")
+                poison_amount = info.get("poison", 0)
+                ascension = info.get("ascension", 0)
+                for _ in range(count):
+                    try:
+                        kwargs = {}
+                        if starting_hp is not None:
+                            kwargs["starting_hp"] = starting_hp
+                        if poison_amount:
+                            kwargs["poison_amount"] = poison_amount
+                        real_spawn = create_enemy_object(
+                            enemy_id,
+                            self.ai_rng,
+                            ascension=ascension,
+                            **kwargs,
+                        )
+                    except TypeError:
+                        real_spawn = create_enemy_object(
+                            enemy_id,
+                            self.ai_rng,
+                            ascension=ascension,
+                        )
+                    new_enemy = EnemyCombatState(
+                        hp=real_spawn.state.current_hp,
+                        max_hp=real_spawn.state.max_hp,
+                        block=real_spawn.state.block,
+                        statuses=dict(real_spawn.state.powers),
+                        id=real_spawn.ID,
+                        name=real_spawn.NAME,
+                        enemy_type=str(real_spawn.TYPE.value) if hasattr(real_spawn.TYPE, "value") else str(real_spawn.TYPE),
+                        move_history=list(real_spawn.state.move_history),
+                        first_turn=real_spawn.state.first_turn,
+                    )
+                    if real_spawn.state.next_move:
+                        move = real_spawn.state.next_move
+                        new_enemy.move_id = move.move_id
+                        new_enemy.move_damage = move.base_damage
+                        new_enemy.move_hits = move.hits
+                        new_enemy.move_block = move.block
+                        new_enemy.move_effects = dict(move.effects) if move.effects else {}
+                    self.state.enemies.append(new_enemy)
+                    if self.enemy_objects and len(self.enemy_objects) == len(self.state.enemies) - 1:
+                        self.enemy_objects.append(real_spawn)
+                    self._roll_enemy_move(new_enemy)
 
     def _on_enemy_death(self, enemy: EnemyCombatState):
         """Handle enemy death triggers."""
@@ -1509,133 +1601,190 @@ class CombatEngine:
             player.statuses[power_id] = player.statuses.get(power_id, 0) + amount
             effects.append({"type": "power", "power": power_id, "amount": amount})
 
+    def _rng_pick_index(self, rng: Any, upper_inclusive: int) -> int:
+        """Pick an index with best-effort support for engine RNG and stdlib RNG."""
+        if upper_inclusive <= 0:
+            return 0
+        if rng is None:
+            return 0
+
+        # Engine RNG: random(range) -> [0, range]
+        try:
+            return int(rng.random(upper_inclusive))
+        except TypeError:
+            pass
+
+        # Python random.Random compatibility.
+        if hasattr(rng, "randint"):
+            return int(rng.randint(0, upper_inclusive))
+
+        return 0
+
+    def _resolve_random_enemy_target_index(self) -> int:
+        """Choose a random living enemy index using cardRandomRng parity stream."""
+        living_indices = [i for i, enemy in enumerate(self.state.enemies) if enemy.hp > 0]
+        if not living_indices:
+            return -1
+
+        rng = (
+            getattr(self.state, "card_random_rng", None)
+            or getattr(self.state, "card_rng", None)
+            or self.card_rng
+        )
+        pick = self._rng_pick_index(rng, len(living_indices) - 1)
+        return living_indices[pick]
+
+    def _draw_top_card_for_autoplay(self) -> Optional[str]:
+        """Draw top card for autoplay effects (top = end of list)."""
+        if not self.state.draw_pile:
+            if not self.state.discard_pile:
+                return None
+            self.state.draw_pile = self.state.discard_pile.copy()
+            self.state.discard_pile.clear()
+            self._shuffle_draw_pile()
+            execute_relic_triggers("onShuffle", self.state)
+
+        if not self.state.draw_pile:
+            return None
+        return self.state.draw_pile.pop()
+
+    def _autoplay_card(self, card_id: str, target_index: int = -1) -> Dict[str, Any]:
+        """Play a card from non-hand sources (Distilled Chaos / PlayTopCardAction style)."""
+        card = self._get_card(card_id)
+        result = {"card": card_id, "target_index": target_index, "effects": [], "played": False}
+
+        # Unplayable cards still move to destination piles but do not execute effects.
+        unplayable = card.cost == -2 or "unplayable" in card.effects
+
+        if not unplayable:
+            self.state.cards_played_this_turn += 1
+            self.state.total_cards_played += 1
+            self.state.last_card_type = (
+                card.card_type.value if hasattr(card.card_type, "value") else str(card.card_type)
+            )
+            self.cards_played_sequence.append(card_id)
+
+            if card.card_type == CardType.ATTACK:
+                self.state.attacks_played_this_turn += 1
+            elif card.card_type == CardType.SKILL:
+                self.state.skills_played_this_turn += 1
+            elif card.card_type == CardType.POWER:
+                self.state.powers_played_this_turn += 1
+
+            execute_relic_triggers("onPlayCard", self.state, {"card": card})
+            self._apply_card_effects(card, target_index, result)
+
+            execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+
+            force_end_turn = False
+            after_use_data = {"card": card, "card_id": card.id}
+            execute_power_triggers("onAfterUseCard", self.state, self.state.player, after_use_data)
+            if after_use_data.get("force_end_turn"):
+                force_end_turn = True
+
+            for enemy in self.state.enemies:
+                if enemy.hp <= 0:
+                    continue
+                enemy_trigger = {"card": card, "card_id": card.id}
+                execute_power_triggers("onAfterUseCard", self.state, enemy, enemy_trigger)
+                if enemy_trigger.get("force_end_turn"):
+                    force_end_turn = True
+
+            after_play_data = {"card": card, "card_id": card.id}
+            execute_power_triggers("onAfterCardPlayed", self.state, self.state.player, after_play_data)
+            for enemy in self.state.enemies:
+                if enemy.hp <= 0:
+                    continue
+                execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
+
+            self._check_time_eater_numen()
+            if force_end_turn or "end_turn" in card.effects:
+                self.end_turn()
+
+            result["played"] = True
+
+        # Destination handling mirrors normal card flow.
+        if card.exhaust:
+            self.state.exhaust_pile.append(card_id)
+            if not unplayable:
+                execute_relic_triggers("onExhaust", self.state, {"card": card})
+                execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
+                if card.id == "Sentinel":
+                    self.state.energy += 3 if card.upgraded else 2
+        elif card.shuffle_back:
+            pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
+            self.state.draw_pile.insert(pos, card_id)
+        else:
+            self.state.discard_pile.append(card_id)
+
+        self._check_combat_end()
+        return result
+
+    def _play_top_cards_from_draw_pile(self, count: int) -> List[Dict[str, Any]]:
+        """Play top cards with PlayTopCardAction semantics used by Distilled Chaos."""
+        played: List[Dict[str, Any]] = []
+        for _ in range(max(0, count)):
+            card_id = self._draw_top_card_for_autoplay()
+            if not card_id:
+                break
+            card = self._get_card(card_id)
+            target_index = -1
+            if card.target == CardTarget.ENEMY:
+                target_index = self._resolve_random_enemy_target_index()
+            played.append(self._autoplay_card(card_id, target_index))
+            if self.state.combat_over:
+                break
+        return played
+
+    def play_top_cards_from_draw_pile(self, count: int) -> List[Dict[str, Any]]:
+        """Public wrapper for Distilled Chaos style top-deck autoplay."""
+        return self._play_top_cards_from_draw_pile(count)
+
     def use_potion(self, potion_index: int, target_index: int = -1) -> Dict[str, Any]:
         """Use a potion."""
-        if potion_index >= len(self.state.potions):
+        if potion_index < 0 or potion_index >= len(self.state.potions):
             return {"success": False, "error": "Invalid potion index"}
 
         potion_id = self.state.potions[potion_index]
         if not potion_id:
             return {"success": False, "error": "Empty potion slot"}
 
-        result = {"success": True, "potion": potion_id, "effects": []}
+        if potion_id == "FairyPotion":
+            return {"success": False, "error": "Fairy in a Bottle triggers automatically on death"}
 
-        # Check for Sacred Bark relic
-        has_sacred_bark = self.state.has_relic("SacredBark")
-
-        # Get potion data from content
-        from .content.potions import get_potion_by_id
+        from .content.potions import PotionTargetType, get_potion_by_id
         potion_data = get_potion_by_id(potion_id)
+        if potion_data is None:
+            return {"success": False, "error": f"Unknown potion: {potion_id}"}
 
-        # Get effective potency (doubled by Sacred Bark if applicable)
-        if potion_data:
-            potency = potion_data.get_effective_potency(has_sacred_bark)
-        else:
-            # Fallback for potions not in content system yet
-            potency = None
+        if potion_data.target_type == PotionTargetType.ENEMY:
+            if target_index < 0 or target_index >= len(self.state.enemies):
+                return {"success": False, "error": "Potion requires a living enemy target"}
+            if self.state.enemies[target_index].hp <= 0:
+                return {"success": False, "error": "Potion target is not alive"}
 
-        # Remove potion
+        has_sacred_bark = self.state.has_relic("SacredBark")
+        potency = potion_data.get_effective_potency(has_sacred_bark)
+
+        # Consume potion before applying effect (Java ordering).
         self.state.potions[potion_index] = ""
+        result: Dict[str, Any] = {"success": True, "potion": potion_id, "effects": [], "potency": potency}
+        registry_result = execute_potion_effect(potion_id, self.state, target_idx=target_index)
+        if not registry_result.get("success"):
+            # Keep behavior deterministic and non-destructive on unexpected failures.
+            self.state.potions[potion_index] = potion_id
+            return {"success": False, "error": registry_result.get("error", "Failed to use potion")}
 
-        # Apply potion effects
-        if potion_id == "Block Potion":
-            amount = potency if potency is not None else 12
-            self.state.player.block += amount
-            result["effects"].append({"type": "block", "amount": amount})
-        elif potion_id == "Strength Potion":
-            amount = potency if potency is not None else 2
-            self.state.player.statuses["Strength"] = self.state.player.statuses.get("Strength", 0) + amount
-            result["effects"].append({"type": "buff", "buff": "Strength", "amount": amount})
-        elif potion_id == "Dexterity Potion":
-            amount = potency if potency is not None else 2
-            self.state.player.statuses["Dexterity"] = self.state.player.statuses.get("Dexterity", 0) + amount
-            result["effects"].append({"type": "buff", "buff": "Dexterity", "amount": amount})
-        elif potion_id == "Fire Potion":
-            amount = potency if potency is not None else 20
-            if 0 <= target_index < len(self.state.enemies):
-                enemy = self.state.enemies[target_index]
-                if enemy.hp > 0:
-                    damage = self._deal_damage_to_enemy(enemy, amount, apply_vuln=True)
-                    result["effects"].append({"type": "damage", "target": enemy.id, "amount": damage})
-        elif potion_id == "Energy Potion":
-            amount = potency if potency is not None else 2
-            self.state.energy += amount
-            result["effects"].append({"type": "energy", "amount": amount})
-        elif potion_id == "Swift Potion":
-            amount = potency if potency is not None else 3
-            self._draw_cards(amount)
-            result["effects"].append({"type": "draw", "amount": amount})
-        elif potion_id in ("Fear Potion", "FearPotion"):
-            amount = potency if potency is not None else 3
-            if 0 <= target_index < len(self.state.enemies):
-                enemy = self.state.enemies[target_index]
-                enemy.statuses["Vulnerable"] = enemy.statuses.get("Vulnerable", 0) + amount
-                result["effects"].append({"type": "debuff", "debuff": "Vulnerable", "amount": amount})
-        elif potion_id == "Weak Potion":
-            amount = potency if potency is not None else 3
-            if 0 <= target_index < len(self.state.enemies):
-                enemy = self.state.enemies[target_index]
-                enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + amount
-                result["effects"].append({"type": "debuff", "debuff": "Weak", "amount": amount})
-        elif potion_id == "Explosive Potion":
-            amount = potency if potency is not None else 10
-            for enemy in self.state.enemies:
-                if enemy.hp > 0:
-                    damage = self._deal_damage_to_enemy(enemy, amount, apply_vuln=True)
-                    result["effects"].append({"type": "damage", "target": enemy.id, "amount": damage})
-
-        # New potion implementations
-        elif potion_id == "FairyPotion":
-            # Fairy in a Bottle - should be triggered automatically on death, not manually used
-            # This should not be called directly; instead handle in death logic
-            result["success"] = False
-            result["error"] = "Fairy in a Bottle triggers automatically on death"
-        elif potion_id == "SmokeBomb":
-            # Smoke Bomb - escape from non-boss combat
-            # TODO: Need to check if current combat is boss fight
+        result["potency"] = registry_result.get("potency", potency)
+        if "effects" in registry_result and isinstance(registry_result["effects"], list):
+            result["effects"].extend(registry_result["effects"])
+        if "played_cards" in registry_result:
+            result["played_cards"] = registry_result["played_cards"]
+        if potion_id == "SmokeBomb" and getattr(self.state, "escaped", False):
             result["effects"].append({"type": "escape"})
-        elif potion_id == "DuplicationPotion":
-            # Duplication Potion - next card(s) played twice
-            amount = potency if potency is not None else 1
-            self.state.player.statuses["Duplication"] = self.state.player.statuses.get("Duplication", 0) + amount
-            result["effects"].append({"type": "power", "power": "Duplication", "amount": amount})
-        elif potion_id == "DistilledChaos":
-            # Distilled Chaos - play top N cards from draw pile
-            amount = potency if potency is not None else 3
-            # TODO: Implement card playing from draw pile
-            result["effects"].append({"type": "play_top_cards", "amount": amount})
-        elif potion_id == "Fruit Juice":
-            # Fruit Juice - gain max HP permanently
-            amount = potency if potency is not None else 5
-            self.state.player.max_hp += amount
-            self.state.player.hp += amount
-            result["effects"].append({"type": "max_hp", "amount": amount})
-        elif potion_id == "LiquidMemories":
-            # Liquid Memories - return card(s) from discard to hand, costs 0
-            # TODO: Implement card selection from discard pile
-            amount = potency if potency is not None else 1
-            result["effects"].append({"type": "return_from_discard", "amount": amount})
-        elif potion_id == "EntropicBrew":
-            # Entropic Brew - fill all potion slots with random potions
-            # TODO: Implement potion generation
-            result["effects"].append({"type": "fill_potion_slots"})
-        elif potion_id == "Regen Potion":
-            # Regen Potion - apply Regeneration
-            amount = potency if potency is not None else 5
-            self.state.player.statuses["Regeneration"] = self.state.player.statuses.get("Regeneration", 0) + amount
-            result["effects"].append({"type": "buff", "buff": "Regeneration", "amount": amount})
-        elif potion_id == "Ancient Potion":
-            # Ancient Potion - apply Artifact
-            amount = potency if potency is not None else 1
-            self.state.player.statuses["Artifact"] = self.state.player.statuses.get("Artifact", 0) + amount
-            result["effects"].append({"type": "buff", "buff": "Artifact", "amount": amount})
-        elif potion_id == "EssenceOfSteel":
-            # Essence of Steel - apply Plated Armor
-            amount = potency if potency is not None else 4
-            self.state.player.statuses["Plated Armor"] = self.state.player.statuses.get("Plated Armor", 0) + amount
-            result["effects"].append({"type": "buff", "buff": "Plated Armor", "amount": amount})
 
         self.log.log(self.state.turn, "use_potion", potion=potion_id, effects=result["effects"])
+        self._check_combat_end()
 
         return result
 
@@ -1643,12 +1792,17 @@ class CombatEngine:
     # Damage Calculation
     # =========================================================================
 
-    def _calculate_card_damage(self, base_damage: int, target_index: int = -1) -> int:
+    def _calculate_card_damage(
+        self,
+        base_damage: int,
+        target_index: int = -1,
+        strength_multiplier: int = 1,
+    ) -> int:
         """Calculate damage for a card attack."""
         player = self.state.player
 
         # Get player modifiers
-        strength = player.statuses.get("Strength", 0)
+        strength = player.statuses.get("Strength", 0) * strength_multiplier
         vigor = player.statuses.get("Vigor", 0)
         weak = player.statuses.get("Weak", 0) > 0
 
@@ -1867,11 +2021,12 @@ class CombatEngine:
 
     def _get_potion_target(self, potion_id: str) -> str:
         """Get targeting type for a potion."""
-        enemy_target_potions = {
-            "Fire Potion", "Poison Potion",
-            "Fear Potion", "Weak Potion", "Cunning Potion"
-        }
-        return "enemy" if potion_id in enemy_target_potions else "self"
+        from .content.potions import PotionTargetType, get_potion_by_id
+
+        potion = get_potion_by_id(potion_id)
+        if potion and potion.target_type == PotionTargetType.ENEMY:
+            return "enemy"
+        return "self"
 
     def _has_violet_lotus(self) -> bool:
         """Check if player has Violet Lotus relic."""
@@ -1913,11 +2068,17 @@ class CombatEngine:
 
     def _check_time_eater_numen(self):
         """Check if Time Eater should trigger Numen (12-card counter)."""
+        # If Time Warp power is active, it handles the 12-card trigger
+        for enemy in self.state.enemies:
+            if enemy.hp > 0 and "Time Warp" in enemy.statuses:
+                return
+
         # Find Time Eater enemy
         time_eater = None
         time_eater_idx = None
         for idx, enemy in enumerate(self.state.enemies):
-            if enemy.hp > 0 and "TimeEater" in enemy.id:
+            enemy_id = str(enemy.id)
+            if enemy.hp > 0 and "TimeEater" in enemy_id:
                 time_eater = enemy
                 time_eater_idx = idx
                 break
@@ -1958,7 +2119,8 @@ class CombatEngine:
 
     def _check_awakened_one_rebirth(self, enemy: EnemyCombatState) -> bool:
         """Check if Awakened One should rebirth (phase 1 -> phase 2)."""
-        if "AwakenedOne" not in enemy.id:
+        enemy_id = str(enemy.id)
+        if "AwakenedOne" not in enemy_id:
             return False
 
         # Find the real Enemy object
@@ -1996,7 +2158,8 @@ class CombatEngine:
 
     def _check_guardian_mode_shift(self, enemy: EnemyCombatState, damage_taken: int):
         """Check if Guardian should shift modes and increment threshold."""
-        if "Guardian" not in enemy.id:
+        enemy_id = str(enemy.id)
+        if "Guardian" not in enemy_id:
             return
 
         # Find the real Enemy object
@@ -2133,6 +2296,7 @@ def create_combat_from_enemies(
     relics: List[str] = None,
     potions: List[str] = None,
     ascension: int = 0,
+    bottled_cards: Dict[str, str] = None,
 ) -> CombatEngine:
     """
     Create a combat engine from Enemy objects.
@@ -2192,6 +2356,7 @@ def create_combat_from_enemies(
         max_energy=energy,
         relics=relics,
         potions=potions,
+        bottled_cards=bottled_cards or {},
     )
 
     # Check relic flags

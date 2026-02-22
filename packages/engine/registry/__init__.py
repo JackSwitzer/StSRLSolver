@@ -58,6 +58,7 @@ class TriggerHook(Enum):
     ON_CARD_DRAW = "onCardDraw"
     ON_USE_CARD = "onUseCard"
     ON_AFTER_USE_CARD = "onAfterUseCard"
+    ON_AFTER_CARD_PLAYED = "onAfterCardPlayed"
     ON_PLAY_CARD = "onPlayCard"
     ON_EXHAUST = "onExhaust"
     ON_MANUAL_DISCARD = "onManualDiscard"
@@ -153,8 +154,12 @@ class BaseContext:
             target_obj = target
 
         # Check artifact for debuffs
+        # Standard debuffs that are always blocked by Artifact
         debuffs = {"Weak", "Weakened", "Vulnerable", "Frail", "Poison", "Constricted"}
-        if power_id in debuffs:
+        # Negative Strength/Dexterity applications are also debuffs (e.g., from Wraith Form)
+        is_stat_debuff = power_id in {"Strength", "Dexterity"} and amount < 0
+
+        if power_id in debuffs or is_stat_debuff:
             artifact = target_obj.statuses.get("Artifact", 0)
             if artifact > 0:
                 target_obj.statuses["Artifact"] = artifact - 1
@@ -164,6 +169,9 @@ class BaseContext:
 
         current = target_obj.statuses.get(power_id, 0)
         target_obj.statuses[power_id] = current + amount
+        # Clean up if stat reduced to 0
+        if power_id in {"Strength", "Dexterity"} and target_obj.statuses[power_id] == 0:
+            del target_obj.statuses[power_id]
         return True
 
     def apply_power_to_player(self, power_id: str, amount: int) -> bool:
@@ -282,6 +290,7 @@ class PotionContext(BaseContext):
     target: Optional[EnemyCombatState] = None
     target_idx: int = -1
     has_sacred_bark: bool = False
+    result_data: Dict[str, Any] = field(default_factory=dict)
 
     def deal_damage_to_target(self, amount: int) -> int:
         """Deal damage to the potion target."""
@@ -570,8 +579,20 @@ def execute_potion_effect(potion_id: str, state: CombatState,
     handler = POTION_REGISTRY.get_handler("onUsePotion", potion_id)
     if handler:
         handler(ctx)
+        if ctx.result_data.get("success") is False:
+            return {
+                "success": False,
+                "error": ctx.result_data.get("error", f"Potion cannot be used: {potion_id}"),
+                "potion": potion_id,
+            }
+
         execute_relic_triggers("onUsePotion", state, {"potion": potion_id})
-        return {"success": True, "potion": potion_id, "potency": potency}
+        result = {"success": True, "potion": potion_id, "potency": potency}
+        for key, value in ctx.result_data.items():
+            if key in {"success", "error"}:
+                continue
+            result[key] = value
+        return result
 
     return {"success": False, "error": f"No effect handler for: {potion_id}"}
 
