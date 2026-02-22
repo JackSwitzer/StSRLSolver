@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4654 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4656 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -60,7 +60,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### R3: Reward/shop/rest/map normalization
 - [x] `RWD-001` canonical reward action emission path.
 - [x] `RWD-002` canonical reward action execution path.
-- [ ] `RWD-003` proceed gating parity.
+- [x] `RWD-003` proceed gating parity.
 - [ ] `RWD-004` reward modifier interaction parity.
 
 ### R4: Powers + orbs closure
@@ -78,9 +78,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `RWD-003` proceed gating parity.
-2. `RWD-004` reward modifier interaction parity.
-3. `POW-001` power inventory closure with Java refs + behavior locks.
+1. `RWD-004` reward modifier interaction parity.
+2. `POW-001` power inventory closure with Java refs + behavior locks.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

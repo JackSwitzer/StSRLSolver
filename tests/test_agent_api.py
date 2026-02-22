@@ -18,6 +18,7 @@ from packages.engine import (
     ActionDict, ActionResult, ObservationDict,
 )
 from packages.engine.combat_engine import CombatEngine
+from packages.engine.content.cards import get_card
 from packages.engine.content.relics import get_relic
 from packages.engine.handlers.event_handler import EventPhase, EventState
 from packages.engine.handlers.reward_handler import (
@@ -25,6 +26,7 @@ from packages.engine.handlers.reward_handler import (
     CombatRewards,
     BossRelicChoices,
     RelicReward,
+    CardReward,
     GoldReward,
     ClaimGoldAction,
     ClaimPotionAction,
@@ -1060,6 +1062,43 @@ class TestActionExecution:
 
         assert result.get("success") is False
         assert "gold" in result.get("error", "").lower()
+
+    def test_proceed_from_rewards_fails_with_unresolved_card_reward(self, runner):
+        """Proceed should fail while mandatory card rewards are unresolved."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="monster",
+            gold=GoldReward(amount=12, claimed=False),
+            card_rewards=[CardReward(cards=[get_card("Strike_P"), get_card("Defend_P")])],
+        )
+
+        result = runner.take_action_dict({
+            "type": "proceed_from_rewards",
+            "params": {},
+        })
+
+        assert result.get("success") is False
+        assert "proceed" in result.get("error", "").lower()
+        assert runner.phase == GamePhase.COMBAT_REWARDS
+        assert runner.current_rewards is not None
+
+    def test_proceed_from_rewards_fails_with_unresolved_relic_reward(self, runner):
+        """Proceed should fail while a mandatory elite relic reward is unresolved."""
+        runner.phase = GamePhase.COMBAT_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="elite",
+            relic=RelicReward(relic=get_relic("Anchor")),
+        )
+
+        result = runner.take_action_dict({
+            "type": "proceed_from_rewards",
+            "params": {},
+        })
+
+        assert result.get("success") is False
+        assert "proceed" in result.get("error", "").lower()
+        assert runner.phase == GamePhase.COMBAT_REWARDS
+        assert runner.current_rewards is not None
 
 
 # =============================================================================
