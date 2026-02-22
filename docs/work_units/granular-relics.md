@@ -33,6 +33,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 
 ## On-acquire / transform relics
 - [x] Astrolabe boss-relic pick path uses explicit `select_cards` action flow (no hidden auto-pick in action API). (action: pick_boss_relic{relic_index} + select_cards{pile:deck,card_indices})
+- [x] Empty Cage boss-relic pick path uses explicit `select_cards` action flow (no hidden auto-pick in action API). (action: pick_boss_relic{relic_index} + select_cards{pile:deck,card_indices})
 - [x] Astrolabe - transform and upgrade 3 cards. (action: select_cards{pile:deck,card_indices})
 - [x] Empty Cage - remove 2 cards. (action: select_cards{pile:deck,card_indices})
 - [x] Pandora's Box - transform all Strikes/Defends. (action: none{})
