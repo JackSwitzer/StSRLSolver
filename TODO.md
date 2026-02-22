@@ -9,7 +9,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
-- [x] Merged chain verified through PR `#24`; stale PR `#8` closed as superseded.
+- [x] Merged chain verified through PR `#25`; stale PR `#8` closed as superseded.
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).

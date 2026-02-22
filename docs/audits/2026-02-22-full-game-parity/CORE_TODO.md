@@ -10,7 +10,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
-- [x] PR history synced through merged PR [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24).
+- [x] PR history synced through merged PR [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25).
 - [x] Regions `R1` to `R3` closed and merged to `main`.
 - [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
 - [ ] Every parity-critical choice interaction is explicit in action dict flow.

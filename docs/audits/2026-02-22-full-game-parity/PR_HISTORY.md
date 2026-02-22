@@ -18,8 +18,9 @@ Merged branch lineage covered here: `codex/parity-core-loop` -> `main`
 | [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22) | 2026-02-22T19:18:24Z | `DOC-004` | Merged-ground-truth docs pack + consolidation roadmap | `docs/audits/2026-02-22-full-game-parity/*` | Documentation-only |
 | [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23) | 2026-02-22T19:49:47Z | `CONS-001` | Deterministic RNG hardening in shared card/power effect paths + docs sync | `packages/engine/effects/registry.py`, `packages/engine/registry/__init__.py`, `packages/engine/effects/cards.py`, `packages/engine/registry/powers.py`, audit docs | `tests/test_cards.py`, `tests/test_watcher_card_effects.py`, `tests/test_effects_and_combat.py`, `tests/test_powers.py`, `tests/test_power_registry_integration.py` |
 | [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24) | 2026-02-22T19:57:47Z | `CRD-INV-001` | Non-Defect card manifest + comprehensive remaining parity audit sync | `docs/audits/2026-02-22-full-game-parity/*`, `docs/work_units/granular-cards-*.md` | Documentation-only |
+| [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25) | 2026-02-22T20:07:56Z | `CRD-SH-001` | Shared curse/status runtime closure for end-of-turn and draw effects | `packages/engine/effects/cards.py`, `packages/engine/handlers/combat.py`, parity audit docs | `tests/test_effects_and_combat.py`, `tests/test_status_curse.py`, `tests/test_cards.py` |
 
-## Cumulative outcome through #24
+## Cumulative outcome through #25
 - Region closure:
   - `R1` relic action-surface and ordering fixes: complete.
   - `R2` event action-surface completeness and alias normalization: complete.

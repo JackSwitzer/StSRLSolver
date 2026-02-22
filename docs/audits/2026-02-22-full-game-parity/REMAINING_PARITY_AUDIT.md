@@ -2,10 +2,10 @@
 
 Last updated: 2026-02-22  
 Baseline branch: `main`  
-Baseline merge commit: `4fff19ba0dc5ae219adbe0185d7af8a9425ef1c3` (PR #24)
+Baseline merge commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff` (PR #25)
 
 ## Solid core base
-- Merged PR chain in `main`: [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) through [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24)
+- Merged PR chain in `main`: [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) through [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25)
 - Stale historical PR [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) is closed and treated as archival only
 - Full suite baseline is stable:
   - `uv run pytest tests/ -q`
