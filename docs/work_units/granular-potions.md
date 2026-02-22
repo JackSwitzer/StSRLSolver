@@ -17,7 +17,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] Liquid Memories: handle empty discard, full hand, Sacred Bark (2 cards), and always use `ctx.potency` (no special-casing). (action: use_potion{potion_slot} + select_cards{pile:discard,card_indices})
 - [x] Entropic Brew: fill empty slots using potionRng and class pool parity. (action: use_potion{potion_slot})
 - [x] Entropic Brew: enforce Sozu, use actual empty slot count (not potency), handle out-of-combat use. (action: use_potion{potion_slot})
-- [ ] Fairy Potion: verify auto-trigger conditions, heal percent, consumption rules. (action: none{}; auto-trigger)
+- [x] Fairy Potion: verify auto-trigger conditions, heal percent, consumption rules. (action: none{}; auto-trigger)
 - [x] Gambler's Brew: choose discard set, draw same count. (action: use_potion{potion_slot} + select_cards{pile:hand,card_indices})
 - [x] Elixir: choose cards to exhaust (not all by default). (action: use_potion{potion_slot} + select_cards{pile:hand,card_indices})
 - [x] Stance Potion: choose stance (Calm/Wrath) and handle stance change triggers (no auto-toggle). (action: use_potion{potion_slot} + select_stance{stance})

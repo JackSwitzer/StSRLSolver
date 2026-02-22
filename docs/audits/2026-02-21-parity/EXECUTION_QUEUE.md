@@ -28,10 +28,10 @@ Last updated: 2026-02-22
 Owner scope: `packages/engine/game.py`, `packages/engine/combat_engine.py`, `packages/engine/registry/potions.py`, potion tests/docs.
 
 Feature commits:
-- `POT-001` Remove duplicate potion semantics where runtime path and registry diverge; keep one authoritative combat execution behavior.
-- `POT-002` Add explicit RNG-counter advancement tests for `card_rng`, `card_random_rng`, and `potion_rng` on RNG-sensitive potions.
-- `POT-003` Expand action roundtrip tests for all selection potions (missing params -> candidate actions -> apply selection).
-- `POT-004` Close Fairy in a Bottle invariants (death hook, consumption, Sacred Bark % heal, combat-loss suppression).
+- `POT-001` Remove duplicate potion semantics where runtime path and registry diverge; keep one authoritative combat execution behavior. (`open`)
+- `POT-002` Add explicit RNG-counter advancement tests for `card_rng`, `card_random_rng`, and `potion_rng` on RNG-sensitive potions. (`done` in commit `26375e7`)
+- `POT-003` Expand action roundtrip tests for all selection potions (missing params -> candidate actions -> apply selection). (`done` in commit `26f34ec`)
+- `POT-004` Close Fairy in a Bottle invariants (death hook, consumption, Sacred Bark % heal, combat-loss suppression). (`done` in commit `c25d2d3`)
 
 ## PR Region R2: Relic Agent-Selection Completeness
 Owner scope: run/reward/room handlers, `packages/engine/state/run.py`, `packages/engine/game.py`, relic tests/docs.

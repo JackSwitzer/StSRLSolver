@@ -1,6 +1,6 @@
 # Test Baseline
 
-Date: 2026-02-21
+Date: 2026-02-22
 
 ## Full suite
 ```bash
@@ -8,9 +8,12 @@ uv run pytest tests/ -ra
 ```
 
 Result:
-- `4602 passed`
-- `0 skipped`
+- `4604 passed`
+- `5 skipped`
 - `0 failed`
+
+Skip details:
+- `tests/test_parity.py` skips when `consolidated_seed_run.jsonl` is absent (5 skips).
 
 ## Notable delta from start of pass
 - Replaced mock/placeholder relic suites with engine-backed tests:
@@ -26,6 +29,12 @@ Result:
   - Entropic Brew class-pool behavior
   - Smoke Bomb back-attack restriction
   - selection potion `onUsePotion` relic trigger propagation
+- Added potion action-surface completeness checks for full hand-subset candidates:
+  - `tests/test_agent_api.py` (Gamblers Brew + Elixir selection enumeration)
+- Added RNG stream advancement checks for potion runtime:
+  - `tests/test_potion_rng_streams.py`
+- Added Fairy defeat-prevention invariant coverage:
+  - `tests/test_potion_sacred_bark.py`
 
 ## Focused verification commands
 ```bash

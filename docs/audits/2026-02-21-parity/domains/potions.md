@@ -3,7 +3,7 @@
 ## Status
 - `P0 potion parity blockers addressed in runtime path`
 - Selection-required potions are action-surface complete through `take_action_dict`.
-- Full suite after this pass: `4602 passed, 0 skipped, 0 failed`.
+- Full suite after this pass: `4604 passed, 5 skipped, 0 failed`.
 
 ## Implemented in this pass
 - `DistilledChaos` now plays top cards (3/6 with Sacred Bark) instead of draw fallback.
@@ -41,7 +41,12 @@
   - `tests/test_potion_sacred_bark.py` (`DistilledChaos` autoplay semantics, Sacred Bark 6-card path, Smoke Bomb BackAttack restriction).
 - Added action API parity checks:
   - `tests/test_agent_api.py` (`LiquidMemories` empty-discard error, `onUsePotion` trigger via Toy Ornithopter for selection flow).
+- Added complete subset emission coverage for hand-selection potions:
+  - `tests/test_agent_api.py` (`GamblersBrew` and `ElixirPotion` now assert full subset action emission).
+- Added dedicated RNG stream-advance assertions:
+  - `tests/test_potion_rng_streams.py` (`card_rng`, `card_random_rng`, `potion_rng` advancement for Discovery/Snecko/Entropic/Distilled paths).
+- Added Fairy defeat-prevention combat-end invariant:
+  - `tests/test_potion_sacred_bark.py` (`_check_combat_end` revives with Fairy instead of ending combat).
 
 ## Remaining potion-domain items
 - Normalize/centralize duplicate potion execution between registry and `CombatEngine` (single authoritative path).
-- Expand dedicated stream-advance assertions for every RNG-sensitive potion outcome (beyond behavior-level assertions).
