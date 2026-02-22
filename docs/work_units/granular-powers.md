@@ -7,6 +7,7 @@
 Use explicit signatures on each item (see `granular-actions.md`).
 
 ## System / Shared
+- [ ] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
 - [ ] Slow - atDamageReceive, onAfterUseCard, atEndOfRound reset. (action: none{})
 - [ ] Lock-On - orb damage modifier, atEndOfRound decrement. (action: none{})
 - [ ] NoBlockPower - modifyBlockLast hook. (action: none{})
@@ -28,7 +29,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 
 ## Silent
 - [ ] Accuracy - passive Shiv base damage boost. (action: none{})
-- [ ] Thousand Cuts - move to onAfterUseCard hook. (action: none{})
+- [ ] Thousand Cuts - move to onAfterCardPlayed hook. (action: none{})
 
 ## Defect
 - [ ] Bias - atStartOfTurn lose Focus timing. (action: none{})

@@ -234,6 +234,7 @@ class CombatRunner:
             max_energy=base_energy,
             relics=self.run_state.get_relic_ids(),
             potions=potions,
+            bottled_cards=self.run_state.get_bottled_cards(),
         )
 
     def _shuffle_deck(self, deck: List[str]) -> List[str]:
@@ -647,13 +648,39 @@ class CombatRunner:
         execute_relic_triggers("onPlayCard", self.state, {"card": card})
 
         # Trigger onUseCard power triggers (After Image, Choked, Duplication)
-        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card})
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+
+        # Trigger onAfterUseCard power triggers (Beat of Death, Slow, Time Warp)
+        force_end_turn = False
+        after_use_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterUseCard", self.state, self.state.player, after_use_data)
+        if after_use_data.get("force_end_turn"):
+            force_end_turn = True
+        for enemy in self.state.enemies:
+            if enemy.is_dead:
+                continue
+            enemy_trigger = {"card": card, "card_id": card.id}
+            execute_power_triggers("onAfterUseCard", self.state, enemy, enemy_trigger)
+            if enemy_trigger.get("force_end_turn"):
+                force_end_turn = True
+
+        # Trigger onAfterCardPlayed power triggers (Thousand Cuts)
+        after_play_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onAfterCardPlayed", self.state, self.state.player, after_play_data)
+        for enemy in self.state.enemies:
+            if enemy.is_dead:
+                continue
+            execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
 
         # Unceasing Top - if hand is empty after playing card, draw 1
         if self.state.has_relic("Unceasing Top"):
             if not self.state.hand and self.state.draw_pile:
                 self._draw_cards(1)
 
+
+        # Time Warp can force end of turn after the card resolves
+        if force_end_turn:
+            self.end_turn()
 
         # Check combat end
         self._check_combat_end()

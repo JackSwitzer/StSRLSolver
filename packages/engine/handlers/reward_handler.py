@@ -653,6 +653,11 @@ class RewardHandler:
         action: RewardAction,
         run_state: RunState,
         rewards: CombatRewards,
+        *,
+        misc_rng: Optional[Random] = None,
+        card_rng: Optional[Random] = None,
+        relic_rng: Optional[Random] = None,
+        potion_rng: Optional[Random] = None,
     ) -> Dict[str, Any]:
         """
         Process a reward action and update state.
@@ -755,7 +760,13 @@ class RewardHandler:
 
         elif isinstance(action, ClaimRelicAction):
             if rewards.relic and not rewards.relic.claimed:
-                run_state.add_relic(rewards.relic.relic.id)
+                run_state.add_relic(
+                    rewards.relic.relic.id,
+                    misc_rng=misc_rng,
+                    card_rng=card_rng,
+                    relic_rng=relic_rng,
+                    potion_rng=potion_rng,
+                )
                 rewards.relic.claimed = True
                 result["relic_id"] = rewards.relic.relic.id
                 result["relic_name"] = rewards.relic.relic.name
@@ -792,7 +803,13 @@ class RewardHandler:
                         run_state, relic
                     )
 
-                    run_state.add_relic(relic.id)
+                    run_state.add_relic(
+                        relic.id,
+                        misc_rng=misc_rng,
+                        card_rng=card_rng,
+                        relic_rng=relic_rng,
+                        potion_rng=potion_rng,
+                    )
                     rewards.boss_relics.chosen_index = idx
 
                     result["relic_id"] = relic.id

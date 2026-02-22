@@ -7,6 +7,7 @@ at the appropriate points during combat.
 
 import pytest
 from packages.engine.state.combat import CombatState, EntityState, EnemyCombatState, create_combat
+from packages.engine.combat_engine import CombatEngine
 from packages.engine.registry import (
     execute_power_triggers, PowerContext, POWER_REGISTRY
 )
@@ -51,6 +52,27 @@ class TestPowerRegistrySetup:
     def test_weak_end_round_registered(self):
         """Weakened should be registered for atEndOfRound."""
         assert POWER_REGISTRY.has_handler("atEndOfRound", "Weakened")
+
+    def test_thousand_cuts_registered_after_card_played(self):
+        """Thousand Cuts should be registered for onAfterCardPlayed."""
+        assert POWER_REGISTRY.has_handler("onAfterCardPlayed", "ThousandCuts")
+
+    def test_beat_of_death_registered_after_use(self):
+        """Beat of Death should be registered for onAfterUseCard."""
+        assert POWER_REGISTRY.has_handler("onAfterUseCard", "BeatOfDeath")
+
+    def test_slow_registered_after_use_and_damage_receive(self):
+        """Slow should be registered for onAfterUseCard and atDamageReceive."""
+        assert POWER_REGISTRY.has_handler("onAfterUseCard", "Slow")
+        assert POWER_REGISTRY.has_handler("atDamageReceive", "Slow")
+
+    def test_time_warp_registered_after_use(self):
+        """Time Warp should be registered for onAfterUseCard."""
+        assert POWER_REGISTRY.has_handler("onAfterUseCard", "Time Warp")
+
+    def test_bias_registered_at_start_of_turn(self):
+        """Bias should be registered for atStartOfTurn."""
+        assert POWER_REGISTRY.has_handler("atStartOfTurn", "Bias")
 
 
 class TestAtEndOfTurnPreEndTurnCards:
@@ -356,6 +378,110 @@ class TestOnUseCard:
         execute_power_triggers("onUseCard", state, state.player)
 
         assert state.player.hp == 47  # 50 - 3
+
+
+class TestOnAfterUseCard:
+    """Test powers triggered after card effects resolve."""
+
+    def test_slow_stacks_on_after_use(self):
+        """Slow should increment on each card play."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        enemy = state.enemies[0]
+        enemy.statuses["Slow"] = 0
+        execute_power_triggers("onAfterUseCard", state, enemy)
+        assert enemy.statuses.get("Slow") == 1
+        execute_power_triggers("onAfterUseCard", state, enemy)
+        assert enemy.statuses.get("Slow") == 2
+
+    def test_slow_damage_receive_scales(self):
+        """Slow should increase NORMAL damage taken by 10% per stack."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        enemy = state.enemies[0]
+        enemy.statuses["Slow"] = 2
+        result = execute_power_triggers(
+            "atDamageReceive", state, enemy,
+            {"value": 10, "damage_type": "NORMAL"}
+        )
+        assert result == 12
+
+    def test_slow_resets_at_end_of_round(self):
+        """Slow should reset to 0 at end of round without being removed."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        enemy = state.enemies[0]
+        enemy.statuses["Slow"] = 3
+        execute_power_triggers("atEndOfRound", state, enemy)
+        assert enemy.statuses.get("Slow") == 0
+
+    def test_time_warp_triggers_strength_and_end_turn_flag(self):
+        """Time Warp should buff all enemies and request turn end at 12 cards."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[
+                EnemyCombatState(hp=40, max_hp=40, id="time_eater"),
+                EnemyCombatState(hp=35, max_hp=35, id="ally"),
+            ],
+            deck=["Strike"],
+        )
+        time_eater = state.enemies[0]
+        time_eater.statuses["Time Warp"] = 11
+        trigger_data = {}
+        execute_power_triggers("onAfterUseCard", state, time_eater, trigger_data)
+        assert time_eater.statuses.get("Time Warp") == 0
+        assert state.enemies[0].statuses.get("Strength") == 2
+        assert state.enemies[1].statuses.get("Strength") == 2
+        assert trigger_data.get("force_end_turn") is True
+
+
+class TestOnAfterCardPlayed:
+    """Test powers triggered after a card is played."""
+
+    def test_thousand_cuts_hits_all_enemies(self):
+        """Thousand Cuts should damage all enemies after a card is played."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[
+                EnemyCombatState(hp=30, max_hp=30, id="test1"),
+                EnemyCombatState(hp=28, max_hp=28, id="test2"),
+            ],
+            deck=["Defend_P"],
+        )
+        state.hand = ["Defend_P"]
+        state.player.statuses["ThousandCuts"] = 2
+        engine = CombatEngine(state)
+        engine.play_card(0, target_index=-1)
+        assert state.enemies[0].hp == 28
+        assert state.enemies[1].hp == 26
+
+
+class TestCombatEngineHookOrder:
+    """Verify combat_engine plays hooks in Java order."""
+
+    def test_after_image_blocks_beat_of_death(self):
+        """After Image (onUseCard) should resolve before Beat of Death."""
+        state = create_combat(
+            player_hp=50, player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike_P"],
+        )
+        state.hand = ["Strike_P"]
+        state.player.statuses["AfterImage"] = 1
+        state.enemies[0].statuses["BeatOfDeath"] = 1
+        engine = CombatEngine(state)
+        engine.play_card(0, target_index=0)
+        assert state.player.hp == 50
+        assert state.player.block == 0
 
 
 class TestOnExhaust:

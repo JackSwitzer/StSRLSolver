@@ -244,6 +244,9 @@ class CombatState:
     # Relics the player has (for checking effects)
     relics: List[str] = field(default_factory=list)
 
+    # Bottled relic selections (relic_id -> card_id)
+    bottled_cards: Dict[str, str] = field(default_factory=dict)
+
     # Card costs cache (card_id -> cost, for cards with modified costs)
     card_costs: Dict[str, int] = field(default_factory=dict)
 
@@ -301,6 +304,7 @@ class CombatState:
             # Relic counters - shallow copy (string keys, int values)
             relic_counters=self.relic_counters.copy(),
             relics=self.relics.copy(),
+            bottled_cards=self.bottled_cards.copy(),
             # Card costs cache
             card_costs=self.card_costs.copy(),
             # Defect orb manager
@@ -587,6 +591,7 @@ def create_combat(
     max_energy: int = 3,
     relics: List[str] = None,
     potions: List[str] = None,
+    bottled_cards: Dict[str, str] = None,
 ) -> CombatState:
     """
     Create a new combat state with initial setup.
@@ -604,4 +609,5 @@ def create_combat(
         enemies=enemies,
         relics=relics or [],
         potions=potions or ["", "", ""],  # 3 empty potion slots by default
+        bottled_cards=bottled_cards or {},
     )
