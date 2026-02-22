@@ -271,6 +271,7 @@ class GameRunner:
         self.current_room_type: str = "monster"  # "monster", "elite", "boss"
         self.is_burning_elite: bool = False  # Track if current elite is burning
         self.pending_selection: Optional[PendingSelectionContext] = None
+        self._pending_relic_selection_indices: Optional[List[int]] = None
 
         # Current event state (when in event)
         self.current_event: Optional[Dict] = None  # Legacy format
@@ -586,6 +587,44 @@ class GameRunner:
 
         return None
 
+    def _build_pending_selection_for_boss_relic(
+        self,
+        relic_index: int,
+        parent_action_id: str,
+    ) -> Optional[PendingSelectionContext]:
+        """Create selection context for boss relic picks that require card choices."""
+        if not self.current_rewards or not self.current_rewards.boss_relics:
+            return None
+
+        boss_relics = self.current_rewards.boss_relics
+        if relic_index < 0 or relic_index >= len(boss_relics.relics):
+            return None
+
+        relic = boss_relics.relics[relic_index]
+        if relic.id != "Astrolabe":
+            return None
+
+        unpurgeable = {"AscendersBane", "CurseOfTheBell", "Necronomicurse"}
+        transformable_indices = [
+            idx
+            for idx, card in self.run_state.get_removable_cards()
+            if card.id not in unpurgeable
+        ]
+        required = min(3, len(transformable_indices))
+        if required <= 0:
+            return None
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type="pick_boss_relic",
+            pile="deck",
+            min_cards=required,
+            max_cards=required,
+            candidate_indices=transformable_indices,
+            metadata={"relic_id": relic.id, "relic_index": relic_index},
+            parent_action_id=parent_action_id,
+        )
+
     def _selection_context_actions(self) -> List[ActionDict]:
         """Emit explicit follow-up actions for pending selection state."""
         if not self.pending_selection:
@@ -631,12 +670,52 @@ class GameRunner:
                 })
         return actions
 
-    def _apply_pending_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
-        """Execute pending selection and resolve the parent potion action."""
-        if not self.pending_selection or not self.current_combat:
+    def _apply_pending_relic_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
+        """Resolve pending relic selection and dispatch parent relic action."""
+        if not self.pending_selection:
             return {"success": False, "error": "No pending selection"}
 
         ctx = self.pending_selection
+        if ctx.source_action_type != "pick_boss_relic":
+            return {"success": False, "error": "Unsupported pending relic selection source"}
+        if action_dict.get("type") != "select_cards":
+            return {"success": False, "error": "Expected select_cards action"}
+
+        params = action_dict.get("params", {}) or {}
+        selected = [int(i) for i in params.get("card_indices", [])]
+        if len(selected) < ctx.min_cards or len(selected) > ctx.max_cards:
+            return {"success": False, "error": "Invalid number of selected cards"}
+
+        allowed = set(ctx.candidate_indices)
+        if len(set(selected)) != len(selected):
+            return {"success": False, "error": "Duplicate selected cards are not allowed"}
+        if any(idx not in allowed for idx in selected):
+            return {"success": False, "error": "Invalid selected card index"}
+
+        relic_index = int(ctx.metadata.get("relic_index", -1))
+        self.pending_selection = None
+        self._pending_relic_selection_indices = selected
+
+        result = self.take_action_dict({
+            "type": "pick_boss_relic",
+            "params": {"relic_index": relic_index},
+        })
+        if not result.get("success"):
+            self._pending_relic_selection_indices = None
+        return result
+
+    def _apply_pending_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
+        """Execute pending selection and resolve the parent potion action."""
+        if not self.pending_selection:
+            return {"success": False, "error": "No pending selection"}
+
+        ctx = self.pending_selection
+        if ctx.source_action_type == "pick_boss_relic":
+            return self._apply_pending_relic_selection(action_dict)
+
+        if not self.current_combat:
+            return {"success": False, "error": "No combat context for selection"}
+
         state = self.current_combat.state
         params = action_dict.get("params", {}) or {}
         action_type = action_dict.get("type")
@@ -1010,8 +1089,17 @@ class GameRunner:
 
         if self.phase == GamePhase.BOSS_REWARDS:
             unresolved = True
-            if self.current_rewards and self.current_rewards.boss_relics:
-                unresolved = not self.current_rewards.boss_relics.is_resolved
+            boss_relics = self.current_rewards.boss_relics if self.current_rewards else None
+            if boss_relics:
+                unresolved = not boss_relics.is_resolved
+                for action in actions:
+                    if action.get("type") != "pick_boss_relic":
+                        continue
+                    params = action.get("params", {}) or {}
+                    relic_index = int(params.get("relic_index", -1))
+                    if 0 <= relic_index < len(boss_relics.relics):
+                        if boss_relics.relics[relic_index].id == "Astrolabe":
+                            action["requires"] = ["card_indices"]
             if unresolved:
                 skip_action = {
                     "type": "skip_boss_relic",
@@ -1080,6 +1168,39 @@ class GameRunner:
                     "requires_selection": True,
                     "candidate_actions": self._selection_context_actions(),
                 }
+
+        # Intercept Astrolabe boss relic pick so transforms are explicit model choices.
+        if self.phase == GamePhase.BOSS_REWARDS and action_dict.get("type") == "pick_boss_relic":
+            params = action_dict.get("params", {}) or {}
+            if "relic_index" not in params:
+                return {"success": False, "error": "Missing relic_index"}
+            relic_index = int(params.get("relic_index", -1))
+
+            if self._pending_relic_selection_indices is None:
+                selection_ctx = self._build_pending_selection_for_boss_relic(
+                    relic_index=relic_index,
+                    parent_action_id=str(action_dict.get("id", "")),
+                )
+                if selection_ctx is not None:
+                    self.pending_selection = selection_ctx
+                    if "card_indices" in params:
+                        selection_action = {
+                            "type": "select_cards",
+                            "params": {
+                                "pile": selection_ctx.pile,
+                                "card_indices": params.get("card_indices", []),
+                                "min_cards": selection_ctx.min_cards,
+                                "max_cards": selection_ctx.max_cards,
+                                "parent_action_id": selection_ctx.parent_action_id,
+                            },
+                        }
+                        return self._apply_pending_selection(selection_action)
+                    return {
+                        "success": False,
+                        "error": "Selection required",
+                        "requires_selection": True,
+                        "candidate_actions": self._selection_context_actions(),
+                    }
 
         try:
             action = self._dict_to_action(action_dict)
@@ -2451,6 +2572,7 @@ class GameRunner:
             boss_relics = self.current_rewards.boss_relics
             if not boss_relics.is_resolved and action.relic_index < 0:
                 boss_relics.chosen_index = -1
+                self._pending_relic_selection_indices = None
                 self._log("Boss relic skipped")
                 result["skipped"] = True
             elif not boss_relics.is_resolved and 0 <= action.relic_index < len(boss_relics.relics):
@@ -2460,13 +2582,20 @@ class GameRunner:
                 RewardHandler._handle_boss_relic_pickup(self.run_state, relic)
 
                 # Add the relic
+                selection_indices = (
+                    list(self._pending_relic_selection_indices)
+                    if relic.id == "Astrolabe" and self._pending_relic_selection_indices is not None
+                    else None
+                )
                 self.run_state.add_relic(
                     relic.id,
                     misc_rng=self.misc_rng,
                     card_rng=self.card_rng,
                     relic_rng=self.relic_rng,
                     potion_rng=self.potion_rng,
+                    selection_card_indices=selection_indices,
                 )
+                self._pending_relic_selection_indices = None
                 boss_relics.chosen_index = action.relic_index
 
                 self._log(f"Boss relic chosen: {relic.name}")

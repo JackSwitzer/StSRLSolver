@@ -18,6 +18,8 @@ from packages.engine import (
     ActionDict, ActionResult, ObservationDict,
 )
 from packages.engine.combat_engine import CombatEngine
+from packages.engine.content.relics import get_relic
+from packages.engine.handlers.reward_handler import CombatRewards, BossRelicChoices
 from packages.engine.state.combat import create_combat, create_enemy
 
 
@@ -456,6 +458,59 @@ class TestActionExecution:
         assert len(subsets) == 8
         assert () in subsets
         assert (0, 1, 2) in subsets
+
+    def test_boss_astrolabe_requires_card_selection(self, runner):
+        """Picking Astrolabe should require explicit select_cards action."""
+        runner.phase = GamePhase.BOSS_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="boss",
+            boss_relics=BossRelicChoices(
+                relics=[
+                    get_relic("Astrolabe"),
+                    get_relic("Tiny House"),
+                    get_relic("Sozu"),
+                ]
+            ),
+        )
+
+        result = runner.take_action_dict({
+            "type": "pick_boss_relic",
+            "params": {"relic_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 3 for a in candidates)
+
+    def test_boss_astrolabe_selection_roundtrip(self, runner):
+        """Astrolabe pick should complete after select_cards and apply relic effect."""
+        runner.phase = GamePhase.BOSS_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="boss",
+            boss_relics=BossRelicChoices(
+                relics=[
+                    get_relic("Astrolabe"),
+                    get_relic("Tiny House"),
+                    get_relic("Sozu"),
+                ]
+            ),
+        )
+        before_deck_size = len(runner.run_state.deck)
+
+        first = runner.take_action_dict({
+            "type": "pick_boss_relic",
+            "params": {"relic_index": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        second = runner.take_action_dict(candidates[0])
+        assert second.get("success") is True
+        assert runner.run_state.has_relic("Astrolabe")
+        assert len(runner.run_state.deck) == before_deck_size
 
 
 # =============================================================================

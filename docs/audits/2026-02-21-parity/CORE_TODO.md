@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Current baseline
-- Full tests: `4606 passed, 5 skipped, 0 failed`
+- Full tests: `4608 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -ra`
 - Merged parity integration PR: [`#9`](https://github.com/JackSwitzer/StSRLSolver/pull/9)
 - Skip reason: `tests/test_parity.py` skips when `consolidated_seed_run.jsonl` is absent.
@@ -39,7 +39,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `POT-004` Close Fairy in a Bottle invariants (trigger, consumption, Sacred Bark % and defeat prevention).
 
 ## Next active region: Relics (`R2`)
-- [ ] `REL-001` Astrolabe explicit selection actions.
+- [x] `REL-001` Astrolabe explicit selection actions.
 - [ ] `REL-002` Empty Cage explicit selection actions.
 - [ ] `REL-003` Orrery explicit selection actions.
 - [ ] `REL-004` Bottled relic assignment actions.

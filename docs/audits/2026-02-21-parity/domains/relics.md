@@ -1,11 +1,11 @@
 # Relics Audit
 
 ## Summary
-Relic parity coverage is now anchored to real engine behavior for pickup/rest/chest/out-of-combat flows. Placeholder assertions and mock handlers were replaced with handler-backed tests, and full suite now runs with zero skips.
+Relic parity coverage is now anchored to real engine behavior for pickup/rest/chest/out-of-combat flows. Placeholder assertions and mock handlers were replaced with handler-backed tests; remaining skips are external parity-artifact skips in `tests/test_parity.py`.
 
 ## Status vs composer 1.5 gap list
 - Pickup effects (`Astrolabe`, `Calling Bell`, `Empty Cage`, `Tiny House`, etc.): `PARTIAL`
-  - Runtime behavior implemented and test-covered; explicit agent card-selection APIs still pending for a few on-acquire relics.
+  - Runtime behavior implemented and test-covered; explicit agent card-selection APIs remain pending for `Empty Cage`, `Orrery`, and bottled assignment.
 - Bottled relic `atBattleStart` trigger: `DONE`
 - War Paint/Whetstone `miscRng`: `DONE`
 - Chest counters (`Tiny Chest`, `Matryoshka`, `Cursed Key`): `DONE`
@@ -32,7 +32,11 @@ Relic parity coverage is now anchored to real engine behavior for pickup/rest/ch
 - Added room-entry triggers in `GameRunner` for Maw Bank and Ssserpent Head.
 - Corrected chest handling for N'loth's Hungry Face and Cursed Key ordering in `TreasureHandler.open_chest`.
 - Wired Smiling Mask into shop purge-cost generation path.
+- Added explicit Astrolabe boss-relic selection flow in action API:
+  - `pick_boss_relic` with `Astrolabe` now returns `requires_selection` + `select_cards` candidates.
+  - Selected indices are applied through `RunState.add_relic(..., selection_card_indices=...)`.
+  - Added tests in `tests/test_agent_api.py` for Astrolabe selection-required and roundtrip application.
 
 ## Remaining implementation tasks
-- Implement explicit agent-facing card-selection flows for on-acquire relic choices (Astrolabe/Empty Cage/Orrery/bottled assignment), replacing deterministic auto-picks.
+- Implement explicit agent-facing card-selection flows for remaining on-acquire relic choices (Empty Cage/Orrery/bottled assignment), replacing deterministic auto-picks.
 - Re-audit Java parity details for on-acquire selection ordering once action-surface card selection is complete.
