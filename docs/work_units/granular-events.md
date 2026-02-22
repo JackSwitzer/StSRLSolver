@@ -1,5 +1,15 @@
 # Ultra-Granular Work Units: Events
 
+## Current parity slice (authoritative for next commit)
+- [x] `EVT-001` Event card-required choices emit explicit `select_cards` follow-up actions through `take_action_dict`.
+- [x] `EVT-001` Selection preview path is side-effect-free on live run/event state.
+- [x] `EVT-002` Selected card indices are passed to `EventHandler.execute_choice(..., card_idx=...)`.
+- [x] `EVT-002` Add action-surface tests proving non-default selected indices apply correctly.
+
+## Notes
+- This file contains legacy checklist items from earlier audits.
+- For active priority and completion state, use `docs/audits/2026-02-22-full-game-parity/domains/events.md` and `TODO.md`.
+
 ## Model-facing actions (no UI)
 - [ ] Expose event choices as explicit `event_choice` actions with required params. (action: event_choice{choice_index})
 - [ ] If a choice requires card selection, emit follow-up actions listing valid card indices. (action: event_choice{choice_index} + select_cards{pile:offer,card_indices})
