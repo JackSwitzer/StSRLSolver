@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4610 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4633 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -31,7 +31,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `RWD-001/RWD-002` reward/shop relic acquisition paths should route through one selection-aware execution surface.
 
 ### P1: Java inventory parity and correctness
-- [ ] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` confirmed gap).
+- [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
 - [ ] `POW-001` Java power inventory closure (149 Java classes vs 94 Python entries; 69 normalized missing candidates).
 - [ ] `ORB-001` remove placeholder orb-linked relic behavior in `packages/engine/registry/relics.py`.
 - [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
@@ -48,7 +48,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-004` Bottled relic explicit assignment.
 - [x] `REL-008` Dolly's Mirror explicit selection.
 - [x] `REL-005` deterministic selection IDs + validation hardening.
-- [ ] `REL-006` relic alias normalization + `Toolbox` inventory closure.
+- [x] `REL-006` relic alias normalization + `Toolbox` inventory closure.
 - [ ] `REL-007` boss/chest/reward ordering edge regressions.
 
 ### R2: Event selection surface
@@ -78,10 +78,10 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `REL-006` relic alias normalization + missing Java ID closure (`Toolbox`).
-2. `REL-007` boss/chest/reward ordering edge regressions.
-3. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
-4. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
+1. `REL-007` boss/chest/reward ordering edge regressions.
+2. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
+3. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
+4. `RWD-001`/`RWD-002` unify reward/shop relic acquisition execution path.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

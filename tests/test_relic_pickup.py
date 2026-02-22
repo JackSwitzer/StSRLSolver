@@ -375,19 +375,14 @@ class TestDollysMirror:
 
         watcher_run.add_relic("Dolly's Mirror")
 
-        # Simulate choosing Strike_P to duplicate
-        watcher_run.add_card("Strike_P")
-
         # Should have 1 more Strike_P
         assert watcher_run.count_card("Strike_P") == initial_strikes + 1
     def test_dollys_mirror_preserves_upgrade(self, watcher_run):
         """Dolly's Mirror: Duplicated card preserves upgrade status."""
         watcher_run.add_card("Strike_P", upgraded=True)
+        upgraded_index = len(watcher_run.deck) - 1
 
-        watcher_run.add_relic("Dolly's Mirror")
-
-        # Simulate choosing upgraded Strike_P to duplicate
-        watcher_run.add_card("Strike_P", upgraded=True)
+        watcher_run.add_relic("Dolly's Mirror", selection_card_indices=[upgraded_index])
 
         # Should have 2 upgraded Strike_P
         assert watcher_run.count_card("Strike_P", upgraded_only=True) == 2

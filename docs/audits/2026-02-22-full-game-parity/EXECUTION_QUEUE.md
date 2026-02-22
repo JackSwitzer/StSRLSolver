@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4622 passed, 5 skipped, 0 failed`
+- Suite baseline: `4633 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -29,7 +29,7 @@ Last updated: 2026-02-22
 
 ### Batch R1-B
 - `REL-005` deterministic selection IDs/validation consistency (completed)
-- `REL-006` relic alias normalization + `Toolbox` coverage
+- `REL-006` relic alias normalization + `Toolbox` coverage (completed)
 - `REL-007` boss/chest/reward ordering edge cases
 
 ### Batch R2

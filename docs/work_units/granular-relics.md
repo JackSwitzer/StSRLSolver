@@ -39,6 +39,8 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] Pandora's Box - transform all Strikes/Defends. (action: none{})
 - [x] Calling Bell - obtain 3 relics + curse. (action: none{})
 - [x] Tiny House - multi-reward bundle. (action: none{})
+- [x] Toolbox - register as SHOP relic and expose Java-consistent ID/effect metadata. (action: none{})
+- [x] Relic alias resolver maps Java/class-name forms to canonical content IDs (`Abacus/Courier/Waffle/Wing Boots/...`). (action: none{})
 
 ## On-obtain card modifiers (Egg relic family)
 - [x] Frozen Egg 2 - cards obtained as Powers are automatically upgraded. (action: none{})
@@ -54,7 +56,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] Verify Egg relics upgrade matching card types even for off-class generated cards (e.g., Toxic Egg + non-Watcher skills). (action: none{})
 
 ## Failed-tests mapping (2026-02-04, Sacred Bark)
-- [ ] Normalize Sacred Bark relic ID (accept `Sacred Bark` and `SacredBark` or unify). (action: none{})
+- [x] Normalize Sacred Bark relic ID (accept `Sacred Bark` and `SacredBark` or unify). (action: none{})
 - [ ] Ensure Sacred Bark doubles potion potency across all potion effects (see `granular-potions.md` list). (action: none{})
 
 ## Skipped-test mapping (pickup / on-acquire)

@@ -22,6 +22,7 @@ from ..generation.rewards import (
     RelicTier,
 )
 from ..content.cards import ALL_CARDS, CardType
+from ..content.relics import resolve_relic_id as resolve_content_relic_id
 from .rng import Random, GameRNG, seed_to_long, long_to_seed
 
 
@@ -494,16 +495,17 @@ class RunState:
 
     # ----- RELIC MANAGEMENT -----
 
-    _RELIC_KEY_ALIASES = {
-        # Java/content variants: "Mark of the Bloom" vs "MarkOfBloom"
-        "markofthebloom": "markofbloom",
-    }
+    @staticmethod
+    def _canonical_relic_id(relic_id: str) -> str:
+        """Resolve relic ID aliases to canonical content IDs."""
+        canonical = resolve_content_relic_id(relic_id)
+        return canonical if canonical is not None else relic_id
 
     @staticmethod
     def _relic_lookup_key(relic_id: str) -> str:
         """Normalize relic IDs for alias-safe comparisons."""
-        key = "".join(ch.lower() for ch in relic_id if ch.isalnum())
-        return RunState._RELIC_KEY_ALIASES.get(key, key)
+        canonical = RunState._canonical_relic_id(relic_id)
+        return "".join(ch.lower() for ch in canonical if ch.isalnum())
 
     def add_relic(
         self,
@@ -526,6 +528,8 @@ class RunState:
         Returns:
             The created RelicInstance
         """
+        relic_id = self._canonical_relic_id(relic_id)
+
         # Java behavior: duplicate relics become Circlet.
         if relic_id != "Circlet" and self.has_relic(relic_id):
             relic_id = "Circlet"
@@ -564,31 +568,31 @@ class RunState:
         used_potion = None
 
         # Max HP changes
-        if relic_id == "MarkOfPain":
+        if relic_id == "Mark of Pain":
             self.gain_max_hp(12)  # A15+: also gain 2 HP per combat
-        elif relic_id == "BustedCrown":
+        elif relic_id == "Busted Crown":
             self.gain_max_hp(8)
-        elif relic_id == "PhilosopherStone":
+        elif relic_id == "Philosopher's Stone":
             self.gain_max_hp(10)
         elif relic_id == "Sozu":
             self.gain_max_hp(10)
-        elif relic_id == "SneckoEye":
+        elif relic_id == "Snecko Eye":
             self.gain_max_hp(8)
-        elif relic_id == "VelvetChoker":
+        elif relic_id == "Velvet Choker":
             self.gain_max_hp(8)
         elif relic_id == "Runic Dome":
             self.gain_max_hp(8)
-        elif relic_id in ("CursedKey", "Cursed Key"):
+        elif relic_id == "Cursed Key":
             self.gain_max_hp(10)
-        elif relic_id == "FusionHammer":
+        elif relic_id == "Fusion Hammer":
             self.gain_max_hp(12)
         elif relic_id == "Coffee Dripper":
             self.gain_max_hp(12)
-        elif relic_id in ("BlackStar", "Black Star"):
+        elif relic_id == "Black Star":
             self.gain_max_hp(8)
         elif relic_id == "SacredBark":
             self.gain_max_hp(12)
-        elif relic_id == "DuVuDoll":
+        elif relic_id == "Du-Vu Doll":
             self.gain_max_hp(8)
         elif relic_id == "Strawberry":
             self.gain_max_hp(7)

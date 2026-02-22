@@ -7,7 +7,7 @@ This file records what is implemented in this repo and where parity-critical beh
 | domain | implementing files | status | concrete evidence |
 |---|---|---|---|
 | potions | `packages/engine/registry/potions.py`, `packages/engine/game.py` | strong | discovery/liquid/stance/smoke paths covered; baseline tests green |
-| relics | `packages/engine/state/run.py`, `packages/engine/registry/relics.py`, `packages/engine/game.py` | partial | Orrery + bottled + Dolly selection-surface fixed; alias/ID cleanup remains |
+| relics | `packages/engine/state/run.py`, `packages/engine/registry/relics.py`, `packages/engine/game.py`, `packages/engine/content/relics.py` | partial | Orrery + bottled + Dolly selection-surface fixed; REL-006 alias/Toolbox closure landed; remaining open relic work is REL-007 ordering edges |
 | events | `packages/engine/handlers/event_handler.py`, `packages/engine/game.py` | partial | definitions/handlers/generators are complete (51/51/51), but action-surface card selection is incomplete at runner boundary |
 | powers | `packages/engine/content/powers.py`, `packages/engine/registry/powers.py`, `packages/engine/handlers/combat.py` | partial | hook fixes landed, but inventory coverage remains incomplete |
 | rewards/shops/rest/map | `packages/engine/handlers/reward_handler.py`, `shop_handler.py`, `rooms.py`, `game.py` | partial | selection interception now covers Orrery + bottled + Dolly; event-path normalization remains |

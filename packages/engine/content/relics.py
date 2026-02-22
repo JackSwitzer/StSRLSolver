@@ -1037,6 +1037,11 @@ ORRERY = Relic(
     effects=["onEquip: Choose and add 5 cards to deck"],
 )
 
+TOOLBOX = Relic(
+    id="Toolbox", name="Toolbox", tier=RelicTier.SHOP,
+    effects=["atBattleStartPreDraw: Choose 1 of 3 random Colorless cards to add to hand"],
+)
+
 PRISMATIC_SHARD = Relic(
     id="PrismaticShard", name="Prismatic Shard", tier=RelicTier.SHOP,
     effects=["Card rewards can contain cards from any class"],
@@ -1334,6 +1339,7 @@ ALL_RELICS: Dict[str, Relic] = {
     "Membership Card": MEMBERSHIP_CARD,
     "OrangePellets": ORANGE_PELLETS,
     "Orrery": ORRERY,
+    "Toolbox": TOOLBOX,
     "PrismaticShard": PRISMATIC_SHARD,
     "Sling": SLING,
     "Strange Spoon": STRANGE_SPOON,
@@ -1362,6 +1368,48 @@ ALL_RELICS: Dict[str, Relic] = {
     "WarpedTongs": WARPED_TONGS,
 }
 
+# Canonical ID aliases used by Java class names and legacy snapshots.
+_RELIC_ID_ALIAS_MAP: Dict[str, str] = {
+    "abacus": "TheAbacus",
+    "courier": "The Courier",
+    "philosopherstone": "Philosopher's Stone",
+    "sneckoskull": "Snake Skull",
+    "snakering": "Ring of the Snake",
+    "waffle": "Lee's Waffle",
+    "whitebeast": "White Beast Statue",
+}
+
+
+def _normalize_relic_key(relic_id: str) -> str:
+    """Normalize relic IDs for alias-safe lookups."""
+    return "".join(ch.lower() for ch in relic_id if ch.isalnum())
+
+
+def _build_relic_lookup_index() -> Dict[str, str]:
+    """Build normalized lookup index to canonical ALL_RELICS keys."""
+    lookup: Dict[str, str] = {}
+    for canonical_id, relic in ALL_RELICS.items():
+        for candidate in (canonical_id, relic.id, relic.name):
+            key = _normalize_relic_key(candidate)
+            if key and key not in lookup:
+                lookup[key] = canonical_id
+
+    for alias_key, canonical_id in _RELIC_ID_ALIAS_MAP.items():
+        if canonical_id in ALL_RELICS:
+            lookup[alias_key] = canonical_id
+    return lookup
+
+
+_RELIC_LOOKUP_INDEX = _build_relic_lookup_index()
+
+
+def resolve_relic_id(relic_id: str) -> Optional[str]:
+    """Resolve a relic ID/alias to a canonical ALL_RELICS key."""
+    if relic_id in ALL_RELICS:
+        return relic_id
+    return _RELIC_LOOKUP_INDEX.get(_normalize_relic_key(relic_id))
+
+
 # Relics grouped by tier
 STARTER_RELICS: List[str] = [k for k, v in ALL_RELICS.items() if v.tier == RelicTier.STARTER]
 COMMON_RELICS: List[str] = [k for k, v in ALL_RELICS.items() if v.tier == RelicTier.COMMON]
@@ -1374,9 +1422,10 @@ SPECIAL_RELICS: List[str] = [k for k, v in ALL_RELICS.items() if v.tier == Relic
 
 def get_relic(relic_id: str) -> Relic:
     """Get a copy of a relic by ID."""
-    if relic_id not in ALL_RELICS:
+    canonical_id = resolve_relic_id(relic_id)
+    if canonical_id is None:
         raise ValueError(f"Unknown relic: {relic_id}")
-    return ALL_RELICS[relic_id].copy()
+    return ALL_RELICS[canonical_id].copy()
 
 
 def get_relics_by_tier(tier: RelicTier) -> List[Relic]:
