@@ -36,7 +36,11 @@ Relic parity coverage is now anchored to real engine behavior for pickup/rest/ch
   - `pick_boss_relic` with `Astrolabe` now returns `requires_selection` + `select_cards` candidates.
   - Selected indices are applied through `RunState.add_relic(..., selection_card_indices=...)`.
   - Added tests in `tests/test_agent_api.py` for Astrolabe selection-required and roundtrip application.
+- Added explicit Empty Cage boss-relic selection flow in action API:
+  - `pick_boss_relic` with `Empty Cage` now returns `requires_selection` + `select_cards` candidates.
+  - Empty Cage removes selected cards through `RunState.add_relic(..., selection_card_indices=...)`.
+  - Added tests in `tests/test_agent_api.py` for Empty Cage selection-required and roundtrip removal.
 
 ## Remaining implementation tasks
-- Implement explicit agent-facing card-selection flows for remaining on-acquire relic choices (Empty Cage/Orrery/bottled assignment), replacing deterministic auto-picks.
+- Implement explicit agent-facing card-selection flows for remaining on-acquire relic choices (Orrery/bottled assignment), replacing deterministic auto-picks.
 - Re-audit Java parity details for on-acquire selection ordering once action-surface card selection is complete.

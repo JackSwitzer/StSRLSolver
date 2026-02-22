@@ -601,16 +601,20 @@ class GameRunner:
             return None
 
         relic = boss_relics.relics[relic_index]
-        if relic.id != "Astrolabe":
+        if relic.id == "Astrolabe":
+            unpurgeable = {"AscendersBane", "CurseOfTheBell", "Necronomicurse"}
+            candidate_indices = [
+                idx
+                for idx, card in self.run_state.get_removable_cards()
+                if card.id not in unpurgeable
+            ]
+            required = min(3, len(candidate_indices))
+        elif relic.id == "Empty Cage":
+            candidate_indices = [idx for idx, _ in self.run_state.get_removable_cards()]
+            required = min(2, len(candidate_indices))
+        else:
             return None
 
-        unpurgeable = {"AscendersBane", "CurseOfTheBell", "Necronomicurse"}
-        transformable_indices = [
-            idx
-            for idx, card in self.run_state.get_removable_cards()
-            if card.id not in unpurgeable
-        ]
-        required = min(3, len(transformable_indices))
         if required <= 0:
             return None
 
@@ -620,7 +624,7 @@ class GameRunner:
             pile="deck",
             min_cards=required,
             max_cards=required,
-            candidate_indices=transformable_indices,
+            candidate_indices=candidate_indices,
             metadata={"relic_id": relic.id, "relic_index": relic_index},
             parent_action_id=parent_action_id,
         )
@@ -1098,7 +1102,7 @@ class GameRunner:
                     params = action.get("params", {}) or {}
                     relic_index = int(params.get("relic_index", -1))
                     if 0 <= relic_index < len(boss_relics.relics):
-                        if boss_relics.relics[relic_index].id == "Astrolabe":
+                        if boss_relics.relics[relic_index].id in {"Astrolabe", "Empty Cage"}:
                             action["requires"] = ["card_indices"]
             if unresolved:
                 skip_action = {
@@ -1169,7 +1173,7 @@ class GameRunner:
                     "candidate_actions": self._selection_context_actions(),
                 }
 
-        # Intercept Astrolabe boss relic pick so transforms are explicit model choices.
+        # Intercept boss relic picks requiring explicit card selection.
         if self.phase == GamePhase.BOSS_REWARDS and action_dict.get("type") == "pick_boss_relic":
             params = action_dict.get("params", {}) or {}
             if "relic_index" not in params:
@@ -2584,7 +2588,8 @@ class GameRunner:
                 # Add the relic
                 selection_indices = (
                     list(self._pending_relic_selection_indices)
-                    if relic.id == "Astrolabe" and self._pending_relic_selection_indices is not None
+                    if relic.id in {"Astrolabe", "Empty Cage"}
+                    and self._pending_relic_selection_indices is not None
                     else None
                 )
                 self.run_state.add_relic(

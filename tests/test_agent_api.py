@@ -512,6 +512,59 @@ class TestActionExecution:
         assert runner.run_state.has_relic("Astrolabe")
         assert len(runner.run_state.deck) == before_deck_size
 
+    def test_boss_empty_cage_requires_card_selection(self, runner):
+        """Picking Empty Cage should require explicit select_cards action."""
+        runner.phase = GamePhase.BOSS_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="boss",
+            boss_relics=BossRelicChoices(
+                relics=[
+                    get_relic("Empty Cage"),
+                    get_relic("Tiny House"),
+                    get_relic("Sozu"),
+                ]
+            ),
+        )
+
+        result = runner.take_action_dict({
+            "type": "pick_boss_relic",
+            "params": {"relic_index": 0},
+        })
+
+        assert result.get("success") is False
+        assert result.get("requires_selection") is True
+        candidates = result.get("candidate_actions", [])
+        assert candidates
+        assert all(a.get("type") == "select_cards" for a in candidates)
+        assert all(len(a.get("params", {}).get("card_indices", [])) == 2 for a in candidates)
+
+    def test_boss_empty_cage_selection_roundtrip(self, runner):
+        """Empty Cage pick should remove two selected cards after select_cards."""
+        runner.phase = GamePhase.BOSS_REWARDS
+        runner.current_rewards = CombatRewards(
+            room_type="boss",
+            boss_relics=BossRelicChoices(
+                relics=[
+                    get_relic("Empty Cage"),
+                    get_relic("Tiny House"),
+                    get_relic("Sozu"),
+                ]
+            ),
+        )
+        before_deck_size = len(runner.run_state.deck)
+
+        first = runner.take_action_dict({
+            "type": "pick_boss_relic",
+            "params": {"relic_index": 0},
+        })
+        candidates = first.get("candidate_actions", [])
+        assert candidates
+
+        second = runner.take_action_dict(candidates[0])
+        assert second.get("success") is True
+        assert runner.run_state.has_relic("Empty Cage")
+        assert len(runner.run_state.deck) == before_deck_size - 2
+
 
 # =============================================================================
 # Observation Schema Tests

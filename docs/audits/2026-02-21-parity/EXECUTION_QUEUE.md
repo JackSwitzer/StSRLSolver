@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Baseline
-- Full suite: `4608 passed, 5 skipped, 0 failed`
+- Full suite: `4610 passed, 5 skipped, 0 failed`
 - Core branch: `consolidation/clean-base-2026-02-03`
 - Active work branch: `codex/parity-core-loop`
 - Policy: `1 PR region = 1 domain`, `1 feature = 1 code commit`
@@ -38,7 +38,7 @@ Owner scope: run/reward/room handlers, `packages/engine/state/run.py`, `packages
 
 Feature commits:
 - `REL-001` Agent-facing selection actions for Astrolabe transforms. (`done` in commit `77f72b4`)
-- `REL-002` Agent-facing selection actions for Empty Cage removals.
+- `REL-002` Agent-facing selection actions for Empty Cage removals. (`done` in commit `3175880`)
 - `REL-003` Agent-facing selection actions for Orrery picks.
 - `REL-004` Agent-facing selection actions for bottled relic assignment.
 - `REL-005` Deterministic action IDs + validation in relic-selection contexts.
