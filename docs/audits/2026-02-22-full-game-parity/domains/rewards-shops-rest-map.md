@@ -1,14 +1,20 @@
 # Rewards / Shops / Rest / Map Domain Audit
 
 ## Status
-- Engine coverage exists, but action path normalization and parity hardening remain.
+- Core systems are implemented and broadly tested.
+- Remaining work is normalization of action execution paths so selection-required relic effects are surfaced uniformly.
 
-## Confirmed gaps
-- [ ] Route reward emission/execution through a single canonical handler path.
-- [ ] Ensure proceed gating semantics are exact and test-locked.
-- [ ] Verify modifier relic interactions in reward/shop/rest/map phases.
-- [ ] Ensure map/room transition invariants remain deterministic.
+## Confirmed open gaps
+- [ ] `RWD-001` reward action emission should be the canonical source of reward-phase action dicts.
+- [ ] `RWD-002` reward/shop execution should route through one selection-aware path.
+- [ ] `RWD-003` proceed gating must remain exact for all mandatory/optional reward combinations.
+- [ ] `RWD-004` cross-relic modifier parity needs stronger interaction locks.
 
-## Feature IDs
-- `RWD-001`, `RWD-002`, `RWD-003`, `RWD-004`
-- `RSM-*` follow-up as needed
+## Python touchpoints
+- `packages/engine/handlers/reward_handler.py`
+- `packages/engine/handlers/shop_handler.py`
+- `packages/engine/handlers/rooms.py`
+- `packages/engine/game.py` (`_handle_reward_action`, `_handle_shop_action`)
+
+## Notes
+- Current behavior works for many flows, but relic acquisition in reward/shop can bypass pending-selection interception for choice-based relic effects.

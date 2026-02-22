@@ -1,176 +1,93 @@
-# Full-Game Java Parity + Repo Cleanup TODO
+# Full-Game Java Parity + RL Readiness TODO
 
-Last updated: 2026-02-22  
+Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
-## Current baseline
-- [x] Confirm branch state is clean on `codex/parity-core-loop`.
-- [x] Confirm baseline test run is green (`4610 passed, 5 skipped`).
-- [ ] Move standard CI to `0 skipped, 0 failed` (artifact-only replay tests excluded from normal CI).
+## Current baseline (verified)
+- [x] Full test suite green: `4610 passed, 5 skipped, 0 failed`.
+- [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
+- [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
+- [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
 
-## Locked defaults
-- [x] Scope = full game now (cards, relics, potions, events, powers, rewards, shops, rest, map, orbs).
-- [x] Cleanup mode = safe archive (non-destructive while campaign is active).
-- [x] Execution order per feature = `docs -> tests -> code -> commit -> todo update`.
-- [x] First implementation region after docs/test scaffolding = relic selection surface.
+## Locked execution policy
+- [x] Scope is full game now (all systems, no character staging).
+- [x] Feature loop is always `docs -> tests -> code -> commit -> todo update`.
+- [x] One feature ID per commit, one region per PR.
+- [x] Java behavior wins when Python behavior conflicts.
 
-## Acceptance gates
-- [ ] Every Java parity gap has a traceability row (`java -> python -> tests -> feature id`).
-- [ ] Every choice interaction is explicit in action dicts (no hidden UI assumptions).
-- [ ] Full suite in normal CI is `0 skipped, 0 failed`.
-- [ ] RL readiness checklist is complete and signed.
+## Completed foundation work
+- [x] `DOC-001` canonical audit suite + legacy pointer wiring.
+- [x] `DOC-002` parity-core-loop skill pack for repeatable swarm/integrator loop.
+- [x] `DOC-003` evidence refresh: baseline, inventory snapshots, prioritized gap queue.
 
-## Repo cleanup (safe archive)
-- [ ] Add canonical workspace note in new audit README.
-- [ ] Create new dated audit suite under `docs/audits/2026-02-22-full-game-parity/`.
-- [ ] Mark `docs/audits/2026-02-21-parity/` as legacy reference and point to new suite.
-- [ ] Consolidate open items into one authoritative gap manifest.
-- [ ] Replace stale/approximation test notes with linked gap IDs.
+## Evidence-based remaining gaps
 
-## Comprehensive audit docs to create/update
-- [ ] `docs/audits/2026-02-22-full-game-parity/README.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/CORE_TODO.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/EXECUTION_QUEUE.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/testing/test-baseline.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/rl/rl-readiness.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/traceability/java-inventory.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/traceability/python-coverage.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/traceability/gap-manifest.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/potions.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/relics.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/events.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/powers.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/cards.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/rewards-shops-rest-map.md`
-- [ ] `docs/audits/2026-02-22-full-game-parity/domains/orbs.md`
+### P0: Action-surface completeness (agent traversal)
+- [ ] `REL-003` Orrery purchase/reward flow must expose explicit `select_cards` follow-up actions.
+- [ ] `REL-004` Bottled relic acquisition must expose explicit selection actions (no auto-first fallback).
+- [ ] `REL-008` Dolly's Mirror acquisition must expose explicit selection action.
+- [ ] `EVT-001` Event choices that require card pick/remove/transform/upgrade need explicit follow-up actions.
+- [ ] `EVT-002` `event_choice` execution must pass selected card index (currently forced `card_idx=None`).
+- [ ] `RWD-001/RWD-002` reward/shop relic acquisition paths should route through one selection-aware execution surface.
 
-## Traceability schema (required per gap row)
-- [ ] `gap_id`
-- [ ] `domain`
-- [ ] `java_class`
-- [ ] `java_method_or_path`
-- [ ] `python_file`
-- [ ] `python_symbol`
-- [ ] `status` (`exact|approximate|missing|action-surface-missing`)
-- [ ] `rng_streams` (`card_rng|card_random_rng|relic_rng|misc_rng|potion_rng|event_rng`)
-- [ ] `decision_surface` (`explicit_action|implicit_ui|n/a`)
-- [ ] `existing_tests`
-- [ ] `required_tests`
-- [ ] `priority`
-- [ ] `feature_id`
-- [ ] `planned_pr_region`
-- [ ] `notes`
+### P1: Java inventory parity and correctness
+- [ ] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` confirmed gap).
+- [ ] `POW-001` Java power inventory closure (149 Java classes vs 94 Python entries; 69 normalized missing candidates).
+- [ ] `ORB-001` remove placeholder orb-linked relic behavior in `packages/engine/registry/relics.py`.
+- [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
 
-## Test program (docs-derived)
-- [ ] Add `tests/parity_campaign/test_traceability_matrix.py`
-- [ ] Add `tests/parity_campaign/test_action_surface_completeness.py`
-- [ ] Add `tests/parity_campaign/test_rng_stream_contracts.py`
-- [ ] Add `tests/parity_campaign/test_relic_selection_flows.py`
-- [ ] Add `tests/parity_campaign/test_event_selection_flows.py`
-- [ ] Add `tests/parity_campaign/test_reward_flow_parity.py`
-- [ ] Add `tests/parity_campaign/test_cross_system_interactions.py`
-- [ ] Add `tests/parity_campaign/test_zero_skip_policy.py`
+### P2: CI/readiness cleanup
+- [ ] Split artifact replay checks from default CI (`tests/test_parity.py` skips).
+- [ ] Add parity-campaign matrix tests for action-surface + traceability closure.
+- [ ] Freeze action/observation contract for RL training.
 
-### Required scenario classes
-- [ ] Selection roundtrip (`missing params -> candidate actions -> resolved selection`) for potion/relic/event.
-- [ ] Escape/reward suppression invariants.
-- [ ] Chest/rest/relic ordering and counter transitions.
-- [ ] Event multi-phase deterministic transitions.
-- [ ] Reward phase correctness (emerald key, boss relic pick/skip, proceed gating).
-- [ ] Power hook order/timing edge cases.
-- [ ] Cross-system interactions where relics/powers modify events/potions/rewards.
+## Region plan (PR boundaries)
 
-## API/action-surface work
-- [ ] Extend `event_choice` to support explicit selection follow-up.
-- [ ] Reuse pending-selection model across potion/relic/event flows.
-- [ ] Ensure deterministic action IDs for equivalent snapshots.
-- [ ] Keep backward compatibility for existing action dict types.
+### R1: Relic selection surface
+- [ ] `REL-003` Orrery explicit selection.
+- [ ] `REL-004` Bottled relic explicit assignment.
+- [ ] `REL-008` Dolly's Mirror explicit selection.
+- [ ] `REL-005` deterministic selection IDs + validation hardening.
+- [ ] `REL-006` relic alias normalization + `Toolbox` inventory closure.
+- [ ] `REL-007` boss/chest/reward ordering edge regressions.
 
-## Region roadmap
+### R2: Event selection surface
+- [ ] `EVT-001` emit pending-selection actions for event card-required choices.
+- [ ] `EVT-002` wire selected card index through `take_action_dict -> EventHandler.execute_choice`.
+- [ ] `EVT-003` deterministic multi-phase event transition coverage.
+- [ ] `EVT-004` alias/inventory normalization and audit lock.
 
-### R0: docs + test scaffolding
-- [ ] `DOC-001` Build new dated audit suite and canonical trackers.
-- [ ] `DOC-002` Populate Java/Python inventory and gap manifest.
-- [ ] `TST-001` Add traceability matrix tests.
-- [ ] `TST-002` Add action-surface completeness tests.
+### R3: Reward/shop/rest/map normalization
+- [ ] `RWD-001` canonical reward action emission path.
+- [ ] `RWD-002` canonical reward action execution path.
+- [ ] `RWD-003` proceed gating parity.
+- [ ] `RWD-004` reward modifier interaction parity.
 
-### R1: relic selection surface (first code region)
-- [ ] `REL-003` Orrery explicit selection actions.
-- [ ] `REL-004` Bottled relic assignment actions.
-- [ ] `REL-008` Dolly's Mirror explicit selection action path.
-- [ ] `REL-005` Deterministic selection IDs + validation.
-- [ ] `REL-006` Relic alias normalization + missing Java IDs (including `Toolbox`) across runtime and generation paths.
-- [ ] `REL-007` Remaining boss/chest/reward ordering regressions.
+### R4: Powers + orbs closure
+- [ ] `POW-001` power inventory closure with Java references.
+- [ ] `POW-002` remaining hook/timing parity fixes.
+- [ ] `ORB-001` orb infrastructure required for relic/power parity.
+- [ ] `POW-003` power/orb/relic integration tests.
 
-### R2: event selection surface
-- [ ] `EVT-001` Event card-selection follow-up actions.
-- [ ] `EVT-002` Wire event selection params through `GameRunner -> EventHandler`.
-- [ ] `EVT-003` Deterministic multi-phase event transitions with explicit action availability.
-- [ ] `EVT-004` Event alias normalization and inventory coverage.
+### R5: Cards long-tail
+- [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-DE-*`, `CRD-WA-*` closure.
 
-### R3: reward flow normalization
-- [ ] `RWD-001` Route reward action emission through `RewardHandler` as primary path.
-- [ ] `RWD-002` Route reward action execution through `RewardHandler` as primary path.
-- [ ] `RWD-003` Enforce proceed gating correctness (mandatory vs optional rewards).
-- [ ] `RWD-004` Cross-relic reward modifiers parity (Question Card, Prayer Wheel, Busted Crown, Sozu, White Beast Statue).
-
-### R4: powers + orbs closure
-- [ ] `POW-001` Map remaining Java power classes to Python gaps with concrete feature IDs.
-- [ ] `POW-002` Close remaining hook/timing parity mismatches.
-- [ ] `ORB-001` Implement required orb infrastructure for parity-critical relic/power behavior.
-- [ ] `POW-003` Add power-orb-relic integration parity tests.
-
-### R5: card long-tail closure
-- [ ] `CRD-IC-*` Ironclad checklist closure.
-- [ ] `CRD-SI-*` Silent checklist closure.
-- [ ] `CRD-DE-*` Defect checklist closure.
-- [ ] `CRD-WA-*` Watcher checklist closure.
-
-### R6: final audit + RL gate
-- [ ] `AUD-001` Re-run and clean Java-vs-Python diff manifests.
-- [ ] `AUD-002` Verify zero-skip normal CI baseline.
+### R6: Final audit + RL gate
+- [ ] `AUD-001` clean Java-vs-Python diff manifests.
+- [ ] `AUD-002` normal CI to `0 skipped, 0 failed`.
 - [ ] `AUD-003` RL readiness sign-off.
 
-## Current known high-impact mismatches to close
-- [ ] Event action path still forces `card_idx=None` on handler execution.
-- [ ] Relic runtime still auto-picks for Orrery/bottled/Dolly paths.
-- [ ] `Toolbox` present in generation inventory but missing from content registry.
-- [ ] Power inventory has major class-level gaps beyond already-fixed targeted items.
-- [ ] Placeholder orb-linked relic logic remains in registry.
-
-## Subagent/skills orchestration (repo tracked)
-- [ ] Create skill root: `docs/skills/parity-core-loop/`.
-- [ ] Create `docs/skills/parity-core-loop/SKILL.md`.
-- [ ] Add references:
-- [ ] `docs/skills/parity-core-loop/references/core-loop.md`
-- [ ] `docs/skills/parity-core-loop/references/doc-schema.md`
-- [ ] `docs/skills/parity-core-loop/references/test-template.md`
-- [ ] `docs/skills/parity-core-loop/references/pr-template.md`
-
-### Subagent contract
-- [ ] Each subagent takes one `gap_id`/feature ID only.
-- [ ] Each subagent updates docs first, then tests, then code.
-- [ ] Each subagent returns Java refs + RNG notes + test delta + skip delta.
-- [ ] Integrator runs full suite before merge and updates core trackers.
-
-## Commit and PR policy
-- [ ] One feature ID per commit.
-- [ ] One domain region per PR.
-- [ ] Include in every PR: Java references, RNG stream notes, tests changed, skip delta, docs delta.
-- [ ] Keep change size small (`~<=10 files`, `~<=400 LOC net`) where feasible.
-
-## Steps until RL training
-- [ ] Close all parity-critical decision/action-surface gaps.
-- [ ] Close all parity-critical behavior gaps with deterministic tests.
-- [ ] Achieve stable zero-skip normal CI baseline.
-- [ ] Freeze action/observation contracts.
-- [ ] Mark RL readiness complete in `docs/audits/2026-02-22-full-game-parity/rl/rl-readiness.md`.
+## Immediate next commit queue
+1. `REL-003` docs rows + action-surface tests for Orrery -> implement selection plumbing.
+2. `REL-004` docs rows + bottled selection tests -> implement selection plumbing.
+3. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
+4. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
 
 ## Working loop (must follow)
-1. Pick next `gap_id` from manifest.
-2. Update domain docs and expected behavior with Java references.
-3. Add/adjust tests first (red/insufficient before code).
-4. Implement minimal parity-correct code change.
+1. Pick next `feature_id` from queue.
+2. Update audit docs (`domain + manifest + baseline links`).
+3. Add/adjust tests first.
+4. Implement smallest parity-correct code change.
 5. Run targeted tests, then full suite.
-6. Commit with one feature ID.
-7. Update TODO + baseline docs + execution queue.
+6. Commit one feature ID.
+7. Update TODO + audit trackers.

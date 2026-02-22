@@ -5,70 +5,52 @@ Last updated: 2026-02-22
 ## Baseline
 - Branch: `codex/parity-core-loop`
 - Suite baseline: `4610 passed, 5 skipped, 0 failed`
-- Policy: feature-sized commits, domain-sized PRs
+- Policy: feature-sized commits, region-sized PRs
 
-## Core loop (mandatory)
-1. docs: update domain + traceability rows + expected Java behavior
+## Mandatory core loop
+1. docs: update domain + manifest + Java refs
 2. tests: add/adjust assertions first
 3. code: minimal parity-correct implementation
 4. commit: one feature ID only
-5. todo update: core todo + test baseline + domain status
+5. tracker update: `TODO.md` + `testing/test-baseline.md` + domain status
 
-## Swarm lane model
-- Lane A (audit/intel, extra-high): cross-domain inventory, Java refs, gap manifest review.
-- Lane B (targeted edits, medium): localized code fixes for one feature ID.
-- Lane C (tests, medium): focused tests per feature and regression tightening.
-- Lane D (integrator, extra-high): merge gating, full-suite validation, tracker synchronization.
+## Lane model (integrator enforced)
+- Lane A: audit/intel (inventory diffs, Java refs, queue quality)
+- Lane B: targeted code edit for one feature ID
+- Lane C: targeted tests + regression lock
+- Lane D: integrator (full-suite gate + tracker sync)
 
-Note: model names are execution policy only; integrator enforces output quality and determinism regardless of lane model.
+## Immediate execution batches
 
-## Region queue
+### Batch R1-A (active)
+- `REL-003` Orrery explicit selection surface
+- `REL-004` Bottled relic assignment selection surface
+- `REL-008` Dolly's Mirror explicit selection surface
 
-### R0 docs + tests scaffolding
-- `DOC-001` canonical suite + legacy archive pointer
-- `DOC-002` Java/Python inventory + gap manifest
-- `TST-001` traceability matrix tests
-- `TST-002` action-surface completeness tests
+### Batch R1-B
+- `REL-005` deterministic selection IDs/validation consistency
+- `REL-006` relic alias normalization + `Toolbox` coverage
+- `REL-007` boss/chest/reward ordering edge cases
 
-### R1 relic selection surface
-- `REL-003` Orrery explicit selection
-- `REL-004` bottled relic assignment explicit selection
-- `REL-008` Dolly's Mirror explicit selection
-- `REL-005` deterministic selection IDs/validation
-- `REL-006` alias normalization + missing Java IDs
-- `REL-007` boss/chest/reward ordering regressions
-
-### R2 event selection surface
+### Batch R2
 - `EVT-001` event selection follow-up actions
-- `EVT-002` wire event selection params through `GameRunner -> EventHandler`
+- `EVT-002` wire selected card index to handler execution
 - `EVT-003` deterministic multi-phase transitions
-- `EVT-004` event alias normalization/inventory tests
+- `EVT-004` event alias/inventory parity
 
-### R3 reward flow normalization
-- `RWD-001` reward action emission through `RewardHandler`
-- `RWD-002` reward action execution through `RewardHandler`
+### Batch R3
+- `RWD-001` canonical reward action emission path
+- `RWD-002` canonical reward action execution path
 - `RWD-003` proceed gating parity
-- `RWD-004` reward modifier interaction parity
+- `RWD-004` reward modifiers parity
 
-### R4 powers + orbs closure
-- `POW-001` full Java class mapping and gap tagging
-- `POW-002` hook/timing closure
-- `ORB-001` parity-critical orb infrastructure
-- `POW-003` power-orb-relic integration tests
-
-### R5 cards long-tail
-- `CRD-IC-*` ironclad closure
-- `CRD-SI-*` silent closure
-- `CRD-DE-*` defect closure
-- `CRD-WA-*` watcher closure
-
-### R6 final audit + RL gate
-- `AUD-001` final diff pass
-- `AUD-002` zero-skip normal CI confirmation
-- `AUD-003` RL readiness sign-off
+### Batch R4+
+- `POW-001`, `POW-002`, `ORB-001`, `POW-003`
+- `CRD-*`
+- `AUD-*`
 
 ## Merge gates per feature
 - targeted tests green
-- full suite green before merge
-- docs updated with Java reference + RNG notes
+- full suite green (`uv run pytest tests/ -q`)
+- docs updated with Java refs + RNG notes
 - skip delta recorded
