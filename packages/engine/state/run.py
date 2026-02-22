@@ -514,6 +514,7 @@ class RunState:
         card_rng: Optional[Random] = None,
         relic_rng: Optional[Random] = None,
         potion_rng: Optional[Random] = None,
+        selection_card_indices: Optional[List[int]] = None,
     ) -> RelicInstance:
         """
         Add a relic.
@@ -540,6 +541,7 @@ class RunState:
             card_rng=card_rng,
             relic_rng=relic_rng,
             potion_rng=potion_rng,
+            selection_card_indices=selection_card_indices,
         )
 
         return relic
@@ -552,6 +554,7 @@ class RunState:
         card_rng: Optional[Random] = None,
         relic_rng: Optional[Random] = None,
         potion_rng: Optional[Random] = None,
+        selection_card_indices: Optional[List[int]] = None,
     ):
         """Handle effects that trigger when obtaining a relic."""
         relic_id = relic.id
@@ -645,7 +648,21 @@ class RunState:
             ]
             if transformable:
                 used_misc = self._get_rng("misc", misc_rng)
-                indices = [idx for idx, _ in transformable[:3]]
+                transformable_indices = [idx for idx, _ in transformable]
+                max_count = min(3, len(transformable_indices))
+
+                if selection_card_indices is not None:
+                    selected: List[int] = []
+                    allowed = set(transformable_indices)
+                    for idx in selection_card_indices:
+                        if idx in allowed and idx not in selected:
+                            selected.append(idx)
+                        if len(selected) == max_count:
+                            break
+                    indices = selected if len(selected) == max_count else transformable_indices[:max_count]
+                else:
+                    indices = transformable_indices[:max_count]
+
                 # Remove highest indices first to avoid shifting
                 for idx in sorted(indices, reverse=True):
                     self.remove_card(idx)
