@@ -9,29 +9,15 @@ This file tracks what Java contains and where parity closure still requires expl
 
 | domain | java source scope | java count | python count | delta notes |
 |---|---|---:|---:|---|
-| relics | `relics/*.java` (excluding `AbstractRelic`, `Test*`) | 181 | 180 (`content/relics.py`) | normalized gap candidates remain |
+| relics | `relics/*.java` (excluding `AbstractRelic`, `Test*`) | 181 | 181 (`content/relics.py`) | inventory count parity reached; alias forms resolved via canonical lookup |
 | events | `events/**/*.java` (excluding framework classes) | 51 | 51 (event definitions in handler) | counts match; alias map still needed |
 | powers | `powers/*.java` + `powers/watcher/*.java` (excluding `AbstractPower`) | 149 | 94 (`content/powers.py::POWER_DATA`) | large inventory gap remains |
 | potions | `potions/*.java` | unavailable in local decompile snapshot | 42 (`content/potions.py`) | must use other Java refs until local class set is restored |
 
-## Confirmed relic inventory gap candidates (normalized)
-- `Abacus`
-- `ChampionsBelt`
-- `Courier`
-- `Duality`
-- `GoldPlatedCables`
-- `NeowsLament`
-- `PhilosopherStone`
-- `SnakeRing`
-- `SneckoSkull`
-- `Toolbox`
-- `Waffle`
-- `WhiteBeast`
-- `WingBoots`
-
-Notes:
-- Several are likely alias/canonical-ID mismatches (`Courier` vs `The Courier`, etc.).
-- `Toolbox` is a confirmed open gap in Python content coverage.
+## Relic inventory parity status
+- `Toolbox` coverage is now closed.
+- Java/class-name alias forms (`Abacus`, `Courier`, `Waffle`, `WhiteBeast`, `WingBoots`, etc.) are resolved by `content/relics.py::resolve_relic_id`.
+- Remaining relic work is behavior-level (`REL-007`/`ORB-001`), not inventory count mismatch.
 
 ## Confirmed event alias mismatches (counts match)
 Java stems not directly equal to Python event IDs include:

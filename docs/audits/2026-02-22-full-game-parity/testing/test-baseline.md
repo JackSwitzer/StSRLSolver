@@ -9,7 +9,7 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4633 passed`
+- `4638 passed`
 - `5 skipped`
 - `0 failed`
 
@@ -20,7 +20,6 @@ Current skip source:
 ## Quality notes (open debt)
 - Some audit tests still document known bugs instead of asserting Java parity behavior after a fix.
 - Known examples:
-  - `tests/test_audit_relics_combat.py` (Meat on the Bone threshold and Preserved Insect TODO documentation)
   - `tests/test_audit_damage.py` (Torii ordering note)
 
 ## Cleanup targets
