@@ -27,7 +27,7 @@ Last updated: 2026-02-22
 - [ ] Replay/seed checks are reproducible in automation profile.
 
 ## Test quality gate
-- [x] Full suite currently green (`4659 passed, 5 skipped, 0 failed`).
+- [x] Full suite currently green (`4663 passed, 5 skipped, 0 failed`).
 - [ ] Default CI has no skips.
 - [ ] Replay artifact checks moved to dedicated parity job/profile.
 - [ ] Contingency skips in core API tests replaced by deterministic fixtures.

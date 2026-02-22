@@ -123,6 +123,18 @@ class TestEffectRegistry:
         execute_effect("gain_energy_3", ctx)
         assert state.energy == 5
 
+    def test_shared_curse_status_handlers_registered(self):
+        for effect_name in [
+            "end_of_turn_take_damage",
+            "end_of_turn_take_2_damage",
+            "end_of_turn_gain_weak_1",
+            "end_of_turn_gain_frail_1",
+            "end_of_turn_lose_hp_equal_to_hand_size",
+            "end_of_turn_add_copy_to_draw",
+            "lose_1_energy_when_drawn",
+        ]:
+            assert get_effect_handler(effect_name) is not None
+
 
 # =============================================================================
 # EffectContext Tests
@@ -1214,6 +1226,47 @@ class TestCombatRunner:
         runner.execute_action(EndTurn())
         # After end turn + enemy turn, should be back to player turn or combat over
         assert runner.phase in (CombatPhase.PLAYER_TURN, CombatPhase.COMBAT_END)
+
+    def test_combat_runner_end_turn_burn_damage_triggers_from_hand(self):
+        runner = self._make_runner()
+        runner._do_enemy_turns = lambda: None
+        runner.state.hand = ["Burn"]
+        runner.state.discard_pile = []
+        start_hp = runner.state.player.hp
+
+        runner._end_player_turn()
+
+        assert runner.state.player.hp == start_hp - 2
+        assert "Burn" in runner.state.discard_pile
+
+    def test_combat_runner_end_turn_decay_doubt_shame_regret_and_pride(self):
+        runner = self._make_runner()
+        runner._do_enemy_turns = lambda: None
+        runner.state.hand = ["Decay", "Doubt", "Shame", "Regret", "Pride"]
+        runner.state.discard_pile = []
+        runner.state.draw_pile = []
+        start_hp = runner.state.player.hp
+
+        runner._end_player_turn()
+
+        # Decay (2) + Regret (5 cards in hand at trigger time) = 7 HP loss.
+        assert runner.state.player.hp == start_hp - 7
+        assert runner.state.player.statuses.get("Weak", 0) >= 1
+        assert runner.state.player.statuses.get("Frail", 0) >= 1
+        # Pride should add one extra copy to draw pile.
+        assert runner.state.draw_pile.count("Pride") == 1
+
+    def test_combat_runner_draw_void_loses_energy(self):
+        runner = self._make_runner()
+        runner.state.energy = 3
+        runner.state.hand = []
+        runner.state.draw_pile = ["Void"]
+        runner.state.discard_pile = []
+
+        drawn = runner._draw_cards(1)
+
+        assert drawn == ["Void"]
+        assert runner.state.energy == 2
 
     def test_combat_runner_run_to_completion(self):
         runner = self._make_runner()

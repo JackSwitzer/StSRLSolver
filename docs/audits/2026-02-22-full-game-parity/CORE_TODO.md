@@ -5,12 +5,12 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4659 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4663 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
-- [x] PR history synced through merged PR [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23).
+- [x] PR history synced through merged PR [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24).
 - [x] Regions `R1` to `R3` closed and merged to `main`.
 - [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
 - [ ] Every parity-critical choice interaction is explicit in action dict flow.
@@ -52,6 +52,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `RWD-004` indexed secondary relic claim/gating parity
 
 ### R4 cards (non-Defect first)
+- [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure (Burn/Decay/Doubt/Shame/Regret/Pride + Void draw lock)
 - [ ] `CRD-IC-*` Ironclad closure
 - [ ] `CRD-SI-*` Silent closure
 - [ ] `CRD-WA-*` Watcher closure

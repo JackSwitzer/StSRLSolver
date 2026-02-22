@@ -16,10 +16,10 @@ Status semantics:
 | `red` | 75 | 75 | 0 | 0 |
 | `green` | 75 | 75 | 0 | 0 |
 | `purple` | 77 | 76 | 1 | 1 |
-| `colorless` | 39 | 39 | 0 | 24 |
-| `curses` | 14 | 14 | 0 | 11 |
-| `status` | 5 | 5 | 0 | 2 |
-| **total** | **285** | **284** | **1** | **38** |
+| `colorless` | 39 | 39 | 0 | 22 |
+| `curses` | 14 | 14 | 0 | 0 |
+| `status` | 5 | 5 | 0 | 0 |
+| **total** | **285** | **284** | **1** | **23** |
 
 ## Manifest Rows
 
@@ -269,7 +269,7 @@ Status semantics:
 
 | java_id | java_class | java_path | status | python_effect_keys | unresolved_effect_keys | test_ref_count | notes |
 |---|---|---|---|---|---|---:|---|
-| `Apotheosis` | `Apotheosis` | `colorless/Apotheosis.java` | `approximate` | upgrade_all_cards_in_combat | upgrade_all_cards_in_combat | 0 | unresolved effect handlers present |
+| `Apotheosis` | `Apotheosis` | `colorless/Apotheosis.java` | `approximate` | upgrade_all_cards_in_combat | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Bandage Up` | `BandageUp` | `colorless/BandageUp.java` | `approximate` | heal_magic_number | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Bite` | `Bite` | `colorless/Bite.java` | `approximate` | heal_magic_number | none | 6 | effect handlers resolved; behavior parity audit still required |
 | `Blind` | `Blind` | `colorless/Blind.java` | `approximate` | apply_weak | none | 0 | effect handlers resolved; behavior parity audit still required |
@@ -282,7 +282,7 @@ Status semantics:
 | `Finesse` | `Finesse` | `colorless/Finesse.java` | `approximate` | draw_1 | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Flash of Steel` | `FlashOfSteel` | `colorless/FlashOfSteel.java` | `approximate` | draw_1 | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Forethought` | `Forethought` | `colorless/Forethought.java` | `approximate` | put_card_on_bottom_of_draw_cost_0 | put_card_on_bottom_of_draw_cost_0 | 0 | unresolved effect handlers present |
-| `Ghostly` | `Apparition` | `colorless/Apparition.java` | `approximate` | gain_intangible_1 | gain_intangible_1 | 2 | unresolved effect handlers present |
+| `Ghostly` | `Apparition` | `colorless/Apparition.java` | `approximate` | gain_intangible_1 | none | 2 | effect handlers resolved; behavior parity audit still required |
 | `Good Instincts` | `GoodInstincts` | `colorless/GoodInstincts.java` | `approximate` | n/a | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `HandOfGreed` | `HandOfGreed` | `colorless/HandOfGreed.java` | `approximate` | if_fatal_gain_gold | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Impatience` | `Impatience` | `colorless/Impatience.java` | `approximate` | draw_if_no_attacks_in_hand | draw_if_no_attacks_in_hand | 0 | unresolved effect handlers present |
@@ -313,28 +313,28 @@ Status semantics:
 
 | java_id | java_class | java_path | status | python_effect_keys | unresolved_effect_keys | test_ref_count | notes |
 |---|---|---|---|---|---|---:|---|
-| `AscendersBane` | `AscendersBane` | `curses/AscendersBane.java` | `approximate` | unplayable, cannot_be_removed | cannot_be_removed | 13 | unresolved effect handlers present |
+| `AscendersBane` | `AscendersBane` | `curses/AscendersBane.java` | `approximate` | unplayable, cannot_be_removed | none | 13 | effect handlers resolved; behavior parity audit still required |
 | `Clumsy` | `Clumsy` | `curses/Clumsy.java` | `approximate` | unplayable | none | 10 | effect handlers resolved; behavior parity audit still required |
-| `CurseOfTheBell` | `CurseOfTheBell` | `curses/CurseOfTheBell.java` | `approximate` | unplayable, cannot_be_removed | cannot_be_removed | 5 | unresolved effect handlers present |
-| `Decay` | `Decay` | `curses/Decay.java` | `approximate` | unplayable, end_of_turn_take_2_damage | end_of_turn_take_2_damage | 27 | unresolved effect handlers present |
-| `Doubt` | `Doubt` | `curses/Doubt.java` | `approximate` | unplayable, end_of_turn_gain_weak_1 | end_of_turn_gain_weak_1 | 33 | unresolved effect handlers present |
+| `CurseOfTheBell` | `CurseOfTheBell` | `curses/CurseOfTheBell.java` | `approximate` | unplayable, cannot_be_removed | none | 5 | effect handlers resolved; behavior parity audit still required |
+| `Decay` | `Decay` | `curses/Decay.java` | `approximate` | unplayable, end_of_turn_take_2_damage | none | 29 | effect handlers resolved; behavior parity audit still required |
+| `Doubt` | `Doubt` | `curses/Doubt.java` | `approximate` | unplayable, end_of_turn_gain_weak_1 | none | 34 | effect handlers resolved; behavior parity audit still required |
 | `Injury` | `Injury` | `curses/Injury.java` | `approximate` | unplayable | none | 21 | effect handlers resolved; behavior parity audit still required |
-| `Necronomicurse` | `Necronomicurse` | `curses/Necronomicurse.java` | `approximate` | unplayable, returns_when_exhausted_or_removed | returns_when_exhausted_or_removed | 21 | unresolved effect handlers present |
-| `Normality` | `Normality` | `curses/Normality.java` | `approximate` | unplayable, limit_3_cards_per_turn | limit_3_cards_per_turn | 18 | unresolved effect handlers present |
-| `Pain` | `Pain` | `curses/Pain.java` | `approximate` | unplayable, lose_1_hp_when_other_card_played | lose_1_hp_when_other_card_played | 19 | unresolved effect handlers present |
-| `Parasite` | `Parasite` | `curses/Parasite.java` | `approximate` | unplayable, lose_3_max_hp_when_removed | lose_3_max_hp_when_removed | 18 | unresolved effect handlers present |
-| `Pride` | `Pride` | `curses/Pride.java` | `approximate` | end_of_turn_add_copy_to_draw | end_of_turn_add_copy_to_draw | 10 | unresolved effect handlers present |
-| `Regret` | `Regret` | `curses/Regret.java` | `approximate` | unplayable, end_of_turn_lose_hp_equal_to_hand_size | end_of_turn_lose_hp_equal_to_hand_size | 38 | unresolved effect handlers present |
-| `Shame` | `Shame` | `curses/Shame.java` | `approximate` | unplayable, end_of_turn_gain_frail_1 | end_of_turn_gain_frail_1 | 20 | unresolved effect handlers present |
+| `Necronomicurse` | `Necronomicurse` | `curses/Necronomicurse.java` | `approximate` | unplayable, returns_when_exhausted_or_removed | none | 21 | effect handlers resolved; behavior parity audit still required |
+| `Normality` | `Normality` | `curses/Normality.java` | `approximate` | unplayable, limit_3_cards_per_turn | none | 18 | effect handlers resolved; behavior parity audit still required |
+| `Pain` | `Pain` | `curses/Pain.java` | `approximate` | unplayable, lose_1_hp_when_other_card_played | none | 19 | effect handlers resolved; behavior parity audit still required |
+| `Parasite` | `Parasite` | `curses/Parasite.java` | `approximate` | unplayable, lose_3_max_hp_when_removed | none | 18 | effect handlers resolved; behavior parity audit still required |
+| `Pride` | `Pride` | `curses/Pride.java` | `approximate` | end_of_turn_add_copy_to_draw | none | 13 | effect handlers resolved; behavior parity audit still required |
+| `Regret` | `Regret` | `curses/Regret.java` | `approximate` | unplayable, end_of_turn_lose_hp_equal_to_hand_size | none | 40 | effect handlers resolved; behavior parity audit still required |
+| `Shame` | `Shame` | `curses/Shame.java` | `approximate` | unplayable, end_of_turn_gain_frail_1 | none | 21 | effect handlers resolved; behavior parity audit still required |
 | `Writhe` | `Writhe` | `curses/Writhe.java` | `approximate` | unplayable | none | 11 | effect handlers resolved; behavior parity audit still required |
 
 ### `status`
 
 | java_id | java_class | java_path | status | python_effect_keys | unresolved_effect_keys | test_ref_count | notes |
 |---|---|---|---|---|---|---:|---|
-| `Burn` | `Burn` | `status/Burn.java` | `approximate` | unplayable, end_of_turn_take_damage | end_of_turn_take_damage | 31 | unresolved effect handlers present |
+| `Burn` | `Burn` | `status/Burn.java` | `approximate` | unplayable, end_of_turn_take_damage | none | 33 | effect handlers resolved; behavior parity audit still required |
 | `Dazed` | `Dazed` | `status/Dazed.java` | `approximate` | unplayable | none | 13 | effect handlers resolved; behavior parity audit still required |
 | `Slimed` | `Slimed` | `status/Slimed.java` | `approximate` | n/a | none | 23 | effect handlers resolved; behavior parity audit still required |
-| `Void` | `VoidCard` | `status/VoidCard.java` | `approximate` | unplayable, lose_1_energy_when_drawn | lose_1_energy_when_drawn | 20 | unresolved effect handlers present |
+| `Void` | `VoidCard` | `status/VoidCard.java` | `approximate` | unplayable, lose_1_energy_when_drawn | none | 22 | effect handlers resolved; behavior parity audit still required |
 | `Wound` | `Wound` | `status/Wound.java` | `approximate` | unplayable | none | 21 | effect handlers resolved; behavior parity audit still required |
 

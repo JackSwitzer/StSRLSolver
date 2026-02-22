@@ -4,12 +4,12 @@ Last updated: 2026-02-22
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4659 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4663 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
-- [x] Merged chain verified through PR `#23`; stale PR `#8` closed as superseded.
+- [x] Merged chain verified through PR `#24`; stale PR `#8` closed as superseded.
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).
@@ -69,6 +69,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 
 ### R4: Cards long-tail (non-Defect first)
 - [ ] `CRD-INV-001` non-Defect card manifest (`exact|approximate|missing`) with Java refs.
+- [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure + Void draw lock.
 - [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-WA-*`, `CRD-SH-*` closure.
 
 ### R5: Powers + orbs closure

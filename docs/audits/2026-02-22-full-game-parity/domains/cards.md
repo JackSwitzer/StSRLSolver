@@ -11,7 +11,13 @@
   - Java rows in non-Defect scope: `285`
   - Python mapped rows: `284`
   - Missing Java IDs in non-Defect scope: `1` (`Discipline`)
-  - Rows with unresolved effect-handler keys: `38` (primarily colorless/curse/status generated behaviors)
+  - Rows with unresolved effect-handler keys: `23` (primarily remaining colorless utilities)
+
+## Recent closure
+- `CRD-SH-001` landed:
+  - curse/status end-of-turn runtime handlers (Burn/Decay/Doubt/Shame/Regret/Pride)
+  - explicit end-of-turn hand-card effect execution before discard/exhaust in combat flow
+  - draw-path parity lock for `Void` (`lose_1_energy_when_drawn`)
 
 ## Closure tracks
 - [ ] Ironclad (`CRD-IC-*`)

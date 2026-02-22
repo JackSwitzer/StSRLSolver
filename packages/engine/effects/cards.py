@@ -2984,6 +2984,108 @@ def obtain_random_potion(ctx: EffectContext) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Shared Colorless / Curse / Status Effects
+# -----------------------------------------------------------------------------
+
+@effect_simple("upgrade_all_cards_in_combat")
+def upgrade_all_cards_in_combat(ctx: EffectContext) -> None:
+    """Apotheosis - upgrade all cards in hand/draw/discard for this combat."""
+    for pile_name in ("hand", "draw_pile", "discard_pile"):
+        pile = getattr(ctx.state, pile_name, [])
+        upgraded_pile = []
+        for card_id in pile:
+            if card_id.endswith("+"):
+                upgraded_pile.append(card_id)
+            else:
+                upgraded_pile.append(card_id + "+")
+        setattr(ctx.state, pile_name, upgraded_pile)
+
+
+@effect_simple("gain_intangible_1")
+def gain_intangible_1(ctx: EffectContext) -> None:
+    """Ghostly - gain 1 Intangible."""
+    ctx.apply_status_to_player("Intangible", 1)
+
+
+@effect_simple("end_of_turn_take_damage")
+def end_of_turn_take_damage(ctx: EffectContext) -> None:
+    """Burn - lose HP at end of turn."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else (4 if ctx.is_upgraded else 2)
+    ctx.state.player.hp = max(0, ctx.state.player.hp - amount)
+
+
+@effect_simple("end_of_turn_take_2_damage")
+def end_of_turn_take_2_damage(ctx: EffectContext) -> None:
+    """Decay - lose 2 HP at end of turn."""
+    ctx.state.player.hp = max(0, ctx.state.player.hp - 2)
+
+
+@effect_simple("end_of_turn_gain_weak_1")
+def end_of_turn_gain_weak_1(ctx: EffectContext) -> None:
+    """Doubt - gain 1 Weak at end of turn."""
+    ctx.apply_status_to_player("Weak", 1)
+
+
+@effect_simple("end_of_turn_gain_frail_1")
+def end_of_turn_gain_frail_1(ctx: EffectContext) -> None:
+    """Shame - gain 1 Frail at end of turn."""
+    ctx.apply_status_to_player("Frail", 1)
+
+
+@effect_simple("end_of_turn_lose_hp_equal_to_hand_size")
+def end_of_turn_lose_hp_equal_to_hand_size(ctx: EffectContext) -> None:
+    """Regret - lose HP equal to cards in hand at end of turn."""
+    amount = len(ctx.state.hand)
+    if amount > 0:
+        ctx.state.player.hp = max(0, ctx.state.player.hp - amount)
+
+
+@effect_simple("end_of_turn_add_copy_to_draw")
+def end_of_turn_add_copy_to_draw(ctx: EffectContext) -> None:
+    """Pride - add a copy into draw pile at end of turn."""
+    card_id = ctx.card.id if ctx.card else "Pride"
+    if ctx.is_upgraded and not card_id.endswith("+"):
+        card_id = card_id + "+"
+    ctx.add_card_to_draw_pile(card_id, "random")
+
+
+@effect_simple("lose_1_energy_when_drawn")
+def lose_1_energy_when_drawn(ctx: EffectContext) -> None:
+    """Void - lose 1 energy when drawn."""
+    ctx.state.energy = max(0, ctx.state.energy - 1)
+
+
+@effect_simple("cannot_be_removed")
+def cannot_be_removed(ctx: EffectContext) -> None:
+    """Ascender's Bane / Curse of the Bell marker."""
+    ctx.extra_data["cannot_be_removed"] = True
+
+
+@effect_simple("returns_when_exhausted_or_removed")
+def returns_when_exhausted_or_removed(ctx: EffectContext) -> None:
+    """Necronomicurse marker."""
+    ctx.extra_data["returns_when_exhausted_or_removed"] = True
+
+
+@effect_simple("limit_3_cards_per_turn")
+def limit_3_cards_per_turn(ctx: EffectContext) -> None:
+    """Normality marker for play-limit checks."""
+    ctx.apply_status_to_player("Normality", 1)
+
+
+@effect_simple("lose_1_hp_when_other_card_played")
+def lose_1_hp_when_other_card_played(ctx: EffectContext) -> None:
+    """Pain marker for on-play hooks."""
+    ctx.apply_status_to_player("Pain", 1)
+
+
+@effect_simple("lose_3_max_hp_when_removed")
+def lose_3_max_hp_when_removed(ctx: EffectContext) -> None:
+    """Parasite marker for removal hook."""
+    ctx.extra_data["lose_3_max_hp_when_removed"] = 3
+
+
+# -----------------------------------------------------------------------------
 # Helper Functions
 # -----------------------------------------------------------------------------
 
@@ -3114,4 +3216,3 @@ SILENT_CARD_EFFECTS = {
     # === SPECIAL ===
     "Shiv": [],  # Just damage + exhaust
 }
-

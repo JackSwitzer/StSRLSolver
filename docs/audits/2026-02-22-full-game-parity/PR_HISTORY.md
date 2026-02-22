@@ -17,15 +17,16 @@ Merged branch lineage covered here: `codex/parity-core-loop` -> `main`
 | [#21](https://github.com/JackSwitzer/StSRLSolver/pull/21) | 2026-02-22T19:07:48Z | `RWD-004` | Indexed Black Star relic claims + secondary relic gating | `packages/engine/game.py`, `packages/engine/handlers/reward_handler.py` | `tests/test_agent_api.py` second-relic indexed tests |
 | [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22) | 2026-02-22T19:18:24Z | `DOC-004` | Merged-ground-truth docs pack + consolidation roadmap | `docs/audits/2026-02-22-full-game-parity/*` | Documentation-only |
 | [#23](https://github.com/JackSwitzer/StSRLSolver/pull/23) | 2026-02-22T19:49:47Z | `CONS-001` | Deterministic RNG hardening in shared card/power effect paths + docs sync | `packages/engine/effects/registry.py`, `packages/engine/registry/__init__.py`, `packages/engine/effects/cards.py`, `packages/engine/registry/powers.py`, audit docs | `tests/test_cards.py`, `tests/test_watcher_card_effects.py`, `tests/test_effects_and_combat.py`, `tests/test_powers.py`, `tests/test_power_registry_integration.py` |
+| [#24](https://github.com/JackSwitzer/StSRLSolver/pull/24) | 2026-02-22T19:57:47Z | `CRD-INV-001` | Non-Defect card manifest + comprehensive remaining parity audit sync | `docs/audits/2026-02-22-full-game-parity/*`, `docs/work_units/granular-cards-*.md` | Documentation-only |
 
-## Cumulative outcome through #23
+## Cumulative outcome through #24
 - Region closure:
   - `R1` relic action-surface and ordering fixes: complete.
   - `R2` event action-surface completeness and alias normalization: complete.
   - `R3` reward action canonicalization and proceed gating: complete.
 - Baseline after merge:
   - `uv run pytest tests/ -q`
-  - `4659 passed, 5 skipped, 0 failed`.
+  - `4663 passed, 5 skipped, 0 failed`.
 
 ## Work not in this lineage
 - [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) on `consolidation/clean-base-2026-02-03` was closed on 2026-02-22 as stale/superseded by the merged `main` chain (`#14` to `#22`).
