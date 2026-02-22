@@ -47,7 +47,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-003` Orrery explicit selection.
 - [x] `REL-004` Bottled relic explicit assignment.
 - [x] `REL-008` Dolly's Mirror explicit selection.
-- [ ] `REL-005` deterministic selection IDs + validation hardening.
+- [x] `REL-005` deterministic selection IDs + validation hardening.
 - [ ] `REL-006` relic alias normalization + `Toolbox` inventory closure.
 - [ ] `REL-007` boss/chest/reward ordering edge regressions.
 
@@ -78,8 +78,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `REL-005` deterministic selection IDs + validation hardening.
-2. `REL-006` relic alias normalization + missing Java ID closure (`Toolbox`).
+1. `REL-006` relic alias normalization + missing Java ID closure (`Toolbox`).
+2. `REL-007` boss/chest/reward ordering edge regressions.
 3. `EVT-001` docs rows + event follow-up action tests -> implement pending event selection surface.
 4. `EVT-002` docs rows + selected card passthrough tests -> wire `card_idx` execution path.
 

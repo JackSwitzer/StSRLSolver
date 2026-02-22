@@ -33,7 +33,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 - [x] `REL-003` Orrery explicit selection actions
 - [x] `REL-004` bottled relic assignment explicit actions
 - [x] `REL-008` Dolly's Mirror explicit duplicate selection
-- [ ] `REL-005` deterministic selection IDs + validation
+- [x] `REL-005` deterministic selection IDs + validation
 - [ ] `REL-006` alias normalization + Java ID coverage (`Toolbox`)
 - [ ] `REL-007` boss/chest/reward ordering regressions
 
@@ -68,7 +68,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Confirmed high-impact open gaps
 - [ ] `GameRunner._handle_event_action` still forces `card_idx=None`.
-- [ ] `REL-005` deterministic selection ID/validation hardening still pending for new relic-selection actions.
+- [ ] `REL-006` alias normalization (`Toolbox`) is the next highest-impact relic gap.
 - [ ] `Toolbox` still not present in content registry.
 - [ ] Power inventory has large class-level residuals.
 - [ ] Orb-linked relic behavior still has placeholder TODO paths.

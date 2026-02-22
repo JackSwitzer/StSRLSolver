@@ -6,7 +6,6 @@
 - Highest-priority remaining work is deterministic selection ID hardening and alias/inventory closure.
 
 ## Confirmed open gaps
-- [ ] `REL-005` deterministic selection ID/validation consistency across equivalent snapshots.
 - [ ] `REL-006` alias normalization and Java inventory closure (`Toolbox` confirmed open).
 - [ ] `REL-007` residual ordering edge cases in reward/chest transitions.
 
@@ -26,6 +25,10 @@
   - Follow-up `select_cards` roundtrip duplicates selected card with upgrade/misc preservation.
   - Runtime relic application consumes selected indices through `selection_card_indices`.
   - Tests: `tests/test_agent_api.py` Dolly selection flow tests.
+- [x] `REL-005` Deterministic selection ID + validation hardening.
+  - Added deterministic-ID regression tests for Orrery candidate action sets.
+  - Added validation rejection tests for invalid Orrery/bottled selection payloads.
+  - Tests: `tests/test_agent_api.py` selection determinism/validation tests.
 
 ## Java references
 - `com/megacrit/cardcrawl/relics/Orrery.java`
@@ -41,6 +44,5 @@
 - `packages/engine/registry/relics.py` (battle triggers and orb-linked TODOs)
 
 ## Next commit order
-1. `REL-005`
-2. `REL-006`
-3. `REL-007`
+1. `REL-006`
+2. `REL-007`

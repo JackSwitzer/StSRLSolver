@@ -791,6 +791,93 @@ class TestActionExecution:
         assert all(a.get("type") == "select_cards" for a in candidates)
         assert all(len(a.get("params", {}).get("card_indices", [])) == 1 for a in candidates)
 
+    def test_orrery_selection_candidates_have_deterministic_ids(self, runner):
+        """Equivalent state snapshots should emit identical Orrery selection IDs."""
+        runner2 = GameRunner(seed="AGENTTEST", ascension=20, verbose=False)
+
+        for r in (runner, runner2):
+            r._enter_shop()
+            r.run_state.gold = 999
+            assert r.current_shop is not None
+            assert r.current_shop.relics
+            r.current_shop.relics[0].relic = get_relic("Orrery")
+            r.current_shop.relics[0].price = 1
+            r.current_shop.relics[0].slot_index = 0
+            r.phase = GamePhase.SHOP
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        second = runner2.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+
+        first_ids = [a["id"] for a in first.get("candidate_actions", [])]
+        second_ids = [a["id"] for a in second.get("candidate_actions", [])]
+        assert first_ids == second_ids
+
+    def test_orrery_rejects_invalid_selection_combination(self, runner):
+        """Orrery should reject selections that don't pick one card per offer set."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics
+        runner.current_shop.relics[0].relic = get_relic("Orrery")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        assert first.get("requires_selection") is True
+
+        invalid = runner.take_action_dict({
+            "type": "select_cards",
+            "params": {
+                "pile": "offer",
+                "card_indices": [0, 1, 3, 6, 9],  # two picks from first offer bucket
+                "min_cards": 5,
+                "max_cards": 5,
+                "parent_action_id": "",
+            },
+        })
+        assert invalid.get("success") is False
+        assert "Invalid selection combination" in invalid.get("error", "")
+
+    def test_bottled_selection_rejects_invalid_card_index(self, runner):
+        """Bottled relic selection should reject non-eligible card indices."""
+        runner._enter_shop()
+        runner.run_state.gold = 999
+        assert runner.current_shop is not None
+        assert runner.current_shop.relics
+        runner.current_shop.relics[0].relic = get_relic("Bottled Flame")
+        runner.current_shop.relics[0].price = 1
+        runner.current_shop.relics[0].slot_index = 0
+        runner.phase = GamePhase.SHOP
+
+        first = runner.take_action_dict({
+            "type": "buy_relic",
+            "params": {"item_index": 0},
+        })
+        assert first.get("requires_selection") is True
+
+        invalid = runner.take_action_dict({
+            "type": "select_cards",
+            "params": {
+                "pile": "deck",
+                "card_indices": [999],
+                "min_cards": 1,
+                "max_cards": 1,
+                "parent_action_id": "",
+            },
+        })
+        assert invalid.get("success") is False
+        assert "Invalid selected card index" in invalid.get("error", "")
+
 
 # =============================================================================
 # Observation Schema Tests

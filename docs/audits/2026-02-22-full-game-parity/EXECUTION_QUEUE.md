@@ -4,7 +4,7 @@ Last updated: 2026-02-22
 
 ## Baseline
 - Branch: `codex/parity-core-loop`
-- Suite baseline: `4610 passed, 5 skipped, 0 failed`
+- Suite baseline: `4622 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -22,13 +22,13 @@ Last updated: 2026-02-22
 
 ## Immediate execution batches
 
-### Batch R1-A (active)
+### Batch R1-A (completed)
 - `REL-003` Orrery explicit selection surface (completed)
 - `REL-004` Bottled relic assignment selection surface (completed)
 - `REL-008` Dolly's Mirror explicit selection surface (completed)
 
 ### Batch R1-B
-- `REL-005` deterministic selection IDs/validation consistency
+- `REL-005` deterministic selection IDs/validation consistency (completed)
 - `REL-006` relic alias normalization + `Toolbox` coverage
 - `REL-007` boss/chest/reward ordering edge cases
 

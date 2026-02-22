@@ -29,6 +29,5 @@ This file records what is implemented in this repo and where parity-critical beh
 
 ## Coverage checklist
 - [ ] Replace bug-documentation assertions with parity assertions once fixes land.
-- [ ] Add deterministic ID/validation tests for expanded relic-selection action surface (`REL-005`).
 - [ ] Add action-surface tests for event card-required choices.
 - [ ] Add per-class powers manifest rows with executable parity tests.
