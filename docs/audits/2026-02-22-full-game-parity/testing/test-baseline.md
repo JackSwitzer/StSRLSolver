@@ -13,6 +13,8 @@ Result:
 - `5 skipped`
 - `0 failed`
 
+Re-verified on branch `codex/phase0-core-lock` after Phase-0 deterministic RNG hardening with unchanged totals.
+
 ## Structural inventory
 - Test files: `70`
 - Static test-function definitions (`def test_`): `4086`

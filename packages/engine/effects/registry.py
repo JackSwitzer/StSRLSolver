@@ -124,6 +124,43 @@ class EffectContext:
         return self.state.turn
 
     # ------------------------------------------------------------------
+    # RNG Utilities
+    # ------------------------------------------------------------------
+
+    def _card_random_rng(self):
+        """RNG stream for random card effects."""
+        return (
+            getattr(self.state, "card_random_rng", None)
+            or getattr(self.state, "card_rng", None)
+        )
+
+    def _shuffle_rng(self):
+        """RNG stream for shuffles."""
+        return (
+            getattr(self.state, "shuffle_rng", None)
+            or self._card_random_rng()
+        )
+
+    def random_choice(self, values: List[Any]) -> Any:
+        """Deterministic random choice with RNG-stream fallback."""
+        if not values:
+            raise ValueError("Cannot choose from empty list")
+        rng = self._card_random_rng()
+        if rng is None:
+            return values[0]
+        idx = rng.random(len(values) - 1)
+        return values[idx]
+
+    def shuffle_in_place(self, values: List[Any], *, use_shuffle_rng: bool = False) -> None:
+        """Deterministic in-place shuffle using Fisher-Yates."""
+        rng = self._shuffle_rng() if use_shuffle_rng else self._card_random_rng()
+        if rng is None or len(values) <= 1:
+            return
+        for i in range(len(values) - 1, 0, -1):
+            j = rng.random(i)
+            values[i], values[j] = values[j], values[i]
+
+    # ------------------------------------------------------------------
     # Card Manipulation
     # ------------------------------------------------------------------
 
@@ -147,9 +184,8 @@ class EffectContext:
 
     def _shuffle_discard_into_draw(self) -> None:
         """Shuffle discard pile into draw pile."""
-        import random
         self.state.draw_pile = self.state.discard_pile.copy()
-        random.shuffle(self.state.draw_pile)
+        self.shuffle_in_place(self.state.draw_pile, use_shuffle_rng=True)
         self.state.discard_pile.clear()
 
     def discard_card(self, card_id: str, from_hand: bool = True) -> bool:
@@ -259,14 +295,14 @@ class EffectContext:
             card_id: Card to add
             position: "top", "bottom", or "random"
         """
-        import random
         if position == "top":
             self.state.draw_pile.append(card_id)
         elif position == "bottom":
             self.state.draw_pile.insert(0, card_id)
         else:  # random
             if self.state.draw_pile:
-                idx = random.randint(0, len(self.state.draw_pile))
+                rng = self._card_random_rng()
+                idx = rng.random(len(self.state.draw_pile)) if rng else len(self.state.draw_pile)
                 self.state.draw_pile.insert(idx, card_id)
             else:
                 self.state.draw_pile.append(card_id)
@@ -312,10 +348,9 @@ class EffectContext:
 
     def deal_damage_to_random_enemy(self, amount: int) -> int:
         """Deal damage to a random living enemy."""
-        import random
         living = self.living_enemies
         if living:
-            target = random.choice(living)
+            target = self.random_choice(living)
             return self.deal_damage_to_enemy(target, amount)
         return 0
 

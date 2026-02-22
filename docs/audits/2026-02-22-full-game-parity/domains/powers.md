@@ -12,6 +12,8 @@
 ## Confirmed implemented fixes
 - `onAfterUseCard` / `onAfterCardPlayed` registration and trigger path updates.
 - Hook ordering improvements in combat flow for parity-critical cases.
+- Phase-0 deterministic hardening for power handlers:
+  - `Magnetism`, `CreativeAI`, `Study`, and `Juggernaut` now use context-owned RNG helpers instead of direct Python `random`.
 
 ## Confirmed open gaps
 - [ ] `POW-001` map unmatched Java power classes to explicit status (`exact`, `missing`, `alias-only`, `intentional defer`).

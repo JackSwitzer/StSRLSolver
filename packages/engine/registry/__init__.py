@@ -142,6 +142,39 @@ class BaseContext:
     def set_relic_counter(self, relic_id: str, value: int) -> None:
         self.state.set_relic_counter(relic_id, value)
 
+    def _card_random_rng(self):
+        """RNG stream for random card/power/relic effects."""
+        return (
+            getattr(self.state, "card_random_rng", None)
+            or getattr(self.state, "card_rng", None)
+        )
+
+    def _shuffle_rng(self):
+        """RNG stream for shuffles."""
+        return (
+            getattr(self.state, "shuffle_rng", None)
+            or self._card_random_rng()
+        )
+
+    def random_choice(self, values: List[Any]) -> Any:
+        """Deterministic random choice with RNG-stream fallback."""
+        if not values:
+            raise ValueError("Cannot choose from empty list")
+        rng = self._card_random_rng()
+        if rng is None:
+            return values[0]
+        idx = rng.random(len(values) - 1)
+        return values[idx]
+
+    def shuffle_in_place(self, values: List[Any]) -> None:
+        """Deterministic in-place shuffle."""
+        rng = self._shuffle_rng()
+        if rng is None or len(values) <= 1:
+            return
+        for i in range(len(values) - 1, 0, -1):
+            j = rng.random(i)
+            values[i], values[j] = values[j], values[i]
+
     def apply_power(self, target: Union[EntityState, EnemyCombatState, str],
                     power_id: str, amount: int) -> bool:
         """Apply a power to a target."""
@@ -203,9 +236,8 @@ class BaseContext:
                 if not self.state.discard_pile:
                     break
                 # Shuffle discard into draw
-                import random
                 self.state.draw_pile = self.state.discard_pile.copy()
-                random.shuffle(self.state.draw_pile)
+                self.shuffle_in_place(self.state.draw_pile)
                 self.state.discard_pile.clear()
 
             if self.state.draw_pile and len(self.state.hand) < 10:

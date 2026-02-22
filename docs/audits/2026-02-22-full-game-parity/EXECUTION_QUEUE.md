@@ -45,6 +45,7 @@ Last updated: 2026-02-22
 - `RWD-004` reward modifiers parity (completed)
 
 ### Batch R4+
+- `CONS-001` deterministic RNG normalization sweep (cards/powers/effect contexts first)
 - `POW-001`, `POW-002`, `ORB-001`, `POW-003`
 - `CRD-*`
 - `AUD-*`

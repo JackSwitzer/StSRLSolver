@@ -1,12 +1,12 @@
 # Ground Truth: Java Parity + Agent Contract
 
 Last updated: 2026-02-22  
-Main branch baseline commit: `a6a571af760b4f6b5b861bd96a6658996662cf87`
+Main branch baseline commit: `609943ce943b45ecfcef51211609f6f61009b7d4`
 
 ## Current baseline
 - Command: `uv run pytest tests/ -q`
 - Result: `4659 passed, 5 skipped, 0 failed`
-- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#21](https://github.com/JackSwitzer/StSRLSolver/pull/21)
+- Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#22](https://github.com/JackSwitzer/StSRLSolver/pull/22)
 
 ## Source-of-truth references
 - Java source root used in this campaign:
@@ -31,7 +31,7 @@ Main branch baseline commit: `a6a571af760b4f6b5b861bd96a6658996662cf87`
 | Powers | `powers/*.java`, `powers/watcher/*.java` | `packages/engine/content/powers.py`, `packages/engine/registry/powers.py` | partial | Hook-order fixes landed; large inventory gap remains (`149 Java` vs `94 Python`) |
 | Cards | `cards/**/*.java` | `packages/engine/effects/cards.py`, `packages/engine/effects/defect_cards.py` | partial | Broad coverage exists, but long-tail closure is still tracked under `CRD-*` |
 | Orbs | `orbs/*.java` + orb-linked relic/power references | `packages/engine/effects/orbs.py`, `packages/engine/registry/relics.py` | open | Core parity blocker for final Defect/power/relic closure (`ORB-001`) |
-| RNG/determinism | Java RNG streams (`card`, `relic`, `potion`, etc.) | `packages/engine/state/game_rng.py`, `packages/engine/game.py` | partial | Stream architecture exists, but multiple direct Python `random` callsites remain to normalize |
+| RNG/determinism | Java RNG streams (`card`, `relic`, `potion`, etc.) | `packages/engine/state/game_rng.py`, `packages/engine/game.py` | partial | Stream architecture exists. Phase-0 hardening normalized card/power/effect-context random selection paths; residual callsites remain in relic/potion/orb flows. |
 
 ## Agent interface ground truth (current)
 
@@ -114,3 +114,6 @@ Most critical blockers before final RL parity gate:
 4. Freeze action/observation contract snapshot and version it.
 5. Run final full diff audit + full suite on `main`.
 6. Mark [`rl/rl-readiness.md`](./rl/rl-readiness.md) complete and publish launch baseline.
+
+## Superseded PR handling
+- [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) (`consolidation/clean-base-2026-02-03`) is explicitly treated as archival history and was closed stale on 2026-02-22.
