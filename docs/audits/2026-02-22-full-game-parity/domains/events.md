@@ -3,7 +3,8 @@
 ## Status
 - Event coverage is structurally complete in the handler layer.
 - Event action-surface now supports explicit card-selection follow-up for single-card event choices.
-- Remaining event gaps are deterministic transition coverage and alias/inventory hardening.
+- Deterministic multi-phase runner transition coverage is now locked by explicit action-surface tests.
+- Remaining event gap is alias/inventory hardening.
 
 ## Confirmed facts
 - [x] Event definitions registered: 51
@@ -13,7 +14,7 @@
 ## Confirmed open gaps
 - [x] `EVT-001` card-required event choices expose explicit follow-up selection actions.
 - [x] `EVT-002` selected card indices are passed to event execution (`card_idx` no longer forced to `None`).
-- [ ] `EVT-003` deterministic multi-phase transitions need explicit action-surface tests.
+- [x] `EVT-003` deterministic multi-phase transitions now have explicit action-surface tests.
 - [ ] `EVT-004` alias mapping should be hardened and tested against Java class names.
 
 ## EVT-001 / EVT-002 implementation result
@@ -30,7 +31,11 @@
   - validates selection-required response and no first-call mutation.
 - `tests/test_agent_api.py::TestActionExecution::test_event_choice_selection_roundtrip_uses_selected_card_index`
   - validates selected non-default index is the card actually removed.
-- Full suite after change: `4640 passed, 5 skipped, 0 failed`.
+- `tests/test_agent_api.py::TestActionExecution::test_event_multiphase_golden_idol_keeps_event_phase_and_updates_choices`
+  - validates phase continuity (`GamePhase.EVENT`) and explicit secondary actions.
+- `tests/test_agent_api.py::TestActionExecution::test_event_multiphase_golden_idol_followup_action_ids_are_deterministic`
+  - validates deterministic follow-up action IDs across equivalent multi-phase states.
+- Full suite after change: `4642 passed, 5 skipped, 0 failed`.
 
 ## Java references
 - `com/megacrit/cardcrawl/events/exordium/**`
@@ -43,5 +48,4 @@
 - `packages/engine/game.py` (`get_available_action_dicts`, `take_action_dict`, `_apply_pending_selection`, `_handle_event_action`)
 
 ## Next commit order
-1. `EVT-003`
-2. `EVT-004`
+1. `EVT-004`

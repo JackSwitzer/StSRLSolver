@@ -944,6 +944,56 @@ class TestActionExecution:
         target_after_count = sum(1 for card in runner.run_state.deck if card.id == target_card.id)
         assert target_after_count == target_before_count - 1
 
+    def test_event_multiphase_golden_idol_keeps_event_phase_and_updates_choices(self, runner):
+        """Golden Idol should remain in event phase after take and expose secondary choices."""
+        runner.phase = GamePhase.EVENT
+        runner.current_event_state = EventState(event_id="GoldenIdol", phase=EventPhase.INITIAL)
+
+        initial_actions = runner.get_available_action_dicts()
+        assert {a.get("params", {}).get("choice_index") for a in initial_actions} == {0, 1}
+
+        first = runner.take_action_dict({
+            "type": "event_choice",
+            "params": {"choice_index": 0},  # take
+        })
+        assert first.get("success") is True
+        assert runner.run_state.has_relic("GoldenIdol")
+        assert runner.phase == GamePhase.EVENT
+        assert runner.current_event_state is not None
+        assert runner.current_event_state.phase == EventPhase.SECONDARY
+
+        secondary_actions = runner.get_available_action_dicts()
+        assert secondary_actions
+        assert all(action.get("type") == "event_choice" for action in secondary_actions)
+        assert {a.get("params", {}).get("choice_index") for a in secondary_actions} == {0, 1, 2}
+
+    def test_event_multiphase_golden_idol_followup_action_ids_are_deterministic(self, runner):
+        """Equivalent multi-phase event states should emit identical follow-up action IDs."""
+        runner2 = GameRunner(seed="AGENTTEST", ascension=20, verbose=False)
+
+        for current in (runner, runner2):
+            current.phase = GamePhase.EVENT
+            current.current_event_state = EventState(event_id="GoldenIdol", phase=EventPhase.INITIAL)
+
+        first_1 = runner.take_action_dict({
+            "type": "event_choice",
+            "params": {"choice_index": 0},
+        })
+        first_2 = runner2.take_action_dict({
+            "type": "event_choice",
+            "params": {"choice_index": 0},
+        })
+        assert first_1.get("success") is True
+        assert first_2.get("success") is True
+        assert runner.current_event_state is not None
+        assert runner2.current_event_state is not None
+        assert runner.current_event_state.phase == EventPhase.SECONDARY
+        assert runner2.current_event_state.phase == EventPhase.SECONDARY
+
+        followup_ids_1 = [action["id"] for action in runner.get_available_action_dicts()]
+        followup_ids_2 = [action["id"] for action in runner2.get_available_action_dicts()]
+        assert followup_ids_1 == followup_ids_2
+
 
 # =============================================================================
 # Observation Schema Tests

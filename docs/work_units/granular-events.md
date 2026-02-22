@@ -5,6 +5,7 @@
 - [x] `EVT-001` Selection preview path is side-effect-free on live run/event state.
 - [x] `EVT-002` Selected card indices are passed to `EventHandler.execute_choice(..., card_idx=...)`.
 - [x] `EVT-002` Add action-surface tests proving non-default selected indices apply correctly.
+- [x] `EVT-003` Add deterministic multi-phase runner action-surface tests (phase continuity + follow-up action IDs).
 
 ## Notes
 - This file contains legacy checklist items from earlier audits.
