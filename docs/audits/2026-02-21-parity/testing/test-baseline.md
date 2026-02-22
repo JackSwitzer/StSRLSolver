@@ -8,7 +8,7 @@ uv run pytest tests/ -ra
 ```
 
 Result:
-- `4604 passed`
+- `4606 passed`
 - `5 skipped`
 - `0 failed`
 
@@ -35,6 +35,8 @@ Skip details:
   - `tests/test_potion_rng_streams.py`
 - Added Fairy defeat-prevention invariant coverage:
   - `tests/test_potion_sacred_bark.py`
+- Added runtime/registry de-dup coverage:
+  - `tests/test_potion_runtime_dedup.py`
 
 ## Focused verification commands
 ```bash

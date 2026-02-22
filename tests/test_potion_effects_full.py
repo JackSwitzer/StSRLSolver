@@ -245,7 +245,7 @@ class TestSmokeBomb:
 
         result = execute_potion_effect("SmokeBomb", state, target_idx=-1)
 
-        assert result["success"] is True
+        assert result["success"] is False
         assert getattr(state, "escaped", False) is False
 
 

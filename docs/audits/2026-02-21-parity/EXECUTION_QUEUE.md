@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 ## Baseline
-- Full suite: `4602 passed, 0 skipped, 0 failed`
+- Full suite: `4606 passed, 5 skipped, 0 failed`
 - Core branch: `consolidation/clean-base-2026-02-03`
 - Active work branch: `codex/parity-core-loop`
 - Policy: `1 PR region = 1 domain`, `1 feature = 1 code commit`
@@ -24,11 +24,11 @@ Last updated: 2026-02-22
 6. Rewards/shops/rest/map flow
 7. Final audit + RL gate
 
-## PR Region R1: Potions Determinism + API Completion (ACTIVE)
+## PR Region R1: Potions Determinism + API Completion (COMPLETE)
 Owner scope: `packages/engine/game.py`, `packages/engine/combat_engine.py`, `packages/engine/registry/potions.py`, potion tests/docs.
 
 Feature commits:
-- `POT-001` Remove duplicate potion semantics where runtime path and registry diverge; keep one authoritative combat execution behavior. (`open`)
+- `POT-001` Remove duplicate potion semantics where runtime path and registry diverge; keep one authoritative combat execution behavior. (`done` in commit `78d3f93`)
 - `POT-002` Add explicit RNG-counter advancement tests for `card_rng`, `card_random_rng`, and `potion_rng` on RNG-sensitive potions. (`done` in commit `26375e7`)
 - `POT-003` Expand action roundtrip tests for all selection potions (missing params -> candidate actions -> apply selection). (`done` in commit `26f34ec`)
 - `POT-004` Close Fairy in a Bottle invariants (death hook, consumption, Sacred Bark % heal, combat-loss suppression). (`done` in commit `c25d2d3`)
@@ -105,4 +105,4 @@ Unchecked work-unit items currently:
 - `15` in `docs/work_units/granular-relics.md`
 - `14` in `docs/work_units/granular-orbs.md`
 - `6` in `docs/work_units/granular-cards-watcher.md`
-- `1` in `docs/work_units/granular-potions.md`
+- `0` in `docs/work_units/granular-potions.md`

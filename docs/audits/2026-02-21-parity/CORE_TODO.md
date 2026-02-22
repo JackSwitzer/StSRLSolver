@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 
 ## Current baseline
-- Full tests: `4604 passed, 5 skipped, 0 failed`
+- Full tests: `4606 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -ra`
 - Merged parity integration PR: [`#9`](https://github.com/JackSwitzer/StSRLSolver/pull/9)
 - Skip reason: `tests/test_parity.py` skips when `consolidated_seed_run.jsonl` is absent.
@@ -32,13 +32,13 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 6. Rewards/shops/rest/map flow
 7. Final audit and RL gate
 
-## Active region: Potions (`R1`)
-- [ ] `POT-001` Unify runtime potion semantics where registry and combat paths diverge.
+## Active region: Potions (`R1`) - COMPLETE
+- [x] `POT-001` Unify runtime potion semantics where registry and combat paths diverge.
 - [x] `POT-002` Add deterministic RNG-counter assertions for Discovery/Snecko/Entropic/Distilled paths.
 - [x] `POT-003` Ensure all selection potions complete action roundtrip coverage (`missing params => candidate actions`).
 - [x] `POT-004` Close Fairy in a Bottle invariants (trigger, consumption, Sacred Bark % and defeat prevention).
 
-## Next region preview: Relics (`R2`)
+## Next active region: Relics (`R2`)
 - [ ] `REL-001` Astrolabe explicit selection actions.
 - [ ] `REL-002` Empty Cage explicit selection actions.
 - [ ] `REL-003` Orrery explicit selection actions.

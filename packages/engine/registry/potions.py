@@ -275,10 +275,17 @@ def duplication_potion(ctx: PotionContext) -> None:
 @potion_effect("DistilledChaos")
 def distilled_chaos(ctx: PotionContext) -> None:
     """Distilled Chaos: Play top 3 cards of draw pile (6 with Sacred Bark)."""
-    # Route through CombatEngine helper so card resolution matches runtime path.
-    from ..combat_engine import CombatEngine
-    engine = CombatEngine(ctx.state)
-    engine.play_top_cards_from_draw_pile(ctx.potency)
+    engine = getattr(ctx.state, "_combat_engine_ref", None)
+    if engine is not None and hasattr(engine, "play_top_cards_from_draw_pile"):
+        played_cards = engine.play_top_cards_from_draw_pile(ctx.potency)
+    else:
+        # Fallback for direct registry calls without an active runtime engine.
+        from ..combat_engine import CombatEngine
+        fallback_engine = CombatEngine(ctx.state)
+        played_cards = fallback_engine.play_top_cards_from_draw_pile(ctx.potency)
+
+    ctx.result_data["played_cards"] = played_cards
+    ctx.result_data["effects"] = [{"type": "play_top_cards", "amount": len(played_cards)}]
 
 
 # Class-specific UNCOMMON potions
@@ -385,6 +392,8 @@ def smoke_bomb(ctx: PotionContext) -> None:
         or has_back_attack
     ):
         ctx.state.escape_blocked_reason = "cannot_escape"
+        ctx.result_data["success"] = False
+        ctx.result_data["error"] = "Smoke Bomb cannot be used in this combat"
         return
     # Set combat end flag - handled by combat engine
     ctx.state.escaped = True
