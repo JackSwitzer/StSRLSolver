@@ -51,7 +51,7 @@ from .state.combat import (
 from .content.cards import Card, CardType, CardTarget, CardColor, get_card, ALL_CARDS
 from .content.enemies import Enemy, Intent, MoveInfo, EnemyState, create_enemy as create_enemy_object
 from .content.stances import StanceID, StanceEffect, STANCES, StanceManager
-from .content.powers import PowerType, DamageType, create_power, POWER_DATA
+from .content.powers import PowerType, DamageType, create_power, POWER_DATA, resolve_power_id
 from .calc.damage import (
     calculate_damage,
     calculate_block,
@@ -343,9 +343,17 @@ class CombatEngine:
 
         # Draw cards (default 5)
         draw_count = 5
-        if self.state.player.statuses.get("NoDraw", 0) > 0:
+        no_draw = (
+            self.state.player.statuses.get("NoDraw", 0)
+            or self.state.player.statuses.get("No Draw", 0)
+        )
+        if no_draw > 0:
             draw_count = 0
         self._draw_cards(draw_count)
+
+        # Trigger post-draw hooks (Java: applyStartOfTurnPostDrawRelics/Powers).
+        execute_relic_triggers("atTurnStartPostDraw", self.state)
+        execute_power_triggers("atStartOfTurnPostDraw", self.state, self.state.player)
 
         self.log.log(self.state.turn, "turn_start",
                     energy=self.state.energy,
@@ -359,28 +367,6 @@ class CombatEngine:
         execute_power_triggers("atStartOfTurn", self.state, player)
 
         # Note: Enemy atStartOfTurn (poison, etc.) is handled in _do_enemy_turns() at their turn start
-
-        # Deva Form: gain stacking energy
-        deva_form = player.statuses.get("DevaForm", 0)
-        if deva_form > 0:
-            self.state.energy += deva_form
-            player.statuses["DevaForm"] = deva_form + 1
-
-        # Devotion: gain mantra
-        devotion = player.statuses.get("Devotion", 0)
-        if devotion > 0:
-            self._add_mantra(devotion)
-
-        # Foresight: scry
-        foresight = player.statuses.get("Foresight", 0)
-        if foresight > 0:
-            self._scry(foresight)
-
-        # Battle Hymn: add Smite to hand
-        battle_hymn = player.statuses.get("BattleHymn", 0)
-        if battle_hymn > 0:
-            for _ in range(battle_hymn):
-                self.state.hand.append("Smite")
 
         # Wrath Next Turn
         if player.statuses.get("WrathNextTurn", 0) > 0:
@@ -601,15 +587,15 @@ class CombatEngine:
                 if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
                     damage = 1
 
-                # Buffer: prevent entire hit before block subtraction (Java: onAttackedToChangeDamage)
-                buffer = self.state.player.statuses.get("Buffer", 0)
-                if buffer > 0 and damage > 0:
-                    buffer -= 1
-                    if buffer <= 0:
-                        del self.state.player.statuses["Buffer"]
-                    else:
-                        self.state.player.statuses["Buffer"] = buffer
-                    damage = 0
+                # Power damage replacement hook (Buffer, Invincible, etc.)
+                replaced_damage = execute_power_triggers(
+                    "onAttackedToChangeDamage",
+                    self.state,
+                    self.state.player,
+                    {"value": damage, "damage_type": "NORMAL"},
+                )
+                if replaced_damage is not None:
+                    damage = max(0, int(replaced_damage))
 
                 # Apply block
                 blocked = min(self.state.player.block, damage)
@@ -1251,21 +1237,13 @@ class CombatEngine:
             block_gained = self._calculate_block_gained(card.block)
             self.state.player.block += block_gained
             effects.append({"type": "block", "amount": block_gained})
-
-            # Trigger Wave of the Hand
-            if self.state.player.statuses.get("WaveOfTheHand", 0) > 0:
-                weak_amount = self.state.player.statuses["WaveOfTheHand"]
-                for enemy in self.state.enemies:
-                    if enemy.hp > 0:
-                        enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + weak_amount
-
-            # Trigger Juggernaut
-            if self.state.player.statuses.get("Juggernaut", 0) > 0:
-                jugger_damage = self.state.player.statuses["Juggernaut"]
-                living = self.get_living_enemies()
-                if living:
-                    target = living[self.state.turn % len(living)]
-                    self._deal_damage_to_enemy(target, jugger_damage, apply_vuln=True)
+            # Trigger onGainBlock power hooks (Juggernaut, Wave of the Hand).
+            execute_power_triggers(
+                "onGainBlock",
+                self.state,
+                self.state.player,
+                {"block_amount": block_gained},
+            )
 
         # Stance changes
         if card.enter_stance:
@@ -1317,11 +1295,11 @@ class CombatEngine:
             if enemy.hp > 0:
                 if "apply_weak" in card.effects or "if_last_card_attack_weak" in card.effects:
                     weak_amount = card.magic_number if card.magic_number > 0 else 1
-                    enemy.statuses["Weak"] = enemy.statuses.get("Weak", 0) + weak_amount
+                    self._apply_status(enemy, "Weak", weak_amount)
                     effects.append({"type": "debuff", "debuff": "Weak", "amount": weak_amount})
                 if "apply_vulnerable" in card.effects or "if_last_card_skill_vulnerable" in card.effects:
                     vuln_amount = card.magic_number if card.magic_number > 0 else 1
-                    enemy.statuses["Vulnerable"] = enemy.statuses.get("Vulnerable", 0) + vuln_amount
+                    self._apply_status(enemy, "Vulnerable", vuln_amount)
                     effects.append({"type": "debuff", "debuff": "Vulnerable", "amount": vuln_amount})
 
     def _apply_card_damage(self, card: Card, target_index: int, effects: List):
@@ -1839,15 +1817,15 @@ class CombatEngine:
 
     def _calculate_block_gained(self, base_block: int) -> int:
         """Calculate block gained from a card."""
-        player = self.state.player
-        dexterity = player.statuses.get("Dexterity", 0)
-        frail = player.statuses.get("Frail", 0) > 0
-
-        return calculate_block(
-            base=base_block,
-            dexterity=dexterity,
-            frail=frail,
+        modified = execute_power_triggers(
+            "modifyBlock",
+            self.state,
+            self.state.player,
+            {"value": float(base_block)},
         )
+        if modified is None:
+            modified = float(base_block)
+        return max(0, int(modified))
 
     # =========================================================================
     # Stance System
@@ -1939,10 +1917,13 @@ class CombatEngine:
         """
         actual_amount = min(amount, len(self.state.draw_pile))
         if actual_amount <= 0:
-            # Still trigger Nirvana even if no cards
-            nirvana = self.state.player.statuses.get("Nirvana", 0)
-            if nirvana > 0:
-                self.state.player.block += nirvana
+            # Still trigger onScry hooks even if no cards were revealed.
+            execute_power_triggers(
+                "onScry",
+                self.state,
+                self.state.player,
+                {"cards_scried": 0},
+            )
             return
 
         # Reveal top cards (top = end of list)
@@ -1954,10 +1935,13 @@ class CombatEngine:
         for card_id in revealed:
             self.state.discard_pile.append(card_id)
 
-        # Trigger Nirvana
-        nirvana = self.state.player.statuses.get("Nirvana", 0)
-        if nirvana > 0:
-            self.state.player.block += nirvana
+        # Trigger onScry hooks (Nirvana, etc.)
+        execute_power_triggers(
+            "onScry",
+            self.state,
+            self.state.player,
+            {"cards_scried": actual_amount},
+        )
 
         # Trigger Weave from discard
         weaves = [i for i, card_id in enumerate(self.state.discard_pile)
@@ -1999,6 +1983,12 @@ class CombatEngine:
                 card_id = self.state.draw_pile.pop()
                 self.state.hand.append(card_id)
                 drawn.append(card_id)
+                execute_power_triggers(
+                    "onCardDraw",
+                    self.state,
+                    self.state.player,
+                    {"card_id": card_id, "card": self._get_card(card_id)},
+                )
 
         return drawn
 
@@ -2049,18 +2039,32 @@ class CombatEngine:
         """Check if player has Calipers relic."""
         return self.state.has_relic("Calipers")
 
-    def _apply_debuff_to_player(self, debuff: str, amount: int):
-        """Apply a debuff to the player, checking Artifact first."""
-        if debuff in ("Weak", "Vulnerable", "Frail"):
-            artifact = self.state.player.statuses.get("Artifact", 0)
+    def _apply_status(self, target: Union[EntityState, EnemyCombatState], status: str, amount: int) -> None:
+        """Apply status to target using canonical IDs and onApplyPower hooks."""
+        resolved_status = resolve_power_id(status)
+
+        if resolved_status in ("Weak", "Vulnerable", "Frail", "Poison", "Constricted"):
+            artifact = target.statuses.get("Artifact", 0)
             if artifact > 0:
                 artifact -= 1
                 if artifact <= 0:
-                    del self.state.player.statuses["Artifact"]
+                    del target.statuses["Artifact"]
                 else:
-                    self.state.player.statuses["Artifact"] = artifact
-                return  # Debuff blocked
-        self.state.player.statuses[debuff] = self.state.player.statuses.get(debuff, 0) + amount
+                    target.statuses["Artifact"] = artifact
+                return
+
+        target.statuses[resolved_status] = target.statuses.get(resolved_status, 0) + amount
+
+        trigger_data = {"power_id": resolved_status, "target": target}
+        execute_power_triggers("onApplyPower", self.state, self.state.player, trigger_data)
+        for enemy in self.state.enemies:
+            if enemy.hp <= 0:
+                continue
+            execute_power_triggers("onApplyPower", self.state, enemy, trigger_data)
+
+    def _apply_debuff_to_player(self, debuff: str, amount: int):
+        """Apply a debuff to the player, checking Artifact first."""
+        self._apply_status(self.state.player, debuff, amount)
 
     def _has_runic_pyramid(self) -> bool:
         """Check if player has Runic Pyramid relic."""

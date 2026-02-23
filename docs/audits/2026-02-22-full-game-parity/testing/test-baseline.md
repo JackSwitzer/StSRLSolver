@@ -9,11 +9,11 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4676 passed`
+- `4679 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified after `ORB-001` closure (orb runtime + orb-linked relic parity wiring).
+Re-verified after `POW-001` inventory closure + runtime dispatch expansion (`POW-002` partial).
 
 ## Structural inventory
 - Test files: `70`
