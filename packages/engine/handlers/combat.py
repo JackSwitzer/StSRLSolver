@@ -778,6 +778,29 @@ class CombatRunner:
                 for enemy in self.state.enemies:
                     if not enemy.is_dead:
                         for _ in range(hits):
+                            execute_power_triggers(
+                                "atDamageGive",
+                                self.state,
+                                self.state.player,
+                                {
+                                    "value": float(per_hit_damage),
+                                    "card": card,
+                                    "card_id": card.id,
+                                    "damage_type": "NORMAL",
+                                },
+                            )
+                            execute_power_triggers(
+                                "atDamageReceive",
+                                self.state,
+                                enemy,
+                                {"value": float(per_hit_damage), "damage_type": "NORMAL"},
+                            )
+                            execute_power_triggers(
+                                "atDamageFinalReceive",
+                                self.state,
+                                enemy,
+                                {"value": float(per_hit_damage), "damage_type": "NORMAL"},
+                            )
                             actual_damage = self._deal_damage_to_enemy(enemy, per_hit_damage)
                             execute_power_triggers(
                                 "onAttack",
@@ -812,6 +835,29 @@ class CombatRunner:
                 # Single target
                 for _ in range(hits):
                     if not target.is_dead:
+                        execute_power_triggers(
+                            "atDamageGive",
+                            self.state,
+                            self.state.player,
+                            {
+                                "value": float(per_hit_damage),
+                                "card": card,
+                                "card_id": card.id,
+                                "damage_type": "NORMAL",
+                            },
+                        )
+                        execute_power_triggers(
+                            "atDamageReceive",
+                            self.state,
+                            target,
+                            {"value": float(per_hit_damage), "damage_type": "NORMAL"},
+                        )
+                        execute_power_triggers(
+                            "atDamageFinalReceive",
+                            self.state,
+                            target,
+                            {"value": float(per_hit_damage), "damage_type": "NORMAL"},
+                        )
                         actual_damage = self._deal_damage_to_enemy(target, per_hit_damage)
                         execute_power_triggers(
                             "onAttack",
@@ -1229,6 +1275,26 @@ class CombatRunner:
                 if self.state.has_relic("Torii"):
                     if 2 <= final_damage <= 5:
                         final_damage = 1
+
+                # Dispatch damage modification hooks for parity coverage.
+                execute_power_triggers(
+                    "atDamageGive",
+                    self.state,
+                    enemy_state,
+                    {"value": float(final_damage), "damage_type": "NORMAL"},
+                )
+                execute_power_triggers(
+                    "atDamageReceive",
+                    self.state,
+                    self.state.player,
+                    {"value": float(final_damage), "damage_type": "NORMAL"},
+                )
+                execute_power_triggers(
+                    "atDamageFinalReceive",
+                    self.state,
+                    self.state.player,
+                    {"value": float(final_damage), "damage_type": "NORMAL"},
+                )
 
                 # Power damage replacement hook (Buffer, Invincible, etc.)
                 replaced_damage = execute_power_triggers(
