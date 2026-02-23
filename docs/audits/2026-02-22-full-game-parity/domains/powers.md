@@ -36,19 +36,17 @@
 
 ## Dispatch audit snapshot (2026-02-23)
 - Registry hook types (`@power_trigger`): `25`
-- Runtime-dispatched hook types (`execute_power_triggers` callsites across both combat runtimes): `17`
-- Registered but not runtime-dispatched hook types: `8`
+- Runtime-dispatched hook types (`execute_power_triggers` callsites across both combat runtimes): `19`
+- Registered but not runtime-dispatched hook types: `6`
   - `atDamageFinalReceive`
   - `atDamageGive`
   - `atDamageReceive`
   - `onAttack`
   - `onAttacked`
-  - `onDeath`
   - `onManualDiscard`
-  - `wasHPLost`
 
 ## Open gaps
-- [ ] `POW-002` complete hook-order/semantics parity for remaining long-tail powers and the 8 undispatched hook families.
+- [ ] `POW-002` complete hook-order/semantics parity for remaining long-tail powers and the 6 undispatched hook families.
 - [ ] `POW-003` broaden integration tests for powers + relics + orbs + card-flow edge cases.
 
 ## Remaining registry behavior gaps (from manifest diff)

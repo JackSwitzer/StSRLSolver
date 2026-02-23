@@ -609,19 +609,20 @@ class CombatEngine:
                 self.state.player.hp -= hp_damage
                 self.state.total_damage_taken += hp_damage
 
-                # Trigger wasHPLost relics if HP was lost
+                # Trigger wasHPLost hooks if HP was lost
                 if hp_damage > 0:
                     execute_relic_triggers("wasHPLost", self.state, {"hp_lost": hp_damage})
-
-                # Plated Armor: lose 1 stack when taking unblocked HP damage
-                if hp_damage > 0:
-                    plated = self.state.player.statuses.get("Plated Armor", 0)
-                    if plated > 0:
-                        plated -= 1
-                        if plated <= 0:
-                            del self.state.player.statuses["Plated Armor"]
-                        else:
-                            self.state.player.statuses["Plated Armor"] = plated
+                    execute_power_triggers(
+                        "wasHPLost",
+                        self.state,
+                        self.state.player,
+                        {
+                            "damage": hp_damage,
+                            "unblocked": True,
+                            "is_self_damage": False,
+                            "damage_type": "NORMAL",
+                        },
+                    )
 
                 # Player Thorns: deal damage back to enemy on HP damage
                 if hp_damage > 0:
@@ -1521,6 +1522,8 @@ class CombatEngine:
 
     def _on_enemy_death(self, enemy: EnemyCombatState):
         """Handle enemy death triggers."""
+        execute_power_triggers("onDeath", self.state, enemy, {"dying_enemy": enemy})
+
         # Spore Cloud (FungiBeast): apply Vulnerable to player
         spore_cloud = enemy.statuses.get("Spore Cloud", 0)
         if spore_cloud > 0:

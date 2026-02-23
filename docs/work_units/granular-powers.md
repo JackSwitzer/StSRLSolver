@@ -14,6 +14,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] New audit tests added: `tests/test_audit_power_manifest.py`.
 - [ ] `POW-002` remaining hook-order/behavior exactness for long-tail powers.
 - [ ] `POW-003` cross-system integration lock (powers + relics + orbs + cards) beyond current coverage.
+- [x] `POW-002B` lifecycle dispatch slice: wire `wasHPLost` and `onDeath` in both runtimes and lock with dispatch audit.
 
 ## System / Shared
 - [x] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
