@@ -4,7 +4,7 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 
 ## Canonical workspace
 - All campaign edits happen in:
-  - `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+  - `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - Do not split implementation across multiple local clones/worktrees for this campaign.
 
 ## Campaign goals
@@ -22,6 +22,7 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 - Consolidation/code review: [`CODE_CONSOLIDATION_REVIEW.md`](./CODE_CONSOLIDATION_REVIEW.md)
 - Test baseline: [`testing/test-baseline.md`](./testing/test-baseline.md)
 - RL readiness checklist: [`rl/rl-readiness.md`](./rl/rl-readiness.md)
+- Desktop consolidation verification: [`traceability/desktop-realignment-2026-02-23.md`](./traceability/desktop-realignment-2026-02-23.md)
 
 ## Traceability (source of truth)
 - Java inventory: [`traceability/java-inventory.md`](./traceability/java-inventory.md)
@@ -39,5 +40,5 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 
 ## Legacy suite status
 - Legacy audit retained for history only:
-  - `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop/docs/audits/2026-02-21-parity`
+  - `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-21-parity`
 - New work must be tracked in this 2026-02-22 suite.

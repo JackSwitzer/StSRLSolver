@@ -4,7 +4,7 @@ This manifest captures explicit migration/archive decisions for content from:
 - `/Users/jackswitzer/Desktop/StSRLSolver`
 
 Canonical destination:
-- `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+- `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Migrated to canonical repo
 
@@ -41,7 +41,7 @@ Canonical destination:
 1. Tag/freeze non-canonical repos before deletion from Desktop workspace.
 2. Keep archived histories accessible via git remotes/tags only.
 3. Maintain a single active development root:
-   - `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+   - `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Follow-up requirements
 

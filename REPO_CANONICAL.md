@@ -3,7 +3,7 @@
 This repository is the canonical implementation base for Slay the Spire parity and RL readiness.
 
 ## Canonical path
-- `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+- `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Source-of-truth hierarchy
 1. Java behavior reference:
