@@ -51,6 +51,37 @@
 - [ ] `POW-002` complete hook-order/semantics parity for remaining long-tail powers and the 8 undispatched hook families.
 - [ ] `POW-003` broaden integration tests for powers + relics + orbs + card-flow edge cases.
 
+## Remaining registry behavior gaps (from manifest diff)
+- Classes with at least one Java-overridden hook not represented in current registry handlers: `71`
+- Largest remaining hook families by count:
+  - `atEndOfTurn`: `18`
+  - `atEndOfRound`: `17`
+  - `atStartOfTurn`: `14`
+  - `onUseCard`: `11`
+  - `onAttacked`: `9`
+- Additional remaining hook families:
+  - `atDamageFinalReceive`: `3`
+  - `onEnergyRecharge`: `2`
+  - `atDamageGive`: `2`
+  - `onChangeStance`: `2`
+  - `onAfterUseCard`: `2`
+  - `onDeath`: `2`
+  - `onCardDraw`: `1`
+  - `atStartOfTurnPostDraw`: `1`
+  - `onAttackedToChangeDamage`: `1`
+  - `onApplyPower`: `1`
+- High-priority classes with multi-hook deltas:
+  - `MalleablePower`: `atEndOfRound`, `atEndOfTurn`, `onAttacked`
+  - `FlightPower`: `atDamageFinalReceive`, `atStartOfTurn`, `onAttacked`
+  - `TimeMazePower`: `atStartOfTurn`, `onAfterUseCard`
+  - `SkillBurnPower`: `atEndOfRound`, `onUseCard`
+  - `ReboundPower`: `atEndOfTurn`, `onAfterUseCard`
+  - `PenNibPower`: `atDamageGive`, `onUseCard`
+  - `InvinciblePower`: `atStartOfTurn`, `onAttackedToChangeDamage`
+  - `IntangiblePlayerPower`: `atDamageFinalReceive`, `atEndOfRound`
+  - `EquilibriumPower`: `atEndOfRound`, `atEndOfTurn`
+  - `EchoPower`: `atStartOfTurn`, `onUseCard`
+
 ## Java references
 - `com/megacrit/cardcrawl/powers/*.java`
 - `com/megacrit/cardcrawl/powers/watcher/*.java`
