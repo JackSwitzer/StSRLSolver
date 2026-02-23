@@ -1,7 +1,7 @@
 # Ground Truth: Java Parity + Agent Contract
 
 Last updated: 2026-02-23
-Working branch: `codex/cons-002a`
+Working branch: `codex/cons-002b`
 
 ## Baseline
 - Command: `uv run pytest tests/ -q`
@@ -74,6 +74,9 @@ Working branch: `codex/cons-002a`
 - Combat runtime unification phase A completed:
   - `CombatRunner` now wraps `CombatEngine` (compatibility facade)
   - Compatibility lock tests: `tests/test_combat_runner_compat.py`
+- Combat runtime unification phase B completed:
+  - removed duplicated legacy CombatRunner runtime implementation block
+  - `packages/engine/handlers/combat.py` now retains shim + encounter helpers only
 
 ## Priority remaining blockers
 1. Card inventory/behavior closure for the 21 Java-side card rows marked missing.

@@ -33,6 +33,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration
 - [x] `CONS-DESKTOP-001` one-folder Desktop realignment + archive verification
 - [x] `CONS-002A` CombatRunner facade delegates runtime ownership to CombatEngine + compatibility tests
+- [x] `CONS-002B` removed duplicated legacy CombatRunner runtime body; shim-only module retained
 
 ### R1 relic selection surface
 - [x] `REL-003` Orrery explicit selection actions

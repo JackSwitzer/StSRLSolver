@@ -25,6 +25,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration to `packages/training/`.
 - [x] `CONS-DESKTOP-001` one-folder Desktop realignment with verified archive snapshots (`docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`).
 - [x] `CONS-002A` CombatRunner compatibility facade now delegates runtime execution to `CombatEngine` with dedicated compatibility test coverage (`tests/test_combat_runner_compat.py`).
+- [x] `CONS-002B` legacy CombatRunner implementation block removed from `handlers/combat.py`; only compatibility shim remains.
 - [x] `AUD-001A` deterministic Java-vs-Python inventory/hook manifest generation via `scripts/generate_parity_manifests.py`.
 
 ## Evidence-based remaining gaps
@@ -95,9 +96,10 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `CONS-002B` remove/reduce remaining legacy CombatRunner logic after facade migration (zero non-compat consumers).
-2. `POW-002` close runtime dispatch for remaining registered hooks (`11` undispatched in generated hook report).
-3. `CRD-INV-003` close the `21` Java card rows flagged missing by generated parity diff.
+1. `POW-002` close runtime dispatch for remaining registered hooks (`11` undispatched in generated hook report).
+2. `CRD-INV-003` close the `21` Java card rows flagged missing by generated parity diff.
+3. `CONS-001B` finish remaining deterministic RNG normalization in parity-critical runtime paths.
+
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.
