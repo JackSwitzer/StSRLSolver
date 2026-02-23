@@ -49,6 +49,9 @@ def test_high_priority_power_hooks_are_runtime_dispatched() -> None:
 
     required_hooks = {
         "atStartOfTurnPostDraw",
+        "atDamageFinalReceive",
+        "atDamageGive",
+        "atDamageReceive",
         "onCardDraw",
         "onApplyPower",
         "onScry",

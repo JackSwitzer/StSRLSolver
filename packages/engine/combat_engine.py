@@ -587,6 +587,26 @@ class CombatEngine:
                 if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
                     damage = 1
 
+                # Dispatch damage modification hooks for parity coverage.
+                execute_power_triggers(
+                    "atDamageGive",
+                    self.state,
+                    enemy,
+                    {"value": float(damage), "damage_type": "NORMAL"},
+                )
+                execute_power_triggers(
+                    "atDamageReceive",
+                    self.state,
+                    self.state.player,
+                    {"value": float(damage), "damage_type": "NORMAL"},
+                )
+                execute_power_triggers(
+                    "atDamageFinalReceive",
+                    self.state,
+                    self.state.player,
+                    {"value": float(damage), "damage_type": "NORMAL"},
+                )
+
                 # Power damage replacement hook (Buffer, Invincible, etc.)
                 replaced_damage = execute_power_triggers(
                     "onAttackedToChangeDamage",
@@ -1358,6 +1378,29 @@ class CombatEngine:
             for i, enemy in enumerate(self.state.enemies):
                 if enemy.hp > 0 and i in enemy_damages:
                     for _ in range(hits):
+                        execute_power_triggers(
+                            "atDamageGive",
+                            self.state,
+                            self.state.player,
+                            {
+                                "value": float(enemy_damages[i]),
+                                "card": card,
+                                "card_id": card.id,
+                                "damage_type": "NORMAL",
+                            },
+                        )
+                        execute_power_triggers(
+                            "atDamageReceive",
+                            self.state,
+                            enemy,
+                            {"value": float(enemy_damages[i]), "damage_type": "NORMAL"},
+                        )
+                        execute_power_triggers(
+                            "atDamageFinalReceive",
+                            self.state,
+                            enemy,
+                            {"value": float(enemy_damages[i]), "damage_type": "NORMAL"},
+                        )
                         actual_damage = self._deal_damage_to_enemy(enemy, enemy_damages[i])
                         execute_power_triggers(
                             "onAttack",
@@ -1394,6 +1437,29 @@ class CombatEngine:
             enemy = self.state.enemies[target_index]
             if enemy.hp > 0:
                 for _ in range(hits):
+                    execute_power_triggers(
+                        "atDamageGive",
+                        self.state,
+                        self.state.player,
+                        {
+                            "value": float(damage_per_hit),
+                            "card": card,
+                            "card_id": card.id,
+                            "damage_type": "NORMAL",
+                        },
+                    )
+                    execute_power_triggers(
+                        "atDamageReceive",
+                        self.state,
+                        enemy,
+                        {"value": float(damage_per_hit), "damage_type": "NORMAL"},
+                    )
+                    execute_power_triggers(
+                        "atDamageFinalReceive",
+                        self.state,
+                        enemy,
+                        {"value": float(damage_per_hit), "damage_type": "NORMAL"},
+                    )
                     actual_damage = self._deal_damage_to_enemy(enemy, damage_per_hit)
                     execute_power_triggers(
                         "onAttack",
