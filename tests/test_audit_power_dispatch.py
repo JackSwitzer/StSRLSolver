@@ -52,6 +52,8 @@ def test_high_priority_power_hooks_are_runtime_dispatched() -> None:
         "onApplyPower",
         "onScry",
         "onAttackedToChangeDamage",
+        "wasHPLost",
+        "onDeath",
     }
 
     for hook in required_hooks:

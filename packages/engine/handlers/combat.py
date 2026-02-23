@@ -449,12 +449,23 @@ class CombatRunner:
         trigger_orb_start_of_turn(self.state, include_cables=False)
 
     def _trigger_was_hp_lost(self, hp_loss: int):
-        """Trigger relics that activate when HP is lost."""
+        """Trigger relic and power hooks that activate when HP is lost."""
         if hp_loss <= 0:
             return
 
         # Execute registry-based wasHPLost triggers
         execute_relic_triggers("wasHPLost", self.state, {"hp_lost": hp_loss})
+        execute_power_triggers(
+            "wasHPLost",
+            self.state,
+            self.state.player,
+            {
+                "damage": hp_loss,
+                "unblocked": True,
+                "is_self_damage": False,
+                "damage_type": "NORMAL",
+            },
+        )
 
     def _apply_status(self, target: Union[EntityState, EnemyCombatState], status: str, amount: int):
         """Apply a status effect to target."""
@@ -888,6 +899,7 @@ class CombatRunner:
         # Check death
         if enemy.hp <= 0:
             enemy.hp = 0
+            execute_power_triggers("onDeath", self.state, enemy, {"dying_enemy": enemy})
             self.enemies_killed += 1
 
     def _change_stance(self, new_stance: str):
