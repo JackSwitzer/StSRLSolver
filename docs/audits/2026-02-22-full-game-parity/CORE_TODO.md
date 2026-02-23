@@ -5,7 +5,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4679 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4684 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 

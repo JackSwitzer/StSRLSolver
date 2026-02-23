@@ -17,6 +17,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] `POW-002B` lifecycle dispatch slice: wire `wasHPLost` and `onDeath` in both runtimes and lock with dispatch audit.
 - [x] `POW-002C` attack-path dispatch slice: wire `onAttack` and `onAttacked` in both runtimes and include existing `onManualDiscard` runtime path in dispatch audit.
 - [x] `POW-002D` damage-hook dispatch slice: wire `atDamageGive`, `atDamageReceive`, `atDamageFinalReceive` in both runtimes and lock dispatch parity.
+- [x] `POW-003A` alias/lifecycle slice: close `IntangiblePlayer`, `DrawCardNextTurn`, `WaveOfTheHandPower`, and `ThornsPower` hook parity in registry behavior.
 
 ## System / Shared
 - [x] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})

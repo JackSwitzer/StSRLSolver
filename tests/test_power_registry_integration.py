@@ -624,5 +624,75 @@ class TestOnGainBlock:
         assert state.enemies[1].statuses.get("Weakened", 0) == 1
 
 
+class TestPow003AliasLifecycle:
+    """Alias/lifecycle hooks that share Java behavior semantics."""
+
+    def test_draw_card_next_turn_alias_registered_and_triggers(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=30, max_hp=30, id="test")],
+            deck=["Strike", "Defend", "Bash"],
+        )
+        state.hand = []
+        state.player.statuses["DrawCardNextTurn"] = 2
+
+        assert POWER_REGISTRY.has_handler("atStartOfTurnPostDraw", "DrawCardNextTurn")
+        execute_power_triggers("atStartOfTurnPostDraw", state, state.player)
+
+        assert len(state.hand) == 2
+        assert "DrawCardNextTurn" not in state.player.statuses
+
+    def test_intangible_player_hooks_registered(self):
+        assert POWER_REGISTRY.has_handler("atDamageFinalReceive", "IntangiblePlayer")
+        assert POWER_REGISTRY.has_handler("atEndOfRound", "IntangiblePlayer")
+
+    def test_intangible_player_end_of_round_decrements(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=30, max_hp=30, id="test")],
+            deck=["Strike"],
+        )
+        state.player.statuses["IntangiblePlayer"] = 2
+
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert state.player.statuses.get("IntangiblePlayer", 0) == 1
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert "IntangiblePlayer" not in state.player.statuses
+
+    def test_wave_of_the_hand_power_expires_at_end_of_round(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=30, max_hp=30, id="test")],
+            deck=["Strike"],
+        )
+        state.player.statuses["WaveOfTheHandPower"] = 1
+
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert "WaveOfTheHandPower" not in state.player.statuses
+
+    def test_thorns_on_attacked_damages_attacker(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=30, max_hp=30, id="test")],
+            deck=["Strike"],
+        )
+        attacker = state.enemies[0]
+        attacker.hp = 20
+        state.player.statuses["Thorns"] = 3
+
+        execute_power_triggers(
+            "onAttacked",
+            state,
+            state.player,
+            {"attacker": attacker, "damage": 5, "damage_type": "NORMAL"},
+        )
+
+        assert attacker.hp == 17
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
