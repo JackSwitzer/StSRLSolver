@@ -4,7 +4,7 @@ Last updated: 2026-02-23
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4684 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4691 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
@@ -76,6 +76,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### R5: Powers + orbs closure
 - [x] `POW-001` power inventory closure with Java references.
 - [ ] `POW-002` remaining hook/timing parity fixes.
+- [x] `POW-003B` long-tail hook/runtime closure (`Flight`, `Malleable`, `Invincible`, `Pen Nib`, `Equilibrium`, `Echo Form` marker path).
 - [x] `ORB-001` orb infrastructure required for relic/power parity.
 - [ ] `POW-003` power/orb/relic integration tests.
 - [ ] `CONS-001B` remaining deterministic RNG normalization in relic/potion/orb paths.
@@ -89,8 +90,9 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `POW-002` complete runtime dispatch/hook-order closure across both combat runtimes.
+1. `POW-003C` close replay-style power queue parity (`Echo Form`, `Burst`, `Double Tap`, `Amplify`) in both combat runtimes.
 2. `POW-003` add hook-order + cross-system integration tests and determinism locks.
+3. `CONS-001B` continue deterministic RNG ownership cleanup in remaining parity-critical paths.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

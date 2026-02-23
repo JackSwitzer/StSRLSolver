@@ -923,6 +923,15 @@ class CombatRunner:
             self.state.energy += 1
             result["effects"].append({"type": "energy", "amount": 1})
 
+        # Equilibrium: retain hand via temporary turn-based power state.
+        if "retain_hand" in card.effects:
+            amount = card.magic_number if card.magic_number > 0 else 1
+            self.state.player.statuses["Equilibrium"] = (
+                self.state.player.statuses.get("Equilibrium", 0) + amount
+            )
+            self.state.player.statuses["RetainHand"] = 1
+            result["effects"].append({"type": "power", "power": "Equilibrium", "amount": amount})
+
         # Handle status applications
         for effect in card.effects:
             if effect.startswith("apply_"):
@@ -1049,6 +1058,7 @@ class CombatRunner:
             "LikeWater": ("LikeWater", amount),
             "Devotion": ("Devotion", amount),
             "Establishment": ("Establishment", 1),
+            "Echo Form": ("Echo Form", amount),
         }
 
         if power_id in power_map:
@@ -1132,21 +1142,23 @@ class CombatRunner:
             self.phase = CombatPhase.COMBAT_END
             return
 
-        # Discard hand (except retained cards)
+        # Discard hand (except retained cards). Full-hand retain effects retain all
+        # non-Ethereal cards, matching Runic Pyramid/Equilibrium semantics.
+        retain_all = (
+            self.state.has_relic("Runic Pyramid")
+            or self.state.player.statuses.get("RetainHand", 0) > 0
+            or self.state.player.statuses.get("Equilibrium", 0) > 0
+        )
         retained = []
         for card_id in self.state.hand:
             card = self._get_card(card_id)
-            if card and card.retain:
-                retained.append(card_id)
-            elif card and card.ethereal:
+            if card and card.ethereal:
                 self.state.exhaust_pile.append(card_id)
+                continue
+            if retain_all or (card and card.retain):
+                retained.append(card_id)
             else:
                 self.state.discard_pile.append(card_id)
-
-        # Runic Pyramid - retain entire hand
-        if self.state.has_relic("Runic Pyramid"):
-            retained = self.state.hand.copy()
-            self.state.discard_pile.clear()
 
         self.state.hand = retained
 

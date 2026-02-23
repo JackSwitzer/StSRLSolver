@@ -12,6 +12,67 @@ from __future__ import annotations
 from . import power_trigger, PowerContext
 
 
+def _owner_runtime_key(ctx: PowerContext) -> str:
+    """Stable owner key for per-power runtime state."""
+    if ctx.owner is None:
+        return "none"
+    if ctx.owner is ctx.player:
+        return "player"
+    for idx, enemy in enumerate(ctx.state.enemies):
+        if enemy is ctx.owner:
+            return f"enemy:{idx}:{enemy.id}"
+    return f"owner:{id(ctx.owner)}"
+
+
+def _runtime_counter_key(ctx: PowerContext, token: str) -> str:
+    return f"__power_runtime__:{token}:{_owner_runtime_key(ctx)}"
+
+
+def _ensure_runtime_base(ctx: PowerContext, token: str) -> tuple[str, int]:
+    """Ensure a persistent runtime base value exists for a power owner."""
+    key = _runtime_counter_key(ctx, token)
+    base = int(ctx.state.relic_counters.get(key, 0))
+    if base <= 0:
+        base = max(0, int(ctx.amount))
+        ctx.state.relic_counters[key] = base
+    return key, base
+
+
+def _sync_owner_power_amount(
+    ctx: PowerContext, power_id: str, amount: int, *, keep_zero: bool = False
+) -> None:
+    """Set/remove a power amount while respecting alias/canonical key variants."""
+    if ctx.owner is None:
+        return
+
+    from ..content.powers import resolve_power_id, normalize_power_id
+
+    canonical = resolve_power_id(power_id)
+    token = normalize_power_id(canonical)
+
+    matched_keys = []
+    for existing_key in list(ctx.owner.statuses.keys()):
+        existing_canonical = resolve_power_id(existing_key)
+        if (
+            existing_canonical == canonical
+            or normalize_power_id(existing_canonical) == token
+        ):
+            matched_keys.append(existing_key)
+
+    if amount < 0:
+        amount = 0
+
+    if amount == 0 and not keep_zero:
+        for existing_key in matched_keys:
+            ctx.owner.statuses.pop(existing_key, None)
+        return
+
+    target_key = matched_keys[0] if matched_keys else canonical
+    ctx.owner.statuses[target_key] = int(amount)
+    for existing_key in matched_keys[1:]:
+        ctx.owner.statuses.pop(existing_key, None)
+
+
 # =============================================================================
 # AT_START_OF_TURN Triggers (before draw)
 # =============================================================================
@@ -177,6 +238,37 @@ def discipline_power_start(ctx: PowerContext) -> None:
     ctx.owner.statuses["DisciplinePower"] = -1
 
 
+@power_trigger("atStartOfTurn", power="Flight", priority=50)
+def flight_start(ctx: PowerContext) -> None:
+    """Flight: reset to stored stack count each turn."""
+    if ctx.owner is None:
+        return
+    key, base = _ensure_runtime_base(ctx, "flight_base")
+    # If power was stacked by another effect, use the higher amount as new baseline.
+    if ctx.amount > base:
+        base = int(ctx.amount)
+        ctx.state.relic_counters[key] = base
+    _sync_owner_power_amount(ctx, "Flight", base)
+
+
+@power_trigger("atStartOfTurn", power="Invincible", priority=99)
+def invincible_start(ctx: PowerContext) -> None:
+    """Invincible: reset remaining turn cap at start of turn."""
+    if ctx.owner is None:
+        return
+    key, base = _ensure_runtime_base(ctx, "invincible_max")
+    if ctx.amount > base:
+        base = int(ctx.amount)
+        ctx.state.relic_counters[key] = base
+    _sync_owner_power_amount(ctx, "Invincible", base, keep_zero=True)
+
+
+@power_trigger("atStartOfTurn", power="Echo Form")
+def echo_form_start(ctx: PowerContext) -> None:
+    """Echo Form: reset per-turn doubled-card counter."""
+    ctx.state.relic_counters[_runtime_counter_key(ctx, "echo_form_doubled")] = 0
+
+
 # =============================================================================
 # AT_START_OF_TURN_POST_DRAW Triggers (after draw)
 # =============================================================================
@@ -337,6 +429,23 @@ def omega_end(ctx: PowerContext) -> None:
             enemy.hp = 0
 
 
+@power_trigger("atEndOfTurn", power="Malleable")
+def malleable_end_turn(ctx: PowerContext) -> None:
+    """Malleable: monsters reset to base amount at end of turn."""
+    if ctx.owner is None or ctx.owner is ctx.player:
+        return
+    _, base = _ensure_runtime_base(ctx, "malleable_base")
+    _sync_owner_power_amount(ctx, "Malleable", base)
+
+
+@power_trigger("atEndOfTurn", power="Equilibrium")
+def equilibrium_end(ctx: PowerContext) -> None:
+    """Equilibrium: keep retain-hand marker active while power has stacks."""
+    if ctx.owner is not ctx.player or ctx.amount <= 0:
+        return
+    ctx.player.statuses["RetainHand"] = 1
+
+
 # =============================================================================
 # AT_END_OF_ROUND Triggers (after all turns)
 # =============================================================================
@@ -373,6 +482,28 @@ def slow_end_round(ctx: PowerContext) -> None:
     """Slow: Reset stacks at end of round (power persists)."""
     if ctx.owner and "Slow" in ctx.owner.statuses:
         ctx.owner.statuses["Slow"] = 0
+
+
+@power_trigger("atEndOfRound", power="Malleable")
+def malleable_end_round(ctx: PowerContext) -> None:
+    """Malleable: player resets to base amount at end of round."""
+    if ctx.owner is not ctx.player:
+        return
+    _, base = _ensure_runtime_base(ctx, "malleable_base")
+    _sync_owner_power_amount(ctx, "Malleable", base)
+
+
+@power_trigger("atEndOfRound", power="Equilibrium")
+def equilibrium_end_round(ctx: PowerContext) -> None:
+    """Equilibrium: reduce at end of round and clear retain marker when removed."""
+    if ctx.owner is not ctx.player:
+        return
+    if ctx.amount > 1:
+        _sync_owner_power_amount(ctx, "Equilibrium", ctx.amount - 1)
+        ctx.player.statuses["RetainHand"] = 1
+    else:
+        _sync_owner_power_amount(ctx, "Equilibrium", 0)
+        ctx.player.statuses.pop("RetainHand", None)
 
 
 # =============================================================================
@@ -446,6 +577,39 @@ def heatsink_on_use(ctx: PowerContext) -> None:
     card_id = ctx.trigger_data.get("card_id", "")
     if card_id in ALL_CARDS and ALL_CARDS[card_id].card_type == CardType.POWER:
         ctx.draw_cards(ctx.amount)
+
+
+@power_trigger("onUseCard", power="Pen Nib")
+def pen_nib_on_use(ctx: PowerContext) -> None:
+    """Pen Nib: remove after an Attack is used."""
+    card = ctx.trigger_data.get("card")
+    if card is None:
+        return
+    from ..content.cards import CardType
+    if getattr(card, "card_type", None) == CardType.ATTACK:
+        _sync_owner_power_amount(ctx, "Pen Nib", 0)
+
+
+@power_trigger("onUseCard", power="Echo Form")
+def echo_form_on_use(ctx: PowerContext) -> None:
+    """Echo Form: mark the first N cards each turn for replay."""
+    if ctx.owner is not ctx.player or ctx.amount <= 0:
+        return
+    if ctx.trigger_data.get("is_echo_copy"):
+        return
+    card = ctx.trigger_data.get("card")
+    if card is None:
+        return
+    if getattr(card, "purge_on_use", False):
+        return
+
+    key = _runtime_counter_key(ctx, "echo_form_doubled")
+    cards_doubled = int(ctx.state.relic_counters.get(key, 0))
+    cards_played = int(getattr(ctx.state, "cards_played_this_turn", 0))
+    if cards_played - cards_doubled <= int(ctx.amount):
+        ctx.state.relic_counters[key] = cards_doubled + 1
+        repeats = int(ctx.trigger_data.get("repeat_play_count", 0))
+        ctx.trigger_data["repeat_play_count"] = repeats + 1
 
 
 # =============================================================================
@@ -615,6 +779,15 @@ def vigor_damage_give(ctx: PowerContext) -> int:
     return base_damage + ctx.amount
 
 
+@power_trigger("atDamageGive", power="Pen Nib", priority=6)
+def pen_nib_damage_give(ctx: PowerContext) -> int:
+    """Pen Nib: double NORMAL damage."""
+    base_damage = ctx.trigger_data.get("value", 0)
+    if ctx.trigger_data.get("damage_type", "NORMAL") != "NORMAL":
+        return base_damage
+    return base_damage * 2.0
+
+
 @power_trigger("atDamageGive", power="Weakened", priority=99)
 def weak_damage_give(ctx: PowerContext) -> int:
     """Weak: Reduce damage dealt by 25%."""
@@ -649,6 +822,16 @@ def intangible_damage_final(ctx: PowerContext) -> int:
     return 1
 
 
+@power_trigger("atDamageFinalReceive", power="Flight", priority=50)
+def flight_damage_final(ctx: PowerContext) -> float:
+    """Flight: halve incoming non-HP_LOSS/non-THORNS damage."""
+    base_damage = ctx.trigger_data.get("value", 0)
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    if damage_type in ("HP_LOSS", "THORNS"):
+        return base_damage
+    return base_damage / 2.0
+
+
 # =============================================================================
 # ON_ATTACKED_TO_CHANGE_DAMAGE Triggers
 # =============================================================================
@@ -663,6 +846,24 @@ def buffer_change_damage(ctx: PowerContext) -> int:
             del ctx.player.statuses["Buffer"]
         return 0  # Prevent damage
     return damage
+
+
+@power_trigger("onAttackedToChangeDamage", power="Invincible", priority=99)
+def invincible_change_damage(ctx: PowerContext) -> int:
+    """Invincible: cap incoming hit damage to remaining per-turn amount."""
+    incoming = int(ctx.trigger_data.get("value", 0))
+    if incoming <= 0:
+        return 0
+
+    key, base = _ensure_runtime_base(ctx, "invincible_max")
+    if ctx.amount > base:
+        base = int(ctx.amount)
+        ctx.state.relic_counters[key] = base
+
+    capped = min(incoming, int(ctx.amount))
+    remaining = max(0, int(ctx.amount) - capped)
+    _sync_owner_power_amount(ctx, "Invincible", remaining, keep_zero=True)
+    return capped
 
 
 # =============================================================================
@@ -720,6 +921,54 @@ def thorns_on_attacked(ctx: PowerContext) -> None:
 # =============================================================================
 # ON_ATTACKED Triggers (when player is attacked)
 # =============================================================================
+
+@power_trigger("onAttacked", power="Flight", priority=50)
+def flight_on_attacked(ctx: PowerContext) -> None:
+    """Flight: lose one stack when hit by eligible damage and still alive."""
+    if ctx.owner is None:
+        return
+    _ensure_runtime_base(ctx, "flight_base")
+    attacker = ctx.trigger_data.get("attacker")
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    unblocked = int(ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0)))
+    if (
+        attacker is None
+        or unblocked <= 0
+        or damage_type in ("HP_LOSS", "THORNS")
+        or ctx.owner.hp <= 0
+    ):
+        return
+
+    next_amount = max(0, int(ctx.amount) - 1)
+    _sync_owner_power_amount(ctx, "Flight", next_amount)
+    if next_amount == 0:
+        ctx.state.relic_counters.pop(_runtime_counter_key(ctx, "flight_base"), None)
+
+
+@power_trigger("onAttacked", power="Malleable")
+def malleable_on_attacked(ctx: PowerContext) -> None:
+    """Malleable: gain block, then increase amount by 1 after eligible hits."""
+    if ctx.owner is None:
+        return
+    attacker = ctx.trigger_data.get("attacker")
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    unblocked = int(ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0)))
+    if (
+        attacker is None
+        or unblocked <= 0
+        or damage_type != "NORMAL"
+        or ctx.owner.hp <= 0
+    ):
+        return
+
+    _ensure_runtime_base(ctx, "malleable_base")
+    gain = max(0, int(ctx.amount))
+    if ctx.owner is ctx.player:
+        ctx.gain_block(gain)
+    else:
+        ctx.owner.block += gain
+    _sync_owner_power_amount(ctx, "Malleable", int(ctx.amount) + 1)
+
 
 @power_trigger("onAttacked", power="FlameBarrier")
 def flame_barrier_attacked(ctx: PowerContext) -> None:

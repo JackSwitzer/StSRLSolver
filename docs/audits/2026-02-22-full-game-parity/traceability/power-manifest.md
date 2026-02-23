@@ -56,7 +56,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `DrawPower` | `-` | `Draw` | `-` | `exact` |
 | `DrawReductionPower` | `atEndOfRound` | `Draw Reduction` | `-` | `exact` |
 | `DuplicationPower` | `atEndOfRound, onUseCard` | `Duplication` | `onUseCard` | `exact` |
-| `EchoPower` | `atStartOfTurn, onUseCard` | `Echo Form` | `-` | `alias` |
+| `EchoPower` | `atStartOfTurn, onUseCard` | `Echo Form` | `atStartOfTurn, onUseCard` | `alias` |
 | `ElectroPower` | `-` | `Electro` | `-` | `exact` |
 | `EndTurnDeathPower` | `atStartOfTurn` | `EndTurnDeath` | `-` | `exact` |
 | `EnergizedBluePower` | `onEnergyRecharge` | `EnergizedBlue` | `-` | `exact` |
@@ -64,7 +64,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `EnergyDownPower` | `atStartOfTurn` | `EnergyDown` | `-` | `exact` |
 | `EntanglePower` | `atEndOfTurn` | `Entangled` | `-` | `alias` |
 | `EnvenomPower` | `onAttack` | `Envenom` | `onAttack` | `exact` |
-| `EquilibriumPower` | `atEndOfRound, atEndOfTurn` | `Equilibrium` | `-` | `exact` |
+| `EquilibriumPower` | `atEndOfRound, atEndOfTurn` | `Equilibrium` | `atEndOfRound, atEndOfTurn` | `exact` |
 | `EstablishmentPower` | `atEndOfTurn` | `EstablishmentPower` | `-` | `exact` |
 | `EvolvePower` | `onCardDraw` | `Evolve` | `onCardDraw` | `exact` |
 | `ExplosivePower` | `-` | `Explosive` | `-` | `exact` |
@@ -72,7 +72,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `FeelNoPainPower` | `onExhaust` | `Feel No Pain` | `onExhaust` | `exact` |
 | `FireBreathingPower` | `onCardDraw` | `Fire Breathing` | `onCardDraw` | `exact` |
 | `FlameBarrierPower` | `atStartOfTurn, onAttacked` | `Flame Barrier` | `atStartOfTurn, onAttacked` | `exact` |
-| `FlightPower` | `atDamageFinalReceive, atStartOfTurn, onAttacked` | `Flight` | `-` | `exact` |
+| `FlightPower` | `atDamageFinalReceive, atStartOfTurn, onAttacked` | `Flight` | `atDamageFinalReceive, atStartOfTurn, onAttacked` | `exact` |
 | `FocusPower` | `-` | `Focus` | `-` | `exact` |
 | `ForcefieldPower` | `atDamageFinalReceive` | `Forcefield` | `-` | `exact` |
 | `ForesightPower` | `atStartOfTurn` | `WireheadingPower` | `-` | `alias` |
@@ -87,7 +87,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `InfiniteBladesPower` | `atStartOfTurn` | `Infinite Blades` | `atStartOfTurn` | `exact` |
 | `IntangiblePlayerPower` | `atDamageFinalReceive, atEndOfRound` | `IntangiblePlayer` | `atDamageFinalReceive, atEndOfRound` | `exact` |
 | `IntangiblePower` | `atDamageFinalReceive, atEndOfTurn` | `Intangible` | `atDamageFinalReceive, atEndOfTurn` | `exact` |
-| `InvinciblePower` | `atStartOfTurn, onAttackedToChangeDamage` | `Invincible` | `-` | `exact` |
+| `InvinciblePower` | `atStartOfTurn, onAttackedToChangeDamage` | `Invincible` | `atStartOfTurn, onAttackedToChangeDamage` | `exact` |
 | `JuggernautPower` | `-` | `Juggernaut` | `onGainBlock` | `exact` |
 | `LightningMasteryPower` | `-` | `LightningMastery` | `-` | `exact` |
 | `LikeWaterPower` | `atEndOfTurnPreEndTurnCards` | `LikeWaterPower` | `atEndOfTurnPreEndTurnCards` | `exact` |
@@ -97,7 +97,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `LoseDexterityPower` | `atEndOfTurn` | `LoseDexterity` | `atEndOfTurn` | `exact` |
 | `LoseStrengthPower` | `atEndOfTurn` | `Flex` | `-` | `alias` |
 | `MagnetismPower` | `atStartOfTurn` | `Magnetism` | `atStartOfTurn` | `exact` |
-| `MalleablePower` | `atEndOfRound, atEndOfTurn, onAttacked` | `Malleable` | `-` | `exact` |
+| `MalleablePower` | `atEndOfRound, atEndOfTurn, onAttacked` | `Malleable` | `atEndOfRound, atEndOfTurn, onAttacked` | `exact` |
 | `MantraPower` | `-` | `Mantra` | `-` | `exact` |
 | `MarkPower` | `-` | `PathToVictoryPower` | `-` | `alias` |
 | `MasterRealityPower` | `-` | `MasterRealityPower` | `-` | `exact` |
@@ -117,7 +117,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `OmnisciencePower` | `-` | `Omniscience` | `-` | `exact` |
 | `PainfulStabsPower` | `-` | `PainfulStabs` | `-` | `exact` |
 | `PanachePower` | `atStartOfTurn, onUseCard` | `Panache` | `onUseCard` | `exact` |
-| `PenNibPower` | `atDamageGive, onUseCard` | `Pen Nib` | `-` | `exact` |
+| `PenNibPower` | `atDamageGive, onUseCard` | `Pen Nib` | `atDamageGive, onUseCard` | `exact` |
 | `PhantasmalPower` | `atStartOfTurn` | `Phantasmal` | `-` | `exact` |
 | `PlatedArmorPower` | `atEndOfTurnPreEndTurnCards, wasHPLost` | `Plated Armor` | `atEndOfTurnPreEndTurnCards, wasHPLost` | `exact` |
 | `PoisonPower` | `atStartOfTurn` | `Poison` | `atStartOfTurn` | `exact` |

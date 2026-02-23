@@ -18,6 +18,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [x] `POW-002C` attack-path dispatch slice: wire `onAttack` and `onAttacked` in both runtimes and include existing `onManualDiscard` runtime path in dispatch audit.
 - [x] `POW-002D` damage-hook dispatch slice: wire `atDamageGive`, `atDamageReceive`, `atDamageFinalReceive` in both runtimes and lock dispatch parity.
 - [x] `POW-003A` alias/lifecycle slice: close `IntangiblePlayer`, `DrawCardNextTurn`, `WaveOfTheHandPower`, and `ThornsPower` hook parity in registry behavior.
+- [x] `POW-003B` defensive/offensive long-tail slice: close registry/runtime hook coverage for `Flight`, `Malleable`, `Invincible`, `Pen Nib`, `Equilibrium`, and `Echo Form` (Java refs: `FlightPower`, `MalleablePower`, `InvinciblePower`, `PenNibPower`, `EquilibriumPower`, `EchoPower`).
 
 ## System / Shared
 - [x] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
@@ -29,13 +30,13 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] Draw Reduction - onInitialApplication/onRemove + atEndOfRound decrement. (action: none{})
 - [ ] Draw - onInitialApplication/onRemove. (action: none{})
 - [ ] Artifact - consume on debuff block (specific trigger). (action: none{})
-- [ ] IntangiblePlayer - atEndOfRound decrement. (action: none{})
+- [x] IntangiblePlayer - atEndOfRound decrement. (action: none{})
 - [ ] Double Damage - atDamageGive + atEndOfRound decrement. (action: none{})
-- [ ] Pen Nib - atDamageGive + onUseCard remove. (action: none{})
+- [x] Pen Nib - atDamageGive + onUseCard remove. (action: none{})
 - [ ] Blur - atEndOfRound decrement. (action: none{})
 - [ ] Barricade - block retention hook. (action: none{})
 - [ ] Repair - onVictory heal. (action: none{})
-- [ ] Thorns - ensure onAttacked hook (not onAttack). (action: none{})
+- [x] Thorns - ensure onAttacked hook (not onAttack). (action: none{})
 
 ## Ironclad
 - [ ] Corruption - onCardDraw skills cost 0, onUseCard skills exhaust. (action: none{})
@@ -63,7 +64,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] Beat of Death - onAfterUseCard damage. (action: none{})
 - [ ] Curiosity - onUseCard Power -> gain Strength. (action: none{})
 - [ ] Time Warp - onAfterUseCard counter + end turn + gain Strength. (action: none{})
-- [ ] Invincible - onAttackedToChangeDamage + atStartOfTurn reset. (action: none{})
+- [x] Invincible - onAttackedToChangeDamage + atStartOfTurn reset. (action: none{})
 - [ ] Angry - onAttacked gain Strength. (action: none{})
 - [ ] GrowthPower / Ritual - atEndOfRound with skip-first logic. (action: none{})
 - [ ] Fading - duringTurn decrement / suicide. (action: none{})
@@ -74,9 +75,9 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] Panache - atStartOfTurn reset counter. (action: none{})
 - [ ] Double Tap - onUseCard ATTACK replay + decrement. (action: none{})
 - [ ] Burst - onUseCard SKILL replay + decrement. (action: none{})
-- [ ] Echo Form - atStartOfTurn mark first card doubles. (action: none{})
+- [ ] Echo Form - atStartOfTurn mark first card doubles; full replay queue parity remains under `POW-003` integration closure. (action: none{})
 - [ ] Retain Cards - atEndOfTurn choose retain count. (action: select_cards{pile:hand,card_indices})
-- [ ] Equilibrium - retain hand + atEndOfRound decrement. (action: select_cards{pile:hand,card_indices})
+- [x] Equilibrium - retain hand + atEndOfRound decrement. (action: select_cards{pile:hand,card_indices})
 
 ## Tests
 - [ ] Add focused tests for each hook (registry integration + edge cases). (action: none{})

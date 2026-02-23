@@ -8,6 +8,7 @@ at the appropriate points during combat.
 import pytest
 from packages.engine.state.combat import CombatState, EntityState, EnemyCombatState, create_combat
 from packages.engine.combat_engine import CombatEngine
+from packages.engine.content.cards import get_card
 from packages.engine.registry import (
     execute_power_triggers, PowerContext, POWER_REGISTRY
 )
@@ -692,6 +693,148 @@ class TestPow003AliasLifecycle:
         )
 
         assert attacker.hp == 17
+
+
+class TestPow003BLongTailPowers:
+    """Long-tail Java hook closures for POW-003B."""
+
+    def test_flight_hooks_registered(self):
+        assert POWER_REGISTRY.has_handler("atStartOfTurn", "Flight")
+        assert POWER_REGISTRY.has_handler("atDamageFinalReceive", "Flight")
+        assert POWER_REGISTRY.has_handler("onAttacked", "Flight")
+
+    def test_flight_halves_normal_and_decrements_on_attacked(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="bird")],
+            deck=["Strike"],
+        )
+        bird = state.enemies[0]
+        bird.statuses["Flight"] = 3
+
+        halved = execute_power_triggers(
+            "atDamageFinalReceive",
+            state,
+            bird,
+            {"value": 10, "damage_type": "NORMAL"},
+        )
+        assert halved == 5
+
+        execute_power_triggers(
+            "onAttacked",
+            state,
+            bird,
+            {"attacker": state.player, "damage": 5, "unblocked_damage": 5, "damage_type": "NORMAL"},
+        )
+        assert bird.statuses.get("Flight", 0) == 2
+
+        execute_power_triggers("atStartOfTurn", state, bird)
+        assert bird.statuses.get("Flight", 0) == 3
+
+    def test_malleable_gains_block_scales_and_resets(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=45, max_hp=45, id="slime")],
+            deck=["Strike"],
+        )
+        slime = state.enemies[0]
+        slime.statuses["Malleable"] = 3
+
+        execute_power_triggers(
+            "onAttacked",
+            state,
+            slime,
+            {"attacker": state.player, "damage": 6, "unblocked_damage": 6, "damage_type": "NORMAL"},
+        )
+        assert slime.block == 3
+        assert slime.statuses.get("Malleable", 0) == 4
+
+        execute_power_triggers("atEndOfTurn", state, slime)
+        assert slime.statuses.get("Malleable", 0) == 3
+
+    def test_invincible_caps_damage_tracks_spent_and_resets(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=300, max_hp=300, id="heart")],
+            deck=["Strike"],
+        )
+        heart = state.enemies[0]
+        heart.statuses["Invincible"] = 200
+
+        changed = execute_power_triggers(
+            "onAttackedToChangeDamage",
+            state,
+            heart,
+            {"value": 250, "damage_type": "NORMAL"},
+        )
+        assert changed == 200
+        assert heart.statuses.get("Invincible", 0) == 0
+
+        execute_power_triggers("atStartOfTurn", state, heart)
+        assert heart.statuses.get("Invincible", 0) == 200
+
+    def test_pen_nib_doubles_normal_damage_and_is_consumed_by_attack(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        state.player.statuses["Pen Nib"] = 1
+
+        doubled = execute_power_triggers(
+            "atDamageGive",
+            state,
+            state.player,
+            {"value": 9, "damage_type": "NORMAL"},
+        )
+        assert doubled == 18
+
+        execute_power_triggers(
+            "onUseCard",
+            state,
+            state.player,
+            {"card_id": "Strike_P", "card": get_card("Strike_P")},
+        )
+        assert "Pen Nib" not in state.player.statuses
+
+    def test_equilibrium_end_of_round_decrements_and_clears_retain_hand(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        state.player.statuses["Equilibrium"] = 1
+        state.player.statuses["RetainHand"] = 1
+
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert "Equilibrium" not in state.player.statuses
+        assert "RetainHand" not in state.player.statuses
+
+    def test_echo_form_marks_repeat_and_resets_counter_each_turn(self):
+        state = create_combat(
+            player_hp=50,
+            player_max_hp=50,
+            enemies=[EnemyCombatState(hp=40, max_hp=40, id="test")],
+            deck=["Strike"],
+        )
+        state.player.statuses["Echo Form"] = 1
+        state.cards_played_this_turn = 1
+
+        trigger_data = {"card_id": "Strike_P", "card": get_card("Strike_P")}
+        execute_power_triggers("onUseCard", state, state.player, trigger_data)
+        assert trigger_data.get("repeat_play_count") == 1
+
+        execute_power_triggers("atStartOfTurn", state, state.player)
+
+        state.cards_played_this_turn = 1
+        second = {"card_id": "Defend_P", "card": get_card("Defend_P")}
+        execute_power_triggers("onUseCard", state, state.player, second)
+        assert second.get("repeat_play_count") == 1
 
 
 if __name__ == "__main__":
