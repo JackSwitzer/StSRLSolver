@@ -31,6 +31,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `DOC-003` evidence refresh with inventory counts and gap queue
 - [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, `PR_HISTORY`, consolidation review)
 - [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration
+- [x] `CONS-DESKTOP-001` one-folder Desktop realignment + archive verification
 
 ### R1 relic selection surface
 - [x] `REL-003` Orrery explicit selection actions

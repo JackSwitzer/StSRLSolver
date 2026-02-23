@@ -12,7 +12,7 @@ Working branch: `codex/cons-aud-001`
 - Java reference root:
   - `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl`
 - Canonical Python repo:
-  - `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+  - `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - Script-generated parity artifacts:
   - `docs/audits/2026-02-22-full-game-parity/traceability/java-inventory.json`
   - `docs/audits/2026-02-22-full-game-parity/traceability/python-inventory.json`
@@ -69,6 +69,8 @@ Working branch: `codex/cons-aud-001`
   - `docs/audits/2026-02-22-full-game-parity/traceability/repo-consolidation-manifest.md`
 - Curated training utilities migrated into:
   - `packages/training/`
+- Desktop one-folder realignment verified:
+  - `docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`
 
 ## Priority remaining blockers
 1. Card inventory/behavior closure for the 21 Java-side card rows marked missing.

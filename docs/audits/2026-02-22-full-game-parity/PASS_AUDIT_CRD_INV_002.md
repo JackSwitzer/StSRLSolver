@@ -5,7 +5,7 @@ Date: 2026-02-22
 ## Repo scope check
 
 This pass was implemented in:
-- `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+- `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 It was **not** implemented in:
 - `/Users/jackswitzer/Desktop/StSRLSolver`

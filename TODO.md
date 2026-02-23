@@ -1,7 +1,7 @@
 # Full-Game Java Parity + RL Readiness TODO
 
 Last updated: 2026-02-23
-Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
+Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Current baseline (verified)
 - [x] Full test suite green: `4708 passed, 5 skipped, 0 failed`.
@@ -23,6 +23,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `DOC-003` evidence refresh: baseline, inventory snapshots, prioritized gap queue.
 - [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, PR ledger, consolidation review).
 - [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration to `packages/training/`.
+- [x] `CONS-DESKTOP-001` one-folder Desktop realignment with verified archive snapshots (`docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`).
 - [x] `AUD-001A` deterministic Java-vs-Python inventory/hook manifest generation via `scripts/generate_parity_manifests.py`.
 
 ## Evidence-based remaining gaps
