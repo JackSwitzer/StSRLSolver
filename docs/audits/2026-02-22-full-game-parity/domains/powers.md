@@ -37,6 +37,13 @@
   - `IntangiblePlayer` final-damage + end-of-round handling.
   - `WaveOfTheHandPower` end-of-round expiration.
   - `Thorns` `onAttacked` handling (with attacker block interaction).
+- Added long-tail hook/runtime closures (`POW-003B`):
+  - `Flight`: `atStartOfTurn`, `atDamageFinalReceive`, `onAttacked`.
+  - `Malleable`: `onAttacked`, owner-specific reset (`atEndOfTurn` enemy, `atEndOfRound` player).
+  - `Invincible`: `onAttackedToChangeDamage` cap tracking + `atStartOfTurn` reset.
+  - `Pen Nib`: `atDamageGive` (priority-aligned) + `onUseCard` removal on attacks.
+  - `Equilibrium`: retain-hand state integration + `atEndOfRound` decrement/removal.
+  - `Echo Form`: `atStartOfTurn` per-turn reset + `onUseCard` replay marker emission.
 - Added manifest/hook audit test:
   - `tests/test_audit_power_manifest.py`
 
@@ -48,36 +55,29 @@
 ## Open gaps
 - [ ] `POW-002` complete hook-order/semantics parity for remaining long-tail powers (dispatch coverage is now complete; behavior/order parity remains).
 - [ ] `POW-003` broaden integration tests for powers + relics + orbs + card-flow edge cases.
+- [ ] `POW-003C` close remaining card-play queue parity for replay-style powers (`Echo Form`, `Burst`, `Double Tap`, `Amplify`) under integration tests.
 
 ## Remaining registry behavior gaps (from manifest diff)
-- Classes with at least one Java-overridden hook not represented in current registry handlers: `67`
+- Classes with at least one Java-overridden hook not represented in current registry handlers: `61`
 - Largest remaining hook families by count:
-  - `atEndOfTurn`: `18`
-  - `atEndOfRound`: `15`
-  - `atStartOfTurn`: `14`
-  - `onUseCard`: `11`
-  - `onAttacked`: `8`
+  - `atEndOfTurn`: `16`
+  - `atEndOfRound`: `13`
+  - `atStartOfTurn`: `11`
+  - `onUseCard`: `9`
+  - `onAttacked`: `6`
 - Additional remaining hook families:
-  - `atDamageFinalReceive`: `2`
   - `onEnergyRecharge`: `2`
-  - `atDamageGive`: `2`
   - `onChangeStance`: `2`
   - `onAfterUseCard`: `2`
   - `onDeath`: `2`
   - `onCardDraw`: `1`
-  - `atStartOfTurnPostDraw`: `1`
-  - `onAttackedToChangeDamage`: `1`
+  - `atDamageGive`: `1`
+  - `atDamageFinalReceive`: `1`
   - `onApplyPower`: `1`
 - High-priority classes with multi-hook deltas:
-  - `FlightPower`: `atDamageFinalReceive`, `atStartOfTurn`, `onAttacked`
-  - `MalleablePower`: `atEndOfRound`, `atEndOfTurn`, `onAttacked`
   - `AmplifyPower`: `atEndOfTurn`, `onUseCard`
   - `AttackBurnPower`: `atEndOfRound`, `onUseCard`
   - `DoubleDamagePower`: `atDamageGive`, `atEndOfRound`
-  - `EchoPower`: `atStartOfTurn`, `onUseCard`
-  - `EquilibriumPower`: `atEndOfRound`, `atEndOfTurn`
-  - `InvinciblePower`: `atStartOfTurn`, `onAttackedToChangeDamage`
-  - `PenNibPower`: `atDamageGive`, `onUseCard`
   - `ReboundPower`: `atEndOfTurn`, `onAfterUseCard`
 
 ## Java references

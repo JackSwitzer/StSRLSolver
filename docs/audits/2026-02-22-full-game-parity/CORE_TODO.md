@@ -5,7 +5,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4684 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4691 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
@@ -63,6 +63,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
 - [x] `POW-001` Java power inventory closure
 - [ ] `POW-002` residual hook/timing closure
+- [x] `POW-003B` long-tail hook/runtime closure (`Flight`, `Malleable`, `Invincible`, `Pen Nib`, `Equilibrium`, `Echo Form` marker path)
 - [x] `ORB-001` orb infrastructure for parity-critical behaviors
 - [ ] `POW-003` integration tests
 

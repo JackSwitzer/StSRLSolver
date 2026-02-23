@@ -679,7 +679,10 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java",
     "mapping_via": null,
     "python_power_id": "Echo Form",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atStartOfTurn",
+      "onUseCard"
+    ],
     "status": "alias"
   },
   {
@@ -802,7 +805,10 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EquilibriumPower.java",
     "mapping_via": null,
     "python_power_id": "Equilibrium",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atEndOfRound",
+      "atEndOfTurn"
+    ],
     "status": "exact"
   },
   {
@@ -930,7 +936,11 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java",
     "mapping_via": null,
     "python_power_id": "Flight",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atDamageFinalReceive",
+      "atStartOfTurn",
+      "onAttacked"
+    ],
     "status": "exact"
   },
   {
@@ -1170,7 +1180,10 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/InvinciblePower.java",
     "mapping_via": null,
     "python_power_id": "Invincible",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atStartOfTurn",
+      "onAttackedToChangeDamage"
+    ],
     "status": "exact"
   },
   {
@@ -1328,7 +1341,11 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java",
     "mapping_via": null,
     "python_power_id": "Malleable",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atEndOfRound",
+      "atEndOfTurn",
+      "onAttacked"
+    ],
     "status": "exact"
   },
   {
@@ -1632,7 +1649,10 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PenNibPower.java",
     "mapping_via": null,
     "python_power_id": "Pen Nib",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atDamageGive",
+      "onUseCard"
+    ],
     "status": "exact"
   },
   {

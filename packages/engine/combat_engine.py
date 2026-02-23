@@ -447,8 +447,13 @@ class CombatEngine:
 
     def _discard_hand(self):
         """Discard all cards in hand."""
-        if self._has_runic_pyramid():
-            # Runic Pyramid retains hand, but Ethereal cards still exhaust
+        retain_all = (
+            self._has_runic_pyramid()
+            or self.state.player.statuses.get("RetainHand", 0) > 0
+            or self.state.player.statuses.get("Equilibrium", 0) > 0
+        )
+        if retain_all:
+            # Full-hand retain effects still exhaust Ethereal cards.
             kept = []
             for card_id in self.state.hand:
                 card = self._get_card(card_id)
@@ -1321,6 +1326,15 @@ class CombatEngine:
             self.state.energy += 2
             effects.append({"type": "energy", "amount": 2})
 
+        # Equilibrium: retain hand via temporary turn-based power state.
+        if "retain_hand" in card.effects:
+            amount = card.magic_number if card.magic_number > 0 else 1
+            self.state.player.statuses["Equilibrium"] = (
+                self.state.player.statuses.get("Equilibrium", 0) + amount
+            )
+            self.state.player.statuses["RetainHand"] = 1
+            effects.append({"type": "power", "power": "Equilibrium", "amount": amount})
+
         # Apply powers from power cards
         if card.card_type == CardType.POWER:
             self._apply_power_card(card, effects)
@@ -1704,6 +1718,7 @@ class CombatEngine:
             "Inflame": ("Strength", card.magic_number if card.magic_number > 0 else 2),
             "Metallicize": ("Metallicize", card.magic_number if card.magic_number > 0 else 3),
             "Barricade": ("Barricade", 1),
+            "Echo Form": ("Echo Form", card.magic_number if card.magic_number > 0 else 1),
         }
 
         if card.id in power_mapping:
