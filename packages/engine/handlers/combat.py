@@ -778,7 +778,33 @@ class CombatRunner:
                 for enemy in self.state.enemies:
                     if not enemy.is_dead:
                         for _ in range(hits):
-                            self._deal_damage_to_enemy(enemy, per_hit_damage)
+                            actual_damage = self._deal_damage_to_enemy(enemy, per_hit_damage)
+                            execute_power_triggers(
+                                "onAttack",
+                                self.state,
+                                self.state.player,
+                                {
+                                    "card": card,
+                                    "card_id": card.id,
+                                    "target": enemy,
+                                    "damage": per_hit_damage,
+                                    "unblocked_damage": actual_damage,
+                                    "damage_type": "NORMAL",
+                                },
+                            )
+                            execute_power_triggers(
+                                "onAttacked",
+                                self.state,
+                                enemy,
+                                {
+                                    "attacker": self.state.player,
+                                    "card": card,
+                                    "card_id": card.id,
+                                    "damage": per_hit_damage,
+                                    "unblocked_damage": actual_damage,
+                                    "damage_type": "NORMAL",
+                                },
+                            )
                             result["effects"].append({
                                 "type": "damage", "target": enemy.id, "amount": per_hit_damage
                             })
@@ -786,7 +812,33 @@ class CombatRunner:
                 # Single target
                 for _ in range(hits):
                     if not target.is_dead:
-                        self._deal_damage_to_enemy(target, per_hit_damage)
+                        actual_damage = self._deal_damage_to_enemy(target, per_hit_damage)
+                        execute_power_triggers(
+                            "onAttack",
+                            self.state,
+                            self.state.player,
+                            {
+                                "card": card,
+                                "card_id": card.id,
+                                "target": target,
+                                "damage": per_hit_damage,
+                                "unblocked_damage": actual_damage,
+                                "damage_type": "NORMAL",
+                            },
+                        )
+                        execute_power_triggers(
+                            "onAttacked",
+                            self.state,
+                            target,
+                            {
+                                "attacker": self.state.player,
+                                "card": card,
+                                "card_id": card.id,
+                                "damage": per_hit_damage,
+                                "unblocked_damage": actual_damage,
+                                "damage_type": "NORMAL",
+                            },
+                        )
                         result["effects"].append({
                             "type": "damage", "target": target.id, "amount": per_hit_damage
                         })
@@ -885,8 +937,8 @@ class CombatRunner:
             modified = float(base)
         return max(0, int(modified))
 
-    def _deal_damage_to_enemy(self, enemy: EnemyCombatState, amount: int):
-        """Deal damage to an enemy."""
+    def _deal_damage_to_enemy(self, enemy: EnemyCombatState, amount: int) -> int:
+        """Deal damage to an enemy and return unblocked HP damage."""
         # Apply block first
         blocked = min(enemy.block, amount)
         hp_damage = amount - blocked
@@ -901,6 +953,8 @@ class CombatRunner:
             enemy.hp = 0
             execute_power_triggers("onDeath", self.state, enemy, {"dying_enemy": enemy})
             self.enemies_killed += 1
+
+        return hp_damage
 
     def _change_stance(self, new_stance: str):
         """Change player stance."""
@@ -1211,6 +1265,28 @@ class CombatRunner:
 
                 # Trigger wasHPLost relics
                 self._trigger_was_hp_lost(hp_loss)
+                execute_power_triggers(
+                    "onAttack",
+                    self.state,
+                    enemy_state,
+                    {
+                        "target": self.state.player,
+                        "damage": final_damage,
+                        "unblocked_damage": hp_loss,
+                        "damage_type": "NORMAL",
+                    },
+                )
+                execute_power_triggers(
+                    "onAttacked",
+                    self.state,
+                    self.state.player,
+                    {
+                        "attacker": enemy_state,
+                        "damage": final_damage,
+                        "unblocked_damage": hp_loss,
+                        "damage_type": "NORMAL",
+                    },
+                )
 
                 # Check death
                 if self.state.player.hp <= 0:

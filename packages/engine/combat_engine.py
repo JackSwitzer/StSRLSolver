@@ -624,6 +624,29 @@ class CombatEngine:
                         },
                     )
 
+                execute_power_triggers(
+                    "onAttack",
+                    self.state,
+                    enemy,
+                    {
+                        "target": self.state.player,
+                        "damage": damage,
+                        "unblocked_damage": hp_damage,
+                        "damage_type": "NORMAL",
+                    },
+                )
+                execute_power_triggers(
+                    "onAttacked",
+                    self.state,
+                    self.state.player,
+                    {
+                        "attacker": enemy,
+                        "damage": damage,
+                        "unblocked_damage": hp_damage,
+                        "damage_type": "NORMAL",
+                    },
+                )
+
                 # Player Thorns: deal damage back to enemy on HP damage
                 if hp_damage > 0:
                     thorns = self.state.player.statuses.get("Thorns", 0)
@@ -1336,6 +1359,32 @@ class CombatEngine:
                 if enemy.hp > 0 and i in enemy_damages:
                     for _ in range(hits):
                         actual_damage = self._deal_damage_to_enemy(enemy, enemy_damages[i])
+                        execute_power_triggers(
+                            "onAttack",
+                            self.state,
+                            self.state.player,
+                            {
+                                "card": card,
+                                "card_id": card.id,
+                                "target": enemy,
+                                "damage": enemy_damages[i],
+                                "unblocked_damage": actual_damage,
+                                "damage_type": "NORMAL",
+                            },
+                        )
+                        execute_power_triggers(
+                            "onAttacked",
+                            self.state,
+                            enemy,
+                            {
+                                "attacker": self.state.player,
+                                "card": card,
+                                "card_id": card.id,
+                                "damage": enemy_damages[i],
+                                "unblocked_damage": actual_damage,
+                                "damage_type": "NORMAL",
+                            },
+                        )
                         effects.append({
                             "type": "damage",
                             "target": enemy.id,
@@ -1346,6 +1395,32 @@ class CombatEngine:
             if enemy.hp > 0:
                 for _ in range(hits):
                     actual_damage = self._deal_damage_to_enemy(enemy, damage_per_hit)
+                    execute_power_triggers(
+                        "onAttack",
+                        self.state,
+                        self.state.player,
+                        {
+                            "card": card,
+                            "card_id": card.id,
+                            "target": enemy,
+                            "damage": damage_per_hit,
+                            "unblocked_damage": actual_damage,
+                            "damage_type": "NORMAL",
+                        },
+                    )
+                    execute_power_triggers(
+                        "onAttacked",
+                        self.state,
+                        enemy,
+                        {
+                            "attacker": self.state.player,
+                            "card": card,
+                            "card_id": card.id,
+                            "damage": damage_per_hit,
+                            "unblocked_damage": actual_damage,
+                            "damage_type": "NORMAL",
+                        },
+                    )
                     effects.append({
                         "type": "damage",
                         "target": enemy.id,

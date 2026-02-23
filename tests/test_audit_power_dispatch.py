@@ -12,6 +12,7 @@ REGISTRY_PATH = REPO_ROOT / "packages/engine/registry/powers.py"
 RUNTIME_FILES = [
     REPO_ROOT / "packages/engine/combat_engine.py",
     REPO_ROOT / "packages/engine/handlers/combat.py",
+    REPO_ROOT / "packages/engine/effects/registry.py",
 ]
 
 
@@ -54,6 +55,9 @@ def test_high_priority_power_hooks_are_runtime_dispatched() -> None:
         "onAttackedToChangeDamage",
         "wasHPLost",
         "onDeath",
+        "onAttack",
+        "onAttacked",
+        "onManualDiscard",
     }
 
     for hook in required_hooks:
