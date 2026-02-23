@@ -9,37 +9,20 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4708 passed`
-- `5 skipped`
+- `4715 passed`
+- `0 skipped`
 - `0 failed`
 
-Re-verified after `CONS-001A` canonical consolidation updates and deterministic parity manifest generation (`AUD-001A`).
+Re-verified after `CONS-DESKTOP-001` (one-folder desktop realignment) and `CONS-002A` (CombatRunner facade over CombatEngine).
 
 ## Structural inventory
-- Test files: `72`
-- Static test-function definitions (`def test_`): `4135`
-
-## Executed skip inventory (normal run)
-All executed skips are from replay-artifact gating in `tests/test_parity.py`:
-- `tests/test_parity.py:614`
-- `tests/test_parity.py:620`
-- `tests/test_parity.py:628`
-- `tests/test_parity.py:639`
-- `tests/test_parity.py:669`
-
-Reason:
-- `consolidated_seed_run.jsonl` not present in expected logs path.
-
-## Additional contingency skip callsites (not all execute in baseline run)
-- `tests/test_agent_api.py` (room reachability fallback skips)
-- `tests/test_integration.py` (optional effect-registry availability checks)
-- `tests/test_coverage_boost.py` (`RunState.get_starter_relic` fallback skip)
+- Test files: `75`
+- Static test-function definitions (`def test_`): `4137`
 
 ## Quality gates
-- Normal CI target remains: `0 skipped, 0 failed`.
-- Replay-artifact tests should run in a dedicated parity profile/job, not default CI path.
-- Contingency skips in core agent API tests should be replaced with deterministic fixtures.
+- Current local baseline satisfies `0 skipped, 0 failed`.
+- Keep parity replay checks in a dedicated profile/job if external artifacts are required.
 
 ## Regression rules
-- No new skips without a manifest row and explicit burn-down plan.
-- Every feature commit runs targeted tests plus full-suite baseline command.
+- No new skips without an explicit manifest row and burn-down plan.
+- Every feature commit runs targeted tests plus the full-suite baseline command.

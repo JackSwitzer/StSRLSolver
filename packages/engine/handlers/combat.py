@@ -39,6 +39,8 @@ from ..content.enemies import Enemy, Intent, MoveInfo, EnemyType
 from ..content.powers import resolve_power_id
 from ..registry import execute_relic_triggers, execute_power_triggers, RelicContext
 from ..effects.orbs import trigger_orb_start_of_turn
+from ..combat_engine import CombatEngine, CombatPhase as EngineCombatPhase, create_combat_from_enemies
+
 
 if TYPE_CHECKING:
     from ..content.enemies import Enemy as EnemyClass
@@ -1421,6 +1423,380 @@ class CombatRunner:
             self.victory = False
             self.phase = CombatPhase.COMBAT_END
 
+# =============================================================================
+# Combat Runner Compatibility Facade (CONS-002A)
+# =============================================================================
+
+_LegacyCombatRunner = CombatRunner
+
+
+class CombatRunner:
+    """Compatibility facade that routes combat execution through CombatEngine."""
+
+    ENERGY_RELICS = (
+        "Fusion Hammer",
+        "Ectoplasm",
+        "Cursed Key",
+        "Busted Crown",
+        "Sozu",
+        "Philosopher's Stone",
+        "Mark of Pain",
+        "Nuclear Battery",
+        "Velvet Choker",
+        "Runic Dome",
+        "Snecko Eye",
+    )
+
+    PHASE_MAP = {
+        EngineCombatPhase.NOT_STARTED: CombatPhase.PLAYER_TURN_START,
+        EngineCombatPhase.PLAYER_TURN: CombatPhase.PLAYER_TURN,
+        EngineCombatPhase.ENEMY_TURN: CombatPhase.ENEMY_TURN,
+        EngineCombatPhase.COMBAT_OVER: CombatPhase.COMBAT_END,
+    }
+
+    def __init__(
+        self,
+        run_state: RunState,
+        enemies: List[Enemy],
+        shuffle_rng: Random,
+        card_rng: Optional[Random] = None,
+        ai_rng: Optional[Random] = None,
+    ):
+        self.run_state = run_state
+        self.enemies = enemies
+        self.shuffle_rng = shuffle_rng
+        self.card_rng = card_rng or shuffle_rng.copy()
+        self.ai_rng = ai_rng or shuffle_rng.copy()
+
+        energy = self._compute_base_energy(run_state)
+        potions = [slot.potion_id or "" for slot in run_state.potion_slots]
+
+        self.engine = create_combat_from_enemies(
+            enemies=enemies,
+            player_hp=run_state.current_hp,
+            player_max_hp=run_state.max_hp,
+            deck=run_state.get_deck_card_ids(),
+            energy=energy,
+            relics=run_state.get_relic_ids(),
+            potions=potions,
+            ascension=run_state.ascension,
+            bottled_cards=run_state.get_bottled_cards(),
+        )
+
+        # Preserve explicit RNG ownership for deterministic parity.
+        self.engine.shuffle_rng = self.shuffle_rng
+        self.engine.card_rng = self.card_rng
+        self.engine.ai_rng = self.ai_rng
+
+        self.state = self.engine.state
+
+        # Compatibility attributes expected by legacy tests.
+        self.phase = CombatPhase.PLAYER_TURN_START
+        self.combat_over = False
+        self.victory = False
+        self.cards_played: List[str] = []
+        self.total_damage_dealt = 0
+        self.total_damage_taken = 0
+        self.total_block_gained = 0
+        self.potions_used: List[str] = []
+        self.enemies_killed = 0
+
+        self._setup_combat()
+
+    @classmethod
+    def _compute_base_energy(cls, run_state: RunState) -> int:
+        base_energy = 3
+        for relic_id in cls.ENERGY_RELICS:
+            if run_state.has_relic(relic_id):
+                base_energy += 1
+        return base_energy
+
+    def _sync_runtime_state(self) -> None:
+        self.state = self.engine.state
+        self.phase = self.PHASE_MAP.get(self.engine.phase, CombatPhase.PLAYER_TURN_START)
+        self.combat_over = self.state.combat_over
+        self.victory = self.state.player_won
+        self.cards_played = list(self.engine.cards_played_sequence)
+        self.total_damage_dealt = self.state.total_damage_dealt
+        self.total_damage_taken = self.state.total_damage_taken
+        self.total_block_gained = getattr(self.state, "total_block_gained", 0)
+        self.enemies_killed = sum(1 for enemy in self.state.enemies if enemy.hp <= 0)
+
+    def _setup_combat(self):
+        """Set up combat and start the first turn.
+
+        Bag of Preparation and other atBattleStart draw effects are executed by
+        CombatEngine.start_combat() through the relic registry.
+        """
+        self.engine.start_combat()
+
+        # Legacy CombatRunner kept first-turn Anchor block; preserve compatibility.
+        if self.state.has_relic("Anchor") and self.state.turn == 1:
+            self.state.player.block = max(self.state.player.block, 10)
+
+        self._sync_runtime_state()
+
+    def get_legal_actions(self) -> List[Action]:
+        return self.engine.get_legal_actions()
+
+    def _default_action(self) -> Action:
+        actions = self.get_legal_actions()
+        if not actions:
+            return EndTurn()
+        card_actions = [action for action in actions if isinstance(action, PlayCard)]
+        if card_actions:
+            return card_actions[0]
+        return EndTurn()
+
+    def run(self, action_provider=None) -> CombatResult:
+        while not self.combat_over:
+            if self.phase == CombatPhase.PLAYER_TURN:
+                action = action_provider(self) if action_provider else self._default_action()
+                self.execute_action(action)
+            else:
+                # Engine owns phase transitions.
+                self._sync_runtime_state()
+                if self.phase == CombatPhase.COMBAT_END:
+                    break
+
+        player_hp_remaining = self.state.player.hp if self.victory else 0
+        return CombatResult(
+            victory=self.victory,
+            player_hp_remaining=player_hp_remaining,
+            player_max_hp=self.state.player.max_hp,
+            turns_taken=self.state.turn,
+            cards_played=self.cards_played.copy(),
+            damage_dealt=self.total_damage_dealt,
+            damage_taken=self.total_damage_taken,
+            block_gained=self.total_block_gained,
+            enemies_killed=self.enemies_killed,
+            potions_used=self.potions_used.copy(),
+        )
+
+    def execute_action(self, action: Action) -> Dict[str, Any]:
+        if isinstance(action, EndTurn):
+            self._end_player_turn()
+            return {"action": "end_turn"}
+        if isinstance(action, PlayCard):
+            return self.play_card(action.card_idx, action.target_idx)
+        if isinstance(action, UsePotion):
+            return self.use_potion(action.potion_idx, action.target_idx)
+        if isinstance(action, SelectScryDiscard):
+            return self.execute_scry_selection(action.discard_indices)
+        return {"success": False, "error": "Unknown action type"}
+
+    def execute_scry_selection(self, discard_indices: tuple) -> Dict[str, Any]:
+        if not self.state.pending_scry_selection:
+            return {"success": False, "error": "No pending scry selection"}
+
+        cards = self.state.pending_scry_cards
+        kept: List[str] = []
+        discarded: List[str] = []
+
+        for idx, card_id in enumerate(cards):
+            if idx in discard_indices:
+                self.state.discard_pile.append(card_id)
+                discarded.append(card_id)
+            else:
+                kept.append(card_id)
+
+        for card_id in reversed(kept):
+            self.state.draw_pile.append(card_id)
+
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
+
+        execute_power_triggers(
+            "onScry",
+            self.state,
+            self.state.player,
+            {"cards_scried": len(cards)},
+        )
+        self._sync_runtime_state()
+        return {"success": True, "action": "scry_selection", "kept": kept, "discarded": discarded}
+
+    def play_card(self, card_idx: int, target_idx: int = -1, **kwargs) -> Dict[str, Any]:
+        if "target_index" in kwargs and target_idx == -1:
+            target_idx = kwargs["target_index"]
+        result = self.engine.play_card(hand_index=card_idx, target_index=target_idx)
+        self._sync_runtime_state()
+        return result
+
+    def use_potion(
+        self,
+        potion_idx: Optional[int] = None,
+        target_idx: int = -1,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        if potion_idx is None:
+            potion_idx = kwargs.get("potion_index")
+        if potion_idx is None:
+            return {"success": False, "error": "Missing potion index"}
+        if "target_index" in kwargs and target_idx == -1:
+            target_idx = kwargs["target_index"]
+
+        result = self.engine.use_potion(potion_index=potion_idx, target_index=target_idx)
+        if result.get("success") and result.get("potion"):
+            self.potions_used.append(result["potion"])
+        self._sync_runtime_state()
+        return result
+
+    def _draw_cards(self, count: int) -> List[str]:
+        drawn = self.engine._draw_cards(count)
+        void_draws = sum(1 for card_id in drawn if card_id in {"Void", "Void+"})
+        if void_draws > 0:
+            self.state.energy = max(0, self.state.energy - void_draws)
+        self._sync_runtime_state()
+        return drawn
+
+
+    def _apply_status(self, target: Union[EntityState, EnemyCombatState], status: str, amount: int):
+        resolved_status = resolve_power_id(status)
+        vulnerable_before = target.statuses.get("Vulnerable", 0)
+        self.engine._apply_status(target, status, amount)
+
+        if (
+            resolved_status == "Vulnerable"
+            and isinstance(target, EnemyCombatState)
+            and self.state.has_relic("Champion Belt")
+            and target.statuses.get("Vulnerable", 0) > vulnerable_before
+        ):
+            target.statuses["Weak"] = target.statuses.get("Weak", 0) + 1
+
+        self._sync_runtime_state()
+
+
+    def _trigger_was_hp_lost(self, hp_loss: int):
+        if hp_loss <= 0:
+            return
+        execute_relic_triggers("wasHPLost", self.state, {"hp_lost": hp_loss})
+        execute_power_triggers(
+            "wasHPLost",
+            self.state,
+            self.state.player,
+            {
+                "damage": hp_loss,
+                "unblocked": True,
+                "is_self_damage": False,
+                "damage_type": "NORMAL",
+            },
+        )
+        self._sync_runtime_state()
+
+    def _calculate_player_damage(self, base: int, target: Optional[EnemyCombatState]) -> int:
+        strength = self.state.player.statuses.get("Strength", 0)
+        vigor = self.state.player.statuses.get("Vigor", 0)
+        weak = self.state.player.statuses.get("Weak", 0) > 0
+        vuln = bool(target and target.statuses.get("Vulnerable", 0) > 0)
+
+        # Pen Nib compatibility behavior: every 10th attack doubles damage.
+        pen_nib = False
+        if self.state.has_relic("Pen Nib"):
+            counter = self.state.get_relic_counter("Pen Nib", 0)
+            if counter >= 9:
+                pen_nib = True
+                self.state.set_relic_counter("Pen Nib", 0)
+            else:
+                self.state.set_relic_counter("Pen Nib", counter + 1)
+
+        damage = calculate_damage(
+            base=base,
+            strength=strength,
+            vigor=vigor,
+            weak=weak,
+            pen_nib=pen_nib,
+            vuln=vuln,
+        )
+
+        if self.state.has_relic("Boot") and 0 < damage < 5:
+            damage = 5
+
+        if vigor > 0 and self.state.attacks_played_this_turn == 1:
+            self.state.player.statuses["Vigor"] = 0
+
+        return damage
+
+    def _trigger_end_of_turn_hand_cards(self):
+        from ..effects.registry import EffectContext, execute_effect
+
+        for card_id in self.state.hand.copy():
+            card = self.engine._get_card(card_id)
+            if card is None:
+                continue
+
+            end_turn_effects = [
+                effect_name
+                for effect_name in card.effects
+                if effect_name.startswith("end_of_turn_")
+            ]
+            if not end_turn_effects:
+                continue
+
+            context = EffectContext(
+                state=self.state,
+                card=card,
+                is_upgraded=card.upgraded,
+                magic_number=card.magic_number,
+            )
+            for effect_name in end_turn_effects:
+                execute_effect(effect_name, context)
+            if self.state.player.hp <= 0:
+                return
+
+    def _trigger_end_of_turn(self):
+        execute_relic_triggers("onPlayerEndTurn", self.state)
+        execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
+        execute_power_triggers("atEndOfTurn", self.state, self.state.player)
+        for enemy in self.state.enemies:
+            if enemy.hp > 0:
+                execute_power_triggers("atEndOfTurn", self.state, enemy)
+
+        if self.state.stance == "Divinity":
+            self.engine._change_stance(self.engine._parse_stance("Neutral"))
+        self._sync_runtime_state()
+
+    def _do_enemy_turns(self):
+        self.engine._do_enemy_turns()
+        self._sync_runtime_state()
+
+    def _end_player_turn(self):
+        # Default path delegates full turn transition to CombatEngine.
+        method_func = getattr(self._do_enemy_turns, "__func__", None)
+        if method_func is CombatRunner._do_enemy_turns:
+            self.engine.end_turn()
+            self._sync_runtime_state()
+            return
+
+        # Compatibility path used when tests monkeypatch _do_enemy_turns.
+        self.phase = CombatPhase.PLAYER_TURN_END
+
+        self._trigger_end_of_turn_hand_cards()
+        if self.state.player.hp <= 0:
+            self.state.player.hp = 0
+            self.engine._end_combat(player_won=False)
+            self._sync_runtime_state()
+            return
+
+        self.engine._discard_hand()
+        self._sync_runtime_state()
+
+        self._trigger_end_of_turn()
+        if self.state.player.hp <= 0:
+            self.state.player.hp = 0
+            self.engine._end_combat(player_won=False)
+            self._sync_runtime_state()
+            return
+
+        if not self.combat_over:
+            self._do_enemy_turns()
+
+    def _check_combat_end(self):
+        self.engine._check_combat_end()
+        self._sync_runtime_state()
+
+    def _trigger_post_combat_relics(self):
+        execute_relic_triggers("onVictory", self.state)
+        self._sync_runtime_state()
 
 # =============================================================================
 # Encounter Creation

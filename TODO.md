@@ -4,8 +4,8 @@ Last updated: 2026-02-23
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4708 passed, 5 skipped, 0 failed`.
-- [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
+- [x] Full test suite green: `4715 passed, 0 skipped, 0 failed`.
+- [x] No skips in the current baseline run (`uv run pytest tests/ -q`).
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 - [x] Core-loop skill pack exists under `docs/skills/parity-core-loop/`.
@@ -24,6 +24,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, PR ledger, consolidation review).
 - [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration to `packages/training/`.
 - [x] `CONS-DESKTOP-001` one-folder Desktop realignment with verified archive snapshots (`docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`).
+- [x] `CONS-002A` CombatRunner compatibility facade now delegates runtime execution to `CombatEngine` with dedicated compatibility test coverage (`tests/test_combat_runner_compat.py`).
 - [x] `AUD-001A` deterministic Java-vs-Python inventory/hook manifest generation via `scripts/generate_parity_manifests.py`.
 
 ## Evidence-based remaining gaps
@@ -94,7 +95,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `CONS-002` unify combat runtime ownership (`CombatEngine` canonical, `CombatRunner` compatibility shim only).
+1. `CONS-002B` remove/reduce remaining legacy CombatRunner logic after facade migration (zero non-compat consumers).
 2. `POW-002` close runtime dispatch for remaining registered hooks (`11` undispatched in generated hook report).
 3. `CRD-INV-003` close the `21` Java card rows flagged missing by generated parity diff.
 

@@ -1,12 +1,12 @@
 # Ground Truth: Java Parity + Agent Contract
 
 Last updated: 2026-02-23
-Working branch: `codex/cons-aud-001`
+Working branch: `codex/cons-002a`
 
 ## Baseline
 - Command: `uv run pytest tests/ -q`
-- Result: `4708 passed, 5 skipped, 0 failed`
-- Executed skips are replay-artifact gated in `tests/test_parity.py`.
+- Result: `4715 passed, 0 skipped, 0 failed`
+- No skips executed in the current baseline run.
 
 ## Canonical sources
 - Java reference root:
@@ -71,9 +71,12 @@ Working branch: `codex/cons-aud-001`
   - `packages/training/`
 - Desktop one-folder realignment verified:
   - `docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`
+- Combat runtime unification phase A completed:
+  - `CombatRunner` now wraps `CombatEngine` (compatibility facade)
+  - Compatibility lock tests: `tests/test_combat_runner_compat.py`
 
 ## Priority remaining blockers
 1. Card inventory/behavior closure for the 21 Java-side card rows marked missing.
 2. Power runtime hook dispatch closure (`11` registered hooks not yet dispatched).
 3. Potion inventory audit completion once local Java potion sources are restored.
-4. CI skip burn-down (`5 -> 0`) via replay-artifact profile split.
+4. Sustain `0 skipped` baseline in default CI while preserving parity replay checks.

@@ -82,13 +82,10 @@ class TestAtBattleStartRelics:
         relic = ALL_RELICS["Bag of Preparation"]
         assert relic.id == "Bag of Preparation"
 
-        # The combat handler now checks for "Bag of Preparation" (correct)
-        import inspect
-        from packages.engine.handlers.combat import CombatRunner
-        source = inspect.getsource(CombatRunner._setup_combat)
-        assert '"Bag of Preparation"' in source, (
-            "Combat handler should reference 'Bag of Preparation'"
-        )
+        # Behavior assertion: Bag of Preparation grants +2 opening cards.
+        runner = _make_runner(relics=["Bag of Preparation"])
+        assert len(runner.state.hand) >= 7
+
 
     def test_bag_of_marbles_applies_vulnerable_to_all_enemies(self):
         """Java: BagOfMarbles.atBattleStart -> Apply 1 Vulnerable to ALL enemies"""
