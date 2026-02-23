@@ -52,7 +52,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `DexterityPower` | `modifyBlock` | `Dexterity` | `modifyBlock` | `exact` |
 | `DoubleDamagePower` | `atDamageGive, atEndOfRound` | `Double Damage` | `-` | `exact` |
 | `DoubleTapPower` | `atEndOfTurn, onUseCard` | `Double Tap` | `onUseCard` | `exact` |
-| `DrawCardNextTurnPower` | `atStartOfTurnPostDraw` | `DrawCardNextTurn` | `-` | `exact` |
+| `DrawCardNextTurnPower` | `atStartOfTurnPostDraw` | `DrawCardNextTurn` | `atStartOfTurnPostDraw` | `exact` |
 | `DrawPower` | `-` | `Draw` | `-` | `exact` |
 | `DrawReductionPower` | `atEndOfRound` | `Draw Reduction` | `-` | `exact` |
 | `DuplicationPower` | `atEndOfRound, onUseCard` | `Duplication` | `onUseCard` | `exact` |
@@ -85,7 +85,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `HelloPower` | `atStartOfTurn` | `Hello` | `-` | `exact` |
 | `HexPower` | `onUseCard` | `Hex` | `-` | `exact` |
 | `InfiniteBladesPower` | `atStartOfTurn` | `Infinite Blades` | `atStartOfTurn` | `exact` |
-| `IntangiblePlayerPower` | `atDamageFinalReceive, atEndOfRound` | `IntangiblePlayer` | `-` | `exact` |
+| `IntangiblePlayerPower` | `atDamageFinalReceive, atEndOfRound` | `IntangiblePlayer` | `atDamageFinalReceive, atEndOfRound` | `exact` |
 | `IntangiblePower` | `atDamageFinalReceive, atEndOfTurn` | `Intangible` | `atDamageFinalReceive, atEndOfTurn` | `exact` |
 | `InvinciblePower` | `atStartOfTurn, onAttackedToChangeDamage` | `Invincible` | `-` | `exact` |
 | `JuggernautPower` | `-` | `Juggernaut` | `onGainBlock` | `exact` |
@@ -150,7 +150,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `SurroundedPower` | `-` | `Surrounded` | `-` | `exact` |
 | `TheBombPower` | `atEndOfTurn` | `TheBomb` | `-` | `exact` |
 | `ThieveryPower` | `-` | `Thievery` | `-` | `exact` |
-| `ThornsPower` | `onAttacked` | `Thorns` | `onAttack` | `exact` |
+| `ThornsPower` | `onAttacked` | `Thorns` | `onAttack, onAttacked` | `exact` |
 | `ThousandCutsPower` | `onAfterCardPlayed` | `Thousand Cuts` | `onAfterCardPlayed` | `exact` |
 | `TimeMazePower` | `atStartOfTurn, onAfterUseCard` | `TimeMaze` | `-` | `exact` |
 | `TimeWarpPower` | `onAfterUseCard` | `Time Warp` | `onAfterUseCard` | `exact` |
@@ -159,7 +159,7 @@ Deterministic Java-vs-Python manifest for power inventory and hook coverage.
 | `VaultPower` | `atEndOfRound` | `Vault` | `-` | `exact` |
 | `VigorPower` | `atDamageGive, onUseCard` | `Vigor` | `atDamageGive, onUseCard` | `exact` |
 | `VulnerablePower` | `atDamageReceive, atEndOfRound` | `Vulnerable` | `atDamageReceive, atEndOfRound` | `exact` |
-| `WaveOfTheHandPower` | `atEndOfRound` | `WaveOfTheHandPower` | `onGainBlock` | `exact` |
+| `WaveOfTheHandPower` | `atEndOfRound` | `WaveOfTheHandPower` | `atEndOfRound, onGainBlock` | `exact` |
 | `WeakPower` | `atDamageGive, atEndOfRound` | `Weakened` | `atDamageGive, atEndOfRound` | `alias` |
 | `WinterPower` | `atStartOfTurn` | `Winter` | `-` | `exact` |
 | `WraithFormPower` | `atEndOfTurn` | `Wraith Form v2` | `-` | `alias` |

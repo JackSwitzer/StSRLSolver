@@ -9,11 +9,11 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4679 passed`
+- `4684 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified after `POW-001` inventory closure + runtime dispatch expansion (`POW-002` partial).
+Re-verified after `POW-002` dispatch closure and `POW-003A` alias/lifecycle power hook slice.
 
 ## Structural inventory
 - Test files: `70`

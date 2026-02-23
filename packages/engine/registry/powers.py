@@ -643,6 +643,7 @@ def slow_damage_receive(ctx: PowerContext) -> int:
 
 
 @power_trigger("atDamageFinalReceive", power="Intangible", priority=1)
+@power_trigger("atDamageFinalReceive", power="IntangiblePlayer", priority=1)
 def intangible_damage_final(ctx: PowerContext) -> int:
     """Intangible: Reduce all damage to 1."""
     return 1
@@ -703,11 +704,15 @@ def envenom_on_attack(ctx: PowerContext) -> None:
 
 
 @power_trigger("onAttack", power="Thorns")
+@power_trigger("onAttacked", power="Thorns")
 def thorns_on_attacked(ctx: PowerContext) -> None:
     """Thorns: Deal damage back when attacked."""
     attacker = ctx.trigger_data.get("attacker")
-    if attacker and hasattr(attacker, 'hp'):
-        attacker.hp -= ctx.amount
+    if attacker and hasattr(attacker, 'hp') and ctx.trigger_data.get("damage", 0) > 0:
+        blocked = min(getattr(attacker, "block", 0), ctx.amount)
+        if hasattr(attacker, "block"):
+            attacker.block -= blocked
+        attacker.hp -= (ctx.amount - blocked)
         if attacker.hp < 0:
             attacker.hp = 0
 
@@ -747,6 +752,15 @@ def juggernaut_gain_block(ctx: PowerContext) -> None:
 def wave_of_hand_gain_block(ctx: PowerContext) -> None:
     """Wave of the Hand: Apply Weak to all enemies when gaining block."""
     ctx.apply_power_to_all_enemies("Weakened", ctx.amount)
+
+
+@power_trigger("atEndOfRound", power="WaveOfTheHandPower")
+def wave_of_the_hand_end_of_round(ctx: PowerContext) -> None:
+    """Wave of the Hand: expires at end of round."""
+    if "WaveOfTheHandPower" in ctx.player.statuses:
+        del ctx.player.statuses["WaveOfTheHandPower"]
+    if "WaveOfTheHand" in ctx.player.statuses:
+        del ctx.player.statuses["WaveOfTheHand"]
 
 
 # =============================================================================
@@ -891,10 +905,22 @@ def tools_of_trade_start(ctx: PowerContext) -> None:
 
 
 @power_trigger("atStartOfTurnPostDraw", power="NextTurnDraw")
+@power_trigger("atStartOfTurnPostDraw", power="DrawCardNextTurn")
 def next_turn_draw_start(ctx: PowerContext) -> None:
     """DrawCardNextTurnPower: draw cards post-draw, then remove."""
     ctx.draw_cards(ctx.amount)
-    del ctx.player.statuses["NextTurnDraw"]
+    ctx.player.statuses.pop("NextTurnDraw", None)
+    ctx.player.statuses.pop("DrawCardNextTurn", None)
+
+
+@power_trigger("atEndOfRound", power="IntangiblePlayer")
+def intangible_player_end_of_round(ctx: PowerContext) -> None:
+    """IntangiblePlayer: decrement and remove at end of round."""
+    current = ctx.player.statuses.get("IntangiblePlayer", 0)
+    if current > 1:
+        ctx.player.statuses["IntangiblePlayer"] = current - 1
+    elif current == 1:
+        del ctx.player.statuses["IntangiblePlayer"]
 
 
 @power_trigger("atStartOfTurn", power="NextTurnEnergy")

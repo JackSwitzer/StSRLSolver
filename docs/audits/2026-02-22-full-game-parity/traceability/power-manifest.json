@@ -615,7 +615,9 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java",
     "mapping_via": "Draw Card",
     "python_power_id": "DrawCardNextTurn",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
     "status": "exact"
   },
   {
@@ -1130,7 +1132,10 @@
     "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/IntangiblePlayerPower.java",
     "mapping_via": null,
     "python_power_id": "IntangiblePlayer",
-    "python_registry_hooks": [],
+    "python_registry_hooks": [
+      "atDamageFinalReceive",
+      "atEndOfRound"
+    ],
     "status": "exact"
   },
   {
@@ -2138,7 +2143,8 @@
     "mapping_via": null,
     "python_power_id": "Thorns",
     "python_registry_hooks": [
-      "onAttack"
+      "onAttack",
+      "onAttacked"
     ],
     "status": "exact"
   },
@@ -2288,6 +2294,7 @@
     "mapping_via": null,
     "python_power_id": "WaveOfTheHandPower",
     "python_registry_hooks": [
+      "atEndOfRound",
       "onGainBlock"
     ],
     "status": "exact"

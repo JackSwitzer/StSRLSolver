@@ -31,6 +31,12 @@
   - `onApplyPower`
   - `onScry`
   - `onAttackedToChangeDamage`
+- Completed runtime dispatch coverage for all registered power hooks (`25/25`).
+- Added alias/lifecycle registry closures:
+  - `DrawCardNextTurn` post-draw hook alias.
+  - `IntangiblePlayer` final-damage + end-of-round handling.
+  - `WaveOfTheHandPower` end-of-round expiration.
+  - `Thorns` `onAttacked` handling (with attacker block interaction).
 - Added manifest/hook audit test:
   - `tests/test_audit_power_manifest.py`
 
@@ -44,15 +50,15 @@
 - [ ] `POW-003` broaden integration tests for powers + relics + orbs + card-flow edge cases.
 
 ## Remaining registry behavior gaps (from manifest diff)
-- Classes with at least one Java-overridden hook not represented in current registry handlers: `71`
+- Classes with at least one Java-overridden hook not represented in current registry handlers: `67`
 - Largest remaining hook families by count:
   - `atEndOfTurn`: `18`
-  - `atEndOfRound`: `17`
+  - `atEndOfRound`: `15`
   - `atStartOfTurn`: `14`
   - `onUseCard`: `11`
-  - `onAttacked`: `9`
+  - `onAttacked`: `8`
 - Additional remaining hook families:
-  - `atDamageFinalReceive`: `3`
+  - `atDamageFinalReceive`: `2`
   - `onEnergyRecharge`: `2`
   - `atDamageGive`: `2`
   - `onChangeStance`: `2`
@@ -63,16 +69,16 @@
   - `onAttackedToChangeDamage`: `1`
   - `onApplyPower`: `1`
 - High-priority classes with multi-hook deltas:
-  - `MalleablePower`: `atEndOfRound`, `atEndOfTurn`, `onAttacked`
   - `FlightPower`: `atDamageFinalReceive`, `atStartOfTurn`, `onAttacked`
-  - `TimeMazePower`: `atStartOfTurn`, `onAfterUseCard`
-  - `SkillBurnPower`: `atEndOfRound`, `onUseCard`
-  - `ReboundPower`: `atEndOfTurn`, `onAfterUseCard`
-  - `PenNibPower`: `atDamageGive`, `onUseCard`
-  - `InvinciblePower`: `atStartOfTurn`, `onAttackedToChangeDamage`
-  - `IntangiblePlayerPower`: `atDamageFinalReceive`, `atEndOfRound`
-  - `EquilibriumPower`: `atEndOfRound`, `atEndOfTurn`
+  - `MalleablePower`: `atEndOfRound`, `atEndOfTurn`, `onAttacked`
+  - `AmplifyPower`: `atEndOfTurn`, `onUseCard`
+  - `AttackBurnPower`: `atEndOfRound`, `onUseCard`
+  - `DoubleDamagePower`: `atDamageGive`, `atEndOfRound`
   - `EchoPower`: `atStartOfTurn`, `onUseCard`
+  - `EquilibriumPower`: `atEndOfRound`, `atEndOfTurn`
+  - `InvinciblePower`: `atStartOfTurn`, `onAttackedToChangeDamage`
+  - `PenNibPower`: `atDamageGive`, `onUseCard`
+  - `ReboundPower`: `atEndOfTurn`, `onAfterUseCard`
 
 ## Java references
 - `com/megacrit/cardcrawl/powers/*.java`

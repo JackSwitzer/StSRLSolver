@@ -667,14 +667,6 @@ class CombatEngine:
                     },
                 )
 
-                # Player Thorns: deal damage back to enemy on HP damage
-                if hp_damage > 0:
-                    thorns = self.state.player.statuses.get("Thorns", 0)
-                    if thorns > 0:
-                        enemy.hp -= thorns
-                        if enemy.hp < 0:
-                            enemy.hp = 0
-
                 self.log.log(self.state.turn, "player_damaged",
                             enemy=enemy.name,
                             damage=damage,
@@ -1519,15 +1511,6 @@ class CombatEngine:
             enemy.block += curl_up
             del enemy.statuses["Curl Up"]
             self.log.log(self.state.turn, "curl_up", enemy=enemy.id, block=curl_up)
-
-        # Thorns: deal damage back to player per hit
-        thorns = enemy.statuses.get("Thorns", 0)
-        if thorns > 0:
-            thorn_blocked = min(self.state.player.block, thorns)
-            thorn_hp = thorns - thorn_blocked
-            self.state.player.block -= thorn_blocked
-            self.state.player.hp -= thorn_hp
-            self.state.total_damage_taken += thorn_hp
 
         # Sharp Hide (Guardian): damage player per hit
         sharp_hide = enemy.statuses.get("Sharp Hide", 0)
