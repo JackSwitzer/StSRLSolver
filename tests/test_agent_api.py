@@ -1183,6 +1183,10 @@ class TestObservationSchema:
         """Test observation contains all required top-level fields."""
         obs = runner.get_observation()
 
+        assert "observation_schema_version" in obs
+        assert "action_schema_version" in obs
+        assert isinstance(obs["observation_schema_version"], str)
+        assert isinstance(obs["action_schema_version"], str)
         assert "phase" in obs
         assert "run" in obs
         assert "map" in obs

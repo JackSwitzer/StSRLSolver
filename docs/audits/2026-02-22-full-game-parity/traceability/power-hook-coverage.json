@@ -1,0 +1,224 @@
+{
+  "dispatched_not_registered": [],
+  "hooks_by_name": {
+    "atDamageFinalReceive": [
+      "Flight",
+      "Intangible",
+      "IntangiblePlayer"
+    ],
+    "atDamageGive": [
+      "Accuracy",
+      "Pen Nib",
+      "Strength",
+      "Vigor",
+      "Weakened"
+    ],
+    "atDamageReceive": [
+      "Slow",
+      "Vulnerable"
+    ],
+    "atEndOfRound": [
+      "Equilibrium",
+      "Frail",
+      "IntangiblePlayer",
+      "Malleable",
+      "Slow",
+      "Vulnerable",
+      "WaveOfTheHandPower",
+      "Weakened"
+    ],
+    "atEndOfTurn": [
+      "Burst",
+      "Combust",
+      "Constricted",
+      "DisciplinePower",
+      "Equilibrium",
+      "Intangible",
+      "LoseDexterity",
+      "LoseStrength",
+      "Malleable",
+      "NoDraw",
+      "Omega",
+      "Ritual",
+      "Study",
+      "WellLaidPlans",
+      "WraithFormPower",
+      "ZeroCostCards"
+    ],
+    "atEndOfTurnPreEndTurnCards": [
+      "LikeWater",
+      "Metallicize",
+      "Plated Armor"
+    ],
+    "atStartOfTurn": [
+      "BattleHymn",
+      "Berserk",
+      "Bias",
+      "Blur",
+      "Choked",
+      "CreativeAI",
+      "DisciplinePower",
+      "Echo Form",
+      "FlameBarrier",
+      "Flight",
+      "Foresight",
+      "InfiniteBlades",
+      "Invincible",
+      "Loop",
+      "Magnetism",
+      "Mayhem",
+      "NextTurnBlock",
+      "NextTurnEnergy",
+      "PhantasmalKiller",
+      "Poison",
+      "Regeneration"
+    ],
+    "atStartOfTurnPostDraw": [
+      "Barricade",
+      "Brutality",
+      "DemonForm",
+      "Devotion",
+      "DrawCardNextTurn",
+      "NextTurnDraw",
+      "NoxiousFumes",
+      "Rage",
+      "ToolsOfTheTrade"
+    ],
+    "modifyBlock": [
+      "Dexterity",
+      "Frail"
+    ],
+    "onAfterCardPlayed": [
+      "ThousandCuts"
+    ],
+    "onAfterUseCard": [
+      "BeatOfDeath",
+      "Slow",
+      "Time Warp"
+    ],
+    "onApplyPower": [
+      "SadisticNature"
+    ],
+    "onAttack": [
+      "Envenom",
+      "Thorns"
+    ],
+    "onAttacked": [
+      "FlameBarrier",
+      "Flight",
+      "Malleable",
+      "Thorns"
+    ],
+    "onAttackedToChangeDamage": [
+      "Buffer",
+      "Invincible"
+    ],
+    "onCardDraw": [
+      "Corruption",
+      "Evolve",
+      "FireBreathing"
+    ],
+    "onChangeStance": [
+      "MentalFortress",
+      "Rushdown"
+    ],
+    "onDeath": [
+      "CorpseExplosion"
+    ],
+    "onEnergyRecharge": [
+      "DevaForm",
+      "Energized"
+    ],
+    "onExhaust": [
+      "DarkEmbrace",
+      "FeelNoPain"
+    ],
+    "onGainBlock": [
+      "Juggernaut",
+      "WaveOfTheHand"
+    ],
+    "onManualDiscard": [
+      "Reflex",
+      "SneakyStrike",
+      "Tactician"
+    ],
+    "onScry": [
+      "Nirvana"
+    ],
+    "onUseCard": [
+      "Accuracy",
+      "AfterImage",
+      "Burst",
+      "Choked",
+      "Corruption",
+      "DoubleTap",
+      "Duplication",
+      "Echo Form",
+      "Heatsink",
+      "Panache",
+      "Pen Nib",
+      "Rage",
+      "Vigor"
+    ],
+    "wasHPLost": [
+      "Plated Armor",
+      "Rupture"
+    ]
+  },
+  "registered_not_dispatched": [
+    "atDamageFinalReceive",
+    "atDamageGive",
+    "atDamageReceive",
+    "modifyBlock",
+    "onAttack",
+    "onAttacked",
+    "onAttackedToChangeDamage",
+    "onCardDraw",
+    "onManualDiscard",
+    "onScry",
+    "wasHPLost"
+  ],
+  "registry_hook_names": [
+    "atDamageFinalReceive",
+    "atDamageGive",
+    "atDamageReceive",
+    "atEndOfRound",
+    "atEndOfTurn",
+    "atEndOfTurnPreEndTurnCards",
+    "atStartOfTurn",
+    "atStartOfTurnPostDraw",
+    "modifyBlock",
+    "onAfterCardPlayed",
+    "onAfterUseCard",
+    "onApplyPower",
+    "onAttack",
+    "onAttacked",
+    "onAttackedToChangeDamage",
+    "onCardDraw",
+    "onChangeStance",
+    "onDeath",
+    "onEnergyRecharge",
+    "onExhaust",
+    "onGainBlock",
+    "onManualDiscard",
+    "onScry",
+    "onUseCard",
+    "wasHPLost"
+  ],
+  "runtime_hook_names": [
+    "atEndOfRound",
+    "atEndOfTurn",
+    "atEndOfTurnPreEndTurnCards",
+    "atStartOfTurn",
+    "atStartOfTurnPostDraw",
+    "onAfterCardPlayed",
+    "onAfterUseCard",
+    "onApplyPower",
+    "onChangeStance",
+    "onDeath",
+    "onEnergyRecharge",
+    "onExhaust",
+    "onGainBlock",
+    "onUseCard"
+  ]
+}

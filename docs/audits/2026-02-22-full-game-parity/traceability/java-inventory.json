@@ -1,0 +1,4168 @@
+{
+  "cards": {
+    "items": [
+      {
+        "java_class": "Aggregate",
+        "java_id": "Aggregate",
+        "java_source": "cards/blue/Aggregate.java"
+      },
+      {
+        "java_class": "AllForOne",
+        "java_id": "AllForOne",
+        "java_source": "cards/blue/AllForOne.java"
+      },
+      {
+        "java_class": "Amplify",
+        "java_id": "Amplify",
+        "java_source": "cards/blue/Amplify.java"
+      },
+      {
+        "java_class": "AutoShields",
+        "java_id": "AutoShields",
+        "java_source": "cards/blue/AutoShields.java"
+      },
+      {
+        "java_class": "BallLightning",
+        "java_id": "BallLightning",
+        "java_source": "cards/blue/BallLightning.java"
+      },
+      {
+        "java_class": "Barrage",
+        "java_id": "Barrage",
+        "java_source": "cards/blue/Barrage.java"
+      },
+      {
+        "java_class": "BeamCell",
+        "java_id": "BeamCell",
+        "java_source": "cards/blue/BeamCell.java"
+      },
+      {
+        "java_class": "BiasedCognition",
+        "java_id": "BiasedCognition",
+        "java_source": "cards/blue/BiasedCognition.java"
+      },
+      {
+        "java_class": "Blizzard",
+        "java_id": "Blizzard",
+        "java_source": "cards/blue/Blizzard.java"
+      },
+      {
+        "java_class": "BootSequence",
+        "java_id": "BootSequence",
+        "java_source": "cards/blue/BootSequence.java"
+      },
+      {
+        "java_class": "Buffer",
+        "java_id": "Buffer",
+        "java_source": "cards/blue/Buffer.java"
+      },
+      {
+        "java_class": "Capacitor",
+        "java_id": "Capacitor",
+        "java_source": "cards/blue/Capacitor.java"
+      },
+      {
+        "java_class": "Chaos",
+        "java_id": "Chaos",
+        "java_source": "cards/blue/Chaos.java"
+      },
+      {
+        "java_class": "Chill",
+        "java_id": "Chill",
+        "java_source": "cards/blue/Chill.java"
+      },
+      {
+        "java_class": "Claw",
+        "java_id": "Claw",
+        "java_source": "cards/blue/Claw.java"
+      },
+      {
+        "java_class": "ColdSnap",
+        "java_id": "ColdSnap",
+        "java_source": "cards/blue/ColdSnap.java"
+      },
+      {
+        "java_class": "CompileDriver",
+        "java_id": "CompileDriver",
+        "java_source": "cards/blue/CompileDriver.java"
+      },
+      {
+        "java_class": "ConserveBattery",
+        "java_id": "ConserveBattery",
+        "java_source": "cards/blue/ConserveBattery.java"
+      },
+      {
+        "java_class": "Consume",
+        "java_id": "Consume",
+        "java_source": "cards/blue/Consume.java"
+      },
+      {
+        "java_class": "Coolheaded",
+        "java_id": "Coolheaded",
+        "java_source": "cards/blue/Coolheaded.java"
+      },
+      {
+        "java_class": "CoreSurge",
+        "java_id": "CoreSurge",
+        "java_source": "cards/blue/CoreSurge.java"
+      },
+      {
+        "java_class": "CreativeAI",
+        "java_id": "CreativeAI",
+        "java_source": "cards/blue/CreativeAI.java"
+      },
+      {
+        "java_class": "Darkness",
+        "java_id": "Darkness",
+        "java_source": "cards/blue/Darkness.java"
+      },
+      {
+        "java_class": "Defend_Blue",
+        "java_id": "Defend_Blue",
+        "java_source": "cards/blue/Defend_Blue.java"
+      },
+      {
+        "java_class": "Defragment",
+        "java_id": "Defragment",
+        "java_source": "cards/blue/Defragment.java"
+      },
+      {
+        "java_class": "DoomAndGloom",
+        "java_id": "DoomAndGloom",
+        "java_source": "cards/blue/DoomAndGloom.java"
+      },
+      {
+        "java_class": "DoubleEnergy",
+        "java_id": "DoubleEnergy",
+        "java_source": "cards/blue/DoubleEnergy.java"
+      },
+      {
+        "java_class": "Dualcast",
+        "java_id": "Dualcast",
+        "java_source": "cards/blue/Dualcast.java"
+      },
+      {
+        "java_class": "EchoForm",
+        "java_id": "EchoForm",
+        "java_source": "cards/blue/EchoForm.java"
+      },
+      {
+        "java_class": "Electrodynamics",
+        "java_id": "Electrodynamics",
+        "java_source": "cards/blue/Electrodynamics.java"
+      },
+      {
+        "java_class": "Equilibrium",
+        "java_id": "Equilibrium",
+        "java_source": "cards/blue/Equilibrium.java"
+      },
+      {
+        "java_class": "FTL",
+        "java_id": "FTL",
+        "java_source": "cards/blue/FTL.java"
+      },
+      {
+        "java_class": "Fission",
+        "java_id": "Fission",
+        "java_source": "cards/blue/Fission.java"
+      },
+      {
+        "java_class": "ForceField",
+        "java_id": "ForceField",
+        "java_source": "cards/blue/ForceField.java"
+      },
+      {
+        "java_class": "Fusion",
+        "java_id": "Fusion",
+        "java_source": "cards/blue/Fusion.java"
+      },
+      {
+        "java_class": "GeneticAlgorithm",
+        "java_id": "GeneticAlgorithm",
+        "java_source": "cards/blue/GeneticAlgorithm.java"
+      },
+      {
+        "java_class": "Glacier",
+        "java_id": "Glacier",
+        "java_source": "cards/blue/Glacier.java"
+      },
+      {
+        "java_class": "GoForTheEyes",
+        "java_id": "GoForTheEyes",
+        "java_source": "cards/blue/GoForTheEyes.java"
+      },
+      {
+        "java_class": "Heatsinks",
+        "java_id": "Heatsinks",
+        "java_source": "cards/blue/Heatsinks.java"
+      },
+      {
+        "java_class": "HelloWorld",
+        "java_id": "HelloWorld",
+        "java_source": "cards/blue/HelloWorld.java"
+      },
+      {
+        "java_class": "Hologram",
+        "java_id": "Hologram",
+        "java_source": "cards/blue/Hologram.java"
+      },
+      {
+        "java_class": "Hyperbeam",
+        "java_id": "Hyperbeam",
+        "java_source": "cards/blue/Hyperbeam.java"
+      },
+      {
+        "java_class": "Impulse",
+        "java_id": "Impulse",
+        "java_source": "cards/blue/Impulse.java"
+      },
+      {
+        "java_class": "Leap",
+        "java_id": "Leap",
+        "java_source": "cards/blue/Leap.java"
+      },
+      {
+        "java_class": "LockOn",
+        "java_id": "LockOn",
+        "java_source": "cards/blue/LockOn.java"
+      },
+      {
+        "java_class": "Loop",
+        "java_id": "Loop",
+        "java_source": "cards/blue/Loop.java"
+      },
+      {
+        "java_class": "MachineLearning",
+        "java_id": "MachineLearning",
+        "java_source": "cards/blue/MachineLearning.java"
+      },
+      {
+        "java_class": "Melter",
+        "java_id": "Melter",
+        "java_source": "cards/blue/Melter.java"
+      },
+      {
+        "java_class": "MeteorStrike",
+        "java_id": "MeteorStrike",
+        "java_source": "cards/blue/MeteorStrike.java"
+      },
+      {
+        "java_class": "MultiCast",
+        "java_id": "MultiCast",
+        "java_source": "cards/blue/MultiCast.java"
+      },
+      {
+        "java_class": "Overclock",
+        "java_id": "Overclock",
+        "java_source": "cards/blue/Overclock.java"
+      },
+      {
+        "java_class": "Rainbow",
+        "java_id": "Rainbow",
+        "java_source": "cards/blue/Rainbow.java"
+      },
+      {
+        "java_class": "Reboot",
+        "java_id": "Reboot",
+        "java_source": "cards/blue/Reboot.java"
+      },
+      {
+        "java_class": "Rebound",
+        "java_id": "Rebound",
+        "java_source": "cards/blue/Rebound.java"
+      },
+      {
+        "java_class": "Recursion",
+        "java_id": "Recursion",
+        "java_source": "cards/blue/Recursion.java"
+      },
+      {
+        "java_class": "Recycle",
+        "java_id": "Recycle",
+        "java_source": "cards/blue/Recycle.java"
+      },
+      {
+        "java_class": "ReinforcedBody",
+        "java_id": "ReinforcedBody",
+        "java_source": "cards/blue/ReinforcedBody.java"
+      },
+      {
+        "java_class": "Reprogram",
+        "java_id": "Reprogram",
+        "java_source": "cards/blue/Reprogram.java"
+      },
+      {
+        "java_class": "RipAndTear",
+        "java_id": "RipAndTear",
+        "java_source": "cards/blue/RipAndTear.java"
+      },
+      {
+        "java_class": "Scrape",
+        "java_id": "Scrape",
+        "java_source": "cards/blue/Scrape.java"
+      },
+      {
+        "java_class": "Seek",
+        "java_id": "Seek",
+        "java_source": "cards/blue/Seek.java"
+      },
+      {
+        "java_class": "SelfRepair",
+        "java_id": "SelfRepair",
+        "java_source": "cards/blue/SelfRepair.java"
+      },
+      {
+        "java_class": "Skim",
+        "java_id": "Skim",
+        "java_source": "cards/blue/Skim.java"
+      },
+      {
+        "java_class": "Stack",
+        "java_id": "Stack",
+        "java_source": "cards/blue/Stack.java"
+      },
+      {
+        "java_class": "StaticDischarge",
+        "java_id": "StaticDischarge",
+        "java_source": "cards/blue/StaticDischarge.java"
+      },
+      {
+        "java_class": "SteamBarrier",
+        "java_id": "SteamBarrier",
+        "java_source": "cards/blue/SteamBarrier.java"
+      },
+      {
+        "java_class": "Storm",
+        "java_id": "Storm",
+        "java_source": "cards/blue/Storm.java"
+      },
+      {
+        "java_class": "Streamline",
+        "java_id": "Streamline",
+        "java_source": "cards/blue/Streamline.java"
+      },
+      {
+        "java_class": "Strike_Blue",
+        "java_id": "Strike_Blue",
+        "java_source": "cards/blue/Strike_Blue.java"
+      },
+      {
+        "java_class": "Sunder",
+        "java_id": "Sunder",
+        "java_source": "cards/blue/Sunder.java"
+      },
+      {
+        "java_class": "SweepingBeam",
+        "java_id": "SweepingBeam",
+        "java_source": "cards/blue/SweepingBeam.java"
+      },
+      {
+        "java_class": "Tempest",
+        "java_id": "Tempest",
+        "java_source": "cards/blue/Tempest.java"
+      },
+      {
+        "java_class": "ThunderStrike",
+        "java_id": "ThunderStrike",
+        "java_source": "cards/blue/ThunderStrike.java"
+      },
+      {
+        "java_class": "Turbo",
+        "java_id": "Turbo",
+        "java_source": "cards/blue/Turbo.java"
+      },
+      {
+        "java_class": "WhiteNoise",
+        "java_id": "WhiteNoise",
+        "java_source": "cards/blue/WhiteNoise.java"
+      },
+      {
+        "java_class": "Zap",
+        "java_id": "Zap",
+        "java_source": "cards/blue/Zap.java"
+      },
+      {
+        "java_class": "Apotheosis",
+        "java_id": "Apotheosis",
+        "java_source": "cards/colorless/Apotheosis.java"
+      },
+      {
+        "java_class": "Apparition",
+        "java_id": "Apparition",
+        "java_source": "cards/colorless/Apparition.java"
+      },
+      {
+        "java_class": "BandageUp",
+        "java_id": "BandageUp",
+        "java_source": "cards/colorless/BandageUp.java"
+      },
+      {
+        "java_class": "Bite",
+        "java_id": "Bite",
+        "java_source": "cards/colorless/Bite.java"
+      },
+      {
+        "java_class": "Blind",
+        "java_id": "Blind",
+        "java_source": "cards/colorless/Blind.java"
+      },
+      {
+        "java_class": "Chrysalis",
+        "java_id": "Chrysalis",
+        "java_source": "cards/colorless/Chrysalis.java"
+      },
+      {
+        "java_class": "DarkShackles",
+        "java_id": "DarkShackles",
+        "java_source": "cards/colorless/DarkShackles.java"
+      },
+      {
+        "java_class": "DeepBreath",
+        "java_id": "DeepBreath",
+        "java_source": "cards/colorless/DeepBreath.java"
+      },
+      {
+        "java_class": "Discovery",
+        "java_id": "Discovery",
+        "java_source": "cards/colorless/Discovery.java"
+      },
+      {
+        "java_class": "DramaticEntrance",
+        "java_id": "DramaticEntrance",
+        "java_source": "cards/colorless/DramaticEntrance.java"
+      },
+      {
+        "java_class": "Enlightenment",
+        "java_id": "Enlightenment",
+        "java_source": "cards/colorless/Enlightenment.java"
+      },
+      {
+        "java_class": "Finesse",
+        "java_id": "Finesse",
+        "java_source": "cards/colorless/Finesse.java"
+      },
+      {
+        "java_class": "FlashOfSteel",
+        "java_id": "FlashOfSteel",
+        "java_source": "cards/colorless/FlashOfSteel.java"
+      },
+      {
+        "java_class": "Forethought",
+        "java_id": "Forethought",
+        "java_source": "cards/colorless/Forethought.java"
+      },
+      {
+        "java_class": "GoodInstincts",
+        "java_id": "GoodInstincts",
+        "java_source": "cards/colorless/GoodInstincts.java"
+      },
+      {
+        "java_class": "HandOfGreed",
+        "java_id": "HandOfGreed",
+        "java_source": "cards/colorless/HandOfGreed.java"
+      },
+      {
+        "java_class": "Impatience",
+        "java_id": "Impatience",
+        "java_source": "cards/colorless/Impatience.java"
+      },
+      {
+        "java_class": "JAX",
+        "java_id": "JAX",
+        "java_source": "cards/colorless/JAX.java"
+      },
+      {
+        "java_class": "JackOfAllTrades",
+        "java_id": "JackOfAllTrades",
+        "java_source": "cards/colorless/JackOfAllTrades.java"
+      },
+      {
+        "java_class": "Madness",
+        "java_id": "Madness",
+        "java_source": "cards/colorless/Madness.java"
+      },
+      {
+        "java_class": "Magnetism",
+        "java_id": "Magnetism",
+        "java_source": "cards/colorless/Magnetism.java"
+      },
+      {
+        "java_class": "MasterOfStrategy",
+        "java_id": "MasterOfStrategy",
+        "java_source": "cards/colorless/MasterOfStrategy.java"
+      },
+      {
+        "java_class": "Mayhem",
+        "java_id": "Mayhem",
+        "java_source": "cards/colorless/Mayhem.java"
+      },
+      {
+        "java_class": "Metamorphosis",
+        "java_id": "Metamorphosis",
+        "java_source": "cards/colorless/Metamorphosis.java"
+      },
+      {
+        "java_class": "MindBlast",
+        "java_id": "MindBlast",
+        "java_source": "cards/colorless/MindBlast.java"
+      },
+      {
+        "java_class": "Panacea",
+        "java_id": "Panacea",
+        "java_source": "cards/colorless/Panacea.java"
+      },
+      {
+        "java_class": "Panache",
+        "java_id": "Panache",
+        "java_source": "cards/colorless/Panache.java"
+      },
+      {
+        "java_class": "PanicButton",
+        "java_id": "PanicButton",
+        "java_source": "cards/colorless/PanicButton.java"
+      },
+      {
+        "java_class": "Purity",
+        "java_id": "Purity",
+        "java_source": "cards/colorless/Purity.java"
+      },
+      {
+        "java_class": "RitualDagger",
+        "java_id": "RitualDagger",
+        "java_source": "cards/colorless/RitualDagger.java"
+      },
+      {
+        "java_class": "SadisticNature",
+        "java_id": "SadisticNature",
+        "java_source": "cards/colorless/SadisticNature.java"
+      },
+      {
+        "java_class": "SecretTechnique",
+        "java_id": "SecretTechnique",
+        "java_source": "cards/colorless/SecretTechnique.java"
+      },
+      {
+        "java_class": "SecretWeapon",
+        "java_id": "SecretWeapon",
+        "java_source": "cards/colorless/SecretWeapon.java"
+      },
+      {
+        "java_class": "SwiftStrike",
+        "java_id": "SwiftStrike",
+        "java_source": "cards/colorless/SwiftStrike.java"
+      },
+      {
+        "java_class": "TheBomb",
+        "java_id": "TheBomb",
+        "java_source": "cards/colorless/TheBomb.java"
+      },
+      {
+        "java_class": "ThinkingAhead",
+        "java_id": "ThinkingAhead",
+        "java_source": "cards/colorless/ThinkingAhead.java"
+      },
+      {
+        "java_class": "Transmutation",
+        "java_id": "Transmutation",
+        "java_source": "cards/colorless/Transmutation.java"
+      },
+      {
+        "java_class": "Trip",
+        "java_id": "Trip",
+        "java_source": "cards/colorless/Trip.java"
+      },
+      {
+        "java_class": "Violence",
+        "java_id": "Violence",
+        "java_source": "cards/colorless/Violence.java"
+      },
+      {
+        "java_class": "AscendersBane",
+        "java_id": "AscendersBane",
+        "java_source": "cards/curses/AscendersBane.java"
+      },
+      {
+        "java_class": "Clumsy",
+        "java_id": "Clumsy",
+        "java_source": "cards/curses/Clumsy.java"
+      },
+      {
+        "java_class": "CurseOfTheBell",
+        "java_id": "CurseOfTheBell",
+        "java_source": "cards/curses/CurseOfTheBell.java"
+      },
+      {
+        "java_class": "Decay",
+        "java_id": "Decay",
+        "java_source": "cards/curses/Decay.java"
+      },
+      {
+        "java_class": "Doubt",
+        "java_id": "Doubt",
+        "java_source": "cards/curses/Doubt.java"
+      },
+      {
+        "java_class": "Injury",
+        "java_id": "Injury",
+        "java_source": "cards/curses/Injury.java"
+      },
+      {
+        "java_class": "Necronomicurse",
+        "java_id": "Necronomicurse",
+        "java_source": "cards/curses/Necronomicurse.java"
+      },
+      {
+        "java_class": "Normality",
+        "java_id": "Normality",
+        "java_source": "cards/curses/Normality.java"
+      },
+      {
+        "java_class": "Pain",
+        "java_id": "Pain",
+        "java_source": "cards/curses/Pain.java"
+      },
+      {
+        "java_class": "Parasite",
+        "java_id": "Parasite",
+        "java_source": "cards/curses/Parasite.java"
+      },
+      {
+        "java_class": "Pride",
+        "java_id": "Pride",
+        "java_source": "cards/curses/Pride.java"
+      },
+      {
+        "java_class": "Regret",
+        "java_id": "Regret",
+        "java_source": "cards/curses/Regret.java"
+      },
+      {
+        "java_class": "Shame",
+        "java_id": "Shame",
+        "java_source": "cards/curses/Shame.java"
+      },
+      {
+        "java_class": "Writhe",
+        "java_id": "Writhe",
+        "java_source": "cards/curses/Writhe.java"
+      },
+      {
+        "java_class": "AThousandCuts",
+        "java_id": "AThousandCuts",
+        "java_source": "cards/green/AThousandCuts.java"
+      },
+      {
+        "java_class": "Accuracy",
+        "java_id": "Accuracy",
+        "java_source": "cards/green/Accuracy.java"
+      },
+      {
+        "java_class": "Acrobatics",
+        "java_id": "Acrobatics",
+        "java_source": "cards/green/Acrobatics.java"
+      },
+      {
+        "java_class": "Adrenaline",
+        "java_id": "Adrenaline",
+        "java_source": "cards/green/Adrenaline.java"
+      },
+      {
+        "java_class": "AfterImage",
+        "java_id": "AfterImage",
+        "java_source": "cards/green/AfterImage.java"
+      },
+      {
+        "java_class": "Alchemize",
+        "java_id": "Alchemize",
+        "java_source": "cards/green/Alchemize.java"
+      },
+      {
+        "java_class": "AllOutAttack",
+        "java_id": "AllOutAttack",
+        "java_source": "cards/green/AllOutAttack.java"
+      },
+      {
+        "java_class": "Backflip",
+        "java_id": "Backflip",
+        "java_source": "cards/green/Backflip.java"
+      },
+      {
+        "java_class": "Backstab",
+        "java_id": "Backstab",
+        "java_source": "cards/green/Backstab.java"
+      },
+      {
+        "java_class": "Bane",
+        "java_id": "Bane",
+        "java_source": "cards/green/Bane.java"
+      },
+      {
+        "java_class": "BladeDance",
+        "java_id": "BladeDance",
+        "java_source": "cards/green/BladeDance.java"
+      },
+      {
+        "java_class": "Blur",
+        "java_id": "Blur",
+        "java_source": "cards/green/Blur.java"
+      },
+      {
+        "java_class": "BouncingFlask",
+        "java_id": "BouncingFlask",
+        "java_source": "cards/green/BouncingFlask.java"
+      },
+      {
+        "java_class": "BulletTime",
+        "java_id": "BulletTime",
+        "java_source": "cards/green/BulletTime.java"
+      },
+      {
+        "java_class": "Burst",
+        "java_id": "Burst",
+        "java_source": "cards/green/Burst.java"
+      },
+      {
+        "java_class": "CalculatedGamble",
+        "java_id": "CalculatedGamble",
+        "java_source": "cards/green/CalculatedGamble.java"
+      },
+      {
+        "java_class": "Caltrops",
+        "java_id": "Caltrops",
+        "java_source": "cards/green/Caltrops.java"
+      },
+      {
+        "java_class": "Catalyst",
+        "java_id": "Catalyst",
+        "java_source": "cards/green/Catalyst.java"
+      },
+      {
+        "java_class": "Choke",
+        "java_id": "Choke",
+        "java_source": "cards/green/Choke.java"
+      },
+      {
+        "java_class": "CloakAndDagger",
+        "java_id": "CloakAndDagger",
+        "java_source": "cards/green/CloakAndDagger.java"
+      },
+      {
+        "java_class": "Concentrate",
+        "java_id": "Concentrate",
+        "java_source": "cards/green/Concentrate.java"
+      },
+      {
+        "java_class": "CorpseExplosion",
+        "java_id": "CorpseExplosion",
+        "java_source": "cards/green/CorpseExplosion.java"
+      },
+      {
+        "java_class": "CripplingPoison",
+        "java_id": "CripplingPoison",
+        "java_source": "cards/green/CripplingPoison.java"
+      },
+      {
+        "java_class": "DaggerSpray",
+        "java_id": "DaggerSpray",
+        "java_source": "cards/green/DaggerSpray.java"
+      },
+      {
+        "java_class": "DaggerThrow",
+        "java_id": "DaggerThrow",
+        "java_source": "cards/green/DaggerThrow.java"
+      },
+      {
+        "java_class": "Dash",
+        "java_id": "Dash",
+        "java_source": "cards/green/Dash.java"
+      },
+      {
+        "java_class": "DeadlyPoison",
+        "java_id": "DeadlyPoison",
+        "java_source": "cards/green/DeadlyPoison.java"
+      },
+      {
+        "java_class": "Defend_Green",
+        "java_id": "Defend_Green",
+        "java_source": "cards/green/Defend_Green.java"
+      },
+      {
+        "java_class": "Deflect",
+        "java_id": "Deflect",
+        "java_source": "cards/green/Deflect.java"
+      },
+      {
+        "java_class": "DieDieDie",
+        "java_id": "DieDieDie",
+        "java_source": "cards/green/DieDieDie.java"
+      },
+      {
+        "java_class": "Distraction",
+        "java_id": "Distraction",
+        "java_source": "cards/green/Distraction.java"
+      },
+      {
+        "java_class": "DodgeAndRoll",
+        "java_id": "DodgeAndRoll",
+        "java_source": "cards/green/DodgeAndRoll.java"
+      },
+      {
+        "java_class": "Doppelganger",
+        "java_id": "Doppelganger",
+        "java_source": "cards/green/Doppelganger.java"
+      },
+      {
+        "java_class": "EndlessAgony",
+        "java_id": "EndlessAgony",
+        "java_source": "cards/green/EndlessAgony.java"
+      },
+      {
+        "java_class": "Envenom",
+        "java_id": "Envenom",
+        "java_source": "cards/green/Envenom.java"
+      },
+      {
+        "java_class": "EscapePlan",
+        "java_id": "EscapePlan",
+        "java_source": "cards/green/EscapePlan.java"
+      },
+      {
+        "java_class": "Eviscerate",
+        "java_id": "Eviscerate",
+        "java_source": "cards/green/Eviscerate.java"
+      },
+      {
+        "java_class": "Expertise",
+        "java_id": "Expertise",
+        "java_source": "cards/green/Expertise.java"
+      },
+      {
+        "java_class": "Finisher",
+        "java_id": "Finisher",
+        "java_source": "cards/green/Finisher.java"
+      },
+      {
+        "java_class": "Flechettes",
+        "java_id": "Flechettes",
+        "java_source": "cards/green/Flechettes.java"
+      },
+      {
+        "java_class": "FlyingKnee",
+        "java_id": "FlyingKnee",
+        "java_source": "cards/green/FlyingKnee.java"
+      },
+      {
+        "java_class": "Footwork",
+        "java_id": "Footwork",
+        "java_source": "cards/green/Footwork.java"
+      },
+      {
+        "java_class": "GlassKnife",
+        "java_id": "GlassKnife",
+        "java_source": "cards/green/GlassKnife.java"
+      },
+      {
+        "java_class": "GrandFinale",
+        "java_id": "GrandFinale",
+        "java_source": "cards/green/GrandFinale.java"
+      },
+      {
+        "java_class": "HeelHook",
+        "java_id": "HeelHook",
+        "java_source": "cards/green/HeelHook.java"
+      },
+      {
+        "java_class": "InfiniteBlades",
+        "java_id": "InfiniteBlades",
+        "java_source": "cards/green/InfiniteBlades.java"
+      },
+      {
+        "java_class": "LegSweep",
+        "java_id": "LegSweep",
+        "java_source": "cards/green/LegSweep.java"
+      },
+      {
+        "java_class": "Malaise",
+        "java_id": "Malaise",
+        "java_source": "cards/green/Malaise.java"
+      },
+      {
+        "java_class": "MasterfulStab",
+        "java_id": "MasterfulStab",
+        "java_source": "cards/green/MasterfulStab.java"
+      },
+      {
+        "java_class": "Neutralize",
+        "java_id": "Neutralize",
+        "java_source": "cards/green/Neutralize.java"
+      },
+      {
+        "java_class": "Nightmare",
+        "java_id": "Nightmare",
+        "java_source": "cards/green/Nightmare.java"
+      },
+      {
+        "java_class": "NoxiousFumes",
+        "java_id": "NoxiousFumes",
+        "java_source": "cards/green/NoxiousFumes.java"
+      },
+      {
+        "java_class": "Outmaneuver",
+        "java_id": "Outmaneuver",
+        "java_source": "cards/green/Outmaneuver.java"
+      },
+      {
+        "java_class": "PhantasmalKiller",
+        "java_id": "PhantasmalKiller",
+        "java_source": "cards/green/PhantasmalKiller.java"
+      },
+      {
+        "java_class": "PiercingWail",
+        "java_id": "PiercingWail",
+        "java_source": "cards/green/PiercingWail.java"
+      },
+      {
+        "java_class": "PoisonedStab",
+        "java_id": "PoisonedStab",
+        "java_source": "cards/green/PoisonedStab.java"
+      },
+      {
+        "java_class": "Predator",
+        "java_id": "Predator",
+        "java_source": "cards/green/Predator.java"
+      },
+      {
+        "java_class": "Prepared",
+        "java_id": "Prepared",
+        "java_source": "cards/green/Prepared.java"
+      },
+      {
+        "java_class": "QuickSlash",
+        "java_id": "QuickSlash",
+        "java_source": "cards/green/QuickSlash.java"
+      },
+      {
+        "java_class": "Reflex",
+        "java_id": "Reflex",
+        "java_source": "cards/green/Reflex.java"
+      },
+      {
+        "java_class": "RiddleWithHoles",
+        "java_id": "RiddleWithHoles",
+        "java_source": "cards/green/RiddleWithHoles.java"
+      },
+      {
+        "java_class": "Setup",
+        "java_id": "Setup",
+        "java_source": "cards/green/Setup.java"
+      },
+      {
+        "java_class": "Skewer",
+        "java_id": "Skewer",
+        "java_source": "cards/green/Skewer.java"
+      },
+      {
+        "java_class": "Slice",
+        "java_id": "Slice",
+        "java_source": "cards/green/Slice.java"
+      },
+      {
+        "java_class": "SneakyStrike",
+        "java_id": "SneakyStrike",
+        "java_source": "cards/green/SneakyStrike.java"
+      },
+      {
+        "java_class": "StormOfSteel",
+        "java_id": "StormOfSteel",
+        "java_source": "cards/green/StormOfSteel.java"
+      },
+      {
+        "java_class": "Strike_Green",
+        "java_id": "Strike_Green",
+        "java_source": "cards/green/Strike_Green.java"
+      },
+      {
+        "java_class": "SuckerPunch",
+        "java_id": "SuckerPunch",
+        "java_source": "cards/green/SuckerPunch.java"
+      },
+      {
+        "java_class": "Survivor",
+        "java_id": "Survivor",
+        "java_source": "cards/green/Survivor.java"
+      },
+      {
+        "java_class": "Tactician",
+        "java_id": "Tactician",
+        "java_source": "cards/green/Tactician.java"
+      },
+      {
+        "java_class": "Terror",
+        "java_id": "Terror",
+        "java_source": "cards/green/Terror.java"
+      },
+      {
+        "java_class": "ToolsOfTheTrade",
+        "java_id": "ToolsOfTheTrade",
+        "java_source": "cards/green/ToolsOfTheTrade.java"
+      },
+      {
+        "java_class": "Unload",
+        "java_id": "Unload",
+        "java_source": "cards/green/Unload.java"
+      },
+      {
+        "java_class": "WellLaidPlans",
+        "java_id": "WellLaidPlans",
+        "java_source": "cards/green/WellLaidPlans.java"
+      },
+      {
+        "java_class": "WraithForm",
+        "java_id": "WraithForm",
+        "java_source": "cards/green/WraithForm.java"
+      },
+      {
+        "java_class": "Alpha",
+        "java_id": "Alpha",
+        "java_source": "cards/purple/Alpha.java"
+      },
+      {
+        "java_class": "BattleHymn",
+        "java_id": "BattleHymn",
+        "java_source": "cards/purple/BattleHymn.java"
+      },
+      {
+        "java_class": "Blasphemy",
+        "java_id": "Blasphemy",
+        "java_source": "cards/purple/Blasphemy.java"
+      },
+      {
+        "java_class": "BowlingBash",
+        "java_id": "BowlingBash",
+        "java_source": "cards/purple/BowlingBash.java"
+      },
+      {
+        "java_class": "Brilliance",
+        "java_id": "Brilliance",
+        "java_source": "cards/purple/Brilliance.java"
+      },
+      {
+        "java_class": "CarveReality",
+        "java_id": "CarveReality",
+        "java_source": "cards/purple/CarveReality.java"
+      },
+      {
+        "java_class": "Collect",
+        "java_id": "Collect",
+        "java_source": "cards/purple/Collect.java"
+      },
+      {
+        "java_class": "Conclude",
+        "java_id": "Conclude",
+        "java_source": "cards/purple/Conclude.java"
+      },
+      {
+        "java_class": "ConjureBlade",
+        "java_id": "ConjureBlade",
+        "java_source": "cards/purple/ConjureBlade.java"
+      },
+      {
+        "java_class": "Consecrate",
+        "java_id": "Consecrate",
+        "java_source": "cards/purple/Consecrate.java"
+      },
+      {
+        "java_class": "Crescendo",
+        "java_id": "Crescendo",
+        "java_source": "cards/purple/Crescendo.java"
+      },
+      {
+        "java_class": "CrushJoints",
+        "java_id": "CrushJoints",
+        "java_source": "cards/purple/CrushJoints.java"
+      },
+      {
+        "java_class": "CutThroughFate",
+        "java_id": "CutThroughFate",
+        "java_source": "cards/purple/CutThroughFate.java"
+      },
+      {
+        "java_class": "DeceiveReality",
+        "java_id": "DeceiveReality",
+        "java_source": "cards/purple/DeceiveReality.java"
+      },
+      {
+        "java_class": "Defend_Watcher",
+        "java_id": "Defend_Watcher",
+        "java_source": "cards/purple/Defend_Watcher.java"
+      },
+      {
+        "java_class": "DeusExMachina",
+        "java_id": "DeusExMachina",
+        "java_source": "cards/purple/DeusExMachina.java"
+      },
+      {
+        "java_class": "DevaForm",
+        "java_id": "DevaForm",
+        "java_source": "cards/purple/DevaForm.java"
+      },
+      {
+        "java_class": "Devotion",
+        "java_id": "Devotion",
+        "java_source": "cards/purple/Devotion.java"
+      },
+      {
+        "java_class": "Discipline",
+        "java_id": "Discipline",
+        "java_source": "cards/purple/Discipline.java"
+      },
+      {
+        "java_class": "EmptyBody",
+        "java_id": "EmptyBody",
+        "java_source": "cards/purple/EmptyBody.java"
+      },
+      {
+        "java_class": "EmptyFist",
+        "java_id": "EmptyFist",
+        "java_source": "cards/purple/EmptyFist.java"
+      },
+      {
+        "java_class": "EmptyMind",
+        "java_id": "EmptyMind",
+        "java_source": "cards/purple/EmptyMind.java"
+      },
+      {
+        "java_class": "Eruption",
+        "java_id": "Eruption",
+        "java_source": "cards/purple/Eruption.java"
+      },
+      {
+        "java_class": "Establishment",
+        "java_id": "Establishment",
+        "java_source": "cards/purple/Establishment.java"
+      },
+      {
+        "java_class": "Evaluate",
+        "java_id": "Evaluate",
+        "java_source": "cards/purple/Evaluate.java"
+      },
+      {
+        "java_class": "Fasting",
+        "java_id": "Fasting",
+        "java_source": "cards/purple/Fasting.java"
+      },
+      {
+        "java_class": "FearNoEvil",
+        "java_id": "FearNoEvil",
+        "java_source": "cards/purple/FearNoEvil.java"
+      },
+      {
+        "java_class": "FlurryOfBlows",
+        "java_id": "FlurryOfBlows",
+        "java_source": "cards/purple/FlurryOfBlows.java"
+      },
+      {
+        "java_class": "FlyingSleeves",
+        "java_id": "FlyingSleeves",
+        "java_source": "cards/purple/FlyingSleeves.java"
+      },
+      {
+        "java_class": "FollowUp",
+        "java_id": "FollowUp",
+        "java_source": "cards/purple/FollowUp.java"
+      },
+      {
+        "java_class": "ForeignInfluence",
+        "java_id": "ForeignInfluence",
+        "java_source": "cards/purple/ForeignInfluence.java"
+      },
+      {
+        "java_class": "Foresight",
+        "java_id": "Foresight",
+        "java_source": "cards/purple/Foresight.java"
+      },
+      {
+        "java_class": "Halt",
+        "java_id": "Halt",
+        "java_source": "cards/purple/Halt.java"
+      },
+      {
+        "java_class": "Indignation",
+        "java_id": "Indignation",
+        "java_source": "cards/purple/Indignation.java"
+      },
+      {
+        "java_class": "InnerPeace",
+        "java_id": "InnerPeace",
+        "java_source": "cards/purple/InnerPeace.java"
+      },
+      {
+        "java_class": "Judgement",
+        "java_id": "Judgement",
+        "java_source": "cards/purple/Judgement.java"
+      },
+      {
+        "java_class": "JustLucky",
+        "java_id": "JustLucky",
+        "java_source": "cards/purple/JustLucky.java"
+      },
+      {
+        "java_class": "LessonLearned",
+        "java_id": "LessonLearned",
+        "java_source": "cards/purple/LessonLearned.java"
+      },
+      {
+        "java_class": "LikeWater",
+        "java_id": "LikeWater",
+        "java_source": "cards/purple/LikeWater.java"
+      },
+      {
+        "java_class": "MasterReality",
+        "java_id": "MasterReality",
+        "java_source": "cards/purple/MasterReality.java"
+      },
+      {
+        "java_class": "Meditate",
+        "java_id": "Meditate",
+        "java_source": "cards/purple/Meditate.java"
+      },
+      {
+        "java_class": "MentalFortress",
+        "java_id": "MentalFortress",
+        "java_source": "cards/purple/MentalFortress.java"
+      },
+      {
+        "java_class": "Nirvana",
+        "java_id": "Nirvana",
+        "java_source": "cards/purple/Nirvana.java"
+      },
+      {
+        "java_class": "Omniscience",
+        "java_id": "Omniscience",
+        "java_source": "cards/purple/Omniscience.java"
+      },
+      {
+        "java_class": "Perseverance",
+        "java_id": "Perseverance",
+        "java_source": "cards/purple/Perseverance.java"
+      },
+      {
+        "java_class": "Pray",
+        "java_id": "Pray",
+        "java_source": "cards/purple/Pray.java"
+      },
+      {
+        "java_class": "PressurePoints",
+        "java_id": "PressurePoints",
+        "java_source": "cards/purple/PressurePoints.java"
+      },
+      {
+        "java_class": "Prostrate",
+        "java_id": "Prostrate",
+        "java_source": "cards/purple/Prostrate.java"
+      },
+      {
+        "java_class": "Protect",
+        "java_id": "Protect",
+        "java_source": "cards/purple/Protect.java"
+      },
+      {
+        "java_class": "Ragnarok",
+        "java_id": "Ragnarok",
+        "java_source": "cards/purple/Ragnarok.java"
+      },
+      {
+        "java_class": "ReachHeaven",
+        "java_id": "ReachHeaven",
+        "java_source": "cards/purple/ReachHeaven.java"
+      },
+      {
+        "java_class": "Rushdown",
+        "java_id": "Rushdown",
+        "java_source": "cards/purple/Rushdown.java"
+      },
+      {
+        "java_class": "Sanctity",
+        "java_id": "Sanctity",
+        "java_source": "cards/purple/Sanctity.java"
+      },
+      {
+        "java_class": "SandsOfTime",
+        "java_id": "SandsOfTime",
+        "java_source": "cards/purple/SandsOfTime.java"
+      },
+      {
+        "java_class": "SashWhip",
+        "java_id": "SashWhip",
+        "java_source": "cards/purple/SashWhip.java"
+      },
+      {
+        "java_class": "Scrawl",
+        "java_id": "Scrawl",
+        "java_source": "cards/purple/Scrawl.java"
+      },
+      {
+        "java_class": "SignatureMove",
+        "java_id": "SignatureMove",
+        "java_source": "cards/purple/SignatureMove.java"
+      },
+      {
+        "java_class": "SimmeringFury",
+        "java_id": "SimmeringFury",
+        "java_source": "cards/purple/SimmeringFury.java"
+      },
+      {
+        "java_class": "SpiritShield",
+        "java_id": "SpiritShield",
+        "java_source": "cards/purple/SpiritShield.java"
+      },
+      {
+        "java_class": "Strike_Purple",
+        "java_id": "Strike_Purple",
+        "java_source": "cards/purple/Strike_Purple.java"
+      },
+      {
+        "java_class": "Study",
+        "java_id": "Study",
+        "java_source": "cards/purple/Study.java"
+      },
+      {
+        "java_class": "Swivel",
+        "java_id": "Swivel",
+        "java_source": "cards/purple/Swivel.java"
+      },
+      {
+        "java_class": "TalkToTheHand",
+        "java_id": "TalkToTheHand",
+        "java_source": "cards/purple/TalkToTheHand.java"
+      },
+      {
+        "java_class": "Tantrum",
+        "java_id": "Tantrum",
+        "java_source": "cards/purple/Tantrum.java"
+      },
+      {
+        "java_class": "ThirdEye",
+        "java_id": "ThirdEye",
+        "java_source": "cards/purple/ThirdEye.java"
+      },
+      {
+        "java_class": "Tranquility",
+        "java_id": "Tranquility",
+        "java_source": "cards/purple/Tranquility.java"
+      },
+      {
+        "java_class": "Unraveling",
+        "java_id": "Unraveling",
+        "java_source": "cards/purple/Unraveling.java"
+      },
+      {
+        "java_class": "Vault",
+        "java_id": "Vault",
+        "java_source": "cards/purple/Vault.java"
+      },
+      {
+        "java_class": "Vigilance",
+        "java_id": "Vigilance",
+        "java_source": "cards/purple/Vigilance.java"
+      },
+      {
+        "java_class": "Wallop",
+        "java_id": "Wallop",
+        "java_source": "cards/purple/Wallop.java"
+      },
+      {
+        "java_class": "WaveOfTheHand",
+        "java_id": "WaveOfTheHand",
+        "java_source": "cards/purple/WaveOfTheHand.java"
+      },
+      {
+        "java_class": "Weave",
+        "java_id": "Weave",
+        "java_source": "cards/purple/Weave.java"
+      },
+      {
+        "java_class": "WheelKick",
+        "java_id": "WheelKick",
+        "java_source": "cards/purple/WheelKick.java"
+      },
+      {
+        "java_class": "WindmillStrike",
+        "java_id": "WindmillStrike",
+        "java_source": "cards/purple/WindmillStrike.java"
+      },
+      {
+        "java_class": "Wish",
+        "java_id": "Wish",
+        "java_source": "cards/purple/Wish.java"
+      },
+      {
+        "java_class": "Worship",
+        "java_id": "Worship",
+        "java_source": "cards/purple/Worship.java"
+      },
+      {
+        "java_class": "WreathOfFlame",
+        "java_id": "WreathOfFlame",
+        "java_source": "cards/purple/WreathOfFlame.java"
+      },
+      {
+        "java_class": "Anger",
+        "java_id": "Anger",
+        "java_source": "cards/red/Anger.java"
+      },
+      {
+        "java_class": "Armaments",
+        "java_id": "Armaments",
+        "java_source": "cards/red/Armaments.java"
+      },
+      {
+        "java_class": "Barricade",
+        "java_id": "Barricade",
+        "java_source": "cards/red/Barricade.java"
+      },
+      {
+        "java_class": "Bash",
+        "java_id": "Bash",
+        "java_source": "cards/red/Bash.java"
+      },
+      {
+        "java_class": "BattleTrance",
+        "java_id": "BattleTrance",
+        "java_source": "cards/red/BattleTrance.java"
+      },
+      {
+        "java_class": "Berserk",
+        "java_id": "Berserk",
+        "java_source": "cards/red/Berserk.java"
+      },
+      {
+        "java_class": "BloodForBlood",
+        "java_id": "BloodForBlood",
+        "java_source": "cards/red/BloodForBlood.java"
+      },
+      {
+        "java_class": "Bloodletting",
+        "java_id": "Bloodletting",
+        "java_source": "cards/red/Bloodletting.java"
+      },
+      {
+        "java_class": "Bludgeon",
+        "java_id": "Bludgeon",
+        "java_source": "cards/red/Bludgeon.java"
+      },
+      {
+        "java_class": "BodySlam",
+        "java_id": "BodySlam",
+        "java_source": "cards/red/BodySlam.java"
+      },
+      {
+        "java_class": "Brutality",
+        "java_id": "Brutality",
+        "java_source": "cards/red/Brutality.java"
+      },
+      {
+        "java_class": "BurningPact",
+        "java_id": "BurningPact",
+        "java_source": "cards/red/BurningPact.java"
+      },
+      {
+        "java_class": "Carnage",
+        "java_id": "Carnage",
+        "java_source": "cards/red/Carnage.java"
+      },
+      {
+        "java_class": "Clash",
+        "java_id": "Clash",
+        "java_source": "cards/red/Clash.java"
+      },
+      {
+        "java_class": "Cleave",
+        "java_id": "Cleave",
+        "java_source": "cards/red/Cleave.java"
+      },
+      {
+        "java_class": "Clothesline",
+        "java_id": "Clothesline",
+        "java_source": "cards/red/Clothesline.java"
+      },
+      {
+        "java_class": "Combust",
+        "java_id": "Combust",
+        "java_source": "cards/red/Combust.java"
+      },
+      {
+        "java_class": "Corruption",
+        "java_id": "Corruption",
+        "java_source": "cards/red/Corruption.java"
+      },
+      {
+        "java_class": "DarkEmbrace",
+        "java_id": "DarkEmbrace",
+        "java_source": "cards/red/DarkEmbrace.java"
+      },
+      {
+        "java_class": "Defend_Red",
+        "java_id": "Defend_Red",
+        "java_source": "cards/red/Defend_Red.java"
+      },
+      {
+        "java_class": "DemonForm",
+        "java_id": "DemonForm",
+        "java_source": "cards/red/DemonForm.java"
+      },
+      {
+        "java_class": "Disarm",
+        "java_id": "Disarm",
+        "java_source": "cards/red/Disarm.java"
+      },
+      {
+        "java_class": "DoubleTap",
+        "java_id": "DoubleTap",
+        "java_source": "cards/red/DoubleTap.java"
+      },
+      {
+        "java_class": "Dropkick",
+        "java_id": "Dropkick",
+        "java_source": "cards/red/Dropkick.java"
+      },
+      {
+        "java_class": "DualWield",
+        "java_id": "DualWield",
+        "java_source": "cards/red/DualWield.java"
+      },
+      {
+        "java_class": "Entrench",
+        "java_id": "Entrench",
+        "java_source": "cards/red/Entrench.java"
+      },
+      {
+        "java_class": "Evolve",
+        "java_id": "Evolve",
+        "java_source": "cards/red/Evolve.java"
+      },
+      {
+        "java_class": "Exhume",
+        "java_id": "Exhume",
+        "java_source": "cards/red/Exhume.java"
+      },
+      {
+        "java_class": "Feed",
+        "java_id": "Feed",
+        "java_source": "cards/red/Feed.java"
+      },
+      {
+        "java_class": "FeelNoPain",
+        "java_id": "FeelNoPain",
+        "java_source": "cards/red/FeelNoPain.java"
+      },
+      {
+        "java_class": "FiendFire",
+        "java_id": "FiendFire",
+        "java_source": "cards/red/FiendFire.java"
+      },
+      {
+        "java_class": "FireBreathing",
+        "java_id": "FireBreathing",
+        "java_source": "cards/red/FireBreathing.java"
+      },
+      {
+        "java_class": "FlameBarrier",
+        "java_id": "FlameBarrier",
+        "java_source": "cards/red/FlameBarrier.java"
+      },
+      {
+        "java_class": "Flex",
+        "java_id": "Flex",
+        "java_source": "cards/red/Flex.java"
+      },
+      {
+        "java_class": "GhostlyArmor",
+        "java_id": "GhostlyArmor",
+        "java_source": "cards/red/GhostlyArmor.java"
+      },
+      {
+        "java_class": "Havoc",
+        "java_id": "Havoc",
+        "java_source": "cards/red/Havoc.java"
+      },
+      {
+        "java_class": "Headbutt",
+        "java_id": "Headbutt",
+        "java_source": "cards/red/Headbutt.java"
+      },
+      {
+        "java_class": "HeavyBlade",
+        "java_id": "HeavyBlade",
+        "java_source": "cards/red/HeavyBlade.java"
+      },
+      {
+        "java_class": "Hemokinesis",
+        "java_id": "Hemokinesis",
+        "java_source": "cards/red/Hemokinesis.java"
+      },
+      {
+        "java_class": "Immolate",
+        "java_id": "Immolate",
+        "java_source": "cards/red/Immolate.java"
+      },
+      {
+        "java_class": "Impervious",
+        "java_id": "Impervious",
+        "java_source": "cards/red/Impervious.java"
+      },
+      {
+        "java_class": "InfernalBlade",
+        "java_id": "InfernalBlade",
+        "java_source": "cards/red/InfernalBlade.java"
+      },
+      {
+        "java_class": "Inflame",
+        "java_id": "Inflame",
+        "java_source": "cards/red/Inflame.java"
+      },
+      {
+        "java_class": "Intimidate",
+        "java_id": "Intimidate",
+        "java_source": "cards/red/Intimidate.java"
+      },
+      {
+        "java_class": "IronWave",
+        "java_id": "IronWave",
+        "java_source": "cards/red/IronWave.java"
+      },
+      {
+        "java_class": "Juggernaut",
+        "java_id": "Juggernaut",
+        "java_source": "cards/red/Juggernaut.java"
+      },
+      {
+        "java_class": "LimitBreak",
+        "java_id": "LimitBreak",
+        "java_source": "cards/red/LimitBreak.java"
+      },
+      {
+        "java_class": "Metallicize",
+        "java_id": "Metallicize",
+        "java_source": "cards/red/Metallicize.java"
+      },
+      {
+        "java_class": "Offering",
+        "java_id": "Offering",
+        "java_source": "cards/red/Offering.java"
+      },
+      {
+        "java_class": "PerfectedStrike",
+        "java_id": "PerfectedStrike",
+        "java_source": "cards/red/PerfectedStrike.java"
+      },
+      {
+        "java_class": "PommelStrike",
+        "java_id": "PommelStrike",
+        "java_source": "cards/red/PommelStrike.java"
+      },
+      {
+        "java_class": "PowerThrough",
+        "java_id": "PowerThrough",
+        "java_source": "cards/red/PowerThrough.java"
+      },
+      {
+        "java_class": "Pummel",
+        "java_id": "Pummel",
+        "java_source": "cards/red/Pummel.java"
+      },
+      {
+        "java_class": "Rage",
+        "java_id": "Rage",
+        "java_source": "cards/red/Rage.java"
+      },
+      {
+        "java_class": "Rampage",
+        "java_id": "Rampage",
+        "java_source": "cards/red/Rampage.java"
+      },
+      {
+        "java_class": "Reaper",
+        "java_id": "Reaper",
+        "java_source": "cards/red/Reaper.java"
+      },
+      {
+        "java_class": "RecklessCharge",
+        "java_id": "RecklessCharge",
+        "java_source": "cards/red/RecklessCharge.java"
+      },
+      {
+        "java_class": "Rupture",
+        "java_id": "Rupture",
+        "java_source": "cards/red/Rupture.java"
+      },
+      {
+        "java_class": "SearingBlow",
+        "java_id": "SearingBlow",
+        "java_source": "cards/red/SearingBlow.java"
+      },
+      {
+        "java_class": "SecondWind",
+        "java_id": "SecondWind",
+        "java_source": "cards/red/SecondWind.java"
+      },
+      {
+        "java_class": "SeeingRed",
+        "java_id": "SeeingRed",
+        "java_source": "cards/red/SeeingRed.java"
+      },
+      {
+        "java_class": "Sentinel",
+        "java_id": "Sentinel",
+        "java_source": "cards/red/Sentinel.java"
+      },
+      {
+        "java_class": "SeverSoul",
+        "java_id": "SeverSoul",
+        "java_source": "cards/red/SeverSoul.java"
+      },
+      {
+        "java_class": "Shockwave",
+        "java_id": "Shockwave",
+        "java_source": "cards/red/Shockwave.java"
+      },
+      {
+        "java_class": "ShrugItOff",
+        "java_id": "ShrugItOff",
+        "java_source": "cards/red/ShrugItOff.java"
+      },
+      {
+        "java_class": "SpotWeakness",
+        "java_id": "SpotWeakness",
+        "java_source": "cards/red/SpotWeakness.java"
+      },
+      {
+        "java_class": "Strike_Red",
+        "java_id": "Strike_Red",
+        "java_source": "cards/red/Strike_Red.java"
+      },
+      {
+        "java_class": "SwordBoomerang",
+        "java_id": "SwordBoomerang",
+        "java_source": "cards/red/SwordBoomerang.java"
+      },
+      {
+        "java_class": "ThunderClap",
+        "java_id": "ThunderClap",
+        "java_source": "cards/red/ThunderClap.java"
+      },
+      {
+        "java_class": "TrueGrit",
+        "java_id": "TrueGrit",
+        "java_source": "cards/red/TrueGrit.java"
+      },
+      {
+        "java_class": "TwinStrike",
+        "java_id": "TwinStrike",
+        "java_source": "cards/red/TwinStrike.java"
+      },
+      {
+        "java_class": "Uppercut",
+        "java_id": "Uppercut",
+        "java_source": "cards/red/Uppercut.java"
+      },
+      {
+        "java_class": "Warcry",
+        "java_id": "Warcry",
+        "java_source": "cards/red/Warcry.java"
+      },
+      {
+        "java_class": "Whirlwind",
+        "java_id": "Whirlwind",
+        "java_source": "cards/red/Whirlwind.java"
+      },
+      {
+        "java_class": "WildStrike",
+        "java_id": "WildStrike",
+        "java_source": "cards/red/WildStrike.java"
+      },
+      {
+        "java_class": "Burn",
+        "java_id": "Burn",
+        "java_source": "cards/status/Burn.java"
+      },
+      {
+        "java_class": "Dazed",
+        "java_id": "Dazed",
+        "java_source": "cards/status/Dazed.java"
+      },
+      {
+        "java_class": "Slimed",
+        "java_id": "Slimed",
+        "java_source": "cards/status/Slimed.java"
+      },
+      {
+        "java_class": "VoidCard",
+        "java_id": "VoidCard",
+        "java_source": "cards/status/VoidCard.java"
+      },
+      {
+        "java_class": "Wound",
+        "java_id": "Wound",
+        "java_source": "cards/status/Wound.java"
+      }
+    ],
+    "source_missing": false
+  },
+  "events": {
+    "items": [
+      {
+        "java_class": "Falling",
+        "java_id": "Falling",
+        "java_source": "events/beyond/Falling.java"
+      },
+      {
+        "java_class": "MindBloom",
+        "java_id": "MindBloom",
+        "java_source": "events/beyond/MindBloom.java"
+      },
+      {
+        "java_class": "MoaiHead",
+        "java_id": "MoaiHead",
+        "java_source": "events/beyond/MoaiHead.java"
+      },
+      {
+        "java_class": "MysteriousSphere",
+        "java_id": "MysteriousSphere",
+        "java_source": "events/beyond/MysteriousSphere.java"
+      },
+      {
+        "java_class": "SecretPortal",
+        "java_id": "SecretPortal",
+        "java_source": "events/beyond/SecretPortal.java"
+      },
+      {
+        "java_class": "SensoryStone",
+        "java_id": "SensoryStone",
+        "java_source": "events/beyond/SensoryStone.java"
+      },
+      {
+        "java_class": "SpireHeart",
+        "java_id": "SpireHeart",
+        "java_source": "events/beyond/SpireHeart.java"
+      },
+      {
+        "java_class": "TombRedMask",
+        "java_id": "TombRedMask",
+        "java_source": "events/beyond/TombRedMask.java"
+      },
+      {
+        "java_class": "WindingHalls",
+        "java_id": "WindingHalls",
+        "java_source": "events/beyond/WindingHalls.java"
+      },
+      {
+        "java_class": "Addict",
+        "java_id": "Addict",
+        "java_source": "events/city/Addict.java"
+      },
+      {
+        "java_class": "BackToBasics",
+        "java_id": "BackToBasics",
+        "java_source": "events/city/BackToBasics.java"
+      },
+      {
+        "java_class": "Beggar",
+        "java_id": "Beggar",
+        "java_source": "events/city/Beggar.java"
+      },
+      {
+        "java_class": "Colosseum",
+        "java_id": "Colosseum",
+        "java_source": "events/city/Colosseum.java"
+      },
+      {
+        "java_class": "CursedTome",
+        "java_id": "CursedTome",
+        "java_source": "events/city/CursedTome.java"
+      },
+      {
+        "java_class": "DrugDealer",
+        "java_id": "DrugDealer",
+        "java_source": "events/city/DrugDealer.java"
+      },
+      {
+        "java_class": "ForgottenAltar",
+        "java_id": "ForgottenAltar",
+        "java_source": "events/city/ForgottenAltar.java"
+      },
+      {
+        "java_class": "Ghosts",
+        "java_id": "Ghosts",
+        "java_source": "events/city/Ghosts.java"
+      },
+      {
+        "java_class": "KnowingSkull",
+        "java_id": "KnowingSkull",
+        "java_source": "events/city/KnowingSkull.java"
+      },
+      {
+        "java_class": "MaskedBandits",
+        "java_id": "MaskedBandits",
+        "java_source": "events/city/MaskedBandits.java"
+      },
+      {
+        "java_class": "Nest",
+        "java_id": "Nest",
+        "java_source": "events/city/Nest.java"
+      },
+      {
+        "java_class": "TheJoust",
+        "java_id": "TheJoust",
+        "java_source": "events/city/TheJoust.java"
+      },
+      {
+        "java_class": "TheLibrary",
+        "java_id": "TheLibrary",
+        "java_source": "events/city/TheLibrary.java"
+      },
+      {
+        "java_class": "TheMausoleum",
+        "java_id": "TheMausoleum",
+        "java_source": "events/city/TheMausoleum.java"
+      },
+      {
+        "java_class": "Vampires",
+        "java_id": "Vampires",
+        "java_source": "events/city/Vampires.java"
+      },
+      {
+        "java_class": "BigFish",
+        "java_id": "BigFish",
+        "java_source": "events/exordium/BigFish.java"
+      },
+      {
+        "java_class": "Cleric",
+        "java_id": "Cleric",
+        "java_source": "events/exordium/Cleric.java"
+      },
+      {
+        "java_class": "DeadAdventurer",
+        "java_id": "DeadAdventurer",
+        "java_source": "events/exordium/DeadAdventurer.java"
+      },
+      {
+        "java_class": "GoldenIdolEvent",
+        "java_id": "GoldenIdolEvent",
+        "java_source": "events/exordium/GoldenIdolEvent.java"
+      },
+      {
+        "java_class": "GoldenWing",
+        "java_id": "GoldenWing",
+        "java_source": "events/exordium/GoldenWing.java"
+      },
+      {
+        "java_class": "GoopPuddle",
+        "java_id": "GoopPuddle",
+        "java_source": "events/exordium/GoopPuddle.java"
+      },
+      {
+        "java_class": "LivingWall",
+        "java_id": "LivingWall",
+        "java_source": "events/exordium/LivingWall.java"
+      },
+      {
+        "java_class": "Mushrooms",
+        "java_id": "Mushrooms",
+        "java_source": "events/exordium/Mushrooms.java"
+      },
+      {
+        "java_class": "ScrapOoze",
+        "java_id": "ScrapOoze",
+        "java_source": "events/exordium/ScrapOoze.java"
+      },
+      {
+        "java_class": "ShiningLight",
+        "java_id": "ShiningLight",
+        "java_source": "events/exordium/ShiningLight.java"
+      },
+      {
+        "java_class": "Sssserpent",
+        "java_id": "Sssserpent",
+        "java_source": "events/exordium/Sssserpent.java"
+      },
+      {
+        "java_class": "AccursedBlacksmith",
+        "java_id": "AccursedBlacksmith",
+        "java_source": "events/shrines/AccursedBlacksmith.java"
+      },
+      {
+        "java_class": "Bonfire",
+        "java_id": "Bonfire",
+        "java_source": "events/shrines/Bonfire.java"
+      },
+      {
+        "java_class": "Designer",
+        "java_id": "Designer",
+        "java_source": "events/shrines/Designer.java"
+      },
+      {
+        "java_class": "Duplicator",
+        "java_id": "Duplicator",
+        "java_source": "events/shrines/Duplicator.java"
+      },
+      {
+        "java_class": "FaceTrader",
+        "java_id": "FaceTrader",
+        "java_source": "events/shrines/FaceTrader.java"
+      },
+      {
+        "java_class": "FountainOfCurseRemoval",
+        "java_id": "FountainOfCurseRemoval",
+        "java_source": "events/shrines/FountainOfCurseRemoval.java"
+      },
+      {
+        "java_class": "GoldShrine",
+        "java_id": "GoldShrine",
+        "java_source": "events/shrines/GoldShrine.java"
+      },
+      {
+        "java_class": "GremlinMatchGame",
+        "java_id": "GremlinMatchGame",
+        "java_source": "events/shrines/GremlinMatchGame.java"
+      },
+      {
+        "java_class": "GremlinWheelGame",
+        "java_id": "GremlinWheelGame",
+        "java_source": "events/shrines/GremlinWheelGame.java"
+      },
+      {
+        "java_class": "Lab",
+        "java_id": "Lab",
+        "java_source": "events/shrines/Lab.java"
+      },
+      {
+        "java_class": "Nloth",
+        "java_id": "Nloth",
+        "java_source": "events/shrines/Nloth.java"
+      },
+      {
+        "java_class": "NoteForYourself",
+        "java_id": "NoteForYourself",
+        "java_source": "events/shrines/NoteForYourself.java"
+      },
+      {
+        "java_class": "PurificationShrine",
+        "java_id": "PurificationShrine",
+        "java_source": "events/shrines/PurificationShrine.java"
+      },
+      {
+        "java_class": "Transmogrifier",
+        "java_id": "Transmogrifier",
+        "java_source": "events/shrines/Transmogrifier.java"
+      },
+      {
+        "java_class": "UpgradeShrine",
+        "java_id": "UpgradeShrine",
+        "java_source": "events/shrines/UpgradeShrine.java"
+      },
+      {
+        "java_class": "WeMeetAgain",
+        "java_id": "WeMeetAgain",
+        "java_source": "events/shrines/WeMeetAgain.java"
+      },
+      {
+        "java_class": "WomanInBlue",
+        "java_id": "WomanInBlue",
+        "java_source": "events/shrines/WomanInBlue.java"
+      }
+    ],
+    "source_missing": false
+  },
+  "potions": {
+    "items": [],
+    "source_missing": true
+  },
+  "powers": {
+    "items": [
+      {
+        "java_class": "AccuracyPower",
+        "java_hooks_overridden": [],
+        "java_id": "Accuracy",
+        "java_source": "powers/AccuracyPower.java"
+      },
+      {
+        "java_class": "AfterImagePower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "After Image",
+        "java_source": "powers/AfterImagePower.java"
+      },
+      {
+        "java_class": "AmplifyPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Amplify",
+        "java_source": "powers/AmplifyPower.java"
+      },
+      {
+        "java_class": "AngerPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Anger",
+        "java_source": "powers/AngerPower.java"
+      },
+      {
+        "java_class": "AngryPower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "Angry",
+        "java_source": "powers/AngryPower.java"
+      },
+      {
+        "java_class": "ArtifactPower",
+        "java_hooks_overridden": [],
+        "java_id": "Artifact",
+        "java_source": "powers/ArtifactPower.java"
+      },
+      {
+        "java_class": "AttackBurnPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "onUseCard"
+        ],
+        "java_id": "Attack Burn",
+        "java_source": "powers/AttackBurnPower.java"
+      },
+      {
+        "java_class": "BackAttackPower",
+        "java_hooks_overridden": [],
+        "java_id": "BackAttack",
+        "java_source": "powers/BackAttackPower.java"
+      },
+      {
+        "java_class": "BarricadePower",
+        "java_hooks_overridden": [],
+        "java_id": "Barricade",
+        "java_source": "powers/BarricadePower.java"
+      },
+      {
+        "java_class": "BeatOfDeathPower",
+        "java_hooks_overridden": [
+          "onAfterUseCard"
+        ],
+        "java_id": "BeatOfDeath",
+        "java_source": "powers/BeatOfDeathPower.java"
+      },
+      {
+        "java_class": "BerserkPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Berserk",
+        "java_source": "powers/BerserkPower.java"
+      },
+      {
+        "java_class": "BiasPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Bias",
+        "java_source": "powers/BiasPower.java"
+      },
+      {
+        "java_class": "BlurPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Blur",
+        "java_source": "powers/BlurPower.java"
+      },
+      {
+        "java_class": "BrutalityPower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "Brutality",
+        "java_source": "powers/BrutalityPower.java"
+      },
+      {
+        "java_class": "BufferPower",
+        "java_hooks_overridden": [
+          "onAttackedToChangeDamage"
+        ],
+        "java_id": "Buffer",
+        "java_source": "powers/BufferPower.java"
+      },
+      {
+        "java_class": "BurstPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Burst",
+        "java_source": "powers/BurstPower.java"
+      },
+      {
+        "java_class": "ChokePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Choked",
+        "java_source": "powers/ChokePower.java"
+      },
+      {
+        "java_class": "CollectPower",
+        "java_hooks_overridden": [
+          "onEnergyRecharge"
+        ],
+        "java_id": "Collect",
+        "java_source": "powers/CollectPower.java"
+      },
+      {
+        "java_class": "CombustPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Combust",
+        "java_source": "powers/CombustPower.java"
+      },
+      {
+        "java_class": "ConfusionPower",
+        "java_hooks_overridden": [
+          "onCardDraw"
+        ],
+        "java_id": "Confusion",
+        "java_source": "powers/ConfusionPower.java"
+      },
+      {
+        "java_class": "ConservePower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Conserve",
+        "java_source": "powers/ConservePower.java"
+      },
+      {
+        "java_class": "ConstrictedPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Constricted",
+        "java_source": "powers/ConstrictedPower.java"
+      },
+      {
+        "java_class": "CorpseExplosionPower",
+        "java_hooks_overridden": [
+          "onDeath"
+        ],
+        "java_id": "CorpseExplosionPower",
+        "java_source": "powers/CorpseExplosionPower.java"
+      },
+      {
+        "java_class": "CorruptionPower",
+        "java_hooks_overridden": [
+          "onCardDraw",
+          "onUseCard"
+        ],
+        "java_id": "Corruption",
+        "java_source": "powers/CorruptionPower.java"
+      },
+      {
+        "java_class": "CreativeAIPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Creative AI",
+        "java_source": "powers/CreativeAIPower.java"
+      },
+      {
+        "java_class": "CuriosityPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Curiosity",
+        "java_source": "powers/CuriosityPower.java"
+      },
+      {
+        "java_class": "CurlUpPower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "Curl Up",
+        "java_source": "powers/CurlUpPower.java"
+      },
+      {
+        "java_class": "DarkEmbracePower",
+        "java_hooks_overridden": [
+          "onExhaust"
+        ],
+        "java_id": "Dark Embrace",
+        "java_source": "powers/DarkEmbracePower.java"
+      },
+      {
+        "java_class": "DemonFormPower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "Demon Form",
+        "java_source": "powers/DemonFormPower.java"
+      },
+      {
+        "java_class": "DexterityPower",
+        "java_hooks_overridden": [
+          "modifyBlock"
+        ],
+        "java_id": "Dexterity",
+        "java_source": "powers/DexterityPower.java"
+      },
+      {
+        "java_class": "DoubleDamagePower",
+        "java_hooks_overridden": [
+          "atDamageGive",
+          "atEndOfRound"
+        ],
+        "java_id": "Double Damage",
+        "java_source": "powers/DoubleDamagePower.java"
+      },
+      {
+        "java_class": "DoubleTapPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Double Tap",
+        "java_source": "powers/DoubleTapPower.java"
+      },
+      {
+        "java_class": "DrawCardNextTurnPower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "Draw Card",
+        "java_source": "powers/DrawCardNextTurnPower.java"
+      },
+      {
+        "java_class": "DrawPower",
+        "java_hooks_overridden": [],
+        "java_id": "Draw",
+        "java_source": "powers/DrawPower.java"
+      },
+      {
+        "java_class": "DrawReductionPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Draw Reduction",
+        "java_source": "powers/DrawReductionPower.java"
+      },
+      {
+        "java_class": "DuplicationPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "onUseCard"
+        ],
+        "java_id": "DuplicationPower",
+        "java_source": "powers/DuplicationPower.java"
+      },
+      {
+        "java_class": "EchoPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Echo Form",
+        "java_source": "powers/EchoPower.java"
+      },
+      {
+        "java_class": "ElectroPower",
+        "java_hooks_overridden": [],
+        "java_id": "Electro",
+        "java_source": "powers/ElectroPower.java"
+      },
+      {
+        "java_class": "EnergizedBluePower",
+        "java_hooks_overridden": [
+          "onEnergyRecharge"
+        ],
+        "java_id": "EnergizedBlue",
+        "java_source": "powers/EnergizedBluePower.java"
+      },
+      {
+        "java_class": "EnergizedPower",
+        "java_hooks_overridden": [
+          "onEnergyRecharge"
+        ],
+        "java_id": "Energized",
+        "java_source": "powers/EnergizedPower.java"
+      },
+      {
+        "java_class": "EntanglePower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Entangled",
+        "java_source": "powers/EntanglePower.java"
+      },
+      {
+        "java_class": "EnvenomPower",
+        "java_hooks_overridden": [
+          "onAttack"
+        ],
+        "java_id": "Envenom",
+        "java_source": "powers/EnvenomPower.java"
+      },
+      {
+        "java_class": "EquilibriumPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "atEndOfTurn"
+        ],
+        "java_id": "Equilibrium",
+        "java_source": "powers/EquilibriumPower.java"
+      },
+      {
+        "java_class": "EvolvePower",
+        "java_hooks_overridden": [
+          "onCardDraw"
+        ],
+        "java_id": "Evolve",
+        "java_source": "powers/EvolvePower.java"
+      },
+      {
+        "java_class": "ExplosivePower",
+        "java_hooks_overridden": [],
+        "java_id": "Explosive",
+        "java_source": "powers/ExplosivePower.java"
+      },
+      {
+        "java_class": "FadingPower",
+        "java_hooks_overridden": [],
+        "java_id": "Fading",
+        "java_source": "powers/FadingPower.java"
+      },
+      {
+        "java_class": "FeelNoPainPower",
+        "java_hooks_overridden": [
+          "onExhaust"
+        ],
+        "java_id": "Feel No Pain",
+        "java_source": "powers/FeelNoPainPower.java"
+      },
+      {
+        "java_class": "FireBreathingPower",
+        "java_hooks_overridden": [
+          "onCardDraw"
+        ],
+        "java_id": "Fire Breathing",
+        "java_source": "powers/FireBreathingPower.java"
+      },
+      {
+        "java_class": "FlameBarrierPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onAttacked"
+        ],
+        "java_id": "Flame Barrier",
+        "java_source": "powers/FlameBarrierPower.java"
+      },
+      {
+        "java_class": "FlightPower",
+        "java_hooks_overridden": [
+          "atDamageFinalReceive",
+          "atStartOfTurn",
+          "onAttacked"
+        ],
+        "java_id": "Flight",
+        "java_source": "powers/FlightPower.java"
+      },
+      {
+        "java_class": "FocusPower",
+        "java_hooks_overridden": [],
+        "java_id": "Focus",
+        "java_source": "powers/FocusPower.java"
+      },
+      {
+        "java_class": "ForcefieldPower",
+        "java_hooks_overridden": [
+          "atDamageFinalReceive"
+        ],
+        "java_id": "Nullify Attack",
+        "java_source": "powers/ForcefieldPower.java"
+      },
+      {
+        "java_class": "FrailPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "modifyBlock"
+        ],
+        "java_id": "Frail",
+        "java_source": "powers/FrailPower.java"
+      },
+      {
+        "java_class": "GainStrengthPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Shackled",
+        "java_source": "powers/GainStrengthPower.java"
+      },
+      {
+        "java_class": "GenericStrengthUpPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Generic Strength Up Power",
+        "java_source": "powers/GenericStrengthUpPower.java"
+      },
+      {
+        "java_class": "GrowthPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "GrowthPower",
+        "java_source": "powers/GrowthPower.java"
+      },
+      {
+        "java_class": "HeatsinkPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Heatsink",
+        "java_source": "powers/HeatsinkPower.java"
+      },
+      {
+        "java_class": "HelloPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Hello",
+        "java_source": "powers/HelloPower.java"
+      },
+      {
+        "java_class": "HexPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Hex",
+        "java_source": "powers/HexPower.java"
+      },
+      {
+        "java_class": "InfiniteBladesPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Infinite Blades",
+        "java_source": "powers/InfiniteBladesPower.java"
+      },
+      {
+        "java_class": "IntangiblePlayerPower",
+        "java_hooks_overridden": [
+          "atDamageFinalReceive",
+          "atEndOfRound"
+        ],
+        "java_id": "IntangiblePlayer",
+        "java_source": "powers/IntangiblePlayerPower.java"
+      },
+      {
+        "java_class": "IntangiblePower",
+        "java_hooks_overridden": [
+          "atDamageFinalReceive",
+          "atEndOfTurn"
+        ],
+        "java_id": "Intangible",
+        "java_source": "powers/IntangiblePower.java"
+      },
+      {
+        "java_class": "InvinciblePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onAttackedToChangeDamage"
+        ],
+        "java_id": "Invincible",
+        "java_source": "powers/InvinciblePower.java"
+      },
+      {
+        "java_class": "JuggernautPower",
+        "java_hooks_overridden": [],
+        "java_id": "Juggernaut",
+        "java_source": "powers/JuggernautPower.java"
+      },
+      {
+        "java_class": "LightningMasteryPower",
+        "java_hooks_overridden": [],
+        "java_id": "Lightning Mastery",
+        "java_source": "powers/LightningMasteryPower.java"
+      },
+      {
+        "java_class": "LockOnPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Lockon",
+        "java_source": "powers/LockOnPower.java"
+      },
+      {
+        "java_class": "LoopPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Loop",
+        "java_source": "powers/LoopPower.java"
+      },
+      {
+        "java_class": "LoseDexterityPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "DexLoss",
+        "java_source": "powers/LoseDexterityPower.java"
+      },
+      {
+        "java_class": "LoseStrengthPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Flex",
+        "java_source": "powers/LoseStrengthPower.java"
+      },
+      {
+        "java_class": "MagnetismPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Magnetism",
+        "java_source": "powers/MagnetismPower.java"
+      },
+      {
+        "java_class": "MalleablePower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "atEndOfTurn",
+          "onAttacked"
+        ],
+        "java_id": "Malleable",
+        "java_source": "powers/MalleablePower.java"
+      },
+      {
+        "java_class": "MayhemPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Mayhem",
+        "java_source": "powers/MayhemPower.java"
+      },
+      {
+        "java_class": "MetallicizePower",
+        "java_hooks_overridden": [
+          "atEndOfTurnPreEndTurnCards"
+        ],
+        "java_id": "Metallicize",
+        "java_source": "powers/MetallicizePower.java"
+      },
+      {
+        "java_class": "MinionPower",
+        "java_hooks_overridden": [],
+        "java_id": "Minion",
+        "java_source": "powers/MinionPower.java"
+      },
+      {
+        "java_class": "ModeShiftPower",
+        "java_hooks_overridden": [],
+        "java_id": "Mode Shift",
+        "java_source": "powers/ModeShiftPower.java"
+      },
+      {
+        "java_class": "NextTurnBlockPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Next Turn Block",
+        "java_source": "powers/NextTurnBlockPower.java"
+      },
+      {
+        "java_class": "NightmarePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Night Terror",
+        "java_source": "powers/NightmarePower.java"
+      },
+      {
+        "java_class": "NoBlockPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "NoBlockPower",
+        "java_source": "powers/NoBlockPower.java"
+      },
+      {
+        "java_class": "NoDrawPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "No Draw",
+        "java_source": "powers/NoDrawPower.java"
+      },
+      {
+        "java_class": "NoxiousFumesPower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "Noxious Fumes",
+        "java_source": "powers/NoxiousFumesPower.java"
+      },
+      {
+        "java_class": "PainfulStabsPower",
+        "java_hooks_overridden": [],
+        "java_id": "Painful Stabs",
+        "java_source": "powers/PainfulStabsPower.java"
+      },
+      {
+        "java_class": "PanachePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Panache",
+        "java_source": "powers/PanachePower.java"
+      },
+      {
+        "java_class": "PenNibPower",
+        "java_hooks_overridden": [
+          "atDamageGive",
+          "onUseCard"
+        ],
+        "java_id": "Pen Nib",
+        "java_source": "powers/PenNibPower.java"
+      },
+      {
+        "java_class": "PhantasmalPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Phantasmal",
+        "java_source": "powers/PhantasmalPower.java"
+      },
+      {
+        "java_class": "PlatedArmorPower",
+        "java_hooks_overridden": [
+          "atEndOfTurnPreEndTurnCards",
+          "wasHPLost"
+        ],
+        "java_id": "Plated Armor",
+        "java_source": "powers/PlatedArmorPower.java"
+      },
+      {
+        "java_class": "PoisonPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Poison",
+        "java_source": "powers/PoisonPower.java"
+      },
+      {
+        "java_class": "RagePower",
+        "java_hooks_overridden": [
+          "atEndOfTurn",
+          "onUseCard"
+        ],
+        "java_id": "Rage",
+        "java_source": "powers/RagePower.java"
+      },
+      {
+        "java_class": "ReactivePower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "Compulsive",
+        "java_source": "powers/ReactivePower.java"
+      },
+      {
+        "java_class": "ReboundPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn",
+          "onAfterUseCard"
+        ],
+        "java_id": "Rebound",
+        "java_source": "powers/ReboundPower.java"
+      },
+      {
+        "java_class": "RechargingCorePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "RechargingCore",
+        "java_source": "powers/RechargingCorePower.java"
+      },
+      {
+        "java_class": "RegenPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Regeneration",
+        "java_source": "powers/RegenPower.java"
+      },
+      {
+        "java_class": "RegenerateMonsterPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Regenerate",
+        "java_source": "powers/RegenerateMonsterPower.java"
+      },
+      {
+        "java_class": "RegrowPower",
+        "java_hooks_overridden": [],
+        "java_id": "Life Link",
+        "java_source": "powers/RegrowPower.java"
+      },
+      {
+        "java_class": "RepairPower",
+        "java_hooks_overridden": [],
+        "java_id": "Repair",
+        "java_source": "powers/RepairPower.java"
+      },
+      {
+        "java_class": "ResurrectPower",
+        "java_hooks_overridden": [],
+        "java_id": "Life Link",
+        "java_source": "powers/ResurrectPower.java"
+      },
+      {
+        "java_class": "RetainCardPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Retain Cards",
+        "java_source": "powers/RetainCardPower.java"
+      },
+      {
+        "java_class": "RitualPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "atEndOfTurn"
+        ],
+        "java_id": "Ritual",
+        "java_source": "powers/RitualPower.java"
+      },
+      {
+        "java_class": "RupturePower",
+        "java_hooks_overridden": [
+          "wasHPLost"
+        ],
+        "java_id": "Rupture",
+        "java_source": "powers/RupturePower.java"
+      },
+      {
+        "java_class": "SadisticPower",
+        "java_hooks_overridden": [
+          "onApplyPower"
+        ],
+        "java_id": "Sadistic",
+        "java_source": "powers/SadisticPower.java"
+      },
+      {
+        "java_class": "SharpHidePower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Sharp Hide",
+        "java_source": "powers/SharpHidePower.java"
+      },
+      {
+        "java_class": "ShiftingPower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "Shifting",
+        "java_source": "powers/ShiftingPower.java"
+      },
+      {
+        "java_class": "SkillBurnPower",
+        "java_hooks_overridden": [
+          "atEndOfRound",
+          "onUseCard"
+        ],
+        "java_id": "Skill Burn",
+        "java_source": "powers/SkillBurnPower.java"
+      },
+      {
+        "java_class": "SlowPower",
+        "java_hooks_overridden": [
+          "atDamageReceive",
+          "atEndOfRound",
+          "onAfterUseCard"
+        ],
+        "java_id": "Slow",
+        "java_source": "powers/SlowPower.java"
+      },
+      {
+        "java_class": "SplitPower",
+        "java_hooks_overridden": [],
+        "java_id": "Split",
+        "java_source": "powers/SplitPower.java"
+      },
+      {
+        "java_class": "SporeCloudPower",
+        "java_hooks_overridden": [
+          "onDeath"
+        ],
+        "java_id": "Spore Cloud",
+        "java_source": "powers/SporeCloudPower.java"
+      },
+      {
+        "java_class": "StasisPower",
+        "java_hooks_overridden": [
+          "onDeath"
+        ],
+        "java_id": "Stasis",
+        "java_source": "powers/StasisPower.java"
+      },
+      {
+        "java_class": "StaticDischargePower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "StaticDischarge",
+        "java_source": "powers/StaticDischargePower.java"
+      },
+      {
+        "java_class": "StormPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "Storm",
+        "java_source": "powers/StormPower.java"
+      },
+      {
+        "java_class": "StrengthPower",
+        "java_hooks_overridden": [
+          "atDamageGive"
+        ],
+        "java_id": "Strength",
+        "java_source": "powers/StrengthPower.java"
+      },
+      {
+        "java_class": "StrikeUpPower",
+        "java_hooks_overridden": [],
+        "java_id": "StrikeUp",
+        "java_source": "powers/StrikeUpPower.java"
+      },
+      {
+        "java_class": "SurroundedPower",
+        "java_hooks_overridden": [],
+        "java_id": "Surrounded",
+        "java_source": "powers/SurroundedPower.java"
+      },
+      {
+        "java_class": "TheBombPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "TheBomb",
+        "java_source": "powers/TheBombPower.java"
+      },
+      {
+        "java_class": "ThieveryPower",
+        "java_hooks_overridden": [],
+        "java_id": "Thievery",
+        "java_source": "powers/ThieveryPower.java"
+      },
+      {
+        "java_class": "ThornsPower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "Thorns",
+        "java_source": "powers/ThornsPower.java"
+      },
+      {
+        "java_class": "ThousandCutsPower",
+        "java_hooks_overridden": [
+          "onAfterCardPlayed"
+        ],
+        "java_id": "Thousand Cuts",
+        "java_source": "powers/ThousandCutsPower.java"
+      },
+      {
+        "java_class": "TimeMazePower",
+        "java_hooks_overridden": [
+          "atStartOfTurn",
+          "onAfterUseCard"
+        ],
+        "java_id": "TimeMazePower",
+        "java_source": "powers/TimeMazePower.java"
+      },
+      {
+        "java_class": "TimeWarpPower",
+        "java_hooks_overridden": [
+          "onAfterUseCard"
+        ],
+        "java_id": "Time Warp",
+        "java_source": "powers/TimeWarpPower.java"
+      },
+      {
+        "java_class": "ToolsOfTheTradePower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "Tools Of The Trade",
+        "java_source": "powers/ToolsOfTheTradePower.java"
+      },
+      {
+        "java_class": "UnawakenedPower",
+        "java_hooks_overridden": [],
+        "java_id": "Unawakened",
+        "java_source": "powers/UnawakenedPower.java"
+      },
+      {
+        "java_class": "VulnerablePower",
+        "java_hooks_overridden": [
+          "atDamageReceive",
+          "atEndOfRound"
+        ],
+        "java_id": "Vulnerable",
+        "java_source": "powers/VulnerablePower.java"
+      },
+      {
+        "java_class": "WeakPower",
+        "java_hooks_overridden": [
+          "atDamageGive",
+          "atEndOfRound"
+        ],
+        "java_id": "Weakened",
+        "java_source": "powers/WeakPower.java"
+      },
+      {
+        "java_class": "WinterPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "Winter",
+        "java_source": "powers/WinterPower.java"
+      },
+      {
+        "java_class": "WraithFormPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Wraith Form v2",
+        "java_source": "powers/WraithFormPower.java"
+      },
+      {
+        "java_class": "BattleHymnPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "BattleHymn",
+        "java_source": "powers/watcher/BattleHymnPower.java"
+      },
+      {
+        "java_class": "BlockReturnPower",
+        "java_hooks_overridden": [
+          "onAttacked"
+        ],
+        "java_id": "BlockReturnPower",
+        "java_source": "powers/watcher/BlockReturnPower.java"
+      },
+      {
+        "java_class": "CannotChangeStancePower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "CannotChangeStancePower",
+        "java_source": "powers/watcher/CannotChangeStancePower.java"
+      },
+      {
+        "java_class": "DevaPower",
+        "java_hooks_overridden": [
+          "onEnergyRecharge"
+        ],
+        "java_id": "DevaForm",
+        "java_source": "powers/watcher/DevaPower.java"
+      },
+      {
+        "java_class": "DevotionPower",
+        "java_hooks_overridden": [
+          "atStartOfTurnPostDraw"
+        ],
+        "java_id": "DevotionPower",
+        "java_source": "powers/watcher/DevotionPower.java"
+      },
+      {
+        "java_class": "EndTurnDeathPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "EndTurnDeath",
+        "java_source": "powers/watcher/EndTurnDeathPower.java"
+      },
+      {
+        "java_class": "EnergyDownPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "EnergyDownPower",
+        "java_source": "powers/watcher/EnergyDownPower.java"
+      },
+      {
+        "java_class": "EstablishmentPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "EstablishmentPower",
+        "java_source": "powers/watcher/EstablishmentPower.java"
+      },
+      {
+        "java_class": "ForesightPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "WireheadingPower",
+        "java_source": "powers/watcher/ForesightPower.java"
+      },
+      {
+        "java_class": "FreeAttackPower",
+        "java_hooks_overridden": [
+          "onUseCard"
+        ],
+        "java_id": "FreeAttackPower",
+        "java_source": "powers/watcher/FreeAttackPower.java"
+      },
+      {
+        "java_class": "LikeWaterPower",
+        "java_hooks_overridden": [
+          "atEndOfTurnPreEndTurnCards"
+        ],
+        "java_id": "LikeWaterPower",
+        "java_source": "powers/watcher/LikeWaterPower.java"
+      },
+      {
+        "java_class": "LiveForeverPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "AngelForm",
+        "java_source": "powers/watcher/LiveForeverPower.java"
+      },
+      {
+        "java_class": "MantraPower",
+        "java_hooks_overridden": [],
+        "java_id": "Mantra",
+        "java_source": "powers/watcher/MantraPower.java"
+      },
+      {
+        "java_class": "MarkPower",
+        "java_hooks_overridden": [],
+        "java_id": "PathToVictoryPower",
+        "java_source": "powers/watcher/MarkPower.java"
+      },
+      {
+        "java_class": "MasterRealityPower",
+        "java_hooks_overridden": [],
+        "java_id": "MasterRealityPower",
+        "java_source": "powers/watcher/MasterRealityPower.java"
+      },
+      {
+        "java_class": "MentalFortressPower",
+        "java_hooks_overridden": [
+          "onChangeStance"
+        ],
+        "java_id": "Controlled",
+        "java_source": "powers/watcher/MentalFortressPower.java"
+      },
+      {
+        "java_class": "NirvanaPower",
+        "java_hooks_overridden": [
+          "onScry"
+        ],
+        "java_id": "Nirvana",
+        "java_source": "powers/watcher/NirvanaPower.java"
+      },
+      {
+        "java_class": "NoSkillsPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "NoSkills",
+        "java_source": "powers/watcher/NoSkillsPower.java"
+      },
+      {
+        "java_class": "OmegaPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "OmegaPower",
+        "java_source": "powers/watcher/OmegaPower.java"
+      },
+      {
+        "java_class": "OmnisciencePower",
+        "java_hooks_overridden": [],
+        "java_id": "OmnisciencePower",
+        "java_source": "powers/watcher/OmnisciencePower.java"
+      },
+      {
+        "java_class": "RushdownPower",
+        "java_hooks_overridden": [
+          "onChangeStance"
+        ],
+        "java_id": "Adaptation",
+        "java_source": "powers/watcher/RushdownPower.java"
+      },
+      {
+        "java_class": "StudyPower",
+        "java_hooks_overridden": [
+          "atEndOfTurn"
+        ],
+        "java_id": "Study",
+        "java_source": "powers/watcher/StudyPower.java"
+      },
+      {
+        "java_class": "VaultPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "Vault",
+        "java_source": "powers/watcher/VaultPower.java"
+      },
+      {
+        "java_class": "VigorPower",
+        "java_hooks_overridden": [
+          "atDamageGive",
+          "onUseCard"
+        ],
+        "java_id": "Vigor",
+        "java_source": "powers/watcher/VigorPower.java"
+      },
+      {
+        "java_class": "WaveOfTheHandPower",
+        "java_hooks_overridden": [
+          "atEndOfRound"
+        ],
+        "java_id": "WaveOfTheHandPower",
+        "java_source": "powers/watcher/WaveOfTheHandPower.java"
+      },
+      {
+        "java_class": "WrathNextTurnPower",
+        "java_hooks_overridden": [
+          "atStartOfTurn"
+        ],
+        "java_id": "WrathNextTurnPower",
+        "java_source": "powers/watcher/WrathNextTurnPower.java"
+      }
+    ],
+    "source_missing": false
+  },
+  "relics": {
+    "items": [
+      {
+        "java_class": "Abacus",
+        "java_id": "Abacus",
+        "java_source": "relics/Abacus.java"
+      },
+      {
+        "java_class": "Akabeko",
+        "java_id": "Akabeko",
+        "java_source": "relics/Akabeko.java"
+      },
+      {
+        "java_class": "Anchor",
+        "java_id": "Anchor",
+        "java_source": "relics/Anchor.java"
+      },
+      {
+        "java_class": "AncientTeaSet",
+        "java_id": "AncientTeaSet",
+        "java_source": "relics/AncientTeaSet.java"
+      },
+      {
+        "java_class": "ArtOfWar",
+        "java_id": "ArtOfWar",
+        "java_source": "relics/ArtOfWar.java"
+      },
+      {
+        "java_class": "Astrolabe",
+        "java_id": "Astrolabe",
+        "java_source": "relics/Astrolabe.java"
+      },
+      {
+        "java_class": "BagOfMarbles",
+        "java_id": "BagOfMarbles",
+        "java_source": "relics/BagOfMarbles.java"
+      },
+      {
+        "java_class": "BagOfPreparation",
+        "java_id": "BagOfPreparation",
+        "java_source": "relics/BagOfPreparation.java"
+      },
+      {
+        "java_class": "BirdFacedUrn",
+        "java_id": "BirdFacedUrn",
+        "java_source": "relics/BirdFacedUrn.java"
+      },
+      {
+        "java_class": "BlackBlood",
+        "java_id": "BlackBlood",
+        "java_source": "relics/BlackBlood.java"
+      },
+      {
+        "java_class": "BlackStar",
+        "java_id": "BlackStar",
+        "java_source": "relics/BlackStar.java"
+      },
+      {
+        "java_class": "BloodVial",
+        "java_id": "BloodVial",
+        "java_source": "relics/BloodVial.java"
+      },
+      {
+        "java_class": "BloodyIdol",
+        "java_id": "BloodyIdol",
+        "java_source": "relics/BloodyIdol.java"
+      },
+      {
+        "java_class": "BlueCandle",
+        "java_id": "BlueCandle",
+        "java_source": "relics/BlueCandle.java"
+      },
+      {
+        "java_class": "Boot",
+        "java_id": "Boot",
+        "java_source": "relics/Boot.java"
+      },
+      {
+        "java_class": "BottledFlame",
+        "java_id": "BottledFlame",
+        "java_source": "relics/BottledFlame.java"
+      },
+      {
+        "java_class": "BottledLightning",
+        "java_id": "BottledLightning",
+        "java_source": "relics/BottledLightning.java"
+      },
+      {
+        "java_class": "BottledTornado",
+        "java_id": "BottledTornado",
+        "java_source": "relics/BottledTornado.java"
+      },
+      {
+        "java_class": "Brimstone",
+        "java_id": "Brimstone",
+        "java_source": "relics/Brimstone.java"
+      },
+      {
+        "java_class": "BronzeScales",
+        "java_id": "BronzeScales",
+        "java_source": "relics/BronzeScales.java"
+      },
+      {
+        "java_class": "BurningBlood",
+        "java_id": "BurningBlood",
+        "java_source": "relics/BurningBlood.java"
+      },
+      {
+        "java_class": "BustedCrown",
+        "java_id": "BustedCrown",
+        "java_source": "relics/BustedCrown.java"
+      },
+      {
+        "java_class": "Calipers",
+        "java_id": "Calipers",
+        "java_source": "relics/Calipers.java"
+      },
+      {
+        "java_class": "CallingBell",
+        "java_id": "CallingBell",
+        "java_source": "relics/CallingBell.java"
+      },
+      {
+        "java_class": "CaptainsWheel",
+        "java_id": "CaptainsWheel",
+        "java_source": "relics/CaptainsWheel.java"
+      },
+      {
+        "java_class": "Cauldron",
+        "java_id": "Cauldron",
+        "java_source": "relics/Cauldron.java"
+      },
+      {
+        "java_class": "CentennialPuzzle",
+        "java_id": "CentennialPuzzle",
+        "java_source": "relics/CentennialPuzzle.java"
+      },
+      {
+        "java_class": "CeramicFish",
+        "java_id": "CeramicFish",
+        "java_source": "relics/CeramicFish.java"
+      },
+      {
+        "java_class": "ChampionsBelt",
+        "java_id": "ChampionsBelt",
+        "java_source": "relics/ChampionsBelt.java"
+      },
+      {
+        "java_class": "CharonsAshes",
+        "java_id": "CharonsAshes",
+        "java_source": "relics/CharonsAshes.java"
+      },
+      {
+        "java_class": "ChemicalX",
+        "java_id": "ChemicalX",
+        "java_source": "relics/ChemicalX.java"
+      },
+      {
+        "java_class": "Circlet",
+        "java_id": "Circlet",
+        "java_source": "relics/Circlet.java"
+      },
+      {
+        "java_class": "CloakClasp",
+        "java_id": "CloakClasp",
+        "java_source": "relics/CloakClasp.java"
+      },
+      {
+        "java_class": "ClockworkSouvenir",
+        "java_id": "ClockworkSouvenir",
+        "java_source": "relics/ClockworkSouvenir.java"
+      },
+      {
+        "java_class": "CoffeeDripper",
+        "java_id": "CoffeeDripper",
+        "java_source": "relics/CoffeeDripper.java"
+      },
+      {
+        "java_class": "Courier",
+        "java_id": "Courier",
+        "java_source": "relics/Courier.java"
+      },
+      {
+        "java_class": "CrackedCore",
+        "java_id": "CrackedCore",
+        "java_source": "relics/CrackedCore.java"
+      },
+      {
+        "java_class": "CultistMask",
+        "java_id": "CultistMask",
+        "java_source": "relics/CultistMask.java"
+      },
+      {
+        "java_class": "CursedKey",
+        "java_id": "CursedKey",
+        "java_source": "relics/CursedKey.java"
+      },
+      {
+        "java_class": "Damaru",
+        "java_id": "Damaru",
+        "java_source": "relics/Damaru.java"
+      },
+      {
+        "java_class": "DarkstonePeriapt",
+        "java_id": "DarkstonePeriapt",
+        "java_source": "relics/DarkstonePeriapt.java"
+      },
+      {
+        "java_class": "DataDisk",
+        "java_id": "DataDisk",
+        "java_source": "relics/DataDisk.java"
+      },
+      {
+        "java_class": "DeadBranch",
+        "java_id": "DeadBranch",
+        "java_source": "relics/DeadBranch.java"
+      },
+      {
+        "java_class": "DiscerningMonocle",
+        "java_id": "DiscerningMonocle",
+        "java_source": "relics/DiscerningMonocle.java"
+      },
+      {
+        "java_class": "DollysMirror",
+        "java_id": "DollysMirror",
+        "java_source": "relics/DollysMirror.java"
+      },
+      {
+        "java_class": "DreamCatcher",
+        "java_id": "DreamCatcher",
+        "java_source": "relics/DreamCatcher.java"
+      },
+      {
+        "java_class": "DuVuDoll",
+        "java_id": "DuVuDoll",
+        "java_source": "relics/DuVuDoll.java"
+      },
+      {
+        "java_class": "Duality",
+        "java_id": "Duality",
+        "java_source": "relics/Duality.java"
+      },
+      {
+        "java_class": "Ectoplasm",
+        "java_id": "Ectoplasm",
+        "java_source": "relics/Ectoplasm.java"
+      },
+      {
+        "java_class": "EmotionChip",
+        "java_id": "EmotionChip",
+        "java_source": "relics/EmotionChip.java"
+      },
+      {
+        "java_class": "EmptyCage",
+        "java_id": "EmptyCage",
+        "java_source": "relics/EmptyCage.java"
+      },
+      {
+        "java_class": "Enchiridion",
+        "java_id": "Enchiridion",
+        "java_source": "relics/Enchiridion.java"
+      },
+      {
+        "java_class": "EternalFeather",
+        "java_id": "EternalFeather",
+        "java_source": "relics/EternalFeather.java"
+      },
+      {
+        "java_class": "FaceOfCleric",
+        "java_id": "FaceOfCleric",
+        "java_source": "relics/FaceOfCleric.java"
+      },
+      {
+        "java_class": "FossilizedHelix",
+        "java_id": "FossilizedHelix",
+        "java_source": "relics/FossilizedHelix.java"
+      },
+      {
+        "java_class": "FrozenCore",
+        "java_id": "FrozenCore",
+        "java_source": "relics/FrozenCore.java"
+      },
+      {
+        "java_class": "FrozenEgg2",
+        "java_id": "FrozenEgg2",
+        "java_source": "relics/FrozenEgg2.java"
+      },
+      {
+        "java_class": "FrozenEye",
+        "java_id": "FrozenEye",
+        "java_source": "relics/FrozenEye.java"
+      },
+      {
+        "java_class": "FusionHammer",
+        "java_id": "FusionHammer",
+        "java_source": "relics/FusionHammer.java"
+      },
+      {
+        "java_class": "GamblingChip",
+        "java_id": "GamblingChip",
+        "java_source": "relics/GamblingChip.java"
+      },
+      {
+        "java_class": "Ginger",
+        "java_id": "Ginger",
+        "java_source": "relics/Ginger.java"
+      },
+      {
+        "java_class": "Girya",
+        "java_id": "Girya",
+        "java_source": "relics/Girya.java"
+      },
+      {
+        "java_class": "GoldPlatedCables",
+        "java_id": "GoldPlatedCables",
+        "java_source": "relics/GoldPlatedCables.java"
+      },
+      {
+        "java_class": "GoldenEye",
+        "java_id": "GoldenEye",
+        "java_source": "relics/GoldenEye.java"
+      },
+      {
+        "java_class": "GoldenIdol",
+        "java_id": "GoldenIdol",
+        "java_source": "relics/GoldenIdol.java"
+      },
+      {
+        "java_class": "GremlinHorn",
+        "java_id": "GremlinHorn",
+        "java_source": "relics/GremlinHorn.java"
+      },
+      {
+        "java_class": "GremlinMask",
+        "java_id": "GremlinMask",
+        "java_source": "relics/GremlinMask.java"
+      },
+      {
+        "java_class": "HandDrill",
+        "java_id": "HandDrill",
+        "java_source": "relics/HandDrill.java"
+      },
+      {
+        "java_class": "HappyFlower",
+        "java_id": "HappyFlower",
+        "java_source": "relics/HappyFlower.java"
+      },
+      {
+        "java_class": "HolyWater",
+        "java_id": "HolyWater",
+        "java_source": "relics/HolyWater.java"
+      },
+      {
+        "java_class": "HornCleat",
+        "java_id": "HornCleat",
+        "java_source": "relics/HornCleat.java"
+      },
+      {
+        "java_class": "HoveringKite",
+        "java_id": "HoveringKite",
+        "java_source": "relics/HoveringKite.java"
+      },
+      {
+        "java_class": "IceCream",
+        "java_id": "IceCream",
+        "java_source": "relics/IceCream.java"
+      },
+      {
+        "java_class": "IncenseBurner",
+        "java_id": "IncenseBurner",
+        "java_source": "relics/IncenseBurner.java"
+      },
+      {
+        "java_class": "InkBottle",
+        "java_id": "InkBottle",
+        "java_source": "relics/InkBottle.java"
+      },
+      {
+        "java_class": "Inserter",
+        "java_id": "Inserter",
+        "java_source": "relics/Inserter.java"
+      },
+      {
+        "java_class": "JuzuBracelet",
+        "java_id": "JuzuBracelet",
+        "java_source": "relics/JuzuBracelet.java"
+      },
+      {
+        "java_class": "Kunai",
+        "java_id": "Kunai",
+        "java_source": "relics/Kunai.java"
+      },
+      {
+        "java_class": "Lantern",
+        "java_id": "Lantern",
+        "java_source": "relics/Lantern.java"
+      },
+      {
+        "java_class": "LetterOpener",
+        "java_id": "LetterOpener",
+        "java_source": "relics/LetterOpener.java"
+      },
+      {
+        "java_class": "LizardTail",
+        "java_id": "LizardTail",
+        "java_source": "relics/LizardTail.java"
+      },
+      {
+        "java_class": "MagicFlower",
+        "java_id": "MagicFlower",
+        "java_source": "relics/MagicFlower.java"
+      },
+      {
+        "java_class": "Mango",
+        "java_id": "Mango",
+        "java_source": "relics/Mango.java"
+      },
+      {
+        "java_class": "MarkOfPain",
+        "java_id": "MarkOfPain",
+        "java_source": "relics/MarkOfPain.java"
+      },
+      {
+        "java_class": "MarkOfTheBloom",
+        "java_id": "MarkOfTheBloom",
+        "java_source": "relics/MarkOfTheBloom.java"
+      },
+      {
+        "java_class": "Matryoshka",
+        "java_id": "Matryoshka",
+        "java_source": "relics/Matryoshka.java"
+      },
+      {
+        "java_class": "MawBank",
+        "java_id": "MawBank",
+        "java_source": "relics/MawBank.java"
+      },
+      {
+        "java_class": "MealTicket",
+        "java_id": "MealTicket",
+        "java_source": "relics/MealTicket.java"
+      },
+      {
+        "java_class": "MeatOnTheBone",
+        "java_id": "MeatOnTheBone",
+        "java_source": "relics/MeatOnTheBone.java"
+      },
+      {
+        "java_class": "MedicalKit",
+        "java_id": "MedicalKit",
+        "java_source": "relics/MedicalKit.java"
+      },
+      {
+        "java_class": "Melange",
+        "java_id": "Melange",
+        "java_source": "relics/Melange.java"
+      },
+      {
+        "java_class": "MembershipCard",
+        "java_id": "MembershipCard",
+        "java_source": "relics/MembershipCard.java"
+      },
+      {
+        "java_class": "MercuryHourglass",
+        "java_id": "MercuryHourglass",
+        "java_source": "relics/MercuryHourglass.java"
+      },
+      {
+        "java_class": "MoltenEgg2",
+        "java_id": "MoltenEgg2",
+        "java_source": "relics/MoltenEgg2.java"
+      },
+      {
+        "java_class": "MummifiedHand",
+        "java_id": "MummifiedHand",
+        "java_source": "relics/MummifiedHand.java"
+      },
+      {
+        "java_class": "MutagenicStrength",
+        "java_id": "MutagenicStrength",
+        "java_source": "relics/MutagenicStrength.java"
+      },
+      {
+        "java_class": "Necronomicon",
+        "java_id": "Necronomicon",
+        "java_source": "relics/Necronomicon.java"
+      },
+      {
+        "java_class": "NeowsLament",
+        "java_id": "NeowsLament",
+        "java_source": "relics/NeowsLament.java"
+      },
+      {
+        "java_class": "NilrysCodex",
+        "java_id": "NilrysCodex",
+        "java_source": "relics/NilrysCodex.java"
+      },
+      {
+        "java_class": "NinjaScroll",
+        "java_id": "NinjaScroll",
+        "java_source": "relics/NinjaScroll.java"
+      },
+      {
+        "java_class": "NlothsGift",
+        "java_id": "NlothsGift",
+        "java_source": "relics/NlothsGift.java"
+      },
+      {
+        "java_class": "NlothsMask",
+        "java_id": "NlothsMask",
+        "java_source": "relics/NlothsMask.java"
+      },
+      {
+        "java_class": "NuclearBattery",
+        "java_id": "NuclearBattery",
+        "java_source": "relics/NuclearBattery.java"
+      },
+      {
+        "java_class": "Nunchaku",
+        "java_id": "Nunchaku",
+        "java_source": "relics/Nunchaku.java"
+      },
+      {
+        "java_class": "OddMushroom",
+        "java_id": "OddMushroom",
+        "java_source": "relics/OddMushroom.java"
+      },
+      {
+        "java_class": "OddlySmoothStone",
+        "java_id": "OddlySmoothStone",
+        "java_source": "relics/OddlySmoothStone.java"
+      },
+      {
+        "java_class": "OldCoin",
+        "java_id": "OldCoin",
+        "java_source": "relics/OldCoin.java"
+      },
+      {
+        "java_class": "Omamori",
+        "java_id": "Omamori",
+        "java_source": "relics/Omamori.java"
+      },
+      {
+        "java_class": "OrangePellets",
+        "java_id": "OrangePellets",
+        "java_source": "relics/OrangePellets.java"
+      },
+      {
+        "java_class": "Orichalcum",
+        "java_id": "Orichalcum",
+        "java_source": "relics/Orichalcum.java"
+      },
+      {
+        "java_class": "OrnamentalFan",
+        "java_id": "OrnamentalFan",
+        "java_source": "relics/OrnamentalFan.java"
+      },
+      {
+        "java_class": "Orrery",
+        "java_id": "Orrery",
+        "java_source": "relics/Orrery.java"
+      },
+      {
+        "java_class": "PandorasBox",
+        "java_id": "PandorasBox",
+        "java_source": "relics/PandorasBox.java"
+      },
+      {
+        "java_class": "Pantograph",
+        "java_id": "Pantograph",
+        "java_source": "relics/Pantograph.java"
+      },
+      {
+        "java_class": "PaperCrane",
+        "java_id": "PaperCrane",
+        "java_source": "relics/PaperCrane.java"
+      },
+      {
+        "java_class": "PaperFrog",
+        "java_id": "PaperFrog",
+        "java_source": "relics/PaperFrog.java"
+      },
+      {
+        "java_class": "PeacePipe",
+        "java_id": "PeacePipe",
+        "java_source": "relics/PeacePipe.java"
+      },
+      {
+        "java_class": "Pear",
+        "java_id": "Pear",
+        "java_source": "relics/Pear.java"
+      },
+      {
+        "java_class": "PenNib",
+        "java_id": "PenNib",
+        "java_source": "relics/PenNib.java"
+      },
+      {
+        "java_class": "PhilosopherStone",
+        "java_id": "PhilosopherStone",
+        "java_source": "relics/PhilosopherStone.java"
+      },
+      {
+        "java_class": "Pocketwatch",
+        "java_id": "Pocketwatch",
+        "java_source": "relics/Pocketwatch.java"
+      },
+      {
+        "java_class": "PotionBelt",
+        "java_id": "PotionBelt",
+        "java_source": "relics/PotionBelt.java"
+      },
+      {
+        "java_class": "PrayerWheel",
+        "java_id": "PrayerWheel",
+        "java_source": "relics/PrayerWheel.java"
+      },
+      {
+        "java_class": "PreservedInsect",
+        "java_id": "PreservedInsect",
+        "java_source": "relics/PreservedInsect.java"
+      },
+      {
+        "java_class": "PrismaticShard",
+        "java_id": "PrismaticShard",
+        "java_source": "relics/PrismaticShard.java"
+      },
+      {
+        "java_class": "PureWater",
+        "java_id": "PureWater",
+        "java_source": "relics/PureWater.java"
+      },
+      {
+        "java_class": "QuestionCard",
+        "java_id": "QuestionCard",
+        "java_source": "relics/QuestionCard.java"
+      },
+      {
+        "java_class": "RedCirclet",
+        "java_id": "RedCirclet",
+        "java_source": "relics/RedCirclet.java"
+      },
+      {
+        "java_class": "RedMask",
+        "java_id": "RedMask",
+        "java_source": "relics/RedMask.java"
+      },
+      {
+        "java_class": "RedSkull",
+        "java_id": "RedSkull",
+        "java_source": "relics/RedSkull.java"
+      },
+      {
+        "java_class": "RegalPillow",
+        "java_id": "RegalPillow",
+        "java_source": "relics/RegalPillow.java"
+      },
+      {
+        "java_class": "RingOfTheSerpent",
+        "java_id": "RingOfTheSerpent",
+        "java_source": "relics/RingOfTheSerpent.java"
+      },
+      {
+        "java_class": "RunicCapacitor",
+        "java_id": "RunicCapacitor",
+        "java_source": "relics/RunicCapacitor.java"
+      },
+      {
+        "java_class": "RunicCube",
+        "java_id": "RunicCube",
+        "java_source": "relics/RunicCube.java"
+      },
+      {
+        "java_class": "RunicDome",
+        "java_id": "RunicDome",
+        "java_source": "relics/RunicDome.java"
+      },
+      {
+        "java_class": "RunicPyramid",
+        "java_id": "RunicPyramid",
+        "java_source": "relics/RunicPyramid.java"
+      },
+      {
+        "java_class": "SacredBark",
+        "java_id": "SacredBark",
+        "java_source": "relics/SacredBark.java"
+      },
+      {
+        "java_class": "SelfFormingClay",
+        "java_id": "SelfFormingClay",
+        "java_source": "relics/SelfFormingClay.java"
+      },
+      {
+        "java_class": "Shovel",
+        "java_id": "Shovel",
+        "java_source": "relics/Shovel.java"
+      },
+      {
+        "java_class": "Shuriken",
+        "java_id": "Shuriken",
+        "java_source": "relics/Shuriken.java"
+      },
+      {
+        "java_class": "SingingBowl",
+        "java_id": "SingingBowl",
+        "java_source": "relics/SingingBowl.java"
+      },
+      {
+        "java_class": "SlaversCollar",
+        "java_id": "SlaversCollar",
+        "java_source": "relics/SlaversCollar.java"
+      },
+      {
+        "java_class": "Sling",
+        "java_id": "Sling",
+        "java_source": "relics/Sling.java"
+      },
+      {
+        "java_class": "SmilingMask",
+        "java_id": "SmilingMask",
+        "java_source": "relics/SmilingMask.java"
+      },
+      {
+        "java_class": "SnakeRing",
+        "java_id": "SnakeRing",
+        "java_source": "relics/SnakeRing.java"
+      },
+      {
+        "java_class": "SneckoEye",
+        "java_id": "SneckoEye",
+        "java_source": "relics/SneckoEye.java"
+      },
+      {
+        "java_class": "SneckoSkull",
+        "java_id": "SneckoSkull",
+        "java_source": "relics/SneckoSkull.java"
+      },
+      {
+        "java_class": "Sozu",
+        "java_id": "Sozu",
+        "java_source": "relics/Sozu.java"
+      },
+      {
+        "java_class": "SpiritPoop",
+        "java_id": "SpiritPoop",
+        "java_source": "relics/SpiritPoop.java"
+      },
+      {
+        "java_class": "SsserpentHead",
+        "java_id": "SsserpentHead",
+        "java_source": "relics/SsserpentHead.java"
+      },
+      {
+        "java_class": "StoneCalendar",
+        "java_id": "StoneCalendar",
+        "java_source": "relics/StoneCalendar.java"
+      },
+      {
+        "java_class": "StrangeSpoon",
+        "java_id": "StrangeSpoon",
+        "java_source": "relics/StrangeSpoon.java"
+      },
+      {
+        "java_class": "Strawberry",
+        "java_id": "Strawberry",
+        "java_source": "relics/Strawberry.java"
+      },
+      {
+        "java_class": "StrikeDummy",
+        "java_id": "StrikeDummy",
+        "java_source": "relics/StrikeDummy.java"
+      },
+      {
+        "java_class": "Sundial",
+        "java_id": "Sundial",
+        "java_source": "relics/Sundial.java"
+      },
+      {
+        "java_class": "SymbioticVirus",
+        "java_id": "SymbioticVirus",
+        "java_source": "relics/SymbioticVirus.java"
+      },
+      {
+        "java_class": "TeardropLocket",
+        "java_id": "TeardropLocket",
+        "java_source": "relics/TeardropLocket.java"
+      },
+      {
+        "java_class": "TheSpecimen",
+        "java_id": "TheSpecimen",
+        "java_source": "relics/TheSpecimen.java"
+      },
+      {
+        "java_class": "ThreadAndNeedle",
+        "java_id": "ThreadAndNeedle",
+        "java_source": "relics/ThreadAndNeedle.java"
+      },
+      {
+        "java_class": "Tingsha",
+        "java_id": "Tingsha",
+        "java_source": "relics/Tingsha.java"
+      },
+      {
+        "java_class": "TinyChest",
+        "java_id": "TinyChest",
+        "java_source": "relics/TinyChest.java"
+      },
+      {
+        "java_class": "TinyHouse",
+        "java_id": "TinyHouse",
+        "java_source": "relics/TinyHouse.java"
+      },
+      {
+        "java_class": "Toolbox",
+        "java_id": "Toolbox",
+        "java_source": "relics/Toolbox.java"
+      },
+      {
+        "java_class": "Torii",
+        "java_id": "Torii",
+        "java_source": "relics/Torii.java"
+      },
+      {
+        "java_class": "ToughBandages",
+        "java_id": "ToughBandages",
+        "java_source": "relics/ToughBandages.java"
+      },
+      {
+        "java_class": "ToxicEgg2",
+        "java_id": "ToxicEgg2",
+        "java_source": "relics/ToxicEgg2.java"
+      },
+      {
+        "java_class": "ToyOrnithopter",
+        "java_id": "ToyOrnithopter",
+        "java_source": "relics/ToyOrnithopter.java"
+      },
+      {
+        "java_class": "TungstenRod",
+        "java_id": "TungstenRod",
+        "java_source": "relics/TungstenRod.java"
+      },
+      {
+        "java_class": "Turnip",
+        "java_id": "Turnip",
+        "java_source": "relics/Turnip.java"
+      },
+      {
+        "java_class": "TwistedFunnel",
+        "java_id": "TwistedFunnel",
+        "java_source": "relics/TwistedFunnel.java"
+      },
+      {
+        "java_class": "UnceasingTop",
+        "java_id": "UnceasingTop",
+        "java_source": "relics/UnceasingTop.java"
+      },
+      {
+        "java_class": "Vajra",
+        "java_id": "Vajra",
+        "java_source": "relics/Vajra.java"
+      },
+      {
+        "java_class": "VelvetChoker",
+        "java_id": "VelvetChoker",
+        "java_source": "relics/VelvetChoker.java"
+      },
+      {
+        "java_class": "VioletLotus",
+        "java_id": "VioletLotus",
+        "java_source": "relics/VioletLotus.java"
+      },
+      {
+        "java_class": "Waffle",
+        "java_id": "Waffle",
+        "java_source": "relics/Waffle.java"
+      },
+      {
+        "java_class": "WarPaint",
+        "java_id": "WarPaint",
+        "java_source": "relics/WarPaint.java"
+      },
+      {
+        "java_class": "WarpedTongs",
+        "java_id": "WarpedTongs",
+        "java_source": "relics/WarpedTongs.java"
+      },
+      {
+        "java_class": "Whetstone",
+        "java_id": "Whetstone",
+        "java_source": "relics/Whetstone.java"
+      },
+      {
+        "java_class": "WhiteBeast",
+        "java_id": "WhiteBeast",
+        "java_source": "relics/WhiteBeast.java"
+      },
+      {
+        "java_class": "WingBoots",
+        "java_id": "WingBoots",
+        "java_source": "relics/WingBoots.java"
+      },
+      {
+        "java_class": "WristBlade",
+        "java_id": "WristBlade",
+        "java_source": "relics/WristBlade.java"
+      }
+    ],
+    "source_missing": false
+  }
+}

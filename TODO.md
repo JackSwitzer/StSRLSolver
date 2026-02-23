@@ -4,7 +4,7 @@ Last updated: 2026-02-23
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4691 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4708 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
@@ -22,6 +22,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `DOC-002` parity-core-loop skill pack for repeatable swarm/integrator loop.
 - [x] `DOC-003` evidence refresh: baseline, inventory snapshots, prioritized gap queue.
 - [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, PR ledger, consolidation review).
+- [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration to `packages/training/`.
+- [x] `AUD-001A` deterministic Java-vs-Python inventory/hook manifest generation via `scripts/generate_parity_manifests.py`.
 
 ## Evidence-based remaining gaps
 
@@ -37,7 +39,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
 - [x] `POW-001` Java power inventory closure (149 Java classes mapped; `exact=134`, `alias=15`, `missing=0` via manifest audit).
 - [x] `ORB-001` orb runtime/relic closure (`Cables`, `Frozen Core`, `Emotion Chip`, `Inserter`, `Nuclear Battery`, `Symbiotic Virus`) with deterministic start-turn wiring and RNG ownership.
-- [ ] `CONS-001` finish deterministic RNG normalization in remaining parity-critical runtime paths (relic/potion/orb).
+- [ ] `CONS-001B` finish deterministic RNG normalization in remaining parity-critical runtime paths (relic/potion/orb).
 - [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
 
 ### P2: CI/readiness cleanup
@@ -85,14 +87,15 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `CRD-DE-*` closure.
 
 ### R7: Final audit + RL gate
-- [ ] `AUD-001` clean Java-vs-Python diff manifests.
+- [x] `AUD-001A` generated parity manifests and canonical audit snapshot (`java-inventory.json`, `python-inventory.json`, `parity-diff.json`, `power-hook-coverage.json`).
+- [ ] `AUD-001` clean Java-vs-Python diff manifests (no unresolved parity rows).
 - [ ] `AUD-002` normal CI to `0 skipped, 0 failed`.
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `POW-003C` close replay-style power queue parity (`Echo Form`, `Burst`, `Double Tap`, `Amplify`) in both combat runtimes.
-2. `POW-003` add hook-order + cross-system integration tests and determinism locks.
-3. `CONS-001B` continue deterministic RNG ownership cleanup in remaining parity-critical paths.
+1. `CONS-002` unify combat runtime ownership (`CombatEngine` canonical, `CombatRunner` compatibility shim only).
+2. `POW-002` close runtime dispatch for remaining registered hooks (`11` undispatched in generated hook report).
+3. `CRD-INV-003` close the `21` Java card rows flagged missing by generated parity diff.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

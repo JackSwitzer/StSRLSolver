@@ -1,121 +1,55 @@
 # Remaining Parity Audit (Comprehensive)
 
-Last updated: 2026-02-22  
-Baseline branch: `main`  
-Baseline merge commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff` (PR #25)
+Last updated: 2026-02-23
+Baseline branch: `codex/cons-aud-001`
 
-## Solid core base
-- Merged PR chain in `main`: [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) through [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25)
-- Stale historical PR [#8](https://github.com/JackSwitzer/StSRLSolver/pull/8) is closed and treated as archival only
-- Full suite baseline is stable:
-  - `uv run pytest tests/ -q`
-  - `4669 passed, 5 skipped, 0 failed`
+## Verified baseline
+- Command: `uv run pytest tests/ -q`
+- Result: `4708 passed, 5 skipped, 0 failed`
+- Replay-artifact skips remain isolated to `tests/test_parity.py`.
 
-## Inventory parity snapshot (Java vs Python)
+## Script-generated inventory/mapping snapshot
+Source artifact: `docs/audits/2026-02-22-full-game-parity/traceability/parity-diff.json`
 
-| Domain | Java inventory | Python inventory | Coverage | Notes |
-|---|---:|---:|---:|---|
-| Relics | 181 | 181 | 100.0% | Inventory parity complete; remaining work is behavior-level (`ORB-001` interactions) |
-| Events | 51 | 51 | 100.0% | Definitions, handlers, and choice generators are all 51/51/51 |
-| Powers | 149 | 94 | 63.1% | Largest remaining inventory gap |
-| Cards (core set) | 361 | 360 key overlap (`361/361` resolvable by lookup) | 99.7% key overlap | `Discipline` and `Impulse` now implemented; `Gash` resolves via alias to `Claw` |
-| Potions | unavailable in local Java snapshot | 42 | n/a | Local decompile lacks a reliable potion class inventory root |
+| Domain | Java | Python | Exact | Alias | Missing | Status summary |
+|---|---:|---:|---:|---:|---:|---|
+| cards | 361 | 370 | 228 | 112 | 21 | still open; inventory/behavior closure required |
+| relics | 181 | 181 | 75 | 106 | 0 | inventory parity closed |
+| events | 52 | 51 | 40 | 11 | 1 | only unresolved Java class is `SpireHeart` |
+| powers | 149 | 148 | 125 | 24 | 0 | Java inventory mapping closed |
+| potions | unavailable locally | 42 | 0 | 0 | 0 | local decompile snapshot lacks `potions/` source |
 
-### Card ID variance details
-- Java-only IDs in raw key comparison: `Gash`
-- Python-only IDs: `Beta`, `Claw`, `Expunger`, `Insight`, `Miracle`, `Omega`, `Safety`, `Shiv`, `Smite`, `ThroughViolence`
-- Interpretation:
-  - Python-only IDs are mostly generated/temp cards used at runtime
-  - `Gash` is now normalized via `CARD_ID_ALIASES` (`Gash` -> `Claw`), so Java IDs are fully resolvable through `get_card(...)`
+### Card rows currently unresolved (generated)
+- `Alchemize`, `Apparition`, `Defend_Blue`, `Defend_Green`, `Defend_Red`, `Defend_Watcher`, `Equilibrium`, `Fasting`, `Nightmare`, `Overclock`, `PressurePoints`, `Recursion`, `SimmeringFury`, `SneakyStrike`, `SteamBarrier`, `Strike_Blue`, `Strike_Green`, `Strike_Purple`, `Strike_Red`, `Tranquility`, `VoidCard`
 
-## Action/API contract status
-- Stable public runner API remains:
-  - `GameRunner.get_available_action_dicts()`
-  - `GameRunner.take_action_dict()`
-  - `GameRunner.get_observation()`
-- Explicit decision surfaces already in core for high-risk systems:
-  - event follow-up card selections
-  - reward/shop relic selections (Orrery, bottled relics, Dolly's Mirror)
-  - indexed secondary relic claims (Black Star)
-- Remaining explicit-decision closure still required in card/orb/power long-tail interactions.
+## Power dispatch parity snapshot
+Source artifact: `docs/audits/2026-02-22-full-game-parity/traceability/power-hook-coverage.json`
 
-## Determinism and RNG status
-- Phase-0 hardening landed in PR #23:
-  - shared effect context RNG helper methods
-  - shared registry base-context RNG helper methods
-  - card effect random-choice paths moved off Python global RNG
-  - power handlers (`Magnetism`, `CreativeAI`, `Study`, `Juggernaut`) moved off Python global RNG
-- Remaining direct Python `random` callsites in `packages/engine/`:
-  - `packages/engine/registry/relics.py` (11)
-  - `packages/engine/effects/defect_cards.py` (4)
-  - `packages/engine/effects/orbs.py` (3)
-  - `packages/engine/registry/potions.py` (2)
-  - `packages/engine/game.py` (2)
-  - `packages/engine/calc/combat_sim.py` (1, simulation helper only)
+- Registry hooks: `25`
+- Runtime-dispatched hooks: `14`
+- Registered-but-undispatched hooks: `11`
+- Undispatched hooks:
+  - `atDamageFinalReceive`
+  - `atDamageGive`
+  - `atDamageReceive`
+  - `modifyBlock`
+  - `onAttack`
+  - `onAttacked`
+  - `onAttackedToChangeDamage`
+  - `onCardDraw`
+  - `onManualDiscard`
+  - `onScry`
+  - `wasHPLost`
 
-## Remaining work by PR region (locked execution order)
+## Consolidation status
+- Canonical repo lock documented in `REPO_CANONICAL.md`.
+- Wrapper migration decisions documented in `traceability/repo-consolidation-manifest.md`.
+- Curated deterministic training utilities migrated into `packages/training/` with tests.
 
-### Region C1: Cards (non-Defect)
-Scope:
-- Ironclad, Silent, Watcher, and required shared colorless/curse/status behavior
-
-Required outputs:
-- card manifest rows: Java class/ID -> Python card/effect mapping -> status (`exact|approximate|missing`)
-- tests-first parity closures by mechanic family:
-  - selection-required card decisions
-  - RNG-sensitive card behavior
-  - upgraded/base stat timing parity
-
-Completion gate:
-- non-Defect card manifest has no unmapped rows without explicit disposition
-- targeted character suites green + full suite green
-
-### Region C2: Orbs + Powers
-Scope:
-- `ORB-001`, `POW-001`, `POW-002`, `POW-003`
-
-Required outputs:
-- close power inventory gap with explicit per-class rows and statuses
-- finalize orb timing/runtime semantics used by relic/power/card interactions
-- replace remaining orb/power/relic runtime `random` usage with owned streams
-- integration tests for orb + power + relic interactions
-
-Completion gate:
-- no placeholder orb behavior in active runtime hooks
-- power manifest rows all resolved for target scope
-- integration suites green
-
-### Region C3: Defect cards
-Scope:
-- Defect card behavior closure after orb semantics are stable
-
-Required outputs:
-- re-audit Defect cards against Java semantics with finalized orbs
-- close Defect-only selection and trigger-order gaps
-
-Completion gate:
-- Defect card manifest closed to exact/approved states
-- Defect + integration suites green
-
-### Region C4: Final audit + RL launch gate
-Scope:
-- `AUD-001`, `AUD-002`, `AUD-003`
-
-Required outputs:
-- clean Java-vs-Python gap manifest
-- default CI path with no skips
-- versioned observation/action contract markers and RL readiness sign-off
-
-Completion gate:
-- `uv run pytest tests/ -q` -> `0 skipped, 0 failed`
-- RL checklist fully green
-
-## Test-system cleanup still required
-- Move replay-artifact-dependent parity checks out of default test profile
-- Remove contingency skips in agent/integration coverage paths by deterministic fixtures
-- Convert bug-documentation audit tests into parity-enforcing tests
-
-## Cleanup/deletion policy (targeted only)
-- Remove dead placeholder paths only when replacement parity behavior is landed
-- Avoid broad doc deletion until parity manifests and gates are fully green
-- Keep generated manifest docs canonical; archive superseded ad-hoc notes after each merge
+## Remaining closure order (locked)
+1. `CONS-002`: combat runtime unification (`CombatEngine` canonical, `CombatRunner` compatibility path only).
+2. `POW-002`: close the 11 registered-but-undispatched power hooks.
+3. `CRD-INV-003`: resolve 21 card rows from generated parity diff.
+4. `CONS-001B`: finish RNG normalization in parity-critical runtime paths.
+5. `AUD-002`: remove default-run skips to reach `0 skipped, 0 failed`.
+6. `AUD-003`: RL launch sign-off with frozen contracts.

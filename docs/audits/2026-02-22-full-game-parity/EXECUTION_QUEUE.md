@@ -1,10 +1,10 @@
 # Execution Queue: Full-Game Parity Campaign
 
-Last updated: 2026-02-22
+Last updated: 2026-02-23
 
 ## Baseline
-- Branch: `main` (current merged baseline, includes PR `#25`)
-- Suite baseline: `4669 passed, 5 skipped, 0 failed`
+- Branch: `codex/cons-aud-001`
+- Suite baseline: `4708 passed, 5 skipped, 0 failed`
 - Policy: feature-sized commits, region-sized PRs
 
 ## Mandatory core loop
@@ -15,53 +15,40 @@ Last updated: 2026-02-22
 5. tracker update: `TODO.md` + `testing/test-baseline.md` + domain status
 
 ## Lane model (integrator enforced)
-- Lane A: audit/intel (inventory diffs, Java refs, queue quality)
-- Lane B: targeted code edit for one feature ID
+- Lane A: audit/intel (generated inventory diffs, Java refs, queue quality)
+- Lane B: targeted code edits for one feature ID
 - Lane C: targeted tests + regression lock
 - Lane D: integrator (full-suite gate + tracker sync)
 
-## Immediate execution batches
+## Completed batches
+- `R1`: relic selection surface + alias/order closure (`REL-003/004/005/006/007/008`)
+- `R2`: event selection/action-surface closure (`EVT-001/002/003/004`)
+- `R3`: reward action-surface and execution closure (`RWD-001/002/003/004`)
+- `R5`: `POW-001` inventory closure + `POW-003B` long-tail hook closure + `ORB-001`
+- `CONS-001A`: canonical repo lock + migration manifest + curated training migration
+- `AUD-001A`: deterministic parity manifest generation (`scripts/generate_parity_manifests.py`)
 
-### Batch R1-A (completed)
-- `REL-003` Orrery explicit selection surface (completed)
-- `REL-004` Bottled relic assignment selection surface (completed)
-- `REL-008` Dolly's Mirror explicit selection surface (completed)
+## Active execution batches
 
-### Batch R1-B
-- `REL-005` deterministic selection IDs/validation consistency (completed)
-- `REL-006` relic alias normalization + `Toolbox` coverage (completed)
-- `REL-007` boss/chest/reward ordering edge cases (completed)
+### Batch C1: Combat runtime unification
+- `CONS-002A`: enumerate `CombatRunner` consumers and replace with `CombatEngine` paths
+- `CONS-002B`: convert `CombatRunner` to compatibility shim
+- `CONS-002C`: remove shim after zero consumers
 
-### Batch R2
-- `EVT-001` event selection follow-up actions (completed)
-- `EVT-002` wire selected card index to handler execution (completed)
-- `EVT-003` deterministic multi-phase transitions (completed)
-- `EVT-004` event alias/inventory parity (completed)
+### Batch C2: Power dispatch closure
+- `POW-002A`: dispatch hooks for damage/block/card-draw/scry/hp-loss families
+- `POW-002B`: add hook-order tests and trigger-count tests
+- `POW-002C`: ensure both runtimes (until unification complete) share dispatch order
 
-### Batch R3
-- `RWD-001` canonical reward action emission path (completed)
-- `RWD-002` canonical reward action execution path (completed)
-- `RWD-003` proceed gating parity (completed)
-- `RWD-004` reward modifiers parity (completed)
+### Batch C3: Card inventory/behavior closure
+- `CRD-INV-003A`: close starter-ID mapping gaps from generated list
+- `CRD-INV-003B`: close non-starter missing card rows (`Alchemize`, `Apparition`, etc.)
+- `CRD-INV-003C`: lock with manifest-backed tests
 
-### Batch R4 (cards non-Defect, docs/tests/code loop)
-- `CRD-INV-001` non-Defect card manifest and Java->Python mapping rows
-- `CRD-INV-002` inventory closure slice for `Discipline`, `Impulse`, and `Gash` alias path (completed)
-- `CRD-SH-001` shared curse/status end-of-turn runtime closure (completed)
-- `CRD-IC-*` Ironclad parity clusters
-- `CRD-SI-*` Silent parity clusters
-- `CRD-WA-*` Watcher parity clusters
-- `CRD-SH-*` shared colorless/curse/status parity clusters
-
-### Batch R5 (orbs + powers)
-- `POW-001`, `POW-002`, `ORB-001`, `POW-003`
-- `CONS-001B` remaining deterministic RNG normalization (relic/potion/orb runtime callsites)
-
-### Batch R6 (Defect cards)
-- `CRD-DE-*` Defect parity closure after orb semantics are stable
-
-### Batch R7 (final audit and RL gate)
-- `AUD-001`, `AUD-002`, `AUD-003`
+### Batch C4: Final readiness
+- `CONS-001B`: finish RNG normalization in parity-critical paths
+- `AUD-002`: move replay checks to dedicated profile and hit `0 skipped` in default CI
+- `AUD-003`: RL launch sign-off
 
 ## Merge gates per feature
 - targeted tests green
