@@ -15,11 +15,11 @@ Status semantics:
 |---|---:|---:|---:|---:|
 | `red` | 75 | 75 | 0 | 0 |
 | `green` | 75 | 75 | 0 | 0 |
-| `purple` | 77 | 76 | 1 | 1 |
+| `purple` | 77 | 77 | 0 | 1 |
 | `colorless` | 39 | 39 | 0 | 22 |
 | `curses` | 14 | 14 | 0 | 0 |
 | `status` | 5 | 5 | 0 | 0 |
-| **total** | **285** | **284** | **1** | **23** |
+| **total** | **285** | **285** | **0** | **23** |
 
 ## Manifest Rows
 
@@ -187,7 +187,7 @@ Status semantics:
 
 | java_id | java_class | java_path | status | python_effect_keys | unresolved_effect_keys | test_ref_count | notes |
 |---|---|---|---|---|---|---:|---|
-| `Discipline` | `Discipline` | `purple/Discipline.java` | `missing` | n/a | none | 0 | missing in Python inventory; Java class uses deprecated power path |
+| `Discipline` | `Discipline` | `purple/Discipline.java` | `approximate` | apply_discipline_power | none | 3 | card + deprecated `DisciplinePower` hooks implemented (`atEndOfTurn` save energy, `atStartOfTurn` draw/reset) |
 | `Adaptation` | `Rushdown` | `purple/Rushdown.java` | `approximate` | on_wrath_draw | none | 0 | effect handlers resolved; behavior parity audit still required |
 | `Alpha` | `Alpha` | `purple/Alpha.java` | `approximate` | shuffle_beta_into_draw | none | 14 | effect handlers resolved; behavior parity audit still required |
 | `BattleHymn` | `BattleHymn` | `purple/BattleHymn.java` | `approximate` | add_smite_each_turn | none | 7 | effect handlers resolved; behavior parity audit still required |
@@ -337,4 +337,3 @@ Status semantics:
 | `Slimed` | `Slimed` | `status/Slimed.java` | `approximate` | n/a | none | 23 | effect handlers resolved; behavior parity audit still required |
 | `Void` | `VoidCard` | `status/VoidCard.java` | `approximate` | unplayable, lose_1_energy_when_drawn | none | 22 | effect handlers resolved; behavior parity audit still required |
 | `Wound` | `Wound` | `status/Wound.java` | `approximate` | unplayable | none | 21 | effect handlers resolved; behavior parity audit still required |
-

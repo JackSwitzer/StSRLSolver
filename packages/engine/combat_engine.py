@@ -64,6 +64,7 @@ from .calc.damage import (
     DIVINITY_MULT,
 )
 from .registry import execute_relic_triggers, execute_power_triggers, execute_potion_effect
+from .effects.orbs import trigger_orb_start_of_turn
 
 
 # =============================================================================
@@ -385,6 +386,10 @@ class CombatEngine:
         if player.statuses.get("WrathNextTurn", 0) > 0:
             self._change_stance(StanceID.WRATH)
             del player.statuses["WrathNextTurn"]
+
+        # Defect orb passives trigger at start of turn; Cables bonus is handled
+        # by its dedicated relic trigger.
+        trigger_orb_start_of_turn(self.state, include_cables=False)
 
     def start_turn(self):
         """Public interface for starting a new player turn."""

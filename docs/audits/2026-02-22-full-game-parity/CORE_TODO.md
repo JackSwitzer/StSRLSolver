@@ -1,11 +1,11 @@
 # Core TODO: Full-Game Java Parity + RL Readiness
 
-Last updated: 2026-02-22
+Last updated: 2026-02-23
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4663 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4676 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
@@ -52,6 +52,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `RWD-004` indexed secondary relic claim/gating parity
 
 ### R4 cards (non-Defect first)
+- [x] `CRD-INV-002` Java-ID inventory closure slice (`Discipline`, `Impulse`, `Gash` alias coverage)
 - [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure (Burn/Decay/Doubt/Shame/Regret/Pride + Void draw lock)
 - [ ] `CRD-IC-*` Ironclad closure
 - [ ] `CRD-SI-*` Silent closure
@@ -62,8 +63,24 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
 - [ ] `POW-001` Java power inventory closure
 - [ ] `POW-002` residual hook/timing closure
-- [ ] `ORB-001` orb infrastructure for parity-critical behaviors
+- [x] `ORB-001` orb infrastructure for parity-critical behaviors
 - [ ] `POW-003` integration tests
+
+#### ORB-001 checklist (docs/tests/code loop)
+- [x] `ORB-001A` docs+tests-first scaffolding:
+  - `docs/work_units/granular-orbs.md`
+  - `domains/orbs.md`
+  - `traceability/gap-manifest.md`
+- [x] `ORB-001B` orb runtime timing/determinism:
+  - start-turn orb passives wired in combat runtime
+  - owned RNG streams for random orb selection/targeting
+- [x] `ORB-001C` orb-linked relic closure:
+  - `Cables`, `Frozen Core`, `Emotion Chip`, `Inserter`, `Nuclear Battery`, `Symbiotic Virus`
+  - remove placeholder `state.orbs`/`hasattr` branches
+- [x] `ORB-001D` verification and ledger sync:
+  - targeted orb/relic suites green
+  - full suite green
+  - baseline/docs/todo synced
 
 ### R6 cards (Defect)
 - [ ] `CRD-DE-*` Defect closure
@@ -75,7 +92,6 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Confirmed high-impact open gaps
 - [ ] Power inventory has large class-level residuals (`149` Java vs `94` Python).
-- [ ] Orb-linked relic behavior still has placeholder TODO paths.
 - [ ] Engine logic still contains direct Python `random` usage in parity-critical modules (relic/potion/orb long-tail after Phase-0 card/power/context hardening).
 
 ## Policy reminders

@@ -309,7 +309,7 @@ def cunning_potion(ctx: PotionContext) -> None:
 @potion_effect("PotionOfCapacity")
 def potion_of_capacity(ctx: PotionContext) -> None:
     """Potion of Capacity (Defect): Gain 2 Orb slots (4 with Sacred Bark)."""
-    ctx.apply_power_to_player("OrbSlots", ctx.potency)
+    ctx.add_orb_slots(ctx.potency)
 
 
 @potion_effect("StancePotion")
@@ -444,10 +444,10 @@ def ghost_in_jar(ctx: PotionContext) -> None:
 def essence_of_darkness(ctx: PotionContext) -> None:
     """Essence of Darkness (Defect): Channel Dark orbs (1 per slot).
     With Sacred Bark, channel 2 per slot."""
-    orb_slots = ctx.player.statuses.get("OrbSlots", 3)
-    dark_count = orb_slots * ctx.potency
-    # Would need orb system - for now just track it
-    ctx.apply_power_to_player("DarkOrbs", dark_count)
+    manager = ctx.get_orb_manager()
+    dark_count = manager.max_slots * ctx.potency
+    for _ in range(dark_count):
+        ctx.channel_orb("Dark")
 
 
 @potion_effect("Ambrosia")

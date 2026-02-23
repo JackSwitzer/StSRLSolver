@@ -167,6 +167,16 @@ def bias_start(ctx: PowerContext) -> None:
         del ctx.player.statuses["Focus"]
 
 
+@power_trigger("atStartOfTurn", power="DisciplinePower")
+def discipline_power_start(ctx: PowerContext) -> None:
+    """DisciplinePower: Draw saved amount at turn start, then reset to sentinel."""
+    if ctx.owner is None or ctx.amount == -1:
+        return
+    if ctx.owner == ctx.player and ctx.amount > 0:
+        ctx.draw_cards(ctx.amount)
+    ctx.owner.statuses["DisciplinePower"] = -1
+
+
 # =============================================================================
 # AT_START_OF_TURN_POST_DRAW Triggers (after draw)
 # =============================================================================
@@ -286,6 +296,13 @@ def intangible_end(ctx: PowerContext) -> None:
         ctx.player.statuses["Intangible"] = ctx.amount - 1
         if ctx.player.statuses["Intangible"] <= 0:
             del ctx.player.statuses["Intangible"]
+
+
+@power_trigger("atEndOfTurn", power="DisciplinePower")
+def discipline_power_end(ctx: PowerContext) -> None:
+    """DisciplinePower: Save current energy at end of turn if greater than 0."""
+    if ctx.owner == ctx.player and ctx.state.energy > 0:
+        ctx.owner.statuses["DisciplinePower"] = ctx.state.energy
 
 
 @power_trigger("atEndOfTurn", power="Study")

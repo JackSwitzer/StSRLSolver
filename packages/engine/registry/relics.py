@@ -159,12 +159,8 @@ def warped_tongs_turn_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atTurnStart", relic="Gold-Plated Cables")
 def gold_plated_cables_turn_start(ctx: RelicContext) -> None:
-    """Gold-Plated Cables: At start of turn, if 0 Block, trigger rightmost orb's passive."""
-    if ctx.player.block == 0:
-        # TODO: When orb system implemented, trigger rightmost orb passive
-        if hasattr(ctx.state, 'orbs') and ctx.state.orbs:
-            # Trigger passive of rightmost orb
-            pass
+    """Gold-Plated Cables: Trigger first orb passive once more at turn start."""
+    ctx.trigger_first_orb_passive()
 
 
 @relic_trigger("atBattleStart", relic="FossilizedHelix")
@@ -290,17 +286,13 @@ def vajra_start(ctx: RelicContext) -> None:
 @relic_trigger("atBattleStart", relic="Nuclear Battery")
 def nuclear_battery_start(ctx: RelicContext) -> None:
     """Nuclear Battery: Channel 1 Plasma at combat start."""
-    # TODO: When orb system implemented, channel Plasma
-    if hasattr(ctx.state, 'orbs'):
-        ctx.channel_orb("Plasma")
+    ctx.channel_orb("Plasma")
 
 
 @relic_trigger("atBattleStart", relic="Symbiotic Virus")
 def symbiotic_virus_start(ctx: RelicContext) -> None:
     """Symbiotic Virus: Channel 1 Dark at combat start."""
-    # TODO: When orb system implemented, channel Dark
-    if hasattr(ctx.state, 'orbs'):
-        ctx.channel_orb("Dark")
+    ctx.channel_orb("Dark")
 
 
 @relic_trigger("atBattleStart", relic="Preserved Insect")
@@ -606,15 +598,11 @@ def captains_wheel_turn_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atTurnStart", relic="Inserter")
 def inserter_turn_start(ctx: RelicContext) -> None:
-    """Inserter: Every 2 turns, gain 1 Orb Slot (Defect only).
-
-    Note: Orb system not yet implemented. This is a placeholder for future implementation.
-    """
+    """Inserter: Every 2 turns, gain 1 Orb Slot."""
     counter = ctx.get_relic_counter("Inserter", 0) + 1
     ctx.set_relic_counter("Inserter", counter)
     if counter >= 2:
-        # TODO: Implement orb slot increase when orb system is added
-        # For now, just reset counter to track the trigger timing
+        ctx.add_orb_slots(1)
         ctx.set_relic_counter("Inserter", 0)
 
 
@@ -631,11 +619,9 @@ def orichalcum_end_turn(ctx: RelicContext) -> None:
 
 @relic_trigger("onPlayerEndTurn", relic="Frozen Core")
 def frozen_core_end_turn(ctx: RelicContext) -> None:
-    """Frozen Core: At end of turn, if no empty orb slots, channel 1 Frost."""
-    # TODO: When orb system implemented, check if slots are full and channel Frost
-    if hasattr(ctx.state, 'orbs') and hasattr(ctx.state, 'max_orb_slots'):
-        if len(ctx.state.orbs) >= ctx.state.max_orb_slots:
-            ctx.channel_orb("Frost")
+    """Frozen Core: At end of turn, if an orb slot is empty, channel 1 Frost."""
+    if ctx.has_empty_orb_slot():
+        ctx.channel_orb("Frost")
 
 
 @relic_trigger("onPlayerEndTurn", relic="StoneCalendar")
@@ -757,15 +743,9 @@ def emotion_chip_hp_lost(ctx: RelicContext) -> None:
 
 @relic_trigger("atTurnStart", relic="Emotion Chip")
 def emotion_chip_turn_start(ctx: RelicContext) -> None:
-    """Emotion Chip: If HP was lost last turn, trigger all orb passives.
-
-    Note: Orb system not fully implemented. This tracks the flag for future use.
-    Java implementation: ImpulseAction triggers onStartOfTurn() and onEndOfTurn()
-    for all orbs (and rightmost orb again if Cables relic is present).
-    """
+    """Emotion Chip: If HP was lost last turn, trigger ImpulseAction behavior."""
     if ctx.get_relic_counter("Emotion Chip", 0) == 1:
-        # TODO: When orb system is implemented, trigger passive of all orbs here
-        # For now, just clear the flag
+        ctx.trigger_orb_start_end(include_cables=True)
         ctx.set_relic_counter("Emotion Chip", 0)
 
 

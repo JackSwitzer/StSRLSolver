@@ -5,7 +5,7 @@ Main branch baseline commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff`
 
 ## Current baseline
 - Command: `uv run pytest tests/ -q`
-- Result: `4663 passed, 5 skipped, 0 failed`
+- Result: `4669 passed, 5 skipped, 0 failed`
 - Active merged parity chain: PRs [#14](https://github.com/JackSwitzer/StSRLSolver/pull/14) to [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25)
 
 ## Source-of-truth references
@@ -29,7 +29,7 @@ Main branch baseline commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff`
 | Relics | `relics/*.java` | `packages/engine/content/relics.py`, `packages/engine/registry/relics.py`, `packages/engine/state/run.py` | partial | Inventory count parity reached; REL-003/004/005/006/007 closed; orb-linked behavior still open (`ORB-001`) |
 | Potions | `potions/*.java` (local class snapshot missing) | `packages/engine/content/potions.py`, `packages/engine/registry/potions.py`, `packages/engine/game.py` | strong | Audited high-priority potion parity slice implemented (selection + RNG paths); Java class inventory restore still needed |
 | Powers | `powers/*.java`, `powers/watcher/*.java` | `packages/engine/content/powers.py`, `packages/engine/registry/powers.py` | partial | Hook-order fixes landed; large inventory gap remains (`149 Java` vs `94 Python`) |
-| Cards | `cards/**/*.java` | `packages/engine/effects/cards.py`, `packages/engine/effects/defect_cards.py` | partial | Broad coverage exists, but long-tail closure is still tracked under `CRD-*` |
+| Cards | `cards/**/*.java` | `packages/engine/effects/cards.py`, `packages/engine/effects/defect_cards.py`, `packages/engine/content/cards.py` | partial | Inventory closure slice `CRD-INV-002` landed (`Discipline`, `Impulse`, `Gash` alias); long-tail behavior closure remains under `CRD-*` |
 | Orbs | `orbs/*.java` + orb-linked relic/power references | `packages/engine/effects/orbs.py`, `packages/engine/registry/relics.py` | open | Core parity blocker for final Defect/power/relic closure (`ORB-001`) |
 | RNG/determinism | Java RNG streams (`card`, `relic`, `potion`, etc.) | `packages/engine/state/game_rng.py`, `packages/engine/game.py` | partial | Stream architecture exists. Phase-0 hardening normalized card/power/effect-context random selection paths; residual callsites remain in relic/potion/orb flows. |
 
@@ -74,7 +74,7 @@ Main branch baseline commit: `0f0c8f415d51676f7d1a42021c0eacc5d61ba3ff`
 ### Structural inventory
 - Test files: `70`
 - Test function definitions: `4086` (static count by `def test_` scan)
-- Baseline pass result: `4663 passed, 5 skipped, 0 failed`
+- Baseline pass result: `4669 passed, 5 skipped, 0 failed`
 
 ### Skip inventory
 - Executed skips in normal run: `5`

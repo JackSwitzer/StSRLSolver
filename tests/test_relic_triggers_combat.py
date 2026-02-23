@@ -30,6 +30,7 @@ from packages.engine.state.combat import (
     create_player,
 )
 from packages.engine.content.cards import ALL_CARDS, CardType, get_card
+from packages.engine.effects.orbs import get_orb_manager, channel_orb
 
 
 # =============================================================================
@@ -571,12 +572,18 @@ class TestRemainingCombatRelics:
     def test_emotion_chip_triggers_on_enemy_death(self):
         """Emotion Chip (Defect): Trigger orb passives on HP loss."""
         state = create_combat_with_relic("Emotion Chip")
+        channel_orb(state, "Dark")
+        manager = get_orb_manager(state)
+        dark_orb = manager.get_first_orb()
+        before = dark_orb.accumulated_damage
 
         execute_relic_triggers("wasHPLost", state, {"hp_lost": 5})
+        execute_relic_triggers("atTurnStart", state)
 
-        # Emotion Chip is Defect-specific
-        assert RELIC_REGISTRY.has_handler("wasHPLost", "Emotion Chip") or True, \
-               "Emotion Chip should trigger orb passives on HP loss"
+        assert RELIC_REGISTRY.has_handler("wasHPLost", "Emotion Chip"), \
+               "Emotion Chip should register HP-loss trigger"
+        assert dark_orb.accumulated_damage >= before + 12, \
+               "Emotion Chip should trigger Impulse-like orb start/end behavior next turn"
 
 
 # =============================================================================
@@ -815,34 +822,26 @@ class TestCombatStartOrbRelics:
     def test_nuclear_battery_channels_plasma_at_start(self):
         """Nuclear Battery: At combat start, channel 1 Plasma orb."""
         state = create_combat_with_relic("Nuclear Battery")
-
-        # Note: Orb system may not be fully implemented yet
-        # This test verifies handler registration and sets up structure
         execute_relic_triggers("atBattleStart", state)
+        manager = get_orb_manager(state)
 
-        # Check handler exists
         assert RELIC_REGISTRY.has_handler("atBattleStart", "Nuclear Battery"), \
                "Nuclear Battery should have atBattleStart handler"
-
-        # When orb system is implemented, check:
-        # assert len(state.player.orbs) >= 1, "Should have channeled at least 1 orb"
-        # assert any(orb.orb_type == "Plasma" for orb in state.player.orbs), \
-        #        "Should have channeled a Plasma orb"
+        assert manager.get_orb_count() == 1, "Nuclear Battery should channel one orb"
+        assert manager.get_first_orb().orb_type.value == "Plasma", \
+            "Nuclear Battery should channel Plasma"
 
     def test_symbiotic_virus_channels_dark_at_start(self):
         """Symbiotic Virus: At combat start, channel 1 Dark orb."""
         state = create_combat_with_relic("Symbiotic Virus")
-
         execute_relic_triggers("atBattleStart", state)
+        manager = get_orb_manager(state)
 
-        # Check handler exists
         assert RELIC_REGISTRY.has_handler("atBattleStart", "Symbiotic Virus"), \
                "Symbiotic Virus should have atBattleStart handler"
-
-        # When orb system is implemented, check:
-        # assert len(state.player.orbs) >= 1, "Should have channeled at least 1 orb"
-        # assert any(orb.orb_type == "Dark" for orb in state.player.orbs), \
-        #        "Should have channeled a Dark orb"
+        assert manager.get_orb_count() == 1, "Symbiotic Virus should channel one orb"
+        assert manager.get_first_orb().orb_type.value == "Dark", \
+            "Symbiotic Virus should channel Dark"
 
 
 # =============================================================================
@@ -872,62 +871,79 @@ class TestTurnBasedCombatRelics:
 
     def test_gold_plated_cables_triggers_rightmost_orb_passive(self):
         """Gold-Plated Cables: At start of turn, if 0 Block, trigger rightmost orb's passive."""
-        state = create_combat_with_relic("Gold-Plated Cables")
+        state = create_combat_with_relic("Cables")
         state.player.block = 0
+        channel_orb(state, "Frost")
         state.turn = 1
+        before = state.player.block
 
         execute_relic_triggers("atTurnStart", state)
 
-        # Check handler exists
         assert RELIC_REGISTRY.has_handler("atTurnStart", "Gold-Plated Cables"), \
                "Gold-Plated Cables should have atTurnStart handler"
-
-        # When orb system is implemented, verify orb passive triggers:
-        # if state.player.orbs:
-        #     rightmost = state.player.orbs[-1]
-        #     assert rightmost.passive_triggered, "Should trigger rightmost orb passive"
+        assert state.player.block >= before + 2, \
+            "Gold-Plated Cables should trigger an extra orb passive at turn start"
 
     def test_gold_plated_cables_doesnt_trigger_with_block(self):
-        """Gold-Plated Cables: Should NOT trigger if player has block."""
-        state = create_combat_with_relic("Gold-Plated Cables")
-        state.player.block = 5  # Has block
+        """Gold-Plated Cables: Extra trigger does not depend on current block."""
+        state = create_combat_with_relic("Cables")
+        state.player.block = 5
+        channel_orb(state, "Frost")
         state.turn = 1
+        before = state.player.block
 
         execute_relic_triggers("atTurnStart", state)
 
-        # When implemented, verify no passive trigger occurred
-        # This test ensures the condition is checked properly
+        assert state.player.block >= before + 2, \
+            "Gold-Plated Cables should trigger even if player already has block"
 
     def test_frozen_core_channels_frost_at_turn_end(self):
-        """Frozen Core: At end of turn, if no empty orb slots, channel 1 Frost."""
-        state = create_combat_with_relic("Frozen Core")
+        """Frozen Core: At end of turn, channel Frost only when an orb slot is empty."""
+        state = create_combat_with_relic("FrozenCore")
         state.turn = 1
+        manager = get_orb_manager(state)
+        # One orb in three slots -> has empty slot, should channel.
+        channel_orb(state, "Lightning")
+        before = manager.get_orb_count()
 
         execute_relic_triggers("onPlayerEndTurn", state)
 
-        # Check handler exists
         assert RELIC_REGISTRY.has_handler("onPlayerEndTurn", "Frozen Core"), \
                "Frozen Core should have onPlayerEndTurn handler"
-
-        # When orb system is implemented:
-        # if len(state.player.orbs) >= state.player.max_orb_slots:
-        #     # Should have channeled Frost (evicting leftmost)
-        #     assert any(orb.orb_type == "Frost" for orb in state.player.orbs), \
-        #            "Should channel Frost when slots full"
+        assert manager.get_orb_count() == before + 1, \
+            "Frozen Core should channel one Frost when there is an empty slot"
+        assert manager.get_last_orb().orb_type.value == "Frost", \
+            "Frozen Core should channel Frost orb"
 
     def test_frozen_core_doesnt_trigger_with_empty_slots(self):
-        """Frozen Core: Should NOT trigger if there are empty orb slots."""
-        state = create_combat_with_relic("Frozen Core")
+        """Frozen Core: Should not channel when all slots are already filled."""
+        state = create_combat_with_relic("FrozenCore")
         state.turn = 1
-
-        # When orb system implemented, set up empty slots:
-        # state.player.max_orb_slots = 3
-        # state.player.orbs = []  # Empty slots available
+        manager = get_orb_manager(state)
+        channel_orb(state, "Lightning")
+        channel_orb(state, "Frost")
+        channel_orb(state, "Dark")
+        before_ids = [orb.orb_type.value for orb in manager.orbs]
 
         execute_relic_triggers("onPlayerEndTurn", state)
 
-        # Should not channel Frost when slots are available
-        # This test ensures the condition check works
+        after_ids = [orb.orb_type.value for orb in manager.orbs]
+        assert after_ids == before_ids, \
+            "Frozen Core should not channel when no empty orb slot exists"
+
+    def test_inserter_increases_orb_slots_every_two_turns(self):
+        """Inserter: gain 1 orb slot every two turns."""
+        state = create_combat_with_relic("Inserter")
+        manager = get_orb_manager(state)
+        initial_slots = manager.max_slots
+
+        execute_relic_triggers("atBattleStart", state)
+        execute_relic_triggers("atTurnStart", state)
+        assert manager.max_slots == initial_slots, "Inserter should not trigger on first turn"
+
+        execute_relic_triggers("atTurnStart", state)
+        assert manager.max_slots == initial_slots + 1, \
+            "Inserter should increase orb slots on second turn"
 
     def test_preserved_insect_reduces_elite_hp_by_25_percent(self):
         """Preserved Insect: Elites have 25% less HP."""
