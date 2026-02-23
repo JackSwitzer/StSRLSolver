@@ -64,6 +64,8 @@ from enum import Enum, auto
 from typing import Optional, Dict, List, Any, Callable
 import math
 
+from .power_inventory_autogen import AUTO_POWER_DATA, AUTO_POWER_ID_ALIASES
+
 
 class PowerType(Enum):
     """Power classification matching AbstractPower.PowerType."""
@@ -1009,6 +1011,34 @@ LOCKON_MULTIPLIER = 1.50
 # =============================================================================
 # POWER FACTORY FUNCTIONS
 # =============================================================================
+def normalize_power_id(power_id: str) -> str:
+    """Normalize power IDs/classes to a canonical alphanumeric token."""
+    normalized = "".join(ch for ch in power_id if ch.isalnum()).lower()
+    if normalized.endswith("power"):
+        normalized = normalized[:-5]
+    return normalized
+
+
+def _hydrate_auto_power_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert auto-generated payloads into POWER_DATA-compatible entries."""
+    hydrated = dict(entry)
+    power_type = hydrated.get("type", PowerType.BUFF)
+    if isinstance(power_type, str):
+        hydrated["type"] = (
+            PowerType[power_type]
+            if power_type in PowerType.__members__
+            else PowerType.BUFF
+        )
+    return hydrated
+
+
+def _merge_auto_power_inventory() -> None:
+    """Merge generated Java inventory supplements without overriding curated rows."""
+    for power_id, entry in AUTO_POWER_DATA.items():
+        POWER_DATA.setdefault(power_id, _hydrate_auto_power_entry(entry))
+
+
+_merge_auto_power_inventory()
 
 # Modern-name aliases for legacy Java IDs.
 # Keep canonical IDs in POWER_DATA; use aliases for lookups only.
@@ -1021,10 +1051,42 @@ POWER_ID_ALIASES = {
     "WraithFormPower": "Wraith Form v2",
 }
 
+# Extend aliases with generated Java class/display mappings.
+for _alias, _target in AUTO_POWER_ID_ALIASES.items():
+    POWER_ID_ALIASES.setdefault(_alias, _target)
+
+
+def _build_normalized_power_index() -> Dict[str, str]:
+    """Build normalized lookup map to canonical POWER_DATA IDs."""
+    buckets: Dict[str, List[str]] = {}
+    for power_id in POWER_DATA:
+        buckets.setdefault(normalize_power_id(power_id), []).append(power_id)
+    # Prefer shortest stable ID where multiple names normalize to same token.
+    return {
+        token: sorted(ids, key=lambda x: (len(x), x.lower(), x))[0]
+        for token, ids in buckets.items()
+    }
+
 
 def resolve_power_id(power_id: str) -> str:
-    """Resolve modern display IDs to canonical Java IDs."""
-    return POWER_ID_ALIASES.get(power_id, power_id)
+    """Resolve runtime power IDs and class-style aliases to canonical IDs."""
+    if power_id in POWER_DATA:
+        return power_id
+
+    alias_target = POWER_ID_ALIASES.get(power_id)
+    if alias_target is not None:
+        return alias_target
+
+    normalized = normalize_power_id(power_id)
+    normalized_alias_target = POWER_ID_ALIASES.get(normalized)
+    if normalized_alias_target is not None:
+        return normalized_alias_target
+
+    normalized_index = _build_normalized_power_index()
+    if normalized in normalized_index:
+        return normalized_index[normalized]
+
+    return power_id
 
 
 def get_power_data(power_id: str) -> Optional[dict]:
@@ -1147,6 +1209,21 @@ class PowerManager:
     has_odd_mushroom: bool = False  # Player vuln only 25% more
     has_paper_frog: bool = False  # Enemy vuln 75% more
 
+    def _find_power_key(self, power_id: str) -> Optional[str]:
+        """Resolve lookup key against stored powers with alias-normalization."""
+        if power_id in self.powers:
+            return power_id
+
+        resolved = resolve_power_id(power_id)
+        if resolved in self.powers:
+            return resolved
+
+        token = normalize_power_id(resolved)
+        for existing in self.powers:
+            if normalize_power_id(existing) == token:
+                return existing
+        return None
+
     def add_power(self, power: Power) -> bool:
         """
         Add or stack a power.
@@ -1175,28 +1252,34 @@ class PowerManager:
 
     def remove_power(self, power_id: str) -> Optional[Power]:
         """Remove a power by ID."""
-        return self.powers.pop(power_id, None)
+        key = self._find_power_key(power_id)
+        if key is None:
+            return None
+        return self.powers.pop(key, None)
 
     def reduce_power(self, power_id: str, amount: int) -> bool:
         """Reduce a power's amount. Returns True if removed."""
-        if power_id not in self.powers:
+        key = self._find_power_key(power_id)
+        if key is None:
             return False
-        if self.powers[power_id].reduce(amount):
-            del self.powers[power_id]
+        if self.powers[key].reduce(amount):
+            del self.powers[key]
             return True
         return False
 
     def get_power(self, power_id: str) -> Optional[Power]:
         """Get a power by ID."""
-        return self.powers.get(power_id)
+        key = self._find_power_key(power_id)
+        return self.powers.get(key) if key is not None else None
 
     def has_power(self, power_id: str) -> bool:
         """Check if creature has a power."""
-        return power_id in self.powers
+        return self._find_power_key(power_id) is not None
 
     def get_amount(self, power_id: str) -> int:
         """Get power amount, or 0 if not present."""
-        power = self.powers.get(power_id)
+        key = self._find_power_key(power_id)
+        power = self.powers.get(key) if key is not None else None
         return power.amount if power else 0
 
     # === Convenience accessors ===
@@ -1405,6 +1488,10 @@ __all__ = [
     "PowerManager",
     # Data
     "POWER_DATA",
+    "POWER_ID_ALIASES",
+    "normalize_power_id",
+    "resolve_power_id",
+    "get_power_data",
     # Constants
     "WEAK_MULTIPLIER",
     "WEAK_MULTIPLIER_PAPER_CRANE",
