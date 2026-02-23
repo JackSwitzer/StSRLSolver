@@ -166,6 +166,10 @@ GameAction = Union[
 # JSON action dictionary shape for agent-facing API.
 ActionDict = Dict[str, Any]
 
+# Non-breaking schema markers for agent/RL contract freezing.
+ACTION_SCHEMA_VERSION = "1.0.0"
+OBSERVATION_SCHEMA_VERSION = "1.0.0"
+
 
 # =============================================================================
 # Decision Log Entry
@@ -1837,6 +1841,8 @@ class GameRunner:
             self.run_state.generate_map_for_act(self.run_state.act)
 
         return {
+            "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
+            "action_schema_version": ACTION_SCHEMA_VERSION,
             "phase": self._phase_to_action_phase(),
             "run": self._build_run_observation(),
             "map": self._build_map_observation(),
