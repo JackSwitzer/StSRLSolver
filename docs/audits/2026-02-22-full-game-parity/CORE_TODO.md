@@ -5,7 +5,7 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4676 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4679 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
@@ -61,7 +61,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ### R5 powers + orbs
 - [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
-- [ ] `POW-001` Java power inventory closure
+- [x] `POW-001` Java power inventory closure
 - [ ] `POW-002` residual hook/timing closure
 - [x] `ORB-001` orb infrastructure for parity-critical behaviors
 - [ ] `POW-003` integration tests
@@ -91,7 +91,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [ ] `AUD-003` RL readiness sign-off
 
 ## Confirmed high-impact open gaps
-- [ ] Power inventory has large class-level residuals (`149` Java vs `94` Python).
+- [ ] Power inventory mapping is closed; hook-order/behavior parity remains open (`POW-002`, `POW-003`).
 - [ ] Engine logic still contains direct Python `random` usage in parity-critical modules (relic/potion/orb long-tail after Phase-0 card/power/context hardening).
 
 ## Policy reminders

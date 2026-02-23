@@ -627,16 +627,54 @@ def execute_power_triggers(hook: str, state: CombatState,
 
     result = trigger_data.get("value")
 
-    # Get powers the owner has
-    owner_powers = set(owner.statuses.keys())
+    try:
+        from ..content.powers import (
+            resolve_power_id as _resolve_power_id,
+            normalize_power_id as _normalize_power_id,
+        )
+    except Exception:
+        def _resolve_power_id(power_id: str) -> str:
+            return power_id
 
-    handlers = POWER_REGISTRY.get_handlers(hook, owner_powers)
+        def _normalize_power_id(power_id: str) -> str:
+            return "".join(ch for ch in power_id if ch.isalnum()).lower()
+
+    def _resolve_owner_power_amount(target_power_id: str) -> Tuple[int, bool]:
+        """Resolve owner power amount using canonical/alias-safe matching."""
+        target_canonical = _resolve_power_id(target_power_id)
+        target_norm = _normalize_power_id(target_canonical)
+
+        amount = 0
+        matched = False
+        for raw_power_id, raw_amount in owner.statuses.items():
+            owner_canonical = _resolve_power_id(raw_power_id)
+            owner_norm = _normalize_power_id(owner_canonical)
+            if owner_canonical == target_canonical or owner_norm == target_norm:
+                amount += raw_amount
+                matched = True
+
+        return amount, matched
+
+    handlers = POWER_REGISTRY.get_handlers(hook)
+    executed_power_keys: Set[str] = set()
 
     for power_id, handler in handlers:
+        power_amount, has_power = _resolve_owner_power_amount(power_id)
+        if not has_power:
+            continue
+
+        canonical_power_id = _resolve_power_id(power_id)
+        canonical_key = _normalize_power_id(canonical_power_id)
+
+        # Multiple aliases may map to same canonical power; trigger once.
+        if canonical_key in executed_power_keys:
+            continue
+        executed_power_keys.add(canonical_key)
+
         ctx = PowerContext(
             state=state,
-            power_id=power_id,
-            amount=owner.statuses.get(power_id, 0),
+            power_id=canonical_power_id,
+            amount=power_amount,
             owner=owner,
             trigger_data=trigger_data,
             card=trigger_data.get("card"),

@@ -36,6 +36,7 @@ from ..calc.damage import (
 )
 from ..content.cards import Card, CardType, CardTarget, get_card, ALL_CARDS
 from ..content.enemies import Enemy, Intent, MoveInfo, EnemyType
+from ..content.powers import resolve_power_id
 from ..registry import execute_relic_triggers, execute_power_triggers, RelicContext
 from ..effects.orbs import trigger_orb_start_of_turn
 
@@ -334,6 +335,14 @@ class CombatRunner:
                 self.state.hand.append(card)
                 drawn.append(card)
 
+                # Power draw hooks (Evolve, Fire Breathing, Corruption, etc.)
+                execute_power_triggers(
+                    "onCardDraw",
+                    self.state,
+                    self.state.player,
+                    {"card_id": card, "card": self._get_card(card)},
+                )
+
                 # Handle Void card (lose 1 energy when drawn)
                 if card == "Void" or card == "Void+":
                     self.state.energy = max(0, self.state.energy - 1)
@@ -348,6 +357,12 @@ class CombatRunner:
                     self.state.card_costs[card] = cost
                 self.state.hand.append(card)
                 drawn.append(card)
+                execute_power_triggers(
+                    "onCardDraw",
+                    self.state,
+                    self.state.player,
+                    {"card_id": card, "card": self._get_card(card)},
+                )
 
         return drawn
 
@@ -395,16 +410,24 @@ class CombatRunner:
         # Execute registry-based atTurnStart triggers (handles counter resets and energy effects)
         execute_relic_triggers("atTurnStart", self.state)
 
+        # Trigger pre-draw start-of-turn effects (powers, energy recharge, orbs).
+        self._trigger_start_of_turn()
+
         # Draw cards (skip on first turn since setup already drew)
-        if not first_turn and not self.state.player.statuses.get("NoDraw", 0) > 0:
+        no_draw = (
+            self.state.player.statuses.get("NoDraw", 0)
+            or self.state.player.statuses.get("No Draw", 0)
+        )
+        if not first_turn and not no_draw > 0:
             draw_count = 5
             # Relics that modify draw
             if self.state.has_relic("Snake Skull"):
                 pass  # Poison-related, not draw
             self._draw_cards(draw_count)
 
-        # Trigger start-of-turn effects
-        self._trigger_start_of_turn()
+        # Trigger post-draw hooks (Java: applyStartOfTurnPostDrawRelics/Powers)
+        execute_relic_triggers("atTurnStartPostDraw", self.state)
+        execute_power_triggers("atStartOfTurnPostDraw", self.state, self.state.player)
 
         self.phase = CombatPhase.PLAYER_TURN
 
@@ -421,13 +444,6 @@ class CombatRunner:
         # Execute onEnergyRecharge power triggers (DevaForm, Energized)
         execute_power_triggers("onEnergyRecharge", self.state, self.state.player)
 
-        # NextTurnBlock power (from Self-Forming Clay) - handled in registry
-        next_turn_block = self.state.player.statuses.get("NextTurnBlock", 0)
-        if next_turn_block > 0:
-            self.state.player.block += next_turn_block
-            self.total_block_gained += next_turn_block
-            del self.state.player.statuses["NextTurnBlock"]
-
         # Defect orb passives trigger each turn start; Cables bonus is handled
         # by the explicit relic trigger.
         trigger_orb_start_of_turn(self.state, include_cables=False)
@@ -442,9 +458,11 @@ class CombatRunner:
 
     def _apply_status(self, target: Union[EntityState, EnemyCombatState], status: str, amount: int):
         """Apply a status effect to target."""
+        resolved_status = resolve_power_id(status)
+
         # Check Artifact
         debuffs = {"Weak", "Vulnerable", "Frail", "Poison", "Constricted"}
-        if status in debuffs:
+        if resolved_status in debuffs:
             artifact = target.statuses.get("Artifact", 0)
             if artifact > 0:
                 target.statuses["Artifact"] = artifact - 1
@@ -452,14 +470,22 @@ class CombatRunner:
                     del target.statuses["Artifact"]
                 return  # Status blocked
 
-        current = target.statuses.get(status, 0)
-        target.statuses[status] = current + amount
+        current = target.statuses.get(resolved_status, 0)
+        target.statuses[resolved_status] = current + amount
 
         # Champion's Belt - when applying Vulnerable, also apply 1 Weak
-        if status == "Vulnerable" and self.state.has_relic("Champion Belt"):
+        if resolved_status == "Vulnerable" and self.state.has_relic("Champion Belt"):
             if isinstance(target, EnemyCombatState):
                 weak_current = target.statuses.get("Weak", 0)
                 target.statuses["Weak"] = weak_current + 1
+
+        # Power application hooks (Sadistic Nature, etc.)
+        trigger_data = {"power_id": resolved_status, "target": target}
+        execute_power_triggers("onApplyPower", self.state, self.state.player, trigger_data)
+        for enemy in self.state.enemies:
+            if enemy.is_dead:
+                continue
+            execute_power_triggers("onApplyPower", self.state, enemy, trigger_data)
 
     def get_legal_actions(self) -> List[Action]:
         """Get all legal actions from current state."""
@@ -570,6 +596,14 @@ class CombatRunner:
         # Clear pending state
         self.state.pending_scry_cards = []
         self.state.pending_scry_selection = False
+
+        # Trigger onScry power hooks (Nirvana).
+        execute_power_triggers(
+            "onScry",
+            self.state,
+            self.state.player,
+            {"cards_scried": len(cards)},
+        )
 
         return {
             "success": True,
@@ -830,14 +864,15 @@ class CombatRunner:
 
     def _calculate_block(self, base: int) -> int:
         """Calculate player block gain."""
-        dexterity = self.state.player.dexterity
-        frail = self.state.player.is_frail
-
-        return calculate_block(
-            base=base,
-            dexterity=dexterity,
-            frail=frail,
+        modified = execute_power_triggers(
+            "modifyBlock",
+            self.state,
+            self.state.player,
+            {"value": float(base)},
         )
+        if modified is None:
+            modified = float(base)
+        return max(0, int(modified))
 
     def _deal_damage_to_enemy(self, enemy: EnemyCombatState, amount: int):
         """Deal damage to an enemy."""
@@ -1129,6 +1164,16 @@ class CombatRunner:
                     if 2 <= final_damage <= 5:
                         final_damage = 1
 
+                # Power damage replacement hook (Buffer, Invincible, etc.)
+                replaced_damage = execute_power_triggers(
+                    "onAttackedToChangeDamage",
+                    self.state,
+                    self.state.player,
+                    {"value": final_damage, "damage_type": "NORMAL"},
+                )
+                if replaced_damage is not None:
+                    final_damage = max(0, int(replaced_damage))
+
                 # Apply to player
                 hp_loss, block_remaining = calculate_incoming_damage(
                     damage=final_damage,
@@ -1136,14 +1181,6 @@ class CombatRunner:
                     is_wrath=is_wrath,
                     vuln=vuln,
                 )
-
-                # Buffer - prevent all damage from first unblocked hit
-                buffer = self.state.player.statuses.get("Buffer", 0)
-                if buffer > 0 and hp_loss > 0:
-                    hp_loss = 0
-                    self.state.player.statuses["Buffer"] = buffer - 1
-                    if self.state.player.statuses["Buffer"] <= 0:
-                        del self.state.player.statuses["Buffer"]
 
                 # Tungsten Rod - reduce HP loss by 1
                 if self.state.has_relic("TungstenRod"):

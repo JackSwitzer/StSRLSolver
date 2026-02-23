@@ -882,17 +882,17 @@ def double_tap_on_attack(ctx: PowerContext) -> None:
 # Start of Turn
 # -----------------------------------------------------------------------------
 
-@power_trigger("atStartOfTurn", power="ToolsOfTheTrade")
+@power_trigger("atStartOfTurnPostDraw", power="ToolsOfTheTrade")
 def tools_of_trade_start(ctx: PowerContext) -> None:
-    """Tools of the Trade: Draw 1 card at start of turn (discard handled after draw)."""
+    """Tools of the Trade: Draw after normal turn draw, then require discard."""
     ctx.draw_cards(1)
     # Mark that discard is needed
     ctx.state.pending_tools_discard = True
 
 
-@power_trigger("atStartOfTurn", power="NextTurnDraw")
+@power_trigger("atStartOfTurnPostDraw", power="NextTurnDraw")
 def next_turn_draw_start(ctx: PowerContext) -> None:
-    """Next Turn Draw: Draw cards, then remove."""
+    """DrawCardNextTurnPower: draw cards post-draw, then remove."""
     ctx.draw_cards(ctx.amount)
     del ctx.player.statuses["NextTurnDraw"]
 
@@ -1007,9 +1007,8 @@ def no_draw_end(ctx: PowerContext) -> None:
     """NoDraw (from Battle Trance): Remove at end of turn."""
     if "NoDraw" in ctx.player.statuses:
         del ctx.player.statuses["NoDraw"]
-    """No Draw: Remove at end of turn (Bullet Time)."""
-    if "NoDraw" in ctx.player.statuses:
-        del ctx.player.statuses["NoDraw"]
+    if "No Draw" in ctx.player.statuses:
+        del ctx.player.statuses["No Draw"]
 
 
 @power_trigger("atEndOfTurn", power="ZeroCostCards")

@@ -1,0 +1,2359 @@
+[
+  {
+    "java_class": "AccuracyPower",
+    "java_hooks_overridden": [],
+    "java_id": "Accuracy",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AccuracyPower.java",
+    "mapping_via": null,
+    "python_power_id": "Accuracy",
+    "python_registry_hooks": [
+      "atDamageGive",
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "AfterImagePower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "After Image",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AfterImagePower.java",
+    "mapping_via": null,
+    "python_power_id": "After Image",
+    "python_registry_hooks": [
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "AmplifyPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Amplify",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java",
+    "mapping_via": null,
+    "python_power_id": "Amplify",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "AngerPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Anger",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AngerPower.java",
+    "mapping_via": null,
+    "python_power_id": "Anger",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "AngryPower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "Angry",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AngryPower.java",
+    "mapping_via": null,
+    "python_power_id": "Angry",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ArtifactPower",
+    "java_hooks_overridden": [],
+    "java_id": "Artifact",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ArtifactPower.java",
+    "mapping_via": null,
+    "python_power_id": "Artifact",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "AttackBurnPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "onUseCard"
+    ],
+    "java_id": "Attack Burn",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AttackBurnPower.java",
+    "mapping_via": "Attack Burn",
+    "python_power_id": "AttackBurn",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "BackAttackPower",
+    "java_hooks_overridden": [],
+    "java_id": "BackAttack",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BackAttackPower.java",
+    "mapping_via": null,
+    "python_power_id": "BackAttack",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "BarricadePower",
+    "java_hooks_overridden": [],
+    "java_id": "Barricade",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BarricadePower.java",
+    "mapping_via": null,
+    "python_power_id": "Barricade",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BattleHymnPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "BattleHymn",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BattleHymnPower.java",
+    "mapping_via": null,
+    "python_power_id": "BattleHymn",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BeatOfDeathPower",
+    "java_hooks_overridden": [
+      "onAfterUseCard"
+    ],
+    "java_id": "BeatOfDeath",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BeatOfDeathPower.java",
+    "mapping_via": null,
+    "python_power_id": "BeatOfDeath",
+    "python_registry_hooks": [
+      "onAfterUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BerserkPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Berserk",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BerserkPower.java",
+    "mapping_via": null,
+    "python_power_id": "Berserk",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BiasPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Bias",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BiasPower.java",
+    "mapping_via": null,
+    "python_power_id": "Bias",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BlockReturnPower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "BlockReturnPower",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java",
+    "mapping_via": null,
+    "python_power_id": "BlockReturnPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "BlurPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Blur",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BlurPower.java",
+    "mapping_via": null,
+    "python_power_id": "Blur",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BrutalityPower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "Brutality",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java",
+    "mapping_via": null,
+    "python_power_id": "Brutality",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BufferPower",
+    "java_hooks_overridden": [
+      "onAttackedToChangeDamage"
+    ],
+    "java_id": "Buffer",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java",
+    "mapping_via": null,
+    "python_power_id": "Buffer",
+    "python_registry_hooks": [
+      "onAttackedToChangeDamage"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "BurstPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Burst",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java",
+    "mapping_via": null,
+    "python_power_id": "Burst",
+    "python_registry_hooks": [
+      "atEndOfTurn",
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "CannotChangeStancePower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "CannotChangeStancePower",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/CannotChangeStancePower.java",
+    "mapping_via": null,
+    "python_power_id": "CannotChangeStancePower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ChokePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Choked",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ChokePower.java",
+    "mapping_via": null,
+    "python_power_id": "Choked",
+    "python_registry_hooks": [
+      "atStartOfTurn",
+      "onUseCard"
+    ],
+    "status": "alias"
+  },
+  {
+    "java_class": "CollectPower",
+    "java_hooks_overridden": [
+      "onEnergyRecharge"
+    ],
+    "java_id": "Collect",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java",
+    "mapping_via": null,
+    "python_power_id": "Collect",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "CombustPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Combust",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CombustPower.java",
+    "mapping_via": null,
+    "python_power_id": "Combust",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "ConfusionPower",
+    "java_hooks_overridden": [
+      "onCardDraw"
+    ],
+    "java_id": "Confusion",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": 0,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java",
+    "mapping_via": null,
+    "python_power_id": "Confusion",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ConservePower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Conserve",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ConservePower.java",
+    "mapping_via": null,
+    "python_power_id": "Conserve",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ConstrictedPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Constricted",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": 105,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ConstrictedPower.java",
+    "mapping_via": null,
+    "python_power_id": "Constricted",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "CorpseExplosionPower",
+    "java_hooks_overridden": [
+      "onDeath"
+    ],
+    "java_id": "CorpseExplosionPower",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CorpseExplosionPower.java",
+    "mapping_via": "CorpseExplosionPower",
+    "python_power_id": "CorpseExplosion",
+    "python_registry_hooks": [
+      "onDeath"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "CorruptionPower",
+    "java_hooks_overridden": [
+      "onCardDraw",
+      "onUseCard"
+    ],
+    "java_id": "Corruption",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CorruptionPower.java",
+    "mapping_via": null,
+    "python_power_id": "Corruption",
+    "python_registry_hooks": [
+      "onCardDraw",
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "CreativeAIPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Creative AI",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CreativeAIPower.java",
+    "mapping_via": null,
+    "python_power_id": "Creative AI",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "CuriosityPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Curiosity",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CuriosityPower.java",
+    "mapping_via": null,
+    "python_power_id": "Curiosity",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "CurlUpPower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "Curl Up",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CurlUpPower.java",
+    "mapping_via": "Curl Up",
+    "python_power_id": "CurlUp",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "DarkEmbracePower",
+    "java_hooks_overridden": [
+      "onExhaust"
+    ],
+    "java_id": "Dark Embrace",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DarkEmbracePower.java",
+    "mapping_via": null,
+    "python_power_id": "Dark Embrace",
+    "python_registry_hooks": [
+      "onExhaust"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "DemonFormPower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "Demon Form",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DemonFormPower.java",
+    "mapping_via": null,
+    "python_power_id": "Demon Form",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "DevaPower",
+    "java_hooks_overridden": [
+      "onEnergyRecharge"
+    ],
+    "java_id": "DevaForm",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java",
+    "mapping_via": null,
+    "python_power_id": "DevaForm",
+    "python_registry_hooks": [
+      "onEnergyRecharge"
+    ],
+    "status": "alias"
+  },
+  {
+    "java_class": "DevotionPower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "DevotionPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevotionPower.java",
+    "mapping_via": null,
+    "python_power_id": "DevotionPower",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "DexterityPower",
+    "java_hooks_overridden": [
+      "modifyBlock"
+    ],
+    "java_id": "Dexterity",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java",
+    "mapping_via": null,
+    "python_power_id": "Dexterity",
+    "python_registry_hooks": [
+      "modifyBlock"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "DoubleDamagePower",
+    "java_hooks_overridden": [
+      "atDamageGive",
+      "atEndOfRound"
+    ],
+    "java_id": "Double Damage",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": 6,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DoubleDamagePower.java",
+    "mapping_via": null,
+    "python_power_id": "Double Damage",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "DoubleTapPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Double Tap",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DoubleTapPower.java",
+    "mapping_via": null,
+    "python_power_id": "Double Tap",
+    "python_registry_hooks": [
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "DrawCardNextTurnPower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "Draw Card",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 20,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java",
+    "mapping_via": "Draw Card",
+    "python_power_id": "DrawCardNextTurn",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "DrawPower",
+    "java_hooks_overridden": [],
+    "java_id": "Draw",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DrawPower.java",
+    "mapping_via": null,
+    "python_power_id": "Draw",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "DrawReductionPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Draw Reduction",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DrawReductionPower.java",
+    "mapping_via": null,
+    "python_power_id": "Draw Reduction",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "DuplicationPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "onUseCard"
+    ],
+    "java_id": "DuplicationPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java",
+    "mapping_via": "DuplicationPower",
+    "python_power_id": "Duplication",
+    "python_registry_hooks": [
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "EchoPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Echo Form",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java",
+    "mapping_via": null,
+    "python_power_id": "Echo Form",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "ElectroPower",
+    "java_hooks_overridden": [],
+    "java_id": "Electro",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ElectroPower.java",
+    "mapping_via": null,
+    "python_power_id": "Electro",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EndTurnDeathPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "EndTurnDeath",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EndTurnDeathPower.java",
+    "mapping_via": null,
+    "python_power_id": "EndTurnDeath",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EnergizedBluePower",
+    "java_hooks_overridden": [
+      "onEnergyRecharge"
+    ],
+    "java_id": "EnergizedBlue",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java",
+    "mapping_via": null,
+    "python_power_id": "EnergizedBlue",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EnergizedPower",
+    "java_hooks_overridden": [
+      "onEnergyRecharge"
+    ],
+    "java_id": "Energized",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java",
+    "mapping_via": null,
+    "python_power_id": "Energized",
+    "python_registry_hooks": [
+      "onEnergyRecharge"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "EnergyDownPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "EnergyDownPower",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EnergyDownPower.java",
+    "mapping_via": "EnergyDownPower",
+    "python_power_id": "EnergyDown",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EntanglePower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Entangled",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EntanglePower.java",
+    "mapping_via": null,
+    "python_power_id": "Entangled",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "EnvenomPower",
+    "java_hooks_overridden": [
+      "onAttack"
+    ],
+    "java_id": "Envenom",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EnvenomPower.java",
+    "mapping_via": null,
+    "python_power_id": "Envenom",
+    "python_registry_hooks": [
+      "onAttack"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "EquilibriumPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "atEndOfTurn"
+    ],
+    "java_id": "Equilibrium",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EquilibriumPower.java",
+    "mapping_via": null,
+    "python_power_id": "Equilibrium",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EstablishmentPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "EstablishmentPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 25,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EstablishmentPower.java",
+    "mapping_via": null,
+    "python_power_id": "EstablishmentPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "EvolvePower",
+    "java_hooks_overridden": [
+      "onCardDraw"
+    ],
+    "java_id": "Evolve",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/EvolvePower.java",
+    "mapping_via": null,
+    "python_power_id": "Evolve",
+    "python_registry_hooks": [
+      "onCardDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "ExplosivePower",
+    "java_hooks_overridden": [],
+    "java_id": "Explosive",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ExplosivePower.java",
+    "mapping_via": null,
+    "python_power_id": "Explosive",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "FadingPower",
+    "java_hooks_overridden": [],
+    "java_id": "Fading",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FadingPower.java",
+    "mapping_via": null,
+    "python_power_id": "Fading",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "FeelNoPainPower",
+    "java_hooks_overridden": [
+      "onExhaust"
+    ],
+    "java_id": "Feel No Pain",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FeelNoPainPower.java",
+    "mapping_via": null,
+    "python_power_id": "Feel No Pain",
+    "python_registry_hooks": [
+      "onExhaust"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "FireBreathingPower",
+    "java_hooks_overridden": [
+      "onCardDraw"
+    ],
+    "java_id": "Fire Breathing",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FireBreathingPower.java",
+    "mapping_via": null,
+    "python_power_id": "Fire Breathing",
+    "python_registry_hooks": [
+      "onCardDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "FlameBarrierPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onAttacked"
+    ],
+    "java_id": "Flame Barrier",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FlameBarrierPower.java",
+    "mapping_via": null,
+    "python_power_id": "Flame Barrier",
+    "python_registry_hooks": [
+      "atStartOfTurn",
+      "onAttacked"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "FlightPower",
+    "java_hooks_overridden": [
+      "atDamageFinalReceive",
+      "atStartOfTurn",
+      "onAttacked"
+    ],
+    "java_id": "Flight",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 50,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java",
+    "mapping_via": null,
+    "python_power_id": "Flight",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "FocusPower",
+    "java_hooks_overridden": [],
+    "java_id": "Focus",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FocusPower.java",
+    "mapping_via": null,
+    "python_power_id": "Focus",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ForcefieldPower",
+    "java_hooks_overridden": [
+      "atDamageFinalReceive"
+    ],
+    "java_id": "Nullify Attack",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ForcefieldPower.java",
+    "mapping_via": "Nullify Attack",
+    "python_power_id": "Forcefield",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ForesightPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "WireheadingPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/ForesightPower.java",
+    "mapping_via": null,
+    "python_power_id": "WireheadingPower",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "FrailPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "modifyBlock"
+    ],
+    "java_id": "Frail",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": 10,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/FrailPower.java",
+    "mapping_via": null,
+    "python_power_id": "Frail",
+    "python_registry_hooks": [
+      "atEndOfRound",
+      "modifyBlock"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "FreeAttackPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "FreeAttackPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java",
+    "mapping_via": null,
+    "python_power_id": "FreeAttackPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "GainStrengthPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Shackled",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/GainStrengthPower.java",
+    "mapping_via": "Shackled",
+    "python_power_id": "GainStrength",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "GenericStrengthUpPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Generic Strength Up Power",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/GenericStrengthUpPower.java",
+    "mapping_via": "Generic Strength Up Power",
+    "python_power_id": "GenericStrengthUp",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "GrowthPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "GrowthPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/GrowthPower.java",
+    "mapping_via": null,
+    "python_power_id": "GrowthPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "HeatsinkPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Heatsink",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java",
+    "mapping_via": null,
+    "python_power_id": "Heatsink",
+    "python_registry_hooks": [
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "HelloPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Hello",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/HelloPower.java",
+    "mapping_via": null,
+    "python_power_id": "Hello",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "HexPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Hex",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/HexPower.java",
+    "mapping_via": null,
+    "python_power_id": "Hex",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "InfiniteBladesPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Infinite Blades",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/InfiniteBladesPower.java",
+    "mapping_via": null,
+    "python_power_id": "Infinite Blades",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "IntangiblePlayerPower",
+    "java_hooks_overridden": [
+      "atDamageFinalReceive",
+      "atEndOfRound"
+    ],
+    "java_id": "IntangiblePlayer",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 75,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/IntangiblePlayerPower.java",
+    "mapping_via": null,
+    "python_power_id": "IntangiblePlayer",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "IntangiblePower",
+    "java_hooks_overridden": [
+      "atDamageFinalReceive",
+      "atEndOfTurn"
+    ],
+    "java_id": "Intangible",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 75,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/IntangiblePower.java",
+    "mapping_via": null,
+    "python_power_id": "Intangible",
+    "python_registry_hooks": [
+      "atDamageFinalReceive",
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "InvinciblePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onAttackedToChangeDamage"
+    ],
+    "java_id": "Invincible",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 99,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/InvinciblePower.java",
+    "mapping_via": null,
+    "python_power_id": "Invincible",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "JuggernautPower",
+    "java_hooks_overridden": [],
+    "java_id": "Juggernaut",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/JuggernautPower.java",
+    "mapping_via": null,
+    "python_power_id": "Juggernaut",
+    "python_registry_hooks": [
+      "onGainBlock"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "LightningMasteryPower",
+    "java_hooks_overridden": [],
+    "java_id": "Lightning Mastery",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/LightningMasteryPower.java",
+    "mapping_via": "Lightning Mastery",
+    "python_power_id": "LightningMastery",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "LikeWaterPower",
+    "java_hooks_overridden": [
+      "atEndOfTurnPreEndTurnCards"
+    ],
+    "java_id": "LikeWaterPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java",
+    "mapping_via": null,
+    "python_power_id": "LikeWaterPower",
+    "python_registry_hooks": [
+      "atEndOfTurnPreEndTurnCards"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "LiveForeverPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "AngelForm",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LiveForeverPower.java",
+    "mapping_via": "AngelForm",
+    "python_power_id": "LiveForever",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "LockOnPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Lockon",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/LockOnPower.java",
+    "mapping_via": null,
+    "python_power_id": "Lockon",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "LoopPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Loop",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/LoopPower.java",
+    "mapping_via": null,
+    "python_power_id": "Loop",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "LoseDexterityPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "DexLoss",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/LoseDexterityPower.java",
+    "mapping_via": "DexLoss",
+    "python_power_id": "LoseDexterity",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "LoseStrengthPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Flex",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/LoseStrengthPower.java",
+    "mapping_via": null,
+    "python_power_id": "Flex",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "MagnetismPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Magnetism",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MagnetismPower.java",
+    "mapping_via": null,
+    "python_power_id": "Magnetism",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "MalleablePower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "atEndOfTurn",
+      "onAttacked"
+    ],
+    "java_id": "Malleable",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java",
+    "mapping_via": null,
+    "python_power_id": "Malleable",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "MantraPower",
+    "java_hooks_overridden": [],
+    "java_id": "Mantra",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MantraPower.java",
+    "mapping_via": null,
+    "python_power_id": "Mantra",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "MarkPower",
+    "java_hooks_overridden": [],
+    "java_id": "PathToVictoryPower",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MarkPower.java",
+    "mapping_via": null,
+    "python_power_id": "PathToVictoryPower",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "MasterRealityPower",
+    "java_hooks_overridden": [],
+    "java_id": "MasterRealityPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MasterRealityPower.java",
+    "mapping_via": null,
+    "python_power_id": "MasterRealityPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "MayhemPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Mayhem",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MayhemPower.java",
+    "mapping_via": null,
+    "python_power_id": "Mayhem",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "MentalFortressPower",
+    "java_hooks_overridden": [
+      "onChangeStance"
+    ],
+    "java_id": "Controlled",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MentalFortressPower.java",
+    "mapping_via": null,
+    "python_power_id": "Controlled",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "MetallicizePower",
+    "java_hooks_overridden": [
+      "atEndOfTurnPreEndTurnCards"
+    ],
+    "java_id": "Metallicize",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MetallicizePower.java",
+    "mapping_via": null,
+    "python_power_id": "Metallicize",
+    "python_registry_hooks": [
+      "atEndOfTurnPreEndTurnCards"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "MinionPower",
+    "java_hooks_overridden": [],
+    "java_id": "Minion",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/MinionPower.java",
+    "mapping_via": null,
+    "python_power_id": "Minion",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ModeShiftPower",
+    "java_hooks_overridden": [],
+    "java_id": "Mode Shift",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ModeShiftPower.java",
+    "mapping_via": null,
+    "python_power_id": "Mode Shift",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "NextTurnBlockPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Next Turn Block",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NextTurnBlockPower.java",
+    "mapping_via": "Next Turn Block",
+    "python_power_id": "NextTurnBlock",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "NightmarePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Night Terror",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java",
+    "mapping_via": "Night Terror",
+    "python_power_id": "Nightmare",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "NirvanaPower",
+    "java_hooks_overridden": [
+      "onScry"
+    ],
+    "java_id": "Nirvana",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/NirvanaPower.java",
+    "mapping_via": null,
+    "python_power_id": "Nirvana",
+    "python_registry_hooks": [
+      "onScry"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "NoBlockPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "NoBlockPower",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java",
+    "mapping_via": null,
+    "python_power_id": "NoBlockPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "NoDrawPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "No Draw",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java",
+    "mapping_via": null,
+    "python_power_id": "No Draw",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "NoSkillsPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "NoSkills",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/NoSkillsPower.java",
+    "mapping_via": null,
+    "python_power_id": "NoSkills",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "NoxiousFumesPower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "Noxious Fumes",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java",
+    "mapping_via": null,
+    "python_power_id": "Noxious Fumes",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "OmegaPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "OmegaPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java",
+    "mapping_via": null,
+    "python_power_id": "OmegaPower",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "OmnisciencePower",
+    "java_hooks_overridden": [],
+    "java_id": "OmnisciencePower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmnisciencePower.java",
+    "mapping_via": "OmnisciencePower",
+    "python_power_id": "Omniscience",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "PainfulStabsPower",
+    "java_hooks_overridden": [],
+    "java_id": "Painful Stabs",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java",
+    "mapping_via": "Painful Stabs",
+    "python_power_id": "PainfulStabs",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "PanachePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Panache",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PanachePower.java",
+    "mapping_via": null,
+    "python_power_id": "Panache",
+    "python_registry_hooks": [
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "PenNibPower",
+    "java_hooks_overridden": [
+      "atDamageGive",
+      "onUseCard"
+    ],
+    "java_id": "Pen Nib",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": 6,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PenNibPower.java",
+    "mapping_via": null,
+    "python_power_id": "Pen Nib",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "PhantasmalPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Phantasmal",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PhantasmalPower.java",
+    "mapping_via": null,
+    "python_power_id": "Phantasmal",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "PlatedArmorPower",
+    "java_hooks_overridden": [
+      "atEndOfTurnPreEndTurnCards",
+      "wasHPLost"
+    ],
+    "java_id": "Plated Armor",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PlatedArmorPower.java",
+    "mapping_via": null,
+    "python_power_id": "Plated Armor",
+    "python_registry_hooks": [
+      "atEndOfTurnPreEndTurnCards",
+      "wasHPLost"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "PoisonPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Poison",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java",
+    "mapping_via": null,
+    "python_power_id": "Poison",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "RagePower",
+    "java_hooks_overridden": [
+      "atEndOfTurn",
+      "onUseCard"
+    ],
+    "java_id": "Rage",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RagePower.java",
+    "mapping_via": null,
+    "python_power_id": "Rage",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw",
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "ReactivePower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "Compulsive",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 50,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ReactivePower.java",
+    "mapping_via": "Compulsive",
+    "python_power_id": "Reactive",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ReboundPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn",
+      "onAfterUseCard"
+    ],
+    "java_id": "Rebound",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java",
+    "mapping_via": null,
+    "python_power_id": "Rebound",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "RechargingCorePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "RechargingCore",
+    "java_is_turn_based": true,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RechargingCorePower.java",
+    "mapping_via": null,
+    "python_power_id": "RechargingCore",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "RegenPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Regeneration",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RegenPower.java",
+    "mapping_via": null,
+    "python_power_id": "Regeneration",
+    "python_registry_hooks": [
+      "atStartOfTurn"
+    ],
+    "status": "alias"
+  },
+  {
+    "java_class": "RegenerateMonsterPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Regenerate",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RegenerateMonsterPower.java",
+    "mapping_via": "Regenerate",
+    "python_power_id": "RegenerateMonster",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "RegrowPower",
+    "java_hooks_overridden": [],
+    "java_id": "Life Link",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RegrowPower.java",
+    "mapping_via": null,
+    "python_power_id": "Life Link",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "RepairPower",
+    "java_hooks_overridden": [],
+    "java_id": "Repair",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java",
+    "mapping_via": null,
+    "python_power_id": "Repair",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ResurrectPower",
+    "java_hooks_overridden": [],
+    "java_id": "Life Link",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ResurrectPower.java",
+    "mapping_via": null,
+    "python_power_id": "Life Link",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "RetainCardPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Retain Cards",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java",
+    "mapping_via": null,
+    "python_power_id": "Retain Cards",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "RitualPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "atEndOfTurn"
+    ],
+    "java_id": "Ritual",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RitualPower.java",
+    "mapping_via": null,
+    "python_power_id": "Ritual",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "RupturePower",
+    "java_hooks_overridden": [
+      "wasHPLost"
+    ],
+    "java_id": "Rupture",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java",
+    "mapping_via": null,
+    "python_power_id": "Rupture",
+    "python_registry_hooks": [
+      "wasHPLost"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "RushdownPower",
+    "java_hooks_overridden": [
+      "onChangeStance"
+    ],
+    "java_id": "Adaptation",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/RushdownPower.java",
+    "mapping_via": null,
+    "python_power_id": "Adaptation",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "SadisticPower",
+    "java_hooks_overridden": [
+      "onApplyPower"
+    ],
+    "java_id": "Sadistic",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java",
+    "mapping_via": null,
+    "python_power_id": "Sadistic",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "SharpHidePower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Sharp Hide",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SharpHidePower.java",
+    "mapping_via": "Sharp Hide",
+    "python_power_id": "SharpHide",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ShiftingPower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "Shifting",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java",
+    "mapping_via": null,
+    "python_power_id": "Shifting",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "SkillBurnPower",
+    "java_hooks_overridden": [
+      "atEndOfRound",
+      "onUseCard"
+    ],
+    "java_id": "Skill Burn",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SkillBurnPower.java",
+    "mapping_via": "Skill Burn",
+    "python_power_id": "SkillBurn",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "SlowPower",
+    "java_hooks_overridden": [
+      "atDamageReceive",
+      "atEndOfRound",
+      "onAfterUseCard"
+    ],
+    "java_id": "Slow",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java",
+    "mapping_via": null,
+    "python_power_id": "Slow",
+    "python_registry_hooks": [
+      "atDamageReceive",
+      "atEndOfRound",
+      "onAfterUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "SplitPower",
+    "java_hooks_overridden": [],
+    "java_id": "Split",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SplitPower.java",
+    "mapping_via": null,
+    "python_power_id": "Split",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "SporeCloudPower",
+    "java_hooks_overridden": [
+      "onDeath"
+    ],
+    "java_id": "Spore Cloud",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SporeCloudPower.java",
+    "mapping_via": "Spore Cloud",
+    "python_power_id": "SporeCloud",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "StasisPower",
+    "java_hooks_overridden": [
+      "onDeath"
+    ],
+    "java_id": "Stasis",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java",
+    "mapping_via": null,
+    "python_power_id": "Stasis",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "StaticDischargePower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "StaticDischarge",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java",
+    "mapping_via": "StaticDischarge",
+    "python_power_id": "Static Discharge",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "StormPower",
+    "java_hooks_overridden": [
+      "onUseCard"
+    ],
+    "java_id": "Storm",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/StormPower.java",
+    "mapping_via": null,
+    "python_power_id": "Storm",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "StrengthPower",
+    "java_hooks_overridden": [
+      "atDamageGive"
+    ],
+    "java_id": "Strength",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/StrengthPower.java",
+    "mapping_via": null,
+    "python_power_id": "Strength",
+    "python_registry_hooks": [
+      "atDamageGive"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "StrikeUpPower",
+    "java_hooks_overridden": [],
+    "java_id": "StrikeUp",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/StrikeUpPower.java",
+    "mapping_via": null,
+    "python_power_id": "StrikeUp",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "StudyPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Study",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/StudyPower.java",
+    "mapping_via": null,
+    "python_power_id": "Study",
+    "python_registry_hooks": [
+      "atEndOfTurn"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "SurroundedPower",
+    "java_hooks_overridden": [],
+    "java_id": "Surrounded",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/SurroundedPower.java",
+    "mapping_via": null,
+    "python_power_id": "Surrounded",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "TheBombPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "TheBomb",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java",
+    "mapping_via": null,
+    "python_power_id": "TheBomb",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ThieveryPower",
+    "java_hooks_overridden": [],
+    "java_id": "Thievery",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ThieveryPower.java",
+    "mapping_via": null,
+    "python_power_id": "Thievery",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "ThornsPower",
+    "java_hooks_overridden": [
+      "onAttacked"
+    ],
+    "java_id": "Thorns",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java",
+    "mapping_via": null,
+    "python_power_id": "Thorns",
+    "python_registry_hooks": [
+      "onAttack"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "ThousandCutsPower",
+    "java_hooks_overridden": [
+      "onAfterCardPlayed"
+    ],
+    "java_id": "Thousand Cuts",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ThousandCutsPower.java",
+    "mapping_via": null,
+    "python_power_id": "Thousand Cuts",
+    "python_registry_hooks": [
+      "onAfterCardPlayed"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "TimeMazePower",
+    "java_hooks_overridden": [
+      "atStartOfTurn",
+      "onAfterUseCard"
+    ],
+    "java_id": "TimeMazePower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/TimeMazePower.java",
+    "mapping_via": "TimeMazePower",
+    "python_power_id": "TimeMaze",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "TimeWarpPower",
+    "java_hooks_overridden": [
+      "onAfterUseCard"
+    ],
+    "java_id": "Time Warp",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/TimeWarpPower.java",
+    "mapping_via": null,
+    "python_power_id": "Time Warp",
+    "python_registry_hooks": [
+      "onAfterUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "ToolsOfTheTradePower",
+    "java_hooks_overridden": [
+      "atStartOfTurnPostDraw"
+    ],
+    "java_id": "Tools Of The Trade",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": 25,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/ToolsOfTheTradePower.java",
+    "mapping_via": "Tools Of The Trade",
+    "python_power_id": "ToolsOfTheTrade",
+    "python_registry_hooks": [
+      "atStartOfTurnPostDraw"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "UnawakenedPower",
+    "java_hooks_overridden": [],
+    "java_id": "Unawakened",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/UnawakenedPower.java",
+    "mapping_via": null,
+    "python_power_id": "Unawakened",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "VaultPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "Vault",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/VaultPower.java",
+    "mapping_via": null,
+    "python_power_id": "Vault",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "VigorPower",
+    "java_hooks_overridden": [
+      "atDamageGive",
+      "onUseCard"
+    ],
+    "java_id": "Vigor",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/VigorPower.java",
+    "mapping_via": null,
+    "python_power_id": "Vigor",
+    "python_registry_hooks": [
+      "atDamageGive",
+      "onUseCard"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "VulnerablePower",
+    "java_hooks_overridden": [
+      "atDamageReceive",
+      "atEndOfRound"
+    ],
+    "java_id": "Vulnerable",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/VulnerablePower.java",
+    "mapping_via": null,
+    "python_power_id": "Vulnerable",
+    "python_registry_hooks": [
+      "atDamageReceive",
+      "atEndOfRound"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "WaveOfTheHandPower",
+    "java_hooks_overridden": [
+      "atEndOfRound"
+    ],
+    "java_id": "WaveOfTheHandPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WaveOfTheHandPower.java",
+    "mapping_via": null,
+    "python_power_id": "WaveOfTheHandPower",
+    "python_registry_hooks": [
+      "onGainBlock"
+    ],
+    "status": "exact"
+  },
+  {
+    "java_class": "WeakPower",
+    "java_hooks_overridden": [
+      "atDamageGive",
+      "atEndOfRound"
+    ],
+    "java_id": "Weakened",
+    "java_is_turn_based": true,
+    "java_power_type": "DEBUFF",
+    "java_priority": 99,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/WeakPower.java",
+    "mapping_via": null,
+    "python_power_id": "Weakened",
+    "python_registry_hooks": [
+      "atDamageGive",
+      "atEndOfRound"
+    ],
+    "status": "alias"
+  },
+  {
+    "java_class": "WinterPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "Winter",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/WinterPower.java",
+    "mapping_via": null,
+    "python_power_id": "Winter",
+    "python_registry_hooks": [],
+    "status": "exact"
+  },
+  {
+    "java_class": "WraithFormPower",
+    "java_hooks_overridden": [
+      "atEndOfTurn"
+    ],
+    "java_id": "Wraith Form v2",
+    "java_is_turn_based": false,
+    "java_power_type": "DEBUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java",
+    "mapping_via": null,
+    "python_power_id": "Wraith Form v2",
+    "python_registry_hooks": [],
+    "status": "alias"
+  },
+  {
+    "java_class": "WrathNextTurnPower",
+    "java_hooks_overridden": [
+      "atStartOfTurn"
+    ],
+    "java_id": "WrathNextTurnPower",
+    "java_is_turn_based": false,
+    "java_power_type": "BUFF",
+    "java_priority": null,
+    "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java",
+    "mapping_via": null,
+    "python_power_id": "WrathNextTurnPower",
+    "python_registry_hooks": [],
+    "status": "exact"
+  }
+]

@@ -4,7 +4,7 @@ Last updated: 2026-02-23
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4676 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4679 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
@@ -35,7 +35,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 
 ### P1: Java inventory parity and correctness
 - [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
-- [ ] `POW-001` Java power inventory closure (149 Java classes vs 94 Python entries; 69 normalized missing candidates).
+- [x] `POW-001` Java power inventory closure (149 Java classes mapped; `exact=134`, `alias=15`, `missing=0` via manifest audit).
 - [x] `ORB-001` orb runtime/relic closure (`Cables`, `Frozen Core`, `Emotion Chip`, `Inserter`, `Nuclear Battery`, `Symbiotic Virus`) with deterministic start-turn wiring and RNG ownership.
 - [ ] `CONS-001` finish deterministic RNG normalization in remaining parity-critical runtime paths (relic/potion/orb).
 - [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
@@ -74,7 +74,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `CRD-IC-*`, `CRD-SI-*`, `CRD-WA-*`, `CRD-SH-*` closure.
 
 ### R5: Powers + orbs closure
-- [ ] `POW-001` power inventory closure with Java references.
+- [x] `POW-001` power inventory closure with Java references.
 - [ ] `POW-002` remaining hook/timing parity fixes.
 - [x] `ORB-001` orb infrastructure required for relic/power parity.
 - [ ] `POW-003` power/orb/relic integration tests.
@@ -89,7 +89,8 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 - [ ] `AUD-003` RL readiness sign-off.
 
 ## Immediate next commit queue
-1. `POW-001` Java power inventory closure and per-class manifest rows.
+1. `POW-002` complete runtime dispatch/hook-order closure across both combat runtimes.
+2. `POW-003` add hook-order + cross-system integration tests and determinism locks.
 
 ## Working loop (must follow)
 1. Pick next `feature_id` from queue.

@@ -6,8 +6,17 @@
 ## Action tags
 Use explicit signatures on each item (see `granular-actions.md`).
 
+## 2026-02-23 POW closure status
+- [x] `POW-001` deterministic Java-vs-Python per-class manifest generated (`docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.json`).
+- [x] `POW-001` inventory mapping closed: 149 Java classes map to Python (`exact=134`, `alias=15`, `missing=0`).
+- [x] Canonicalization layer added (`normalize_power_id`, expanded alias map, inventory auto-merge from `power_inventory_autogen.py`).
+- [x] Runtime dispatch coverage added for high-priority gaps: `atStartOfTurnPostDraw`, `onCardDraw`, `onApplyPower`, `onScry`, `onAttackedToChangeDamage`.
+- [x] New audit tests added: `tests/test_audit_power_manifest.py`.
+- [ ] `POW-002` remaining hook-order/behavior exactness for long-tail powers.
+- [ ] `POW-003` cross-system integration lock (powers + relics + orbs + cards) beyond current coverage.
+
 ## System / Shared
-- [ ] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
+- [x] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
 - [ ] Slow - atDamageReceive, onAfterUseCard, atEndOfRound reset. (action: none{})
 - [ ] Lock-On - orb damage modifier, atEndOfRound decrement. (action: none{})
 - [ ] NoBlockPower - modifyBlockLast hook. (action: none{})
