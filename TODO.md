@@ -1,10 +1,10 @@
 # Full-Game Java Parity + RL Readiness TODO
 
-Last updated: 2026-02-22
+Last updated: 2026-02-23
 Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity-core-loop`
 
 ## Current baseline (verified)
-- [x] Full test suite green: `4669 passed, 5 skipped, 0 failed`.
+- [x] Full test suite green: `4676 passed, 5 skipped, 0 failed`.
 - [x] Skip source is isolated to artifact-dependent replay checks in `tests/test_parity.py`.
 - [x] Canonical parity audit suite exists under `docs/audits/2026-02-22-full-game-parity/`.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
@@ -36,7 +36,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### P1: Java inventory parity and correctness
 - [x] `REL-006` relic ID normalization + missing Java IDs (`Toolbox` closed).
 - [ ] `POW-001` Java power inventory closure (149 Java classes vs 94 Python entries; 69 normalized missing candidates).
-- [ ] `ORB-001` remove placeholder orb-linked relic behavior in `packages/engine/registry/relics.py`.
+- [x] `ORB-001` orb runtime/relic closure (`Cables`, `Frozen Core`, `Emotion Chip`, `Inserter`, `Nuclear Battery`, `Symbiotic Virus`) with deterministic start-turn wiring and RNG ownership.
 - [ ] `CONS-001` finish deterministic RNG normalization in remaining parity-critical runtime paths (relic/potion/orb).
 - [ ] Convert audit tests that currently "document known bug" into parity assertions after fixes.
 
@@ -76,7 +76,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL-worktrees/parity
 ### R5: Powers + orbs closure
 - [ ] `POW-001` power inventory closure with Java references.
 - [ ] `POW-002` remaining hook/timing parity fixes.
-- [ ] `ORB-001` orb infrastructure required for relic/power parity.
+- [x] `ORB-001` orb infrastructure required for relic/power parity.
 - [ ] `POW-003` power/orb/relic integration tests.
 - [ ] `CONS-001B` remaining deterministic RNG normalization in relic/potion/orb paths.
 

@@ -1,6 +1,6 @@
 # Test Baseline
 
-Date: 2026-02-22
+Date: 2026-02-23
 
 ## Full suite baseline
 Command:
@@ -9,11 +9,11 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4669 passed`
+- `4676 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified on working `main` after `CRD-INV-002` card inventory closure slice.
+Re-verified after `ORB-001` closure (orb runtime + orb-linked relic parity wiring).
 
 ## Structural inventory
 - Test files: `70`

@@ -228,6 +228,68 @@ class BaseContext:
         if amount > 0:
             self.state.energy += amount
 
+    def get_orb_manager(self):
+        """Get the combat orb manager, creating it if needed."""
+        from ..effects.orbs import get_orb_manager
+        return get_orb_manager(self.state)
+
+    def channel_orb(self, orb_type: str) -> Dict[str, Any]:
+        """Channel an orb by type."""
+        from ..effects.orbs import channel_orb
+        return channel_orb(self.state, orb_type)
+
+    def channel_random_orb(self) -> Dict[str, Any]:
+        """Channel a random orb."""
+        from ..effects.orbs import channel_random_orb
+        return channel_random_orb(self.state)
+
+    def trigger_orb_passives(self) -> Dict[str, Any]:
+        """Trigger all orb passives once."""
+        from ..effects.orbs import trigger_orb_passives
+        return trigger_orb_passives(self.state)
+
+    def trigger_first_orb_passive(self) -> Dict[str, Any]:
+        """Trigger the first orb's passive once."""
+        from ..effects.orbs import trigger_first_orb_passive
+        return trigger_first_orb_passive(self.state)
+
+    def trigger_orb_start_of_turn(self, *, include_cables: bool = False) -> Dict[str, Any]:
+        """Trigger start-of-turn orb passives."""
+        from ..effects.orbs import trigger_orb_start_of_turn
+        return trigger_orb_start_of_turn(self.state, include_cables=include_cables)
+
+    def trigger_orb_start_end(self, *, include_cables: bool = False) -> Dict[str, Any]:
+        """Trigger combined onStartOfTurn/onEndOfTurn orb behavior."""
+        from ..effects.orbs import trigger_orb_start_end
+        return trigger_orb_start_end(self.state, include_cables=include_cables)
+
+    def has_empty_orb_slot(self) -> bool:
+        """Whether there is at least one empty orb slot."""
+        manager = self.get_orb_manager()
+        return manager.has_empty_slot()
+
+    def add_orb_slots(self, amount: int = 1) -> None:
+        """Increase orb slot count and keep status/manager in sync."""
+        if amount <= 0:
+            return
+        manager = self.get_orb_manager()
+        current_bonus = self.player.statuses.get("OrbSlots", 0)
+        self.player.statuses["OrbSlots"] = current_bonus + amount
+        manager.add_orb_slot(amount)
+
+    def remove_orb_slots(self, amount: int = 1) -> None:
+        """Decrease orb slot count and keep status/manager in sync."""
+        if amount <= 0:
+            return
+        manager = self.get_orb_manager()
+        current_bonus = self.player.statuses.get("OrbSlots", 0)
+        new_bonus = max(-3, current_bonus - amount)
+        if new_bonus == 0:
+            self.player.statuses.pop("OrbSlots", None)
+        else:
+            self.player.statuses["OrbSlots"] = new_bonus
+        manager.remove_orb_slot(amount)
+
     def draw_cards(self, count: int) -> List[str]:
         """Draw cards from draw pile."""
         drawn = []
@@ -510,13 +572,29 @@ def execute_relic_triggers(hook: str, state: CombatState,
     if trigger_data is None:
         trigger_data = {}
 
-    # Get player's relics
-    player_relics = set(state.relics)
+    def _canonical_relic_key(relic_id: str) -> str:
+        try:
+            from ..content.relics import resolve_relic_id
+            resolved = resolve_relic_id(relic_id)
+            if resolved is not None:
+                return resolved
+        except Exception:
+            pass
+        return "".join(ch.lower() for ch in relic_id if ch.isalnum())
 
-    # Get handlers for relics the player has
-    handlers = RELIC_REGISTRY.get_handlers(hook, player_relics)
+    # Evaluate all handlers for this hook and rely on alias-safe has_relic checks.
+    # Some hooks are registered under both canonical and display-name IDs;
+    # dedupe by canonical relic key so each owned relic triggers once.
+    handlers = RELIC_REGISTRY.get_handlers(hook)
+    executed_relic_keys: Set[str] = set()
 
     for relic_id, handler in handlers:
+        if not state.has_relic(relic_id):
+            continue
+        relic_key = _canonical_relic_key(relic_id)
+        if relic_key in executed_relic_keys:
+            continue
+        executed_relic_keys.add(relic_key)
         ctx = RelicContext(
             state=state,
             relic_id=relic_id,

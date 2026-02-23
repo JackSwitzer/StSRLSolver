@@ -208,6 +208,7 @@ def consume_effect(ctx: EffectContext) -> None:
     """Gain Focus, lose 1 orb slot (Consume)."""
     focus_amount = ctx.magic_number if ctx.magic_number > 0 else 2
     ctx.apply_status_to_player("Focus", focus_amount)
+    ctx.apply_status_to_player("OrbSlots", -1)
 
     manager = get_orb_manager(ctx.state)
     manager.modify_focus(focus_amount)

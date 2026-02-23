@@ -37,6 +37,7 @@ from ..calc.damage import (
 from ..content.cards import Card, CardType, CardTarget, get_card, ALL_CARDS
 from ..content.enemies import Enemy, Intent, MoveInfo, EnemyType
 from ..registry import execute_relic_triggers, execute_power_triggers, RelicContext
+from ..effects.orbs import trigger_orb_start_of_turn
 
 if TYPE_CHECKING:
     from ..content.enemies import Enemy as EnemyClass
@@ -426,6 +427,10 @@ class CombatRunner:
             self.state.player.block += next_turn_block
             self.total_block_gained += next_turn_block
             del self.state.player.statuses["NextTurnBlock"]
+
+        # Defect orb passives trigger each turn start; Cables bonus is handled
+        # by the explicit relic trigger.
+        trigger_orb_start_of_turn(self.state, include_cables=False)
 
     def _trigger_was_hp_lost(self, hp_loss: int):
         """Trigger relics that activate when HP is lost."""

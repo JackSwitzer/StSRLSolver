@@ -22,7 +22,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from enum import Enum
-import random
 
 if TYPE_CHECKING:
     from ..state.combat import CombatState, EnemyCombatState
@@ -245,7 +244,7 @@ class OrbManager:
                 # Deal to random enemy
                 living = state.get_living_enemies()
                 if living:
-                    target = random.choice(living)
+                    target = _random_enemy_from_state(state, living)
                     self._deal_damage_to_enemy(target, result["damage"], state)
 
         elif orb.orb_type == OrbType.FROST:
@@ -320,7 +319,7 @@ class OrbManager:
             else:
                 living = state.get_living_enemies()
                 if living:
-                    target = random.choice(living)
+                    target = _random_enemy_from_state(state, living)
                     self._deal_damage_to_enemy(target, result["damage"], state)
 
         elif orb.orb_type == OrbType.FROST:
@@ -390,15 +389,38 @@ class OrbManager:
         self.max_slots += amount
 
     def remove_orb_slot(self, amount: int = 1, state: Optional['CombatState'] = None) -> None:
-        """Decrease max orb slots (minimum 0) and evoke excess orbs."""
+        """Decrease max orb slots (minimum 0) and drop newest orbs past cap."""
         self.max_slots = max(0, self.max_slots - amount)
-        if state is not None:
-            while len(self.orbs) > self.max_slots:
-                self.evoke(state)
+        while len(self.orbs) > self.max_slots:
+            # Java decreaseMaxOrbSlots removes the newest orb slot contents.
+            self.orbs.pop()
 
     def modify_focus(self, amount: int) -> None:
         """Modify focus amount."""
         self.focus += amount
+
+    def has_empty_slot(self) -> bool:
+        """Whether at least one orb slot is currently empty."""
+        return len(self.orbs) < self.max_slots
+
+
+def _get_orb_rng(state: CombatState):
+    """RNG stream for orb randomization/target selection."""
+    return (
+        getattr(state, "card_random_rng", None)
+        or getattr(state, "card_rng", None)
+    )
+
+
+def _random_enemy_from_state(state: CombatState, living: List['EnemyCombatState']) -> 'EnemyCombatState':
+    """Deterministic random enemy choice using owned RNG streams."""
+    if len(living) == 1:
+        return living[0]
+    rng = _get_orb_rng(state)
+    if rng is None:
+        return living[0]
+    idx = rng.random(len(living) - 1)
+    return living[idx]
 
 
 def get_orb_manager(state: CombatState) -> OrbManager:
@@ -412,6 +434,14 @@ def get_orb_manager(state: CombatState) -> OrbManager:
         # Check for Focus from statuses
         focus = state.player.statuses.get("Focus", 0)
         state.orb_manager.focus = focus
+    else:
+        # Keep focus and slot count synchronized with combat statuses.
+        state.orb_manager.focus = state.player.statuses.get("Focus", 0)
+        desired_slots = max(0, 3 + state.player.statuses.get("OrbSlots", 0))
+        if desired_slots > state.orb_manager.max_slots:
+            state.orb_manager.add_orb_slot(desired_slots - state.orb_manager.max_slots)
+        elif desired_slots < state.orb_manager.max_slots:
+            state.orb_manager.remove_orb_slot(state.orb_manager.max_slots - desired_slots)
 
     return state.orb_manager
 
@@ -434,7 +464,12 @@ def channel_orb(state: CombatState, orb_type: str) -> Dict[str, Any]:
 
 def channel_random_orb(state: CombatState) -> Dict[str, Any]:
     """Channel a random orb type."""
-    orb_type = random.choice(list(OrbType))
+    orb_types = list(OrbType)
+    rng = _get_orb_rng(state)
+    if rng is None:
+        orb_type = orb_types[0]
+    else:
+        orb_type = orb_types[rng.random(len(orb_types) - 1)]
     manager = get_orb_manager(state)
     return manager.channel(orb_type, state)
 
@@ -455,3 +490,60 @@ def trigger_orb_passives(state: CombatState) -> Dict[str, Any]:
     """Trigger all orb passives at end of turn."""
     manager = get_orb_manager(state)
     return manager.trigger_passives(state)
+
+
+def trigger_first_orb_passive(state: CombatState) -> Dict[str, Any]:
+    """Trigger the first orb's passive once (used by Gold-Plated Cables)."""
+    manager = get_orb_manager(state)
+    if not manager.orbs:
+        return {}
+    return manager._execute_passive(manager.orbs[0], state, manager.focus)
+
+
+def _trigger_single_orb_passive_cycle(
+    manager: OrbManager,
+    state: CombatState,
+    *,
+    include_cables: bool = False,
+) -> Dict[str, Any]:
+    """Trigger one onStart/onEnd-equivalent passive cycle across all current orbs."""
+    result = {
+        "total_damage": 0,
+        "total_block": 0,
+        "total_energy": 0,
+        "dark_accumulated": 0,
+    }
+    for orb in list(manager.orbs):
+        passive_result = manager._execute_passive(orb, state, manager.focus)
+        result["total_damage"] += passive_result.get("damage", 0)
+        result["total_block"] += passive_result.get("block", 0)
+        result["total_energy"] += passive_result.get("energy", 0)
+        result["dark_accumulated"] += passive_result.get("accumulated", 0)
+
+    if include_cables and state.has_relic("Cables") and manager.orbs:
+        passive_result = manager._execute_passive(manager.orbs[0], state, manager.focus)
+        result["total_damage"] += passive_result.get("damage", 0)
+        result["total_block"] += passive_result.get("block", 0)
+        result["total_energy"] += passive_result.get("energy", 0)
+        result["dark_accumulated"] += passive_result.get("accumulated", 0)
+
+    return result
+
+
+def trigger_orb_start_of_turn(state: CombatState, *, include_cables: bool = False) -> Dict[str, Any]:
+    """Trigger one start-of-turn orb passive cycle."""
+    manager = get_orb_manager(state)
+    return _trigger_single_orb_passive_cycle(manager, state, include_cables=include_cables)
+
+
+def trigger_orb_start_end(state: CombatState, *, include_cables: bool = False) -> Dict[str, Any]:
+    """Trigger combined onStartOfTurn+onEndOfTurn orb behavior once."""
+    manager = get_orb_manager(state)
+    first = _trigger_single_orb_passive_cycle(manager, state, include_cables=include_cables)
+    second = _trigger_single_orb_passive_cycle(manager, state, include_cables=include_cables)
+    return {
+        "total_damage": first["total_damage"] + second["total_damage"],
+        "total_block": first["total_block"] + second["total_block"],
+        "total_energy": first["total_energy"] + second["total_energy"],
+        "dark_accumulated": first["dark_accumulated"] + second["dark_accumulated"],
+    }

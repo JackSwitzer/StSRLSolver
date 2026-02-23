@@ -49,8 +49,9 @@ from packages.engine.state.combat import (
     CombatState, EntityState, EnemyCombatState,
     create_player, create_enemy, create_combat
 )
+from packages.engine.state.rng import Random
 from packages.engine.effects.orbs import (
-    OrbManager, OrbType, Orb, get_orb_manager, channel_orb, evoke_orb
+    OrbManager, OrbType, Orb, get_orb_manager, channel_orb, channel_random_orb, evoke_orb
 )
 from packages.engine.effects.registry import execute_effect, EffectContext
 
@@ -187,6 +188,15 @@ class TestOrbSystem:
         orb = manager.get_first_orb()
         assert orb.orb_type == OrbType.DARK
         assert orb.accumulated_damage == 6  # Base value
+
+    def test_channel_random_orb_uses_state_rng(self, basic_combat):
+        """Random orb channeling should consume the combat RNG stream."""
+        basic_combat.card_random_rng = Random(424242)
+        before = basic_combat.card_random_rng.counter
+
+        channel_random_orb(basic_combat)
+
+        assert basic_combat.card_random_rng.counter > before
 
     def test_channel_plasma(self, basic_combat):
         """Channeling Plasma should add orb."""
