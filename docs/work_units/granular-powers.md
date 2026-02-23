@@ -15,6 +15,7 @@ Use explicit signatures on each item (see `granular-actions.md`).
 - [ ] `POW-002` remaining hook-order/behavior exactness for long-tail powers.
 - [ ] `POW-003` cross-system integration lock (powers + relics + orbs + cards) beyond current coverage.
 - [x] `POW-002B` lifecycle dispatch slice: wire `wasHPLost` and `onDeath` in both runtimes and lock with dispatch audit.
+- [x] `POW-002C` attack-path dispatch slice: wire `onAttack` and `onAttacked` in both runtimes and include existing `onManualDiscard` runtime path in dispatch audit.
 
 ## System / Shared
 - [x] Add `onAfterUseCard` + `onAfterCardPlayed` hooks in registry + combat flow (Java ordering: onPlayCard -> card effects -> onUseCard -> onAfterUseCard -> onAfterCardPlayed). (action: none{})
