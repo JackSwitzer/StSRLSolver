@@ -9,15 +9,15 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4691 passed`
+- `4708 passed`
 - `5 skipped`
 - `0 failed`
 
-Re-verified after `POW-002` dispatch closure, `POW-003A` alias/lifecycle hook closure, and `POW-003B` long-tail power hook/runtime closure.
+Re-verified after `CONS-001A` canonical consolidation updates and deterministic parity manifest generation (`AUD-001A`).
 
 ## Structural inventory
-- Test files: `70`
-- Static test-function definitions (`def test_`): `4086`
+- Test files: `72`
+- Static test-function definitions (`def test_`): `4135`
 
 ## Executed skip inventory (normal run)
 All executed skips are from replay-artifact gating in `tests/test_parity.py`:

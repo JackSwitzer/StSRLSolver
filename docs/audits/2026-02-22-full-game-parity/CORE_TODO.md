@@ -5,14 +5,14 @@ Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Baseline
-- Full suite baseline: `4691 passed, 5 skipped, 0 failed`
+- Full suite baseline: `4708 passed, 5 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - Current executed skips are replay-artifact dependent (`tests/test_parity.py`)
 
 ## Global gates
 - [x] PR history synced through merged PR [#25](https://github.com/JackSwitzer/StSRLSolver/pull/25).
 - [x] Regions `R1` to `R3` closed and merged to `main`.
-- [ ] Canonical traceability manifest fully decomposed for remaining powers/cards/orbs gaps.
+- [x] Canonical traceability manifest generation is script-driven (`scripts/generate_parity_manifests.py`).
 - [ ] Every parity-critical choice interaction is explicit in action dict flow.
 - [ ] Normal CI path is `0 skipped, 0 failed`.
 - [ ] RL readiness checklist is fully green.
@@ -30,6 +30,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `DOC-002` skill pack and core-loop process docs
 - [x] `DOC-003` evidence refresh with inventory counts and gap queue
 - [x] `DOC-004` merged-ground-truth docs pack (`GROUND_TRUTH`, `PR_HISTORY`, consolidation review)
+- [x] `CONS-001A` canonical repo lock + wrapper migration manifest + curated training utility migration
 
 ### R1 relic selection surface
 - [x] `REL-003` Orrery explicit selection actions
@@ -87,7 +88,8 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [ ] `CRD-DE-*` Defect closure
 
 ### R7 final audit + RL gate
-- [ ] `AUD-001` final Java-vs-Python diff pass
+- [x] `AUD-001A` deterministic inventory/hook manifest generation pass complete
+- [ ] `AUD-001` final Java-vs-Python diff pass (all unresolved rows closed)
 - [ ] `AUD-002` zero-skip normal CI confirmation
 - [ ] `AUD-003` RL readiness sign-off
 
