@@ -2,6 +2,7 @@
 
 Last updated: 2026-02-24
 Canonical repo: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
+Spec index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 This file is the canonical unit-level execution map for remaining parity work.
 Each row is one feature-sized commit target.
@@ -19,6 +20,11 @@ Each row is one feature-sized commit target.
 | `DOC-TODO-001` | A | docs/process | P0 | none | docs lint/readability pass | n/a | n/a | completed |
 | `DOC-ACTION-001` | A | action layer | P0 | `DOC-TODO-001` | `tests/test_agent_api.py` | action API shape in runtime | deterministic action IDs only | completed |
 | `DOC-WFLOW-001` | A | execution process | P1 | `DOC-TODO-001` | n/a (docs-only) | n/a | n/a | completed |
+| `DOC-SPEC-CRD-001` | A | card behavior spec | P0 | `DOC-TODO-001` | n/a (docs-only) | `cards/*` Java refs index | n/a | completed |
+| `DOC-SPEC-POW-001` | A | power behavior/order spec | P0 | `DOC-TODO-001` | n/a (docs-only) | `powers/*` Java refs index | n/a | completed |
+| `DOC-SPEC-RNG-001` | D | rng migration spec | P0 | `RNG-SPEC-001` | n/a (docs-only) | runtime callsite inventory | stream mapping locked | completed |
+| `DOC-SPEC-RL-001` | D | RL dashboard/search spec | P1 | `DOC-ACTION-001` | n/a (docs-only) | n/a | n/a | completed |
+| `DOC-SPEC-INDEX-001` | A | spec index cleanup | P0 | `DOC-SPEC-CRD-001`, `DOC-SPEC-POW-001`, `DOC-SPEC-RNG-001`, `DOC-SPEC-RL-001` | n/a (docs-only) | n/a | n/a | completed |
 | `RNG-SPEC-001` | D | rng spec | P0 | `DOC-TODO-001` | `tests/test_rng_audit.py` (reference expectations) | Java Random/stream ownership semantics | stream ownership matrix | completed |
 | `AUD-GEN-001` | A | java inventory | P0 | `DOC-TODO-001` | `tests/test_audit_inventory_manifest.py` | decompile root + class fallback for potions | no stream mutation (audit-only) | completed |
 | `AUD-GEN-002` | A | manifests | P0 | `AUD-GEN-001` | `tests/test_audit_inventory_manifest.py` | generator script rows mapped to Java root | deterministic sorted output | completed |

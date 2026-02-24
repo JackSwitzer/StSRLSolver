@@ -14,6 +14,11 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [x] `DOC-ACTION-001` action contract lock: `docs/audits/2026-02-22-full-game-parity/action-layer/ACTION_SPACE_SPEC.md`
 - [x] `DOC-WFLOW-001` subagent loop lock: `docs/audits/2026-02-22-full-game-parity/process/SUBAGENT_EXECUTION_LOOP.md`
 - [x] `RNG-SPEC-001` RNG stream ownership spec: `docs/audits/2026-02-22-full-game-parity/rng/JAVA_RNG_STREAM_SPEC.md`
+- [x] `DOC-SPEC-CRD-001` card behavior parity spec: `docs/audits/2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
+- [x] `DOC-SPEC-POW-001` power behavior/order spec: `docs/audits/2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
+- [x] `DOC-SPEC-RNG-001` RNG runtime migration spec: `docs/audits/2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
+- [x] `DOC-SPEC-RL-001` RL runboard/search spec: `docs/audits/2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
+- [x] `DOC-SPEC-INDEX-001` remaining-work index + spec cleanup: `docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).
@@ -39,6 +44,13 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - [x] `CRD-INV-003B` class-name alias mapping closure (`cards missing = 0`).
 
 ## Remaining gaps
+
+Specification baseline is now locked in:
+- `docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+- `docs/audits/2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
+- `docs/audits/2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
+- `docs/audits/2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
+- `docs/audits/2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
 
 ### P1: Card behavior parity
 - [ ] `CRD-IC-001` Ironclad behavior closure.

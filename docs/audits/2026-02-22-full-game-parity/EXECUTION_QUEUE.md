@@ -29,6 +29,8 @@ Last updated: 2026-02-24
 - `CONS-002A/B`: CombatRunner runtime unification to compatibility shim
 - `AUD-001A`: deterministic parity manifest generation (`scripts/generate_parity_manifests.py`)
 - `D0`: docs/process backbone (`DOC-TODO-001`, `DOC-ACTION-001`, `DOC-WFLOW-001`, `RNG-SPEC-001`)
+- `D0-spec`: behavior and implementation specs (`DOC-SPEC-CRD-001`, `DOC-SPEC-POW-001`, `DOC-SPEC-RNG-001`, `DOC-SPEC-RL-001`)
+- `D0-spec-index`: unified remaining-work index and spec cleanup (`DOC-SPEC-INDEX-001`)
 - `D1`: generated truth refresh (`AUD-GEN-001/002/003`)
 - `D2-inventory`: card class-name alias closure (`CRD-INV-003A/B`)
 
