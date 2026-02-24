@@ -1,11 +1,12 @@
 # Core TODO: Full-Game Java Parity + RL Readiness
 
-Last updated: 2026-02-23
+Last updated: 2026-02-24
 Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
 Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
+Unit chunks: [`traceability/UNIT_CHUNKS.md`](./traceability/UNIT_CHUNKS.md)
 
 ## Baseline
-- Full suite baseline: `4715 passed, 0 skipped, 0 failed`
+- Full suite baseline: `4722 passed, 0 skipped, 0 failed`
 - Command: `uv run pytest tests/ -q`
 - No executed skips in current baseline run
 
@@ -19,7 +20,7 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 
 ## Region order (locked)
 1. `R4` cards closure (non-Defect first)
-2. `R5` powers + orbs closure
+2. `R5` powers + RNG closure
 3. `R6` Defect cards closure
 4. `R7` final re-audit + RL gate
 
@@ -34,74 +35,51 @@ Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - [x] `CONS-DESKTOP-001` one-folder Desktop realignment + archive verification
 - [x] `CONS-002A` CombatRunner facade delegates runtime ownership to CombatEngine + compatibility tests
 - [x] `CONS-002B` removed duplicated legacy CombatRunner runtime body; shim-only module retained
-
-### R1 relic selection surface
-- [x] `REL-003` Orrery explicit selection actions
-- [x] `REL-004` bottled relic assignment explicit actions
-- [x] `REL-008` Dolly's Mirror explicit duplicate selection
-- [x] `REL-005` deterministic selection IDs + validation
-- [x] `REL-006` alias normalization + Java ID coverage (`Toolbox`)
-- [x] `REL-007` boss/chest/reward ordering regressions
-
-### R2 event selection surface
-- [x] `EVT-001` event selection follow-up actions
-- [x] `EVT-002` pass selected card indices through action handling
-- [x] `EVT-003` deterministic multi-phase transition coverage
-- [x] `EVT-004` alias/inventory normalization
-
-### R3 reward/shop/rest/map
-- [x] `RWD-001` canonical reward action emission path
-- [x] `RWD-002` canonical reward action execution path
-- [x] `RWD-003` proceed gating parity
-- [x] `RWD-004` indexed secondary relic claim/gating parity
+- [x] `DOC-TODO-001` unit chunk tracker and canonical TODO map
+- [x] `DOC-ACTION-001` action-layer contract lock
+- [x] `DOC-WFLOW-001` subagent execution loop lock
+- [x] `RNG-SPEC-001` RNG stream ownership spec lock
+- [x] `AUD-GEN-001` potion inventory source fallback in manifest generator
+- [x] `AUD-GEN-002` regenerated manifest artifacts synced
+- [x] `AUD-GEN-003` anomaly cleanup (`SpireHeart` policy + class-name card IDs)
 
 ### R4 cards (non-Defect first)
 - [x] `CRD-INV-002` Java-ID inventory closure slice (`Discipline`, `Impulse`, `Gash` alias coverage)
-- [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure (Burn/Decay/Doubt/Shame/Regret/Pride + Void draw lock)
-- [ ] `CRD-IC-*` Ironclad closure
-- [ ] `CRD-SI-*` Silent closure
-- [ ] `CRD-WA-*` Watcher closure
-- [ ] `CRD-SH-*` shared colorless/curse/status closure
+- [x] `CRD-SH-001` shared curse/status end-of-turn runtime closure
+- [x] `CRD-INV-003A` classify remaining class-name card rows (`alias-only` vs behavior)
+- [x] `CRD-INV-003B` close alias-only card ID mapping gaps
+- [ ] `CRD-IC-001` Ironclad closure
+- [ ] `CRD-SI-001` Silent closure
+- [ ] `CRD-WA-001` Watcher closure
+- [ ] `CRD-SH-002` shared colorless/curse/status closure
 
-### R5 powers + orbs
-- [x] `CONS-001` phase-0 deterministic RNG hardening for shared effect/power/card runtime paths
+### R5 powers + RNG
 - [x] `POW-001` Java power inventory closure
-- [ ] `POW-002` residual hook/timing closure
+- [x] `POW-002A` dispatch coverage artifact closure (runtime hook scan now complete)
 - [x] `POW-003B` long-tail hook/runtime closure (`Flight`, `Malleable`, `Invincible`, `Pen Nib`, `Equilibrium`, `Echo Form` marker path)
 - [x] `ORB-001` orb infrastructure for parity-critical behaviors
-- [ ] `POW-003` integration tests
-
-#### ORB-001 checklist (docs/tests/code loop)
-- [x] `ORB-001A` docs+tests-first scaffolding:
-  - `docs/work_units/granular-orbs.md`
-  - `domains/orbs.md`
-  - `traceability/gap-manifest.md`
-- [x] `ORB-001B` orb runtime timing/determinism:
-  - start-turn orb passives wired in combat runtime
-  - owned RNG streams for random orb selection/targeting
-- [x] `ORB-001C` orb-linked relic closure:
-  - `Cables`, `Frozen Core`, `Emotion Chip`, `Inserter`, `Nuclear Battery`, `Symbiotic Virus`
-  - remove placeholder `state.orbs`/`hasattr` branches
-- [x] `ORB-001D` verification and ledger sync:
-  - targeted orb/relic suites green
-  - full suite green
-  - baseline/docs/todo synced
+- [ ] `POW-002B` hook ordering and trigger-count closure
+- [ ] `POW-003A` behavior closure by hook family
+- [ ] `POW-003B` integration tests lock
+- [ ] `RNG-MOD-001` central RNG authority module closure
+- [ ] `RNG-MOD-002` direct `random.*` removal in parity-critical runtime paths
+- [ ] `RNG-TEST-001` deterministic replay checks for migrated paths
 
 ### R6 cards (Defect)
-- [ ] `CRD-DE-*` Defect closure
+- [ ] `CRD-DE-001` Defect closure
 
 ### R7 final audit + RL gate
 - [x] `AUD-001A` deterministic inventory/hook manifest generation pass complete
-- [ ] `AUD-001` final Java-vs-Python diff pass (all unresolved rows closed)
-- [ ] `AUD-002` zero-skip normal CI confirmation
+- [ ] `AUD-001` final Java-vs-Python diff pass (behavior-level unresolved rows closed)
 - [ ] `AUD-003` RL readiness sign-off
 
 ## Confirmed high-impact open gaps
-- [ ] Power inventory mapping is closed; hook-order/behavior parity remains open (`POW-002`, `POW-003`).
-- [ ] Engine logic still contains direct Python `random` usage in parity-critical modules (relic/potion/orb long-tail after Phase-0 card/power/context hardening).
+- [ ] Card inventory mapping is closed; behavior/timing parity remains open across class domains.
+- [ ] Power dispatch inventory is closed; hook ordering and behavior parity remains open.
+- [ ] Engine logic still contains direct Python `random` usage in parity-critical runtime modules.
 
 ## Policy reminders
-- [ ] Per feature loop: `docs -> tests -> code -> commit -> todo update`.
+- [ ] Per feature loop: `docs -> tests -> code -> tracker update -> commit`.
 - [ ] One feature ID per commit.
 - [ ] Domain PRs only (one region per PR).
 - [ ] Every commit includes Java refs + RNG notes + test delta + skip delta.

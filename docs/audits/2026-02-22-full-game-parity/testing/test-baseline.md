@@ -1,6 +1,6 @@
 # Test Baseline
 
-Date: 2026-02-23
+Date: 2026-02-24
 
 ## Full suite baseline
 Command:
@@ -9,15 +9,15 @@ uv run pytest tests/ -q
 ```
 
 Result:
-- `4715 passed`
+- `4722 passed`
 - `0 skipped`
 - `0 failed`
 
-Re-verified after `CONS-DESKTOP-001` (one-folder desktop realignment) and `CONS-002A` (CombatRunner facade over CombatEngine).
+Re-verified after `DOC-TODO-001`, `DOC-ACTION-001`, `DOC-WFLOW-001`, `AUD-GEN-001/002/003`, and `CRD-INV-003A/B` updates.
 
 ## Structural inventory
-- Test files: `75`
-- Static test-function definitions (`def test_`): `4137`
+- Test files: `76`
+- Static test-function definitions (`def test_`): `4144`
 
 ## Quality gates
 - Current local baseline satisfies `0 skipped, 0 failed`.

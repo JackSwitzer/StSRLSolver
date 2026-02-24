@@ -53,9 +53,9 @@
         "java_class": "Alchemize",
         "java_id": "Alchemize",
         "java_source": "cards/green/Alchemize.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Alchemize",
+        "python_id": "Venomology",
+        "status": "alias"
       },
       {
         "java_class": "AllForOne",
@@ -109,9 +109,9 @@
         "java_class": "Apparition",
         "java_id": "Apparition",
         "java_source": "cards/colorless/Apparition.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Apparition",
+        "python_id": "Ghostly",
+        "status": "alias"
       },
       {
         "java_class": "Armaments",
@@ -781,33 +781,33 @@
         "java_class": "Defend_Blue",
         "java_id": "Defend_Blue",
         "java_source": "cards/blue/Defend_Blue.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Defend_Blue",
+        "python_id": "Defend_B",
+        "status": "alias"
       },
       {
         "java_class": "Defend_Green",
         "java_id": "Defend_Green",
         "java_source": "cards/green/Defend_Green.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Defend_Green",
+        "python_id": "Defend_G",
+        "status": "alias"
       },
       {
         "java_class": "Defend_Red",
         "java_id": "Defend_Red",
         "java_source": "cards/red/Defend_Red.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Defend_Red",
+        "python_id": "Defend_R",
+        "status": "alias"
       },
       {
         "java_class": "Defend_Watcher",
         "java_id": "Defend_Watcher",
         "java_source": "cards/purple/Defend_Watcher.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Defend_Watcher",
+        "python_id": "Defend_P",
+        "status": "alias"
       },
       {
         "java_class": "Deflect",
@@ -1053,9 +1053,9 @@
         "java_class": "Equilibrium",
         "java_id": "Equilibrium",
         "java_source": "cards/blue/Equilibrium.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Equilibrium",
+        "python_id": "Undo",
+        "status": "alias"
       },
       {
         "java_class": "Eruption",
@@ -1133,9 +1133,9 @@
         "java_class": "Fasting",
         "java_id": "Fasting",
         "java_source": "cards/purple/Fasting.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Fasting",
+        "python_id": "Fasting2",
+        "status": "alias"
       },
       {
         "java_class": "FearNoEvil",
@@ -1797,9 +1797,9 @@
         "java_class": "Nightmare",
         "java_id": "Nightmare",
         "java_source": "cards/green/Nightmare.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Nightmare",
+        "python_id": "Night Terror",
+        "status": "alias"
       },
       {
         "java_class": "Nirvana",
@@ -1853,9 +1853,9 @@
         "java_class": "Overclock",
         "java_id": "Overclock",
         "java_source": "cards/blue/Overclock.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Overclock",
+        "python_id": "Steam Power",
+        "status": "alias"
       },
       {
         "java_class": "Pain",
@@ -1981,9 +1981,9 @@
         "java_class": "PressurePoints",
         "java_id": "PressurePoints",
         "java_source": "cards/purple/PressurePoints.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:PressurePoints",
+        "python_id": "PathToVictory",
+        "status": "alias"
       },
       {
         "java_class": "Pride",
@@ -2109,9 +2109,9 @@
         "java_class": "Recursion",
         "java_id": "Recursion",
         "java_source": "cards/blue/Recursion.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Recursion",
+        "python_id": "Redo",
+        "status": "alias"
       },
       {
         "java_class": "Recycle",
@@ -2357,9 +2357,9 @@
         "java_class": "SimmeringFury",
         "java_id": "SimmeringFury",
         "java_source": "cards/purple/SimmeringFury.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:SimmeringFury",
+        "python_id": "Vengeance",
+        "status": "alias"
       },
       {
         "java_class": "Skewer",
@@ -2397,9 +2397,9 @@
         "java_class": "SneakyStrike",
         "java_id": "SneakyStrike",
         "java_source": "cards/green/SneakyStrike.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:SneakyStrike",
+        "python_id": "Underhanded Strike",
+        "status": "alias"
       },
       {
         "java_class": "SpiritShield",
@@ -2437,9 +2437,9 @@
         "java_class": "SteamBarrier",
         "java_id": "SteamBarrier",
         "java_source": "cards/blue/SteamBarrier.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:SteamBarrier",
+        "python_id": "Steam",
+        "status": "alias"
       },
       {
         "java_class": "Storm",
@@ -2469,33 +2469,33 @@
         "java_class": "Strike_Blue",
         "java_id": "Strike_Blue",
         "java_source": "cards/blue/Strike_Blue.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Strike_Blue",
+        "python_id": "Strike_B",
+        "status": "alias"
       },
       {
         "java_class": "Strike_Green",
         "java_id": "Strike_Green",
         "java_source": "cards/green/Strike_Green.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Strike_Green",
+        "python_id": "Strike_G",
+        "status": "alias"
       },
       {
         "java_class": "Strike_Purple",
         "java_id": "Strike_Purple",
         "java_source": "cards/purple/Strike_Purple.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Strike_Purple",
+        "python_id": "Strike_P",
+        "status": "alias"
       },
       {
         "java_class": "Strike_Red",
         "java_id": "Strike_Red",
         "java_source": "cards/red/Strike_Red.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Strike_Red",
+        "python_id": "Strike_R",
+        "status": "alias"
       },
       {
         "java_class": "Study",
@@ -2653,9 +2653,9 @@
         "java_class": "Tranquility",
         "java_id": "Tranquility",
         "java_source": "cards/purple/Tranquility.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:Tranquility",
+        "python_id": "ClearTheMind",
+        "status": "alias"
       },
       {
         "java_class": "Transmutation",
@@ -2749,9 +2749,9 @@
         "java_class": "VoidCard",
         "java_id": "VoidCard",
         "java_source": "cards/status/VoidCard.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
+        "mapping_via": "resolver:VoidCard",
+        "python_id": "Void",
+        "status": "alias"
       },
       {
         "java_class": "Wallop",
@@ -2891,7 +2891,7 @@
       }
     ],
     "summary": {
-      "alias": 112,
+      "alias": 133,
       "alias_examples": [
         {
           "java_id": "AThousandCuts",
@@ -2904,6 +2904,11 @@
           "via": "normalized:AfterImage"
         },
         {
+          "java_id": "Alchemize",
+          "python_id": "Venomology",
+          "via": "resolver:Alchemize"
+        },
+        {
           "java_id": "AllForOne",
           "python_id": "All For One",
           "via": "normalized:AllForOne"
@@ -2912,6 +2917,11 @@
           "java_id": "AllOutAttack",
           "python_id": "All Out Attack",
           "via": "normalized:AllOutAttack"
+        },
+        {
+          "java_id": "Apparition",
+          "python_id": "Ghostly",
+          "via": "resolver:Apparition"
         },
         {
           "java_id": "AutoShields",
@@ -3049,6 +3059,26 @@
           "via": "normalized:DeepBreath"
         },
         {
+          "java_id": "Defend_Blue",
+          "python_id": "Defend_B",
+          "via": "resolver:Defend_Blue"
+        },
+        {
+          "java_id": "Defend_Green",
+          "python_id": "Defend_G",
+          "via": "resolver:Defend_Green"
+        },
+        {
+          "java_id": "Defend_Red",
+          "python_id": "Defend_R",
+          "via": "resolver:Defend_Red"
+        },
+        {
+          "java_id": "Defend_Watcher",
+          "python_id": "Defend_P",
+          "via": "resolver:Defend_Watcher"
+        },
+        {
           "java_id": "DemonForm",
           "python_id": "Demon Form",
           "via": "normalized:DemonForm"
@@ -3099,9 +3129,19 @@
           "via": "normalized:EndlessAgony"
         },
         {
+          "java_id": "Equilibrium",
+          "python_id": "Undo",
+          "via": "resolver:Equilibrium"
+        },
+        {
           "java_id": "EscapePlan",
           "python_id": "Escape Plan",
           "via": "normalized:EscapePlan"
+        },
+        {
+          "java_id": "Fasting",
+          "python_id": "Fasting2",
+          "via": "resolver:Fasting"
         },
         {
           "java_id": "FeelNoPain",
@@ -3259,9 +3299,19 @@
           "via": "normalized:MultiCast"
         },
         {
+          "java_id": "Nightmare",
+          "python_id": "Night Terror",
+          "via": "resolver:Nightmare"
+        },
+        {
           "java_id": "NoxiousFumes",
           "python_id": "Noxious Fumes",
           "via": "normalized:NoxiousFumes"
+        },
+        {
+          "java_id": "Overclock",
+          "python_id": "Steam Power",
+          "via": "resolver:Overclock"
         },
         {
           "java_id": "PerfectedStrike",
@@ -3289,6 +3339,11 @@
           "via": "normalized:PowerThrough"
         },
         {
+          "java_id": "PressurePoints",
+          "python_id": "PathToVictory",
+          "via": "resolver:PressurePoints"
+        },
+        {
           "java_id": "QuickSlash",
           "python_id": "Quick Slash",
           "via": "normalized:QuickSlash"
@@ -3297,6 +3352,11 @@
           "java_id": "RecklessCharge",
           "python_id": "Reckless Charge",
           "via": "normalized:RecklessCharge"
+        },
+        {
+          "java_id": "Recursion",
+          "python_id": "Redo",
+          "via": "resolver:Recursion"
         },
         {
           "java_id": "ReinforcedBody",
@@ -3364,6 +3424,16 @@
           "via": "normalized:ShrugItOff"
         },
         {
+          "java_id": "SimmeringFury",
+          "python_id": "Vengeance",
+          "via": "resolver:SimmeringFury"
+        },
+        {
+          "java_id": "SneakyStrike",
+          "python_id": "Underhanded Strike",
+          "via": "resolver:SneakyStrike"
+        },
+        {
           "java_id": "SpotWeakness",
           "python_id": "Spot Weakness",
           "via": "normalized:SpotWeakness"
@@ -3374,9 +3444,34 @@
           "via": "normalized:StaticDischarge"
         },
         {
+          "java_id": "SteamBarrier",
+          "python_id": "Steam",
+          "via": "resolver:SteamBarrier"
+        },
+        {
           "java_id": "StormOfSteel",
           "python_id": "Storm of Steel",
           "via": "normalized:StormOfSteel"
+        },
+        {
+          "java_id": "Strike_Blue",
+          "python_id": "Strike_B",
+          "via": "resolver:Strike_Blue"
+        },
+        {
+          "java_id": "Strike_Green",
+          "python_id": "Strike_G",
+          "via": "resolver:Strike_Green"
+        },
+        {
+          "java_id": "Strike_Purple",
+          "python_id": "Strike_P",
+          "via": "resolver:Strike_Purple"
+        },
+        {
+          "java_id": "Strike_Red",
+          "python_id": "Strike_R",
+          "via": "resolver:Strike_Red"
         },
         {
           "java_id": "SuckerPunch",
@@ -3424,6 +3519,11 @@
           "via": "normalized:ToolsOfTheTrade"
         },
         {
+          "java_id": "Tranquility",
+          "python_id": "ClearTheMind",
+          "via": "resolver:Tranquility"
+        },
+        {
           "java_id": "TrueGrit",
           "python_id": "True Grit",
           "via": "normalized:TrueGrit"
@@ -3432,6 +3532,11 @@
           "java_id": "TwinStrike",
           "python_id": "Twin Strike",
           "via": "normalized:TwinStrike"
+        },
+        {
+          "java_id": "VoidCard",
+          "python_id": "Void",
+          "via": "resolver:VoidCard"
         },
         {
           "java_id": "WellLaidPlans",
@@ -3456,30 +3561,8 @@
       ],
       "exact": 228,
       "java_count": 361,
-      "missing": 21,
-      "missing_java_ids": [
-        "Alchemize",
-        "Apparition",
-        "Defend_Blue",
-        "Defend_Green",
-        "Defend_Red",
-        "Defend_Watcher",
-        "Equilibrium",
-        "Fasting",
-        "Nightmare",
-        "Overclock",
-        "PressurePoints",
-        "Recursion",
-        "SimmeringFury",
-        "SneakyStrike",
-        "SteamBarrier",
-        "Strike_Blue",
-        "Strike_Green",
-        "Strike_Purple",
-        "Strike_Red",
-        "Tranquility",
-        "VoidCard"
-      ],
+      "missing": 0,
+      "missing_java_ids": [],
       "source_missing": false
     }
   },
@@ -3806,14 +3889,6 @@
         "status": "exact"
       },
       {
-        "java_class": "SpireHeart",
-        "java_id": "SpireHeart",
-        "java_source": "events/beyond/SpireHeart.java",
-        "mapping_via": "",
-        "python_id": null,
-        "status": "missing"
-      },
-      {
         "java_class": "Sssserpent",
         "java_id": "Sssserpent",
         "java_source": "events/exordium/Sssserpent.java",
@@ -3962,24 +4037,430 @@
         }
       ],
       "exact": 40,
-      "java_count": 52,
-      "missing": 1,
-      "missing_java_ids": [
-        "SpireHeart"
-      ],
+      "java_count": 51,
+      "missing": 0,
+      "missing_java_ids": [],
       "source_missing": false
     }
   },
   "potions": {
-    "rows": [],
+    "rows": [
+      {
+        "java_class": "Ambrosia",
+        "java_id": "Ambrosia",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/Ambrosia.class",
+        "mapping_via": "exact",
+        "python_id": "Ambrosia",
+        "status": "exact"
+      },
+      {
+        "java_class": "AncientPotion",
+        "java_id": "AncientPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/AncientPotion.class",
+        "mapping_via": "candidate:Ancient Potion",
+        "python_id": "Ancient Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "AttackPotion",
+        "java_id": "AttackPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/AttackPotion.class",
+        "mapping_via": "exact",
+        "python_id": "AttackPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "BlessingOfTheForge",
+        "java_id": "BlessingOfTheForge",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BlessingOfTheForge.class",
+        "mapping_via": "exact",
+        "python_id": "BlessingOfTheForge",
+        "status": "exact"
+      },
+      {
+        "java_class": "BlockPotion",
+        "java_id": "BlockPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BlockPotion.class",
+        "mapping_via": "candidate:Block Potion",
+        "python_id": "Block Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "BloodPotion",
+        "java_id": "BloodPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BloodPotion.class",
+        "mapping_via": "exact",
+        "python_id": "BloodPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "BottledMiracle",
+        "java_id": "BottledMiracle",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BottledMiracle.class",
+        "mapping_via": "exact",
+        "python_id": "BottledMiracle",
+        "status": "exact"
+      },
+      {
+        "java_class": "ColorlessPotion",
+        "java_id": "ColorlessPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/ColorlessPotion.class",
+        "mapping_via": "exact",
+        "python_id": "ColorlessPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "CultistPotion",
+        "java_id": "CultistPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/CultistPotion.class",
+        "mapping_via": "exact",
+        "python_id": "CultistPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "CunningPotion",
+        "java_id": "CunningPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/CunningPotion.class",
+        "mapping_via": "exact",
+        "python_id": "CunningPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "DexterityPotion",
+        "java_id": "DexterityPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DexterityPotion.class",
+        "mapping_via": "candidate:Dexterity Potion",
+        "python_id": "Dexterity Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "DistilledChaosPotion",
+        "java_id": "DistilledChaosPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DistilledChaosPotion.class",
+        "mapping_via": "candidate:DistilledChaos",
+        "python_id": "DistilledChaos",
+        "status": "alias"
+      },
+      {
+        "java_class": "DuplicationPotion",
+        "java_id": "DuplicationPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DuplicationPotion.class",
+        "mapping_via": "exact",
+        "python_id": "DuplicationPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "Elixir",
+        "java_id": "Elixir",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/Elixir.class",
+        "mapping_via": "candidate:ElixirPotion",
+        "python_id": "ElixirPotion",
+        "status": "alias"
+      },
+      {
+        "java_class": "EnergyPotion",
+        "java_id": "EnergyPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EnergyPotion.class",
+        "mapping_via": "candidate:Energy Potion",
+        "python_id": "Energy Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "EntropicBrew",
+        "java_id": "EntropicBrew",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EntropicBrew.class",
+        "mapping_via": "exact",
+        "python_id": "EntropicBrew",
+        "status": "exact"
+      },
+      {
+        "java_class": "EssenceOfDarkness",
+        "java_id": "EssenceOfDarkness",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EssenceOfDarkness.class",
+        "mapping_via": "exact",
+        "python_id": "EssenceOfDarkness",
+        "status": "exact"
+      },
+      {
+        "java_class": "EssenceOfSteel",
+        "java_id": "EssenceOfSteel",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EssenceOfSteel.class",
+        "mapping_via": "exact",
+        "python_id": "EssenceOfSteel",
+        "status": "exact"
+      },
+      {
+        "java_class": "ExplosivePotion",
+        "java_id": "ExplosivePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/ExplosivePotion.class",
+        "mapping_via": "candidate:Explosive Potion",
+        "python_id": "Explosive Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "FairyPotion",
+        "java_id": "FairyPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FairyPotion.class",
+        "mapping_via": "exact",
+        "python_id": "FairyPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "FearPotion",
+        "java_id": "FearPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FearPotion.class",
+        "mapping_via": "exact",
+        "python_id": "FearPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "FirePotion",
+        "java_id": "FirePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FirePotion.class",
+        "mapping_via": "candidate:Fire Potion",
+        "python_id": "Fire Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "FocusPotion",
+        "java_id": "FocusPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FocusPotion.class",
+        "mapping_via": "exact",
+        "python_id": "FocusPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "FruitJuice",
+        "java_id": "FruitJuice",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FruitJuice.class",
+        "mapping_via": "candidate:Fruit Juice",
+        "python_id": "Fruit Juice",
+        "status": "alias"
+      },
+      {
+        "java_class": "GamblersBrew",
+        "java_id": "GamblersBrew",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/GamblersBrew.class",
+        "mapping_via": "exact",
+        "python_id": "GamblersBrew",
+        "status": "exact"
+      },
+      {
+        "java_class": "GhostInAJar",
+        "java_id": "GhostInAJar",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/GhostInAJar.class",
+        "mapping_via": "exact",
+        "python_id": "GhostInAJar",
+        "status": "exact"
+      },
+      {
+        "java_class": "HeartOfIron",
+        "java_id": "HeartOfIron",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/HeartOfIron.class",
+        "mapping_via": "exact",
+        "python_id": "HeartOfIron",
+        "status": "exact"
+      },
+      {
+        "java_class": "LiquidBronze",
+        "java_id": "LiquidBronze",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/LiquidBronze.class",
+        "mapping_via": "exact",
+        "python_id": "LiquidBronze",
+        "status": "exact"
+      },
+      {
+        "java_class": "LiquidMemories",
+        "java_id": "LiquidMemories",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/LiquidMemories.class",
+        "mapping_via": "exact",
+        "python_id": "LiquidMemories",
+        "status": "exact"
+      },
+      {
+        "java_class": "PoisonPotion",
+        "java_id": "PoisonPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PoisonPotion.class",
+        "mapping_via": "candidate:Poison Potion",
+        "python_id": "Poison Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "PotionOfCapacity",
+        "java_id": "PotionOfCapacity",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PotionOfCapacity.class",
+        "mapping_via": "exact",
+        "python_id": "PotionOfCapacity",
+        "status": "exact"
+      },
+      {
+        "java_class": "PowerPotion",
+        "java_id": "PowerPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PowerPotion.class",
+        "mapping_via": "exact",
+        "python_id": "PowerPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "RegenPotion",
+        "java_id": "RegenPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/RegenPotion.class",
+        "mapping_via": "candidate:Regen Potion",
+        "python_id": "Regen Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "SkillPotion",
+        "java_id": "SkillPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SkillPotion.class",
+        "mapping_via": "exact",
+        "python_id": "SkillPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "SmokeBomb",
+        "java_id": "SmokeBomb",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SmokeBomb.class",
+        "mapping_via": "exact",
+        "python_id": "SmokeBomb",
+        "status": "exact"
+      },
+      {
+        "java_class": "SneckoOil",
+        "java_id": "SneckoOil",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SneckoOil.class",
+        "mapping_via": "exact",
+        "python_id": "SneckoOil",
+        "status": "exact"
+      },
+      {
+        "java_class": "SpeedPotion",
+        "java_id": "SpeedPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SpeedPotion.class",
+        "mapping_via": "exact",
+        "python_id": "SpeedPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "StancePotion",
+        "java_id": "StancePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/StancePotion.class",
+        "mapping_via": "exact",
+        "python_id": "StancePotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "SteroidPotion",
+        "java_id": "SteroidPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SteroidPotion.class",
+        "mapping_via": "exact",
+        "python_id": "SteroidPotion",
+        "status": "exact"
+      },
+      {
+        "java_class": "StrengthPotion",
+        "java_id": "StrengthPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/StrengthPotion.class",
+        "mapping_via": "candidate:Strength Potion",
+        "python_id": "Strength Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "SwiftPotion",
+        "java_id": "SwiftPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SwiftPotion.class",
+        "mapping_via": "candidate:Swift Potion",
+        "python_id": "Swift Potion",
+        "status": "alias"
+      },
+      {
+        "java_class": "WeakenPotion",
+        "java_id": "WeakenPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/WeakenPotion.class",
+        "mapping_via": "candidate:Weak Potion",
+        "python_id": "Weak Potion",
+        "status": "alias"
+      }
+    ],
     "summary": {
-      "alias": 0,
-      "alias_examples": [],
-      "exact": 0,
-      "java_count": 0,
+      "alias": 14,
+      "alias_examples": [
+        {
+          "java_id": "AncientPotion",
+          "python_id": "Ancient Potion",
+          "via": "candidate:Ancient Potion"
+        },
+        {
+          "java_id": "BlockPotion",
+          "python_id": "Block Potion",
+          "via": "candidate:Block Potion"
+        },
+        {
+          "java_id": "DexterityPotion",
+          "python_id": "Dexterity Potion",
+          "via": "candidate:Dexterity Potion"
+        },
+        {
+          "java_id": "DistilledChaosPotion",
+          "python_id": "DistilledChaos",
+          "via": "candidate:DistilledChaos"
+        },
+        {
+          "java_id": "Elixir",
+          "python_id": "ElixirPotion",
+          "via": "candidate:ElixirPotion"
+        },
+        {
+          "java_id": "EnergyPotion",
+          "python_id": "Energy Potion",
+          "via": "candidate:Energy Potion"
+        },
+        {
+          "java_id": "ExplosivePotion",
+          "python_id": "Explosive Potion",
+          "via": "candidate:Explosive Potion"
+        },
+        {
+          "java_id": "FirePotion",
+          "python_id": "Fire Potion",
+          "via": "candidate:Fire Potion"
+        },
+        {
+          "java_id": "FruitJuice",
+          "python_id": "Fruit Juice",
+          "via": "candidate:Fruit Juice"
+        },
+        {
+          "java_id": "PoisonPotion",
+          "python_id": "Poison Potion",
+          "via": "candidate:Poison Potion"
+        },
+        {
+          "java_id": "RegenPotion",
+          "python_id": "Regen Potion",
+          "via": "candidate:Regen Potion"
+        },
+        {
+          "java_id": "StrengthPotion",
+          "python_id": "Strength Potion",
+          "via": "candidate:Strength Potion"
+        },
+        {
+          "java_id": "SwiftPotion",
+          "python_id": "Swift Potion",
+          "via": "candidate:Swift Potion"
+        },
+        {
+          "java_id": "WeakenPotion",
+          "python_id": "Weak Potion",
+          "via": "candidate:Weak Potion"
+        }
+      ],
+      "exact": 28,
+      "java_count": 42,
       "missing": 0,
       "missing_java_ids": [],
-      "source_missing": true
+      "source_missing": false
     }
   },
   "powers": {

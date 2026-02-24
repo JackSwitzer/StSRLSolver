@@ -1842,11 +1842,6 @@
         "java_source": "events/beyond/SensoryStone.java"
       },
       {
-        "java_class": "SpireHeart",
-        "java_id": "SpireHeart",
-        "java_source": "events/beyond/SpireHeart.java"
-      },
-      {
         "java_class": "TombRedMask",
         "java_id": "TombRedMask",
         "java_source": "events/beyond/TombRedMask.java"
@@ -2075,8 +2070,219 @@
     "source_missing": false
   },
   "potions": {
-    "items": [],
-    "source_missing": true
+    "items": [
+      {
+        "java_class": "Ambrosia",
+        "java_id": "Ambrosia",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/Ambrosia.class"
+      },
+      {
+        "java_class": "AncientPotion",
+        "java_id": "AncientPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/AncientPotion.class"
+      },
+      {
+        "java_class": "AttackPotion",
+        "java_id": "AttackPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/AttackPotion.class"
+      },
+      {
+        "java_class": "BlessingOfTheForge",
+        "java_id": "BlessingOfTheForge",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BlessingOfTheForge.class"
+      },
+      {
+        "java_class": "BlockPotion",
+        "java_id": "BlockPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BlockPotion.class"
+      },
+      {
+        "java_class": "BloodPotion",
+        "java_id": "BloodPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BloodPotion.class"
+      },
+      {
+        "java_class": "BottledMiracle",
+        "java_id": "BottledMiracle",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/BottledMiracle.class"
+      },
+      {
+        "java_class": "ColorlessPotion",
+        "java_id": "ColorlessPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/ColorlessPotion.class"
+      },
+      {
+        "java_class": "CultistPotion",
+        "java_id": "CultistPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/CultistPotion.class"
+      },
+      {
+        "java_class": "CunningPotion",
+        "java_id": "CunningPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/CunningPotion.class"
+      },
+      {
+        "java_class": "DexterityPotion",
+        "java_id": "DexterityPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DexterityPotion.class"
+      },
+      {
+        "java_class": "DistilledChaosPotion",
+        "java_id": "DistilledChaosPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DistilledChaosPotion.class"
+      },
+      {
+        "java_class": "DuplicationPotion",
+        "java_id": "DuplicationPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/DuplicationPotion.class"
+      },
+      {
+        "java_class": "Elixir",
+        "java_id": "Elixir",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/Elixir.class"
+      },
+      {
+        "java_class": "EnergyPotion",
+        "java_id": "EnergyPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EnergyPotion.class"
+      },
+      {
+        "java_class": "EntropicBrew",
+        "java_id": "EntropicBrew",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EntropicBrew.class"
+      },
+      {
+        "java_class": "EssenceOfDarkness",
+        "java_id": "EssenceOfDarkness",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EssenceOfDarkness.class"
+      },
+      {
+        "java_class": "EssenceOfSteel",
+        "java_id": "EssenceOfSteel",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/EssenceOfSteel.class"
+      },
+      {
+        "java_class": "ExplosivePotion",
+        "java_id": "ExplosivePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/ExplosivePotion.class"
+      },
+      {
+        "java_class": "FairyPotion",
+        "java_id": "FairyPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FairyPotion.class"
+      },
+      {
+        "java_class": "FearPotion",
+        "java_id": "FearPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FearPotion.class"
+      },
+      {
+        "java_class": "FirePotion",
+        "java_id": "FirePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FirePotion.class"
+      },
+      {
+        "java_class": "FocusPotion",
+        "java_id": "FocusPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FocusPotion.class"
+      },
+      {
+        "java_class": "FruitJuice",
+        "java_id": "FruitJuice",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/FruitJuice.class"
+      },
+      {
+        "java_class": "GamblersBrew",
+        "java_id": "GamblersBrew",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/GamblersBrew.class"
+      },
+      {
+        "java_class": "GhostInAJar",
+        "java_id": "GhostInAJar",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/GhostInAJar.class"
+      },
+      {
+        "java_class": "HeartOfIron",
+        "java_id": "HeartOfIron",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/HeartOfIron.class"
+      },
+      {
+        "java_class": "LiquidBronze",
+        "java_id": "LiquidBronze",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/LiquidBronze.class"
+      },
+      {
+        "java_class": "LiquidMemories",
+        "java_id": "LiquidMemories",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/LiquidMemories.class"
+      },
+      {
+        "java_class": "PoisonPotion",
+        "java_id": "PoisonPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PoisonPotion.class"
+      },
+      {
+        "java_class": "PotionOfCapacity",
+        "java_id": "PotionOfCapacity",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PotionOfCapacity.class"
+      },
+      {
+        "java_class": "PowerPotion",
+        "java_id": "PowerPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/PowerPotion.class"
+      },
+      {
+        "java_class": "RegenPotion",
+        "java_id": "RegenPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/RegenPotion.class"
+      },
+      {
+        "java_class": "SkillPotion",
+        "java_id": "SkillPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SkillPotion.class"
+      },
+      {
+        "java_class": "SmokeBomb",
+        "java_id": "SmokeBomb",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SmokeBomb.class"
+      },
+      {
+        "java_class": "SneckoOil",
+        "java_id": "SneckoOil",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SneckoOil.class"
+      },
+      {
+        "java_class": "SpeedPotion",
+        "java_id": "SpeedPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SpeedPotion.class"
+      },
+      {
+        "java_class": "StancePotion",
+        "java_id": "StancePotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/StancePotion.class"
+      },
+      {
+        "java_class": "SteroidPotion",
+        "java_id": "SteroidPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SteroidPotion.class"
+      },
+      {
+        "java_class": "StrengthPotion",
+        "java_id": "StrengthPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/StrengthPotion.class"
+      },
+      {
+        "java_class": "SwiftPotion",
+        "java_id": "SwiftPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/SwiftPotion.class"
+      },
+      {
+        "java_class": "WeakenPotion",
+        "java_id": "WeakenPotion",
+        "java_source": "/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/game-source/com/megacrit/cardcrawl/potions/WeakenPotion.class"
+      }
+    ],
+    "source_missing": false
   },
   "powers": {
     "items": [

@@ -21,8 +21,10 @@ EVENT_EXCLUDED_CLASSES = {
     "GenericEventDialog",
     "RoomEventDialog",
     "AddEventParams",
+    # SpireHeart is a special ending flow event, not part of regular event pools.
+    "SpireHeart",
 }
-POTION_EXCLUDED_CLASSES = {"AbstractPotion"}
+POTION_EXCLUDED_CLASSES = {"AbstractPotion", "PotionSlot"}
 POWER_EXCLUDED_CLASSES = {"AbstractPower"}
 POWER_HOOK_METHODS = {
     "atDamageFinalGive": r"atDamageFinalGive\s*\(",
@@ -83,7 +85,10 @@ def load_python_modules(repo_root: Path) -> Dict[str, Any]:
 
 
 def _java_source(path: Path, java_root: Path) -> str:
-    return str(path.relative_to(java_root)).replace("\\", "/")
+    try:
+        return str(path.relative_to(java_root)).replace("\\", "/")
+    except ValueError:
+        return str(path).replace("\\", "/")
 
 
 def parse_java_cards(java_root: Path) -> Dict[str, Any]:
@@ -164,21 +169,48 @@ def parse_java_events(java_root: Path) -> Dict[str, Any]:
 
 def parse_java_potions(java_root: Path) -> Dict[str, Any]:
     potions_root = java_root / "potions"
-    if not potions_root.exists():
-        return {"source_missing": True, "items": []}
 
     items: List[Dict[str, str]] = []
-    for path in sorted(potions_root.rglob("*.java")):
+
+    # Primary source: decompiled Java files.
+    if potions_root.exists():
+        for path in sorted(potions_root.rglob("*.java")):
+            class_name = path.stem
+            if class_name in POTION_EXCLUDED_CLASSES:
+                continue
+            items.append(
+                {
+                    "java_id": class_name,
+                    "java_class": class_name,
+                    "java_source": _java_source(path, java_root),
+                }
+            )
+        return {"source_missing": False, "items": items}
+
+    # Fallback source: class artifacts from game-source decompile snapshot.
+    fallback_root: Optional[Path] = None
+    for parent in [java_root, *java_root.parents]:
+        candidate = parent / "game-source" / "com" / "megacrit" / "cardcrawl" / "potions"
+        if candidate.exists():
+            fallback_root = candidate
+            break
+
+    if fallback_root is None:
+        return {"source_missing": True, "items": []}
+
+    for path in sorted(fallback_root.glob("*.class")):
         class_name = path.stem
-        if class_name in POTION_EXCLUDED_CLASSES:
+        # Skip inner classes and non-potion helper classes.
+        if "$" in class_name or class_name in POTION_EXCLUDED_CLASSES:
             continue
         items.append(
             {
                 "java_id": class_name,
                 "java_class": class_name,
-                "java_source": _java_source(path, java_root),
+                "java_source": str(path).replace("\\", "/"),
             }
         )
+
     return {"source_missing": False, "items": items}
 
 
@@ -422,7 +454,7 @@ def parse_registry_power_hooks(registry_path: Path) -> Dict[str, Any]:
 
 def parse_runtime_power_dispatch_hooks(paths: Sequence[Path]) -> List[str]:
     found: set[str] = set()
-    pattern = re.compile(r'execute_power_triggers\("([^\"]+)"')
+    pattern = re.compile(r'execute_power_triggers\(\s*[\"\']([^\"\']+)[\"\']')
     for path in paths:
         text = path.read_text(encoding="utf-8")
         for hook in pattern.findall(text):
@@ -583,7 +615,15 @@ def main() -> int:
     potions_rows = map_domain_ids(
         java_rows=java_inventory["potions"]["items"],
         python_ids=python_inventory["potions"]["ids"],
-        extra_candidates=lambda value: [value, split_camel(value)],
+        extra_candidates=lambda value: [
+            value,
+            split_camel(value),
+            re.sub(r"Potion$", "", value),
+            split_camel(re.sub(r"Potion$", "", value)),
+            value.replace("Weaken", "Weak"),
+            split_camel(value.replace("Weaken", "Weak")),
+            value + "Potion" if not value.endswith("Potion") else value,
+        ],
     )
 
     parity_diff = {
@@ -629,6 +669,7 @@ def main() -> int:
         [
             repo_root / "packages/engine/combat_engine.py",
             repo_root / "packages/engine/handlers/combat.py",
+            repo_root / "packages/engine/effects/registry.py",
         ]
     )
     hook_report = {
