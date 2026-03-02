@@ -82,7 +82,7 @@ export const CardHand = ({ cards, energy }: CardHandProps) => {
                 textAnchor="middle"
                 fill="#888"
                 fontSize="7"
-                textTransform="uppercase"
+                style={{ textTransform: 'uppercase' }}
               >
                 {card.type}
               </text>
