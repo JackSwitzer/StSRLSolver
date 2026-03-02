@@ -6,12 +6,14 @@ These tests validate the JSON action/observation layer and readiness gates.
 
 import sys
 import pytest
+import numpy as np
 
 sys.path.insert(0, "/Users/jackswitzer/Desktop/SlayTheSpireRL")
 
 from packages.engine.game import GameRunner, GamePhase
 from packages.engine.handlers.reward_handler import RewardHandler, PotionReward
 from packages.engine.content.potions import get_potion_by_id
+from packages.engine.rl_masks import ActionSpace
 
 
 def _make_runner_with_rewards(seed="REWARD1", room_type="monster"):
@@ -136,3 +138,96 @@ def test_skip_boss_relic_json_advances_without_relic():
     assert len(runner.run_state.relics) == before_relics
     assert runner.run_state.act == 2
     assert runner.phase == GamePhase.MAP_NAVIGATION
+
+
+# =============================================================================
+# RL-ACT-001 Mask and ID Stability Tests
+# =============================================================================
+
+
+def test_action_id_stability_multi_step():
+    """Action IDs remain identical when replaying same actions on same seed."""
+    runner1 = GameRunner(seed="STAB1", ascension=0, verbose=False)
+    runner2 = GameRunner(seed="STAB1", ascension=0, verbose=False)
+
+    for step in range(25):
+        if runner1.game_over or runner2.game_over:
+            break
+        a1 = runner1.get_available_action_dicts()
+        a2 = runner2.get_available_action_dicts()
+        ids1 = [a["id"] for a in a1]
+        ids2 = [a["id"] for a in a2]
+        assert ids1 == ids2, f"Action IDs diverged at step {step}: {ids1} vs {ids2}"
+        runner1.take_action_dict(a1[0])
+        runner2.take_action_dict(a2[0])
+
+
+def test_action_ordering_is_stable():
+    """Action list ordering is stable across repeated calls on same state."""
+    runner = GameRunner(seed="ORD1", ascension=0, verbose=False)
+    baseline = [a["id"] for a in runner.get_available_action_dicts()]
+    for _ in range(10):
+        current = [a["id"] for a in runner.get_available_action_dicts()]
+        assert current == baseline
+
+
+def test_mask_round_trip_preserves_actions():
+    """actions -> mask -> filtered_actions preserves the full legal set."""
+    runner = GameRunner(seed="MASK_RT", ascension=0, verbose=False)
+    space = ActionSpace()
+
+    for _ in range(20):
+        if runner.game_over:
+            break
+        actions = runner.get_available_action_dicts()
+        mask = space.actions_to_mask(actions)
+        filtered = space.mask_to_actions(mask, actions)
+        assert len(filtered) == len(actions)
+        assert {a["id"] for a in filtered} == {a["id"] for a in actions}
+        runner.take_action_dict(actions[0])
+
+
+def test_mask_size_monotonic():
+    """Action space size never decreases as new actions are observed."""
+    runner = GameRunner(seed="MASK_MONO", ascension=0, verbose=False)
+    space = ActionSpace()
+    prev_size = 0
+
+    for _ in range(30):
+        if runner.game_over:
+            break
+        actions = runner.get_available_action_dicts()
+        space.actions_to_mask(actions)
+        assert space.size >= prev_size
+        prev_size = space.size
+        runner.take_action_dict(actions[0])
+
+
+def test_invalid_action_rejected_not_silent():
+    """Invalid action dict returns explicit error, never silent corruption."""
+    runner = GameRunner(seed="INV1", ascension=0, verbose=False)
+    initial_floor = runner.run_state.floor
+    initial_hp = runner.run_state.current_hp
+
+    result = runner.take_action_dict({
+        "type": "nonexistent_action",
+        "params": {},
+    })
+
+    assert result.get("success") is False
+    assert "error" in result
+    assert isinstance(result["error"], str)
+    # State should not be corrupted
+    assert runner.run_state.floor == initial_floor
+    assert runner.run_state.current_hp == initial_hp
+
+
+def test_action_types_catalog():
+    """ActionSpace.action_types contains the expected known types."""
+    space = ActionSpace()
+    types = space.action_types
+    assert "play_card" in types
+    assert "end_turn" in types
+    assert "path_choice" in types
+    assert "select_cards" in types
+    assert "select_stance" in types
