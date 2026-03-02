@@ -158,8 +158,16 @@ class Card:
         return not self.upgraded
 
     def upgrade(self):
-        """Upgrade this card."""
+        """Upgrade this card, applying all upgrade-time changes."""
         self.upgraded = True
+        if self.upgrade_exhaust is not None:
+            self.exhaust = self.upgrade_exhaust
+        if self.upgrade_retain is not None:
+            self.retain = self.upgrade_retain
+        if self.upgrade_innate is not None:
+            self.innate = self.upgrade_innate
+        if self.upgrade_ethereal is not None:
+            self.ethereal = self.upgrade_ethereal
 
     def copy(self) -> 'Card':
         """Create a copy of this card."""
@@ -2798,7 +2806,7 @@ BOUNCING_FLASK = Card(
 CALCULATED_GAMBLE = Card(
     id="Calculated Gamble", name="Calculated Gamble", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     color=CardColor.GREEN, target=CardTarget.NONE, cost=0, exhaust=True,
-    # Upgraded: no longer exhausts
+    upgrade_exhaust=False,  # Java: upgraded version does NOT exhaust
     effects=["discard_hand_draw_same"],
 )
 
@@ -2955,8 +2963,8 @@ UNLOAD = Card(
 ADRENALINE = Card(
     id="Adrenaline", name="Adrenaline", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     color=CardColor.GREEN, target=CardTarget.SELF, cost=0, exhaust=True,
-    base_magic=1, upgrade_magic=1,  # Energy gain (shown in description)
-    effects=["gain_energy", "draw_2"],
+    base_magic=1, upgrade_magic=1,  # Energy gain (1 base, 2 upgraded)
+    effects=["gain_energy_magic", "draw_2"],
 )
 
 ALCHEMIZE = Card(

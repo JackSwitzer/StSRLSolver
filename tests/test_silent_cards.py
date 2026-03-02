@@ -712,7 +712,7 @@ class TestEnergyDrawCards:
         assert card.cost == 0
         assert card.magic_number == 1
         assert card.exhaust == True
-        assert "gain_energy" in card.effects
+        assert "gain_energy_magic" in card.effects
         assert "draw_2" in card.effects
 
     def test_adrenaline_upgraded(self):
