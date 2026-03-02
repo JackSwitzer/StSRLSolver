@@ -1337,3 +1337,327 @@ def corpse_explosion_on_death(ctx: PowerContext) -> None:
                 enemy.hp -= (max_hp - blocked)
                 if enemy.hp < 0:
                     enemy.hp = 0
+
+
+# =============================================================================
+# POW-002B / POW-003A -- System / Shared Powers
+# =============================================================================
+
+# --- NoBlockPower: modifyBlockLast -> 0, atEndOfRound decrement ---
+
+@power_trigger("modifyBlockLast", power="NoBlockPower")
+def no_block_modify_block_last(ctx: PowerContext) -> int:
+    """NoBlockPower: Reduce all block gained from cards to 0.
+
+    Java: NoBlockPower.modifyBlockLast() returns 0.0f.
+    """
+    return 0
+
+
+@power_trigger("atEndOfRound", power="NoBlockPower")
+def no_block_end_round(ctx: PowerContext) -> None:
+    """NoBlockPower: Decrement at end of round; remove at 0.
+
+    Java: atEndOfRound() -- if amount == 0, remove; else reduce by 1.
+    justApplied flag is handled in combat engine (skip first round).
+    """
+    if ctx.owner is None:
+        return
+    if ctx.amount <= 0:
+        _sync_owner_power_amount(ctx, "NoBlockPower", 0)
+    else:
+        _sync_owner_power_amount(ctx, "NoBlockPower", ctx.amount - 1)
+
+
+# --- Entangled: canPlayCard check is in combat engine, atEndOfTurn remove ---
+
+@power_trigger("atEndOfTurn", power="Entangled")
+def entangled_end(ctx: PowerContext) -> None:
+    """Entangled: Remove at end of turn.
+
+    Java: EntanglePower.atEndOfTurn(isPlayer) -- removes itself.
+    The canPlayCard check is inline in CombatEngine._can_play_card().
+    """
+    if ctx.owner == ctx.player:
+        ctx.player.statuses.pop("Entangled", None)
+
+
+# --- Double Damage: atDamageGive double, atEndOfRound decrement ---
+
+@power_trigger("atDamageGive", power="Double Damage", priority=6)
+def double_damage_give(ctx: PowerContext) -> int:
+    """Double Damage: Double NORMAL damage dealt.
+
+    Java: DoubleDamagePower.atDamageGive -- damage * 2 for NORMAL type.
+    Priority 6 matches Java.
+    """
+    base_damage = ctx.trigger_data.get("value", 0)
+    if ctx.trigger_data.get("damage_type", "NORMAL") != "NORMAL":
+        return base_damage
+    return base_damage * 2.0
+
+
+@power_trigger("atEndOfRound", power="Double Damage")
+def double_damage_end_round(ctx: PowerContext) -> None:
+    """Double Damage: Decrement at end of round; remove at 0.
+
+    Java: DoubleDamagePower.atEndOfRound -- justApplied skip then reduce/remove.
+    """
+    if ctx.owner is None:
+        return
+    if ctx.amount <= 0:
+        _sync_owner_power_amount(ctx, "Double Damage", 0)
+    else:
+        _sync_owner_power_amount(ctx, "Double Damage", ctx.amount - 1)
+
+
+# --- Repair: onVictory heal ---
+
+@power_trigger("onVictory", power="Repair")
+def repair_on_victory(ctx: PowerContext) -> None:
+    """Repair: Heal amount on victory if player alive.
+
+    Java: RepairPower.onVictory -- p.heal(this.amount) if currentHealth > 0.
+    """
+    if ctx.player.hp > 0:
+        heal = min(ctx.amount, ctx.player.max_hp - ctx.player.hp)
+        ctx.player.hp += heal
+
+
+# --- Lock-On: atEndOfRound decrement ---
+# Note: Lock-On's orb damage modifier is passive (checked by orb system), not a hook.
+
+@power_trigger("atEndOfRound", power="Lockon")
+@power_trigger("atEndOfRound", power="Lock-On")
+def lockon_end_round(ctx: PowerContext) -> None:
+    """Lock-On: Decrement at end of round; remove at 0.
+
+    Java: LockOnPower.atEndOfRound -- if amount == 0, remove; else reduce by 1.
+    """
+    if ctx.owner is None:
+        return
+    if ctx.amount <= 0:
+        _sync_owner_power_amount(ctx, "Lockon", 0)
+    else:
+        _sync_owner_power_amount(ctx, "Lockon", ctx.amount - 1)
+
+
+# --- Panache: atStartOfTurn reset counter ---
+# Note: The onUseCard handler for Panache already exists above. This adds the
+# atStartOfTurn reset that Java does in PanachePower.atStartOfTurn().
+
+@power_trigger("atStartOfTurn", power="Panache")
+def panache_start_of_turn(ctx: PowerContext) -> None:
+    """Panache: Reset card counter to 5 at start of turn.
+
+    Java: PanachePower.atStartOfTurn -- this.amount = 5.
+    We track counter in PanacheCounter status separately.
+    """
+    ctx.player.statuses["PanacheCounter"] = 0
+
+
+# =============================================================================
+# POW-002B / POW-003A -- Boss / Enemy Powers
+# =============================================================================
+
+# --- Angry: onAttacked gain Strength ---
+
+@power_trigger("onAttacked", power="Angry")
+def angry_on_attacked(ctx: PowerContext) -> None:
+    """Angry: Gain Strength when hit by non-HP_LOSS/THORNS damage.
+
+    Java: AngryPower.onAttacked -- if info.owner != null && damageAmount > 0
+    && info.type != HP_LOSS && info.type != THORNS => gain Strength.
+    """
+    if ctx.owner is None:
+        return
+    attacker = ctx.trigger_data.get("attacker")
+    unblocked = ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0))
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    if attacker is not None and unblocked > 0 and damage_type not in ("HP_LOSS", "THORNS"):
+        ctx.owner.statuses["Strength"] = ctx.owner.statuses.get("Strength", 0) + ctx.amount
+
+
+# --- Curiosity: onUseCard Power -> gain Strength ---
+
+@power_trigger("onUseCard", power="Curiosity")
+def curiosity_on_use(ctx: PowerContext) -> None:
+    """Curiosity: Gain Strength when player plays a Power card.
+
+    Java: CuriosityPower.onUseCard -- if card.type == POWER, gain Strength.
+    """
+    if ctx.owner is None:
+        return
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.POWER:
+        ctx.owner.statuses["Strength"] = ctx.owner.statuses.get("Strength", 0) + ctx.amount
+
+
+# --- GrowthPower: atEndOfRound gain Strength with skip-first logic ---
+
+@power_trigger("atEndOfRound", power="GrowthPower")
+def growth_power_end_round(ctx: PowerContext) -> None:
+    """GrowthPower: Gain Strength at end of round, skip first round.
+
+    Java: GrowthPower.atEndOfRound -- skipFirst flag; on subsequent rounds,
+    applies Strength equal to amount.
+    """
+    if ctx.owner is None:
+        return
+    key = _runtime_counter_key(ctx, "growth_skip_first")
+    skip = ctx.state.relic_counters.get(key, 1)
+    if skip:
+        ctx.state.relic_counters[key] = 0
+    else:
+        ctx.owner.statuses["Strength"] = ctx.owner.statuses.get("Strength", 0) + ctx.amount
+
+
+# --- Fading: duringTurn decrement, suicide at 0 ---
+# Java uses duringTurn() which fires during the enemy's turn. We dispatch
+# this at start of each enemy turn in the enemy turn loop.
+
+@power_trigger("atEndOfTurn", power="Fading")
+def fading_during_turn(ctx: PowerContext) -> None:
+    """Fading: Decrement each turn; at 1, the creature dies (suicide).
+
+    Java: FadingPower.duringTurn -- if amount == 1, suicide; else reduce by 1.
+    We use atEndOfTurn for enemy owners since duringTurn fires per-enemy.
+    """
+    if ctx.owner is None or ctx.owner is ctx.player:
+        return
+    if ctx.amount <= 1:
+        # Kill the creature
+        ctx.owner.hp = 0
+    else:
+        ctx.owner.statuses["Fading"] = ctx.amount - 1
+
+
+# --- Thievery: onAttack steal gold ---
+# Java: ThieveryPower has no hook methods itself -- the gold steal is done
+# in the damage action. We add an onAttack hook for completeness.
+
+@power_trigger("onAttack", power="Thievery")
+def thievery_on_attack(ctx: PowerContext) -> None:
+    """Thievery: Steal gold from player on unblocked attack damage.
+
+    Java: The steal is handled in the attack action -- steal amount gold
+    when dealing unblocked damage.
+    """
+    if ctx.owner is None or ctx.owner is ctx.player:
+        return
+    unblocked = ctx.trigger_data.get("unblocked_damage", 0)
+    if unblocked > 0 and hasattr(ctx.state, "gold"):
+        stolen = min(ctx.amount, ctx.state.gold)
+        ctx.state.gold -= stolen
+
+
+# =============================================================================
+# POW-002B / POW-003A -- Defect Powers
+# =============================================================================
+
+# --- Storm: onUseCard Power -> channel Lightning ---
+
+@power_trigger("onUseCard", power="Storm")
+def storm_on_use(ctx: PowerContext) -> None:
+    """Storm: Channel Lightning when playing a Power card.
+
+    Java: StormPower.onUseCard -- if card.type == POWER, channel Lightning
+    amount times.
+    """
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.POWER:
+        for _ in range(ctx.amount):
+            ctx.channel_orb("Lightning")
+
+
+# --- Static Discharge: onAttacked channel Lightning ---
+
+@power_trigger("onAttacked", power="StaticDischarge")
+def static_discharge_on_attacked(ctx: PowerContext) -> None:
+    """Static Discharge: Channel Lightning when taking non-THORNS/HP_LOSS damage.
+
+    Java: StaticDischargePower.onAttacked -- if type != THORNS && type != HP_LOSS
+    && info.owner != null && info.owner != this.owner && damageAmount > 0.
+    """
+    attacker = ctx.trigger_data.get("attacker")
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    unblocked = ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0))
+    if (
+        attacker is not None
+        and attacker is not ctx.owner
+        and unblocked > 0
+        and damage_type not in ("THORNS", "HP_LOSS")
+    ):
+        for _ in range(ctx.amount):
+            ctx.channel_orb("Lightning")
+
+
+# =============================================================================
+# POW-002B / POW-003A -- Watcher Powers
+# =============================================================================
+
+# --- BlockReturnPower: onAttacked gain block ---
+
+@power_trigger("onAttacked", power="BlockReturnPower")
+def block_return_on_attacked(ctx: PowerContext) -> None:
+    """BlockReturn (Talk to the Hand mark): Player gains block when attacking
+    an enemy that has this power.
+
+    Java: BlockReturnPower is applied to enemies. When the enemy is attacked
+    and takes unblocked damage, the player gains block equal to the power amount.
+    """
+    if ctx.owner is None or ctx.owner is ctx.player:
+        return
+    # This power lives on the enemy; when that enemy is attacked, player gains block
+    attacker = ctx.trigger_data.get("attacker")
+    unblocked = ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0))
+    if attacker is not None and unblocked > 0:
+        ctx.player.block += ctx.amount
+
+
+# --- EstablishmentPower: reduce retained card costs ---
+
+@power_trigger("atEndOfTurn", power="EstablishmentPower")
+@power_trigger("atEndOfTurn", power="Establishment")
+def establishment_end(ctx: PowerContext) -> None:
+    """Establishment: Reduce cost of retained cards by 1 at end of turn.
+
+    Java: EstablishmentPower works via onRetainedCards callback.
+    Since we don't have per-card cost tracking, this is a no-op placeholder.
+    The effect requires per-card current_cost mutation which is tracked elsewhere.
+    """
+    # Per-card cost reduction for retained cards would need card instance tracking.
+    # This is a known limitation -- placeholder for when card cost tracking is added.
+    pass
+
+
+# --- FreeAttackPower: onUseCard decrement on ATTACK ---
+
+@power_trigger("onUseCard", power="FreeAttackPower")
+def free_attack_on_use(ctx: PowerContext) -> None:
+    """FreeAttackPower: Decrement when an Attack card is played.
+
+    Java: FreeAttackPower.onUseCard -- if card.type == ATTACK, reduce amount.
+    The cost reduction is applied when the card cost is calculated.
+    """
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        if ctx.amount > 1:
+            ctx.player.statuses["FreeAttackPower"] = ctx.amount - 1
+        else:
+            ctx.player.statuses.pop("FreeAttackPower", None)
+
+
+# --- CannotChangeStancePower: block stance change + remove at end of turn ---
+
+@power_trigger("atEndOfTurn", power="CannotChangeStancePower")
+def cannot_change_stance_end(ctx: PowerContext) -> None:
+    """CannotChangeStancePower: Remove at end of turn.
+
+    Java: CannotChangeStancePower is removed at end of turn.
+    The stance-change blocking check is inline in the combat engine.
+    """
+    ctx.player.statuses.pop("CannotChangeStancePower", None)

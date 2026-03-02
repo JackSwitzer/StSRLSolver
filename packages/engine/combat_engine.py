@@ -1054,6 +1054,8 @@ class CombatEngine:
         # Trigger onVictory relics (Burning Blood, Meat on the Bone, etc.)
         if player_won:
             execute_relic_triggers("onVictory", self.state)
+            # Trigger onVictory power triggers (Repair, etc.)
+            execute_power_triggers("onVictory", self.state, self.state.player)
 
         self.log.log(self.state.turn, "combat_end",
                     player_won=player_won,
@@ -1967,6 +1969,17 @@ class CombatEngine:
         )
         if modified is None:
             modified = float(base_block)
+
+        # Apply modifyBlockLast (NoBlockPower sets to 0)
+        final = execute_power_triggers(
+            "modifyBlockLast",
+            self.state,
+            self.state.player,
+            {"value": float(modified)},
+        )
+        if final is not None:
+            modified = final
+
         return max(0, int(modified))
 
     # =========================================================================
