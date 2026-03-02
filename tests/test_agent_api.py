@@ -1839,6 +1839,268 @@ def _navigate_to_room_type(runner: GameRunner, room_type: str, max_floors: int =
 
 
 # =============================================================================
+# RL-OBS-001 Observation Profile Lock Tests
+# =============================================================================
+
+
+class TestObservationProfileLock:
+    """Tests for RL-OBS-001: observation profile, schema versioning, field presence."""
+
+    # -- Required run fields ------------------------------------------------
+
+    def test_observation_has_required_run_fields(self, runner):
+        """Human profile must include all run-level fields for RL training."""
+        obs = runner.get_observation()
+        run = obs["run"]
+
+        required = {
+            "current_hp", "max_hp", "gold", "floor", "act",
+            "deck", "relics", "potions", "ascension",
+        }
+        for field in required:
+            assert field in run, f"Run section missing required field: {field}"
+
+        # Type sanity
+        assert isinstance(run["current_hp"], int)
+        assert isinstance(run["max_hp"], int)
+        assert isinstance(run["gold"], int)
+        assert isinstance(run["floor"], int)
+        assert isinstance(run["act"], int)
+        assert isinstance(run["ascension"], int)
+        assert isinstance(run["deck"], list)
+        assert isinstance(run["relics"], list)
+        assert isinstance(run["potions"], list)
+
+    # -- Required combat fields ---------------------------------------------
+
+    def test_observation_has_required_combat_fields(self, runner):
+        """Human profile combat section must include all RL-required fields."""
+        _navigate_to_combat(runner)
+        if runner.phase != GamePhase.COMBAT:
+            pytest.skip("Could not reach combat")
+
+        obs = runner.get_observation()
+        combat = obs["combat"]
+        assert combat is not None
+
+        required = {
+            "player", "enemies", "hand", "energy", "turn", "stance",
+            "draw_pile", "discard_pile", "exhaust_pile",
+        }
+        for field in required:
+            assert field in combat, f"Combat section missing required field: {field}"
+
+        # Player sub-fields
+        player = combat["player"]
+        for pf in ("hp", "max_hp", "block", "statuses"):
+            assert pf in player, f"Combat player missing: {pf}"
+
+        # Enemies must have essential fields
+        assert len(combat["enemies"]) > 0
+        for enemy in combat["enemies"]:
+            for ef in ("id", "hp", "max_hp", "block", "move_damage", "move_hits"):
+                assert ef in enemy, f"Enemy missing: {ef}"
+
+    # -- Schema version fields ----------------------------------------------
+
+    def test_observation_schema_version_present(self, runner):
+        """observation_schema_version must be a semver string in every observation."""
+        obs = runner.get_observation()
+
+        assert "observation_schema_version" in obs
+        version = obs["observation_schema_version"]
+        assert isinstance(version, str)
+        parts = version.split(".")
+        assert len(parts) == 3, f"Expected semver x.y.z, got {version}"
+        assert all(p.isdigit() for p in parts), f"Expected numeric semver parts: {version}"
+
+    def test_observation_action_schema_version_present(self, runner):
+        """action_schema_version must be a semver string in every observation."""
+        obs = runner.get_observation()
+
+        assert "action_schema_version" in obs
+        version = obs["action_schema_version"]
+        assert isinstance(version, str)
+        parts = version.split(".")
+        assert len(parts) == 3, f"Expected semver x.y.z, got {version}"
+        assert all(p.isdigit() for p in parts), f"Expected numeric semver parts: {version}"
+
+    # -- Determinism --------------------------------------------------------
+
+    def test_observation_deterministic(self, runner):
+        """Same state must produce bit-identical observations (human profile)."""
+        obs1 = runner.get_observation()
+
+        runner2 = GameRunner(seed="AGENTTEST", ascension=20, verbose=False)
+        obs2 = runner2.get_observation()
+
+        json1 = json.dumps(obs1, sort_keys=True)
+        json2 = json.dumps(obs2, sort_keys=True)
+        assert json1 == json2, "Identical state must yield identical observations"
+
+    def test_observation_deterministic_across_calls(self, runner):
+        """Repeated get_observation on same state returns identical dict."""
+        obs1 = runner.get_observation()
+        obs2 = runner.get_observation()
+
+        json1 = json.dumps(obs1, sort_keys=True)
+        json2 = json.dumps(obs2, sort_keys=True)
+        assert json1 == json2
+
+    # -- Profile parameter --------------------------------------------------
+
+    def test_profile_field_present(self, runner):
+        """Observation dict must include the profile name."""
+        obs_human = runner.get_observation(profile="human")
+        assert obs_human.get("profile") == "human"
+
+        obs_debug = runner.get_observation(profile="debug")
+        assert obs_debug.get("profile") == "debug"
+
+    def test_human_profile_has_no_debug_key(self, runner):
+        """Human profile must not include a debug section."""
+        obs = runner.get_observation(profile="human")
+        assert "debug" not in obs or obs["debug"] is None
+
+    def test_debug_profile_has_debug_key(self, runner):
+        """Debug profile must include a debug section with diagnostic fields."""
+        obs = runner.get_observation(profile="debug")
+        assert "debug" in obs
+        debug = obs["debug"]
+        assert isinstance(debug, dict)
+        assert "game_over" in debug
+        assert "rng_streams" in debug
+
+    def test_debug_profile_superset_of_human(self, runner):
+        """Debug profile must contain all fields that human profile has."""
+        obs_human = runner.get_observation(profile="human")
+        obs_debug = runner.get_observation(profile="debug")
+
+        # Every top-level key in human (except 'profile' and 'debug') must exist in debug
+        for key in obs_human:
+            if key == "profile":
+                continue
+            assert key in obs_debug, f"Debug profile missing human key: {key}"
+            # For non-None values, they should be equal
+            if obs_human[key] is not None and key != "debug":
+                human_json = json.dumps(obs_human[key], sort_keys=True)
+                debug_json = json.dumps(obs_debug[key], sort_keys=True)
+                assert human_json == debug_json, f"Key {key} differs between profiles"
+
+    def test_debug_combat_internals(self, runner):
+        """Debug profile in combat includes full pile contents."""
+        _navigate_to_combat(runner)
+        if runner.phase != GamePhase.COMBAT:
+            pytest.skip("Could not reach combat")
+
+        obs = runner.get_observation(profile="debug")
+        debug = obs.get("debug", {})
+        internals = debug.get("combat_internals", {})
+
+        assert "draw_pile_contents" in internals
+        assert "discard_pile_contents" in internals
+        assert "exhaust_pile_contents" in internals
+        assert isinstance(internals["draw_pile_contents"], list)
+
+    def test_invalid_profile_raises(self, runner):
+        """Unknown profile name must raise ValueError."""
+        with pytest.raises(ValueError, match="Unknown observation profile"):
+            runner.get_observation(profile="nonexistent")
+
+    # -- Default profile is human (backward compat) -------------------------
+
+    def test_default_profile_is_human(self, runner):
+        """get_observation() with no args uses human profile."""
+        obs_default = runner.get_observation()
+        obs_human = runner.get_observation(profile="human")
+
+        assert obs_default.get("profile") == "human"
+        json1 = json.dumps(obs_default, sort_keys=True)
+        json2 = json.dumps(obs_human, sort_keys=True)
+        assert json1 == json2
+
+
+class TestObservationEncoding:
+    """Tests for RL observation encoding utilities."""
+
+    def test_observation_to_array_returns_numpy(self, runner):
+        """observation_to_array should return a float32 numpy array."""
+        from packages.engine.rl_observations import observation_to_array
+
+        obs = runner.get_observation()
+        arr = observation_to_array(obs)
+
+        assert isinstance(arr, np.ndarray)
+        assert arr.dtype == np.float32
+        assert arr.ndim == 1
+        assert arr.shape[0] > 0
+
+    def test_observation_to_array_deterministic(self, runner):
+        """Same observation must produce identical arrays."""
+        from packages.engine.rl_observations import observation_to_array
+
+        obs = runner.get_observation()
+        arr1 = observation_to_array(obs)
+        arr2 = observation_to_array(obs)
+
+        np.testing.assert_array_equal(arr1, arr2)
+
+    def test_observation_to_array_differs_across_states(self):
+        """Different game states should produce different arrays."""
+        from packages.engine.rl_observations import observation_to_array
+
+        r1 = GameRunner(seed="ENC_A", ascension=0, verbose=False)
+        r2 = GameRunner(seed="ENC_B", ascension=20, verbose=False)
+
+        arr1 = observation_to_array(r1.get_observation())
+        arr2 = observation_to_array(r2.get_observation())
+
+        # At minimum the ascension value differs
+        assert not np.array_equal(arr1, arr2)
+
+    def test_array_round_trip_preserves_scalars(self, runner):
+        """Encoding then decoding should preserve key scalar values."""
+        from packages.engine.rl_observations import (
+            observation_to_array, array_to_observation,
+        )
+
+        obs = runner.get_observation()
+        arr = observation_to_array(obs)
+        recovered = array_to_observation(arr)
+
+        assert recovered["run"]["max_hp"] == obs["run"]["max_hp"]
+        assert recovered["run"]["gold"] == obs["run"]["gold"]
+        assert recovered["run"]["floor"] == obs["run"]["floor"]
+        assert recovered["run"]["act"] == obs["run"]["act"]
+        assert recovered["run"]["ascension"] == obs["run"]["ascension"]
+
+    def test_encoder_size_is_positive(self):
+        """ObservationEncoder.size should be a positive integer."""
+        from packages.engine.rl_observations import ObservationEncoder
+
+        enc = ObservationEncoder()
+        assert enc.size > 0
+        assert isinstance(enc.size, int)
+
+    def test_combat_encoding(self, runner):
+        """Combat features should be non-zero when in combat."""
+        from packages.engine.rl_observations import ObservationEncoder
+
+        _navigate_to_combat(runner)
+        if runner.phase != GamePhase.COMBAT:
+            pytest.skip("Could not reach combat")
+
+        enc = ObservationEncoder()
+        obs = runner.get_observation()
+        arr = enc.observation_to_array(obs)
+
+        # Energy and turn should be non-zero or at least the energy position set
+        combat_start = enc._off_combat_scalars
+        # At least turn should be >= 1
+        assert arr[combat_start + 2] >= 1.0, "Turn should be >= 1 in combat"
+
+
+# =============================================================================
 # Run tests
 # =============================================================================
 

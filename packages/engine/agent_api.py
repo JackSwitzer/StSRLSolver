@@ -56,7 +56,19 @@ class ActionResult(TypedDict, total=False):
 
 
 class ObservationDict(TypedDict, total=False):
-    """Complete observable game state."""
+    """Complete observable game state.
+
+    Profiles:
+        "human" (default): Training-ready observation with all fields an RL
+            agent needs.  draw_pile/discard_pile/exhaust_pile in combat are
+            included as counts only (draw_pile_count, discard_pile_count,
+            exhaust_pile_count).
+        "debug": Superset of human.  Adds full pile contents, RNG counters,
+            and other diagnostic fields under a top-level ``debug`` key.
+    """
+    observation_schema_version: str
+    action_schema_version: str
+    profile: str
     phase: str
     run: Dict[str, Any]
     map: Dict[str, Any]
@@ -66,6 +78,7 @@ class ObservationDict(TypedDict, total=False):
     shop: Optional[Dict[str, Any]]
     rest: Optional[Dict[str, Any]]
     treasure: Optional[Dict[str, Any]]
+    debug: Optional[Dict[str, Any]]
 
 
 # =============================================================================
@@ -959,6 +972,12 @@ def take_action_dict(runner, action: ActionDict) -> ActionResult:
         return {"success": False, "error": str(exc)}
 
 
-def get_observation(runner) -> ObservationDict:
-    """Return the current observation via GameRunner's JSON API."""
-    return runner.get_observation()
+def get_observation(runner, profile: str = "human") -> ObservationDict:
+    """Return the current observation via GameRunner's JSON API.
+
+    Args:
+        runner: The GameRunner instance.
+        profile: Observation profile -- ``"human"`` (default, RL training) or
+            ``"debug"`` (includes full pile contents, RNG counters, etc.).
+    """
+    return runner.get_observation(profile=profile)

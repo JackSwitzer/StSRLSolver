@@ -133,3 +133,8 @@ from .combat_engine import CombatEngine
 # GameRunner implements JSON methods directly; agent_api is a compatibility shim.
 from . import agent_api
 from .agent_api import ActionDict, ActionResult, ObservationDict
+from .rl_observations import (
+    ObservationEncoder,
+    observation_to_array,
+    array_to_observation,
+)

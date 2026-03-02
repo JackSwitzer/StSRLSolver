@@ -1834,15 +1834,28 @@ class GameRunner:
     # Observation Interface
     # =========================================================================
 
-    def get_observation(self) -> Dict[str, Any]:
-        """Return a JSON-serializable observation for the current state."""
+    def get_observation(self, profile: str = "human") -> Dict[str, Any]:
+        """Return a JSON-serializable observation for the current state.
+
+        Args:
+            profile: ``"human"`` (default) for RL-training observations, or
+                ``"debug"`` which includes additional diagnostic fields (full
+                pile contents, RNG counters, etc.) under a top-level ``debug``
+                key.
+        """
+        if profile not in ("human", "debug"):
+            raise ValueError(f"Unknown observation profile: {profile!r} (expected 'human' or 'debug')")
+
         # Ensure map exists for current act
         if self.run_state.get_current_map() is None:
             self.run_state.generate_map_for_act(self.run_state.act)
 
-        return {
+        is_debug = profile == "debug"
+
+        obs: Dict[str, Any] = {
             "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
             "action_schema_version": ACTION_SCHEMA_VERSION,
+            "profile": profile,
             "phase": self._phase_to_action_phase(),
             "run": self._build_run_observation(),
             "map": self._build_map_observation(),
@@ -1855,6 +1868,11 @@ class GameRunner:
             "rest": self._build_rest_observation() if self.phase == GamePhase.REST else None,
             "treasure": self._build_treasure_observation() if self.phase == GamePhase.TREASURE else None,
         }
+
+        if is_debug:
+            obs["debug"] = self._build_debug_observation()
+
+        return obs
 
     def _build_run_observation(self) -> Dict[str, Any]:
         """Serialize run-level state."""
@@ -2110,6 +2128,48 @@ class GameRunner:
         return {
             "available_actions": [self._action_to_dict(a)["type"] for a in actions],
         }
+
+    def _build_debug_observation(self) -> Dict[str, Any]:
+        """Build debug-only observation fields.
+
+        Includes information not useful for RL training but helpful for
+        diagnostics: full RNG stream states, internal counters, game_over
+        flag, decision log length, etc.
+        """
+        debug: Dict[str, Any] = {
+            "game_over": self.game_over,
+            "game_over_reason": getattr(self, "game_over_reason", None),
+            "decision_log_length": len(self.decision_log) if hasattr(self, "decision_log") else 0,
+        }
+
+        # RNG stream states (counter positions for reproducibility)
+        rng_streams: Dict[str, Any] = {}
+        for attr_name in (
+            "card_rng", "monster_rng", "event_rng", "relic_rng",
+            "treasure_rng", "potion_rng", "merchant_rng",
+        ):
+            rng = getattr(self, attr_name, None)
+            if rng is not None and hasattr(rng, "counter"):
+                rng_streams[attr_name] = {"counter": rng.counter}
+        debug["rng_streams"] = rng_streams
+
+        # Full combat internals when in combat
+        if self.current_combat is not None:
+            state = self.current_combat.state
+            debug["combat_internals"] = {
+                "draw_pile_contents": list(state.draw_pile),
+                "discard_pile_contents": list(state.discard_pile),
+                "exhaust_pile_contents": list(state.exhaust_pile),
+                "orb_slots": getattr(state, "orb_slots", []),
+            }
+
+        # Pending selection state
+        if self.pending_selection is not None:
+            debug["pending_selection"] = {
+                "type": str(type(self.pending_selection).__name__),
+            }
+
+        return debug
 
     # =========================================================================
     # Action Generators
