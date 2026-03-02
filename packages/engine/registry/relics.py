@@ -146,9 +146,12 @@ def damaru_turn(ctx: RelicContext) -> None:
 @relic_trigger("atTurnStart", relic="Warped Tongs")
 def warped_tongs_turn_start(ctx: RelicContext) -> None:
     """Warped Tongs: At start of each turn, Upgrade a random card in your hand for the rest of combat."""
-    import random
     if ctx.state.hand:
-        idx = random.randint(0, len(ctx.state.hand) - 1)
+        rng = ctx._card_random_rng()
+        if rng is not None:
+            idx = rng.random(len(ctx.state.hand) - 1)
+        else:
+            idx = 0
         card_id = ctx.state.hand[idx]
         # Create temporary upgrade tracking
         if not hasattr(ctx.state, 'combat_upgrades'):
@@ -190,10 +193,9 @@ def lantern_init(ctx: RelicContext) -> None:
 @relic_trigger("atBattleStart", relic="Mark of Pain")
 def mark_of_pain_start(ctx: RelicContext) -> None:
     """Mark of Pain: Shuffle 2 Wounds into draw pile at combat start."""
-    import random
     ctx.state.draw_pile.append("Wound")
     ctx.state.draw_pile.append("Wound")
-    random.shuffle(ctx.state.draw_pile)
+    ctx.shuffle_in_place(ctx.state.draw_pile)
 
 
 @relic_trigger("atBattleStart", relic="MutagenicStrength")
@@ -421,10 +423,9 @@ def gambling_chip_turn_start(ctx: RelicContext) -> None:
 def enchiridion_start(ctx: RelicContext) -> None:
     """Enchiridion: Add a random Power card to hand (costs 0 this turn)."""
     from ..content.cards import ALL_CARDS, CardType
-    import random
     powers = [cid for cid, card in ALL_CARDS.items() if card.card_type == CardType.POWER]
     if powers:
-        chosen = random.choice(powers)
+        chosen = ctx.random_choice(powers)
         ctx.add_card_to_hand(chosen)
         # Set the card to cost 0 for this turn
         if hasattr(ctx.state, 'card_costs'):
@@ -681,10 +682,9 @@ def pocketwatch_end(ctx: RelicContext) -> None:
 def nilrys_codex_end(ctx: RelicContext) -> None:
     """Nilry's Codex: Add card choice for next turn (simplified: random)."""
     from ..content.cards import ALL_CARDS
-    import random
     pool = list(ALL_CARDS.keys())[:100]  # Limit for performance
     if pool:
-        chosen = random.choice(pool)
+        chosen = ctx.random_choice(pool)
         if not hasattr(ctx.state, 'cards_to_add_next_turn') or ctx.state.cards_to_add_next_turn is None:
             ctx.state.cards_to_add_next_turn = []
         ctx.state.cards_to_add_next_turn.append(chosen)
@@ -837,8 +837,11 @@ def mummified_hand_on_play(ctx: RelicContext) -> None:
         from ..content.cards import CardType
         if ctx.card.card_type == CardType.POWER:
             if ctx.state.hand:
-                import random
-                idx = random.randint(0, len(ctx.state.hand) - 1)
+                rng = ctx._card_random_rng()
+                if rng is not None:
+                    idx = rng.random(len(ctx.state.hand) - 1)
+                else:
+                    idx = 0
                 card_id = ctx.state.hand[idx]
                 current_cost = ctx.state.card_costs.get(card_id, 1)
                 ctx.state.card_costs[card_id] = max(0, current_cost - 1)
@@ -956,14 +959,13 @@ def charons_ashes_exhaust(ctx: RelicContext) -> None:
 def dead_branch_exhaust(ctx: RelicContext) -> None:
     """Dead Branch: Add a random card to hand when a card is exhausted."""
     from ..content.cards import ALL_CARDS
-    import random
 
     # Get all non-curse, non-status cards
     pool = [cid for cid, card in ALL_CARDS.items()
             if card.card_type.value not in ("CURSE", "STATUS")]
 
     if pool:
-        random_card = random.choice(pool)
+        random_card = ctx.random_choice(pool)
         ctx.add_card_to_hand(random_card)
 
 
@@ -1193,13 +1195,18 @@ def hand_drill_block_broken(ctx: RelicContext) -> None:
 @relic_trigger("onExhaust", relic="Strange Spoon")
 def strange_spoon_exhaust(ctx: RelicContext) -> None:
     """Strange Spoon: 50% chance exhausted card goes to discard instead."""
-    import random
     card = ctx.trigger_data.get("card_id")
-    if card and random.random() < 0.5:
-        # Move from exhaust to discard
-        if card in ctx.state.exhaust_pile:
-            ctx.state.exhaust_pile.remove(card)
-            ctx.state.discard_pile.append(card)
+    if card:
+        rng = ctx._misc_rng()
+        if rng is not None:
+            roll = rng.random_boolean()
+        else:
+            roll = False
+        if roll:
+            # Move from exhaust to discard
+            if card in ctx.state.exhaust_pile:
+                ctx.state.exhaust_pile.remove(card)
+                ctx.state.discard_pile.append(card)
 
 
 # =============================================================================
@@ -1209,9 +1216,8 @@ def strange_spoon_exhaust(ctx: RelicContext) -> None:
 @relic_trigger("onManualDiscard", relic="Tingsha")
 def tingsha_discard(ctx: RelicContext) -> None:
     """Tingsha: Deal 3 damage to random enemy when discarding."""
-    import random
     if ctx.living_enemies:
-        target = random.choice(ctx.living_enemies)
+        target = ctx.random_choice(ctx.living_enemies)
         blocked = min(target.block, 3)
         target.block -= blocked
         target.hp -= (3 - blocked)
@@ -1271,8 +1277,7 @@ def specimen_death(ctx: RelicContext) -> None:
         poison = dead_enemy.statuses["Poison"]
         living = ctx.living_enemies
         if living:
-            import random
-            target = random.choice(living)
+            target = ctx.random_choice(living)
             ctx.apply_power(target, "Poison", poison)
 
 
@@ -1447,7 +1452,6 @@ def strawberry_equip(ctx: RelicContext) -> None:
 def war_paint_equip(ctx: RelicContext) -> None:
     """War Paint: Upon pickup, upgrade 2 random Skills in your deck."""
     from ..content.cards import ALL_CARDS, CardType
-    import random
 
     # Check if deck is available (RunState context)
     if not hasattr(ctx.state, 'deck'):
@@ -1461,9 +1465,13 @@ def war_paint_equip(ctx: RelicContext) -> None:
             if ALL_CARDS[card_id].card_type == CardType.SKILL:
                 skills.append(i)
 
-    # Upgrade 2 random ones
+    # Upgrade 2 random ones using misc_rng
     if skills:
-        random.shuffle(skills)
+        rng = ctx._misc_rng()
+        if rng is not None:
+            for i in range(len(skills) - 1, 0, -1):
+                j = rng.random(i)
+                skills[i], skills[j] = skills[j], skills[i]
         for idx in skills[:2]:
             ctx.state.deck[idx].upgraded = True
 
@@ -1472,7 +1480,6 @@ def war_paint_equip(ctx: RelicContext) -> None:
 def whetstone_equip(ctx: RelicContext) -> None:
     """Whetstone: Upon pickup, upgrade 2 random Attacks in your deck."""
     from ..content.cards import ALL_CARDS, CardType
-    import random
 
     # Check if deck is available (RunState context)
     if not hasattr(ctx.state, 'deck'):
@@ -1486,9 +1493,13 @@ def whetstone_equip(ctx: RelicContext) -> None:
             if ALL_CARDS[card_id].card_type == CardType.ATTACK:
                 attacks.append(i)
 
-    # Upgrade 2 random ones
+    # Upgrade 2 random ones using misc_rng
     if attacks:
-        random.shuffle(attacks)
+        rng = ctx._misc_rng()
+        if rng is not None:
+            for i in range(len(attacks) - 1, 0, -1):
+                j = rng.random(i)
+                attacks[i], attacks[j] = attacks[j], attacks[i]
         for idx in attacks[:2]:
             ctx.state.deck[idx].upgraded = True
 

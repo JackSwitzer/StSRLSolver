@@ -12,15 +12,6 @@ from __future__ import annotations
 from . import potion_effect, PotionContext
 
 
-def _get_rng(state, *attrs):
-    """Best-effort RNG resolver from state-attached RNG references."""
-    for attr in attrs:
-        rng = getattr(state, attr, None)
-        if rng is not None:
-            return rng
-    return None
-
-
 # =============================================================================
 # COMMON POTIONS
 # =============================================================================
@@ -344,11 +335,10 @@ def fruit_juice(ctx: PotionContext) -> None:
 @potion_effect("SneckoOil")
 def snecko_oil(ctx: PotionContext) -> None:
     """Snecko Oil: Draw 5 cards and randomize all hand costs (0-3)."""
-    import random
     from ..content.cards import get_card
 
     ctx.draw_cards(ctx.potency)
-    rng = _get_rng(ctx.state, "card_random_rng", "card_rng")
+    rng = ctx._card_random_rng()
     # Randomize all card costs in hand
     for card_id in ctx.state.hand:
         base_cost = None
@@ -366,7 +356,7 @@ def snecko_oil(ctx: PotionContext) -> None:
         if rng is not None:
             new_cost = rng.random(3)
         else:
-            new_cost = random.randint(0, 3)
+            new_cost = 0  # deterministic fallback when no RNG attached
 
         # Preserve exact no-op behavior when cost does not change.
         if base_cost is not None and base_cost == new_cost:
@@ -413,7 +403,7 @@ def entropic_brew(ctx: PotionContext) -> None:
     if not available:
         return
 
-    rng = _get_rng(ctx.state, "potion_rng")
+    rng = ctx._potion_rng()
 
     # Fill all empty slots
     for i, slot in enumerate(ctx.state.potions):
@@ -422,8 +412,7 @@ def entropic_brew(ctx: PotionContext) -> None:
                 idx = rng.random(len(available) - 1)
                 ctx.state.potions[i] = available[idx]
             else:
-                import random
-                ctx.state.potions[i] = random.choice(available)
+                ctx.state.potions[i] = available[0]  # deterministic fallback
 
 
 # Class-specific RARE potions
