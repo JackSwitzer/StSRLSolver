@@ -11,6 +11,7 @@ Tests cover:
 
 import pytest
 import json
+import numpy as np
 from typing import List, Dict, Any
 
 from packages.engine import (
@@ -40,6 +41,7 @@ from packages.engine.handlers.reward_handler import (
     ProceedFromRewardsAction,
 )
 from packages.engine.state.combat import create_combat, create_enemy
+from packages.engine.rl_masks import ActionSpace
 
 
 # =============================================================================
@@ -1481,6 +1483,275 @@ class TestIntegration:
                 assert action["phase"] in [phase_name, "combat", "reward", "boss_reward", "map", "event", "shop", "rest", "treasure", "neow"]
 
             runner.take_action_dict(actions[0])
+
+
+# =============================================================================
+# RL Action Mask Contract Tests (RL-ACT-001)
+# =============================================================================
+
+class TestActionMaskContract:
+    """Tests for RL action mask contract: determinism, stability, round-trips."""
+
+    def test_action_ordering_deterministic(self, runner):
+        """get_available_action_dicts returns same order for identical state."""
+        actions1 = runner.get_available_action_dicts()
+        actions2 = runner.get_available_action_dicts()
+
+        assert [a["id"] for a in actions1] == [a["id"] for a in actions2]
+
+    def test_action_ordering_deterministic_across_runners(self):
+        """Two runners from same seed produce identical action ordering."""
+        r1 = GameRunner(seed="MASK_ORDER", ascension=20, verbose=False)
+        r2 = GameRunner(seed="MASK_ORDER", ascension=20, verbose=False)
+
+        for _ in range(15):
+            if r1.game_over or r2.game_over:
+                break
+            a1 = r1.get_available_action_dicts()
+            a2 = r2.get_available_action_dicts()
+            assert [a["id"] for a in a1] == [a["id"] for a in a2], (
+                f"Action ID ordering diverged at phase {r1.phase}"
+            )
+            assert [a["type"] for a in a1] == [a["type"] for a in a2]
+            assert [a["params"] for a in a1] == [a["params"] for a in a2]
+            r1.take_action_dict(a1[0])
+            r2.take_action_dict(a2[0])
+
+    def test_action_ids_stable_across_repeated_calls(self, runner):
+        """Action IDs are preserved across multiple get calls on same state."""
+        ids_first = [a["id"] for a in runner.get_available_action_dicts()]
+        for _ in range(5):
+            ids_now = [a["id"] for a in runner.get_available_action_dicts()]
+            assert ids_now == ids_first
+
+    def test_action_ids_unique_within_list(self, runner):
+        """No duplicate IDs within a single action list."""
+        for _ in range(20):
+            if runner.game_over:
+                break
+            actions = runner.get_available_action_dicts()
+            ids = [a["id"] for a in actions]
+            assert len(ids) == len(set(ids)), f"Duplicate IDs found: {ids}"
+            runner.take_action_dict(actions[0])
+
+    def test_invalid_action_type_rejected_with_error(self, runner):
+        """Submitting an invalid action type returns error, not silent corruption."""
+        result = runner.take_action_dict({
+            "type": "totally_invalid",
+            "params": {},
+        })
+        assert not result.get("success", True)
+        assert "error" in result
+        assert isinstance(result["error"], str)
+        assert len(result["error"]) > 0
+
+    def test_invalid_action_params_rejected(self, runner):
+        """Submitting wrong params for a valid type returns error."""
+        result = runner.take_action_dict({
+            "type": "path_choice",
+            "params": {"node_index": 9999},
+        })
+        assert not result.get("success", True)
+        assert "error" in result
+
+    def test_missing_required_params_rejected(self, runner):
+        """Missing required params causes an error."""
+        result = runner.take_action_dict({
+            "type": "path_choice",
+            "params": {},
+        })
+        assert not result.get("success", True)
+
+    def test_generate_action_id_deterministic(self):
+        """generate_action_id produces consistent IDs for same inputs."""
+        from packages.engine.agent_api import generate_action_id
+        id1 = generate_action_id("play_card", 2, 0)
+        id2 = generate_action_id("play_card", 2, 0)
+        assert id1 == id2
+        # Different params produce different IDs
+        id3 = generate_action_id("play_card", 3, 0)
+        assert id1 != id3
+
+    def test_two_step_selection_emits_explicit_actions(self, runner):
+        """Two-step selection puts engine in pending state with explicit actions."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = ["Strike_P", "Defend_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        # Trigger the two-step flow
+        result = runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+        assert result.get("requires_selection") is True
+
+        # Engine should now be in pending_selection state
+        assert runner.pending_selection is not None
+
+        # get_available_action_dicts should return selection actions
+        selection_actions = runner.get_available_action_dicts()
+        assert len(selection_actions) > 0
+        assert all(a["type"] == "select_cards" for a in selection_actions)
+
+        # Selection actions should have proper IDs
+        for a in selection_actions:
+            assert "id" in a
+            assert len(a["id"]) > 0
+
+    def test_two_step_selection_mask_round_trip(self, runner):
+        """Mask built from selection actions correctly round-trips."""
+        state = create_combat(
+            player_hp=60,
+            player_max_hp=80,
+            enemies=[create_enemy("TestEnemy", hp=50, max_hp=50)],
+            deck=["Strike_P", "Defend_P", "Vigilance", "Eruption"],
+            relics=[],
+            potions=["LiquidMemories", "", ""],
+        )
+        state.discard_pile = ["Strike_P", "Defend_P"]
+        runner.current_combat = CombatEngine(state)
+        runner.phase = GamePhase.COMBAT
+
+        runner.take_action_dict({
+            "type": "use_potion",
+            "params": {"potion_slot": 0},
+        })
+
+        selection_actions = runner.get_available_action_dicts()
+        space = ActionSpace()
+        mask = space.actions_to_mask(selection_actions)
+
+        # Round-trip
+        filtered = space.mask_to_actions(mask, selection_actions)
+        assert len(filtered) == len(selection_actions)
+        assert [a["id"] for a in filtered] == [a["id"] for a in selection_actions]
+
+
+class TestActionSpaceMask:
+    """Tests for the ActionSpace / rl_masks module."""
+
+    def test_basic_mask_round_trip(self, runner):
+        """actions -> mask -> filtered actions preserves all actions."""
+        actions = runner.get_available_action_dicts()
+        space = ActionSpace()
+        mask = space.actions_to_mask(actions)
+
+        assert mask.dtype == np.bool_
+        assert mask.sum() == len(actions)
+
+        filtered = space.mask_to_actions(mask, actions)
+        assert len(filtered) == len(actions)
+        assert {a["id"] for a in filtered} == {a["id"] for a in actions}
+
+    def test_action_to_index_and_back(self, runner):
+        """action_to_index and index_to_action are consistent inverses."""
+        actions = runner.get_available_action_dicts()
+        space = ActionSpace()
+        space.register_actions(actions)
+
+        for action in actions:
+            idx = space.action_to_index(action)
+            recovered = space.index_to_action(idx, actions)
+            assert recovered is not None
+            assert recovered["id"] == action["id"]
+
+    def test_mask_grows_with_new_actions(self):
+        """Space size grows as new action IDs are registered."""
+        space = ActionSpace()
+        assert space.size == 0
+
+        actions_a = [{"id": "end_turn", "type": "end_turn", "params": {}, "phase": "combat"}]
+        mask_a = space.actions_to_mask(actions_a)
+        assert space.size == 1
+        assert mask_a.shape == (1,)
+
+        actions_b = [{"id": "rest", "type": "rest", "params": {}, "phase": "rest"}]
+        mask_b = space.actions_to_mask(actions_b)
+        assert space.size == 2
+        assert mask_b.shape == (2,)
+        # First action should not be in second mask
+        assert mask_b[0] == False
+        assert mask_b[1] == True
+
+    def test_mask_is_deterministic_across_runners(self):
+        """Same seed produces identical masks."""
+        r1 = GameRunner(seed="MASK_DET", ascension=20, verbose=False)
+        r2 = GameRunner(seed="MASK_DET", ascension=20, verbose=False)
+
+        space = ActionSpace()
+        mask1 = space.actions_to_mask(r1.get_available_action_dicts())
+        mask2 = space.actions_to_mask(r2.get_available_action_dicts())
+
+        np.testing.assert_array_equal(mask1, mask2)
+
+    def test_index_to_action_returns_none_for_unknown(self):
+        """index_to_action returns None for out-of-range index."""
+        space = ActionSpace()
+        space.register("end_turn")
+        result = space.index_to_action(999, [])
+        assert result is None
+
+    def test_action_to_index_raises_without_id(self):
+        """action_to_index raises KeyError when action has no id."""
+        space = ActionSpace()
+        with pytest.raises(KeyError):
+            space.action_to_index({"type": "end_turn", "params": {}})
+
+    def test_contains_check(self):
+        """__contains__ reflects registration state."""
+        space = ActionSpace()
+        assert "end_turn" not in space
+        space.register("end_turn")
+        assert "end_turn" in space
+
+    def test_mask_across_multiple_phases(self):
+        """Mask accumulates actions across different game phases."""
+        runner = GameRunner(seed="MASK_PHASES", ascension=20, verbose=False)
+        space = ActionSpace()
+
+        for _ in range(50):
+            if runner.game_over:
+                break
+            actions = runner.get_available_action_dicts()
+            mask = space.actions_to_mask(actions)
+            assert mask.sum() == len(actions)
+            assert mask.shape[0] == space.size
+            runner.take_action_dict(actions[0])
+
+        # Should have accumulated multiple action types
+        assert space.size > 3, f"Expected diverse actions, got {space.size}"
+
+    def test_partial_mask_filters_correctly(self):
+        """A manually constructed partial mask returns only matching actions."""
+        space = ActionSpace()
+        actions = [
+            {"id": "a1", "type": "t1", "params": {}, "phase": "p"},
+            {"id": "a2", "type": "t2", "params": {}, "phase": "p"},
+            {"id": "a3", "type": "t3", "params": {}, "phase": "p"},
+        ]
+        space.register_actions(actions)
+
+        mask = np.zeros(space.size, dtype=np.bool_)
+        mask[space.get_index("a2")] = True
+
+        filtered = space.mask_to_actions(mask, actions)
+        assert len(filtered) == 1
+        assert filtered[0]["id"] == "a2"
+
+    def test_index_to_action_id(self):
+        """index_to_action_id returns the right string."""
+        space = ActionSpace()
+        idx = space.register("end_turn")
+        assert space.index_to_action_id(idx) == "end_turn"
+        assert space.index_to_action_id(999) is None
 
 
 # =============================================================================
