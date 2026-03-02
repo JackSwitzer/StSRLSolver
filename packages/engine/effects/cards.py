@@ -290,20 +290,39 @@ def scry_3(ctx: EffectContext) -> None:
 # =============================================================================
 
 @effect("apply_weak")
-def apply_weak_effect(ctx: EffectContext, amount: int) -> None:
-    """Apply Weak to target."""
+def apply_weak_effect(ctx: EffectContext, amount: int = 0) -> None:
+    """Apply Weak to target.
+
+    When called via pattern "apply_weak_N", amount is N.
+    When called as "apply_weak" (no number), amount defaults to 0
+    and we fall back to magic_number.
+    """
+    if amount <= 0:
+        amount = ctx.magic_number if ctx.magic_number > 0 else 2
     ctx.apply_status_to_target("Weak", amount)
 
 
 @effect("apply_vulnerable")
-def apply_vulnerable_effect(ctx: EffectContext, amount: int) -> None:
-    """Apply Vulnerable to target."""
+def apply_vulnerable_effect(ctx: EffectContext, amount: int = 0) -> None:
+    """Apply Vulnerable to target.
+
+    When called via pattern "apply_vulnerable_N", amount is N.
+    When called as "apply_vulnerable" (no number), falls back to magic_number.
+    """
+    if amount <= 0:
+        amount = ctx.magic_number if ctx.magic_number > 0 else 2
     ctx.apply_status_to_target("Vulnerable", amount)
 
 
 @effect("apply_strength")
-def apply_strength_effect(ctx: EffectContext, amount: int) -> None:
-    """Apply Strength to player."""
+def apply_strength_effect(ctx: EffectContext, amount: int = 0) -> None:
+    """Apply Strength to player.
+
+    When called via pattern "apply_strength_N", amount is N.
+    When called as "apply_strength" (no number), falls back to magic_number.
+    """
+    if amount <= 0:
+        amount = ctx.magic_number if ctx.magic_number > 0 else 1
     ctx.apply_status_to_player("Strength", amount)
 
 
@@ -1987,8 +2006,8 @@ def damage_per_strike(ctx: EffectContext) -> None:
     bonus_per = ctx.magic_number if ctx.magic_number > 0 else 2
     strike_count = 0
 
-    # Count Strikes in all piles
-    for pile in [ctx.state.hand, ctx.state.draw_pile, ctx.state.discard_pile, ctx.state.exhaust_pile]:
+    # Count Strikes in hand, draw, and discard (Java does NOT count exhaust pile)
+    for pile in [ctx.state.hand, ctx.state.draw_pile, ctx.state.discard_pile]:
         for card_id in pile:
             if "Strike" in card_id:
                 strike_count += 1
@@ -2736,6 +2755,13 @@ def gain_energy_2(ctx: EffectContext) -> None:
     ctx.gain_energy(2)
 
 
+@effect_simple("gain_energy_magic")
+def gain_energy_magic(ctx: EffectContext) -> None:
+    """Gain energy equal to magic number (Adrenaline: 1/2)."""
+    amount = ctx.magic_number if ctx.magic_number > 0 else 1
+    ctx.gain_energy(amount)
+
+
 # -----------------------------------------------------------------------------
 # Damage Effects
 # -----------------------------------------------------------------------------
@@ -2957,11 +2983,15 @@ def put_card_on_draw_pile_cost_0(ctx: EffectContext) -> None:
 
 @effect_simple("add_random_skill_cost_0")
 def add_random_skill_cost_0(ctx: EffectContext) -> None:
-    """Add a random Skill to hand that costs 0 (Distraction)."""
-    from ..content.cards import ALL_CARDS, CardType, CardColor
+    """Add a random Skill to hand that costs 0 (Distraction).
+
+    Java: AbstractDungeon.returnTrulyRandomCardInCombat(CardType.SKILL)
+    Returns any Skill from any color (not just Green).
+    """
+    from ..content.cards import ALL_CARDS, CardType
     skills = [
         cid for cid, c in ALL_CARDS.items()
-        if c.card_type == CardType.SKILL and c.color == CardColor.GREEN
+        if c.card_type == CardType.SKILL
         and c.rarity.value not in ["SPECIAL", "CURSE", "STATUS"]
     ]
     if skills:
@@ -3202,7 +3232,7 @@ SILENT_CARD_EFFECTS = {
     "Unload": ["discard_non_attacks"],
 
     # === RARE SKILLS ===
-    "Adrenaline": ["gain_energy", "draw_2"],
+    "Adrenaline": ["gain_energy_magic", "draw_2"],
     "Venomology": ["obtain_random_potion"],  # Alchemize
     "Bullet Time": ["no_draw_this_turn", "cards_cost_0_this_turn"],
     "Burst": ["double_next_skills"],
