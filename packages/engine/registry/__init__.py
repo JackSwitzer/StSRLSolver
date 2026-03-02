@@ -156,6 +156,20 @@ class BaseContext:
             or self._card_random_rng()
         )
 
+    def _misc_rng(self):
+        """RNG stream for misc parity-critical effects (Strange Spoon, War Paint, Whetstone)."""
+        return (
+            getattr(self.state, "misc_rng", None)
+            or self._card_random_rng()
+        )
+
+    def _potion_rng(self):
+        """RNG stream for potion generation (Entropic Brew)."""
+        return (
+            getattr(self.state, "potion_rng", None)
+            or self._card_random_rng()
+        )
+
     def random_choice(self, values: List[Any]) -> Any:
         """Deterministic random choice with RNG-stream fallback."""
         if not values:

@@ -16,7 +16,6 @@ The effects are organized by category:
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
-import random
 
 from .registry import (
     effect, effect_simple, effect_custom, EffectContext
@@ -306,7 +305,7 @@ def damage_per_lightning_channeled_effect(ctx: EffectContext) -> None:
         for _ in range(lightning_count):
             living = ctx.living_enemies
             if living:
-                target = random.choice(living)
+                target = ctx.random_choice(living)
                 ctx.deal_damage_to_enemy(target, damage)
 
 
@@ -474,8 +473,8 @@ def reboot_effect(ctx: EffectContext) -> None:
     ctx.state.hand.clear()
     ctx.state.discard_pile.clear()
 
-    # Shuffle draw pile
-    random.shuffle(ctx.state.draw_pile)
+    # Shuffle draw pile using shuffle_rng
+    ctx.shuffle_in_place(ctx.state.draw_pile, use_shuffle_rng=True)
 
     # Draw cards
     ctx.draw_cards(draw_count)
@@ -508,7 +507,7 @@ def white_noise_effect(ctx: EffectContext) -> None:
         "Self Repair", "Static Discharge", "Storm", "Biased Cognition",
         "Buffer", "Creative AI", "Echo Form", "Electrodynamics", "Machine Learning"
     ]
-    chosen = random.choice(powers)
+    chosen = ctx.random_choice(powers)
     if len(ctx.state.hand) < 10:
         ctx.state.hand.append(chosen)
         # Set cost to 0 for this turn
@@ -565,7 +564,7 @@ def rip_and_tear_effect(ctx: EffectContext) -> None:
         for _ in range(2):
             living = ctx.living_enemies
             if living:
-                target = random.choice(living)
+                target = ctx.random_choice(living)
                 ctx.deal_damage_to_enemy(target, damage)
 
 
