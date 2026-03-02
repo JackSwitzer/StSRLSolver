@@ -16,6 +16,12 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 ## Core entry points
 - Core TODO: [`CORE_TODO.md`](./CORE_TODO.md)
 - Execution queue: [`EXECUTION_QUEUE.md`](./EXECUTION_QUEUE.md)
+- Unit chunks: [`traceability/UNIT_CHUNKS.md`](./traceability/UNIT_CHUNKS.md)
+- Remaining work index: [`specs/REMAINING_WORK_INDEX.md`](./specs/REMAINING_WORK_INDEX.md)
+- Card behavior spec: [`specs/CARD_BEHAVIOR_PARITY_SPEC.md`](./specs/CARD_BEHAVIOR_PARITY_SPEC.md)
+- Power behavior/order spec: [`specs/POWER_BEHAVIOR_ORDER_SPEC.md`](./specs/POWER_BEHAVIOR_ORDER_SPEC.md)
+- RNG migration spec: [`specs/RNG_RUNTIME_MIGRATION_SPEC.md`](./specs/RNG_RUNTIME_MIGRATION_SPEC.md)
+- RL runboard/search spec: [`specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`](./specs/RL_RUNBOARD_AND_SEARCH_SPEC.md)
 - Ground truth snapshot: [`GROUND_TRUTH.md`](./GROUND_TRUTH.md)
 - Remaining parity audit: [`REMAINING_PARITY_AUDIT.md`](./REMAINING_PARITY_AUDIT.md)
 - PR history: [`PR_HISTORY.md`](./PR_HISTORY.md)
@@ -28,6 +34,10 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 - Java inventory: [`traceability/java-inventory.md`](./traceability/java-inventory.md)
 - Python coverage inventory: [`traceability/python-coverage.md`](./traceability/python-coverage.md)
 - Gap manifest: [`traceability/gap-manifest.md`](./traceability/gap-manifest.md)
+- Behavior specs: [`specs/`](./specs)
+- Action space contract: [`action-layer/ACTION_SPACE_SPEC.md`](./action-layer/ACTION_SPACE_SPEC.md)
+- Subagent loop: [`process/SUBAGENT_EXECUTION_LOOP.md`](./process/SUBAGENT_EXECUTION_LOOP.md)
+- RNG stream spec: [`rng/JAVA_RNG_STREAM_SPEC.md`](./rng/JAVA_RNG_STREAM_SPEC.md)
 
 ## Domain audits
 - Potions: [`domains/potions.md`](./domains/potions.md)

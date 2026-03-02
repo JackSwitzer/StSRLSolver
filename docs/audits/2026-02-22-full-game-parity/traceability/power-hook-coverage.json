@@ -165,19 +165,7 @@
       "Rupture"
     ]
   },
-  "registered_not_dispatched": [
-    "atDamageFinalReceive",
-    "atDamageGive",
-    "atDamageReceive",
-    "modifyBlock",
-    "onAttack",
-    "onAttacked",
-    "onAttackedToChangeDamage",
-    "onCardDraw",
-    "onManualDiscard",
-    "onScry",
-    "wasHPLost"
-  ],
+  "registered_not_dispatched": [],
   "registry_hook_names": [
     "atDamageFinalReceive",
     "atDamageGive",
@@ -206,19 +194,30 @@
     "wasHPLost"
   ],
   "runtime_hook_names": [
+    "atDamageFinalReceive",
+    "atDamageGive",
+    "atDamageReceive",
     "atEndOfRound",
     "atEndOfTurn",
     "atEndOfTurnPreEndTurnCards",
     "atStartOfTurn",
     "atStartOfTurnPostDraw",
+    "modifyBlock",
     "onAfterCardPlayed",
     "onAfterUseCard",
     "onApplyPower",
+    "onAttack",
+    "onAttacked",
+    "onAttackedToChangeDamage",
+    "onCardDraw",
     "onChangeStance",
     "onDeath",
     "onEnergyRecharge",
     "onExhaust",
     "onGainBlock",
-    "onUseCard"
+    "onManualDiscard",
+    "onScry",
+    "onUseCard",
+    "wasHPLost"
   ]
 }

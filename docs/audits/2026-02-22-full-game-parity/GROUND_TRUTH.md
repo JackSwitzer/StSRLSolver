@@ -1,11 +1,11 @@
 # Ground Truth: Java Parity + Agent Contract
 
-Last updated: 2026-02-23
-Working branch: `codex/cons-002b`
+Last updated: 2026-02-24
+Working branch: `codex/parity-d0-d2-foundation`
 
 ## Baseline
 - Command: `uv run pytest tests/ -q`
-- Result: `4715 passed, 0 skipped, 0 failed`
+- Result: `4722 passed, 0 skipped, 0 failed`
 - No skips executed in the current baseline run.
 
 ## Canonical sources
@@ -23,28 +23,16 @@ Working branch: `codex/cons-002b`
 
 | Domain | Java count | Python count | Exact | Alias | Missing | Notes |
 |---|---:|---:|---:|---:|---:|---|
-| cards | 361 | 370 | 228 | 112 | 21 | behavior/inventory gaps still present |
+| cards | 361 | 370 | 228 | 133 | 0 | class-name and in-game-ID rows normalized via aliases |
 | relics | 181 | 181 | 75 | 106 | 0 | inventory parity closed |
-| events | 52 | 51 | 40 | 11 | 1 | only unmatched Java class: `SpireHeart` |
+| events | 51 | 51 | 40 | 11 | 0 | regular event inventory closed (`SpireHeart` excluded from regular pools) |
 | powers | 149 | 148 | 125 | 24 | 0 | full Java class mapping achieved |
-| potions | unavailable locally | 42 | 0 | 0 | 0 | local decompile snapshot has no `potions/` dir |
+| potions | 42 | 42 | 28 | 14 | 0 | fallback class-artifact inventory source enabled |
 
 ## Power hook dispatch snapshot (generated)
 - Registry hooks: `25`
-- Runtime-dispatched hooks: `14`
-- Registered-but-undispatched hooks: `11`
-- Current undispatched set:
-  - `atDamageFinalReceive`
-  - `atDamageGive`
-  - `atDamageReceive`
-  - `modifyBlock`
-  - `onAttack`
-  - `onAttacked`
-  - `onAttackedToChangeDamage`
-  - `onCardDraw`
-  - `onManualDiscard`
-  - `onScry`
-  - `wasHPLost`
+- Runtime-dispatched hooks: `25`
+- Registered-but-undispatched hooks: `0`
 
 ## Agent contract snapshot
 
@@ -53,33 +41,30 @@ Working branch: `codex/cons-002b`
 - `GameRunner.take_action_dict()`
 - `GameRunner.get_observation()`
 
-### Observation contract versions (non-breaking)
-- `observation_schema_version` is now emitted at observation root.
-- `action_schema_version` is now emitted at observation root.
+### Observation/action schema markers
+- `observation_schema_version` emitted at observation root.
+- `action_schema_version` emitted at observation root.
 
-### Current explicit action-surface phases
-- `neow`, `map`, `combat`, `reward`, `boss_reward`, `event`, `shop`, `rest`, `treasure`.
-- Follow-up selection actions:
-  - `select_cards`
-  - `select_stance`
+### Canonical action-surface policy
+- Environment API remains primitive-action only.
+- Selection-required mechanics are explicit two-step flows via `select_cards` / `select_stance`.
+- Invalid actions are hard-rejected and expected to be mask-pruned by caller.
+- Full spec: `docs/audits/2026-02-22-full-game-parity/action-layer/ACTION_SPACE_SPEC.md`.
 
 ## Consolidation state
-- Canonical repo lock file added: `REPO_CANONICAL.md`.
-- Training-wrapper migration manifest added:
+- Canonical repo lock file: `REPO_CANONICAL.md`.
+- Training-wrapper migration manifest:
   - `docs/audits/2026-02-22-full-game-parity/traceability/repo-consolidation-manifest.md`
 - Curated training utilities migrated into:
   - `packages/training/`
 - Desktop one-folder realignment verified:
   - `docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`
-- Combat runtime unification phase A completed:
-  - `CombatRunner` now wraps `CombatEngine` (compatibility facade)
-  - Compatibility lock tests: `tests/test_combat_runner_compat.py`
-- Combat runtime unification phase B completed:
-  - removed duplicated legacy CombatRunner runtime implementation block
-  - `packages/engine/handlers/combat.py` now retains shim + encounter helpers only
+- Combat runtime unification completed for duplicated implementation removal:
+  - `handlers/combat.py` is compatibility shim + helper surface only
+  - `CombatEngine` is runtime owner
 
 ## Priority remaining blockers
-1. Card inventory/behavior closure for the 21 Java-side card rows marked missing.
-2. Power runtime hook dispatch closure (`11` registered hooks not yet dispatched).
-3. Potion inventory audit completion once local Java potion sources are restored.
-4. Sustain `0 skipped` baseline in default CI while preserving parity replay checks.
+1. Card behavior parity closure (inventory now closed; behavior deltas remain).
+2. Power behavior/order parity closure beyond dispatch inventory closure.
+3. RNG normalization migration in parity-critical runtime modules.
+4. RL readiness gates (`RL-ACT-*`, `RL-OBS-*`, dashboard/search layers) and final audit sign-off.

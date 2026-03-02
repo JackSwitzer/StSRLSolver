@@ -3178,6 +3178,28 @@ CARD_ID_ALIASES = {
     "Wraith Form": "Wraith Form v2",
     "WraithForm": "Wraith Form v2",
     "Gash": "Claw",
+    # Java class-name IDs that differ from canonical in-game card IDs.
+    "Alchemize": "Venomology",
+    "Apparition": "Ghostly",
+    "Defend_Blue": "Defend_B",
+    "Defend_Green": "Defend_G",
+    "Defend_Red": "Defend_R",
+    "Defend_Watcher": "Defend_P",
+    "Equilibrium": "Undo",
+    "Fasting": "Fasting2",
+    "Nightmare": "Night Terror",
+    "Overclock": "Steam Power",
+    "PressurePoints": "PathToVictory",
+    "Recursion": "Redo",
+    "SimmeringFury": "Vengeance",
+    "SneakyStrike": "Underhanded Strike",
+    "SteamBarrier": "Steam",
+    "Strike_Blue": "Strike_B",
+    "Strike_Green": "Strike_G",
+    "Strike_Purple": "Strike_P",
+    "Strike_Red": "Strike_R",
+    "Tranquility": "ClearTheMind",
+    "VoidCard": "Void",
 }
 
 
