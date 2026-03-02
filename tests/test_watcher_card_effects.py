@@ -765,6 +765,105 @@ class TestEffectIntegration:
         # Should draw 2 cards
         assert len(ctx_basic.hand) == initial_hand + 2
 
+    def test_inner_peace_calm_entry_triggers_mental_fortress(self, ctx_basic):
+        """InnerPeace entering Calm from Neutral triggers Mental Fortress block gain."""
+        ctx_basic.state.stance = "Neutral"
+        ctx_basic.state.player.statuses["MentalFortress"] = 6
+        ctx_basic.is_upgraded = False
+        initial_block = ctx_basic.player.block
+
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+
+        # Should have entered Calm (not Neutral) and gained Mental Fortress block
+        assert ctx_basic.stance == "Calm"
+        assert ctx_basic.player.block == initial_block + 6
+
+    def test_inner_peace_calm_entry_triggers_flurry_of_blows(self, ctx_basic):
+        """InnerPeace entering Calm moves Flurry of Blows from discard to hand."""
+        ctx_basic.state.stance = "Wrath"
+        ctx_basic.state.discard_pile.append("FlurryOfBlows")
+        ctx_basic.is_upgraded = False
+
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+
+        assert ctx_basic.stance == "Calm"
+        assert "FlurryOfBlows" in ctx_basic.hand
+        assert "FlurryOfBlows" not in ctx_basic.discard_pile
+
+    def test_inner_peace_calm_draw_does_not_trigger_stance_change(self, ctx_basic):
+        """InnerPeace drawing in Calm does NOT change stance or trigger onChangeStance."""
+        ctx_basic.state.stance = "Calm"
+        ctx_basic.state.player.statuses["MentalFortress"] = 4
+        ctx_basic.is_upgraded = False
+        initial_block = ctx_basic.player.block
+        initial_hand = len(ctx_basic.hand)
+
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+
+        # Should draw 3 cards, stay in Calm, no Mental Fortress trigger
+        assert ctx_basic.stance == "Calm"
+        assert len(ctx_basic.hand) == initial_hand + 3
+        assert ctx_basic.player.block == initial_block  # No block from MF
+
+    def test_inner_peace_wrath_to_calm_gains_no_energy(self, ctx_basic):
+        """InnerPeace from Wrath to Calm does NOT gain energy (only exiting Calm gives energy)."""
+        ctx_basic.state.stance = "Wrath"
+        ctx_basic.is_upgraded = False
+        initial_energy = ctx_basic.energy
+
+        execute_effect("if_calm_draw_else_calm", ctx_basic)
+
+        assert ctx_basic.stance == "Calm"
+        assert ctx_basic.energy == initial_energy  # No energy from leaving Wrath
+
+
+# =============================================================================
+# EffectExecutor Pipeline Tests
+# =============================================================================
+
+class TestEffectExecutorPipeline:
+    """Test InnerPeace through the full EffectExecutor.play_card pipeline."""
+
+    def test_inner_peace_via_executor_enters_calm(self, basic_combat_state):
+        """InnerPeace played via executor enters Calm from Neutral."""
+        from packages.engine.effects.executor import EffectExecutor
+        executor = EffectExecutor(basic_combat_state)
+        card = get_card("InnerPeace")
+        basic_combat_state.stance = "Neutral"
+
+        result = executor.play_card(card, target_idx=-1)
+
+        assert result.success
+        assert basic_combat_state.stance == "Calm"
+        assert "if_calm_draw_else_calm" in result.effects_executed
+
+    def test_inner_peace_via_executor_draws_in_calm(self, basic_combat_state):
+        """InnerPeace played via executor draws 3 cards when in Calm."""
+        from packages.engine.effects.executor import EffectExecutor
+        executor = EffectExecutor(basic_combat_state)
+        card = get_card("InnerPeace")
+        basic_combat_state.stance = "Calm"
+        initial_hand = len(basic_combat_state.hand)
+
+        result = executor.play_card(card, target_idx=-1)
+
+        assert result.success
+        assert len(basic_combat_state.hand) == initial_hand + 3
+        assert "if_calm_draw_else_calm" in result.effects_executed
+
+    def test_inner_peace_upgraded_via_executor_draws_4(self, basic_combat_state):
+        """InnerPeace+ played via executor draws 4 cards when in Calm."""
+        from packages.engine.effects.executor import EffectExecutor
+        executor = EffectExecutor(basic_combat_state)
+        card = get_card("InnerPeace", upgraded=True)
+        basic_combat_state.stance = "Calm"
+        initial_hand = len(basic_combat_state.hand)
+
+        result = executor.play_card(card, target_idx=-1)
+
+        assert result.success
+        assert len(basic_combat_state.hand) == initial_hand + 4
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
