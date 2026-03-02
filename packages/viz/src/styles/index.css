@@ -1,0 +1,258 @@
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --text: #e0e0e0;
+  --accent: #e94560;
+  --energy: #ffd700;
+  --border: #2a2a44;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Layout ---- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.connection-status {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background: #44bb44;
+}
+
+.status-dot.disconnected {
+  background: #cc3333;
+}
+
+.status-dot.mock {
+  background: #ccaa22;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main-view {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Sidebar ---- */
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.sidebar-section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.sidebar-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 1px 0;
+}
+
+.sidebar-row span:first-child {
+  color: #999;
+}
+
+/* HP bar in sidebar */
+
+.hp-bar-container {
+  flex: 1;
+  height: 10px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Relics */
+
+.relic-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.relic-icon {
+  position: relative;
+  cursor: default;
+}
+
+.relic-counter {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--accent);
+  color: white;
+  font-size: 7px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+/* Potions */
+
+.potion-row {
+  display: flex;
+  gap: 8px;
+}
+
+.potion-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.potion-label {
+  font-size: 7px;
+  color: #888;
+}
+
+/* Deck list */
+
+.deck-list {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+.deck-card-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+}
+
+.card-type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.card-type-attack { background: #cc3333; }
+.card-type-skill { background: #3366cc; }
+.card-type-power { background: #ccaa22; }
+.card-type-status { background: #666666; }
+.card-type-curse { background: #882288; }
+
+.deck-card-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upgraded-plus {
+  color: #44cc44;
+  font-weight: bold;
+}
+
+.deck-card-cost {
+  color: #888;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* Phase label */
+
+.phase-label {
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+  padding: 4px;
+}
+
+/* Scrollbar styling */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
