@@ -3,6 +3,7 @@ import type { CardInstance } from '../types/game';
 interface CardHandProps {
   cards: CardInstance[];
   energy: number;
+  onCardHover?: (card: CardInstance | null) => void;
 }
 
 const CARD_TYPE_COLORS: Record<string, string> = {
@@ -16,7 +17,7 @@ const CARD_TYPE_COLORS: Record<string, string> = {
 const CARD_WIDTH = 80;
 const CARD_HEIGHT = 110;
 
-export const CardHand = ({ cards, energy }: CardHandProps) => {
+export const CardHand = ({ cards, energy, onCardHover }: CardHandProps) => {
   const totalWidth = Math.min(cards.length * (CARD_WIDTH + 8), 600);
   const cardSpacing = cards.length > 1 ? totalWidth / cards.length : CARD_WIDTH + 8;
   const startX = (totalWidth - cardSpacing * (cards.length - 1)) / 2;
@@ -41,6 +42,9 @@ export const CardHand = ({ cards, energy }: CardHandProps) => {
               transform={`translate(${cx}, ${cy}) rotate(${angle}, ${CARD_WIDTH / 2}, ${CARD_HEIGHT})`}
               opacity={playable ? 1 : 0.5}
               style={{ cursor: playable ? 'pointer' : 'default' }}
+              className="card-in-hand"
+              onMouseEnter={() => onCardHover?.(card)}
+              onMouseLeave={() => onCardHover?.(null)}
             >
               {/* Card background */}
               <rect

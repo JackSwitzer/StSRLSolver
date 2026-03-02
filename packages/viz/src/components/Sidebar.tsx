@@ -2,9 +2,10 @@ import type { RunState } from '../types/game';
 
 interface SidebarProps {
   run: RunState;
+  onOpenDeck?: () => void;
 }
 
-export const Sidebar = ({ run }: SidebarProps) => {
+export const Sidebar = ({ run, onOpenDeck }: SidebarProps) => {
   const { hp, max_hp, gold, floor, act, deck, relics, potions, ascension } = run;
   const hpRatio = hp / max_hp;
   const hpColor = hpRatio > 0.6 ? '#44bb44' : hpRatio > 0.3 ? '#ccaa22' : '#cc3333';
@@ -101,7 +102,14 @@ export const Sidebar = ({ run }: SidebarProps) => {
 
       {/* Deck */}
       <div className="sidebar-section">
-        <div className="sidebar-header">Deck ({deck.length})</div>
+        <div className="sidebar-header">
+          <span>Deck ({deck.length})</span>
+          {onOpenDeck && (
+            <button className="deck-view-toggle" onClick={onOpenDeck}>
+              View All
+            </button>
+          )}
+        </div>
         <div className="deck-list">
           {deck.map((card, i) => (
             <div key={`${card.id}-${i}`} className="deck-card-row">

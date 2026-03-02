@@ -29,6 +29,8 @@ export interface MapState {
   current_node: { x: number; y: number } | null;
   available_next: { x: number; y: number }[];
   boss_name: string;
+  /** Ordered list of nodes the player has visited (floor 0 through current). */
+  visited_path?: { x: number; y: number }[];
 }
 
 export interface MapNode {

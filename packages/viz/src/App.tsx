@@ -4,6 +4,7 @@ import { useGameState } from './hooks/useGameState';
 import { MapView } from './components/MapView';
 import { CombatView } from './components/CombatView';
 import { Sidebar } from './components/Sidebar';
+import { DeckView } from './components/DeckView';
 
 // ---------------------------------------------------------------------------
 // Mock data so the app renders something without a WebSocket connection
@@ -19,14 +20,14 @@ const MOCK_COMBAT: GameObservation = {
     act: 1,
     ascension: 20,
     deck: [
-      { id: 'strike_1', name: 'Strike', cost: 1, type: 'attack', upgraded: false },
-      { id: 'strike_2', name: 'Strike', cost: 1, type: 'attack', upgraded: false },
-      { id: 'strike_3', name: 'Strike', cost: 1, type: 'attack', upgraded: false },
-      { id: 'strike_4', name: 'Strike', cost: 1, type: 'attack', upgraded: false },
-      { id: 'defend_1', name: 'Defend', cost: 1, type: 'skill', upgraded: false },
-      { id: 'defend_2', name: 'Defend', cost: 1, type: 'skill', upgraded: false },
-      { id: 'defend_3', name: 'Defend', cost: 1, type: 'skill', upgraded: false },
-      { id: 'defend_4', name: 'Defend', cost: 1, type: 'skill', upgraded: false },
+      { id: 'strike_1', name: 'Strike', cost: 1, type: 'attack', upgraded: false, description: 'Deal 6 damage.' },
+      { id: 'strike_2', name: 'Strike', cost: 1, type: 'attack', upgraded: false, description: 'Deal 6 damage.' },
+      { id: 'strike_3', name: 'Strike', cost: 1, type: 'attack', upgraded: false, description: 'Deal 6 damage.' },
+      { id: 'strike_4', name: 'Strike', cost: 1, type: 'attack', upgraded: false, description: 'Deal 6 damage.' },
+      { id: 'defend_1', name: 'Defend', cost: 1, type: 'skill', upgraded: false, description: 'Gain 5 Block.' },
+      { id: 'defend_2', name: 'Defend', cost: 1, type: 'skill', upgraded: false, description: 'Gain 5 Block.' },
+      { id: 'defend_3', name: 'Defend', cost: 1, type: 'skill', upgraded: false, description: 'Gain 5 Block.' },
+      { id: 'defend_4', name: 'Defend', cost: 1, type: 'skill', upgraded: false, description: 'Gain 5 Block.' },
       { id: 'eruption', name: 'Eruption', cost: 2, type: 'attack', upgraded: false, description: 'Deal 9 damage. Enter Wrath.' },
       { id: 'vigilance', name: 'Vigilance', cost: 2, type: 'skill', upgraded: false, description: 'Gain 8 Block. Enter Calm.' },
       { id: 'tantrum', name: 'Tantrum', cost: 1, type: 'attack', upgraded: true, description: 'Deal 3 damage 4 times. Enter Wrath.' },
@@ -94,6 +95,12 @@ const MOCK_MAP: GameObservation = {
     available_next: [
       { x: 1, y: 3 },
       { x: 2, y: 3 },
+    ],
+    // Path the player has taken so far
+    visited_path: [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
     ],
     nodes: [
       // Floor 0 (bottom)
@@ -183,9 +190,46 @@ const MOCK_MAP: GameObservation = {
 
 type MockScene = 'combat' | 'map';
 
+/** Simple stats bar showing floor, act, HP, gold. */
+const StatsBar = ({ run }: { run: GameObservation['run'] }) => {
+  const hpRatio = run.hp / run.max_hp;
+  const hpColor = hpRatio > 0.6 ? '#44bb44' : hpRatio > 0.3 ? '#ccaa22' : '#cc3333';
+
+  return (
+    <div className="stats-bar">
+      <div className="stats-bar-item">
+        <span className="stats-bar-label">Floor</span>
+        <span className="stats-bar-value">{run.floor}</span>
+      </div>
+      <div className="stats-bar-item">
+        <span className="stats-bar-label">Act</span>
+        <span className="stats-bar-value">{run.act}</span>
+      </div>
+      <div className="stats-bar-item stats-bar-hp">
+        <span className="stats-bar-label">HP</span>
+        <div className="stats-bar-hp-bar">
+          <div className="stats-bar-hp-fill" style={{ width: `${hpRatio * 100}%`, background: hpColor }} />
+        </div>
+        <span className="stats-bar-value" style={{ color: hpColor }}>
+          {run.hp}/{run.max_hp}
+        </span>
+      </div>
+      <div className="stats-bar-item">
+        <span className="stats-bar-label">Gold</span>
+        <span className="stats-bar-gold">{run.gold}</span>
+      </div>
+      <div className="stats-bar-item">
+        <span className="stats-bar-label">A</span>
+        <span className="stats-bar-value">{run.ascension}</span>
+      </div>
+    </div>
+  );
+};
+
 export const App = () => {
   const { state: liveState, connected } = useGameState();
   const [mockScene, setMockScene] = useState<MockScene>('combat');
+  const [deckOpen, setDeckOpen] = useState(false);
 
   // Use live state if connected, otherwise use mock
   const state: GameObservation = liveState || (mockScene === 'combat' ? MOCK_COMBAT : MOCK_MAP);
@@ -200,30 +244,16 @@ export const App = () => {
           {isUsingMock && (
             <div style={{ display: 'flex', gap: '4px' }}>
               <button
+                className="mock-btn"
                 onClick={() => setMockScene('combat')}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: '11px',
-                  background: mockScene === 'combat' ? 'var(--accent)' : 'var(--border)',
-                  color: 'var(--text)',
-                  border: 'none',
-                  borderRadius: '3px',
-                  cursor: 'pointer',
-                }}
+                style={{ background: mockScene === 'combat' ? 'var(--accent)' : 'var(--border)' }}
               >
                 Combat
               </button>
               <button
+                className="mock-btn"
                 onClick={() => setMockScene('map')}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: '11px',
-                  background: mockScene === 'map' ? 'var(--accent)' : 'var(--border)',
-                  color: 'var(--text)',
-                  border: 'none',
-                  borderRadius: '3px',
-                  cursor: 'pointer',
-                }}
+                style={{ background: mockScene === 'map' ? 'var(--accent)' : 'var(--border)' }}
               >
                 Map
               </button>
@@ -235,6 +265,9 @@ export const App = () => {
           </div>
         </div>
       </header>
+
+      {/* Stats bar */}
+      <StatsBar run={state.run} />
 
       {/* Body */}
       <div className="app-body">
@@ -259,8 +292,13 @@ export const App = () => {
         </div>
 
         {/* Right sidebar */}
-        <Sidebar run={state.run} />
+        <Sidebar run={state.run} onOpenDeck={() => setDeckOpen(true)} />
       </div>
+
+      {/* Deck viewer modal */}
+      {deckOpen && (
+        <DeckView deck={state.run.deck} onClose={() => setDeckOpen(false)} />
+      )}
     </>
   );
 };
