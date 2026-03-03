@@ -76,7 +76,8 @@ GREEN_CARD_IDS = [
 BLUE_CARD_IDS = [
     "Aggregate", "AllForOne", "Amplify", "AutoShields", "BallLightning", "Barrage",
     "BeamCell", "BiasedCognition", "Blizzard", "BootSequence", "Buffer", "Capacitor",
-    "Chaos", "Chill", "Claw", "ColdSnap", "CompileDriver", "ConserveBattery", "Consume",
+    "Chaos", "Chill", "Gash", "ColdSnap", "CompileDriver", "ConserveBattery", "Consume",
+    # Note: Claw.java has ID = "Gash". Using "Gash" for correct HashMap ordering.
     "Coolheaded", "CoreSurge", "CreativeAI", "Darkness", "Defend_B", "Defragment",
     "DoomAndGloom", "DoubleEnergy", "Dualcast", "EchoForm", "Electrodynamics", "Fission",
     "ForceField", "FTL", "Fusion", "GeneticAlgorithm", "Glacier", "GoForTheEyes",
@@ -193,6 +194,8 @@ COLORLESS_CARD_IDS = [
     # Special cards
     "Apparition", "Beta", "Bite", "JAX", "Miracle", "Omega", "Ritual", "Safety",
     "Shiv", "Smite", "ThroughViolence",
+    # Wish option cards (from CardLibrary lines 838-840)
+    "BecomeAlmighty", "FameAndFortune", "LiveForever",
 ]
 
 # Curse cards - from addCurseCards()
@@ -713,7 +716,7 @@ DEFECT_CARD_RARITIES = {
     "BallLightning": "COMMON",
     "Barrage": "COMMON",
     "BeamCell": "COMMON",
-    "Claw": "COMMON",
+    "Gash": "COMMON",  # Claw.java has ID = "Gash"
     "ColdSnap": "COMMON",
     "CompileDriver": "COMMON",
     "GoForTheEyes": "COMMON",

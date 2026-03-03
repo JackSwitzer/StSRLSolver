@@ -654,11 +654,13 @@ SPIRIT_SHIELD = Card(
     effects=["gain_block_per_card_in_hand"],  # 3/4 block per card
 )
 
-UNRAVELING = Card(
-    id="Unraveling", name="Unraveling", card_type=CardType.SKILL, rarity=CardRarity.RARE,
-    target=CardTarget.NONE, cost=2, upgrade_cost=1, exhaust=True,
-    effects=["play_all_hand_free"],  # Java: UnravelingAction - plays all cards in hand for free
-)
+# REMOVED: Unraveling exists in Unraveling.java but is NOT registered in CardLibrary.initialize().
+# Dead code — can never appear in gameplay. Removed for parity.
+# UNRAVELING = Card(
+#     id="Unraveling", name="Unraveling", card_type=CardType.SKILL, rarity=CardRarity.RARE,
+#     target=CardTarget.NONE, cost=2, upgrade_cost=1, exhaust=True,
+#     effects=["play_all_hand_free"],
+# )
 
 VAULT = Card(
     id="Vault", name="Vault", card_type=CardType.SKILL, rarity=CardRarity.RARE,
@@ -694,11 +696,13 @@ DEVOTION = Card(
     effects=["gain_mantra_each_turn"],
 )
 
-DISCIPLINE = Card(
-    id="Discipline", name="Discipline", card_type=CardType.POWER, rarity=CardRarity.RARE,
-    target=CardTarget.SELF, cost=2, upgrade_cost=1,
-    effects=["apply_discipline_power"],
-)
+# REMOVED: Discipline is DEPRECATED per localization and NOT in CardLibrary.initialize().
+# Dead code — can never appear in gameplay. Removed for parity.
+# DISCIPLINE = Card(
+#     id="Discipline", name="Discipline", card_type=CardType.POWER, rarity=CardRarity.RARE,
+#     target=CardTarget.SELF, cost=2, upgrade_cost=1,
+#     effects=["apply_discipline_power"],
+# )
 
 FASTING = Card(
     id="Fasting2", name="Fasting", card_type=CardType.POWER, rarity=CardRarity.UNCOMMON,
@@ -1580,6 +1584,36 @@ RITUAL_DAGGER = Card(
 )
 
 
+# === WISH OPTION CARDS (choice cards from playing Wish) ===
+# These are registered in CardLibrary.initialize() under addColorlessCards().
+# They use cost=-2 (unplayable directly), SPECIAL rarity, COLORLESS color.
+# Java: com.megacrit.cardcrawl.cards.optionCards.*
+
+BECOME_ALMIGHTY = Card(
+    id="BecomeAlmighty", name="Become Almighty", card_type=CardType.POWER,
+    rarity=CardRarity.SPECIAL, color=CardColor.COLORLESS,
+    target=CardTarget.NONE, cost=-2,
+    base_magic=3, upgrade_magic=1,  # Strength amount: 3 (4 upgraded)
+    effects=["gain_strength"],
+)
+
+FAME_AND_FORTUNE = Card(
+    id="FameAndFortune", name="Fame and Fortune", card_type=CardType.SKILL,
+    rarity=CardRarity.SPECIAL, color=CardColor.COLORLESS,
+    target=CardTarget.NONE, cost=-2,
+    base_magic=25, upgrade_magic=5,  # Gold amount: 25 (30 upgraded)
+    effects=["gain_gold"],
+)
+
+LIVE_FOREVER = Card(
+    id="LiveForever", name="Live Forever", card_type=CardType.POWER,
+    rarity=CardRarity.SPECIAL, color=CardColor.COLORLESS,
+    target=CardTarget.NONE, cost=-2,
+    base_magic=6, upgrade_magic=2,  # Plated Armor amount: 6 (8 upgraded)
+    effects=["gain_plated_armor"],
+)
+
+
 # ============ CURSE CARDS ============
 
 ASCENDERS_BANE = Card(
@@ -1756,7 +1790,9 @@ BEAM_CELL = Card(
 )
 
 CLAW = Card(
-    id="Claw", name="Claw", card_type=CardType.ATTACK, rarity=CardRarity.COMMON,
+    # Java Claw.java has ID = "Gash" (legacy rename). Using "Gash" as canonical
+    # for correct CardLibrary HashMap iteration order in reward generation.
+    id="Gash", name="Claw", card_type=CardType.ATTACK, rarity=CardRarity.COMMON,
     color=CardColor.BLUE, cost=0, base_damage=3, upgrade_damage=2,
     base_magic=2, effects=["increase_all_claw_damage"],
 )
@@ -2021,11 +2057,13 @@ WHITE_NOISE = Card(
     exhaust=True, effects=["add_random_power_to_hand_cost_0"],
 )
 
-IMPULSE = Card(
-    id="Impulse", name="Impulse", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
-    color=CardColor.BLUE, target=CardTarget.SELF, cost=1,
-    exhaust=True, upgrade_exhaust=False, effects=["trigger_orb_start_end"],
-)
+# REMOVED: Impulse has no localization entry and is NOT in CardLibrary.initialize().
+# Dead code — can never appear in gameplay. Removed for parity.
+# IMPULSE = Card(
+#     id="Impulse", name="Impulse", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
+#     color=CardColor.BLUE, target=CardTarget.SELF, cost=1,
+#     exhaust=True, upgrade_exhaust=False, effects=["trigger_orb_start_end"],
+# )
 
 
 # === UNCOMMON POWERS ===
@@ -2203,7 +2241,7 @@ DEFECT_CARDS: Dict[str, Card] = {
     "Ball Lightning": BALL_LIGHTNING,
     "Barrage": BARRAGE,
     "Beam Cell": BEAM_CELL,
-    "Claw": CLAW,
+    "Gash": CLAW,  # Java Claw.java has ID = "Gash"
     "Cold Snap": COLD_SNAP,
     "Compile Driver": COMPILE_DRIVER,
     "Go for the Eyes": GO_FOR_THE_EYES,
@@ -2243,7 +2281,7 @@ DEFECT_CARDS: Dict[str, Card] = {
     "Genetic Algorithm": GENETIC_ALGORITHM,
     "Glacier": GLACIER,
     "Steam Power": OVERCLOCK,
-    "Impulse": IMPULSE,
+    # "Impulse" removed: not in CardLibrary (dead code, no localization entry)
     "Recycle": RECYCLE,
     "Reinforced Body": REINFORCED_BODY,
     "Reprogram": REPROGRAM,
@@ -2362,13 +2400,13 @@ WATCHER_CARDS: Dict[str, Card] = {
     "Omniscience": OMNISCIENCE,
     "Scrawl": SCRAWL,
     "SpiritShield": SPIRIT_SHIELD,
-    "Unraveling": UNRAVELING,
+    # "Unraveling" removed: not in CardLibrary (dead code)
     "Vault": VAULT,
     "Wish": WISH,
     # Rare Powers
     "DevaForm": DEVA_FORM,
     "Devotion": DEVOTION,
-    "Discipline": DISCIPLINE,
+    # "Discipline" removed: not in CardLibrary (deprecated, dead code)
     "Fasting2": FASTING,  # Java ID is "Fasting2", not "Fasting"
     "MasterReality": MASTER_REALITY,
     # Special
@@ -2515,6 +2553,10 @@ COLORLESS_CARDS: Dict[str, Card] = {
     "Bite": BITE,
     "J.A.X.": JAX,
     "RitualDagger": RITUAL_DAGGER,
+    # Wish option cards
+    "BecomeAlmighty": BECOME_ALMIGHTY,
+    "FameAndFortune": FAME_AND_FORTUNE,
+    "LiveForever": LIVE_FOREVER,
 }
 
 
@@ -3185,7 +3227,7 @@ CARD_ID_ALIASES = {
     "Foresight": "Wireheading",
     "Wraith Form": "Wraith Form v2",
     "WraithForm": "Wraith Form v2",
-    "Gash": "Claw",
+    "Claw": "Gash",  # Java Claw.java has ID = "Gash"; "Claw" is display name only
     # Java class-name IDs that differ from canonical in-game card IDs.
     "Alchemize": "Venomology",
     "Apparition": "Ghostly",
@@ -3210,6 +3252,16 @@ CARD_ID_ALIASES = {
     "VoidCard": "Void",
 }
 
+# Card IDs that exist as Java source files but are NOT registered in
+# CardLibrary.initialize() and can never appear in gameplay.  Kept here so
+# that resolve_card_id / get_card can give a clear error instead of a generic
+# "Unknown card" message.
+DEAD_CODE_CARD_IDS: set = {
+    "Unraveling",   # Watcher — exists in Unraveling.java, NOT in CardLibrary
+    "Discipline",   # Watcher — DEPRECATED per localization, NOT in CardLibrary
+    "Impulse",      # Defect  — no localization entry, NOT in CardLibrary
+}
+
 
 def resolve_card_id(card_id: str) -> str:
     """Resolve modern display IDs to canonical Java IDs."""
@@ -3219,6 +3271,11 @@ def resolve_card_id(card_id: str) -> str:
 def get_card(card_id: str, upgraded: bool = False) -> Card:
     """Get a copy of a card by ID."""
     resolved_id = resolve_card_id(card_id)
+    if resolved_id in DEAD_CODE_CARD_IDS:
+        raise ValueError(
+            f"Card '{card_id}' is dead code: exists in Java source but is NOT "
+            f"registered in CardLibrary.initialize() and can never appear in gameplay."
+        )
     if resolved_id not in ALL_CARDS:
         raise ValueError(f"Unknown card: {card_id}")
     card = ALL_CARDS[resolved_id].copy()

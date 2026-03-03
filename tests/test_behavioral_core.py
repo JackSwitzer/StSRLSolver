@@ -923,17 +923,11 @@ class TestEffectRegistration:
         assert len(scryed) <= 3
         assert len(scryed) <= draw_before
 
-    def test_unraveling_card_has_correct_effect(self):
-        """Unraveling card references play_all_hand_free effect."""
-        card = get_card("Unraveling")
-        assert "play_all_hand_free" in card.effects
-        assert card.exhaust is True
-        assert card.cost == 2
-
-    def test_unraveling_upgraded_costs_1(self):
-        """Upgraded Unraveling costs 1."""
-        card = get_card("Unraveling", upgraded=True)
-        assert card.current_cost == 1
+    def test_unraveling_is_dead_code(self):
+        """Unraveling is dead code (not in CardLibrary) and should raise ValueError."""
+        import pytest
+        with pytest.raises(ValueError, match="dead code"):
+            get_card("Unraveling")
 
 
 # =============================================================================

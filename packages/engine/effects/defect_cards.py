@@ -774,8 +774,7 @@ DEFECT_CARD_EFFECTS = {
     "Ball Lightning": ["channel_lightning"],
     "Barrage": ["damage_per_orb"],
     "Beam Cell": ["apply_vulnerable"],
-    "Claw": ["increase_all_claw_damage"],
-    "Gash": ["increase_all_claw_damage"],
+    "Gash": ["increase_all_claw_damage"],  # Java Claw.java has ID = "Gash"
     "Cold Snap": ["channel_frost"],
     "Compile Driver": ["draw_per_unique_orb"],
     "Go for the Eyes": ["if_attacking_apply_weak"],
@@ -818,7 +817,7 @@ DEFECT_CARD_EFFECTS = {
     "Genetic Algorithm": ["block_increases_permanently"],
     "Glacier": ["channel_2_frost"],
     "Steam Power": ["add_burn_to_discard"],
-    "Impulse": ["trigger_orb_start_end"],
+    # "Impulse" removed: not in CardLibrary (dead code, no localization entry)
     "Recycle": ["exhaust_card_gain_energy"],
     "Reinforced Body": ["block_x_times"],
     "Reprogram": ["lose_focus_gain_strength_dex"],

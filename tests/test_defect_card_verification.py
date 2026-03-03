@@ -1050,7 +1050,7 @@ class TestCardDataParity:
         ("Skim", 1, -1, -1, 3),
         ("Tempest", -1, -1, -1, -1),
         ("White Noise", 1, -1, -1, -1),
-        ("Impulse", 1, -1, -1, -1),
+        # "Impulse" removed: not in CardLibrary (dead code)
         # Uncommon Powers
         ("Capacitor", 1, -1, -1, 2),
         ("Defragment", 1, -1, -1, 1),
@@ -1183,9 +1183,11 @@ class TestUpgradeFlagChanges:
         card = get_card("Echo Form", upgraded=True)
         assert card.ethereal is False
 
-    def test_impulse_upgraded_removes_exhaust(self):
-        card = get_card("Impulse", upgraded=True)
-        assert card.exhaust is False
+    def test_impulse_is_dead_code(self):
+        """Impulse is dead code (not in CardLibrary) and should raise ValueError."""
+        import pytest
+        with pytest.raises(ValueError, match="dead code"):
+            get_card("Impulse")
 
     def test_chill_always_exhausts(self):
         base = get_card("Chill")
@@ -1239,7 +1241,7 @@ class TestCardColorAndType:
         ("Hyperbeam", CardType.ATTACK),
         ("Sunder", CardType.ATTACK),
         ("Aggregate", CardType.SKILL),
-        ("Impulse", CardType.SKILL),
+        # ("Impulse", CardType.SKILL),  # Removed: not in CardLibrary (dead code)
     ])
     def test_card_type(self, card_id, expected_type):
         card = get_card(card_id)
@@ -1256,7 +1258,7 @@ class TestEffectsMapCompleteness:
     def test_all_68_cards_have_effect_entries(self):
         expected = [
             "Strike_B", "Defend_B", "Zap", "Dualcast",
-            "Ball Lightning", "Barrage", "Beam Cell", "Claw",
+            "Ball Lightning", "Barrage", "Beam Cell", "Gash",  # Claw.java ID = "Gash"
             "Cold Snap", "Compile Driver", "Go for the Eyes",
             "Rebound", "Streamline", "Sweeping Beam",
             "Conserve Battery", "Coolheaded", "Hologram", "Leap",
@@ -1282,18 +1284,21 @@ class TestEffectsMapCompleteness:
 
 
 # =============================================================================
-# 20. Impulse / Orb Passive Integration
+# 20. trigger_orb_start_end effect (formerly Impulse card, now dead code)
 # =============================================================================
 
-class TestImpulseIntegration:
+class TestTriggerOrbStartEnd:
+    """The trigger_orb_start_end effect handler still exists even though
+    the Impulse card was removed (not in CardLibrary, dead code).
+    Test the effect handler directly without referencing the dead card."""
 
-    def test_impulse_triggers_orb_passives(self, combat):
-        """Impulse triggers each orb's passive once (Java: onStartOfTurn)."""
+    def test_trigger_orb_start_end_fires_frost_passive(self, combat):
+        """trigger_orb_start_end triggers each orb's passive once."""
         channel_orb(combat, "Frost")
         before_block = combat.player.block
 
-        ctx = make_ctx(combat, "Impulse")
+        ctx = make_ctx(combat)  # No card needed
         execute_effect("trigger_orb_start_end", ctx)
 
-        # Frost passive fires once -> 2 block (Java: onStartOfTurn only has effect)
+        # Frost passive fires once -> 2 block
         assert combat.player.block == before_block + 2

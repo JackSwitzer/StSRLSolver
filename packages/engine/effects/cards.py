@@ -1227,7 +1227,7 @@ WATCHER_CARD_EFFECTS = {
     "Omniscience": ["play_card_from_draw_twice"],
     "Scrawl": ["draw_until_hand_full", "cost_0_in_wrath"],
     "SpiritShield": ["gain_block_per_card_in_hand"],
-    "Unraveling": ["play_all_hand_free"],
+    # "Unraveling" removed: not in CardLibrary (dead code)
     "Vault": ["take_extra_turn"],
     "Wish": ["choose_plated_armor_or_strength_or_gold"],
 
@@ -1242,7 +1242,7 @@ WATCHER_CARD_EFFECTS = {
     "Wireheading": ["scry_each_turn"],  # Foresight
     "DevaForm": ["gain_energy_each_turn_stacking"],
     "Devotion": ["gain_mantra_each_turn"],
-    "Discipline": ["apply_discipline_power"],
+    # "Discipline" removed: not in CardLibrary (deprecated, dead code)
     "Fasting2": ["gain_strength_and_dex_lose_focus"],  # Fasting
     "MasterReality": ["created_cards_upgraded"],
 

@@ -1173,17 +1173,11 @@ class TestPowerCards:
         upgraded = get_card("Fasting2", upgraded=True)
         assert upgraded.magic_number == 4
 
-    def test_discipline_stats(self):
-        """Discipline: 2 cost Power (1 upgraded)."""
-        card = get_card("Discipline")
-        assert card.cost == 2
-        assert card.card_type == CardType.POWER
-        assert card.rarity == CardRarity.RARE
-        assert card.target == CardTarget.SELF
-        assert "apply_discipline_power" in card.effects
-
-        upgraded = get_card("Discipline", upgraded=True)
-        assert upgraded.current_cost == 1
+    def test_discipline_is_dead_code(self):
+        """Discipline is dead code (not in CardLibrary) and should raise ValueError."""
+        import pytest
+        with pytest.raises(ValueError, match="dead code"):
+            get_card("Discipline")
 
     def test_wave_of_the_hand_weak(self):
         """Wave of the Hand: apply Weak when gaining block."""
