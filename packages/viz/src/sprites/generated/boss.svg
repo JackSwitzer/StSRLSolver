@@ -1,0 +1,56 @@
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Shadow -->
+  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="3" result="blur" />
+    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+  </filter>
+  
+  <rect width="160" height="160" fill="none" />
+  
+  <!-- Outer Orbiting Flames -->
+  <g fill="#4deeea" filter="url(#glow)">
+    <circle cx="80" cy="25" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="128" cy="52" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" begin="0.3s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="128" cy="108" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" begin="0.6s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="80" cy="135" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" begin="0.9s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="32" cy="108" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" begin="1.2s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="32" cy="52" r="8">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" begin="1.5s" repeatCount="indefinite" />
+    </circle>
+  </g>
+
+  <!-- Main Hexaghost Body -->
+  <path d="M80 35 L120 55 L120 105 L80 125 L40 105 L40 55 Z" fill="#1a1a2e" stroke="#4deeea" stroke-width="2">
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 4; 0 0" dur="4s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- Central Core Eye -->
+  <g transform="translate(80, 80)">
+    <animateTransform attributeName="transform" type="translate" values="80 80; 80 84; 80 80" dur="4s" repeatCount="indefinite" />
+    <path d="M-15 0 Q0 -12 15 0 Q0 12 -15 0" fill="#4deeea" opacity="0.8" filter="url(#glow)" />
+    <circle r="4" fill="#fff" />
+  </g>
+
+  <!-- Internal Sigils -->
+  <g stroke="#4deeea" stroke-width="1" fill="none" opacity="0.5">
+    <path d="M65 60 L95 60 M65 100 L95 100 M80 50 L80 110" />
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 4; 0 0" dur="4s" repeatCount="indefinite" />
+  </g>
+  
+  <!-- Floating Particles -->
+  <g fill="#4deeea" opacity="0.6">
+    <circle cx="50" cy="40" r="1.5"><animate attributeName="cy" values="40;30" dur="3s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.6;0" dur="3s" repeatCount="indefinite" /></circle>
+    <circle cx="110" cy="120" r="1.2"><animate attributeName="cy" values="120;110" dur="2.5s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.6;0" dur="2.5s" repeatCount="indefinite" /></circle>
+    <circle cx="130" cy="80" r="1.8"><animate attributeName="cx" values="130;140" dur="4s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.6;0" dur="4s" repeatCount="indefinite" /></circle>
+  </g>
+</svg>

@@ -1,0 +1,52 @@
+<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Shadow -->
+  <ellipse cx="60" cy="132" rx="40" ry="6" fill="rgba(0,0,0,0.4)" />
+  
+  <!-- Heavy Legs -->
+  <path d="M35 130 L45 80 H75 L85 130 H65 L60 100 L55 130 Z" fill="#2c2c2c" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <!-- Main Armored Torso -->
+  <path d="M20 90 L100 90 L110 40 L85 15 L35 15 L10 40 Z" fill="#3d3d3d" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <!-- Chest Plate Detail -->
+  <path d="M40 30 H80 L75 65 H45 Z" fill="#4a4a4a" stroke="#222" stroke-width="1"/>
+  <path d="M50 40 H70 L68 55 H52 Z" fill="#333" />
+  
+  <!-- Spiked Pauldrons (Shoulders) -->
+  <path d="M10 45 C-5 20 40 10 45 25 L30 60 Z" fill="#2a2a2a" stroke="#111" stroke-width="1.5"/>
+  <path d="M110 45 C125 20 80 10 75 25 L90 60 Z" fill="#2a2a2a" stroke="#111" stroke-width="1.5"/>
+  
+  <!-- Shoulder Spikes -->
+  <path d="M5 25 L15 10 L25 20" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M115 25 L105 10 L95 20" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/>
+  
+  <!-- Helmet -->
+  <path d="M46 5 H74 L80 25 H40 Z" fill="#1a1a1a" stroke="#000" stroke-width="2"/>
+  <path d="M40 25 L50 35 H70 L80 25" fill="#1a1a1a" stroke="#000" stroke-width="1.5"/>
+  
+  <!-- Glowing Eyes -->
+  <g filter="url(#glow)">
+    <rect x="52" y="16" width="6" height="3" rx="1" fill="#ff0000" />
+    <rect x="62" y="16" width="6" height="3" rx="1" fill="#ff0000" />
+    <circle cx="55" cy="17.5" r="1" fill="#fff" opacity="0.8" />
+    <circle cx="65" cy="17.5" r="1" fill="#fff" opacity="0.8" />
+  </g>
+  
+  <!-- Armored Gauntlets -->
+  <path d="M15 70 L5 110 L20 105 Z" fill="#333" stroke="#111" stroke-width="2"/>
+  <path d="M105 70 L115 110 L100 105 Z" fill="#333" stroke="#111" stroke-width="2"/>
+  
+  <!-- Battle Damage Scratches -->
+  <line x1="85" y1="40" x2="95" y2="55" stroke="#222" stroke-width="1" opacity="0.5" />
+  <line x1="88" y1="42" x2="98" y2="57" stroke="#222" stroke-width="1" opacity="0.5" />
+</svg>
