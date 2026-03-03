@@ -10,10 +10,13 @@ from .line_evaluator import (
     SimulatedEnemy,
     SimulatedPlayer,
 )
+from .episode_logger import EpisodeLog, EpisodeStep, collect_episodes
 from .gym_env import StsEnv, StsVecEnv
 from .mcts import MCTS, MCTSNode, CombatMCTS
 from .planner import StrategicPlanner, StSAgent
+from .policy_net import PolicyValueNet
 from .strategic_features import StrategicState, extract_strategic_features, strategic_state_to_vector
+from .train import Trainer, RolloutBuffer
 
 __all__ = [
     "ActionType",
@@ -25,12 +28,16 @@ __all__ = [
     "EncounterInfo",
     "Enemy",
     "EnemyInfo",
+    "EpisodeLog",
+    "EpisodeStep",
     "KillCalculator",
     "LineOutcome",
     "LineSimulator",
     "MCTS",
     "MCTSNode",
     "PlayerState",
+    "PolicyValueNet",
+    "RolloutBuffer",
     "SimulatedEnemy",
     "SimulatedPlayer",
     "Stance",
@@ -39,7 +46,9 @@ __all__ = [
     "StsEnv",
     "StsVecEnv",
     "StrategicState",
+    "Trainer",
     "can_kill_this_turn",
+    "collect_episodes",
     "extract_strategic_features",
     "get_kill_line",
     "strategic_state_to_vector",
