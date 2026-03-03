@@ -195,6 +195,46 @@ def _create_agent(agent_name: str) -> Callable:
             return sts_agent.get_action(runner)
         return agent_fn
 
+    elif agent_name.startswith("gumbel"):
+        sims = int(agent_name.replace("gumbel", "") or "16")
+        from packages.engine.game import GamePhase, CombatAction
+        from packages.engine.state.combat import PlayCard, UsePotion, EndTurn
+        from packages.training.gumbel_mcts import GumbelMCTS
+        from packages.training.planner import StrategicPlanner
+        gumbel = GumbelMCTS(num_simulations=sims)
+        sp = StrategicPlanner()
+        def agent_fn(runner, actions, phase):
+            if phase == GamePhase.COMBAT:
+                engine = runner.current_combat
+                if engine and len(actions) > 1:
+                    probs = gumbel.search(engine)
+                    if probs:
+                        best = max(probs, key=probs.get)
+                        if isinstance(best, PlayCard):
+                            return CombatAction(action_type="play_card", card_idx=best.card_idx, target_idx=best.target_idx)
+                        elif isinstance(best, UsePotion):
+                            return CombatAction(action_type="use_potion", potion_idx=best.potion_idx, target_idx=best.target_idx)
+                        else:
+                            return CombatAction(action_type="end_turn")
+                return actions[0]
+            elif phase == GamePhase.MAP_NAVIGATION:
+                idx = sp.plan_path_choice(runner, actions)
+                return actions[min(idx, len(actions) - 1)]
+            elif phase == GamePhase.REST:
+                idx = sp.plan_rest_site(runner, actions)
+                return actions[min(idx, len(actions) - 1)]
+            elif phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS):
+                idx = sp.plan_card_pick(runner, actions)
+                return actions[min(idx, len(actions) - 1)]
+            elif phase == GamePhase.SHOP:
+                idx = sp.plan_shop_action(runner, actions)
+                return actions[min(idx, len(actions) - 1)]
+            elif phase == GamePhase.EVENT:
+                idx = sp.plan_event_choice(runner, actions)
+                return actions[min(idx, len(actions) - 1)]
+            return actions[0]
+        return agent_fn
+
     elif agent_name == "planner":
         from packages.engine.game import GamePhase, CombatAction
         from packages.training.combat_planner import CombatPlanner
