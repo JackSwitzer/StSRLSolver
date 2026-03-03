@@ -244,6 +244,82 @@ class StrategicPlanner:
         return 0.0
 
     # -----------------------------------------------------------------
+    # Shop decisions
+    # -----------------------------------------------------------------
+
+    def plan_shop_action(self, runner: Any, options: List[Any]) -> int:
+        """Choose best shop action. Prefers card removal > key cards > skip."""
+        if not options:
+            return 0
+
+        rs = runner.run_state
+        gold = getattr(rs, "gold", 0)
+        deck_size = len(getattr(rs, "deck", []))
+
+        best_idx = 0
+        best_score = 0.0  # skip baseline
+
+        for i, opt in enumerate(options):
+            opt_str = str(opt).lower()
+
+            # Card removal is very strong for deck thinning
+            if "remove" in opt_str:
+                score = 5.0 if deck_size > 15 else 2.0
+            # Buying a key card
+            elif any(t in opt_str for t in ("rushdown", "tantrum", "ragnarok", "mentalfortress")):
+                score = 4.0 if gold > 150 else 2.0
+            # Skip / leave shop
+            elif "skip" in opt_str or "leave" in opt_str:
+                score = 0.1
+            else:
+                score = 0.5  # generic buy
+
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        return best_idx
+
+    # -----------------------------------------------------------------
+    # Event decisions
+    # -----------------------------------------------------------------
+
+    def plan_event_choice(self, runner: Any, options: List[Any]) -> int:
+        """Choose best event option. Heuristic: take free stuff, avoid curses/HP loss."""
+        if not options:
+            return 0
+
+        rs = runner.run_state
+        hp_pct = getattr(rs, "current_hp", 0) / max(getattr(rs, "max_hp", 72), 1)
+
+        best_idx = 0
+        best_score = 0.0
+
+        for i, opt in enumerate(options):
+            opt_str = str(opt).lower()
+
+            # Free relic/gold/upgrade = good
+            if any(t in opt_str for t in ("relic", "gold", "upgrade", "heal", "max_hp")):
+                score = 3.0
+            # Card removal = good
+            elif "remove" in opt_str:
+                score = 2.5
+            # Curse/damage = bad
+            elif any(t in opt_str for t in ("curse", "lose_hp", "damage")):
+                score = -1.0 if hp_pct < 0.5 else 0.5
+            # Leave/skip = safe default
+            elif "leave" in opt_str or "skip" in opt_str:
+                score = 1.0
+            else:
+                score = 1.0  # neutral
+
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        return best_idx
+
+    # -----------------------------------------------------------------
     # State evaluation
     # -----------------------------------------------------------------
 
@@ -375,11 +451,19 @@ class StSAgent:
             idx = self.planner.plan_rest_site(runner, actions)
             return actions[min(idx, len(actions) - 1)]
 
-        if phase == GamePhase.COMBAT_REWARDS:
+        if phase == GamePhase.COMBAT_REWARDS or phase == GamePhase.BOSS_REWARDS:
             idx = self.planner.plan_card_pick(runner, actions)
             return actions[min(idx, len(actions) - 1)]
 
-        # Default: pick first available action
+        if phase == GamePhase.SHOP:
+            idx = self.planner.plan_shop_action(runner, actions)
+            return actions[min(idx, len(actions) - 1)]
+
+        if phase == GamePhase.EVENT:
+            idx = self.planner.plan_event_choice(runner, actions)
+            return actions[min(idx, len(actions) - 1)]
+
+        # Default: pick first available action (TREASURE, NEOW, etc.)
         return actions[0]
 
     def _engine_action_to_game_action(self, engine_action: Any) -> Any:
