@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from copy import deepcopy
 import itertools
+import heapq
 
 
 class ActionType(Enum):
@@ -69,10 +70,11 @@ class SimulatedPlayer:
 
     def take_damage(self, amount: int) -> int:
         """Apply damage after block, return damage taken to HP."""
-        if self.stance == "Wrath":
-            amount *= 2
+        # Java order: Vulnerable first (floor), then Wrath doubles
         if self.vulnerable > 0:
             amount = int(amount * 1.5)
+        if self.stance == "Wrath":
+            amount *= 2
 
         blocked = min(amount, self.block)
         self.block -= blocked
@@ -87,6 +89,8 @@ class SimulatedPlayer:
         damage = base + self.strength
         if self.stance == "Wrath":
             damage *= 2
+        elif self.stance == "Divinity":
+            damage *= 3
         if self.weak > 0:
             damage = int(damage * 0.75)
         return max(0, damage)
@@ -325,18 +329,17 @@ class LineSimulator:
                             for _ in range(hits):
                                 damage_dealt += e.take_damage(dmg_per_hit)
                 else:
-                    # Single target
-                    if target_idx is not None and target_idx < len(es):
-                        target = es[target_idx]
-                        if not target.is_dead():
-                            for _ in range(hits):
-                                damage_dealt += target.take_damage(dmg_per_hit)
+                    # Single target — target_idx is enemy.id (engine index), look up by ID
+                    target = next((e for e in es if e.id == target_idx), None)
+                    if target is not None and not target.is_dead():
+                        for _ in range(hits):
+                            damage_dealt += target.take_damage(dmg_per_hit)
 
             # Execute effect (Judgment)
             execute_threshold = effect.get("execute", 0)
             if execute_threshold > 0 and target_idx is not None:
-                target = es[target_idx]
-                if target.hp <= execute_threshold:
+                target = next((e for e in es if e.id == target_idx), None)
+                if target is not None and target.hp <= execute_threshold:
                     damage_dealt += target.hp
                     target.hp = 0
 
@@ -434,61 +437,230 @@ class LineSimulator:
     ) -> Tuple[LineOutcome, List[Tuple[str, Optional[int]]]]:
         """
         Find the best line of play through simulation.
-
-        This is a simplified search - for real MCTS we'd be smarter.
         """
+        results = self.find_top_k_lines(player, enemies, hand, k=1, max_cards=min(max_actions, 3))
+        if results:
+            return results[0]
+        # Fallback: end turn (do nothing)
+        outcome = self.simulate_line(player, enemies, hand, [])
+        return outcome, []
+
+    def find_top_k_lines(
+        self,
+        player: SimulatedPlayer,
+        enemies: List[SimulatedEnemy],
+        hand: List[Dict],
+        k: int = 5,
+        max_cards: int = 4,
+        strategy_weights: Optional[Dict[str, float]] = None,
+    ) -> List[Tuple[LineOutcome, List[Tuple[str, Optional[int]]]]]:
+        """
+        Find top K lines of play sorted by score.
+
+        Args:
+            player: Starting player state
+            enemies: Starting enemy states
+            hand: Cards in hand
+            k: Number of top lines to return
+            max_cards: Maximum cards per sequence (up to 5 for high-energy turns)
+            strategy_weights: Optional scoring overrides from meta-learner
+
+        Returns:
+            List of (LineOutcome, actions) sorted by score descending
+        """
+        # Determine max energy available (current + potential calm exit)
+        max_possible_energy = player.energy
+        if player.stance == "Calm":
+            max_possible_energy += 2
+
         playable = [
             c for c in hand
-            if CARD_EFFECTS.get(c.get("id", ""), {}).get("cost", 99) <= player.energy
+            if CARD_EFFECTS.get(c.get("id", ""), {}).get("cost", 99) <= max_possible_energy
         ]
 
-        best_outcome = None
-        best_actions = []
+        # For high-energy turns (Calm exit, Divinity), allow more card sequences
+        if max_possible_energy >= 5:
+            max_cards = min(max_cards + 1, 5)
 
-        # Try single card plays
+        # Use a heap of size k to track top results efficiently
+        # heap is min-heap, so we store negative scores
+        top_k: List[Tuple[float, int, LineOutcome, List[Tuple[str, Optional[int]]]]] = []
+        counter = 0  # tiebreaker for heap
+
+        def _consider(outcome: LineOutcome, actions: List[Tuple[str, Optional[int]]]) -> None:
+            nonlocal counter
+            if strategy_weights:
+                score = self._score_with_weights(outcome, player.hp, strategy_weights)
+            else:
+                score = outcome.score
+
+            counter += 1
+            if len(top_k) < k:
+                heapq.heappush(top_k, (score, counter, outcome, actions))
+            elif score > top_k[0][0]:
+                heapq.heapreplace(top_k, (score, counter, outcome, actions))
+
+        # Use enemy.id (original engine index) not list position, so targets
+        # match the engine's enemy list including dead slots
+        live_targets = [e.id for e in enemies if not e.is_dead()]
+        primary_target = live_targets[0] if live_targets else None
+
+        def _get_targets(effect: Dict) -> List[Optional[int]]:
+            if effect.get("aoe") or (effect.get("block", 0) > 0 and effect.get("damage", 0) == 0):
+                return [None]
+            if effect.get("damage", 0) > 0:
+                return live_targets if live_targets else [None]
+            return [None]
+
+        # End turn (do nothing) as baseline
+        end_outcome = self.simulate_line(player, enemies, hand, [])
+        _consider(end_outcome, [])
+
+        # Single cards
         for card in playable:
             card_id = card.get("id", "")
             effect = CARD_EFFECTS.get(card_id, {})
-
-            # Determine targets
-            if effect.get("aoe") or effect.get("block", 0) > 0:
-                targets = [None]  # No target needed
-            else:
-                targets = [i for i, e in enumerate(enemies) if not e.is_dead()]
-                if not targets:
-                    targets = [None]
-
-            for target in targets:
+            for target in _get_targets(effect):
                 actions = [(card_id, target)]
                 outcome = self.simulate_line(player, enemies, hand, actions)
+                _consider(outcome, actions)
 
-                if best_outcome is None or outcome.score > best_outcome.score:
-                    best_outcome = outcome
-                    best_actions = actions
-
-        # Try 2-card combos (most common case)
+        # 2-card combos
         if len(playable) >= 2:
             for c1, c2 in itertools.permutations(playable, 2):
-                c1_id = c1.get("id", "")
-                c2_id = c2.get("id", "")
+                c1_id, c2_id = c1.get("id", ""), c2.get("id", "")
                 e1 = CARD_EFFECTS.get(c1_id, {})
                 e2 = CARD_EFFECTS.get(c2_id, {})
 
-                # Quick energy check
-                if e1.get("cost", 1) + e2.get("cost", 1) > player.energy + 2:  # +2 for calm
+                if e1.get("cost", 1) + e2.get("cost", 1) > max_possible_energy:
                     continue
 
-                t1 = 0 if not e1.get("aoe") and e1.get("damage", 0) > 0 else None
-                t2 = 0 if not e2.get("aoe") and e2.get("damage", 0) > 0 else None
-
+                t1 = primary_target if e1.get("damage", 0) > 0 and not e1.get("aoe") else None
+                t2 = primary_target if e2.get("damage", 0) > 0 and not e2.get("aoe") else None
                 actions = [(c1_id, t1), (c2_id, t2)]
                 outcome = self.simulate_line(player, enemies, hand, actions)
+                _consider(outcome, actions)
 
-                if outcome.score > best_outcome.score:
-                    best_outcome = outcome
-                    best_actions = actions
+        # 3-card combos
+        if len(playable) >= 3 and max_cards >= 3:
+            for combo in itertools.permutations(playable, 3):
+                ids = [c.get("id", "") for c in combo]
+                effects = [CARD_EFFECTS.get(cid, {}) for cid in ids]
 
-        return best_outcome, best_actions
+                total_cost = sum(e.get("cost", 1) for e in effects)
+                if total_cost > max_possible_energy:
+                    continue
+
+                actions = [
+                    (cid, primary_target if eff.get("damage", 0) > 0 and not eff.get("aoe") else None)
+                    for cid, eff in zip(ids, effects)
+                ]
+                outcome = self.simulate_line(player, enemies, hand, actions)
+                _consider(outcome, actions)
+
+        # 4+ card combos (only for high-energy turns)
+        if len(playable) >= 4 and max_cards >= 4 and max_possible_energy >= 5:
+            # Sample rather than enumerate all permutations (4! * targets = expensive)
+            # Try combos sorted by cost ascending to pack more cards
+            by_cost = sorted(playable, key=lambda c: CARD_EFFECTS.get(c.get("id", ""), {}).get("cost", 1))
+            for size in range(4, min(len(by_cost) + 1, max_cards + 1)):
+                for combo in itertools.combinations(by_cost, size):
+                    ids = [c.get("id", "") for c in combo]
+                    effects = [CARD_EFFECTS.get(cid, {}) for cid in ids]
+                    total_cost = sum(e.get("cost", 1) for e in effects)
+                    if total_cost > max_possible_energy:
+                        continue
+                    # Try one ordering: attacks first, then skills
+                    sorted_combo = sorted(
+                        zip(ids, effects),
+                        key=lambda x: (0 if x[1].get("enters") else 1, -x[1].get("damage", 0)),
+                    )
+                    actions = [
+                        (cid, primary_target if eff.get("damage", 0) > 0 and not eff.get("aoe") else None)
+                        for cid, eff in sorted_combo
+                    ]
+                    outcome = self.simulate_line(player, enemies, hand, actions)
+                    _consider(outcome, actions)
+
+        # Sort descending by score
+        results = sorted(top_k, key=lambda x: -x[0])
+        return [(outcome, actions) for _, _, outcome, actions in results]
+
+    def _score_with_weights(
+        self, outcome: LineOutcome, starting_hp: int, weights: Dict[str, float]
+    ) -> float:
+        """Score with meta-learner strategy weights."""
+        score = 0.0
+
+        if outcome.is_lethal:
+            score += 1000
+            score -= outcome.damage_taken * 2
+
+        if outcome.we_die:
+            score -= 10000
+
+        damage_w = weights.get("damage_weight", 2.0)
+        block_w = weights.get("block_weight", 1.5)
+        kill_bonus = weights.get("kill_bonus", 50.0)
+
+        score += outcome.damage_dealt * damage_w
+        score -= outcome.damage_taken * (5.0 / max(block_w, 0.1))
+
+        if outcome.is_safe:
+            score += 100 * block_w
+
+        score += outcome.enemies_killed * kill_bonus
+
+        if outcome.final_stance == "Calm":
+            score += 20
+        elif outcome.final_stance == "Wrath" and not outcome.is_lethal:
+            score -= 50
+
+        return score
+
+
+def simulate_from_engine(engine: Any) -> Tuple[SimulatedPlayer, List[SimulatedEnemy], List[Dict]]:
+    """
+    Extract SimulatedPlayer, SimulatedEnemy list, and hand from a CombatEngine.
+
+    This bridges the real engine state to the lightweight simulation model.
+    """
+    state = engine.state
+    player = state.player
+
+    sim_player = SimulatedPlayer(
+        hp=player.hp,
+        block=player.block,
+        energy=state.energy,
+        stance=getattr(state, "stance", "Neutral"),
+        strength=player.statuses.get("Strength", 0),
+        dexterity=player.statuses.get("Dexterity", 0),
+        vulnerable=player.statuses.get("Vulnerable", 0),
+        weak=player.statuses.get("Weak", 0),
+    )
+
+    sim_enemies = []
+    for i, e in enumerate(state.enemies):
+        if e.hp <= 0:
+            continue
+        move_dmg = getattr(e, "move_damage", 0) or 0
+        move_hits = getattr(e, "move_hits", 1) or 1
+        is_attacking = move_dmg > 0
+        sim_enemies.append(SimulatedEnemy(
+            id=i,
+            hp=e.hp,
+            max_hp=getattr(e, "max_hp", e.hp),
+            block=e.block,
+            intent_damage=move_dmg,
+            intent_hits=move_hits,
+            is_attacking=is_attacking,
+            vulnerable=e.statuses.get("Vulnerable", 0),
+            weak=e.statuses.get("Weak", 0),
+        ))
+
+    hand = [{"id": card_id} for card_id in state.hand]
+
+    return sim_player, sim_enemies, hand
 
 
 def evaluate_all_lines(

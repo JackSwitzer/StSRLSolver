@@ -14,7 +14,7 @@ import multiprocessing as mp
 import os
 import resource
 import time
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Set
 
@@ -117,25 +117,62 @@ def _adapt_combat_obs(raw: dict) -> dict:
 # Worker process (top-level for pickling)
 # =========================================================================
 
+_GOOD_CARDS = frozenset({
+    "Adaptation", "Tantrum", "Ragnarok", "MentalFortress", "TalkToTheHand",
+    "InnerPeace", "CutThroughFate", "WheelKick", "Conclude", "Wallop",
+    "EmptyFist", "Eruption", "FearNoEvil", "Blasphemy", "Brilliance",
+})
+
+
+def _compute_hand_quality(hand: list) -> float:
+    """Compute hand quality score (0-1) for meta-learner state."""
+    if not hand:
+        return 0.0
+    good = sum(1 for c in hand if c.rstrip("+") in _GOOD_CARDS)
+    return min(1.0, good / max(len(hand), 1) * 2.5)
+
+
+def _get_seed(agent_id: int, episode: int, initial_seed: str, plays_per_seed: int = 3) -> str:
+    """Seed rotation: play each seed N times, then advance. Agents get offset starting seeds."""
+    seed_index = episode // plays_per_seed
+    # Offset each agent so they explore different seeds
+    seed_index += agent_id * 1000
+    if seed_index == 0:
+        return initial_seed
+    return f"Seed_{seed_index}"
+
+
 def _agent_worker(
     agent_id: int,
     event_queue: mp.Queue,
     stop_event: mp.Event,
     config: Dict[str, Any],
 ) -> None:
-    """Run games in an infinite loop, pushing events to queue."""
-    from packages.engine.game import GameRunner, GamePhase
-    from packages.training.planner import StSAgent
+    """Run games in an infinite loop, pushing events to queue.
 
-    base_sims = config.get("mcts_sims", 64)
+    Uses CombatPlanner (turn-level line search) for combat decisions and
+    StrategicPlanner for non-combat decisions. Logs compressed episode data.
+    """
+    from packages.engine.game import GameRunner, GamePhase, CombatAction
+    from packages.training.planner import StrategicPlanner
+    from packages.training.combat_planner import CombatPlanner
+    from packages.training.meta_learner import CombatMetaLearner, CombatLog
+
     ascension = config.get("ascension", 20)
     character = config.get("character", "Watcher")
     initial_seed = config.get("initial_seed", "Test123")
+    plays_per_seed = config.get("plays_per_seed", 3)
 
-    agent = StSAgent(combat_sims=base_sims, temperature=0.0)
+    planner = StrategicPlanner()
+    combat_planner = CombatPlanner(top_k=5, lookahead_turns=2)
+    meta_learner = CombatMetaLearner()
+
+    # Try loading saved meta-learner
+    meta_path = Path(config.get("log_dir", "logs")) / "meta_learner.json"
+    meta_learner.load(meta_path)
+
     episode = config.get("start_episode", 0)
     total_wins = config.get("start_wins", 0)
-    conquered_initial = config.get("conquered_initial", False)
 
     # Per-agent log file
     log_dir = Path(config.get("log_dir", "logs"))
@@ -143,12 +180,11 @@ def _agent_worker(
     log_path = log_dir / f"agent_{agent_id}.jsonl"
     log_file = open(log_path, "a")
 
+    # Combat logs buffer for meta-learner updates
+    combat_log_buffer: List[CombatLog] = []
+
     while not stop_event.is_set():
-        # Seed strategy
-        if not conquered_initial:
-            seed = initial_seed
-        else:
-            seed = f"random_{agent_id}_{episode}"
+        seed = _get_seed(agent_id, episode, initial_seed, plays_per_seed)
 
         try:
             runner = GameRunner(seed=seed, ascension=ascension, character=character, verbose=False)
@@ -158,21 +194,36 @@ def _agent_worker(
             continue
 
         step = 0
-        mcts_calls = 0
-        mcts_total_ms = 0.0
+        plan_calls = 0
+        plan_total_ms = 0.0
         trivial = 0
         start_time = time.monotonic()
         last_heartbeat = time.monotonic()
-        hp_at_floor: Dict[int, int] = {}
+        hp_history: List[int] = [getattr(runner.run_state, "current_hp", 72)]
         current_floor = 0
+        combats: List[Dict] = []
+        decisions: List[Dict] = []
+        deck_changes: List[str] = []
+        initial_deck = Counter(getattr(runner.run_state, "deck", []))
+
+        # Per-combat tracking
+        combat_start_hp = 0
+        combat_damage_dealt = 0
+        combat_turns = 0
+        combat_enemy_id = ""
+        combat_lines_considered = 0
+        combat_line_rank = 0
+        combat_expected_hp_loss = 0
+        combat_used_potion = False
+        in_combat = False
+        combat_turn_snapshots: List[Dict] = []
 
         while not runner.game_over and step < 3000 and not stop_event.is_set():
-            # Track HP per floor
             rs = runner.run_state
             fl = getattr(rs, "floor", 0)
             if fl != current_floor:
                 current_floor = fl
-                hp_at_floor[fl] = getattr(rs, "current_hp", 0)
+                hp_history.append(getattr(rs, "current_hp", 0))
 
             try:
                 actions = runner.get_available_actions()
@@ -181,56 +232,181 @@ def _agent_worker(
             if not actions:
                 break
 
-            mcts_data = None
+            phase = runner.phase
+            phase_str = str(phase).split(".")[-1] if phase else "UNKNOWN"
+            planner_data = None
 
-            if len(actions) == 1:
-                action = actions[0]
-                trivial += 1
-                time.sleep(0.0005)  # Yield CPU on trivial decisions
-            else:
-                # Adaptive sims
-                n_actions = len(actions)
-                if n_actions <= 2:
-                    agent.combat_mcts.num_simulations = max(16, base_sims // 4)
-                elif n_actions <= 4:
-                    agent.combat_mcts.num_simulations = max(32, base_sims // 2)
-                else:
-                    agent.combat_mcts.num_simulations = base_sims
+            # --- COMBAT: Use CombatPlanner ---
+            if phase == GamePhase.COMBAT:
+                engine = runner.current_combat
 
-                t0 = time.monotonic()
-                try:
-                    action = agent.get_action(runner)
-                except Exception:
-                    action = actions[0]
-                elapsed_ms = (time.monotonic() - t0) * 1000
+                # Track combat start
+                if not in_combat:
+                    in_combat = True
+                    combat_start_hp = getattr(rs, "current_hp", 0)
+                    combat_damage_dealt = 0
+                    combat_turns = 0
+                    combat_lines_considered = 0
+                    combat_line_rank = 0
+                    combat_expected_hp_loss = 0
+                    combat_used_potion = False
+                    combat_turn_snapshots = []
+                    if engine and hasattr(engine, "state") and engine.state.enemies:
+                        combat_enemy_id = getattr(engine.state.enemies[0], "id", "Unknown")
 
-                if runner.phase == GamePhase.COMBAT and elapsed_ms > 5:
-                    mcts_calls += 1
-                    mcts_total_ms += elapsed_ms
+                if engine and len(actions) > 1:
+                    t0 = time.monotonic()
+                    try:
+                        plan = combat_planner.plan_turn(engine)
+                    except Exception:
+                        plan = None
+                    elapsed_ms = (time.monotonic() - t0) * 1000
 
-                    # Extract MCTS data for viewer
-                    root = getattr(agent.combat_mcts, '_last_root', None)
-                    if root and root.children:
-                        top_actions = []
-                        total_visits = sum(c.visits for c in root.children.values())
-                        for act, child in sorted(
-                            root.children.items(), key=lambda x: x[1].visits, reverse=True,
-                        )[:8]:
-                            top_actions.append({
-                                "id": str(act),
-                                "visits": child.visits,
-                                "pct": round(child.visits / max(total_visits, 1), 3),
-                                "q": round(child.value, 3),
-                                "selected": False,
+                    if plan and plan.card_sequence:
+                        plan_calls += 1
+                        plan_total_ms += elapsed_ms
+                        combat_lines_considered += plan.lines_considered
+                        combat_expected_hp_loss += plan.expected_outcome.damage_taken if plan.expected_outcome else 0
+                        combat_turns += 1
+
+                        # Record turn snapshot for meta-learner
+                        if engine:
+                            state = engine.state
+                            player_hp = state.player.hp
+                            max_hp = max(state.player.max_hp, 1)
+                            live_enemies = [e for e in state.enemies if e.hp > 0]
+                            combat_turn_snapshots.append({
+                                "hp_pct": round(player_hp / max_hp, 2),
+                                "enemy_count": len(live_enemies),
+                                "energy": state.energy,
+                                "stance": getattr(state, "stance", "Neutral"),
+                                "hand_quality": _compute_hand_quality(state.hand),
+                                "strategy": 2,  # balanced default
+                                "player_hp": player_hp,
                             })
-                        if top_actions:
-                            top_actions[0]["selected"] = True
-                        mcts_data = {
-                            "sims": agent.combat_mcts.num_simulations,
-                            "elapsed_ms": round(elapsed_ms, 1),
-                            "root_value": round(root.value, 3),
-                            "actions": top_actions,
-                        }
+
+                        # Execute the planned card sequence
+                        for card_id, target_idx in plan.card_sequence:
+                            # Find card in hand by ID
+                            hand = getattr(engine.state, "hand", []) if engine else []
+                            card_idx = None
+                            for i, h_card in enumerate(hand):
+                                if h_card == card_id:
+                                    card_idx = i
+                                    break
+
+                            if card_idx is not None:
+                                t_idx = target_idx if target_idx is not None else -1
+                                try:
+                                    ca = CombatAction(action_type="play_card", card_idx=card_idx, target_idx=t_idx)
+                                    runner.take_action(ca)
+                                    step += 1
+                                    if plan.expected_outcome:
+                                        combat_damage_dealt += plan.expected_outcome.damage_dealt
+                                except Exception:
+                                    break
+
+                        # End turn after playing all cards (only if still in combat)
+                        if not runner.game_over and runner.phase == GamePhase.COMBAT:
+                            try:
+                                runner.take_action(CombatAction(action_type="end_turn"))
+                                step += 1
+                            except Exception:
+                                pass  # Don't break game loop on end_turn failure
+
+                        # Build planner data for viewer
+                        if plan.expected_outcome:
+                            planner_data = {
+                                "type": "planner_result",
+                                "agent_id": agent_id,
+                                "elapsed_ms": round(elapsed_ms, 1),
+                                "lines_considered": plan.lines_considered,
+                                "strategy": plan.strategy,
+                                "turns_to_kill": plan.turns_to_kill,
+                                "expected_hp_loss": plan.expected_hp_loss,
+                                "confidence": round(plan.confidence, 2),
+                                "cards": [c[0] for c in plan.card_sequence],
+                            }
+
+                        # Send planner data and continue to next iteration
+                        if planner_data:
+                            _put_safe(event_queue, planner_data)
+
+                        # Heartbeat (check after full turn execution)
+                        now = time.monotonic()
+                        if now - last_heartbeat > 0.5:
+                            last_heartbeat = now
+                            _send_heartbeat(event_queue, agent_id, runner, seed, episode, total_wins, step)
+                        continue
+
+                # Fallback: single action (trivial or no plan)
+                if len(actions) == 1:
+                    action = actions[0]
+                    trivial += 1
+                else:
+                    action = actions[0]  # fallback
+
+            # --- NON-COMBAT: Use StrategicPlanner ---
+            else:
+                # Track combat end
+                if in_combat:
+                    in_combat = False
+                    actual_hp_loss = combat_start_hp - getattr(rs, "current_hp", 0)
+                    combats.append({
+                        "floor": current_floor,
+                        "enemy": combat_enemy_id,
+                        "turns": combat_turns,
+                        "hp_lost": actual_hp_loss,
+                        "damage_dealt": combat_damage_dealt,
+                        "used_potion": combat_used_potion,
+                        "lines_considered": combat_lines_considered,
+                        "expected_hp_loss": combat_expected_hp_loss,
+                        "actual_hp_loss": actual_hp_loss,
+                    })
+                    # Save combat log for meta-learner
+                    if combat_turn_snapshots:
+                        # Backfill hp_lost_this_turn
+                        for i, snap in enumerate(combat_turn_snapshots):
+                            if i + 1 < len(combat_turn_snapshots):
+                                hp_before = snap.get("player_hp", 0)
+                                hp_after = combat_turn_snapshots[i + 1].get("player_hp", 0)
+                                snap["hp_lost_this_turn"] = max(0, hp_before - hp_after)
+                            else:
+                                snap["hp_lost_this_turn"] = max(0, snap.get("player_hp", 0) - getattr(rs, "current_hp", 0))
+                            snap["kills_this_turn"] = 0  # simplified
+
+                        clog = CombatLog(
+                            floor=current_floor,
+                            enemy_id=combat_enemy_id,
+                            turns=combat_turns,
+                            hp_lost=actual_hp_loss,
+                            damage_dealt=combat_damage_dealt,
+                            turn_snapshots=combat_turn_snapshots,
+                        )
+                        combat_log_buffer.append(clog)
+
+                if len(actions) == 1:
+                    action = actions[0]
+                    trivial += 1
+                else:
+                    # Use strategic planner for non-combat decisions
+                    if phase == GamePhase.MAP_NAVIGATION:
+                        idx = planner.plan_path_choice(runner, actions)
+                        action = actions[min(idx, len(actions) - 1)]
+                        decisions.append({
+                            "floor": current_floor, "type": "path",
+                            "choice": str(action),
+                        })
+                    elif phase == GamePhase.REST:
+                        idx = planner.plan_rest_site(runner, actions)
+                        action = actions[min(idx, len(actions) - 1)]
+                        hp_pct = round(getattr(rs, "current_hp", 0) / max(getattr(rs, "max_hp", 72), 1), 2)
+                        decisions.append({
+                            "floor": current_floor, "type": "rest",
+                            "choice": str(action), "hp_pct": hp_pct,
+                        })
+                    else:
+                        action = actions[0]
 
             if action is None:
                 action = actions[0]
@@ -245,45 +421,7 @@ def _agent_worker(
             now = time.monotonic()
             if now - last_heartbeat > 0.5:
                 last_heartbeat = now
-                rs = runner.run_state
-                phase_str = str(runner.phase).split(".")[-1] if runner.phase else "UNKNOWN"
-                hb: Dict[str, Any] = {
-                    "type": "heartbeat",
-                    "agent_id": agent_id,
-                    "phase": phase_str,
-                    "floor": getattr(rs, "floor", 0),
-                    "act": getattr(rs, "act", 1),
-                    "hp": getattr(rs, "current_hp", 0),
-                    "max_hp": getattr(rs, "max_hp", 72),
-                    "seed": seed,
-                    "episode": episode,
-                    "wins": total_wins,
-                    "step": step,
-                }
-                # Combat snapshot for focused agent rendering
-                if "COMBAT" in phase_str:
-                    try:
-                        obs = runner.get_observation()
-                        combat_obs = obs.get("combat")
-                        if combat_obs:
-                            adapted = _adapt_combat_obs(combat_obs)
-                            hb["combat"] = adapted
-                            # Compact combat info for grid cards
-                            if adapted["enemies"]:
-                                e = adapted["enemies"][0]
-                                hb["enemy_name"] = e["name"]
-                                hb["enemy_hp"] = e["hp"]
-                                hb["enemy_max_hp"] = e["max_hp"]
-                            hb["hand_size"] = len(adapted["hand"])
-                            hb["turn"] = adapted["turn"]
-                            hb["stance"] = adapted["stance"]
-                    except Exception:
-                        pass
-                _put_safe(event_queue, hb)
-
-            # Send MCTS result
-            if mcts_data:
-                _put_safe(event_queue, {"type": "mcts_result", "agent_id": agent_id, **mcts_data})
+                _send_heartbeat(event_queue, agent_id, runner, seed, episode, total_wins, step)
 
         # Episode complete
         duration = time.monotonic() - start_time
@@ -292,24 +430,35 @@ def _agent_worker(
         final_floor = getattr(rs, "floor", 0)
         final_hp = getattr(rs, "current_hp", 0)
 
-        if won and seed == initial_seed:
-            conquered_initial = True
         if won:
             total_wins += 1
 
+        # Detect deck changes (Counter handles duplicates correctly)
+        final_deck = Counter(getattr(rs, "deck", []))
+        for card, count in (final_deck - initial_deck).items():
+            for _ in range(count):
+                deck_changes.append(f"+{card}")
+        for card, count in (initial_deck - final_deck).items():
+            for _ in range(count):
+                deck_changes.append(f"-{card}")
+
+        # Compressed episode summary
         summary = {
             "type": "episode",
             "agent_id": agent_id,
             "seed": seed,
             "won": won,
-            "floors_reached": final_floor,
+            "floor": final_floor,
             "hp_remaining": final_hp,
-            "total_steps": step,
-            "duration": round(duration, 1),
+            "hp_history": hp_history,
+            "combats": combats[:10],  # cap to keep size down
+            "decisions": decisions[:15],
+            "deck_changes": deck_changes[:20],
+            "duration_s": round(duration, 1),
+            "plan_calls": plan_calls,
+            "plan_avg_ms": round(plan_total_ms / max(plan_calls, 1), 1),
             "episode": episode,
             "wins": total_wins,
-            "mcts_calls": mcts_calls,
-            "mcts_avg_ms": round(mcts_total_ms / max(mcts_calls, 1), 1),
             "trivial": trivial,
             "deck_size": len(getattr(rs, "deck", [])),
             "relic_count": len(getattr(rs, "relics", [])),
@@ -320,9 +469,73 @@ def _agent_worker(
         log_file.write(json.dumps(summary) + "\n")
         log_file.flush()
 
+        # Meta-learner: update every 100 episodes
+        if len(combat_log_buffer) >= 50:
+            meta_learner.update_batch(combat_log_buffer)
+            meta_learner.decay_epsilon()
+            # Update combat planner weights
+            combat_planner.strategy_weights = meta_learner.strategy_modifiers.get(
+                meta_learner.get_strategy(0.5, 1, 3, "Neutral", 0.5), None
+            )
+            combat_log_buffer.clear()
+            # Save periodically
+            if episode % 100 == 0:
+                try:
+                    meta_learner.save(meta_path)
+                except Exception:
+                    pass
+
         episode += 1
 
     log_file.close()
+
+
+def _send_heartbeat(
+    event_queue: mp.Queue,
+    agent_id: int,
+    runner: Any,
+    seed: str,
+    episode: int,
+    total_wins: int,
+    step: int,
+) -> None:
+    """Send a heartbeat event with current agent state."""
+    from packages.engine.game import GamePhase
+
+    rs = runner.run_state
+    phase_str = str(runner.phase).split(".")[-1] if runner.phase else "UNKNOWN"
+    hb: Dict[str, Any] = {
+        "type": "heartbeat",
+        "agent_id": agent_id,
+        "phase": phase_str,
+        "floor": getattr(rs, "floor", 0),
+        "act": getattr(rs, "act", 1),
+        "hp": getattr(rs, "current_hp", 0),
+        "max_hp": getattr(rs, "max_hp", 72),
+        "seed": seed,
+        "episode": episode,
+        "wins": total_wins,
+        "step": step,
+    }
+    # Combat snapshot for focused agent rendering
+    if "COMBAT" in phase_str:
+        try:
+            obs = runner.get_observation()
+            combat_obs = obs.get("combat")
+            if combat_obs:
+                adapted = _adapt_combat_obs(combat_obs)
+                hb["combat"] = adapted
+                if adapted["enemies"]:
+                    e = adapted["enemies"][0]
+                    hb["enemy_name"] = e["name"]
+                    hb["enemy_hp"] = e["hp"]
+                    hb["enemy_max_hp"] = e["max_hp"]
+                hb["hand_size"] = len(adapted["hand"])
+                hb["turn"] = adapted["turn"]
+                hb["stance"] = adapted["stance"]
+        except Exception:
+            pass
+    _put_safe(event_queue, hb)
 
 
 def _put_safe(queue: mp.Queue, data: Dict) -> None:
@@ -418,7 +631,7 @@ class TrainingCoordinator:
             p.start()
             self.processes.append(p)
 
-        logger.info("Started %d agent workers (lazy MCTS, %d base sims)", len(self.processes), self.config["mcts_sims"])
+        logger.info("Started %d agent workers (CombatPlanner + seed rotation)", len(self.processes))
 
     async def stop(self) -> None:
         if not self.running:
@@ -567,14 +780,16 @@ class TrainingCoordinator:
             if event.get("won"):
                 self.total_wins += 1
             self.recent_results.append(event.get("won", False))
-            self.recent_floors.append(event.get("floors_reached", 0))
-            if event.get("mcts_avg_ms", 0) > 0:
-                self.mcts_times.append(event["mcts_avg_ms"])
+            self.recent_floors.append(event.get("floor", event.get("floors_reached", 0)))
+            # Support both old mcts_avg_ms and new plan_avg_ms
+            plan_ms = event.get("plan_avg_ms", event.get("mcts_avg_ms", 0))
+            if plan_ms > 0:
+                self.mcts_times.append(plan_ms)
             self.episode_log.append(event)
 
             self._broadcast({"type": "agent_episode", **{k: v for k, v in event.items() if k != "type"}})
 
-        elif etype == "mcts_result":
+        elif etype in ("mcts_result", "planner_result"):
             self.latest_mcts[agent_id] = event
             for conn_id, focused_set in self._focused.items():
                 if agent_id in focused_set:

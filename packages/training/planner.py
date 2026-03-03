@@ -376,8 +376,8 @@ class StSAgent:
             return actions[min(idx, len(actions) - 1)]
 
         if phase == GamePhase.COMBAT_REWARDS:
-            # For card picks, try planner; otherwise take first reward
-            return actions[0]
+            idx = self.planner.plan_card_pick(runner, actions)
+            return actions[min(idx, len(actions) - 1)]
 
         # Default: pick first available action
         return actions[0]
