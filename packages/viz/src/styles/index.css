@@ -614,7 +614,397 @@ body {
   background: #444;
 }
 
+/* ---- Conquerer View ---- */
+
+.conquerer-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+}
+
+.conquerer-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.conquerer-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conquerer-stat-label {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.conquerer-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.conquerer-stat-seed {
+  font-family: monospace;
+  color: var(--accent);
+}
+
+.conquerer-body {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.conquerer-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.conquerer-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+/* Grid of 10 mini-panels: 5x2 */
+.conquerer-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+/* ---- Path Panel ---- */
+
+.conquerer-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conquerer-panel:hover {
+  border-color: #555;
+}
+
+.conquerer-panel-best {
+  border-color: #daa520;
+  box-shadow: 0 0 8px rgba(218, 165, 32, 0.35);
+}
+
+.conquerer-panel-won {
+  border-color: #2a7a2a;
+  box-shadow: 0 0 6px rgba(68, 187, 68, 0.15);
+}
+
+.conquerer-panel-lost {
+  opacity: 0.7;
+}
+
+.conquerer-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.conquerer-panel-id {
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+}
+
+.conquerer-panel-status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.conquerer-panel-strategy {
+  font-size: 10px;
+  color: #888;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conquerer-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.conquerer-panel-row-label {
+  color: #666;
+  font-size: 9px;
+  text-transform: uppercase;
+  width: 38px;
+  flex-shrink: 0;
+}
+
+.conquerer-panel-row-value {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.conquerer-panel-hp-track {
+  flex: 1;
+  height: 6px;
+  background: #1a1a1a;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.conquerer-panel-hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* ---- Progress Bars ---- */
+
+.conquerer-progress-section {
+  padding: 8px 0;
+}
+
+.conquerer-section-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.conquerer-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.conquerer-progress-label {
+  font-size: 10px;
+  color: #999;
+  width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+.conquerer-progress-track {
+  flex: 1;
+  height: 12px;
+  background: #111;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #2a2a2a;
+}
+
+.conquerer-progress-act-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  opacity: 0.15;
+}
+
+.conquerer-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.conquerer-progress-marker {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 14px;
+  background: #fff;
+  border-radius: 1px;
+  transform: translateX(-1px);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+.conquerer-progress-floor {
+  font-size: 10px;
+  color: #999;
+  width: 28px;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+/* ---- Divergence Tree ---- */
+
+.div-tree-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.div-tree-header-btn {
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: background 0.15s ease;
+}
+
+.div-tree-header-btn:hover {
+  background: var(--border);
+}
+
+.div-tree-content {
+  padding: 4px 8px 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.div-tree-node {
+  margin-bottom: 4px;
+}
+
+.div-tree-node-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.div-tree-floor {
+  font-size: 10px;
+  font-weight: 700;
+  color: #aaa;
+  font-family: monospace;
+}
+
+.div-tree-decision-type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.div-tree-branch {
+  padding: 1px 0;
+}
+
+.div-tree-branch-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 10px;
+  cursor: default;
+}
+
+.div-tree-branch-row[role='button'] {
+  cursor: pointer;
+}
+
+.div-tree-branch-row[role='button']:hover {
+  color: var(--accent);
+}
+
+.div-tree-toggle {
+  font-size: 7px;
+  width: 10px;
+  text-align: center;
+  flex-shrink: 0;
+  color: #888;
+}
+
+.div-tree-branch-label {
+  color: var(--text);
+}
+
+.div-tree-path-ids {
+  color: #666;
+  font-family: monospace;
+  font-size: 9px;
+}
+
+/* ---- Conquerer Detail Panel ---- */
+
+.conquerer-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.conquerer-detail-empty {
+  color: #666;
+  font-size: 11px;
+  text-align: center;
+  padding: 8px;
+}
+
+.conquerer-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conquerer-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.conquerer-detail-row span:first-child {
+  color: #888;
+}
+
+.conquerer-detail-row span:last-child {
+  font-weight: 600;
+}
+
 /* ---- Responsive ---- */
+
+@media (max-width: 1200px) {
+  .conquerer-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
 
 @media (max-width: 900px) {
   .sidebar {
@@ -624,6 +1014,25 @@ body {
   .stats-bar {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .conquerer-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .conquerer-body {
+    flex-direction: column;
+  }
+
+  .conquerer-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .conquerer-stats-bar {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 }
 
@@ -642,5 +1051,9 @@ body {
   .deck-view-panel {
     width: 95vw;
     max-height: 90vh;
+  }
+
+  .conquerer-grid {
+    grid-template-columns: 1fr;
   }
 }

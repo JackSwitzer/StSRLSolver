@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { GameObservation } from './types/game';
 import { useGameState } from './hooks/useGameState';
+import { useConquererState } from './hooks/useConquererState';
 import { MapView } from './components/MapView';
 import { CombatView } from './components/CombatView';
+import { ConquererView } from './components/ConquererView';
 import { Sidebar } from './components/Sidebar';
 import { DeckView } from './components/DeckView';
 
@@ -188,7 +190,7 @@ const MOCK_MAP: GameObservation = {
   },
 };
 
-type MockScene = 'combat' | 'map';
+type MockScene = 'combat' | 'map' | 'conquerer';
 
 /** Simple stats bar showing floor, act, HP, gold. */
 const StatsBar = ({ run }: { run: GameObservation['run'] }) => {
@@ -228,8 +230,11 @@ const StatsBar = ({ run }: { run: GameObservation['run'] }) => {
 
 export const App = () => {
   const { state: liveState, connected } = useGameState();
+  const { state: conquererState, connected: conquererConnected } = useConquererState();
   const [mockScene, setMockScene] = useState<MockScene>('combat');
   const [deckOpen, setDeckOpen] = useState(false);
+
+  const isConquerer = mockScene === 'conquerer';
 
   // Use live state if connected, otherwise use mock
   const state: GameObservation = liveState || (mockScene === 'combat' ? MOCK_COMBAT : MOCK_MAP);
@@ -241,63 +246,89 @@ export const App = () => {
       <header className="app-header">
         <h1>Slay the Spire RL</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {isUsingMock && (
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button
-                className="mock-btn"
-                onClick={() => setMockScene('combat')}
-                style={{ background: mockScene === 'combat' ? 'var(--accent)' : 'var(--border)' }}
-              >
-                Combat
-              </button>
-              <button
-                className="mock-btn"
-                onClick={() => setMockScene('map')}
-                style={{ background: mockScene === 'map' ? 'var(--accent)' : 'var(--border)' }}
-              >
-                Map
-              </button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              className="mock-btn"
+              onClick={() => setMockScene('combat')}
+              style={{ background: mockScene === 'combat' ? 'var(--accent)' : 'var(--border)' }}
+            >
+              Combat
+            </button>
+            <button
+              className="mock-btn"
+              onClick={() => setMockScene('map')}
+              style={{ background: mockScene === 'map' ? 'var(--accent)' : 'var(--border)' }}
+            >
+              Map
+            </button>
+            <button
+              className="mock-btn"
+              onClick={() => setMockScene('conquerer')}
+              style={{ background: mockScene === 'conquerer' ? 'var(--accent)' : 'var(--border)' }}
+            >
+              Conquerer
+            </button>
+          </div>
           <div className="connection-status">
-            <span className={`status-dot ${connected ? 'connected' : isUsingMock ? 'mock' : 'disconnected'}`} />
-            <span>{connected ? 'Connected' : isUsingMock ? 'Mock Data' : 'Disconnected'}</span>
+            <span
+              className={`status-dot ${
+                isConquerer
+                  ? conquererConnected ? 'connected' : 'mock'
+                  : connected ? 'connected' : isUsingMock ? 'mock' : 'disconnected'
+              }`}
+            />
+            <span>
+              {isConquerer
+                ? conquererConnected ? 'Connected' : 'Mock Data'
+                : connected ? 'Connected' : isUsingMock ? 'Mock Data' : 'Disconnected'}
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Stats bar */}
-      <StatsBar run={state.run} />
-
-      {/* Body */}
-      <div className="app-body">
-        {/* Main view area */}
-        <div className="main-view">
-          <div className="phase-label">Phase: {state.phase}</div>
-
-          {state.phase === 'combat' && state.combat && (
-            <CombatView combat={state.combat} />
-          )}
-
-          {state.phase === 'map' && state.map && (
-            <MapView map={state.map} />
-          )}
-
-          {state.phase !== 'combat' && state.phase !== 'map' && (
-            <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-              <p>Phase: {state.phase}</p>
-              <p>No renderer for this phase yet.</p>
-            </div>
-          )}
+      {/* Conquerer mode: full-width view, no stats bar / sidebar */}
+      {isConquerer ? (
+        <div className="app-body">
+          <div className="main-view">
+            <ConquererView state={conquererState} />
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Stats bar */}
+          <StatsBar run={state.run} />
 
-        {/* Right sidebar */}
-        <Sidebar run={state.run} onOpenDeck={() => setDeckOpen(true)} />
-      </div>
+          {/* Body */}
+          <div className="app-body">
+            {/* Main view area */}
+            <div className="main-view">
+              <div className="phase-label">Phase: {state.phase}</div>
 
-      {/* Deck viewer modal */}
-      {deckOpen && (
-        <DeckView deck={state.run.deck} onClose={() => setDeckOpen(false)} />
+              {state.phase === 'combat' && state.combat && (
+                <CombatView combat={state.combat} />
+              )}
+
+              {state.phase === 'map' && state.map && (
+                <MapView map={state.map} />
+              )}
+
+              {state.phase !== 'combat' && state.phase !== 'map' && (
+                <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
+                  <p>Phase: {state.phase}</p>
+                  <p>No renderer for this phase yet.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right sidebar */}
+            <Sidebar run={state.run} onOpenDeck={() => setDeckOpen(true)} />
+          </div>
+
+          {/* Deck viewer modal */}
+          {deckOpen && (
+            <DeckView deck={state.run.deck} onClose={() => setDeckOpen(false)} />
+          )}
+        </>
       )}
     </>
   );
