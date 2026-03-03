@@ -4,6 +4,7 @@ interface PathPanelProps {
   path: PathResult;
   isBest: boolean;
   isActive: boolean;
+  isSelected?: boolean;
   onClick?: () => void;
 }
 
@@ -29,17 +30,17 @@ function hpColor(hp: number, maxHp: number): string {
 
 /** Approximate max HP for Watcher A20 at given floor. */
 function estimateMaxHp(floorsReached: number): number {
-  // Watcher starts 72 HP at A20; rough estimate for display purposes
   return 72 + Math.floor(floorsReached / 10) * 5;
 }
 
-export const PathPanel = ({ path, isBest, isActive, onClick }: PathPanelProps) => {
+export const PathPanel = ({ path, isBest, isActive, isSelected = false, onClick }: PathPanelProps) => {
   const maxHp = estimateMaxHp(path.floors_reached);
   const hpRatio = maxHp > 0 ? Math.max(0, Math.min(1, path.hp_remaining / maxHp)) : 0;
   const color = statusColor(path, isActive);
   const label = statusLabel(path, isActive);
 
   let borderClass = 'conquerer-panel';
+  if (isSelected) borderClass += ' conquerer-panel-selected';
   if (isBest) borderClass += ' conquerer-panel-best';
   else if (path.won) borderClass += ' conquerer-panel-won';
   else if (!isActive && !path.won) borderClass += ' conquerer-panel-lost';

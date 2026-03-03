@@ -1,4 +1,6 @@
-// Types for the 10x seed conquerer viewer
+// Types for the conquerer viewer
+
+export type ViewMode = 'single' | 'top3' | 'grid' | 'scroll';
 
 export interface PathResult {
   path_id: number;

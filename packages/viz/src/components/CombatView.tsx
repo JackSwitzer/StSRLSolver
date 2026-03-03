@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react';
 import type { CombatState, CardInstance, EnemyState } from '../types/game';
-import { PlayerSprite, EnemySprite, IntentIcon, BlockShield } from '../sprites';
-import { HPBar } from './HPBar';
+import { WatcherSprite, SmallEnemySprite, EliteEnemySprite, BossSprite, IntentIcon } from '../sprites';
 import { CardHand } from './CardHand';
 
 interface CombatViewProps {
   combat: CombatState;
+  /** Optional: combat type hint for selecting enemy sprites */
+  combatType?: 'normal' | 'elite' | 'boss';
+  /** Compact mode for grid/multi-view layouts */
+  compact?: boolean;
 }
 
 const STANCE_LABELS: Record<string, string> = {
@@ -33,7 +36,6 @@ const STANCE_BG: Record<string, string> = {
 function estimateDamage(card: CardInstance, combat: CombatState, _target: EnemyState | null): number | null {
   if (card.type !== 'attack') return null;
 
-  // Parse base damage from description (e.g. "Deal 6 damage" or "Deal 3 damage 4 times")
   const desc = card.description || '';
   const match = desc.match(/Deal (\d+) damage/i);
   if (!match) return null;
@@ -42,19 +44,15 @@ function estimateDamage(card: CardInstance, combat: CombatState, _target: EnemyS
   const hitsMatch = desc.match(/(\d+) times/i);
   const hits = hitsMatch ? parseInt(hitsMatch[1], 10) : 1;
 
-  // Apply strength
   const str = combat.player.powers.find((p) => p.id === 'strength');
   if (str) base += str.amount;
 
-  // Apply weak (player debuff)
   const weak = combat.player.powers.find((p) => p.id === 'weakened' || p.id === 'weak');
   if (weak && weak.amount > 0) base = Math.floor(base * 0.75);
 
-  // Wrath doubles damage
   if (combat.stance === 'wrath') base = Math.floor(base * 2);
   if (combat.stance === 'divinity') base = Math.floor(base * 3);
 
-  // Vulnerable on target
   if (_target) {
     const vuln = _target.powers.find((p) => p.id === 'vulnerable' || p.id === 'vuln');
     if (vuln && vuln.amount > 0) base = Math.floor(base * 1.5);
@@ -63,7 +61,22 @@ function estimateDamage(card: CardInstance, combat: CombatState, _target: EnemyS
   return Math.max(0, base) * hits;
 }
 
-export const CombatView = ({ combat }: CombatViewProps) => {
+/** Pick the right enemy sprite component based on combat type or enemy HP heuristic */
+function EnemySpriteForType({ combatType, enemy, compact }: { combatType?: string; enemy: EnemyState; compact?: boolean }) {
+  const baseSize = compact ? 40 : 60;
+
+  // If explicit combat type
+  if (combatType === 'boss') return <BossSprite size={baseSize + 20} />;
+  if (combatType === 'elite') return <EliteEnemySprite size={baseSize + 10} />;
+
+  // Heuristic: high HP enemies are bosses/elites
+  if (enemy.max_hp >= 250) return <BossSprite size={baseSize + 20} />;
+  if (enemy.max_hp >= 100 || enemy.size === 'large') return <EliteEnemySprite size={baseSize + 10} />;
+
+  return <SmallEnemySprite size={baseSize} />;
+}
+
+export const CombatView = ({ combat, combatType, compact = false }: CombatViewProps) => {
   const { player, enemies, hand, energy, max_energy, turn, stance, draw_pile_count, discard_pile_count, exhaust_pile_count } = combat;
   const [hoveredCard, setHoveredCard] = useState<CardInstance | null>(null);
 
@@ -71,223 +84,196 @@ export const CombatView = ({ combat }: CombatViewProps) => {
     setHoveredCard(card);
   }, []);
 
-  const svgWidth = 700;
-  const svgHeight = 400;
-  const playerX = 120;
-  const playerY = 200;
-  const enemyStartX = 420;
-  const enemySpacing = 120;
-
-  // Compute damage preview for first enemy when hovering an attack card
   const primaryTarget = enemies.length > 0 ? enemies[0] : null;
   const damagePreview = hoveredCard ? estimateDamage(hoveredCard, combat, primaryTarget) : null;
 
   const stanceColor = STANCE_COLORS[stance] || STANCE_COLORS.neutral;
   const stanceBg = STANCE_BG[stance] || STANCE_BG.neutral;
 
+  const spriteSize = compact ? 60 : 90;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" style={{ flex: 1 }}>
-        {/* Background gradient */}
-        <defs>
-          <linearGradient id="combatBg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1a1a2e" />
-            <stop offset="100%" stopColor="#0f0f1a" />
-          </linearGradient>
-          {/* Stance glow filter */}
-          <filter id="stanceGlow">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <rect width={svgWidth} height={svgHeight} fill="url(#combatBg)" />
+    <div className="combat-view-root" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Turn counter */}
+      <div className="combat-turn-bar">
+        <span className="combat-turn-label">Turn {turn}</span>
+        <div className="combat-pile-counts">
+          <span className="combat-pile draw">Draw: {draw_pile_count}</span>
+          <span className="combat-pile discard">Discard: {discard_pile_count}</span>
+          {exhaust_pile_count > 0 && <span className="combat-pile exhaust">Exhaust: {exhaust_pile_count}</span>}
+        </div>
+      </div>
 
-        {/* Turn counter - top center */}
-        <g transform={`translate(${svgWidth / 2}, 18)`}>
-          <rect x="-32" y="-12" width="64" height="22" rx="6" fill="#2a2a44" stroke="#555" strokeWidth="0.5" />
-          <text textAnchor="middle" dy="4" fill="#e0e0e0" fontSize="11" fontWeight="600">
-            Turn {turn}
-          </text>
-        </g>
-
-        {/* Stance indicator badge - below player */}
-        <g transform={`translate(${playerX}, ${playerY + 50})`}>
-          <rect
-            x="-28"
-            y="-9"
-            width="56"
-            height="18"
-            rx="9"
-            fill={stanceBg}
-            stroke={stanceColor}
-            strokeWidth="1.5"
-            className="stance-badge"
-          />
-          <text textAnchor="middle" dy="4" fill={stanceColor} fontSize="9" fontWeight="bold">
-            {STANCE_LABELS[stance] || stance}
-          </text>
-        </g>
-
-        {/* Energy orbs display */}
-        <g transform={`translate(${playerX}, ${playerY + 76})`}>
-          {Array.from({ length: max_energy }, (_, i) => {
-            const filled = i < energy;
-            const ox = (i - (max_energy - 1) / 2) * 18;
-            return (
-              <g key={`orb-${i}`} transform={`translate(${ox}, 0)`}>
-                <circle
-                  r="7"
-                  fill={filled ? '#ffd700' : '#1a1a2e'}
-                  stroke={filled ? '#ffee88' : '#444'}
-                  strokeWidth={filled ? 1.5 : 1}
-                  opacity={filled ? 1 : 0.5}
-                />
-                {filled && (
-                  <circle r="3" fill="#fff8dc" opacity="0.4" />
-                )}
-              </g>
-            );
-          })}
-          {/* Energy text overlay */}
-          <text textAnchor="middle" dy="22" fontSize="10" fill="#ffd700" fontWeight="bold">
-            {energy}/{max_energy}
-          </text>
-        </g>
-
-        {/* Player */}
-        <g transform={`translate(${playerX}, ${playerY})`}>
-          <PlayerSprite stance={stance} />
-          {/* Player HP bar */}
-          <g transform="translate(-40, 32)">
-            <HPBar hp={player.hp} maxHp={player.max_hp} block={player.block} />
-          </g>
-          {/* Block shield */}
-          <BlockShield x={-30} y={-10} block={player.block} />
-          {/* Powers row */}
+      {/* Combat arena */}
+      <div className="combat-arena">
+        {/* Player side */}
+        <div className="combat-player-side">
+          {/* Player powers */}
           {player.powers.length > 0 && (
-            <g transform="translate(0, -55)">
-              {player.powers.map((power, i) => {
-                const px = (i - (player.powers.length - 1) / 2) * 30;
+            <div className="combat-powers">
+              {player.powers.map((power) => {
                 const isDebuff = ['weakened', 'weak', 'vulnerable', 'vuln', 'frail'].includes(power.id);
-                const badgeColor = isDebuff ? '#882244' : '#224488';
-                const textColor = isDebuff ? '#ff8888' : '#88ccff';
                 return (
-                  <g key={power.id} transform={`translate(${px}, 0)`}>
-                    <rect x="-13" y="-9" width="26" height="18" rx="4" fill={badgeColor} stroke="#555" strokeWidth="0.5" />
-                    <text textAnchor="middle" dy="-1" fontSize="7" fill={textColor} fontWeight="bold">
-                      {power.amount}
-                    </text>
-                    <text textAnchor="middle" dy="7" fontSize="5" fill="#aaa">
-                      {power.name.length > 5 ? power.name.slice(0, 5) : power.name}
-                    </text>
-                  </g>
+                  <span
+                    key={power.id}
+                    className={`combat-power-badge ${isDebuff ? 'debuff' : 'buff'}`}
+                    title={power.name}
+                  >
+                    {power.name.length > 6 ? power.name.slice(0, 6) : power.name} {power.amount}
+                  </span>
                 );
               })}
-            </g>
+            </div>
           )}
-        </g>
 
-        {/* Enemies */}
-        {enemies.map((enemy, i) => {
-          const ex = enemyStartX + i * enemySpacing;
-          const ey = 180;
-
-          // Damage preview on this enemy if hovering attack card
-          const previewOnThis = i === 0 && damagePreview !== null;
-
-          return (
-            <g key={enemy.id} transform={`translate(${ex}, ${ey})`}>
-              {/* Enemy name */}
-              <text textAnchor="middle" y={-55} fill="#ccc" fontSize="10" fontWeight="600">
-                {enemy.name}
-              </text>
-
-              {/* Intent display */}
-              <g transform="translate(0, -40)">
-                <IntentIcon intent={enemy.intent.type} x={0} y={0} />
-                {enemy.intent.damage !== undefined && (
-                  <text textAnchor="middle" y={14} fill="#ff6666" fontSize="9" fontWeight="bold">
-                    {enemy.intent.damage}{enemy.intent.hits && enemy.intent.hits > 1 ? `x${enemy.intent.hits}` : ''}
+          {/* Watcher sprite */}
+          <div className="combat-sprite-container">
+            <WatcherSprite stance={stance} size={spriteSize} />
+            {/* Block shield overlay */}
+            {player.block > 0 && (
+              <div className="combat-block-overlay">
+                <svg viewBox="0 0 30 30" width="28" height="28">
+                  <path d="M5,3 L15,0 L25,3 L25,17 Q15,27 5,17 Z" fill="#4488cc" opacity="0.85" />
+                  <text x="15" y="14" textAnchor="middle" dominantBaseline="central" fontSize="9" fill="white" fontWeight="bold">
+                    {player.block}
                   </text>
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {/* HP bar */}
+          <div className="combat-hp-bar-html">
+            <div className="combat-hp-track">
+              <div
+                className="combat-hp-fill"
+                style={{
+                  width: `${Math.max(0, Math.min(100, (player.hp / player.max_hp) * 100))}%`,
+                  background: player.hp / player.max_hp > 0.6 ? '#44bb44' : player.hp / player.max_hp > 0.3 ? '#ccaa22' : '#cc3333',
+                }}
+              />
+              {player.block > 0 && (
+                <div
+                  className="combat-hp-block-overlay"
+                  style={{ width: `${Math.min(100, (player.block / player.max_hp) * 100)}%` }}
+                />
+              )}
+            </div>
+            <span className="combat-hp-text">
+              {player.hp}/{player.max_hp}
+              {player.block > 0 && <span className="combat-hp-block-text"> (+{player.block})</span>}
+            </span>
+          </div>
+
+          {/* Stance badge */}
+          <div className="combat-stance-badge" style={{ background: stanceBg, borderColor: stanceColor, color: stanceColor }}>
+            {STANCE_LABELS[stance] || stance}
+          </div>
+
+          {/* Energy orbs */}
+          <div className="combat-energy">
+            {Array.from({ length: max_energy }, (_, i) => (
+              <span key={i} className={`combat-energy-orb ${i < energy ? 'filled' : 'empty'}`} />
+            ))}
+            <span className="combat-energy-text">{energy}/{max_energy}</span>
+          </div>
+        </div>
+
+        {/* Enemies side */}
+        <div className="combat-enemies-side">
+          {enemies.map((enemy, i) => {
+            const previewOnThis = i === 0 && damagePreview !== null;
+            return (
+              <div key={enemy.id} className="combat-enemy-unit">
+                {/* Enemy name */}
+                <div className="combat-enemy-name">{enemy.name}</div>
+
+                {/* Intent */}
+                <div className="combat-enemy-intent">
+                  <svg viewBox="0 0 20 20" width="18" height="18">
+                    <IntentIcon intent={enemy.intent.type} x={10} y={10} />
+                  </svg>
+                  {enemy.intent.damage !== undefined && (
+                    <span className="combat-intent-damage">
+                      {enemy.intent.damage}
+                      {enemy.intent.hits && enemy.intent.hits > 1 ? `x${enemy.intent.hits}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Damage preview */}
+                {previewOnThis && (
+                  <div className="combat-damage-preview">-{damagePreview}</div>
                 )}
-              </g>
 
-              {/* Enemy sprite */}
-              <EnemySprite size={enemy.size} />
-
-              {/* Damage preview overlay */}
-              {previewOnThis && (
-                <g className="damage-preview">
-                  <text textAnchor="middle" y={-70} fill="#ff4444" fontSize="14" fontWeight="bold" opacity="0.85">
-                    -{damagePreview}
-                  </text>
-                </g>
-              )}
-
-              {/* Block shield */}
-              <BlockShield x={-24} y={-8} block={enemy.block} />
-
-              {/* HP bar */}
-              <g transform="translate(-40, 36)">
-                <HPBar hp={enemy.hp} maxHp={enemy.max_hp} block={enemy.block} />
-              </g>
-
-              {/* Powers */}
-              {enemy.powers.length > 0 && (
-                <g transform="translate(0, 54)">
-                  {enemy.powers.map((power, pi) => {
-                    const ppx = (pi - (enemy.powers.length - 1) / 2) * 26;
-                    const isDebuff = ['weakened', 'weak', 'vulnerable', 'vuln', 'frail'].includes(power.id);
-                    const badgeColor = isDebuff ? '#882244' : '#442222';
-                    const textColor = isDebuff ? '#ff8888' : '#ffaa88';
-                    return (
-                      <g key={power.id} transform={`translate(${ppx}, 0)`}>
-                        <rect x="-11" y="-7" width="22" height="14" rx="3" fill={badgeColor} stroke="#555" strokeWidth="0.5" />
-                        <text textAnchor="middle" dy="0" fontSize="6" fill={textColor} fontWeight="bold">
-                          {power.amount}
+                {/* Enemy sprite */}
+                <div className="combat-sprite-container">
+                  <EnemySpriteForType combatType={combatType} enemy={enemy} compact={compact} />
+                  {enemy.block > 0 && (
+                    <div className="combat-block-overlay">
+                      <svg viewBox="0 0 30 30" width="24" height="24">
+                        <path d="M5,3 L15,0 L25,3 L25,17 Q15,27 5,17 Z" fill="#4488cc" opacity="0.85" />
+                        <text x="15" y="14" textAnchor="middle" dominantBaseline="central" fontSize="9" fill="white" fontWeight="bold">
+                          {enemy.block}
                         </text>
-                        <text textAnchor="middle" dy="6" fontSize="5" fill="#aaa">
-                          {power.name.length > 4 ? power.name.slice(0, 4) : power.name}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </g>
-              )}
-            </g>
-          );
-        })}
+                      </svg>
+                    </div>
+                  )}
+                </div>
 
-        {/* Draw pile count - bottom left */}
-        <g transform="translate(20, 370)">
-          <rect x="-6" y="-12" width="60" height="20" rx="4" fill="#2a2a44" stroke="#555" strokeWidth="0.5" />
-          <text fill="#88aacc" fontSize="9" fontWeight="600">
-            Draw: {draw_pile_count}
-          </text>
-        </g>
+                {/* HP bar */}
+                <div className="combat-hp-bar-html">
+                  <div className="combat-hp-track">
+                    <div
+                      className="combat-hp-fill"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, (enemy.hp / enemy.max_hp) * 100))}%`,
+                        background: enemy.hp / enemy.max_hp > 0.6 ? '#44bb44' : enemy.hp / enemy.max_hp > 0.3 ? '#ccaa22' : '#cc3333',
+                      }}
+                    />
+                  </div>
+                  <span className="combat-hp-text">{enemy.hp}/{enemy.max_hp}</span>
+                </div>
 
-        {/* Discard pile count - bottom center */}
-        <g transform={`translate(${svgWidth / 2 - 30}, 370)`}>
-          <rect x="-6" y="-12" width="72" height="20" rx="4" fill="#2a2a44" stroke="#555" strokeWidth="0.5" />
-          <text fill="#aa8888" fontSize="9" fontWeight="600">
-            Discard: {discard_pile_count}
-          </text>
-        </g>
+                {/* Powers */}
+                {enemy.powers.length > 0 && (
+                  <div className="combat-powers">
+                    {enemy.powers.map((power) => {
+                      const isDebuff = ['weakened', 'weak', 'vulnerable', 'vuln', 'frail'].includes(power.id);
+                      return (
+                        <span
+                          key={power.id}
+                          className={`combat-power-badge ${isDebuff ? 'debuff' : 'buff'}`}
+                          title={power.name}
+                        >
+                          {power.name.length > 5 ? power.name.slice(0, 5) : power.name} {power.amount}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-        {/* Exhaust pile count - bottom right */}
-        <g transform={`translate(${svgWidth - 90}, 370)`}>
-          <rect x="-6" y="-12" width="72" height="20" rx="4" fill="#2a2a44" stroke="#555" strokeWidth="0.5" />
-          <text fill="#888" fontSize="9" fontWeight="600">
-            Exhaust: {exhaust_pile_count}
-          </text>
-        </g>
-      </svg>
-
-      {/* Card hand below the combat SVG */}
-      <CardHand cards={hand} energy={energy} onCardHover={onCardHover} />
+      {/* Card hand - text only in compact, full cards otherwise */}
+      {compact ? (
+        <div className="combat-hand-compact">
+          {hand.map((card, i) => (
+            <span
+              key={`${card.id}-${i}`}
+              className={`combat-hand-card-text ${card.playable !== false && card.cost <= energy ? 'playable' : 'unplayable'}`}
+              style={{ borderLeftColor: card.type === 'attack' ? '#cc3333' : card.type === 'skill' ? '#3366cc' : '#ccaa22' }}
+            >
+              {card.cost >= 0 ? `[${card.cost}]` : '[X]'} {card.name}{card.upgraded ? '+' : ''}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <CardHand cards={hand} energy={energy} onCardHover={onCardHover} />
+      )}
     </div>
   );
 };

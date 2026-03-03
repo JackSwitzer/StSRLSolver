@@ -614,24 +614,335 @@ body {
   background: #444;
 }
 
-/* ---- Conquerer View ---- */
+/* ==================================================================
+   COMBAT VIEW (HTML-based layout with real sprites)
+   ================================================================== */
 
-.conquerer-root {
+.combat-turn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.combat-turn-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.combat-pile-counts {
+  display: flex;
+  gap: 12px;
+}
+
+.combat-pile {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.combat-pile.draw { color: #88aacc; }
+.combat-pile.discard { color: #aa8888; }
+.combat-pile.exhaust { color: #888; }
+
+.combat-arena {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex: 1;
+  padding: 16px;
+  gap: 40px;
+  min-height: 200px;
+}
+
+.combat-player-side {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  align-items: center;
   gap: 8px;
 }
+
+.combat-enemies-side {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.combat-enemy-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.combat-enemy-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ccc;
+  text-align: center;
+}
+
+.combat-enemy-intent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.combat-intent-damage {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ff6666;
+}
+
+.combat-damage-preview {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff4444;
+  opacity: 0.85;
+  animation: damage-float 0.6s ease-out;
+}
+
+.combat-sprite-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.combat-block-overlay {
+  position: absolute;
+  top: -4px;
+  left: -8px;
+}
+
+/* HP bar (HTML version) */
+
+.combat-hp-bar-html {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 120px;
+}
+
+.combat-hp-track {
+  flex: 1;
+  height: 10px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #333;
+  position: relative;
+}
+
+.combat-hp-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease, background-color 0.5s ease;
+}
+
+.combat-hp-block-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #4488cc;
+  opacity: 0.5;
+  border-radius: 4px;
+}
+
+.combat-hp-text {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.combat-hp-block-text {
+  color: #6699cc;
+}
+
+/* Stance badge */
+
+.combat-stance-badge {
+  padding: 2px 12px;
+  border-radius: 10px;
+  border: 1.5px solid;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Energy orbs */
+
+.combat-energy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.combat-energy-orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.combat-energy-orb.filled {
+  background: #ffd700;
+  border: 1.5px solid #ffee88;
+  box-shadow: 0 0 4px rgba(255, 215, 0, 0.3);
+}
+
+.combat-energy-orb.empty {
+  background: #1a1a2e;
+  border: 1px solid #444;
+  opacity: 0.5;
+}
+
+.combat-energy-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffd700;
+  margin-left: 4px;
+}
+
+/* Power badges */
+
+.combat-powers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  max-width: 160px;
+}
+
+.combat-power-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 0.5px solid #555;
+  white-space: nowrap;
+}
+
+.combat-power-badge.buff {
+  background: #224488;
+  color: #88ccff;
+}
+
+.combat-power-badge.debuff {
+  background: #882244;
+  color: #ff8888;
+}
+
+/* Compact hand (text-only) */
+
+.combat-hand-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  justify-content: center;
+}
+
+.combat-hand-card-text {
+  font-size: 9px;
+  padding: 2px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.combat-hand-card-text.playable {
+  color: var(--text);
+}
+
+.combat-hand-card-text.unplayable {
+  color: #666;
+  opacity: 0.6;
+}
+
+/* ==================================================================
+   CONQUERER VIEW - Multi-View Layout System
+   ================================================================== */
+
+.conquerer-root {
+  height: 100%;
+  gap: 0;
+}
+
+/* Layout grid modes */
+
+.conquerer-layout {
+  display: grid;
+  height: 100%;
+  gap: 4px;
+}
+
+.conquerer-layout--single {
+  grid-template:
+    "header" 48px
+    "main" 1fr
+    / 1fr;
+}
+
+.conquerer-layout--single .conquerer-sidebar {
+  display: none;
+}
+
+.conquerer-layout--top3 {
+  grid-template:
+    "header" 48px
+    "main" 1fr
+    / 1fr;
+}
+
+.conquerer-layout--grid {
+  grid-template:
+    "header" 48px
+    "main sidebar" 1fr
+    / 1fr 260px;
+}
+
+.conquerer-layout--scroll {
+  grid-template:
+    "header" 48px
+    "main" 1fr
+    / 1fr;
+}
+
+.conquerer-layout--scroll .conquerer-sidebar {
+  display: none;
+}
+
+/* Content area */
+
+.conquerer-content {
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Conquerer stats bar (header row) */
 
 .conquerer-stats-bar {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   padding: 8px 12px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .conquerer-stat {
@@ -658,20 +969,73 @@ body {
   color: var(--accent);
 }
 
-.conquerer-body {
+/* View mode selector */
+
+.conquerer-view-selector {
   display: flex;
-  flex: 1;
-  gap: 8px;
-  overflow: hidden;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.conquerer-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
+.conquerer-view-btn {
+  padding: 3px 10px;
+  font-size: 10px;
+  color: var(--text);
+  background: var(--border);
+  border: 1px solid #444;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
+
+.conquerer-view-btn:hover {
+  background: #3a3a5a;
+}
+
+.conquerer-view-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Header controls (seed input, start/stop) */
+
+.conquerer-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.seed-input {
+  width: 100px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  outline: none;
+  font-family: monospace;
+}
+
+.seed-input:focus {
+  border-color: var(--accent);
+}
+
+.seed-input::placeholder {
+  color: #666;
+}
+
+.start-btn {
+  background: #2a7a2a !important;
+  font-weight: 600;
+}
+
+.start-btn:hover {
+  background: #338833 !important;
+}
+
+/* Sidebar */
 
 .conquerer-sidebar {
   width: 260px;
@@ -680,9 +1044,12 @@ body {
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+  padding: 8px;
+  border-left: 1px solid var(--border);
 }
 
-/* Grid of 10 mini-panels: 5x2 */
+/* Grid */
+
 .conquerer-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -693,11 +1060,11 @@ body {
 
 .conquerer-panel {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -705,6 +1072,17 @@ body {
 
 .conquerer-panel:hover {
   border-color: #555;
+}
+
+.conquerer-panel-selected {
+  border-color: #daa520 !important;
+  box-shadow: 0 0 12px rgba(218, 165, 32, 0.5);
+  animation: gold-border-pulse 2s ease-in-out infinite;
+}
+
+@keyframes gold-border-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(218, 165, 32, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(218, 165, 32, 0.6); }
 }
 
 .conquerer-panel-best {
@@ -718,7 +1096,7 @@ body {
 }
 
 .conquerer-panel-lost {
-  opacity: 0.7;
+  opacity: 0.3;
 }
 
 .conquerer-panel-header {
@@ -998,14 +1376,356 @@ body {
   font-weight: 600;
 }
 
-/* ---- Responsive ---- */
+/* ==================================================================
+   SINGLE VIEW
+   ================================================================== */
 
-@media (max-width: 1200px) {
-  .conquerer-grid {
-    grid-template-columns: repeat(3, 1fr);
+.conquerer-single-layout {
+  display: flex;
+  gap: 12px;
+  height: 100%;
+}
+
+.conquerer-path-list {
+  width: 220px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conquerer-single-main {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.conquerer-single-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.conquerer-single-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.conquerer-single-detail-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.conquerer-single-status {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.conquerer-single-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.conquerer-detail-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-card-label {
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-card-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.detail-card-value.mono {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.conquerer-single-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* ==================================================================
+   TOP 3 VIEW
+   ================================================================== */
+
+.conquerer-top3-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conquerer-top3-panels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.conquerer-top3-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+  position: relative;
+}
+
+.conquerer-top3-card:hover {
+  border-color: #555;
+}
+
+.conquerer-top3-card.selected {
+  border-color: #daa520;
+  box-shadow: 0 0 12px rgba(218, 165, 32, 0.5);
+}
+
+.conquerer-top3-card.dead {
+  opacity: 0.3;
+}
+
+.conquerer-top3-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.conquerer-top3-card-strategy {
+  font-size: 11px;
+  color: #888;
+  font-family: monospace;
+  margin-bottom: 12px;
+}
+
+.conquerer-top3-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.conquerer-top3-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conquerer-top3-stat .label {
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.conquerer-top3-stat .value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.conquerer-top3-remaining {
+  padding-top: 8px;
+}
+
+/* Best badge */
+
+.conquerer-best-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #daa520;
+  color: #1a1a2e;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.conquerer-best-badge.small {
+  position: static;
+  font-size: 7px;
+  padding: 1px 4px;
+}
+
+/* ==================================================================
+   GRID VIEW
+   ================================================================== */
+
+.conquerer-grid-layout {
+  /* Grid view is just the .conquerer-grid */
+}
+
+/* ==================================================================
+   SCROLL VIEW
+   ================================================================== */
+
+.conquerer-scroll-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conquerer-scroll-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+}
+
+.conquerer-scroll-row:hover {
+  border-color: #555;
+}
+
+.conquerer-scroll-row.selected {
+  border-color: #daa520;
+  box-shadow: 0 0 12px rgba(218, 165, 32, 0.5);
+  animation: gold-border-pulse 2s ease-in-out infinite;
+}
+
+.conquerer-scroll-row.dead {
+  opacity: 0.3;
+}
+
+.conquerer-scroll-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: #aaa;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.conquerer-scroll-strategy {
+  font-size: 10px;
+  color: #888;
+  font-family: monospace;
+  width: 100px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conquerer-scroll-status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.conquerer-scroll-floor {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  width: 30px;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+.conquerer-scroll-hp-bar {
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.conquerer-scroll-hp {
+  font-size: 10px;
+  color: #999;
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.conquerer-scroll-reward {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.conquerer-scroll-progress {
+  min-width: 0;
+}
+
+/* ==================================================================
+   RESPONSIVE BREAKPOINTS
+   ================================================================== */
+
+/* Full layout with sidebar (> 1600px) - default */
+
+/* 1200-1600px: sidebar collapses to icons */
+@media (max-width: 1600px) {
+  .conquerer-layout--grid {
+    grid-template:
+      "header" 48px
+      "main sidebar" 1fr
+      / 1fr 200px;
+  }
+
+  .conquerer-sidebar {
+    width: 200px;
   }
 }
 
+/* < 1200px: top3 becomes top 2, grid 3xN */
+@media (max-width: 1200px) {
+  .conquerer-top3-panels {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .conquerer-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .conquerer-layout--grid {
+    grid-template:
+      "header" 48px
+      "main" 1fr
+      / 1fr;
+  }
+
+  .conquerer-layout--grid .conquerer-sidebar {
+    display: none;
+  }
+
+  .conquerer-single-detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* < 900px: everything single-column */
 @media (max-width: 900px) {
   .sidebar {
     width: 180px;
@@ -1017,22 +1737,42 @@ body {
   }
 
   .conquerer-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 
-  .conquerer-body {
+  .conquerer-top3-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .conquerer-single-layout {
     flex-direction: column;
   }
 
-  .conquerer-sidebar {
+  .conquerer-path-list {
     width: 100%;
+    max-height: 200px;
     flex-direction: row;
     flex-wrap: wrap;
   }
 
   .conquerer-stats-bar {
-    flex-wrap: wrap;
     gap: 10px;
+  }
+
+  .combat-arena {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .combat-enemies-side {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .conquerer-scroll-strategy,
+  .conquerer-scroll-hp-bar,
+  .conquerer-scroll-progress {
+    display: none;
   }
 }
 
@@ -1054,6 +1794,33 @@ body {
   }
 
   .conquerer-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .conquerer-single-detail-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ==================================================================
+   VIEW MODE TRANSITIONS
+   ================================================================== */
+
+.conquerer-layout {
+  transition: grid-template 0.3s ease;
+}
+
+.conquerer-content > * {
+  animation: view-fade-in 0.25s ease;
+}
+
+@keyframes view-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

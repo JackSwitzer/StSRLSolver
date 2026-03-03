@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { GameObservation } from './types/game';
+import type { ViewMode } from './types/conquerer';
 import { useGameState } from './hooks/useGameState';
 import { useConquererState } from './hooks/useConquererState';
 import { MapView } from './components/MapView';
@@ -98,91 +99,75 @@ const MOCK_MAP: GameObservation = {
       { x: 1, y: 3 },
       { x: 2, y: 3 },
     ],
-    // Path the player has taken so far
     visited_path: [
       { x: 1, y: 0 },
       { x: 1, y: 1 },
       { x: 1, y: 2 },
     ],
     nodes: [
-      // Floor 0 (bottom)
       [
         { x: 0, y: 0, type: 'monster' },
         { x: 1, y: 0, type: 'monster' },
         { x: 2, y: 0, type: 'monster' },
         { x: 3, y: 0, type: 'monster' },
       ],
-      // Floor 1
       [
         { x: 0, y: 1, type: 'event' },
         { x: 1, y: 1, type: 'monster' },
         { x: 2, y: 1, type: 'treasure' },
         { x: 3, y: 1, type: 'monster' },
       ],
-      // Floor 2 (current)
       [
         { x: 0, y: 2, type: 'monster' },
         { x: 1, y: 2, type: 'elite' },
         { x: 2, y: 2, type: 'shop' },
       ],
-      // Floor 3
       [
         { x: 0, y: 3, type: 'event' },
         { x: 1, y: 3, type: 'rest' },
         { x: 2, y: 3, type: 'monster' },
       ],
-      // Floor 4
       [
         { x: 0, y: 4, type: 'monster' },
         { x: 1, y: 4, type: 'monster' },
         { x: 2, y: 4, type: 'elite' },
       ],
-      // Floor 5
       [
         { x: 0, y: 5, type: 'treasure' },
         { x: 1, y: 5, type: 'event' },
       ],
-      // Floor 6
       [
         { x: 0, y: 6, type: 'rest' },
         { x: 1, y: 6, type: 'monster' },
         { x: 2, y: 6, type: 'rest' },
       ],
-      // Floor 7
       [
         { x: 0, y: 7, type: 'boss' },
       ],
     ],
     edges: [
-      // Floor 0 -> 1
       { from: { x: 0, y: 0 }, to: { x: 0, y: 1 } },
       { from: { x: 1, y: 0 }, to: { x: 1, y: 1 } },
       { from: { x: 1, y: 0 }, to: { x: 0, y: 1 } },
       { from: { x: 2, y: 0 }, to: { x: 2, y: 1 } },
       { from: { x: 3, y: 0 }, to: { x: 3, y: 1 } },
-      // Floor 1 -> 2
       { from: { x: 0, y: 1 }, to: { x: 0, y: 2 } },
       { from: { x: 1, y: 1 }, to: { x: 1, y: 2 } },
       { from: { x: 2, y: 1 }, to: { x: 2, y: 2 } },
       { from: { x: 3, y: 1 }, to: { x: 2, y: 2 } },
-      // Floor 2 -> 3
       { from: { x: 0, y: 2 }, to: { x: 0, y: 3 } },
       { from: { x: 1, y: 2 }, to: { x: 1, y: 3 } },
       { from: { x: 1, y: 2 }, to: { x: 2, y: 3 } },
       { from: { x: 2, y: 2 }, to: { x: 2, y: 3 } },
-      // Floor 3 -> 4
       { from: { x: 0, y: 3 }, to: { x: 0, y: 4 } },
       { from: { x: 1, y: 3 }, to: { x: 1, y: 4 } },
       { from: { x: 2, y: 3 }, to: { x: 2, y: 4 } },
-      // Floor 4 -> 5
       { from: { x: 0, y: 4 }, to: { x: 0, y: 5 } },
       { from: { x: 1, y: 4 }, to: { x: 1, y: 5 } },
       { from: { x: 2, y: 4 }, to: { x: 1, y: 5 } },
-      // Floor 5 -> 6
       { from: { x: 0, y: 5 }, to: { x: 0, y: 6 } },
       { from: { x: 1, y: 5 }, to: { x: 1, y: 6 } },
       { from: { x: 1, y: 5 }, to: { x: 2, y: 6 } },
-      // Floor 6 -> 7 (boss)
       { from: { x: 0, y: 6 }, to: { x: 0, y: 7 } },
       { from: { x: 1, y: 6 }, to: { x: 0, y: 7 } },
       { from: { x: 2, y: 6 }, to: { x: 0, y: 7 } },
@@ -233,6 +218,8 @@ export const App = () => {
   const { state: conquererState, connected: conquererConnected } = useConquererState();
   const [mockScene, setMockScene] = useState<MockScene>('combat');
   const [deckOpen, setDeckOpen] = useState(false);
+  const [conquererViewMode, setConquererViewMode] = useState<ViewMode>('grid');
+  const [seedInput, setSeedInput] = useState('');
 
   const isConquerer = mockScene === 'conquerer';
 
@@ -246,6 +233,7 @@ export const App = () => {
       <header className="app-header">
         <h1>Slay the Spire RL</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Scene selector */}
           <div style={{ display: 'flex', gap: '4px' }}>
             <button
               className="mock-btn"
@@ -269,6 +257,22 @@ export const App = () => {
               Conquerer
             </button>
           </div>
+
+          {/* Conquerer-specific controls */}
+          {isConquerer && (
+            <div className="conquerer-header-controls">
+              <input
+                className="seed-input"
+                type="text"
+                placeholder="Seed..."
+                value={seedInput}
+                onChange={(e) => setSeedInput(e.target.value)}
+              />
+              <button className="mock-btn start-btn">Start</button>
+            </div>
+          )}
+
+          {/* Connection status */}
           <div className="connection-status">
             <span
               className={`status-dot ${
@@ -290,7 +294,11 @@ export const App = () => {
       {isConquerer ? (
         <div className="app-body">
           <div className="main-view">
-            <ConquererView state={conquererState} />
+            <ConquererView
+              state={conquererState}
+              viewMode={conquererViewMode}
+              onViewModeChange={setConquererViewMode}
+            />
           </div>
         </div>
       ) : (
