@@ -65,3 +65,7 @@ htmlcov/
 .env
 *.pem
 *.key
+node_modules/
+bun.lock
+logs/
+target/

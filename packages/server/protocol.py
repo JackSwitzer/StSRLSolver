@@ -33,6 +33,11 @@ class MessageType(str, Enum):
     TAKE_ACTION = "take_action"
     GET_OBSERVATION = "get_observation"
     AUTO_PLAY = "auto_play"
+    CONQUERER_RUN = "conquerer_run"
+    TRAINING_START = "training_start"
+    TRAINING_STOP = "training_stop"
+    TRAINING_RESUME = "training_resume"
+    TRAINING_FOCUS = "training_focus"
 
     # Server -> Client
     GAME_CREATED = "game_created"
@@ -42,6 +47,13 @@ class MessageType(str, Enum):
     STEP = "step"
     GAME_OVER = "game_over"
     ERROR = "error"
+    CONQUERER_PATH_RESULT = "conquerer_path_result"
+    CONQUERER_COMPLETE = "conquerer_complete"
+    GRID_UPDATE = "grid_update"
+    AGENT_STEP = "agent_step"
+    MCTS_RESULT = "mcts_result"
+    AGENT_EPISODE = "agent_episode"
+    TRAINING_STATS = "training_stats"
 
 
 # ---------------------------------------------------------------------------
@@ -130,3 +142,20 @@ def make_error(message: str, request_type: Optional[str] = None) -> Dict[str, An
     if request_type is not None:
         msg["request_type"] = request_type
     return msg
+
+
+def make_conquerer_path_result(path_result: Dict[str, Any], active_paths: int) -> Dict[str, Any]:
+    """Build a conquerer_path_result response (sent as each path completes)."""
+    return {
+        "type": MessageType.CONQUERER_PATH_RESULT.value,
+        "path": path_result,
+        "active_paths": active_paths,
+    }
+
+
+def make_conquerer_complete(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a conquerer_complete response with full ConquererResult."""
+    return {
+        "type": MessageType.CONQUERER_COMPLETE.value,
+        **result,
+    }

@@ -301,6 +301,7 @@ class CombatMCTS:
         self._expand(root)
 
         if not root.children:
+            self._last_root = None
             return {}
 
         for _ in range(self.num_simulations):
@@ -324,6 +325,8 @@ class CombatMCTS:
                 n.visits += 1
                 n.value_sum += value
 
+        # Save root for external inspection (e.g., training viewer)
+        self._last_root = root
         return self._get_action_probabilities(root)
 
     # -----------------------------------------------------------------
@@ -331,18 +334,17 @@ class CombatMCTS:
     # -----------------------------------------------------------------
 
     def _expand(self, node: MCTSNode) -> None:
-        """Expand node by creating children for all legal actions."""
+        """Expand node by creating LAZY children (state computed on first visit)."""
         actions = node.state.get_legal_actions()
         if not actions:
             return
 
-        # Get priors
+        # Get priors from policy network or use uniform
         if self.policy_fn is not None:
             action_priors, _ = self.policy_fn(node.state)
         else:
             action_priors = {}
 
-        # Build prior map, fall back to uniform
         priors: Dict[Any, float] = {}
         for action in actions:
             priors[action] = action_priors.get(action, 1e-6)
@@ -353,11 +355,10 @@ class CombatMCTS:
         else:
             priors = {a: 1.0 / len(actions) for a in actions}
 
+        # LAZY: create children without computing state (5-10x fewer copies)
         for action in actions:
-            child_engine = node.state.copy()
-            child_engine.execute_action(action)
             child = MCTSNode(
-                state=child_engine,
+                state=None,  # Computed lazily on first select
                 parent=node,
                 action=action,
                 prior=priors.get(action, 1.0 / len(actions)),
@@ -365,7 +366,7 @@ class CombatMCTS:
             node.children[action] = child
 
     def _select(self, node: MCTSNode) -> MCTSNode:
-        """Select best child using PUCT formula."""
+        """Select best child using PUCT, computing state lazily."""
         best_score = float('-inf')
         best_child = None
 
@@ -379,66 +380,125 @@ class CombatMCTS:
                 best_score = score
                 best_child = child
 
+        # Lazy state computation: only copy+execute when first visited
+        if best_child is not None and best_child.state is None:
+            best_child.state = node.state.copy()
+            best_child.state.execute_action(best_child.action)
+
         return best_child
 
     def _evaluate(self, node: MCTSNode) -> float:
-        """
-        Evaluate a leaf node.
-
-        If a policy_fn was provided that returns a value estimate, use that.
-        Otherwise fall back to a heuristic rollout.
-        """
+        """Evaluate a leaf node using policy_fn or heuristic."""
         if self.policy_fn is not None:
             _, value = self.policy_fn(node.state)
             return value
         return self._rollout_value(node.state)
 
     def _rollout_value(self, engine: Any) -> float:
-        """
-        Quick heuristic evaluation of a combat state.
+        """Smart heuristic evaluation of combat state.
 
-        Returns value in [0, 1] where 1 = player wins with full HP,
-        0 = player dead.
+        Evaluates across multiple dimensions:
+        - HP preservation (most important resource)
+        - Kill progress (are we winning the fight?)
+        - Block vs incoming damage efficiency
+        - Stance safety (Calm safe, Wrath risky)
+        - Lethal detection (can we kill this turn?)
+        - Scaling power awareness (Strength, MF, TtH)
         """
         if engine.is_combat_over():
             return self._terminal_value(engine)
 
         state = engine.state
-        player_hp = state.player.hp
-        player_max_hp = state.player.max_hp
+        player = state.player
+        player_hp = player.hp
+        player_max_hp = max(player.max_hp, 1)
+        block = player.block
 
-        # Sum total enemy HP remaining
-        total_enemy_hp = sum(max(0, e.hp) for e in state.enemies if e.hp > 0)
+        # Enemy aggregates
+        live_enemies = [e for e in state.enemies if e.hp > 0]
+        total_enemy_hp = sum(e.hp for e in live_enemies)
         total_enemy_max = sum(max(1, e.max_hp) for e in state.enemies)
 
         if total_enemy_hp <= 0:
-            # All enemies dead, high value
-            return 0.8 + 0.2 * (player_hp / max(player_max_hp, 1))
+            return 0.85 + 0.15 * (player_hp / player_max_hp)
 
-        # Ratio of enemy HP destroyed as progress indicator
-        hp_ratio = player_hp / max(player_max_hp, 1)
+        # --- HP Efficiency (35% weight) ---
+        hp_ratio = player_hp / player_max_hp
+        hp_score = hp_ratio
+
+        # --- Kill Progress (30% weight) ---
         enemy_progress = 1.0 - (total_enemy_hp / max(total_enemy_max, 1))
 
-        # Combine: surviving with high HP while killing enemies is good
-        value = 0.3 * hp_ratio + 0.5 * enemy_progress
+        # --- Incoming Damage vs Block (15% weight) ---
+        incoming = 0
+        for e in live_enemies:
+            move_dmg = getattr(e, 'move_damage', 0) or 0
+            move_hits = getattr(e, 'move_hits', 1) or 1
+            incoming += move_dmg * move_hits
+        if incoming > 0:
+            block_eff = min(block / incoming, 1.0)
+            # Penalty if we're about to take a lot of unblocked damage
+            unblocked = max(0, incoming - block)
+            damage_risk = unblocked / player_max_hp
+        else:
+            block_eff = 1.0
+            damage_risk = 0.0
 
-        # Bonus for current block
-        block = state.player.block
-        if block > 0:
-            value += 0.05 * min(block / 20.0, 1.0)
+        # --- Stance Safety (10% weight) ---
+        stance = getattr(state, 'stance', 'Neutral')
+        if stance == 'Calm':
+            stance_score = 0.7  # Safe, energy stored
+        elif stance == 'Wrath':
+            if total_enemy_hp <= 0:
+                stance_score = 1.0  # Wrath with dead enemies = we won
+            else:
+                stance_score = 0.2 - 0.2 * damage_risk  # Risky: double damage both ways
+        elif stance == 'Divinity':
+            stance_score = 1.0  # Burst mode
+        else:
+            stance_score = 0.5  # Neutral
 
-        # Penalty for being in Wrath with enemies alive
-        if state.stance == "Wrath" and total_enemy_hp > 0:
-            value -= 0.1
+        # --- Lethal Detection (bonus) ---
+        # Rough estimate: can our hand kill remaining enemies?
+        lethal_bonus = 0.0
+        if total_enemy_hp < 20 and enemy_progress > 0.7:
+            lethal_bonus = 0.1
+
+        # --- Scaling Powers (bonus) ---
+        power_bonus = 0.0
+        statuses = getattr(player, 'statuses', {})
+        if not isinstance(statuses, dict):
+            statuses = {}
+        strength = statuses.get('Strength', 0)
+        if strength > 0:
+            power_bonus += min(strength * 0.01, 0.05)
+        mf = statuses.get('MentalFortress', 0) or statuses.get('Mental Fortress', 0)
+        if mf > 0:
+            power_bonus += 0.03
+        tth = statuses.get('TalkToTheHand', 0) or statuses.get('Talk to the Hand', 0)
+        if tth > 0:
+            power_bonus += 0.02
+
+        # --- Weighted combination ---
+        value = (
+            0.35 * hp_score
+            + 0.30 * enemy_progress
+            + 0.15 * block_eff
+            + 0.10 * stance_score
+            - 0.10 * damage_risk
+            + lethal_bonus
+            + power_bonus
+        )
 
         return max(0.0, min(1.0, value))
 
     def _terminal_value(self, engine: Any) -> float:
-        """Value of a terminal combat state."""
+        """Value of a terminal combat state. HP preservation matters."""
         if engine.is_victory():
             hp = engine.state.player.hp
-            max_hp = engine.state.player.max_hp
-            return 0.8 + 0.2 * (hp / max(max_hp, 1))
+            max_hp = max(engine.state.player.max_hp, 1)
+            # Higher value for preserving more HP
+            return 0.7 + 0.3 * (hp / max_hp)
         return 0.0  # Defeat
 
     def _get_action_probabilities(self, root: MCTSNode) -> Dict[Any, float]:

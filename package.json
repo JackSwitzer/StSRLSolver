@@ -1,0 +1,14 @@
+{
+  "name": "slay-the-spire-rl",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "viz:dev": "cd packages/viz && bun dev --port 5174",
+    "viz:build": "cd packages/viz && bun run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

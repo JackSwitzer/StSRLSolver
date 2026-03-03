@@ -821,26 +821,47 @@ body {
   flex-wrap: wrap;
   gap: 3px;
   justify-content: center;
-  max-width: 160px;
+  max-width: 200px;
 }
 
 .combat-power-badge {
-  font-size: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   border: 0.5px solid #555;
   white-space: nowrap;
+  cursor: default;
+  position: relative;
+}
+
+.combat-power-badge:hover {
+  z-index: 10;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
 }
 
 .combat-power-badge.buff {
-  background: #224488;
+  background: #1a3366;
   color: #88ccff;
 }
 
 .combat-power-badge.debuff {
-  background: #882244;
+  background: #661a2a;
   color: #ff8888;
+}
+
+.combat-power-abbr {
+  font-size: 8px;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+}
+
+.combat-power-amt {
+  font-size: 10px;
+  font-weight: 800;
 }
 
 /* Compact hand (text-only) */
@@ -873,130 +894,435 @@ body {
 }
 
 /* ==================================================================
-   CONQUERER VIEW - Multi-View Layout System
+   CONQUERER VIEW - Redesigned Multi-Agent Viewer
    ================================================================== */
 
-.conquerer-root {
+.conq-root {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   gap: 0;
 }
 
-/* Layout grid modes */
+/* ---- Aggregate Stats Bar ---- */
 
-.conquerer-layout {
-  display: grid;
-  height: 100%;
-  gap: 4px;
-}
-
-.conquerer-layout--single {
-  grid-template:
-    "header" 48px
-    "main" 1fr
-    / 1fr;
-}
-
-.conquerer-layout--single .conquerer-sidebar {
-  display: none;
-}
-
-.conquerer-layout--top3 {
-  grid-template:
-    "header" 48px
-    "main" 1fr
-    / 1fr;
-}
-
-.conquerer-layout--grid {
-  grid-template:
-    "header" 48px
-    "main sidebar" 1fr
-    / 1fr 260px;
-}
-
-.conquerer-layout--scroll {
-  grid-template:
-    "header" 48px
-    "main" 1fr
-    / 1fr;
-}
-
-.conquerer-layout--scroll .conquerer-sidebar {
-  display: none;
-}
-
-/* Content area */
-
-.conquerer-content {
-  overflow-y: auto;
-  padding: 8px;
-}
-
-/* Conquerer stats bar (header row) */
-
-.conquerer-stats-bar {
+.conq-aggregate {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px;
+  gap: 20px;
+  padding: 8px 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
-.conquerer-stat {
+.conq-agg-item {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.conquerer-stat-label {
-  font-size: 10px;
-  color: #888;
+.conq-agg-label {
+  font-size: 9px;
+  color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.conquerer-stat-value {
+.conq-agg-value {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
 }
 
-.conquerer-stat-seed {
-  font-family: monospace;
-  color: var(--accent);
-}
+/* ---- View Controls ---- */
 
-/* View mode selector */
-
-.conquerer-view-selector {
+.conq-controls {
   display: flex;
   gap: 2px;
-  margin-left: auto;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.conquerer-view-btn {
-  padding: 3px 10px;
+.conq-view-btn {
+  padding: 4px 12px;
   font-size: 10px;
   color: var(--text);
   background: var(--border);
   border: 1px solid #444;
   border-radius: 3px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
-.conquerer-view-btn:hover {
+.conq-view-btn:hover {
   background: #3a3a5a;
 }
 
-.conquerer-view-btn.active {
+.conq-view-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   font-weight: 600;
 }
+
+/* ---- Content ---- */
+
+.conq-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.conq-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 8px;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+/* ---- Agent Card (compact PathPanel) ---- */
+
+.agent-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  min-width: 0;
+}
+
+.agent-card:hover {
+  border-color: #555;
+}
+
+.agent-card--selected {
+  border-color: #daa520 !important;
+  box-shadow: 0 0 10px rgba(218, 165, 32, 0.4);
+}
+
+.agent-card--best {
+  border-color: #daa520;
+  box-shadow: 0 0 6px rgba(218, 165, 32, 0.25);
+}
+
+.agent-card--dead {
+  opacity: 0.35;
+}
+
+.agent-card--dead:hover {
+  opacity: 0.7;
+}
+
+.agent-card--compact {
+  padding: 4px 8px;
+  gap: 2px;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-card-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #888;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.agent-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-card-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-card-progress {
+  height: 3px;
+  background: #111;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.agent-card-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.agent-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.agent-card-floor {
+  color: #aaa;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.agent-card-hp {
+  font-family: monospace;
+}
+
+.agent-card-win {
+  color: #44bb44;
+  font-weight: 800;
+  font-size: 9px;
+}
+
+/* Hover detail overlay */
+.agent-card-detail {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: #1a1a2e;
+  border: 1px solid #555;
+  border-radius: 0 0 6px 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.agent-card-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.agent-card-detail-row span:first-child {
+  color: #888;
+}
+
+.agent-card-detail-row span:last-child {
+  font-weight: 600;
+}
+
+.agent-card-best-tag {
+  text-align: center;
+  color: #daa520;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* ---- Grid Layout ---- */
+
+.conq-grid {
+  display: grid;
+  gap: 6px;
+}
+
+/* ---- Scroll (List) Layout ---- */
+
+.conq-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conq-scroll-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  font-size: 9px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.conq-scroll-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, opacity 0.2s ease;
+  position: relative;
+}
+
+.conq-scroll-row:hover {
+  border-color: #555;
+}
+
+.conq-scroll-row.selected {
+  border-color: #daa520;
+  box-shadow: 0 0 8px rgba(218, 165, 32, 0.3);
+}
+
+.conq-scroll-row.dead {
+  opacity: 0.35;
+}
+
+.conq-scroll-col-num { width: 20px; font-size: 11px; font-weight: 800; color: #888; flex-shrink: 0; }
+.conq-scroll-col-name { width: 80px; font-size: 11px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+.conq-scroll-col-status { width: 36px; font-size: 9px; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
+.conq-scroll-col-floor { width: 30px; font-size: 11px; font-weight: 600; font-family: monospace; flex-shrink: 0; }
+.conq-scroll-col-hp { width: 30px; font-size: 10px; color: #999; flex-shrink: 0; text-align: right; }
+.conq-scroll-col-progress { flex: 1; min-width: 60px; }
+
+.conq-mini-bar {
+  height: 6px;
+  background: #111;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.conq-mini-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.conq-best-tag {
+  position: absolute;
+  right: 8px;
+  background: #daa520;
+  color: #1a1a2e;
+  font-size: 7px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+}
+
+/* ---- Single / Detail View ---- */
+
+.conq-single-layout {
+  display: flex;
+  gap: 12px;
+  height: 100%;
+}
+
+.conq-agent-list {
+  width: 180px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.conq-detail-panel {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.conq-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.conq-detail-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.conq-detail-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: #888;
+}
+
+.conq-detail-status {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.conq-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.conq-detail-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conq-detail-stat .label {
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.conq-detail-stat .value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.conq-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+  font-size: 14px;
+}
+
+.conq-all-progress {
+  margin-top: 20px;
+}
+
+.conq-section-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #666;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* Legacy classes kept for ProgressBar and DivergenceTree compatibility */
+.conquerer-root { height: 100%; }
+.conquerer-content { overflow-y: auto; padding: 8px; }
+.conquerer-view-btn { padding: 3px 10px; font-size: 10px; color: var(--text); background: var(--border); border: 1px solid #444; border-radius: 3px; cursor: pointer; }
+.conquerer-view-btn.active { background: var(--accent); border-color: var(--accent); font-weight: 600; }
 
 /* Header controls (seed input, start/stop) */
 
