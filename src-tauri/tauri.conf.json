@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/tauri/src-tauri/tauri.conf.json",
+  "productName": "slay-the-spire-rl-viewer",
+  "version": "0.1.0",
+  "identifier": "com.slaytherl.viewer",
+  "build": {
+    "frontendDist": "../packages/viz/dist",
+    "devUrl": "http://localhost:5174"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Slay the Spire RL Viewer",
+        "width": 1920,
+        "height": 1080,
+        "resizable": true,
+        "decorations": true,
+        "fullscreen": false,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
+}

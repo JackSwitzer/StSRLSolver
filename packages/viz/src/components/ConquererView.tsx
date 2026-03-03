@@ -1,43 +1,51 @@
 import { useState } from 'react';
 import type { ConquererState, PathResult, ViewMode } from '../types/conquerer';
+import { agentName, floorToAct } from '../types/conquerer';
 import { PathPanel } from './PathPanel';
 import { ProgressBar } from './ProgressBar';
 import { DivergenceTree } from './DivergenceTree';
 
 // ---------------------------------------------------------------------------
-// Mock data so the view renders without a server connection
+// Mock data (16 agents)
 // ---------------------------------------------------------------------------
 
 function makeMockPaths(count: number): PathResult[] {
-  const strategies = ['greedy', 'random_0.5', 'heuristic_1', 'mcts_64'];
+  const strategies = [
+    'greedy', 'random_0.5', 'random_1.0', 'random_2.0',
+    'heuristic_attack', 'heuristic_block', 'heuristic_balanced',
+    'weighted_7', 'weighted_8', 'weighted_9',
+    'mcts_32', 'mcts_64', 'mcts_128', 'mcts_256',
+    'rollout_deep', 'rollout_wide',
+  ];
   return Array.from({ length: count }, (_, i) => {
-    const won = i % 3 !== 1;
+    const won = i % 4 !== 1 && i % 5 !== 2;
+    const floor = won ? 55 : 8 + Math.floor(Math.random() * 42);
     return {
       path_id: i,
       seed: 'DEMO',
       won,
-      floors_reached: won ? 55 : 10 + Math.floor(Math.random() * 40),
-      hp_remaining: won ? Math.floor(Math.random() * 60) + 5 : 0,
-      total_reward: won ? 1.0 : 0.0,
+      floors_reached: floor,
+      hp_remaining: won ? Math.floor(Math.random() * 55) + 5 : 0,
+      total_reward: won ? 1.0 : floor / 60,
       strategy: strategies[i % strategies.length],
     };
   });
 }
 
-const MOCK_PATHS_10 = makeMockPaths(10);
+const MOCK_PATHS = makeMockPaths(16);
 
 const MOCK_STATE: ConquererState = {
   seed: 'DEMO',
-  paths: MOCK_PATHS_10,
-  best_path_id: 4,
-  win_count: MOCK_PATHS_10.filter((p) => p.won).length,
+  paths: MOCK_PATHS,
+  best_path_id: 0,
+  win_count: MOCK_PATHS.filter((p) => p.won).length,
   max_floor: 55,
   active_paths: 0,
-  elapsed_seconds: 42.7,
+  elapsed_seconds: 87.3,
 };
 
 // ---------------------------------------------------------------------------
-// Utility: sort paths
+// Utility
 // ---------------------------------------------------------------------------
 
 function sortPaths(paths: PathResult[]): PathResult[] {
@@ -49,185 +57,67 @@ function sortPaths(paths: PathResult[]): PathResult[] {
 }
 
 // ---------------------------------------------------------------------------
-// Grid config based on path count
+// Aggregate Stats Header
 // ---------------------------------------------------------------------------
 
-function gridColumns(numPaths: number): number {
-  if (numPaths <= 4) return 2;
-  if (numPaths <= 8) return 4;
-  if (numPaths <= 10) return 5;
-  return 4; // 16 paths: 4x4
+const AggregateStats = ({ data }: { data: ConquererState }) => {
+  const wins = data.paths.filter((p) => p.won);
+  const losses = data.paths.filter((p) => !p.won);
+  const avgFloor = data.paths.length > 0
+    ? (data.paths.reduce((s, p) => s + p.floors_reached, 0) / data.paths.length).toFixed(1)
+    : '0';
+  const bestHp = wins.length > 0 ? Math.max(...wins.map((p) => p.hp_remaining)) : 0;
+  const worstLossFloor = losses.length > 0 ? Math.min(...losses.map((p) => p.floors_reached)) : '-';
+
+  return (
+    <div className="conq-aggregate">
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Seed</span>
+        <span className="conq-agg-value mono">{data.seed}</span>
+      </div>
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Win Rate</span>
+        <span className="conq-agg-value" style={{ color: data.win_count > 0 ? '#44bb44' : '#cc3333' }}>
+          {data.win_count}/{data.paths.length}
+        </span>
+      </div>
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Avg Floor</span>
+        <span className="conq-agg-value">{avgFloor}</span>
+      </div>
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Best HP</span>
+        <span className="conq-agg-value" style={{ color: '#44bb44' }}>{bestHp}</span>
+      </div>
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Worst Death</span>
+        <span className="conq-agg-value" style={{ color: '#cc3333' }}>F{worstLossFloor}</span>
+      </div>
+      {data.active_paths > 0 && (
+        <div className="conq-agg-item">
+          <span className="conq-agg-label">Active</span>
+          <span className="conq-agg-value" style={{ color: '#ccaa22' }}>{data.active_paths}</span>
+        </div>
+      )}
+      <div className="conq-agg-item">
+        <span className="conq-agg-label">Time</span>
+        <span className="conq-agg-value">{data.elapsed_seconds.toFixed(1)}s</span>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Grid View (primary: 4x4 for 16, 5x2 for 10, etc.)
+// ---------------------------------------------------------------------------
+
+function gridCols(n: number): number {
+  if (n <= 4) return 2;
+  if (n <= 6) return 3;
+  if (n <= 8) return 4;
+  if (n <= 12) return 4;
+  return 4; // 16 -> 4x4
 }
-
-// ---------------------------------------------------------------------------
-// Single View
-// ---------------------------------------------------------------------------
-
-const SingleView = ({
-  data,
-  selectedPathId,
-  setSelectedPathId,
-}: {
-  data: ConquererState;
-  selectedPathId: number | null;
-  setSelectedPathId: (id: number | null) => void;
-}) => {
-  const sortedPaths = sortPaths(data.paths);
-  const activeIds = new Set(data.paths.filter((_, i) => i < data.active_paths).map((p) => p.path_id));
-  const selectedPath = selectedPathId !== null ? data.paths.find((p) => p.path_id === selectedPathId) : null;
-
-  return (
-    <div className="conquerer-single-layout">
-      {/* Path list sidebar */}
-      <div className="conquerer-path-list">
-        <div className="conquerer-section-header">Paths</div>
-        {sortedPaths.map((path) => (
-          <PathPanel
-            key={path.path_id}
-            path={path}
-            isBest={path.path_id === data.best_path_id}
-            isActive={activeIds.has(path.path_id)}
-            isSelected={path.path_id === selectedPathId}
-            onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
-          />
-        ))}
-      </div>
-
-      {/* Main detail area */}
-      <div className="conquerer-single-main">
-        {selectedPath ? (
-          <div className="conquerer-single-detail">
-            <div className="conquerer-single-detail-header">
-              <h2>Path #{selectedPath.path_id}</h2>
-              <span
-                className="conquerer-single-status"
-                style={{ color: selectedPath.won ? '#44bb44' : '#cc3333' }}
-              >
-                {selectedPath.won ? 'VICTORY' : 'DEFEAT'}
-              </span>
-            </div>
-            <div className="conquerer-single-detail-grid">
-              <div className="conquerer-detail-card">
-                <span className="detail-card-label">Strategy</span>
-                <span className="detail-card-value mono">{selectedPath.strategy}</span>
-              </div>
-              <div className="conquerer-detail-card">
-                <span className="detail-card-label">Floor Reached</span>
-                <span className="detail-card-value">{selectedPath.floors_reached}</span>
-              </div>
-              <div className="conquerer-detail-card">
-                <span className="detail-card-label">HP Remaining</span>
-                <span className="detail-card-value">{selectedPath.hp_remaining}</span>
-              </div>
-              <div className="conquerer-detail-card">
-                <span className="detail-card-label">Reward</span>
-                <span className="detail-card-value">{selectedPath.total_reward.toFixed(3)}</span>
-              </div>
-            </div>
-            {/* Progress bar for this path */}
-            <div style={{ marginTop: '16px' }}>
-              <ProgressBar path={selectedPath} isBest={selectedPath.path_id === data.best_path_id} />
-            </div>
-          </div>
-        ) : (
-          <div className="conquerer-single-empty">
-            Select a path from the list to view details
-          </div>
-        )}
-
-        {/* Progress bars for all paths */}
-        <div className="conquerer-progress-section" style={{ marginTop: '24px' }}>
-          <div className="conquerer-section-header">All Paths Progress</div>
-          {sortedPaths.map((path) => (
-            <ProgressBar key={path.path_id} path={path} isBest={path.path_id === data.best_path_id} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Top 3 View
-// ---------------------------------------------------------------------------
-
-const Top3View = ({
-  data,
-  selectedPathId,
-  setSelectedPathId,
-}: {
-  data: ConquererState;
-  selectedPathId: number | null;
-  setSelectedPathId: (id: number | null) => void;
-}) => {
-  const sortedPaths = sortPaths(data.paths);
-  const top3 = sortedPaths.slice(0, 3);
-  const activeIds = new Set(data.paths.filter((_, i) => i < data.active_paths).map((p) => p.path_id));
-
-  return (
-    <div className="conquerer-top3-layout">
-      <div className="conquerer-top3-panels">
-        {top3.map((path) => (
-          <div
-            key={path.path_id}
-            className={`conquerer-top3-card ${path.path_id === selectedPathId ? 'selected' : ''} ${!path.won ? 'dead' : ''}`}
-            onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
-          >
-            <div className="conquerer-top3-card-header">
-              <span className="conquerer-panel-id">#{path.path_id}</span>
-              <span style={{ color: path.won ? '#44bb44' : '#cc3333', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
-                {path.won ? 'Won' : 'Lost'}
-              </span>
-            </div>
-            <div className="conquerer-top3-card-strategy">{path.strategy}</div>
-
-            <div className="conquerer-top3-stats">
-              <div className="conquerer-top3-stat">
-                <span className="label">Floor</span>
-                <span className="value">{path.floors_reached}</span>
-              </div>
-              <div className="conquerer-top3-stat">
-                <span className="label">HP</span>
-                <span className="value">{path.hp_remaining}</span>
-              </div>
-              <div className="conquerer-top3-stat">
-                <span className="label">Reward</span>
-                <span className="value">{path.total_reward.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <ProgressBar path={path} isBest={path.path_id === data.best_path_id} />
-
-            {path.path_id === data.best_path_id && (
-              <div className="conquerer-best-badge">BEST</div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Remaining paths below */}
-      <div className="conquerer-top3-remaining">
-        <div className="conquerer-section-header">Other Paths</div>
-        <div className="conquerer-grid" style={{ gridTemplateColumns: `repeat(${Math.min(sortedPaths.length - 3, 5)}, 1fr)` }}>
-          {sortedPaths.slice(3).map((path) => (
-            <PathPanel
-              key={path.path_id}
-              path={path}
-              isBest={path.path_id === data.best_path_id}
-              isActive={activeIds.has(path.path_id)}
-              isSelected={path.path_id === selectedPathId}
-              onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Grid View
-// ---------------------------------------------------------------------------
 
 const GridView = ({
   data,
@@ -238,30 +128,28 @@ const GridView = ({
   selectedPathId: number | null;
   setSelectedPathId: (id: number | null) => void;
 }) => {
-  const sortedPaths = sortPaths(data.paths);
+  const sorted = sortPaths(data.paths);
   const activeIds = new Set(data.paths.filter((_, i) => i < data.active_paths).map((p) => p.path_id));
-  const cols = gridColumns(data.paths.length);
+  const cols = gridCols(data.paths.length);
 
   return (
-    <div className="conquerer-grid-layout">
-      <div className="conquerer-grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-        {sortedPaths.map((path) => (
-          <PathPanel
-            key={path.path_id}
-            path={path}
-            isBest={path.path_id === data.best_path_id}
-            isActive={activeIds.has(path.path_id)}
-            isSelected={path.path_id === selectedPathId}
-            onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
-          />
-        ))}
-      </div>
+    <div className="conq-grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      {sorted.map((path) => (
+        <PathPanel
+          key={path.path_id}
+          path={path}
+          isBest={path.path_id === data.best_path_id}
+          isActive={activeIds.has(path.path_id)}
+          isSelected={path.path_id === selectedPathId}
+          onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
+        />
+      ))}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Scroll View
+// Scroll View (compact rows)
 // ---------------------------------------------------------------------------
 
 const ScrollView = ({
@@ -273,47 +161,50 @@ const ScrollView = ({
   selectedPathId: number | null;
   setSelectedPathId: (id: number | null) => void;
 }) => {
-  const sortedPaths = sortPaths(data.paths);
+  const sorted = sortPaths(data.paths);
   const activeIds = new Set(data.paths.filter((_, i) => i < data.active_paths).map((p) => p.path_id));
 
   return (
-    <div className="conquerer-scroll-layout">
-      {sortedPaths.map((path) => {
+    <div className="conq-scroll">
+      {/* Table header */}
+      <div className="conq-scroll-header">
+        <span className="conq-scroll-col-num">#</span>
+        <span className="conq-scroll-col-name">Agent</span>
+        <span className="conq-scroll-col-status">Status</span>
+        <span className="conq-scroll-col-floor">Floor</span>
+        <span className="conq-scroll-col-hp">HP</span>
+        <span className="conq-scroll-col-progress">Progress</span>
+      </div>
+      {sorted.map((path) => {
+        const isActive = activeIds.has(path.path_id);
         const isSelected = path.path_id === selectedPathId;
-        const isDead = !path.won && !activeIds.has(path.path_id);
-        const hpRatio = path.hp_remaining / Math.max(1, 72 + Math.floor(path.floors_reached / 10) * 5);
+        const status = isActive ? 'RUN' : path.won ? 'WIN' : 'LOST';
+        const statusColor = isActive ? '#ccaa22' : path.won ? '#44bb44' : '#cc3333';
+        const name = agentName(path.path_id);
+        const pct = Math.min(100, (path.floors_reached / 55) * 100);
 
         return (
           <div
             key={path.path_id}
-            className={`conquerer-scroll-row ${isSelected ? 'selected' : ''} ${isDead ? 'dead' : ''}`}
+            className={`conq-scroll-row ${isSelected ? 'selected' : ''} ${!path.won && !isActive ? 'dead' : ''}`}
             onClick={() => setSelectedPathId(isSelected ? null : path.path_id)}
           >
-            <div className="conquerer-scroll-id">#{path.path_id}</div>
-            <div className="conquerer-scroll-strategy">{path.strategy}</div>
-            <div className="conquerer-scroll-status" style={{ color: activeIds.has(path.path_id) ? '#ccaa22' : path.won ? '#44bb44' : '#cc3333' }}>
-              {activeIds.has(path.path_id) ? 'RUNNING' : path.won ? 'WON' : 'LOST'}
-            </div>
-            <div className="conquerer-scroll-floor">F{path.floors_reached}</div>
-            <div className="conquerer-scroll-hp-bar">
-              <div className="combat-hp-track" style={{ height: '8px' }}>
+            <span className="conq-scroll-col-num">{path.path_id + 1}</span>
+            <span className="conq-scroll-col-name">{name}</span>
+            <span className="conq-scroll-col-status" style={{ color: statusColor }}>{status}</span>
+            <span className="conq-scroll-col-floor">F{path.floors_reached}</span>
+            <span className="conq-scroll-col-hp">{path.hp_remaining}</span>
+            <span className="conq-scroll-col-progress">
+              <div className="conq-mini-bar">
                 <div
-                  className="combat-hp-fill"
-                  style={{
-                    width: `${Math.max(0, Math.min(100, hpRatio * 100))}%`,
-                    background: hpRatio > 0.6 ? '#44bb44' : hpRatio > 0.3 ? '#ccaa22' : '#cc3333',
-                  }}
+                  className="conq-mini-bar-fill"
+                  style={{ width: `${pct}%`, background: path.won ? '#44bb44' : '#cc3333' }}
                 />
               </div>
-            </div>
-            <div className="conquerer-scroll-hp">{path.hp_remaining} HP</div>
-            <div className="conquerer-scroll-reward">{path.total_reward.toFixed(2)}</div>
+            </span>
             {path.path_id === data.best_path_id && (
-              <div className="conquerer-best-badge small">BEST</div>
+              <span className="conq-best-tag">BEST</span>
             )}
-            <div className="conquerer-scroll-progress" style={{ flex: 1 }}>
-              <ProgressBar path={path} isBest={path.path_id === data.best_path_id} />
-            </div>
           </div>
         );
       })}
@@ -322,16 +213,100 @@ const ScrollView = ({
 };
 
 // ---------------------------------------------------------------------------
-// Main ConquererView Component
+// Single / Detail View
+// ---------------------------------------------------------------------------
+
+const SingleView = ({
+  data,
+  selectedPathId,
+  setSelectedPathId,
+}: {
+  data: ConquererState;
+  selectedPathId: number | null;
+  setSelectedPathId: (id: number | null) => void;
+}) => {
+  const sorted = sortPaths(data.paths);
+  const activeIds = new Set(data.paths.filter((_, i) => i < data.active_paths).map((p) => p.path_id));
+  const selected = selectedPathId !== null ? data.paths.find((p) => p.path_id === selectedPathId) : null;
+
+  return (
+    <div className="conq-single-layout">
+      {/* Compact agent list sidebar */}
+      <div className="conq-agent-list">
+        {sorted.map((path) => (
+          <PathPanel
+            key={path.path_id}
+            path={path}
+            isBest={path.path_id === data.best_path_id}
+            isActive={activeIds.has(path.path_id)}
+            isSelected={path.path_id === selectedPathId}
+            compact
+            onClick={() => setSelectedPathId(selectedPathId === path.path_id ? null : path.path_id)}
+          />
+        ))}
+      </div>
+
+      {/* Detail panel */}
+      <div className="conq-detail-panel">
+        {selected ? (
+          <>
+            <div className="conq-detail-header">
+              <span className="conq-detail-num">{selected.path_id + 1}</span>
+              <h2>{agentName(selected.path_id)}</h2>
+              <span
+                className="conq-detail-status"
+                style={{ color: selected.won ? '#44bb44' : '#cc3333' }}
+              >
+                {selected.won ? 'VICTORY' : 'DEFEAT'}
+              </span>
+            </div>
+            <div className="conq-detail-grid">
+              <div className="conq-detail-stat">
+                <span className="label">Strategy</span>
+                <span className="value mono">{selected.strategy}</span>
+              </div>
+              <div className="conq-detail-stat">
+                <span className="label">Floor</span>
+                <span className="value">{selected.floors_reached} (Act {floorToAct(selected.floors_reached)})</span>
+              </div>
+              <div className="conq-detail-stat">
+                <span className="label">HP</span>
+                <span className="value">{selected.hp_remaining}</span>
+              </div>
+              <div className="conq-detail-stat">
+                <span className="label">Reward</span>
+                <span className="value">{selected.total_reward.toFixed(3)}</span>
+              </div>
+            </div>
+            <div style={{ marginTop: '16px' }}>
+              <ProgressBar path={selected} isBest={selected.path_id === data.best_path_id} />
+            </div>
+          </>
+        ) : (
+          <div className="conq-detail-empty">
+            Select an agent to view details
+          </div>
+        )}
+
+        {/* All progress bars */}
+        <div className="conq-all-progress">
+          <div className="conq-section-header">All Agents</div>
+          {sorted.map((path) => (
+            <ProgressBar key={path.path_id} path={path} isBest={path.path_id === data.best_path_id} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main ConquererView
 // ---------------------------------------------------------------------------
 
 interface ConquererViewProps {
   state?: ConquererState | null;
-  /** Externally controlled view mode */
   viewMode?: ViewMode;
-  /** Externally controlled num paths */
-  numPaths?: number;
-  /** Called when view mode changes */
   onViewModeChange?: (mode: ViewMode) => void;
 }
 
@@ -347,91 +322,40 @@ export const ConquererView = ({ state, viewMode: externalViewMode, onViewModeCha
   };
 
   return (
-    <div className={`conquerer-root conquerer-layout conquerer-layout--${viewMode}`}>
-      {/* Stats bar */}
-      <div className="conquerer-stats-bar" style={{ gridArea: 'header' }}>
-        <div className="conquerer-stat">
-          <span className="conquerer-stat-label">Seed</span>
-          <span className="conquerer-stat-value conquerer-stat-seed">{data.seed}</span>
-        </div>
-        <div className="conquerer-stat">
-          <span className="conquerer-stat-label">Wins</span>
-          <span className="conquerer-stat-value" style={{ color: data.win_count > 0 ? '#44bb44' : '#cc3333' }}>
-            {data.win_count}/{data.paths.length}
-          </span>
-        </div>
-        <div className="conquerer-stat">
-          <span className="conquerer-stat-label">Best Floor</span>
-          <span className="conquerer-stat-value">{data.max_floor}</span>
-        </div>
-        <div className="conquerer-stat">
-          <span className="conquerer-stat-label">Active</span>
-          <span className="conquerer-stat-value" style={{ color: data.active_paths > 0 ? '#ccaa22' : '#888' }}>
-            {data.active_paths}
-          </span>
-        </div>
-        <div className="conquerer-stat">
-          <span className="conquerer-stat-label">Elapsed</span>
-          <span className="conquerer-stat-value">{data.elapsed_seconds.toFixed(1)}s</span>
-        </div>
+    <div className="conq-root">
+      {/* Aggregate stats */}
+      <AggregateStats data={data} />
 
-        {/* View mode selector */}
-        <div className="conquerer-view-selector">
-          {(['single', 'top3', 'grid', 'scroll'] as ViewMode[]).map((mode) => (
-            <button
-              key={mode}
-              className={`conquerer-view-btn ${viewMode === mode ? 'active' : ''}`}
-              onClick={() => setViewMode(mode)}
-            >
-              {mode === 'single' ? 'Single' : mode === 'top3' ? 'Top 3' : mode === 'grid' ? 'Grid' : 'Scroll'}
-            </button>
-          ))}
-        </div>
+      {/* View mode selector */}
+      <div className="conq-controls">
+        {(['grid', 'scroll', 'single'] as ViewMode[]).map((mode) => (
+          <button
+            key={mode}
+            className={`conq-view-btn ${viewMode === mode ? 'active' : ''}`}
+            onClick={() => setViewMode(mode)}
+          >
+            {mode === 'grid' ? 'Grid' : mode === 'scroll' ? 'List' : 'Detail'}
+          </button>
+        ))}
       </div>
 
-      {/* Main content area */}
-      <div className="conquerer-content" style={{ gridArea: 'main' }}>
-        {viewMode === 'single' && (
-          <SingleView data={data} selectedPathId={selectedPathId} setSelectedPathId={setSelectedPathId} />
-        )}
-        {viewMode === 'top3' && (
-          <Top3View data={data} selectedPathId={selectedPathId} setSelectedPathId={setSelectedPathId} />
-        )}
+      {/* Main content */}
+      <div className="conq-content">
         {viewMode === 'grid' && (
           <GridView data={data} selectedPathId={selectedPathId} setSelectedPathId={setSelectedPathId} />
         )}
         {viewMode === 'scroll' && (
           <ScrollView data={data} selectedPathId={selectedPathId} setSelectedPathId={setSelectedPathId} />
         )}
+        {viewMode === 'single' && (
+          <SingleView data={data} selectedPathId={selectedPathId} setSelectedPathId={setSelectedPathId} />
+        )}
       </div>
 
-      {/* Sidebar: divergence tree (only for single/grid) */}
-      {(viewMode === 'single' || viewMode === 'grid') && (
-        <div className="conquerer-sidebar" style={{ gridArea: 'sidebar' }}>
+      {/* Sidebar: divergence tree (grid + single only) */}
+      {(viewMode === 'grid' || viewMode === 'single') && data.divergence_tree && (
+        <div className="conq-sidebar">
           <DivergenceTree tree={data.divergence_tree} />
-
-          {/* Selected path detail (grid mode) */}
-          {viewMode === 'grid' && selectedPathId !== null && (
-            <div className="conquerer-detail">
-              <div className="conquerer-section-header">Path #{selectedPathId} Detail</div>
-              {(() => {
-                const p = data.paths.find((x) => x.path_id === selectedPathId);
-                if (!p) return <div className="conquerer-detail-empty">Not found</div>;
-                return (
-                  <div className="conquerer-detail-body">
-                    <div className="conquerer-detail-row"><span>Strategy</span><span>{p.strategy}</span></div>
-                    <div className="conquerer-detail-row"><span>Floor</span><span>{p.floors_reached}</span></div>
-                    <div className="conquerer-detail-row"><span>HP</span><span>{p.hp_remaining}</span></div>
-                    <div className="conquerer-detail-row"><span>Reward</span><span>{p.total_reward.toFixed(3)}</span></div>
-                    <div className="conquerer-detail-row">
-                      <span>Result</span>
-                      <span style={{ color: p.won ? '#44bb44' : '#cc3333' }}>{p.won ? 'Victory' : 'Defeat'}</span>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -32,6 +32,49 @@ const STANCE_BG: Record<string, string> = {
   divinity: '#44441a',
 };
 
+/** Compact power abbreviations + descriptions for hover */
+const POWER_INFO: Record<string, { abbr: string; desc: string }> = {
+  strength: { abbr: 'STR', desc: 'Deals +N additional damage' },
+  dexterity: { abbr: 'DEX', desc: 'Gains +N additional block' },
+  weakened: { abbr: 'WK', desc: 'Deals 25% less damage' },
+  weak: { abbr: 'WK', desc: 'Deals 25% less damage' },
+  vulnerable: { abbr: 'VLN', desc: 'Takes 50% more damage' },
+  vuln: { abbr: 'VLN', desc: 'Takes 50% more damage' },
+  frail: { abbr: 'FRL', desc: 'Gains 25% less block from cards' },
+  mental_fortress: { abbr: 'MF', desc: 'Gain N block on stance change' },
+  anger: { abbr: 'AGR', desc: 'Gains N strength on skill use' },
+  ritual: { abbr: 'RIT', desc: 'Gains N strength at end of turn' },
+  metallicize: { abbr: 'MTL', desc: 'Gains N block at end of turn' },
+  plated_armor: { abbr: 'PLT', desc: 'Gains N block at end of turn' },
+  thorns: { abbr: 'THN', desc: 'Deals N damage on attack received' },
+  artifact: { abbr: 'ART', desc: 'Negates N debuffs' },
+  intangible: { abbr: 'INT', desc: 'Reduces all damage to 1' },
+  barricade: { abbr: 'BAR', desc: 'Block is not removed at turn start' },
+  mantra: { abbr: 'MNT', desc: 'N mantra toward Divinity (10)' },
+  rushdown: { abbr: 'RSH', desc: 'Draw N cards on entering Wrath' },
+  talk_to_the_hand: { abbr: 'TTH', desc: 'Target gains N block for you' },
+  battle_hymn: { abbr: 'BH', desc: 'Add Smite to hand each turn' },
+  foresight: { abbr: 'FS', desc: 'Scry N at start of turn' },
+  like_water: { abbr: 'LW', desc: 'Gain N block in Calm at end of turn' },
+  devotion: { abbr: 'DEV', desc: 'Gain N mantra at start of turn' },
+  establishment: { abbr: 'EST', desc: 'Retain cards cost 1 less' },
+  study: { abbr: 'STD', desc: 'Add Insight to hand at end of turn' },
+  vigor: { abbr: 'VIG', desc: 'Next attack deals +N damage' },
+};
+
+function powerAbbr(id: string, name: string): string {
+  const info = POWER_INFO[id];
+  if (info) return info.abbr;
+  // Fallback: first 3 chars uppercase
+  return name.slice(0, 3).toUpperCase();
+}
+
+function powerTooltip(id: string, name: string, amount: number): string {
+  const info = POWER_INFO[id];
+  const desc = info ? info.desc.replace(/N/g, String(amount)) : name;
+  return `${name} ${amount}\n${desc}`;
+}
+
 /** Rough damage preview: accounts for strength, wrath, vulnerable on target. */
 function estimateDamage(card: CardInstance, combat: CombatState, _target: EnemyState | null): number | null {
   if (card.type !== 'attack') return null;
@@ -113,13 +156,16 @@ export const CombatView = ({ combat, combatType, compact = false }: CombatViewPr
             <div className="combat-powers">
               {player.powers.map((power) => {
                 const isDebuff = ['weakened', 'weak', 'vulnerable', 'vuln', 'frail'].includes(power.id);
+                const abbr = powerAbbr(power.id, power.name);
+                const tooltip = powerTooltip(power.id, power.name, power.amount);
                 return (
                   <span
                     key={power.id}
                     className={`combat-power-badge ${isDebuff ? 'debuff' : 'buff'}`}
-                    title={power.name}
+                    title={tooltip}
                   >
-                    {power.name.length > 6 ? power.name.slice(0, 6) : power.name} {power.amount}
+                    <span className="combat-power-abbr">{abbr}</span>
+                    <span className="combat-power-amt">{power.amount}</span>
                   </span>
                 );
               })}
@@ -240,13 +286,16 @@ export const CombatView = ({ combat, combatType, compact = false }: CombatViewPr
                   <div className="combat-powers">
                     {enemy.powers.map((power) => {
                       const isDebuff = ['weakened', 'weak', 'vulnerable', 'vuln', 'frail'].includes(power.id);
+                      const abbr = powerAbbr(power.id, power.name);
+                      const tooltip = powerTooltip(power.id, power.name, power.amount);
                       return (
                         <span
                           key={power.id}
                           className={`combat-power-badge ${isDebuff ? 'debuff' : 'buff'}`}
-                          title={power.name}
+                          title={tooltip}
                         >
-                          {power.name.length > 5 ? power.name.slice(0, 5) : power.name} {power.amount}
+                          <span className="combat-power-abbr">{abbr}</span>
+                          <span className="combat-power-amt">{power.amount}</span>
                         </span>
                       );
                     })}

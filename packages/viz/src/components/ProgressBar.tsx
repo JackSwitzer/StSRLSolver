@@ -1,4 +1,5 @@
 import type { PathResult } from '../types/conquerer';
+import { agentName } from '../types/conquerer';
 
 /** Max floors per act boundary (approximate for A20). */
 const ACT_BOUNDARIES = [
@@ -21,8 +22,8 @@ export const ProgressBar = ({ path, isBest }: ProgressBarProps) => {
 
   return (
     <div className="conquerer-progress-row">
-      <span className="conquerer-progress-label" title={path.strategy}>
-        #{path.path_id}
+      <span className="conquerer-progress-label" title={`${agentName(path.path_id)} (${path.strategy})`}>
+        {path.path_id + 1}
       </span>
       <div className="conquerer-progress-track">
         {/* Act color segments (background) */}
