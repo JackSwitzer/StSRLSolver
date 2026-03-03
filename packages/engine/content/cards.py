@@ -1815,7 +1815,7 @@ COOLHEADED = Card(
 HOLOGRAM = Card(
     id="Hologram", name="Hologram", card_type=CardType.SKILL, rarity=CardRarity.COMMON,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=1, base_block=3, upgrade_block=2,
-    exhaust=True, effects=["return_card_from_discard"],
+    exhaust=True, upgrade_exhaust=False, effects=["return_card_from_discard"],
 )
 
 LEAP_D = Card(
@@ -1940,7 +1940,7 @@ CONSUME = Card(
 DARKNESS_D = Card(
     id="Darkness", name="Darkness", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=1,
-    base_magic=1, effects=["channel_dark"],
+    base_magic=1, effects=["channel_dark", "darkness_trigger_dark_orbs"],
 )
 
 DOUBLE_ENERGY = Card(
@@ -2135,7 +2135,7 @@ MULTI_CAST = Card(
 RAINBOW = Card(
     id="Rainbow", name="Rainbow", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=2,
-    exhaust=True, effects=["channel_lightning_frost_dark"],
+    exhaust=True, upgrade_exhaust=False, effects=["channel_lightning_frost_dark"],
 )
 
 REBOOT = Card(
@@ -2174,7 +2174,7 @@ CREATIVE_AI = Card(
 ECHO_FORM = Card(
     id="Echo Form", name="Echo Form", card_type=CardType.POWER, rarity=CardRarity.RARE,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=3,
-    ethereal=True, effects=["play_first_card_twice"],
+    ethereal=True, upgrade_ethereal=False, effects=["play_first_card_twice"],
 )
 
 ELECTRODYNAMICS = Card(

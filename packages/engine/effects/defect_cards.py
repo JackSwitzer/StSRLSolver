@@ -98,6 +98,37 @@ def channel_3_plasma_effect(ctx: EffectContext) -> None:
     channel_orb(ctx.state, "Plasma")
 
 
+@effect_simple("darkness_trigger_dark_orbs")
+def darkness_trigger_dark_orbs_effect(ctx: EffectContext) -> None:
+    """
+    Darkness+ triggers DarkImpulseAction: call onStartOfTurn/onEndOfTurn on all
+    Dark orbs (which makes them accumulate extra passive damage), plus an extra
+    trigger on the leftmost orb if Cables relic is present and it is Dark.
+
+    Java: DarkImpulseAction iterates all orbs, calls startOfTurn+endOfTurn on
+    Dark only. Only fires when the card is upgraded.
+    """
+    if not ctx.is_upgraded:
+        return
+
+    manager = get_orb_manager(ctx.state)
+    if not manager.orbs:
+        return
+
+    for orb in list(manager.orbs):
+        if orb.orb_type == OrbType.DARK:
+            # Trigger passive twice (start + end) = accumulate 2x passive_amount+focus
+            manager._execute_passive(orb, ctx.state, manager.focus)
+            manager._execute_passive(orb, ctx.state, manager.focus)
+
+    # Cables relic: extra trigger on leftmost if it is Dark
+    if ctx.state.has_relic("Cables") and manager.orbs:
+        first = manager.orbs[0]
+        if first.orb_type == OrbType.DARK:
+            manager._execute_passive(first, ctx.state, manager.focus)
+            manager._execute_passive(first, ctx.state, manager.focus)
+
+
 @effect_simple("channel_random_orb")
 def channel_random_orb_effect(ctx: EffectContext) -> None:
     """Channel random orb(s) (Chaos). Magic number determines count."""
@@ -124,8 +155,13 @@ def channel_lightning_frost_dark_effect(ctx: EffectContext) -> None:
 
 @effect_simple("channel_x_lightning")
 def channel_x_lightning_effect(ctx: EffectContext) -> None:
-    """Channel X Lightning orbs (Tempest). X = energy spent."""
+    """Channel X Lightning orbs (Tempest). X = energy spent. Upgraded: X+1.
+
+    Java: TempestAction -- effect = energyOnUse; if upgraded ++effect;
+    """
     x = ctx.extra_data.get("x_cost", ctx.state.energy)
+    if ctx.is_upgraded:
+        x += 1
     for _ in range(x):
         channel_orb(ctx.state, "Lightning")
 
@@ -144,8 +180,13 @@ def evoke_orb_twice_effect(ctx: EffectContext) -> None:
 
 @effect_simple("evoke_first_orb_x_times")
 def evoke_first_orb_x_times_effect(ctx: EffectContext) -> None:
-    """Evoke first orb X times (Multi-Cast). X = energy spent."""
+    """Evoke first orb X times (Multi-Cast). X = energy spent. Upgraded: X+1.
+
+    Java: MulticastAction -- effect = energyOnUse; if upgraded ++effect;
+    """
     x = ctx.extra_data.get("x_cost", ctx.state.energy)
+    if ctx.is_upgraded:
+        x += 1
     if x > 0:
         manager = get_orb_manager(ctx.state)
         if manager.has_orbs():
@@ -769,7 +810,7 @@ DEFECT_CARD_EFFECTS = {
     "Chaos": ["channel_random_orb"],
     "Chill": ["channel_frost_per_enemy"],
     "Consume": ["gain_focus_lose_orb_slot"],
-    "Darkness": ["channel_dark"],
+    "Darkness": ["channel_dark", "darkness_trigger_dark_orbs"],
     "Double Energy": ["double_energy"],
     "Undo": ["retain_hand"],
     "Force Field": ["cost_reduces_per_power_played"],
