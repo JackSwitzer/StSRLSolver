@@ -657,7 +657,7 @@ SPIRIT_SHIELD = Card(
 UNRAVELING = Card(
     id="Unraveling", name="Unraveling", card_type=CardType.SKILL, rarity=CardRarity.RARE,
     target=CardTarget.NONE, cost=2, upgrade_cost=1, exhaust=True,
-    effects=["scry_draw_pile_discard_for_block"],  # Scry entire draw pile, discard any, gain 1 block per discard
+    effects=["play_all_hand_free"],  # Java: UnravelingAction - plays all cards in hand for free
 )
 
 VAULT = Card(

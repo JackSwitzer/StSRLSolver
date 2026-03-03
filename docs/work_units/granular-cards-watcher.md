@@ -13,7 +13,8 @@
 - Tests: `tests/test_cards.py` (`Discipline` stats), `tests/test_power_registry_integration.py` (registration + behavior).
 
 ## Model-facing actions (no UI)
-- [ ] All card effects that require choices/targets must emit explicit action options. (action: play_card{card_index,target_index})
+- [x] All card effects that require choices/targets must emit explicit action options. (action: play_card{card_index,target_index})
+  - Note: handled by two-step action mechanism (PlayCard with card_idx + target_idx, plus PendingSelectionContext for multi-step actions)
 
 ## Checklist
 - [x] Implement `InnerPeace` effect key `if_calm_draw_else_calm` in `effects/executor.py`. (action: play_card{card_index})

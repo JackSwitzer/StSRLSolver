@@ -65,6 +65,14 @@ class ObservationDict(TypedDict, total=False):
             exhaust_pile_count).
         "debug": Superset of human.  Adds full pile contents, RNG counters,
             and other diagnostic fields under a top-level ``debug`` key.
+
+    HP field naming convention:
+        - ``run.current_hp`` / ``run.max_hp``: persistent run-level HP.
+        - ``combat.player.hp`` / ``combat.player.max_hp``: combat-local
+          player HP (mirrors CombatState.player.hp).
+        - ``combat.enemies[].hp``: per-enemy combat HP.
+        The RL encoder (``rl_observations.py``) reads ``run.current_hp``
+        for the run scalar and ``combat.enemies[].hp`` for enemy features.
     """
     observation_schema_version: str
     action_schema_version: str

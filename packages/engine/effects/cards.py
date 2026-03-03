@@ -1079,6 +1079,21 @@ def foreign_influence_effect(ctx: EffectContext) -> None:
         ctx.add_card_to_hand(ctx.random_choice(attacks))
 
 
+@effect_simple("play_all_hand_free")
+def play_all_hand_free(ctx: EffectContext) -> None:
+    """
+    Unraveling - play all remaining cards in hand for free.
+
+    Java ref: UnravelingAction.java
+    For each card in hand (that isn't already queued), set freeToPlayOnce
+    and queue it.  Targeted cards go to a random living enemy.
+
+    In the engine we mark the extra_data flag so the combat engine can
+    process the queued plays after the current card resolves.
+    """
+    ctx.extra_data["play_all_hand_free"] = True
+
+
 @effect_simple("play_card_from_draw_twice")
 def omniscience_effect(ctx: EffectContext) -> None:
     """
@@ -1212,6 +1227,7 @@ WATCHER_CARD_EFFECTS = {
     "Omniscience": ["play_card_from_draw_twice"],
     "Scrawl": ["draw_until_hand_full", "cost_0_in_wrath"],
     "SpiritShield": ["gain_block_per_card_in_hand"],
+    "Unraveling": ["play_all_hand_free"],
     "Vault": ["take_extra_turn"],
     "Wish": ["choose_plated_armor_or_strength_or_gold"],
 
