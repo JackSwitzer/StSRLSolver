@@ -1,23 +1,30 @@
 """
 Monte Carlo Tree Search for Slay the Spire.
 
-Uses a neural network policy/value head to guide search.
-Designed for self-play improvement on top of BC foundation.
+Provides two MCTS implementations:
+1. MCTS - Generic MCTS with neural network policy/value guidance (AlphaZero-style)
+2. CombatMCTS - Specialized for StS combat using CombatEngine.copy()
+
+Uses UCB1 with policy prior:
+    UCB = Q(s,a) + c_puct * P(s,a) * sqrt(N(s)) / (1 + N(s,a))
 """
+
+from __future__ import annotations
 
 import math
 import random
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable, Tuple
+from typing import List, Dict, Any, Optional, Callable, Tuple, Union
 import numpy as np
+
 
 @dataclass
 class MCTSNode:
     """Node in the MCTS search tree."""
-    state: Any  # Game state representation
-    parent: Optional['MCTSNode'] = None
+    state: Any  # Game state representation (CombatEngine for CombatMCTS)
+    parent: Optional[MCTSNode] = None
     action: Any = None  # Action that led to this state
-    children: Dict[Any, 'MCTSNode'] = field(default_factory=dict)
+    children: Dict[Any, MCTSNode] = field(default_factory=dict)
 
     # Statistics
     visits: int = 0
@@ -38,7 +45,7 @@ class MCTSNode:
 
 class MCTS:
     """
-    Monte Carlo Tree Search with neural network guidance.
+    Generic Monte Carlo Tree Search with neural network guidance.
 
     Uses UCB1 with policy prior (similar to AlphaZero):
     UCB = Q(s,a) + c_puct * P(s,a) * sqrt(N(s)) / (1 + N(s,a))
@@ -206,8 +213,6 @@ class MCTS:
         for node in reversed(search_path):
             node.visits += 1
             node.value_sum += value
-            # Flip value for opponent (if applicable)
-            # value = 1 - value  # Uncomment for adversarial games
 
     def select_action(
         self,
@@ -241,104 +246,237 @@ class MCTS:
         return np.random.choice(actions, p=probs)
 
 
-class MCTSAgent:
-    """
-    Agent that uses MCTS with neural network guidance.
+# =============================================================================
+# CombatMCTS - Engine-integrated MCTS for StS combat
+# =============================================================================
 
-    Designed to work with our STS environment.
+class CombatMCTS:
+    """
+    MCTS specialized for Slay the Spire combat using CombatEngine.copy().
+
+    Unlike the generic MCTS which takes callable interfaces, CombatMCTS
+    operates directly on CombatEngine instances. Each tree node holds a
+    full engine copy so that legal actions, state transitions, and
+    terminal checks are all handled through the engine API.
+
+    Value function can be provided externally (e.g. from a neural network)
+    or defaults to a heuristic rollout evaluator.
     """
 
     def __init__(
         self,
-        policy_value_network,  # CardPickerBC or similar
-        num_simulations: int = 100,
-        temperature: float = 1.0,
+        policy_fn: Optional[Callable] = None,
+        num_simulations: int = 128,
+        c_puct: float = 1.4,
+        max_rollout_turns: int = 5,
     ):
-        self.network = policy_value_network
+        """
+        Args:
+            policy_fn: Optional function CombatEngine -> (action_priors, value).
+                       action_priors maps Action -> float prior probability.
+                       If None, uniform priors and heuristic rollout are used.
+            num_simulations: Number of MCTS simulations per search call.
+            c_puct: Exploration constant for PUCT formula.
+            max_rollout_turns: Maximum turns for heuristic rollout evaluation.
+        """
+        self.policy_fn = policy_fn
         self.num_simulations = num_simulations
-        self.temperature = temperature
+        self.c_puct = c_puct
+        self.max_rollout_turns = max_rollout_turns
 
-        self.mcts = MCTS(
-            policy_fn=self._get_policy_value,
-            num_simulations=num_simulations,
-        )
+    def search(self, engine: Any) -> Dict[Any, float]:
+        """
+        Run MCTS from current combat state.
 
-    def _get_policy_value(self, state) -> Tuple[Dict[Any, float], float]:
-        """Get policy and value from neural network."""
-        import torch
+        Args:
+            engine: CombatEngine instance (will be copied, not mutated).
 
-        # Convert state to tensor
-        if isinstance(state, np.ndarray):
-            state_tensor = torch.FloatTensor(state)
+        Returns:
+            Mapping of Action -> visit proportion for each legal action
+            at the root.
+        """
+        root = MCTSNode(state=engine.copy())
+
+        # Expand root
+        self._expand(root)
+
+        if not root.children:
+            return {}
+
+        for _ in range(self.num_simulations):
+            # Selection: walk tree to a leaf
+            node = root
+            search_path = [node]
+
+            while node.is_expanded and not node.state.is_combat_over():
+                node = self._select(node)
+                search_path.append(node)
+
+            # Evaluate leaf
+            if node.state.is_combat_over():
+                value = self._terminal_value(node.state)
+            else:
+                self._expand(node)
+                value = self._evaluate(node)
+
+            # Backpropagation
+            for n in reversed(search_path):
+                n.visits += 1
+                n.value_sum += value
+
+        return self._get_action_probabilities(root)
+
+    # -----------------------------------------------------------------
+    # Internal helpers
+    # -----------------------------------------------------------------
+
+    def _expand(self, node: MCTSNode) -> None:
+        """Expand node by creating children for all legal actions."""
+        actions = node.state.get_legal_actions()
+        if not actions:
+            return
+
+        # Get priors
+        if self.policy_fn is not None:
+            action_priors, _ = self.policy_fn(node.state)
         else:
-            state_tensor = state
+            action_priors = {}
 
-        # Get network output
-        self.network.eval()
-        with torch.no_grad():
-            logits = self.network(state_tensor.unsqueeze(0))[0]
-            probs = torch.softmax(logits, dim=-1).numpy()
+        # Build prior map, fall back to uniform
+        priors: Dict[Any, float] = {}
+        for action in actions:
+            priors[action] = action_priors.get(action, 1e-6)
 
-        # Convert to action dict
-        action_probs = {i: float(probs[i]) for i in range(len(probs))}
-
-        # Estimate value as max probability (simple heuristic)
-        # TODO: Add separate value head to network
-        value = float(probs.max())
-
-        return action_probs, value
-
-    def get_action(self, state, legal_actions: List[int]) -> int:
-        """Get best action using MCTS."""
-        # Simple case: use network directly without full MCTS
-        # (Full MCTS requires game simulation which we don't have yet)
-        import torch
-
-        if isinstance(state, np.ndarray):
-            state_tensor = torch.FloatTensor(state)
+        total = sum(priors.values())
+        if total > 0:
+            priors = {a: p / total for a, p in priors.items()}
         else:
-            state_tensor = state
+            priors = {a: 1.0 / len(actions) for a in actions}
 
-        self.network.eval()
-        with torch.no_grad():
-            logits = self.network(state_tensor.unsqueeze(0))[0]
+        for action in actions:
+            child_engine = node.state.copy()
+            child_engine.execute_action(action)
+            child = MCTSNode(
+                state=child_engine,
+                parent=node,
+                action=action,
+                prior=priors.get(action, 1.0 / len(actions)),
+            )
+            node.children[action] = child
 
-            # Mask illegal actions
-            mask = torch.zeros_like(logits)
-            mask[legal_actions] = 1
-            logits = logits.masked_fill(mask == 0, float('-inf'))
+    def _select(self, node: MCTSNode) -> MCTSNode:
+        """Select best child using PUCT formula."""
+        best_score = float('-inf')
+        best_child = None
 
-            if self.temperature == 0:
-                return logits.argmax().item()
+        sqrt_parent = math.sqrt(node.visits) if node.visits > 0 else 1.0
 
-            # Sample with temperature
-            probs = torch.softmax(logits / self.temperature, dim=-1)
-            return torch.multinomial(probs, 1).item()
+        for child in node.children.values():
+            q = child.value if child.visits > 0 else 0.0
+            u = self.c_puct * child.prior * sqrt_parent / (1 + child.visits)
+            score = q + u
+            if score > best_score:
+                best_score = score
+                best_child = child
 
+        return best_child
 
-if __name__ == "__main__":
-    # Simple test
-    print("MCTS module loaded successfully")
+    def _evaluate(self, node: MCTSNode) -> float:
+        """
+        Evaluate a leaf node.
 
-    # Test with random policy
-    def random_policy(state):
-        actions = {i: 1.0/10 for i in range(10)}
-        value = 0.5
-        return actions, value
+        If a policy_fn was provided that returns a value estimate, use that.
+        Otherwise fall back to a heuristic rollout.
+        """
+        if self.policy_fn is not None:
+            _, value = self.policy_fn(node.state)
+            return value
+        return self._rollout_value(node.state)
 
-    mcts = MCTS(
-        policy_fn=random_policy,
-        num_simulations=50,
-    )
+    def _rollout_value(self, engine: Any) -> float:
+        """
+        Quick heuristic evaluation of a combat state.
 
-    # Test search
-    visits = mcts.search(
-        root_state="test",
-        get_legal_actions=lambda s: list(range(10)),
-        apply_action=lambda s, a: s,
-        is_terminal=lambda s: False,
-        get_terminal_value=lambda s: 0.5,
-    )
+        Returns value in [0, 1] where 1 = player wins with full HP,
+        0 = player dead.
+        """
+        if engine.is_combat_over():
+            return self._terminal_value(engine)
 
-    print(f"Visit distribution: {visits}")
-    print(f"Best action: {mcts.select_action(visits, temperature=0)}")
+        state = engine.state
+        player_hp = state.player.hp
+        player_max_hp = state.player.max_hp
+
+        # Sum total enemy HP remaining
+        total_enemy_hp = sum(max(0, e.hp) for e in state.enemies if e.hp > 0)
+        total_enemy_max = sum(max(1, e.max_hp) for e in state.enemies)
+
+        if total_enemy_hp <= 0:
+            # All enemies dead, high value
+            return 0.8 + 0.2 * (player_hp / max(player_max_hp, 1))
+
+        # Ratio of enemy HP destroyed as progress indicator
+        hp_ratio = player_hp / max(player_max_hp, 1)
+        enemy_progress = 1.0 - (total_enemy_hp / max(total_enemy_max, 1))
+
+        # Combine: surviving with high HP while killing enemies is good
+        value = 0.3 * hp_ratio + 0.5 * enemy_progress
+
+        # Bonus for current block
+        block = state.player.block
+        if block > 0:
+            value += 0.05 * min(block / 20.0, 1.0)
+
+        # Penalty for being in Wrath with enemies alive
+        if state.stance == "Wrath" and total_enemy_hp > 0:
+            value -= 0.1
+
+        return max(0.0, min(1.0, value))
+
+    def _terminal_value(self, engine: Any) -> float:
+        """Value of a terminal combat state."""
+        if engine.is_victory():
+            hp = engine.state.player.hp
+            max_hp = engine.state.player.max_hp
+            return 0.8 + 0.2 * (hp / max(max_hp, 1))
+        return 0.0  # Defeat
+
+    def _get_action_probabilities(self, root: MCTSNode) -> Dict[Any, float]:
+        """Convert root child visit counts to a probability distribution."""
+        total = sum(c.visits for c in root.children.values())
+        if total == 0:
+            n = len(root.children)
+            return {a: 1.0 / n for a in root.children}
+        return {
+            action: child.visits / total
+            for action, child in root.children.items()
+        }
+
+    def select_action(
+        self,
+        action_probs: Dict[Any, float],
+        temperature: float = 0.0,
+    ) -> Any:
+        """
+        Select an action from the visit distribution.
+
+        Args:
+            action_probs: action -> visit proportion mapping from search().
+            temperature: 0 = greedy (best action), >0 = stochastic sampling.
+
+        Returns:
+            Selected Action object.
+        """
+        if not action_probs:
+            raise ValueError("No actions to select from")
+
+        if temperature == 0:
+            return max(action_probs, key=action_probs.get)
+
+        actions = list(action_probs.keys())
+        weights = np.array([action_probs[a] for a in actions])
+        if temperature != 1.0:
+            weights = weights ** (1.0 / temperature)
+        probs = weights / weights.sum()
+        idx = np.random.choice(len(actions), p=probs)
+        return actions[idx]
