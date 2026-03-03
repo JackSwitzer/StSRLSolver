@@ -10,13 +10,16 @@ from .line_evaluator import (
     SimulatedEnemy,
     SimulatedPlayer,
 )
-from .mcts import MCTS, MCTSNode
+from .gym_env import StsEnv, StsVecEnv
+from .mcts import MCTS, MCTSNode, CombatMCTS
+from .planner import StrategicPlanner, StSAgent
 from .strategic_features import StrategicState, extract_strategic_features, strategic_state_to_vector
 
 __all__ = [
     "ActionType",
     "CombatCalculator",
     "CombatFeatures",
+    "CombatMCTS",
     "ENCOUNTERS",
     "ENEMIES",
     "EncounterInfo",
@@ -31,6 +34,10 @@ __all__ = [
     "SimulatedEnemy",
     "SimulatedPlayer",
     "Stance",
+    "StrategicPlanner",
+    "StSAgent",
+    "StsEnv",
+    "StsVecEnv",
     "StrategicState",
     "can_kill_this_turn",
     "extract_strategic_features",
