@@ -77,7 +77,7 @@ class TestNewHandlerRegistration:
         assert POWER_REGISTRY.has_handler("onAttacked", "Angry")
 
     def test_curiosity_registered(self):
-        assert POWER_REGISTRY.has_handler("onUseCard", "Curiosity")
+        assert POWER_REGISTRY.has_handler("onPlayCard", "Curiosity")
 
     def test_growth_power_registered(self):
         assert POWER_REGISTRY.has_handler("atEndOfRound", "GrowthPower")
@@ -343,7 +343,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 1
         mock_card = type("Card", (), {"card_type": CardType.POWER, "id": "TestPower"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "TestPower"}
         )
         assert enemy.statuses.get("Strength") == 1
@@ -355,7 +355,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 1
         mock_card = type("Card", (), {"card_type": CardType.ATTACK, "id": "Strike"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "Strike"}
         )
         assert enemy.statuses.get("Strength", 0) == 0
@@ -367,7 +367,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 3
         mock_card = type("Card", (), {"card_type": CardType.POWER, "id": "TestPower"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "TestPower"}
         )
         assert enemy.statuses.get("Strength") == 3
@@ -720,13 +720,11 @@ class TestEdgeCases:
     def test_double_damage_stacks_with_strength(self):
         """Double Damage and Strength should stack correctly.
 
-        Each power handler reads the original trigger_data["value"].
-        The last handler's return value is the final result.
+        Handler return values are chained through trigger_data["value"],
+        matching Java's power iteration.
         Priority: Double Damage (6) runs before Strength (100).
-        Double Damage: 10 * 2 = 20 (returned first).
-        Strength: 10 + 3 = 13 (returned last, overwrites).
-        Final result: 13. This matches the current dispatch model where
-        handlers read the original value, not a chained result.
+        Double Damage: 10 * 2 = 20 (chained into trigger_data).
+        Strength: 20 + 3 = 23 (reads chained value).
         """
         state = _make_state()
         state.player.statuses["Strength"] = 3
@@ -735,8 +733,8 @@ class TestEdgeCases:
             "atDamageGive", state, state.player,
             {"value": 10.0, "damage_type": "NORMAL"}
         )
-        # Strength runs last (priority 100) and reads original value 10 + 3 = 13
-        assert result == 13.0
+        # Chained: DoubleDamage(10*2=20) -> Strength(20+3=23)
+        assert result == 23.0
 
     def test_angry_and_thorns_interaction(self):
         """Angry should not trigger from Thorns damage type."""
@@ -794,3 +792,245 @@ class TestEdgeCases:
         state.player.statuses["Repair"] = 100
         execute_power_triggers("onVictory", state, state.player)
         assert state.player.hp == 50
+
+
+# =============================================================================
+# SECTION: Missing Power Triggers (batch 2026-03-11)
+# =============================================================================
+
+class TestAttackBurnPower:
+    """AttackBurn: exhaust Attack cards played."""
+
+    def test_attack_burn_marks_force_exhaust(self):
+        """Playing an Attack with Attack Burn sets force_exhaust flag."""
+        state = _make_state()
+        state.enemies[0].statuses["Attack Burn"] = 2
+        card = get_card("Strike_P")
+        trigger_data = {"card": card}
+        execute_power_triggers("onPlayCard", state, state.enemies[0], trigger_data)
+        assert trigger_data.get("force_exhaust") is True
+
+    def test_attack_burn_ignores_skills(self):
+        """Skills should not trigger Attack Burn."""
+        state = _make_state()
+        state.enemies[0].statuses["Attack Burn"] = 2
+        card = get_card("Defend_P")
+        trigger_data = {"card": card}
+        execute_power_triggers("onPlayCard", state, state.enemies[0], trigger_data)
+        assert trigger_data.get("force_exhaust") is not True
+
+    def test_attack_burn_decrements_after_skip(self):
+        """Attack Burn skips first round, then decrements each round."""
+        state = _make_state()
+        state.enemies[0].statuses["Attack Burn"] = 2
+        # First round: skip
+        execute_power_triggers("atEndOfRound", state, state.enemies[0])
+        assert state.enemies[0].statuses.get("Attack Burn", 0) == 2
+        # Second round: decrement
+        execute_power_triggers("atEndOfRound", state, state.enemies[0])
+        assert state.enemies[0].statuses.get("Attack Burn", 0) == 1
+
+
+class TestCompulsivePower:
+    """Compulsive/Reactive: re-roll intent when hit."""
+
+    def test_compulsive_signals_reroll(self):
+        """Non-lethal damage triggers reroll_move signal."""
+        state = _make_state()
+        state.enemies[0].statuses["Compulsive"] = 1
+        state.enemies[0].hp = 30
+        trigger_data = {
+            "attacker": state.player,
+            "damage": 5,
+            "unblocked_damage": 5,
+            "damage_type": "NORMAL",
+        }
+        execute_power_triggers("onAttacked", state, state.enemies[0], trigger_data)
+        assert trigger_data.get("reroll_move") is True
+
+    def test_compulsive_no_reroll_on_lethal(self):
+        """Lethal damage should not trigger reroll."""
+        state = _make_state()
+        state.enemies[0].statuses["Compulsive"] = 1
+        state.enemies[0].hp = 3
+        trigger_data = {
+            "attacker": state.player,
+            "damage": 5,
+            "unblocked_damage": 5,
+            "damage_type": "NORMAL",
+        }
+        execute_power_triggers("onAttacked", state, state.enemies[0], trigger_data)
+        assert trigger_data.get("reroll_move") is not True
+
+    def test_compulsive_no_reroll_on_hp_loss(self):
+        """HP_LOSS damage type should not trigger reroll."""
+        state = _make_state()
+        state.enemies[0].statuses["Compulsive"] = 1
+        trigger_data = {
+            "attacker": state.player,
+            "damage": 5,
+            "unblocked_damage": 5,
+            "damage_type": "HP_LOSS",
+        }
+        execute_power_triggers("onAttacked", state, state.enemies[0], trigger_data)
+        assert trigger_data.get("reroll_move") is not True
+
+
+class TestShiftingPower:
+    """Shifting: lose Strength on damage, regain at end of turn."""
+
+    def test_shifting_loses_strength(self):
+        """Taking damage should reduce Strength by damage amount."""
+        state = _make_state()
+        state.enemies[0].statuses["Shifting"] = 1
+        state.enemies[0].statuses["Strength"] = 5
+        trigger_data = {
+            "attacker": state.player,
+            "damage": 3,
+            "unblocked_damage": 3,
+            "damage_type": "NORMAL",
+        }
+        execute_power_triggers("onAttacked", state, state.enemies[0], trigger_data)
+        assert state.enemies[0].statuses.get("Strength", 0) == 2
+        assert state.enemies[0].statuses.get("GainStrength", 0) == 3
+
+    def test_shifting_regains_strength(self):
+        """GainStrength should restore Strength at end of turn."""
+        state = _make_state()
+        state.enemies[0].statuses["GainStrength"] = 3
+        state.enemies[0].statuses["Strength"] = 2
+        execute_power_triggers("atEndOfTurn", state, state.enemies[0])
+        assert state.enemies[0].statuses.get("Strength", 0) == 5
+
+
+class TestCuriosityPowerFix:
+    """Curiosity: enemy gains Str when player plays Power card."""
+
+    def test_curiosity_triggers_on_power_play(self):
+        """Playing a Power card triggers Curiosity on enemy."""
+        state = _make_state()
+        state.enemies[0].statuses["Curiosity"] = 2
+        card = get_card("ThirdEye")  # Skill, should NOT trigger
+        trigger_data = {"card": card}
+        execute_power_triggers("onPlayCard", state, state.enemies[0], trigger_data)
+        assert state.enemies[0].statuses.get("Strength", 0) == 0
+
+        # Now with a Power card
+        card = get_card("Establishment")  # Power card
+        trigger_data = {"card": card}
+        execute_power_triggers("onPlayCard", state, state.enemies[0], trigger_data)
+        assert state.enemies[0].statuses.get("Strength", 0) == 2
+
+
+class TestDrawReductionPower:
+    """DrawReduction: decrements per round."""
+
+    def test_draw_reduction_skips_first_round(self):
+        """Draw Reduction skips first round."""
+        state = _make_state()
+        state.player.statuses["Draw Reduction"] = 2
+        # First round: skip
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert state.player.statuses.get("Draw Reduction", 0) == 2
+        # Second round: decrement
+        execute_power_triggers("atEndOfRound", state, state.player)
+        assert state.player.statuses.get("Draw Reduction", 0) == 1
+
+
+class TestPlatedArmorHPLost:
+    """Plated Armor: lose stack on HP loss."""
+
+    def test_plated_armor_decrements_on_damage(self):
+        """Plated Armor should lose 1 stack when player takes damage."""
+        state = _make_state()
+        state.player.statuses["Plated Armor"] = 3
+        execute_power_triggers("wasHPLost", state, state.player, {
+            "damage": 5, "damage_type": "NORMAL", "is_self_damage": False,
+        })
+        assert state.player.statuses.get("Plated Armor", 0) == 2
+
+    def test_plated_armor_not_on_hp_loss_type(self):
+        """Plated Armor should not decrement from HP_LOSS damage type."""
+        state = _make_state()
+        state.player.statuses["Plated Armor"] = 3
+        execute_power_triggers("wasHPLost", state, state.player, {
+            "damage": 5, "damage_type": "HP_LOSS", "is_self_damage": False,
+        })
+        assert state.player.statuses.get("Plated Armor", 0) == 3
+
+    def test_plated_armor_removes_at_zero(self):
+        """Plated Armor should be fully removed when reaching 0."""
+        state = _make_state()
+        state.player.statuses["Plated Armor"] = 1
+        execute_power_triggers("wasHPLost", state, state.player, {
+            "damage": 5, "damage_type": "NORMAL", "is_self_damage": False,
+        })
+        assert "Plated Armor" not in state.player.statuses
+
+
+class TestAmplifyPower:
+    """Amplify: replay Power card effects."""
+
+    def test_amplify_signals_replay(self):
+        """Playing a Power card with Amplify should signal replay."""
+        state = _make_state()
+        state.player.statuses["Amplify"] = 1
+        card = get_card("Establishment")  # Power card
+        trigger_data = {"card": card, "card_id": "Establishment"}
+        execute_power_triggers("onUseCard", state, state.player, trigger_data)
+        assert trigger_data.get("amplify_replay") is True
+        assert "Amplify" not in state.player.statuses
+
+    def test_amplify_ignores_attacks(self):
+        """Attack cards should not trigger Amplify."""
+        state = _make_state()
+        state.player.statuses["Amplify"] = 1
+        card = get_card("Strike_P")
+        trigger_data = {"card": card, "card_id": "Strike_P"}
+        execute_power_triggers("onUseCard", state, state.player, trigger_data)
+        assert trigger_data.get("amplify_replay") is not True
+        assert state.player.statuses.get("Amplify", 0) == 1
+
+    def test_amplify_removed_at_end_of_turn(self):
+        """Amplify is removed at end of turn."""
+        state = _make_state()
+        state.player.statuses["Amplify"] = 2
+        execute_power_triggers("atEndOfTurn", state, state.player)
+        assert "Amplify" not in state.player.statuses
+
+
+class TestReboundPower:
+    """Rebound: put next card on top of draw pile."""
+
+    def test_rebound_skips_first_card(self):
+        """Rebound should skip the first card (justEvoked)."""
+        state = _make_state()
+        state.player.statuses["Rebound"] = 1
+        card = get_card("Strike_P")
+        trigger_data = {"card": card, "card_id": "Strike_P"}
+        execute_power_triggers("onAfterUseCard", state, state.player, trigger_data)
+        # First card: skipped, power still active
+        assert state.player.statuses.get("Rebound", 0) == 1
+
+    def test_rebound_moves_second_card(self):
+        """After skip, Rebound moves card from discard to draw pile."""
+        state = _make_state(deck=["Defend_P"])
+        state.player.statuses["Rebound"] = 1
+        card = get_card("Strike_P")
+        # First call: skip
+        trigger_data = {"card": card, "card_id": "Strike_P"}
+        execute_power_triggers("onAfterUseCard", state, state.player, trigger_data)
+        # Second call: should move card
+        state.discard_pile.append("Strike_P")
+        trigger_data2 = {"card": card, "card_id": "Strike_P"}
+        execute_power_triggers("onAfterUseCard", state, state.player, trigger_data2)
+        assert "Strike_P" in state.draw_pile
+        assert "Strike_P" not in state.discard_pile
+        assert "Rebound" not in state.player.statuses
+
+    def test_rebound_removed_at_end_of_turn(self):
+        """Rebound is removed at end of turn."""
+        state = _make_state()
+        state.player.statuses["Rebound"] = 1
+        execute_power_triggers("atEndOfTurn", state, state.player)
+        assert "Rebound" not in state.player.statuses

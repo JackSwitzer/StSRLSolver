@@ -247,7 +247,7 @@ class TestStanceChangingCards:
         card = get_card("Indignation")
         assert card.cost == 1
         assert card.magic_number == 3
-        assert "if_wrath_gain_mantra_else_wrath" in card.effects
+        assert "if_wrath_vuln_all_else_wrath" in card.effects
 
         upgraded = get_card("Indignation", upgraded=True)
         assert upgraded.magic_number == 5  # +2
@@ -311,10 +311,12 @@ class TestRetainMechanics:
         assert card.cost == 2
         assert card.damage == 7
         assert card.retain == True
-        assert "gain_damage_when_retained_4" in card.effects
+        assert card.magic_number == 4  # +4 damage per retain
+        assert "gain_damage_when_retained" in card.effects
 
         upgraded = get_card("WindmillStrike", upgraded=True)
         assert upgraded.damage == 10  # +3
+        assert upgraded.magic_number == 5  # +5 damage per retain when upgraded
 
     def test_perseverance_grows(self):
         """Perseverance: gains block when retained."""

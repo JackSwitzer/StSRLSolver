@@ -790,7 +790,7 @@ DEFECT_CARD_EFFECTS = {
     "Redo": ["evoke_then_channel_same_orb"],
     "Stack": ["block_equals_discard_size"],
     "Steam": ["lose_1_block_permanently"],
-    "Turbo": ["add_void_to_discard"],
+    "Turbo": ["gain_energy_magic", "add_void_to_discard"],
 
     # Uncommon Attacks
     "Blizzard": ["damage_per_frost_channeled"],
@@ -816,12 +816,12 @@ DEFECT_CARD_EFFECTS = {
     "Fusion": ["channel_plasma"],
     "Genetic Algorithm": ["block_increases_permanently"],
     "Glacier": ["channel_2_frost"],
-    "Steam Power": ["add_burn_to_discard"],
+    "Steam Power": ["draw_cards", "add_burn_to_discard"],
     # "Impulse" removed: not in CardLibrary (dead code, no localization entry)
     "Recycle": ["exhaust_card_gain_energy"],
     "Reinforced Body": ["block_x_times"],
     "Reprogram": ["lose_focus_gain_strength_dex"],
-    "Skim": [],  # Just draw
+    "Skim": ["draw_cards"],
     "Tempest": ["channel_x_lightning"],
     "White Noise": ["add_random_power_to_hand_cost_0"],
 

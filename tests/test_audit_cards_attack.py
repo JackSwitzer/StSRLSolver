@@ -34,8 +34,8 @@ JAVA_VALUES = [
     ("SignatureMove",  2, 30,10, -1, 0, -1, 0, CardRarity.UNCOMMON),
     ("Wallop",         2,  9, 3, -1, 0, -1, 0, CardRarity.UNCOMMON),
     ("WheelKick",      2, 15, 5, -1, 0, -1, 0, CardRarity.UNCOMMON),
-    # WindmillStrike: Java base_magic=4 (retain bonus), Python encodes in effect name instead
-    ("WindmillStrike", 2,  7, 3, -1, 0, -1, 0, CardRarity.UNCOMMON),
+    # WindmillStrike: Java base_magic=4, upgrade_magic=1 (retain bonus per turn)
+    ("WindmillStrike", 2,  7, 3,  4, 1, -1, 0, CardRarity.UNCOMMON),
     ("Conclude",       1, 12, 4, -1, 0, -1, 0, CardRarity.UNCOMMON),
     ("Ragnarok",       3,  5, 1,  5, 1, -1, 0, CardRarity.RARE),
 ]
@@ -149,7 +149,7 @@ class TestWatcherAttackEffects:
         assert "draw_2" in WHEEL_KICK.effects
 
     def test_windmill_strike_effects(self):
-        assert "gain_damage_when_retained_4" in WINDMILL_STRIKE.effects
+        assert "gain_damage_when_retained" in WINDMILL_STRIKE.effects
 
     def test_conclude_effects(self):
         assert "end_turn" in CONCLUDE.effects

@@ -416,8 +416,8 @@ WHEEL_KICK = Card(
 
 WINDMILL_STRIKE = Card(
     id="WindmillStrike", name="Windmill Strike", card_type=CardType.ATTACK, rarity=CardRarity.UNCOMMON,
-    cost=2, base_damage=7, upgrade_damage=3, retain=True,
-    effects=["gain_damage_when_retained_4"],  # +4 damage each turn retained
+    cost=2, base_damage=7, upgrade_damage=3, base_magic=4, upgrade_magic=1, retain=True,
+    effects=["gain_damage_when_retained"],  # +4/5 damage each turn retained (uses magic_number)
 )
 
 CONCLUDE = Card(
@@ -457,7 +457,7 @@ FORESIGHT = Card(
 INDIGNATION = Card(
     id="Indignation", name="Indignation", card_type=CardType.SKILL, rarity=CardRarity.UNCOMMON,
     target=CardTarget.NONE, cost=1, base_magic=3, upgrade_magic=2,
-    effects=["if_wrath_gain_mantra_else_wrath"],
+    effects=["if_wrath_vuln_all_else_wrath"],
 )
 
 MEDITATE = Card(

@@ -1046,10 +1046,9 @@ class TestCardPlayModifierRelics:
             # - Playing curse should deal 1 damage to player
 
     def test_blue_candle_exhaust_curse_on_play(self):
-        """Blue Candle: Playing a curse exhausts it."""
+        """Blue Candle: onPlayCard trigger sets exhaust flag on curse."""
         state = create_combat_with_relic("Blue Candle", player_hp=70, player_max_hp=80)
 
-        # Find a curse card
         from packages.engine.content.cards import ALL_CARDS, CardType
         curse_id = None
         for cid, card in ALL_CARDS.items():
@@ -1064,12 +1063,10 @@ class TestCardPlayModifierRelics:
 
             execute_relic_triggers("onPlayCard", state, {"card": curse_card})
 
-            # When implemented:
-            # assert curse_id in state.exhaust_pile, "Curse should be exhausted"
-            # assert curse_id not in state.hand, "Curse should be removed from hand"
+            assert curse_card.exhaust is True, "Blue Candle should set exhaust on curse"
 
     def test_blue_candle_deals_1_damage_on_curse_play(self):
-        """Blue Candle: Playing a curse deals 1 damage to you."""
+        """Blue Candle: onPlayCard trigger deals 1 HP loss."""
         state = create_combat_with_relic("Blue Candle", player_hp=70, player_max_hp=80)
 
         from packages.engine.content.cards import ALL_CARDS, CardType
@@ -1084,8 +1081,7 @@ class TestCardPlayModifierRelics:
 
             execute_relic_triggers("onPlayCard", state, {"card": curse_card})
 
-            # When implemented:
-            # assert state.player.hp == 69, "Should take 1 damage from playing curse"
+            assert state.player.hp == 69, "Should take 1 HP loss from playing curse"
 
     def test_medical_kit_makes_statuses_playable(self):
         """Medical Kit: Status cards are playable."""
@@ -1113,7 +1109,7 @@ class TestCardPlayModifierRelics:
             # - Playing status should exhaust it
 
     def test_medical_kit_exhaust_status_on_play(self):
-        """Medical Kit: Playing a status exhausts it."""
+        """Medical Kit: onPlayCard trigger sets exhaust flag on status."""
         state = create_combat_with_relic("Medical Kit")
 
         from packages.engine.content.cards import ALL_CARDS, CardType
@@ -1130,9 +1126,7 @@ class TestCardPlayModifierRelics:
 
             execute_relic_triggers("onPlayCard", state, {"card": status_card})
 
-            # When implemented:
-            # assert status_id in state.exhaust_pile, "Status should be exhausted"
-            # assert status_id not in state.hand, "Status should be removed from hand"
+            assert status_card.exhaust is True, "Medical Kit should set exhaust on status"
 
     def test_ice_cream_conserves_energy_between_turns(self):
         """Ice Cream: Energy is conserved between turns."""
@@ -1230,6 +1224,159 @@ class TestBatch2RelicRegistryCompleteness:
             else:
                 assert RELIC_REGISTRY.has_handler(hook, relic), \
                        f"{relic} should have {hook} handler"
+
+
+# =============================================================================
+# BLUE CANDLE + MEDICAL KIT FULL BEHAVIOR TESTS
+# =============================================================================
+
+class TestBlueCandleMedicalKitBehavior:
+    """Full behavior tests for Blue Candle and Medical Kit relic effects."""
+
+    def test_blue_candle_curse_exhaust_and_hp_loss(self):
+        """Blue Candle: playing a Curse exhausts it and costs 1 HP."""
+        from packages.engine.combat_engine import CombatEngine
+        from packages.engine.content.cards import ALL_CARDS, CardType
+
+        # Find a curse card that isn't 'unremovable' (any curse will do)
+        curse_id = next(
+            (cid for cid, c in ALL_CARDS.items() if c.card_type == CardType.CURSE),
+            None
+        )
+        assert curse_id is not None, "No CURSE card found in ALL_CARDS"
+
+        state = create_combat_with_relic("Blue Candle", player_hp=70, player_max_hp=80)
+        state.hand = [curse_id]
+        state.draw_pile = []
+        state.discard_pile = []
+        state.exhaust_pile = []
+        engine = CombatEngine(state)
+
+        initial_hp = state.player.hp
+        result = engine.play_card(0, -1)
+
+        assert result.get("success"), f"Curse should be playable with Blue Candle: {result}"
+        assert curse_id in state.exhaust_pile, "Curse should go to exhaust pile"
+        assert curse_id not in state.hand, "Curse should be removed from hand"
+        assert state.player.hp == initial_hp - 1, (
+            f"Blue Candle should deal 1 HP loss, expected {initial_hp - 1} got {state.player.hp}"
+        )
+
+    def test_medical_kit_status_exhaust(self):
+        """Medical Kit: playing a Status exhausts it without HP loss."""
+        from packages.engine.combat_engine import CombatEngine
+        from packages.engine.content.cards import ALL_CARDS, CardType
+
+        status_id = next(
+            (cid for cid, c in ALL_CARDS.items() if c.card_type == CardType.STATUS),
+            None
+        )
+        assert status_id is not None, "No STATUS card found in ALL_CARDS"
+
+        state = create_combat_with_relic("Medical Kit", player_hp=70, player_max_hp=80)
+        state.hand = [status_id]
+        state.draw_pile = []
+        state.discard_pile = []
+        state.exhaust_pile = []
+        engine = CombatEngine(state)
+
+        initial_hp = state.player.hp
+        result = engine.play_card(0, -1)
+
+        assert result.get("success"), f"Status should be playable with Medical Kit: {result}"
+        assert status_id in state.exhaust_pile, "Status should go to exhaust pile"
+        assert status_id not in state.hand, "Status should be removed from hand"
+        assert state.player.hp == initial_hp, (
+            f"Medical Kit should not deal HP loss, expected {initial_hp} got {state.player.hp}"
+        )
+
+
+    def test_blue_candle_no_effect_on_non_curse(self):
+        """Blue Candle: non-curse cards are not affected."""
+        from packages.engine.combat_engine import CombatEngine
+
+        state = create_combat_with_relic("Blue Candle", player_hp=70, player_max_hp=80)
+        state.hand = ["Strike_P"]
+        state.draw_pile = []
+        state.discard_pile = []
+        state.exhaust_pile = []
+        engine = CombatEngine(state)
+
+        initial_hp = state.player.hp
+        result = engine.play_card(0, 0)
+
+        assert result.get("success"), "Normal card should be playable"
+        assert state.player.hp == initial_hp, "Blue Candle should not deal HP for non-curse"
+        assert "Strike_P" not in state.exhaust_pile, "Normal card should not exhaust"
+
+    def test_curse_not_playable_without_blue_candle(self):
+        """Without Blue Candle, curse cards cannot be played."""
+        from packages.engine.combat_engine import CombatEngine
+        from packages.engine.content.cards import ALL_CARDS, CardType
+
+        curse_id = next(
+            (cid for cid, c in ALL_CARDS.items()
+             if c.card_type == CardType.CURSE and c.cost == -2),
+            None
+        )
+        assert curse_id is not None
+
+        state = create_combat_with_relic("Vajra", player_hp=70, player_max_hp=80)
+        state.hand = [curse_id]
+        state.draw_pile = []
+        engine = CombatEngine(state)
+
+        result = engine.play_card(0, -1)
+        assert not result.get("success"), "Curse should not be playable without Blue Candle"
+
+    def test_status_not_playable_without_medical_kit(self):
+        """Without Medical Kit, unplayable status cards cannot be played."""
+        from packages.engine.combat_engine import CombatEngine
+
+        state = create_combat_with_relic("Vajra", player_hp=70, player_max_hp=80)
+        state.hand = ["Wound"]
+        state.draw_pile = []
+        engine = CombatEngine(state)
+
+        result = engine.play_card(0, -1)
+        assert not result.get("success"), "Wound should not be playable without Medical Kit"
+
+    def test_medical_kit_wound_full_integration(self):
+        """Medical Kit: playing Wound via engine exhausts it, no HP loss."""
+        from packages.engine.combat_engine import CombatEngine
+
+        state = create_combat_with_relic("Medical Kit", player_hp=70, player_max_hp=80)
+        state.hand = ["Wound"]
+        state.draw_pile = []
+        state.discard_pile = []
+        state.exhaust_pile = []
+        engine = CombatEngine(state)
+
+        initial_hp = state.player.hp
+        result = engine.play_card(0, -1)
+
+        assert result.get("success"), "Wound should be playable with Medical Kit"
+        assert "Wound" in state.exhaust_pile, "Wound should go to exhaust pile"
+        assert state.player.hp == initial_hp, "Medical Kit should not deal HP loss"
+
+    def test_blue_candle_specific_curse_injury(self):
+        """Blue Candle: playing Injury (simple curse) exhausts it and costs 1 HP."""
+        from packages.engine.combat_engine import CombatEngine
+
+        state = create_combat_with_relic("Blue Candle", player_hp=70, player_max_hp=80)
+        state.hand = ["Injury"]
+        state.draw_pile = []
+        state.discard_pile = []
+        state.exhaust_pile = []
+        engine = CombatEngine(state)
+
+        initial_hp = state.player.hp
+        result = engine.play_card(0, -1)
+
+        assert result.get("success"), "Injury should be playable with Blue Candle"
+        assert "Injury" in state.exhaust_pile, "Injury should go to exhaust pile"
+        assert "Injury" not in state.discard_pile, "Injury should not go to discard"
+        assert state.player.hp == initial_hp - 1, "Blue Candle should deal 1 HP loss"
 
 
 if __name__ == "__main__":

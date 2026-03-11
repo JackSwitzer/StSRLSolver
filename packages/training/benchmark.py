@@ -458,12 +458,36 @@ def print_result(result: BenchmarkResult) -> None:
     print(f"{'=' * 60}\n")
 
 
+def quick_eval(
+    agent_name: str,
+    num_seeds: int = 10,
+    num_workers: int = 4,
+    ascension: int = 20,
+    character: str = "Watcher",
+) -> BenchmarkResult:
+    """Quick smoke-test evaluation with N random seeds (~5s for 10 seeds).
+
+    Usage:
+        uv run python -m packages.training.benchmark --agent heuristic --seeds 10 --workers 4
+    """
+    seeds = [f"Quick_{i}" for i in range(num_seeds)]
+    return evaluate(
+        agent_name=agent_name,
+        num_workers=num_workers,
+        ascension=ascension,
+        character=character,
+        seeds=seeds,
+    )
+
+
 # CLI
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark STS agents")
     parser.add_argument("--agent", type=str, default="heuristic",
-                        help="Agent name: random, first, heuristic, mcts64, mcts128, planner")
+                        help="Agent name: random, first, heuristic, mcts64, mcts128, planner, gumbelN")
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--seeds", type=int, default=0,
+                        help="Quick eval with N random seeds (default: 0 = use full catalog)")
     parser.add_argument("--compare", nargs="+", type=str, default=None,
                         help="Compare benchmark result JSON files")
     parser.add_argument("--regenerate-seeds", action="store_true",
@@ -479,7 +503,10 @@ if __name__ == "__main__":
         print(compare(*results))
         sys.exit(0)
 
-    result = evaluate(args.agent, num_workers=args.workers)
+    if args.seeds > 0:
+        result = quick_eval(args.agent, num_seeds=args.seeds, num_workers=args.workers)
+    else:
+        result = evaluate(args.agent, num_workers=args.workers)
     print_result(result)
 
     path = result.save()

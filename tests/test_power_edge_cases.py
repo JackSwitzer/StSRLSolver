@@ -667,12 +667,12 @@ class TestDamageModificationChainEdgeCases:
     def test_registry_block_chain_dexterity_frail(self):
         """Test registry block modification - handlers run independently.
 
-        Note: The registry runs handlers in priority order but each handler
-        reads the original trigger_data["value"], not a chained result.
-        This differs from PowerManager which chains the calculations.
+        The registry chains handler return values through trigger_data["value"],
+        matching Java's behavior where each power receives the previous
+        power's output.
 
-        Frail (priority 10) runs first: 5 * 0.75 = 3 (returned but not chained)
-        Dexterity (priority 100) runs second: 5 + 3 = 8 (this is the final result)
+        Frail (priority 10) runs first: 5 * 0.75 = 3 (chained into trigger_data)
+        Dexterity (priority 100) runs second: 3 + 3 = 6
         """
         state = create_combat(
             player_hp=50, player_max_hp=50,
@@ -687,8 +687,8 @@ class TestDamageModificationChainEdgeCases:
             {"value": 5}
         )
 
-        # Registry doesn't chain - Dexterity runs last and returns 5+3=8
-        assert result == 8
+        # Chained: Frail(5*0.75=3) -> Dex(3+3=6).  Matches Java parity.
+        assert result == 6
 
 
 # =============================================================================

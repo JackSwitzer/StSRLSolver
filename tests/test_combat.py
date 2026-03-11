@@ -1047,8 +1047,8 @@ class TestRelicEffects:
         engine.end_turn()
         assert engine.state.player.hp == initial_hp - 10
 
-    def test_torii_applies_before_intangible(self):
-        """Torii applies BEFORE Intangible check."""
+    def test_intangible_applies_before_torii(self):
+        """Intangible (atDamageFinalReceive) applies before block/Torii."""
         engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=4, player_hp=80)
         engine.state.relics.append("Torii")
         engine.state.player.statuses["Intangible"] = 1
@@ -1056,20 +1056,82 @@ class TestRelicEffects:
         engine.state.player.block = 0
         initial_hp = engine.state.player.hp
         engine.end_turn()
-        # Torii reduces 4->1, Intangible doesn't change 1
+        # Intangible caps 4->1, no block, unblocked=1, Torii N/A (1 not in 2-5)
         assert engine.state.player.hp == initial_hp - 1
 
     def test_torii_with_block(self):
-        """Torii applies before block absorption."""
+        """Torii applies AFTER block absorption (Java parity: onAttacked hook)."""
         engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=3, player_hp=80)
         engine.state.relics.append("Torii")
         engine.start_combat()
         engine.state.player.block = 1
         initial_hp = engine.state.player.hp
         engine.end_turn()
-        # Torii reduces 3->1, then block absorbs it
+        # Block absorbs 1, unblocked=2 (in Torii range 2-5), Torii reduces to 1
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_reduces_2_to_5_unblocked_damage_to_1(self):
+        """Torii reduces 1-5 unblocked damage to 1 (post-block, Java parity)."""
+        for unblocked_dmg in [2, 3, 4, 5]:
+            engine = create_simple_combat(
+                "TestEnemy", enemy_hp=200, enemy_damage=unblocked_dmg, player_hp=80
+            )
+            engine.state.relics.append("Torii")
+            engine.start_combat()
+            engine.state.player.block = 0
+            initial_hp = engine.state.player.hp
+            engine.end_turn()
+            assert engine.state.player.hp == initial_hp - 1, (
+                f"Torii should reduce {unblocked_dmg} unblocked damage to 1"
+            )
+
+    def test_torii_does_not_affect_damage_above_5(self):
+        """Torii does not reduce unblocked damage > 5."""
+        for dmg in [6, 10, 20]:
+            engine = create_simple_combat(
+                "TestEnemy", enemy_hp=200, enemy_damage=dmg, player_hp=80
+            )
+            engine.state.relics.append("Torii")
+            engine.start_combat()
+            engine.state.player.block = 0
+            initial_hp = engine.state.player.hp
+            engine.end_turn()
+            assert engine.state.player.hp == initial_hp - dmg, (
+                f"Torii should not affect {dmg} damage (above 5)"
+            )
+
+    def test_torii_does_not_apply_when_fully_blocked(self):
+        """Torii does not apply when all damage is absorbed by block."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=4, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 10  # More than enough to absorb 4
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Block fully absorbs damage; unblocked=0, Torii N/A, no HP loss
         assert engine.state.player.hp == initial_hp
-        assert engine.state.player.block == 0
+
+    def test_torii_post_block_partial_absorb(self):
+        """Torii applies to unblocked portion after partial block absorption."""
+        # 10 damage - 7 block = 3 unblocked, in Torii range -> 1
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 7
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_post_block_unblocked_exceeds_5(self):
+        """Torii does NOT apply when unblocked portion > 5."""
+        # 10 damage - 2 block = 8 unblocked, out of Torii range
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 2
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp - 8
 
     def test_tungsten_rod_reduces_attack_damage_by_1(self):
         """Tungsten Rod: reduce HP loss by 1."""

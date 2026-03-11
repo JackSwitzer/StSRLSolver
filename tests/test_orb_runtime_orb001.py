@@ -53,16 +53,22 @@ def test_lightning_random_target_uses_owned_rng_counter():
 
 
 def test_combat_engine_start_turn_triggers_orb_passives():
-    """Orb passives should run in live combat turn startup."""
+    """Orb passives should run in live combat turn startup.
+
+    Java parity: orb passives fire BEFORE block reset, so their block
+    is cleared. We verify the orb passive runs by checking Barricade
+    preserves the block (since block reset would otherwise clear it).
+    """
     engine = create_simple_combat("TestEnemy", enemy_hp=30, enemy_damage=5)
     engine.start_combat()
     channel_orb(engine.state, "Frost")
 
-    # Force a fresh turn start path.
+    # Give Barricade so block from orb passive persists through block reset
+    engine.state.player.statuses["Barricade"] = 1
     engine.state.player.block = 0
     engine._start_player_turn()
 
-    assert engine.state.player.block >= 2, "Frost passive should grant block on turn start"
+    assert engine.state.player.block >= 2, "Frost passive should grant block on turn start (preserved by Barricade)"
 
 
 def test_cables_canonical_id_triggers_extra_passive():

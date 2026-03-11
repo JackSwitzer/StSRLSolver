@@ -107,6 +107,7 @@ class EnemyState:
     # Context from CombatEngine (set before roll_move)
     player_hp: int = 0
     num_allies: int = 0
+    player_constricted: bool = False
 
     def last_move(self, move_id: int) -> bool:
         """Check if last move was the given ID."""
@@ -850,8 +851,9 @@ class AcidSlimeS(Enemy):
     - LICK (2): Apply 1 Weak
 
     AI Pattern (A17+):
-    - Alternates: TACKLE -> LICK -> TACKLE -> ...
-    - If last two were TACKLE: force TACKLE (bug? or intentional)
+    - Java getMove() only called once at init -> always LICK first
+    - Java takeTurn() directly sets next move: TACKLE->LICK, LICK->TACKLE
+    - Net effect: LICK, TACKLE, LICK, TACKLE, ... (strict alternation)
 
     AI Pattern (below A17):
     - Random 50/50 between TACKLE and LICK
@@ -890,11 +892,16 @@ class AcidSlimeS(Enemy):
         weak_amount = 1
 
         if self.ascension >= 17:
-            # A17+: Alternating pattern with check
-            if self.state.last_two_moves(self.TACKLE):
-                # Force attack (this is from decompiled source)
+            # A17+: In Java, getMove() only runs once (returns LICK), then
+            # takeTurn() hardcodes alternation: TACKLE->LICK, LICK->TACKLE.
+            # Since Python calls get_move() every turn, we replicate the
+            # full alternation here: start LICK, then alternate.
+            if self.state.last_move(self.TACKLE):
+                move = MoveInfo(self.LICK, "Lick", Intent.DEBUFF, effects={"weak": weak_amount})
+            elif self.state.last_move(self.LICK):
                 move = MoveInfo(self.TACKLE, "Tackle", Intent.ATTACK, dmg["tackle"])
             else:
+                # First move (no history): Java getMove() defaults to LICK
                 move = MoveInfo(self.LICK, "Lick", Intent.DEBUFF, effects={"weak": weak_amount})
         else:
             # Below A17: Random 50/50
@@ -1128,9 +1135,16 @@ class Louse(Enemy):
         self.state.powers["curl_up"] = self.curl_up
 
     def _get_hp_range(self) -> Tuple[int, int]:
-        if self.ascension >= 7:
-            return (11, 16)  # Fixed: was (11, 17), Java has A_2_HP_MAX = 16
-        return (10, 15)
+        if self.is_red:
+            # Java LouseNormal: 10-15, A7: 11-16
+            if self.ascension >= 7:
+                return (11, 16)
+            return (10, 15)
+        else:
+            # Java LouseDefensive: 11-17, A7: 12-18
+            if self.ascension >= 7:
+                return (12, 18)
+            return (11, 17)
 
     def get_move(self, roll: int) -> MoveInfo:
         str_gain = 4 if self.ascension >= 17 else 3
@@ -1838,6 +1852,7 @@ class Hexaghost(Enemy):
         super().__init__(ai_rng, ascension, hp_rng)
         self.player_max_hp = player_max_hp
         self.turn_count = 0
+        self.burn_upgraded = False  # Java: after first Inferno, Sear burns become Burn+
 
     def _get_hp_range(self) -> Tuple[int, int]:
         if self.ascension >= 9:
@@ -1883,6 +1898,9 @@ class Hexaghost(Enemy):
 
         burn_count = 2 if self.ascension >= 19 else 1
 
+        # After first Inferno, Sear burns become Burn+ (Java: burnUpgraded flag)
+        burn_key = "burn+" if self.burn_upgraded else "burn"
+
         if self.turn_count == 1:
             move = MoveInfo(self.ACTIVATE, "Activate", Intent.UNKNOWN)
         elif self.turn_count == 2:
@@ -1893,13 +1911,13 @@ class Hexaghost(Enemy):
             pattern_turn = (self.turn_count - 3) % 7
             if pattern_turn == 0:
                 move = MoveInfo(self.SEAR, "Sear", Intent.ATTACK_DEBUFF,
-                               dmg["sear"], effects={"burn": burn_count})
+                               dmg["sear"], effects={burn_key: burn_count})
             elif pattern_turn == 1:
                 move = MoveInfo(self.TACKLE, "Tackle", Intent.ATTACK,
                                dmg["tackle"], hits=2, is_multi=True)
             elif pattern_turn == 2:
                 move = MoveInfo(self.SEAR, "Sear", Intent.ATTACK_DEBUFF,
-                               dmg["sear"], effects={"burn": burn_count})
+                               dmg["sear"], effects={burn_key: burn_count})
             elif pattern_turn == 3:
                 move = MoveInfo(self.INFLAME, "Inflame", Intent.DEFEND_BUFF,
                                block=dmg["inflame_block"],
@@ -1909,11 +1927,14 @@ class Hexaghost(Enemy):
                                dmg["tackle"], hits=2, is_multi=True)
             elif pattern_turn == 5:
                 move = MoveInfo(self.SEAR, "Sear", Intent.ATTACK_DEBUFF,
-                               dmg["sear"], effects={"burn": burn_count})
+                               dmg["sear"], effects={burn_key: burn_count})
             else:  # pattern_turn == 6
+                # Java BurnIncreaseAction: upgrades ALL existing Burns in deck,
+                # then adds 3 Burn+ to discard
                 move = MoveInfo(self.INFERNO, "Inferno", Intent.ATTACK_DEBUFF,
                                dmg["inferno"], hits=6, is_multi=True,
-                               effects={"burn": 3})
+                               effects={"burn+": 3, "burn_upgrade_all": True})
+                self.burn_upgraded = True  # All subsequent Sear burns are Burn+
 
         self.set_move(move)
         return move
@@ -2414,12 +2435,18 @@ class Mugger(Enemy):
 
     Special: Has Thievery power (steals gold on attack)
 
-    AI Pattern:
-    - Always starts with MUG
-    - After first MUG: MUG again
-    - After second MUG: 50% SMOKE_BOMB, 50% BIGSWIPE
+    AI Pattern (from Java Mugger.takeTurn):
+    - Turn 1: MUG
+    - Turn 2: MUG (slashCount < 2)
+    - After 2nd MUG (slashCount==2): 50% SMOKE_BOMB / 50% BIGSWIPE
     - After BIGSWIPE: SMOKE_BOMB
     - After SMOKE_BOMB: ESCAPE
+    - After ESCAPE: ESCAPE (stays escaped)
+
+    Note: In Java, getMove() always returns MUG (initial move only).
+    Subsequent moves are scheduled inside takeTurn() using aiRng.
+    In Python, get_move() is called each turn; we replicate the
+    same pattern by tracking slash_count and move history.
     """
 
     ID = "Mugger"
@@ -2453,9 +2480,45 @@ class Mugger(Enemy):
 
     def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
+        history = self.state.move_history
 
-        # Always start with MUG
-        move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+        # Determine move based on history (replicating Java takeTurn scheduling)
+        last_move = history[-1] if history else None
+
+        if last_move is None:
+            # Initial move: MUG (Java getMove always returns MUG)
+            move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+        elif last_move == self.ESCAPE:
+            # After ESCAPE: stay escaped
+            move = MoveInfo(self.ESCAPE, "Escape", Intent.ESCAPE,
+                           effects={"escape": True})
+        elif last_move == self.SMOKE_BOMB:
+            # After SMOKE_BOMB: ESCAPE
+            move = MoveInfo(self.ESCAPE, "Escape", Intent.ESCAPE,
+                           effects={"escape": True})
+        elif last_move == self.BIGSWIPE:
+            # After BIGSWIPE: SMOKE_BOMB
+            move = MoveInfo(self.SMOKE_BOMB, "Smoke Bomb", Intent.DEFEND,
+                           block=dmg["block"])
+        elif last_move == self.MUG:
+            # Count MUGs in history to determine slash_count
+            mug_count = sum(1 for m in history if m == self.MUG)
+            if mug_count >= 2:
+                # After 2nd MUG: 50% SMOKE_BOMB / 50% BIGSWIPE
+                # Java: aiRng.randomBoolean(0.5f) inside takeTurn
+                if roll < 50:
+                    move = MoveInfo(self.SMOKE_BOMB, "Smoke Bomb", Intent.DEFEND,
+                                   block=dmg["block"])
+                else:
+                    move = MoveInfo(self.BIGSWIPE, "Lunge", Intent.ATTACK,
+                                   dmg["bigswipe"])
+            else:
+                # After 1st MUG: MUG again
+                move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+        else:
+            # Fallback: MUG
+            move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+
         self.set_move(move)
         return move
 
@@ -2472,12 +2535,18 @@ class Looter(Enemy):
 
     Special: Has Thievery power (steals gold on attack)
 
-    AI Pattern:
-    - Always starts with MUG
-    - After first MUG: MUG again
-    - After second MUG: 50% SMOKE_BOMB, 50% LUNGE
+    AI Pattern (from Java Looter.takeTurn):
+    - Turn 1: MUG
+    - Turn 2: MUG (slashCount < 2)
+    - After 2nd MUG (slashCount==2): 50% SMOKE_BOMB / 50% LUNGE
     - After LUNGE: SMOKE_BOMB
     - After SMOKE_BOMB: ESCAPE
+    - After ESCAPE: ESCAPE (stays escaped)
+
+    Note: In Java, getMove() always returns MUG (initial move only).
+    Subsequent moves are scheduled inside takeTurn() using aiRng.
+    In Python, get_move() is called each turn; we replicate the
+    same pattern by tracking move history.
     """
 
     ID = "Looter"
@@ -2510,8 +2579,45 @@ class Looter(Enemy):
 
     def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
-        move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"],
-                       effects={"steal_gold": self.state.powers.get("thievery", 15)})
+        history = self.state.move_history
+
+        # Determine move based on history (replicating Java takeTurn scheduling)
+        last_move = history[-1] if history else None
+
+        if last_move is None:
+            # Initial move: MUG (Java getMove always returns MUG)
+            move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+        elif last_move == self.ESCAPE:
+            # After ESCAPE: stay escaped
+            move = MoveInfo(self.ESCAPE, "Escape", Intent.ESCAPE,
+                           effects={"escape": True})
+        elif last_move == self.SMOKE_BOMB:
+            # After SMOKE_BOMB: ESCAPE
+            move = MoveInfo(self.ESCAPE, "Escape", Intent.ESCAPE,
+                           effects={"escape": True})
+        elif last_move == self.LUNGE:
+            # After LUNGE: SMOKE_BOMB
+            move = MoveInfo(self.SMOKE_BOMB, "Smoke Bomb", Intent.DEFEND,
+                           block=dmg["block"])
+        elif last_move == self.MUG:
+            # Count MUGs in history to determine slash_count
+            mug_count = sum(1 for m in history if m == self.MUG)
+            if mug_count >= 2:
+                # After 2nd MUG: 50% SMOKE_BOMB / 50% LUNGE
+                # Java: aiRng.randomBoolean(0.5f) inside takeTurn
+                if roll < 50:
+                    move = MoveInfo(self.SMOKE_BOMB, "Smoke Bomb", Intent.DEFEND,
+                                   block=dmg["block"])
+                else:
+                    move = MoveInfo(self.LUNGE, "Lunge", Intent.ATTACK,
+                                   dmg["lunge"])
+            else:
+                # After 1st MUG: MUG again
+                move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+        else:
+            # Fallback: MUG
+            move = MoveInfo(self.MUG, "Mug", Intent.ATTACK, dmg["swipe"])
+
         self.set_move(move)
         return move
 
@@ -3866,8 +3972,10 @@ class SpireGrowth(Enemy):
             return {"tackle": 18, "smash": 25, "constrict": constrict}
         return {"tackle": 16, "smash": 22, "constrict": constrict}
 
-    def get_move(self, roll: int, player_constricted: bool = False) -> MoveInfo:
+    def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
+        # Java checks AbstractDungeon.player.hasPower("Constricted")
+        player_constricted = self.state.player_constricted
 
         if self.ascension >= 17:
             if not player_constricted and not self.state.last_move(self.CONSTRICT):
@@ -5273,8 +5381,8 @@ class BronzeOrb(Enemy):
     def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
 
-        # One-time Stasis move
-        if not self.used_stasis and roll >= 25:
+        # First move: always Stasis (Java: firstMove flag guarantees it)
+        if not self.used_stasis:
             self.used_stasis = True
             move = MoveInfo(self.STASIS, "Stasis", Intent.STRONG_DEBUFF,
                            effects={"stasis": True})

@@ -1251,7 +1251,8 @@ class TestNeowHandlerExtended:
         run = _run()
         blessing = NeowBlessing(NeowBlessingType.THREE_ENEMY_KILL, "First 3 enemies 1 HP")
         result = NeowHandler.apply_blessing(run, blessing, _rng(1), _rng(2), _rng(3), _rng(4))
-        assert hasattr(run, 'neow_bonus_first_three_enemies')
+        assert run.has_relic("NeowsBlessing")
+        assert run.get_relic_counter("NeowsBlessing") == 3
 
     def test_apply_upgrade_card_auto(self):
         run = _run()

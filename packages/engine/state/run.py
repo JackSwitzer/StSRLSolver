@@ -283,6 +283,14 @@ class RunState:
         """
         card_def, upgraded = self._apply_on_obtain_card_upgrades(card_id, upgraded)
 
+        # Omamori: negate curses (counter decrements)
+        if card_def is not None and getattr(card_def, "card_type", None) == CardType.CURSE:
+            if self.has_relic("Omamori"):
+                omamori_counter = self.get_relic_counter("Omamori")
+                if omamori_counter > 0:
+                    self.set_relic_counter("Omamori", omamori_counter - 1)
+                    return CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)  # Don't add to deck
+
         card = CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)
         self.deck.append(card)
         self.cards_obtained_this_act.append(card_id)
@@ -1211,8 +1219,62 @@ class RunState:
     # ----- STATE MANAGEMENT -----
 
     def copy(self) -> 'RunState':
-        """Create a deep copy of the run state (for simulation)."""
-        return deepcopy(self)
+        """Create a fast copy of the run state (for simulation).
+
+        Uses manual field copying instead of deepcopy for ~10x speedup.
+        act_maps is shared (read-only after generation).
+        """
+        new = RunState.__new__(RunState)
+
+        # Scalars (direct assignment, immutable)
+        new.seed = self.seed
+        new.seed_string = self.seed_string
+        new.act = self.act
+        new.floor = self.floor
+        new.ascension = self.ascension
+        new.character = self.character
+        new.current_hp = self.current_hp
+        new.max_hp = self.max_hp
+        new.gold = self.gold
+        new.gold_blocked = self.gold_blocked
+        new.has_ruby_key = self.has_ruby_key
+        new.has_emerald_key = self.has_emerald_key
+        new.has_sapphire_key = self.has_sapphire_key
+        new.card_blizzard = self.card_blizzard
+        new.potion_blizzard = self.potion_blizzard
+        new.elites_killed_this_act = self.elites_killed_this_act
+        new.floors_climbed = self.floors_climbed
+        new.combats_won = self.combats_won
+        new.elites_killed = self.elites_killed
+        new.bosses_killed = self.bosses_killed
+        new.perfect_floors = self.perfect_floors
+        new.purge_count = self.purge_count
+        new.neow_lament_count = self.neow_lament_count
+        new.question_card_charges = self.question_card_charges
+
+        # Lists of copyable objects
+        new.deck = [c.copy() for c in self.deck]
+        new.relics = [r.copy() for r in self.relics]
+        new.potion_slots = [p.copy() for p in self.potion_slots]
+
+        # Lists of immutable elements (tuples, strings)
+        new.visited_nodes = self.visited_nodes.copy()
+        new.cards_obtained_this_act = self.cards_obtained_this_act.copy()
+
+        # Sets of strings (immutable elements)
+        new.seen_cards = self.seen_cards.copy()
+        new.seen_relics = self.seen_relics.copy()
+
+        # Dicts of immutable values
+        new.rng_counters = self.rng_counters.copy()
+
+        # Map position (simple dataclass)
+        new.map_position = MapPosition(x=self.map_position.x, y=self.map_position.y)
+
+        # act_maps: read-only after generation, safe to share reference
+        new.act_maps = self.act_maps
+
+        return new
 
     def to_dict(self) -> dict:
         """Serialize to dictionary (for saving)."""
