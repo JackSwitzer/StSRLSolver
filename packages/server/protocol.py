@@ -38,6 +38,7 @@ class MessageType(str, Enum):
     TRAINING_STOP = "training_stop"
     TRAINING_RESUME = "training_resume"
     TRAINING_FOCUS = "training_focus"
+    COMMAND = "command"
 
     # Server -> Client
     GAME_CREATED = "game_created"
@@ -54,6 +55,8 @@ class MessageType(str, Enum):
     MCTS_RESULT = "mcts_result"
     AGENT_EPISODE = "agent_episode"
     TRAINING_STATS = "training_stats"
+    SYSTEM_STATS = "system_stats"
+    METRICS_HISTORY = "metrics_history"
 
 
 # ---------------------------------------------------------------------------

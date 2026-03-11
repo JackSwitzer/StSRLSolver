@@ -17,10 +17,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import random
+import subprocess
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 import websockets
 from websockets.asyncio.server import ServerConnection
@@ -40,6 +43,56 @@ from .protocol import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# System stats collection (no psutil dependency)
+# ---------------------------------------------------------------------------
+
+def _collect_system_stats() -> Dict[str, Any]:
+    """Collect CPU% and RAM usage via subprocess/os. Lightweight (<1ms typical)."""
+    # RAM: total via sysconf, used via vm_stat
+    try:
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        total_pages = os.sysconf("SC_PHYS_PAGES")
+        ram_total_gb = round(page_size * total_pages / (1024 ** 3), 1)
+
+        vm_out = subprocess.check_output(["vm_stat"], timeout=1).decode()
+        free_pages = 0
+        inactive_pages = 0
+        for line in vm_out.splitlines():
+            if line.startswith("Pages free:"):
+                free_pages = int(line.split(":")[1].strip().rstrip("."))
+            elif line.startswith("Pages inactive:"):
+                inactive_pages = int(line.split(":")[1].strip().rstrip("."))
+        used_pages = total_pages - free_pages - inactive_pages
+        ram_used_gb = round(page_size * used_pages / (1024 ** 3), 1)
+    except Exception:
+        ram_total_gb = 0.0
+        ram_used_gb = 0.0
+
+    # CPU: sum %cpu of all processes
+    try:
+        ps_out = subprocess.check_output(
+            ["ps", "-A", "-o", "%cpu"], timeout=1
+        ).decode()
+        cpu_values = []
+        for line in ps_out.splitlines()[1:]:  # skip header
+            line = line.strip()
+            if line:
+                try:
+                    cpu_values.append(float(line))
+                except ValueError:
+                    pass
+        cpu_percent = round(min(sum(cpu_values), 100.0 * os.cpu_count()), 1)
+    except Exception:
+        cpu_percent = 0.0
+
+    return {
+        "cpu_percent": cpu_percent,
+        "ram_used_gb": ram_used_gb,
+        "ram_total_gb": ram_total_gb,
+    }
 
 _STRATEGY_NAMES = {
     0: "greedy",
@@ -62,11 +115,14 @@ def _strategy_name(path_id: int) -> str:
 class GameServer:
     """WebSocket server that manages game sessions and streams state."""
 
-    def __init__(self, host: str = "localhost", port: int = 8080):
+    def __init__(self, host: str = "localhost", port: int = 8080, auto_train: bool = True):
         self.host = host
         self.port = port
+        self.auto_train = auto_train
         # Map connection id -> GameSession
         self.sessions: Dict[int, GameSession] = {}
+        # All connected websockets (for system_stats broadcast)
+        self._connections: Set[ServerConnection] = set()
         # Track auto-play cancellation per connection
         self._auto_play_tasks: Dict[int, asyncio.Task] = {}
         # Training coordinator (shared across connections)
@@ -74,18 +130,31 @@ class GameServer:
         self._training_poll_task: Optional[asyncio.Task] = None
         # Per-connection training WS forwarder tasks
         self._training_forwarders: Dict[int, asyncio.Task] = {}
+        # Background system stats broadcast task
+        self._system_stats_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Start the WebSocket server and run forever."""
         async with websockets.serve(self.handler, self.host, self.port):
             logger.info("Game server running at ws://%s:%d", self.host, self.port)
-            print(f"Game server running at ws://{self.host}:{self.port}")
+            mode = "training" if self.auto_train else "monitor-only"
+            print(f"Game server running at ws://{self.host}:{self.port} [{mode}]")
+            self._system_stats_task = asyncio.create_task(self._broadcast_system_stats())
             await asyncio.Future()  # run forever
 
     async def handler(self, websocket: ServerConnection) -> None:
         """Handle a single WebSocket connection."""
         conn_id = id(websocket)
+        self._connections.add(websocket)
         logger.info("Client connected: %s", conn_id)
+
+        # Send metrics history immediately on connect
+        if self._training and self._training.metrics_history:
+            await websocket.send(json.dumps({
+                "type": MessageType.METRICS_HISTORY.value,
+                "data": list(self._training.metrics_history),
+            }))
+
         try:
             async for raw_message in websocket:
                 try:
@@ -101,6 +170,7 @@ class GameServer:
             logger.info("Client disconnected: %s", conn_id)
         finally:
             # Clean up session and any running auto-play
+            self._connections.discard(websocket)
             self.sessions.pop(conn_id, None)
             task = self._auto_play_tasks.pop(conn_id, None)
             if task and not task.done():
@@ -139,6 +209,8 @@ class GameServer:
             return await self._handle_training_start(data, websocket, conn_id)
         elif msg_type == MessageType.TRAINING_FOCUS.value:
             return self._handle_training_focus(data, conn_id)
+        elif msg_type == MessageType.COMMAND.value:
+            return await self._handle_command(data, websocket, conn_id)
         else:
             return make_error(f"Unknown message type: {msg_type}", msg_type)
 
@@ -461,6 +533,72 @@ class GameServer:
                 self._training.set_focus(conn_id, agent_id)
         return None
 
+    async def _handle_command(
+        self, data: Dict[str, Any], websocket: ServerConnection, conn_id: int,
+    ) -> Optional[Dict[str, Any]]:
+        """Handle control commands: pause, resume, stop, set_config."""
+        action = data.get("action")
+        if action == "pause":
+            if self._training:
+                self._training.pause()
+            return {"type": "command_ack", "action": "pause", "paused": True}
+
+        elif action == "resume":
+            if self._training:
+                self._training.resume()
+            return {"type": "command_ack", "action": "resume", "paused": False}
+
+        elif action == "stop":
+            if self._training:
+                await self._training.stop()
+                if self._training_poll_task:
+                    self._training_poll_task.cancel()
+                self._training = None
+            return {"type": "command_ack", "action": "stop"}
+
+        elif action == "start":
+            # Start training via command (for monitor-only mode)
+            return await self._handle_training_start(data, websocket, conn_id)
+
+        elif action == "set_config":
+            params = data.get("params", {})
+            if self._training:
+                self._training.set_config(params)
+            return {"type": "command_ack", "action": "set_config", "params": params}
+
+        else:
+            return make_error(f"Unknown command action: {action}", "command")
+
+    async def _broadcast_system_stats(self) -> None:
+        """Broadcast system stats to all connected clients every 2 seconds."""
+        while True:
+            await asyncio.sleep(2.0)
+            if not self._connections:
+                continue
+            try:
+                stats = _collect_system_stats()
+                worker_count = len(self._training.processes) if self._training else 0
+                worker_max = self._training.num_agents if self._training else 0
+                msg = json.dumps({
+                    "type": MessageType.SYSTEM_STATS.value,
+                    "cpu_percent": stats["cpu_percent"],
+                    "ram_used_gb": stats["ram_used_gb"],
+                    "ram_total_gb": stats["ram_total_gb"],
+                    "worker_count": worker_count,
+                    "worker_max": worker_max,
+                    "paused": self._training.paused if self._training else False,
+                    "timestamp": round(time.time(), 1),
+                })
+                dead = set()
+                for ws in self._connections:
+                    try:
+                        await ws.send(msg)
+                    except websockets.ConnectionClosed:
+                        dead.add(ws)
+                self._connections -= dead
+            except Exception as exc:
+                logger.debug("system_stats broadcast error: %s", exc)
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -481,13 +619,13 @@ class GameServer:
 # Standalone entry point
 # ---------------------------------------------------------------------------
 
-def main(host: str = "localhost", port: int = 8080) -> None:
+def main(host: str = "localhost", port: int = 8080, auto_train: bool = True) -> None:
     """Run the game server."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    server = GameServer(host=host, port=port)
+    server = GameServer(host=host, port=port, auto_train=auto_train)
     asyncio.run(server.start())
 
 
@@ -497,5 +635,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Slay the Spire WebSocket game server")
     parser.add_argument("--host", default="localhost", help="Host to bind to (default: localhost)")
     parser.add_argument("--port", type=int, default=8080, help="Port to listen on (default: 8080)")
+    parser.add_argument(
+        "--no-auto-train",
+        action="store_true",
+        help="Start in monitor-only mode (no training launched automatically)",
+    )
     args = parser.parse_args()
-    main(host=args.host, port=args.port)
+    main(host=args.host, port=args.port, auto_train=not args.no_auto_train)

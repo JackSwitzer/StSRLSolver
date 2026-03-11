@@ -146,6 +146,7 @@ def _agent_worker(
     agent_id: int,
     event_queue: mp.Queue,
     stop_event: mp.Event,
+    pause_event: mp.Event,
     config: Dict[str, Any],
 ) -> None:
     """Run games in an infinite loop, pushing events to queue.
@@ -184,6 +185,10 @@ def _agent_worker(
     combat_log_buffer: List[CombatLog] = []
 
     while not stop_event.is_set():
+        # Pause support: block here until resumed
+        while pause_event.is_set() and not stop_event.is_set():
+            time.sleep(0.2)
+
         seed = _get_seed(agent_id, episode, initial_seed, plays_per_seed)
 
         try:
@@ -574,8 +579,10 @@ class TrainingCoordinator:
         }
         self.event_queue: Optional[mp.Queue] = None
         self.stop_event: Optional[mp.Event] = None
+        self.pause_event: Optional[mp.Event] = None
         self.processes: List[mp.Process] = []
         self.running = False
+        self.paused = False
 
         # Per-agent state
         self.agents: Dict[int, Dict[str, Any]] = {}
@@ -596,6 +603,9 @@ class TrainingCoordinator:
         self.mcts_times: Deque[float] = deque(maxlen=100)
         self.episode_log: Deque[Dict] = deque(maxlen=200)
         self.start_time = 0.0
+        # Rolling metrics history (1000 entries, ~1 per stats broadcast)
+        self.metrics_history: Deque[Dict] = deque(maxlen=1000)
+        self._last_episode_count_for_metrics = 0
 
         # Latest MCTS result per agent
         self.latest_mcts: Dict[int, Dict] = {}
@@ -615,6 +625,7 @@ class TrainingCoordinator:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         self.event_queue = mp.Queue(maxsize=5000)
         self.stop_event = mp.Event()
+        self.pause_event = mp.Event()
         self.start_time = time.time()
         self.running = True
 
@@ -622,21 +633,23 @@ class TrainingCoordinator:
         checkpoints = self._load_checkpoints()
 
         for agent_id in range(self.num_agents):
-            cfg = dict(self.config)
-            cp = checkpoints.get(agent_id, {})
-            cfg["start_episode"] = cp.get("episode", 0)
-            cfg["start_wins"] = cp.get("wins", 0)
-            cfg["conquered_initial"] = cp.get("conquered_initial", False)
-
-            p = mp.Process(
-                target=_agent_worker,
-                args=(agent_id, self.event_queue, self.stop_event, cfg),
-                daemon=True,
-            )
-            p.start()
-            self.processes.append(p)
+            self._start_worker(agent_id, checkpoints.get(agent_id, {}))
 
         logger.info("Started %d agent workers (CombatPlanner + seed rotation)", len(self.processes))
+
+    def _start_worker(self, agent_id: int, checkpoint: Dict) -> None:
+        cfg = dict(self.config)
+        cfg["start_episode"] = checkpoint.get("episode", 0)
+        cfg["start_wins"] = checkpoint.get("wins", 0)
+        cfg["conquered_initial"] = checkpoint.get("conquered_initial", False)
+
+        p = mp.Process(
+            target=_agent_worker,
+            args=(agent_id, self.event_queue, self.stop_event, self.pause_event, cfg),
+            daemon=True,
+        )
+        p.start()
+        self.processes.append(p)
 
     async def stop(self) -> None:
         if not self.running:
@@ -644,6 +657,9 @@ class TrainingCoordinator:
         self.running = False
         if self.stop_event:
             self.stop_event.set()
+        # Unblock any paused workers so they can see stop_event
+        if self.pause_event:
+            self.pause_event.clear()
 
         # Save checkpoints
         self._save_checkpoints()
@@ -654,6 +670,59 @@ class TrainingCoordinator:
                 p.kill()
         self.processes.clear()
         logger.info("All workers stopped, checkpoints saved")
+
+    def pause(self) -> None:
+        """Pause all worker processes."""
+        if self.pause_event and not self.paused:
+            self.pause_event.set()
+            self.paused = True
+            logger.info("Training paused")
+
+    def resume(self) -> None:
+        """Resume paused worker processes."""
+        if self.pause_event and self.paused:
+            self.pause_event.clear()
+            self.paused = False
+            logger.info("Training resumed")
+
+    def set_workers(self, new_count: int) -> None:
+        """Gracefully adjust the number of worker processes."""
+        new_count = max(1, min(new_count, 32))
+        current = len(self.processes)
+        if new_count == current:
+            return
+
+        self.num_agents = new_count
+
+        if new_count > current:
+            # Add workers
+            checkpoints = self._load_checkpoints()
+            for agent_id in range(current, new_count):
+                if agent_id not in self.agents:
+                    self.agents[agent_id] = {
+                        "id": agent_id,
+                        "name": AGENT_NAMES[agent_id] if agent_id < len(AGENT_NAMES) else f"Agent_{agent_id}",
+                        "phase": "STARTING", "floor": 0, "act": 1,
+                        "hp": 72, "max_hp": 72, "seed": self.config.get("initial_seed", ""),
+                        "episode": 0, "wins": 0, "status": "starting",
+                    }
+                self._start_worker(agent_id, checkpoints.get(agent_id, {}))
+            logger.info("Added %d workers (total: %d)", new_count - current, new_count)
+        else:
+            # Remove excess workers by killing them
+            to_remove = self.processes[new_count:]
+            self.processes = self.processes[:new_count]
+            for p in to_remove:
+                if p.is_alive():
+                    p.kill()
+            logger.info("Removed %d workers (total: %d)", current - new_count, new_count)
+
+    def set_config(self, params: Dict[str, Any]) -> None:
+        """Apply runtime config changes."""
+        if "sims" in params:
+            self.config["mcts_sims"] = params["sims"]
+        if "workers" in params:
+            self.set_workers(params["workers"])
 
     def _load_checkpoints(self) -> Dict[int, Dict]:
         cp_path = LOG_DIR / "checkpoints.json"
@@ -812,6 +881,19 @@ class TrainingCoordinator:
         af = sum(self.recent_floors) / max(len(self.recent_floors), 1)
         ma = sum(self.mcts_times) / max(len(self.mcts_times), 1) if self.mcts_times else 0
         epm = self.total_episodes / max(uptime / 60, 0.01)
+
+        # Record into metrics history when we have new episodes
+        if self.total_episodes != self._last_episode_count_for_metrics:
+            self._last_episode_count_for_metrics = self.total_episodes
+            throughput_gph = epm * 60
+            self.metrics_history.append({
+                "timestamp": round(time.time(), 1),
+                "floor": round(af, 1),
+                "win_rate": round(wr, 4),
+                "loss": 0.0,  # placeholder until neural net training is wired
+                "throughput": round(throughput_gph, 1),
+            })
+
         return {
             "type": "training_stats",
             "total_episodes": self.total_episodes,
@@ -821,6 +903,8 @@ class TrainingCoordinator:
             "mcts_avg_ms": round(ma, 1),
             "eps_per_min": round(epm, 2),
             "uptime": round(uptime, 0),
+            "paused": self.paused,
+            "worker_count": len(self.processes),
         }
 
     def _log_resources(self) -> None:
