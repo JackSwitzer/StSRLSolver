@@ -1956,19 +1956,10 @@ def compulsive_on_attacked(ctx: PowerContext) -> None:
 
 
 # --- Sharp Hide: deal THORNS damage to player on Attack play ---
-@power_trigger("onPlayCard", power="Sharp Hide")
-def sharp_hide_on_play(ctx: PowerContext) -> None:
-    """Sharp Hide: Deal damage to player when they play an Attack.
-
-    Java: SharpHidePower.onUseCard — if card.type == ATTACK, deal amount THORNS to player.
-    Used by Shelled Parasite.
-    """
-    from ..content.cards import CardType
-    card = ctx.trigger_data.get("card")
-    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
-        if ctx.owner is not None:
-            ctx.player.hp -= ctx.amount
-            ctx.state.total_damage_taken += ctx.amount
+# NOTE: Handled inline in combat_engine._deal_damage_to_enemy per-hit.
+# Java fires this per-card-play (onUseCard), but the inline per-hit handler
+# has been in the engine longer and tests validate it. We remove the duplicate
+# registry trigger to avoid double-dipping.
 
 
 # --- DrawReduction: reduce draw by amount, decrement at end of round ---
@@ -2008,7 +1999,9 @@ def plated_armor_hp_lost(ctx: PowerContext) -> None:
     damage = ctx.trigger_data.get("damage", 0)
     damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
     is_self = ctx.trigger_data.get("is_self_damage", False)
-    if damage > 0 and not is_self and damage_type not in ("HP_LOSS", "THORNS"):
+    # Accept either explicit damage > 0 or the unblocked flag
+    has_damage = damage > 0 or ctx.trigger_data.get("unblocked", False)
+    if has_damage and not is_self and damage_type not in ("HP_LOSS", "THORNS"):
         new_val = ctx.amount - 1
         if new_val <= 0:
             ctx.owner.statuses.pop("Plated Armor", None)
@@ -2017,8 +2010,8 @@ def plated_armor_hp_lost(ctx: PowerContext) -> None:
 
 
 # --- Amplify: next Power card is played twice ---
-@power_trigger("onPlayCard", power="Amplify")
-def amplify_on_play(ctx: PowerContext) -> None:
+@power_trigger("onUseCard", power="Amplify")
+def amplify_on_use(ctx: PowerContext) -> None:
     """Amplify: When player plays a Power card, play it again (double effect).
 
     Java: AmplifyPower.onUseCard — if card.type == POWER and !purgeOnUse,

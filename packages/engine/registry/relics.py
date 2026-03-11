@@ -285,6 +285,12 @@ def vajra_start(ctx: RelicContext) -> None:
     ctx.apply_power_to_player("Strength", 1)
 
 
+@relic_trigger("atBattleStart", relic="Cracked Core")
+def cracked_core_start(ctx: RelicContext) -> None:
+    """Cracked Core: Channel 1 Lightning at combat start (Defect starter)."""
+    ctx.channel_orb("Lightning")
+
+
 @relic_trigger("atBattleStart", relic="Nuclear Battery")
 def nuclear_battery_start(ctx: RelicContext) -> None:
     """Nuclear Battery: Channel 1 Plasma at combat start."""

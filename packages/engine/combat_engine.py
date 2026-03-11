@@ -780,6 +780,8 @@ class CombatEngine:
                 self.state.player.statuses["Dexterity"] = self.state.player.statuses.get("Dexterity", 0) + effects["player_dexterity"]
             if "poison" in effects:
                 self.state.player.statuses["Poison"] = self.state.player.statuses.get("Poison", 0) + effects["poison"]
+            if "constricted" in effects:
+                self._apply_status(self.state.player, "Constricted", effects["constricted"])
             if "metallicize" in effects:
                 enemy.statuses["Metallicize"] = enemy.statuses.get("Metallicize", 0) + effects["metallicize"]
             if "plated_armor" in effects:
@@ -795,6 +797,18 @@ class CombatEngine:
             if "burn" in effects:
                 for _ in range(effects["burn"]):
                     self.state.discard_pile.append("Burn")
+            if "burn+" in effects:
+                for _ in range(effects["burn+"]):
+                    self.state.discard_pile.append("Burn+")
+            if "burn_upgrade_all" in effects:
+                # Java BurnIncreaseAction: upgrade all existing Burns in
+                # draw and discard piles
+                for i, c in enumerate(self.state.draw_pile):
+                    if c == "Burn":
+                        self.state.draw_pile[i] = "Burn+"
+                for i, c in enumerate(self.state.discard_pile):
+                    if c == "Burn":
+                        self.state.discard_pile[i] = "Burn+"
             if "wound" in effects:
                 for _ in range(effects["wound"]):
                     self.state.discard_pile.append("Wound")
@@ -871,6 +885,10 @@ class CombatEngine:
                     # Pass number of living allies for AI that cares
                     real_enemy.state.num_allies = sum(
                         1 for e2 in self.state.enemies if e2.hp > 0 and e2 is not enemy
+                    )
+                    # Pass player constricted state for SpireGrowth AI
+                    real_enemy.state.player_constricted = (
+                        self.state.player.statuses.get("Constricted", 0) > 0
                     )
                     move = real_enemy.roll_move()
                     self._set_enemy_move(enemy, move)
@@ -1303,7 +1321,6 @@ class CombatEngine:
 
         # Collect signals from onPlayCard triggers
         force_exhaust = play_card_data.get("force_exhaust", False)
-        amplify_replay = play_card_data.get("amplify_replay", False)
 
         # NOW remove from hand (Java: card moves to limbo/cardInUse during use)
         self.state.hand.pop(hand_index)
@@ -1311,13 +1328,14 @@ class CombatEngine:
         # Apply card effects
         self._apply_card_effects(card, target_index, result)
 
-        # Amplify: replay Power card effects (Java: queues a copy of the card)
-        if amplify_replay:
-            self._apply_card_effects(card, target_index, result)
-
-        # Trigger onUseCard power triggers (After Image, Duplication, etc.)
+        # Trigger onUseCard power triggers (After Image, Amplify, Duplication, etc.)
         # Java: fires in UseCardAction constructor, BEFORE card destination
-        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+        use_card_data = {"card": card, "card_id": card.id}
+        execute_power_triggers("onUseCard", self.state, self.state.player, use_card_data)
+
+        # Amplify: replay Power card effects (Java: queues a copy of the card)
+        if use_card_data.get("amplify_replay"):
+            self._apply_card_effects(card, target_index, result)
 
         # Card destination (Java: happens in UseCardAction.update, AFTER onUseCard)
         if card.exhaust or force_exhaust:
@@ -1656,8 +1674,11 @@ class CombatEngine:
         self.state.total_damage_dealt += hp_damage
 
         # Curl Up: gain block when first attacked (one-time trigger)
+        # Java: CurlUpPower.onAttacked — triggers only when damage > 0 AND
+        # damage < currentHealth (non-lethal hit). HP already decremented here,
+        # so non-lethal condition is enemy.hp > 0.
         curl_up = enemy.statuses.get("Curl Up", 0)
-        if curl_up > 0 and hp_damage > 0:
+        if curl_up > 0 and hp_damage > 0 and enemy.hp > 0:
             enemy.block += curl_up
             del enemy.statuses["Curl Up"]
             self.log.log(self.state.turn, "curl_up", enemy=enemy.id, block=curl_up)
@@ -1940,11 +1961,12 @@ class CombatEngine:
 
             self._apply_card_effects(card, target_index, result)
 
-            # Amplify: replay Power card effects
-            if play_card_data.get("amplify_replay"):
-                self._apply_card_effects(card, target_index, result)
+            use_card_data = {"card": card, "card_id": card.id}
+            execute_power_triggers("onUseCard", self.state, self.state.player, use_card_data)
 
-            execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+            # Amplify: replay Power card effects
+            if use_card_data.get("amplify_replay"):
+                self._apply_card_effects(card, target_index, result)
 
             force_end_turn = False
             after_use_data = {"card": card, "card_id": card.id}

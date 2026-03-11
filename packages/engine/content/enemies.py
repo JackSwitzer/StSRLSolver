@@ -107,6 +107,7 @@ class EnemyState:
     # Context from CombatEngine (set before roll_move)
     player_hp: int = 0
     num_allies: int = 0
+    player_constricted: bool = False
 
     def last_move(self, move_id: int) -> bool:
         """Check if last move was the given ID."""
@@ -1928,9 +1929,11 @@ class Hexaghost(Enemy):
                 move = MoveInfo(self.SEAR, "Sear", Intent.ATTACK_DEBUFF,
                                dmg["sear"], effects={burn_key: burn_count})
             else:  # pattern_turn == 6
+                # Java BurnIncreaseAction: upgrades ALL existing Burns in deck,
+                # then adds 3 Burn+ to discard
                 move = MoveInfo(self.INFERNO, "Inferno", Intent.ATTACK_DEBUFF,
                                dmg["inferno"], hits=6, is_multi=True,
-                               effects={"burn": 3})
+                               effects={"burn+": 3, "burn_upgrade_all": True})
                 self.burn_upgraded = True  # All subsequent Sear burns are Burn+
 
         self.set_move(move)
@@ -3969,8 +3972,10 @@ class SpireGrowth(Enemy):
             return {"tackle": 18, "smash": 25, "constrict": constrict}
         return {"tackle": 16, "smash": 22, "constrict": constrict}
 
-    def get_move(self, roll: int, player_constricted: bool = False) -> MoveInfo:
+    def get_move(self, roll: int) -> MoveInfo:
         dmg = self._get_damage_values()
+        # Java checks AbstractDungeon.player.hasPower("Constricted")
+        player_constricted = self.state.player_constricted
 
         if self.ascension >= 17:
             if not player_constricted and not self.state.last_move(self.CONSTRICT):
