@@ -2108,8 +2108,11 @@ def _handle_cursed_tome(
         handler._apply_hp_change(run_state, -total_damage)
         result.hp_change = -total_damage
 
-        # Get one of the book relics
-        book_relics = ["Necronomicon", "Enchiridion", "NilrysCodex"]
+        # Get one of the book relics (Java parity: exclude already-owned books)
+        all_books = ["Necronomicon", "Enchiridion", "NilrysCodex"]
+        book_relics = [b for b in all_books if not run_state.has_relic(b)]
+        if not book_relics:
+            book_relics = ["Circlet"]
         relic = book_relics[misc_rng.random(len(book_relics) - 1)]
         run_state.add_relic(relic)
         result.relics_gained.append(relic)

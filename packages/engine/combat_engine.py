@@ -496,19 +496,36 @@ class CombatEngine:
         - Regret: Lose HP equal to cards in hand
         - Decay: Deal 2 damage to player
         """
+        player = self.state.player
+        intangible = player.statuses.get("IntangiblePlayer", 0) > 0 or player.statuses.get("Intangible", 0) > 0
+        tungsten = self.state.has_relic("Tungsten Rod")
+
         for card_id in list(self.state.hand):  # copy list since hand shouldn't change
             base_id = card_id.rstrip("+")
             is_upgraded = card_id.endswith("+")
             if base_id == "Burn":
+                # Java: DamageAction(THORNS) — goes through damage pipeline
                 dmg = 4 if is_upgraded else 2
-                self.state.player.hp -= dmg
+                if intangible:
+                    dmg = 1
+                if tungsten:
+                    dmg = max(0, dmg - 1)
+                player.hp -= dmg
                 self.state.total_damage_taken += dmg
             elif base_id == "Decay":
-                self.state.player.hp -= 2
-                self.state.total_damage_taken += 2
+                dmg = 2
+                if intangible:
+                    dmg = 1
+                if tungsten:
+                    dmg = max(0, dmg - 1)
+                player.hp -= dmg
+                self.state.total_damage_taken += dmg
             elif base_id == "Regret":
+                # Java: LoseHPAction — Tungsten Rod applies, Intangible does NOT
                 hp_loss = len(self.state.hand)
-                self.state.player.hp -= hp_loss
+                if tungsten:
+                    hp_loss = max(0, hp_loss - 1)
+                player.hp -= hp_loss
                 self.state.total_damage_taken += hp_loss
 
     def _discard_hand(self):
@@ -1040,14 +1057,26 @@ class CombatEngine:
 
         return actions
 
+    def _get_effective_cost(self, card: Card, card_id: str) -> int:
+        """Get the effective cost of a card, checking card_costs dict first.
+
+        card_costs is populated by Establishment, Madness, Enlightenment,
+        and other cost-modification effects. Falls back to card.current_cost.
+        """
+        if card_id in self.state.card_costs:
+            return self.state.card_costs[card_id]
+        return card.current_cost
+
     def _can_play_card(self, card: Card, hand_index: int) -> bool:
         """Check if a card can be played."""
         # X-cost cards can always be played if energy >= 0
         if card.cost == -1:
             return self.state.energy >= 0
 
-        # Energy check
-        if card.current_cost > self.state.energy:
+        # Energy check — use effective cost from card_costs dict
+        card_id = self.state.hand[hand_index] if hand_index < len(self.state.hand) else card.id
+        effective_cost = self._get_effective_cost(card, card_id)
+        if effective_cost > self.state.energy:
             return False
 
         # Unplayable check — relics can override for CURSE/STATUS cards
@@ -1116,7 +1145,7 @@ class CombatEngine:
             self.state.energy = 0
             self.energy_spent += cost
         else:
-            cost = card.current_cost
+            cost = self._get_effective_cost(card, card_id)
             if cost > 0:
                 self.state.energy -= cost
                 self.energy_spent += cost
@@ -1371,10 +1400,10 @@ class CombatEngine:
             for i, enemy in enumerate(self.state.enemies):
                 if enemy.hp > 0 and i in enemy_damages:
                     for _ in range(hits):
+                        # --- Damage modifier chain ---
+                        # Power atDamageGive — side-effects only
                         execute_power_triggers(
-                            "atDamageGive",
-                            self.state,
-                            self.state.player,
+                            "atDamageGive", self.state, self.state.player,
                             {
                                 "value": float(enemy_damages[i]),
                                 "card": card,
@@ -1382,19 +1411,37 @@ class CombatEngine:
                                 "damage_type": "NORMAL",
                             },
                         )
-                        execute_power_triggers(
-                            "atDamageReceive",
-                            self.state,
-                            enemy,
-                            {"value": float(enemy_damages[i]), "damage_type": "NORMAL"},
+                        # Relic atDamageGive (Pen Nib, WristBlade, StrikeDummy)
+                        relic_dmg_data = {
+                            "value": float(enemy_damages[i]),
+                            "card": card,
+                            "card_id": card.id,
+                            "damage_type": "NORMAL",
+                        }
+                        relic_dmg = execute_relic_triggers(
+                            "atDamageGive", self.state, relic_dmg_data,
                         )
+                        modified_damage = max(0, int(relic_dmg)) if relic_dmg is not None else enemy_damages[i]
+
                         execute_power_triggers(
-                            "atDamageFinalReceive",
-                            self.state,
-                            enemy,
-                            {"value": float(enemy_damages[i]), "damage_type": "NORMAL"},
+                            "atDamageReceive", self.state, enemy,
+                            {"value": float(modified_damage), "damage_type": "NORMAL"},
                         )
-                        actual_damage = self._deal_damage_to_enemy(enemy, enemy_damages[i])
+                        final_receive = execute_power_triggers(
+                            "atDamageFinalReceive", self.state, enemy,
+                            {"value": float(modified_damage), "damage_type": "NORMAL"},
+                        )
+                        if final_receive is not None:
+                            modified_damage = max(0, int(final_receive))
+
+                        final_give = execute_relic_triggers(
+                            "atDamageFinalGive", self.state,
+                            {"value": float(modified_damage), "card": card, "damage_type": "NORMAL"},
+                        )
+                        if final_give is not None:
+                            modified_damage = max(0, int(final_give))
+
+                        actual_damage = self._deal_damage_to_enemy(enemy, modified_damage)
                         execute_power_triggers(
                             "onAttack",
                             self.state,
@@ -1403,7 +1450,7 @@ class CombatEngine:
                                 "card": card,
                                 "card_id": card.id,
                                 "target": enemy,
-                                "damage": enemy_damages[i],
+                                "damage": modified_damage,
                                 "unblocked_damage": actual_damage,
                                 "damage_type": "NORMAL",
                             },
@@ -1412,7 +1459,7 @@ class CombatEngine:
                                 "attacker": self.state.player,
                                 "card": card,
                                 "card_id": card.id,
-                                "damage": enemy_damages[i],
+                                "damage": modified_damage,
                                 "unblocked_damage": actual_damage,
                                 "damage_type": "NORMAL",
                             }
@@ -1434,10 +1481,11 @@ class CombatEngine:
             enemy = self.state.enemies[target_index]
             if enemy.hp > 0:
                 for _ in range(hits):
+                    # --- Damage modifier chain (Java: DamageInfo.applyPowers) ---
+                    # Power atDamageGive — side-effects only (Strength/Weak/Vigor
+                    # are already computed by _calculate_card_damage)
                     execute_power_triggers(
-                        "atDamageGive",
-                        self.state,
-                        self.state.player,
+                        "atDamageGive", self.state, self.state.player,
                         {
                             "value": float(damage_per_hit),
                             "card": card,
@@ -1445,19 +1493,39 @@ class CombatEngine:
                             "damage_type": "NORMAL",
                         },
                     )
-                    execute_power_triggers(
-                        "atDamageReceive",
-                        self.state,
-                        enemy,
-                        {"value": float(damage_per_hit), "damage_type": "NORMAL"},
+                    # Relic atDamageGive (Pen Nib, WristBlade, StrikeDummy)
+                    relic_dmg_data = {
+                        "value": float(damage_per_hit),
+                        "card": card,
+                        "card_id": card.id,
+                        "damage_type": "NORMAL",
+                    }
+                    relic_dmg = execute_relic_triggers(
+                        "atDamageGive", self.state, relic_dmg_data,
                     )
+                    modified_damage = max(0, int(relic_dmg)) if relic_dmg is not None else damage_per_hit
+
                     execute_power_triggers(
-                        "atDamageFinalReceive",
-                        self.state,
-                        enemy,
-                        {"value": float(damage_per_hit), "damage_type": "NORMAL"},
+                        "atDamageReceive", self.state, enemy,
+                        {"value": float(modified_damage), "damage_type": "NORMAL"},
                     )
-                    actual_damage = self._deal_damage_to_enemy(enemy, damage_per_hit)
+                    # atDamageFinalReceive: Intangible (cap to 1), Flight (halve)
+                    final_receive = execute_power_triggers(
+                        "atDamageFinalReceive", self.state, enemy,
+                        {"value": float(modified_damage), "damage_type": "NORMAL"},
+                    )
+                    if final_receive is not None:
+                        modified_damage = max(0, int(final_receive))
+
+                    # Relic atDamageFinalGive: Boot (min 5 unblocked)
+                    final_give = execute_relic_triggers(
+                        "atDamageFinalGive", self.state,
+                        {"value": float(modified_damage), "card": card, "damage_type": "NORMAL"},
+                    )
+                    if final_give is not None:
+                        modified_damage = max(0, int(final_give))
+
+                    actual_damage = self._deal_damage_to_enemy(enemy, modified_damage)
                     execute_power_triggers(
                         "onAttack",
                         self.state,
@@ -1466,7 +1534,7 @@ class CombatEngine:
                             "card": card,
                             "card_id": card.id,
                             "target": enemy,
-                            "damage": damage_per_hit,
+                            "damage": modified_damage,
                             "unblocked_damage": actual_damage,
                             "damage_type": "NORMAL",
                         },
@@ -1475,7 +1543,7 @@ class CombatEngine:
                             "attacker": self.state.player,
                             "card": card,
                             "card_id": card.id,
-                            "damage": damage_per_hit,
+                            "damage": modified_damage,
                             "unblocked_damage": actual_damage,
                             "damage_type": "NORMAL",
                         }

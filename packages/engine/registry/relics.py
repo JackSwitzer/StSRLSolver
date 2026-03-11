@@ -833,19 +833,34 @@ def bird_faced_urn_on_play(ctx: RelicContext) -> None:
 
 @relic_trigger("onPlayCard", relic="Mummified Hand")
 def mummified_hand_on_play(ctx: RelicContext) -> None:
-    """Mummified Hand: Reduce a random card's cost by 1 after playing a Power."""
+    """Mummified Hand: Reduce a random card's cost to 0 after playing a Power.
+
+    Java parity (MummifiedHand.java): filters hand to cards where
+    cost > 0 AND costForTurn > 0 AND !freeToPlayOnce, then picks random
+    from filtered list with cardRandomRng. If no valid targets, does nothing.
+    """
     if ctx.card and hasattr(ctx.card, 'card_type'):
-        from ..content.cards import CardType
+        from ..content.cards import CardType, ALL_CARDS
         if ctx.card.card_type == CardType.POWER:
-            if ctx.state.hand:
+            # Filter hand to cards with cost > 0 and costForTurn > 0
+            # (excludes 0-cost cards, X-cost cards with cost=-1)
+            valid_indices = []
+            for i, card_id in enumerate(ctx.state.hand):
+                # Get base cost from registry
+                base_cost = ALL_CARDS[card_id].cost if card_id in ALL_CARDS else 1
+                # Get current turn cost (modified cost)
+                cost_for_turn = ctx.state.card_costs.get(card_id, base_cost)
+                if base_cost > 0 and cost_for_turn > 0:
+                    valid_indices.append(i)
+            if valid_indices:
                 rng = ctx._card_random_rng()
                 if rng is not None:
-                    idx = rng.random(len(ctx.state.hand) - 1)
+                    idx = rng.random(len(valid_indices) - 1)
                 else:
                     idx = 0
-                card_id = ctx.state.hand[idx]
-                current_cost = ctx.state.card_costs.get(card_id, 1)
-                ctx.state.card_costs[card_id] = max(0, current_cost - 1)
+                hand_idx = valid_indices[idx]
+                card_id = ctx.state.hand[hand_idx]
+                ctx.state.card_costs[card_id] = 0
 
 
 @relic_trigger("onPlayCard", relic="Yang")
@@ -1089,7 +1104,15 @@ def wrist_blade_damage(ctx: RelicContext) -> int:
     """Wrist Blade: 0-cost Attacks deal 4 additional damage."""
     damage = ctx.trigger_data.get("value", ctx.damage)
     if ctx.card:
-        card_cost = ctx.state.card_costs.get(ctx.card.id, getattr(ctx.card, 'cost', 1))
+        # Check card_costs with both base ID and upgraded ID (with '+' suffix)
+        card_id = ctx.card.id
+        card_id_plus = card_id + "+"
+        if card_id in ctx.state.card_costs:
+            card_cost = ctx.state.card_costs[card_id]
+        elif card_id_plus in ctx.state.card_costs:
+            card_cost = ctx.state.card_costs[card_id_plus]
+        else:
+            card_cost = getattr(ctx.card, 'current_cost', getattr(ctx.card, 'cost', 1))
         if card_cost == 0:
             return damage + 4
     return damage

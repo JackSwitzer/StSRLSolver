@@ -2046,3 +2046,140 @@ class TestEnergizedBluePower:
         # After new turn, energy should include the +2 bonus from EnergizedBlue
         # and EnergizedBlue should be removed
         assert "EnergizedBlue" not in engine.state.player.statuses
+
+
+# =============================================================================
+# Mummified Hand - 0-cost filtering (Java parity)
+# =============================================================================
+
+class TestMummifiedHandFiltering:
+    """Mummified Hand must skip 0-cost and X-cost cards (Java parity)."""
+
+    def test_skips_zero_cost_cards(self):
+        """Hand with only 0-cost cards: Mummified Hand does nothing."""
+        from packages.engine.state.combat import create_combat, create_enemy
+        from packages.engine.registry import RelicContext, RELIC_REGISTRY
+        from packages.engine.content.cards import CardType
+
+        state = create_combat(
+            player_hp=70, player_max_hp=80,
+            enemies=[create_enemy("E", hp=50, max_hp=50, move_damage=10)],
+            deck=[], energy=3, relics=["Mummified Hand"],
+        )
+        # Manually set hand to only 0-cost cards (Eruption base = 2, so use Miracle)
+        state.hand = ["Miracle", "Miracle", "Miracle"]
+        # Miracles cost 0, so none should be affected
+
+        class FakePower:
+            card_type = CardType.POWER
+            id = "FakePower"
+
+        handler = RELIC_REGISTRY.get_handler("onPlayCard", "Mummified Hand")
+        ctx = RelicContext(state=state, relic_id="Mummified Hand", card=FakePower())
+        handler(ctx)
+
+        # No card_costs should be set (no valid targets)
+        assert len(state.card_costs) == 0
+
+    def test_skips_x_cost_cards(self):
+        """Hand with only X-cost cards: Mummified Hand does nothing."""
+        from packages.engine.state.combat import create_combat, create_enemy
+        from packages.engine.registry import RelicContext, RELIC_REGISTRY
+        from packages.engine.content.cards import CardType
+
+        state = create_combat(
+            player_hp=70, player_max_hp=80,
+            enemies=[create_enemy("E", hp=50, max_hp=50, move_damage=10)],
+            deck=[], energy=3, relics=["Mummified Hand"],
+        )
+        # Collect has cost=-1 (X-cost)
+        state.hand = ["Collect", "Collect"]
+
+        class FakePower:
+            card_type = CardType.POWER
+            id = "FakePower"
+
+        handler = RELIC_REGISTRY.get_handler("onPlayCard", "Mummified Hand")
+        ctx = RelicContext(state=state, relic_id="Mummified Hand", card=FakePower())
+        handler(ctx)
+
+        assert len(state.card_costs) == 0
+
+    def test_reduces_cost_of_valid_card_only(self):
+        """Mixed hand: only the card with cost > 0 should be reduced."""
+        from packages.engine.state.combat import create_combat, create_enemy
+        from packages.engine.registry import RelicContext, RELIC_REGISTRY
+        from packages.engine.content.cards import CardType
+
+        state = create_combat(
+            player_hp=70, player_max_hp=80,
+            enemies=[create_enemy("E", hp=50, max_hp=50, move_damage=10)],
+            deck=[], energy=3, relics=["Mummified Hand"],
+        )
+        # Miracle=0cost, Collect=X-cost, Eruption=2cost (the only valid target)
+        state.hand = ["Miracle", "Collect", "Eruption"]
+
+        class FakePower:
+            card_type = CardType.POWER
+            id = "FakePower"
+
+        handler = RELIC_REGISTRY.get_handler("onPlayCard", "Mummified Hand")
+        ctx = RelicContext(state=state, relic_id="Mummified Hand", card=FakePower())
+        handler(ctx)
+
+        # Only Eruption should have been set to 0
+        assert state.card_costs.get("Eruption") == 0
+        assert "Miracle" not in state.card_costs
+        assert "Collect" not in state.card_costs
+
+
+# =============================================================================
+# Cursed Tome - exclude owned books (Java parity)
+# =============================================================================
+
+class TestCursedTomeExcludeOwned:
+    """Cursed Tome must not give a book the player already owns."""
+
+    def test_excludes_owned_book(self):
+        """If player owns Necronomicon, Cursed Tome never gives it again."""
+        from packages.engine.handlers.event_handler import (
+            EventHandler, EventState, EventPhase,
+        )
+
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Necronomicon")
+
+        event_state = EventState(event_id="CursedTome", phase=EventPhase.INITIAL)
+        misc_rng = _make_rng(300)
+
+        # Run the event many times with different RNG offsets to confirm
+        # Necronomicon is never given
+        for i in range(20):
+            test_run = _make_run()
+            test_run.add_relic("Necronomicon")
+            result = handler.execute_choice(
+                event_state, 0, test_run, _make_rng(i), misc_rng=_make_rng(i + 500)
+            )
+            for relic in result.relics_gained:
+                assert relic != "Necronomicon", \
+                    f"Cursed Tome gave Necronomicon despite player already owning it"
+
+    def test_gives_circlet_when_all_owned(self):
+        """If player owns all 3 books, Cursed Tome gives Circlet."""
+        from packages.engine.handlers.event_handler import (
+            EventHandler, EventState, EventPhase,
+        )
+
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Necronomicon")
+        run.add_relic("Enchiridion")
+        run.add_relic("NilrysCodex")
+
+        event_state = EventState(event_id="CursedTome", phase=EventPhase.INITIAL)
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+
+        assert "Circlet" in result.relics_gained

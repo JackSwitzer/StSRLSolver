@@ -22,12 +22,15 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Union, Any, Tuple
 import copy
 import itertools
 import random
+
+logger = logging.getLogger(__name__)
 
 from .state.run import (
     RunState,
@@ -464,7 +467,7 @@ class GameRunner:
             GamePhase.MAP_NAVIGATION: "map",
             GamePhase.COMBAT: "combat",
             GamePhase.COMBAT_REWARDS: "reward",
-            GamePhase.BOSS_REWARDS: "reward",
+            GamePhase.BOSS_REWARDS: "boss_reward",
             GamePhase.EVENT: "event",
             GamePhase.SHOP: "shop",
             GamePhase.REST: "rest",
@@ -859,7 +862,13 @@ class GameRunner:
                 event_rng_preview,
                 card_idx=None,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Event choice preview failed for choice_index=%d, event=%s: %s",
+                choice_index,
+                getattr(self.current_event_state, "event_id", "?"),
+                exc,
+            )
             return None
 
     def _build_pending_selection_for_event_choice(
@@ -874,9 +883,6 @@ class GameRunner:
 
         selection_type = str(preview.card_selection_type or "")
         required_count = max(1, int(preview.card_selection_count or 1))
-        # Current EventHandler execute path accepts one card index per action.
-        if required_count != 1:
-            return None
 
         pile = "deck"
         candidate_indices: List[int] = []
@@ -905,6 +911,9 @@ class GameRunner:
 
         if not candidate_indices:
             return None
+
+        if required_count > 1:
+            metadata["multi_step_remaining"] = required_count
 
         return PendingSelectionContext(
             selection_type="card_select",
@@ -1180,7 +1189,14 @@ class GameRunner:
         return result
 
     def _apply_pending_event_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
-        """Resolve pending event card selection and dispatch parent event action."""
+        """Resolve pending event card selection and dispatch parent event action.
+
+        Supports multi-step selection (e.g. transform 2 cards) via the
+        ``multi_step_remaining`` metadata key.  Each step collects one card
+        index and, if more steps remain, refreshes the candidate list and
+        returns with ``requires_selection=True``.  Only when all steps are
+        collected does the method dispatch the parent event action.
+        """
         if not self.pending_selection:
             return {"success": False, "error": "No pending selection"}
 
@@ -1205,8 +1221,56 @@ class GameRunner:
         if choice_index < 0:
             return {"success": False, "error": "Missing event choice index in selection context"}
 
+        # Multi-step handling: accumulate indices across steps.
+        accumulated = list(ctx.metadata.get("accumulated_indices", []))
+        accumulated.extend(selected)
+        remaining = int(ctx.metadata.get("multi_step_remaining", 1)) - len(selected)
+
+        if remaining > 0:
+            # More steps needed -- refresh candidates and prompt again.
+            sel_type = ctx.metadata.get("event_selection_type", "")
+            if sel_type in {"remove", "transform"}:
+                new_candidates = [
+                    idx for idx, _ in self.run_state.get_removable_cards()
+                    if idx not in accumulated
+                ]
+            elif sel_type == "upgrade":
+                new_candidates = [
+                    idx for idx, _ in self.run_state.get_upgradeable_cards()
+                    if idx not in accumulated
+                ]
+            else:
+                new_candidates = [
+                    idx for idx in ctx.candidate_indices
+                    if idx not in accumulated
+                ]
+
+            if not new_candidates:
+                # Not enough valid candidates -- dispatch what we have.
+                remaining = 0
+            else:
+                new_meta = dict(ctx.metadata)
+                new_meta["multi_step_remaining"] = remaining
+                new_meta["accumulated_indices"] = accumulated
+                self.pending_selection = PendingSelectionContext(
+                    selection_type="card_select",
+                    source_action_type="event_choice",
+                    pile=ctx.pile,
+                    min_cards=1,
+                    max_cards=1,
+                    candidate_indices=new_candidates,
+                    metadata=new_meta,
+                    parent_action_id=ctx.parent_action_id,
+                )
+                return {
+                    "success": True,
+                    "requires_selection": True,
+                    "candidate_actions": self._selection_context_actions(),
+                }
+
+        # All steps collected -- dispatch the parent event action.
         self.pending_selection = None
-        self._pending_event_selection_indices = selected
+        self._pending_event_selection_indices = accumulated
 
         parent_action: ActionDict = {
             "type": "event_choice",
@@ -2860,28 +2924,32 @@ class GameRunner:
             if self._pending_event_selection_indices is not None
             else None
         )
-        card_idx = selected_indices[0] if selected_indices else None
         self._pending_event_selection_indices = None
 
-        # Execute the choice, passing misc_rng if the handler supports it
-        try:
-            result = self.event_handler.execute_choice(
-                self.current_event_state,
-                action.choice_index,
-                self.run_state,
-                self.event_rng,
-                card_idx=card_idx,
-                misc_rng=self.misc_rng,
-            )
-        except TypeError:
-            # Fallback if event handler doesn't support misc_rng yet
-            result = self.event_handler.execute_choice(
-                self.current_event_state,
-                action.choice_index,
-                self.run_state,
-                self.event_rng,
-                card_idx=card_idx,
-            )
+        # For multi-card selections, execute the event handler once per card.
+        # The first call uses selected_indices[0], subsequent calls use the
+        # remaining indices (the handler processes one card_idx at a time).
+        indices_to_process = selected_indices if selected_indices else [None]
+        result = None
+        for card_idx in indices_to_process:
+            try:
+                result = self.event_handler.execute_choice(
+                    self.current_event_state,
+                    action.choice_index,
+                    self.run_state,
+                    self.event_rng,
+                    card_idx=card_idx,
+                    misc_rng=self.misc_rng,
+                )
+            except TypeError:
+                # Fallback if event handler doesn't support misc_rng yet
+                result = self.event_handler.execute_choice(
+                    self.current_event_state,
+                    action.choice_index,
+                    self.run_state,
+                    self.event_rng,
+                    card_idx=card_idx,
+                )
 
         self._sync_rng_counters()
 
@@ -2931,9 +2999,18 @@ class GameRunner:
                 "combat_encounter": result.combat_encounter,
             }
 
-        # Handle card selection requirement - auto-select first valid card
+        # Handle card selection requirement - auto-select first valid card.
+        # This fallback should not fire when using the JSON action API
+        # (take_action_dict), which sets up pending selections instead.
         if result.requires_card_selection:
             sel_type = result.card_selection_type
+            logger.warning(
+                "Event auto-select fallback fired for event=%s sel_type=%s "
+                "(bypasses agent control -- selection should be handled via "
+                "pending_selection)",
+                getattr(self.current_event_state, "event_id", "?"),
+                sel_type,
+            )
             self._log(f"  (Auto-selecting card for: {sel_type})")
             selected_idx = None
 

@@ -129,8 +129,7 @@ from .state.run import RunState, CardInstance, RelicInstance, PotionSlot, MapPos
 # Combat Engine (direct access)
 from .combat_engine import CombatEngine
 
-# Agent API (JSON-serializable action/observation interface)
-# GameRunner implements JSON methods directly; agent_api is a compatibility shim.
+# Agent API (JSON-serializable type definitions and constants)
 from . import agent_api
 from .agent_api import ActionDict, ActionResult, ObservationDict
 from .rl_observations import (

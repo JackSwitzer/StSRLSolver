@@ -574,7 +574,7 @@ def potion_effect(potion: str, requires_target: bool = False,
 # =============================================================================
 
 def execute_relic_triggers(hook: str, state: CombatState,
-                           trigger_data: Optional[Dict[str, Any]] = None) -> None:
+                           trigger_data: Optional[Dict[str, Any]] = None) -> Any:
     """
     Execute all relic triggers for a hook.
 
@@ -582,9 +582,15 @@ def execute_relic_triggers(hook: str, state: CombatState,
         hook: Trigger hook name
         state: Current combat state
         trigger_data: Additional data for the trigger
+
+    Returns:
+        Chained result from handlers (for modifier hooks like atDamageGive).
+        For non-modifier hooks, returns None.
     """
     if trigger_data is None:
         trigger_data = {}
+
+    result = trigger_data.get("value")
 
     def _canonical_relic_key(relic_id: str) -> str:
         try:
@@ -618,7 +624,14 @@ def execute_relic_triggers(hook: str, state: CombatState,
             hp_lost=trigger_data.get("hp_lost", 0),
             target=trigger_data.get("target"),
         )
-        handler(ctx)
+        handler_result = handler(ctx)
+        if handler_result is not None:
+            result = handler_result
+            # Chain: update trigger_data so subsequent handlers see modified value
+            if "value" in trigger_data:
+                trigger_data["value"] = result
+
+    return result
 
 
 def execute_power_triggers(hook: str, state: CombatState,
