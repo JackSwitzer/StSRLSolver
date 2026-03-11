@@ -269,7 +269,7 @@ class TestNeowCardSelection:
         if seed is None:
             pytest.skip("No seed found with upgrade Neow blessing")
 
-        runner = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+        runner = self._make_neow_runner(seed)
         actions = runner.get_available_actions()
         runner.take_action(actions[choice_idx])
 
@@ -293,7 +293,7 @@ class TestNeowCardSelection:
         if seed is None:
             pytest.skip("No seed found with remove Neow blessing")
 
-        runner = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+        runner = self._make_neow_runner(seed)
         actions = runner.get_available_actions()
         deck_before = len(runner.run_state.deck)
         runner.take_action(actions[choice_idx])
@@ -313,7 +313,7 @@ class TestNeowCardSelection:
         if seed is None:
             pytest.skip("No seed found with transform Neow blessing")
 
-        runner = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+        runner = self._make_neow_runner(seed)
         actions = runner.get_available_actions()
         runner.take_action(actions[choice_idx])
 
@@ -331,7 +331,7 @@ class TestNeowCardSelection:
         if seed is None:
             pytest.skip("No seed found with choose Neow blessing")
 
-        runner = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+        runner = self._make_neow_runner(seed)
         actions = runner.get_available_actions()
         deck_before = len(runner.run_state.deck)
         runner.take_action(actions[choice_idx])
@@ -348,14 +348,15 @@ class TestNeowCardSelection:
 
     def test_neow_selection_via_action_dict_flow(self):
         """Full action_dict flow for Neow with card selection."""
-        # Try multiple seeds to find one with a selection-required blessing
+        # Try multiple seeds with previous_score to find selection-required blessings
         for i in range(100):
             seed = f"NEOW_DICT_{i}"
-            runner = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+            runner = self._make_neow_runner(seed)
             actions = runner.get_available_action_dicts()
 
             for action in actions:
-                r = GameRunner(seed=seed, ascension=0, skip_neow=False, verbose=False)
+                r = self._make_neow_runner(seed)
+                r.get_available_actions()  # Force blessing generation
                 result = r.take_action_dict(action)
 
                 # If pending selection, complete it

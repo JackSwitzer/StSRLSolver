@@ -1131,8 +1131,11 @@ class RunState:
             next_row = current_node.y + 1
             if next_row < len(current_map):
                 for node in current_map[next_row]:
-                    if node.has_edges() and (node.x, node.y) not in edge_connected_coords:
-                        # Mark as a fly path so the engine can decrement Wing Boots
+                    if (node.x, node.y) in edge_connected_coords:
+                        # Edge-connected: ensure not marked as winged
+                        node.is_winged_path = False
+                    elif node.has_edges():
+                        # Fly-only: mark and include
                         node.is_winged_path = True
                         next_nodes.append(node)
 
