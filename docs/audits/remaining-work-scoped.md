@@ -5,11 +5,13 @@
 - **GHOST**: Listed as missing in old audit docs but already implemented in current code
 - **IRRELEVANT**: Test/deprecated/UI-only/non-gameplay item
 
-**Current counts (verified):**
-- `@power_trigger` decorators in `powers.py`: 164
-- `@relic_trigger` decorators in `relics.py`: 165
-- Event handlers in `EVENT_HANDLERS` dict: 43
-- Unique power IDs registered: 121
+**Current counts (verified 2026-03-11):**
+- `@power_trigger` decorators in `powers.py`: 168
+- `@relic_trigger` decorators in `relics.py`: 165 (172 total across registry files)
+- Event handlers in `EVENT_HANDLERS` dict: 51
+- Event choice generators: 48 (3 use aliases)
+- Unique power IDs registered: 136
+- Tests: 5978 passing, coverage: 76.40%
 
 ---
 
@@ -107,48 +109,35 @@ These were marked MISSING in previous audits but are NOW present in the codebase
 
 ## ACTUALLY MISSING Items (Verified against current code)
 
-### BLOCKS_RL (7 items -- MUST fix before training)
+### BLOCKS_RL (7 items -- 5 FIXED, 2 remaining LOW priority)
 
-**M-01: Boss relic energy bonus not wired to combat**
-- Priority: **HIGH** (every boss relic that gives +1 energy is broken at run level)
-- Status: Relic data has `energy_bonus=1` field, but `game.py:_enter_combat()` always passes `energy=3` to `create_combat_from_enemies()` without computing the bonus from equipped boss relics.
+**M-01: Boss relic energy bonus not wired to combat** -- **FIXED in PARITY-006**
+- Status: **RESOLVED.** `game.py:3286-3287` now computes energy from `3 + sum(relic.energy_bonus)` for all equipped boss relics.
 - Affects: Busted Crown, Coffee Dripper, Cursed Key, Ectoplasm, Fusion Hammer, Mark of Pain, Philosopher's Stone, Runic Dome, Snecko Eye, Sozu, Velvet Choker (all +1 energy boss relics)
-- Fix location: `packages/engine/game.py:3281` -- compute energy from 3 + sum of relic energy_bonus
-- Also: `packages/engine/state/run.py` should track base_energy as a field
 
-**M-02: Vault card "take_extra_turn" effect not consumed**
-- Priority: **HIGH** (Watcher rare skill, core game mechanic)
-- Status: `effects/cards.py:608-611` sets `ctx.extra_data["extra_turn"] = True` but `combat_engine.py` never reads this flag. Vault does nothing after playing.
-- Java behavior: `SkipEnemiesTurnAction` skips all enemy turns, then `PressEndTurnButtonAction` ends player turn.
-- Fix location: `packages/engine/combat_engine.py:end_turn()` -- check extra_turn flag, skip `_do_enemy_turns()` if set
-- Note: VaultPower in Java is actually a DIFFERENT mechanic (deals damage at end of round) -- the Vault card doesn't use VaultPower.
+**M-02: Vault card "take_extra_turn" effect not consumed** -- **FIXED in PARITY-006**
+- Status: **RESOLVED.** `combat_engine.py:458-462` checks `self.state.skip_enemy_turn` flag and skips `_do_enemy_turns()` when set. The Vault card effect sets this flag correctly.
 
 **M-03: DrawPower passive draw modification missing**
 - Priority: **MEDIUM** (used by Offering, Draw power, some enemies)
 - Status: `combat_engine.py:373-374` reads `player.statuses.get("Draw", 0)` but there is no power trigger to SET or maintain this. DrawPower in Java modifies `gameHandSize` permanently on application and removal. Python only reads it statically.
 - Fix: The inline read at L373 works IF the status is set correctly. Verify that cards/powers applying "Draw" set the value correctly.
 
-**M-04: Vault power (PW-09) -- skip enemy turns**
-- Priority: **HIGH** (same as M-02, this is the implementation need)
-- Note: This is not the same as VaultPower from Java. The Vault card needs SkipEnemiesTurnAction behavior.
-- Merged with M-02.
+**M-04: Vault power (PW-09) -- skip enemy turns** -- **FIXED (merged with M-02)**
+- Status: **RESOLVED.** See M-02.
 
-**M-05: CF-06 -- Enemy damage power hooks ignore return values**
-- Priority: **MEDIUM** (affects monsters that modify their own damage)
-- Status: Player damage hooks (atDamageGive, atDamageReceive, atDamageFinalReceive) ARE chained for player attacks. Need to verify enemy-to-player damage path chains return values.
-- Fix location: `combat_engine.py` enemy damage path -- verify power hook return values are captured
+**M-05: CF-06 -- Enemy damage power hooks ignore return values** -- **VERIFIED CORRECT in PARITY-007**
+- Status: **RESOLVED.** `combat_engine.py:625-653` pre-computes Strength/Weak/Vulnerable modifiers then fires atDamageGive/atDamageReceive for side-effects only. atDamageFinalReceive (Intangible, Flight) return values ARE captured at line 657. Both paths produce identical results to Java for all powers currently in the game.
 
-**M-06: CF-09 -- Torii applies to pre-block damage**
-- Priority: **MEDIUM** (Torii is a Rare relic, affects block efficiency)
-- Status: `relics.py:1128` registers `onAttackedToChangeDamage` for Torii. Need to verify this fires AFTER block subtraction in the damage pipeline, not before.
-- Fix location: Verify in `combat_engine.py` damage pipeline ordering
+**M-06: CF-09 -- Torii applies to pre-block damage** -- **VERIFIED CORRECT in PARITY-007**
+- Status: **RESOLVED.** `combat_engine.py:685-687` applies Torii AFTER block subtraction (`hp_damage` is post-block). Reduces unblocked damage in range 2-5 to 1, matching Java Torii.onAttacked behavior.
 
 **M-07: CF-11 -- applyStartOfTurnCards missing**
 - Priority: **LOW** (mostly affects cost reductions that expire)
 - Status: `combat_engine.py:329-330` clears `card_costs` dict, which is a partial implementation. Java iterates ALL cards calling `c.atTurnStart()`.
 - Fix: Only matters for cards with per-turn cost modifications. Current implementation may be sufficient.
 
-### AFFECTS_RL (12 items -- should fix before serious training)
+### AFFECTS_RL (12 items -- 5 FIXED, 5 GHOSTs, 2 N/A)
 
 **(These are additional GHOSTs found during verification:)**
 
@@ -158,42 +147,30 @@ These were marked MISSING in previous audits but are NOW present in the codebase
 - **CF-13 Enemy atEndOfTurn**: GHOST -- `combat_engine.py:445-447` fires atEndOfTurn for enemies, `_do_enemy_turns()` handles actions. These are different phases, no double-trigger.
 - **CF-14 Enemy debuff decrement**: GHOST -- `combat_engine.py:472-476` fires atEndOfRound for all enemies, handles via registry.
 
-**M-13: EV-08 -- Wing Statue (GoldenWing) missing conditional gold option**
-- Priority: **LOW** (Wing Statue is Act 1, conditional option is rare)
-- Status: Python has 2 options (purify + leave). Java has 3: purify (7 damage + remove card), conditional gold (50-80g if player has Attack with 10+ damage), leave.
-- File: `packages/engine/handlers/event_handler.py:1553`
-- Java source: `decompiled/.../events/exordium/GoldenWing.java`
+**M-13: EV-08 -- Wing Statue (GoldenWing) missing conditional gold option** -- **FIXED in PARITY-008**
+- Status: **RESOLVED.** `event_handler.py:4345-4353` now implements all 3 options: purify (7 HP + remove card), conditional sell_attack (50-80g if player has Attack with baseDamage >= 10), and leave. Choice generator at `_get_wing_statue_choices` uses `_player_has_strong_attack()` helper.
 
-**M-14: EV-09 -- Pleading Vagrant (Addict) option ordering wrong**
-- Priority: **MEDIUM** (option 1 and 2 are swapped vs Java)
-- Status: Java has: option 0 = pay 85g for relic, option 1 = steal relic + Shame curse (free), option 2 = leave. Python has: option 0 = pay (CORRECT), option 1 = refuse with Shame only (WRONG -- should be steal relic + Shame), option 2 = rob relic + Shame (WRONG -- should be leave).
-- File: `packages/engine/handlers/event_handler.py:1912-1928`
-- Java source: `decompiled/.../events/city/Addict.java`
+**M-14: EV-09 -- Pleading Vagrant (Addict) option ordering wrong** -- **FIXED in PARITY-007**
+- Status: **RESOLVED.** `event_handler.py:1991-2012` now matches Java ordering: option 0 = pay 85g for relic, option 1 = steal relic + Shame curse (free), option 2 = leave. Choice generator at `_get_addict_choices` (line 4370-4373) also matches.
 
-**M-15: EV-15 -- N'loth wrong relic selection**
-- Priority: **LOW** (single event, Act 3 only)
-- Status: `event_handler.py:3466` handler exists. Need to verify it presents 2 relics for selection vs auto-trading.
-- File: `packages/engine/handlers/event_handler.py:3466`
+**M-15: EV-15 -- N'loth wrong relic selection** -- **FIXED in PARITY-008**
+- Status: **RESOLVED.** `event_handler.py:3574-3617` implements proper 2-relic selection. `event_state.nloth_relic_indices` stores preselected relic indices. Choice generator at `_get_nloth_choices` (line 4875-4897) presents both trade options + leave. Handles duplicate N'loth's Gift -> Circlet correctly.
 
 **M-16: EV-16 -- Relic tier system**
 - Priority: N/A -- **GHOST**
 - Status: `_get_random_relic(run_state, misc_rng, "weighted")` correctly uses `_get_weighted_relic_tier()` (L330-339) matching Java's `returnRandomRelicTier()` with 50/33/17 Common/Uncommon/Rare split. ALL 9 event callers use `"weighted"`. No fix needed.
 
-**M-17: EV-17 -- Transform card rarity-preserving system (partial)**
-- Priority: **MEDIUM** (affects Transmogrifier, DrugDealer, Designer -- NOT LivingWall)
-- Status: LivingWall is FIXED (event_handler.py:1437-1446 preserves rarity). However, Transmogrifier (L2965), Augmenter/DrugDealer (L3654), and Designer cleanup (L3416) all still use `"common"` instead of preserving rarity.
-- Fix location: `packages/engine/handlers/event_handler.py` -- apply same rarity-preservation logic from Living Wall to these 3 handlers
+**M-17: EV-17 -- Transform card rarity-preserving system (partial)** -- **FIXED in PARITY-007**
+- Status: **RESOLVED.** All 4 transform locations now preserve original card rarity: LivingWall (line 1478), Transmogrifier (line 3053), Designer cleanup (line 3514), and Augmenter/DrugDealer (line 3777). Each extracts rarity from `ALL_CARDS` and passes it to `_get_random_card()`.
 
-**M-18: Ring of the Serpent boss relic missing**
-- Priority: **LOW** (Silent-only, Watcher project)
-- Status: Not in relics.py triggers. Data exists in `generation/relics.py:237`. Needs `onEquip` to set draw bonus.
-- Fix location: `packages/engine/registry/relics.py` (add draw bonus trigger)
+**M-18: Ring of the Serpent boss relic missing** -- **VERIFIED WORKING**
+- Status: **RESOLVED.** `combat_engine.py:359-367` reads `hand_size_bonus` from relic data for all relics including Ring of the Serpent. No onEquip trigger needed since the draw bonus is applied dynamically at start of each turn.
 
 **M-19: Runic Dome boss relic energy not wired**
 - Priority: **LOW** (UI-only effect "can't see intent", energy handled by M-01)
 - Status: Runic Dome's energy bonus is covered by M-01 fix. The "can't see intent" effect is UI-only and irrelevant for RL.
 
-### LOW Priority (16 items -- fix as needed)
+### LOW Priority (16 items -- 3 more GHOSTs found 2026-03-11, fix as needed)
 
 **Powers still missing (confirmed not in powers.py):**
 
@@ -202,13 +179,13 @@ These were marked MISSING in previous audits but are NOW present in the codebase
 | L-01 | ExplosivePower | `ExplosivePower.java` | No | Exploder enemy (currently hardcoded inline in combat_engine.py) |
 | L-02 | DrawPower | `DrawPower.java` | No | Modifies hand size (Offering). Partially handled inline at combat_engine.py:373 |
 | L-03 | DrawReductionPower | `DrawReductionPower.java` | No | atEndOfRound decrement IS registered at powers.py:1966. Draw reduction at combat start IS read at combat_engine.py:374-375. **Possible GHOST.** |
-| L-04 | HelloPower | `HelloPower.java` | No | Defect (Hello World card) |
-| L-05 | NightmarePower | `NightmarePower.java` | No | Silent (Nightmare card) |
+| L-04 | HelloPower | `HelloPower.java` | No | **GHOST**: Implemented at powers.py:2104 as "Hello" |
+| L-05 | NightmarePower | `NightmarePower.java` | No | **GHOST**: Implemented at powers.py:2128 as "Night Terror" |
 | L-06 | ConservePower | N/A | No | Defect variant of Energized |
 | L-07 | EnergizedBluePower | N/A | No | Defect variant |
 | L-08 | StasisPower | `StasisPower.java` | No | Bronze Orb (return card on death) |
 | L-09 | TimeMazePower | `TimeWarpPower.java` | No | Time Eater (hardcoded via Time Warp at powers.py:651) |
-| L-10 | WinterPower | `WinterPower.java` | No | Defect (Winter orb buff) |
+| L-10 | WinterPower | `WinterPower.java` | No | **GHOST**: Implemented at powers.py:2147 as "Winter" |
 | L-11 | RechargingCorePower | N/A | No | Defect (Bronze Automaton) |
 | L-12 | SkillBurnPower | N/A | No | Enemy (Skill exhaust) |
 | L-13 | StrikeUpPower | N/A | No | Whetstone display-only |
@@ -238,34 +215,27 @@ These were marked MISSING in previous audits but are NOW present in the codebase
 
 ---
 
-## Summary
+## Summary (Updated 2026-03-11)
 
-| Category | Old Count | GHOSTs Found | Actually Missing | Priority |
-|----------|-----------|--------------|------------------|----------|
-| Combat Flow | 19 | 11 | 2 real gaps | M-01 (energy), M-02 (Vault) critical |
-| Powers | 50 | 20 | ~13 non-Watcher | DrawPower passive only real Watcher gap |
-| Cards | 15 | 7 | 1 (Vault effect) | M-02 is the card fix |
-| Monsters | 10 | 5 | 1-2 edge cases | Mostly fixed |
-| Events | 23 | 9 | 4 real issues | Addict ordering, transform rarity, Wing Statue |
-| Relics | 31 | 22 | 1 critical (energy) | M-01 is the fix; 6 GHOSTs in LOW |
-| **Totals** | **148** | **74** | **~12 real gaps** | 2 critical, 3 medium, rest low |
+| Category | Old Count | GHOSTs Found | Fixed Since Audit | Actually Remaining |
+|----------|-----------|--------------|-------------------|--------------------|
+| Combat Flow | 19 | 11 | M-01, M-02, M-05, M-06 | 1 (M-07 applyStartOfTurnCards, LOW) |
+| Powers | 50 | 23 | -- | ~7 non-Watcher (LOW) |
+| Cards | 15 | 7 | M-02 (Vault) | 0 Watcher gaps |
+| Monsters | 10 | 5 | -- | 1-2 edge cases (LOW) |
+| Events | 23 | 9 | M-13, M-14, M-15, M-17 | 0 critical |
+| Relics | 31 | 22 | M-01 (energy), M-18 | 2-3 edge cases (LOW) |
+| **Totals** | **148** | **74** | **8 fixed** | **~3 real gaps** |
 
-### Critical Path (2 items, blocks training accuracy)
+### Critical Path: CLEAR
 
-1. **M-01: Boss relic energy bonus** -- Every boss relic that gives +1 energy is broken. ~11 relics affected. Simple fix: compute energy from relics in `_enter_combat()`.
-   - File: `packages/engine/game.py:3281`
-   - Also: `packages/engine/state/run.py` (add base_energy tracking)
+All previously critical items (M-01 boss energy, M-02 Vault card) and medium items (M-05, M-06, M-13, M-14, M-15, M-17, M-18) are now resolved.
 
-2. **M-02: Vault card does nothing** -- The "take_extra_turn" flag is set but never consumed. Vault is a key Watcher card.
-   - File: `packages/engine/combat_engine.py:end_turn()` (check flag, skip enemy turns)
-   - File: `packages/engine/effects/cards.py:608-611` (already sets the flag)
+### Remaining Gaps (3 items, all LOW priority)
 
-### Medium Priority (4 items)
-
-3. **M-14: Addict event option ordering** -- Options 1 and 2 are swapped vs Java. Agent gets wrong EV for event choices.
-4. **M-17: Transform rarity preservation** -- Transmogrifier, Augmenter, Designer transforms always give common cards. Should preserve rarity of removed card.
-5. **M-05: Enemy damage power hook return values** -- Verify enemy-to-player damage chains power hooks correctly.
-6. **M-03: DrawPower passive** -- Verify draw modification works end-to-end.
+1. **M-03: DrawPower passive** -- Verify draw modification works end-to-end. Inline read at `combat_engine.py:373` works IF status is set correctly.
+2. **M-07: applyStartOfTurnCards** -- Per-turn card cost modifications. Current `card_costs` clearing at `combat_engine.py:329-330` is a partial implementation. Only matters for cards with dynamic cost.
+3. **Non-Watcher powers** (~7) -- Defect/Silent-only powers: ExplosivePower, StasisPower, ConservePower, RechargingCorePower, etc. Not needed for Watcher training.
 
 ### Low Priority (rest)
-Everything else is non-Watcher, edge cases, or cosmetic.
+Everything else is non-Watcher, edge cases, or cosmetic. See the LOW Priority section above for full list.

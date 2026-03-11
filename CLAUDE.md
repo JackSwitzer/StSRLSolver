@@ -37,23 +37,22 @@ uv run pytest tests/ --cov=packages/engine  # Coverage (~76%)
 | **Card Data** | ✅ 100% | All characters verified |
 | **Potions (Data)** | ✅ 100% | All 42 potions correct |
 
-### Partial / Missing (Implementation Gaps)
-- **Power triggers**: 30/94 implemented (64 missing).
-- **Relics**: 44 missing all + rest-site/pickup/chest/bottled gaps (see skipped tests).
-- **Events**: 17/50 choice generators implemented; 2 handlers missing.
-- **Potions (effects)**: discovery/selection and several effects partial.
-- **Rewards**: JSON action layer implemented; fidelity still depends on relic/potion/event gaps.
+### Implementation Coverage (Updated 2026-03-11)
+- **Power triggers**: 168 registered (136 unique power IDs). ~10 non-Watcher powers still missing (ExplosivePower, StasisPower, ConservePower, etc.).
+- **Relic triggers**: 172 registered across registry files. Boss relic energy wired. Most pickup/onEquip effects implemented.
+- **Events**: 51/51 handlers implemented; 48/51 choice generators (3 use aliases). All critical events verified.
+- **Potions (effects)**: Core effects implemented; discovery/selection partial.
+- **Rewards**: JSON action layer fully implemented.
 
-### Missing Features (138 Skipped Tests by markers)
+### Remaining Gaps (~10 items, all LOW/MEDIUM, see `docs/audits/remaining-work-scoped.md`)
 | Category | Count | Priority | Description |
 |----------|-------|----------|-------------|
-| Rest Site Relics | 36 | HIGH | Dream Catcher, Regal Pillow, Girya, Peace Pipe, Shovel |
-| Relic Pickup Effects | 34 | HIGH | War Paint, Whetstone, Astrolabe, Calling Bell, etc. |
-| Chest Relic Acquisition | 30 | HIGH | Tiny Chest, Matryoshka, Black Star, Cursed Key |
-| Bottled Relics | 20 | MED | Bottled Flame/Lightning/Tornado innate hands |
-| Out-of-Combat Triggers | 13 | MED | Shop relics, Ectoplasm tracking |
+| DrawPower passive | 1 | MEDIUM | Verify draw modification works end-to-end |
+| applyStartOfTurnCards | 1 | LOW | Per-turn card cost reset (partial impl exists) |
+| Non-Watcher powers | ~7 | LOW | Defect/Silent-only powers (ExplosivePower, StasisPower, etc.) |
+| Relic edge cases | 2-3 | LOW | N'loth's Mask, Prismatic Shard card rewards |
 
-See test files and `docs/ARCHITECTURE.md` for implementation details.
+See test files, `docs/ARCHITECTURE.md`, and `docs/audits/remaining-work-scoped.md` for details.
 
 ## Engine API (for RL integration)
 ```python
