@@ -1255,6 +1255,98 @@ class TestDrawMechanics:
 
 
 # =============================================================================
+# M-05: Enemy damage power hooks (atDamageFinalReceive chains correctly)
+# =============================================================================
+
+
+class TestEnemyDamagePowerHooks:
+    """Verify that enemy-to-player damage correctly chains power hooks.
+
+    M-05: atDamageFinalReceive must chain (Intangible, Flight).
+    atDamageGive/atDamageReceive are fire-and-forget because Strength/
+    Weak/Vulnerable are hardcoded in the damage computation.
+    """
+
+    def test_intangible_chains_in_enemy_damage_path(self):
+        """atDamageFinalReceive chains correctly: Intangible caps to 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=20, player_hp=80)
+        engine.start_combat()
+        engine.state.player.block = 0
+        engine.state.player.statuses["IntangiblePlayer"] = 1
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # Intangible should cap 20 damage to 1
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_enemy_strength_applied_correctly(self):
+        """Enemy Strength adds to damage (hardcoded, not via hook)."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=5, player_hp=80)
+        engine.start_combat()
+        engine.state.player.block = 0
+        engine.state.enemies[0].statuses["Strength"] = 3
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # 5 base + 3 strength = 8 damage
+        assert engine.state.player.hp == initial_hp - 8
+
+    def test_enemy_weak_reduces_damage(self):
+        """Weakened enemy deals 25% less damage (hardcoded)."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.start_combat()
+        engine.state.player.block = 0
+        engine.state.enemies[0].statuses["Weakened"] = 1
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # 10 * 0.75 = 7.5 -> floor to 7
+        assert engine.state.player.hp == initial_hp - 7
+
+
+# =============================================================================
+# M-06: Torii post-block ordering verification
+# =============================================================================
+
+
+class TestToriiPostBlockOrdering:
+    """M-06: Verify Torii fires AFTER block subtraction (post-block).
+
+    Java: Torii.onAttacked fires in AbstractPlayer.damage() after
+    decrementBlock(). Python: inline at line ~677 after block absorption.
+    """
+
+    def test_torii_fires_after_block_subtraction(self):
+        """8 damage with 5 block = 3 unblocked, Torii reduces 3 to 1."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=8, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 5
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # 8 - 5 block = 3 unblocked, Torii: 2<=3<=5 -> 1 HP lost
+        assert engine.state.player.hp == initial_hp - 1
+
+    def test_torii_does_not_fire_when_fully_blocked(self):
+        """10 damage with 10 block = 0 unblocked, Torii does not apply."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=10, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 10
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        assert engine.state.player.hp == initial_hp
+
+    def test_torii_does_not_fire_when_unblocked_above_5(self):
+        """15 damage with 3 block = 12 unblocked, Torii range exceeded."""
+        engine = create_simple_combat("TestEnemy", enemy_hp=200, enemy_damage=15, player_hp=80)
+        engine.state.relics.append("Torii")
+        engine.start_combat()
+        engine.state.player.block = 3
+        initial_hp = engine.state.player.hp
+        engine.end_turn()
+        # 15 - 3 block = 12 unblocked, Torii: 12 > 5 -> no reduction
+        assert engine.state.player.hp == initial_hp - 12
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 

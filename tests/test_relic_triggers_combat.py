@@ -1379,5 +1379,162 @@ class TestBlueCandleMedicalKitBehavior:
         assert state.player.hp == initial_hp - 1, "Blue Candle should deal 1 HP loss"
 
 
+# =============================================================================
+# UNTESTED RELIC TRIGGERS (batch 2026-03-11 audit)
+# =============================================================================
+
+
+class TestPocketwatch:
+    """Pocketwatch: draw 3 next turn if played 3 or fewer cards this turn."""
+
+    def test_pocketwatch_draws_when_few_cards_played(self):
+        """Pocketwatch should grant Draw 3 when 3 or fewer cards played."""
+        state = create_combat_with_relic("Pocketwatch")
+        state.cards_played_this_turn = 2
+        execute_relic_triggers("onPlayerEndTurn", state)
+        assert state.player.statuses.get("Draw", 0) == 3
+
+    def test_pocketwatch_draws_at_exactly_three(self):
+        """Pocketwatch should still trigger when exactly 3 cards played."""
+        state = create_combat_with_relic("Pocketwatch")
+        state.cards_played_this_turn = 3
+        execute_relic_triggers("onPlayerEndTurn", state)
+        assert state.player.statuses.get("Draw", 0) == 3
+
+    def test_pocketwatch_no_draw_when_more_than_three(self):
+        """Pocketwatch should not trigger when more than 3 cards played."""
+        state = create_combat_with_relic("Pocketwatch")
+        state.cards_played_this_turn = 4
+        execute_relic_triggers("onPlayerEndTurn", state)
+        assert state.player.statuses.get("Draw", 0) == 0
+
+
+class TestCloakClasp:
+    """CloakClasp: gain 1 block per card in hand at end of turn."""
+
+    def test_cloak_clasp_gains_block_per_card(self):
+        """CloakClasp should gain block equal to number of cards in hand."""
+        state = create_combat_with_relic("CloakClasp")
+        state.hand = ["Strike_R", "Defend_R", "Bash"]
+        state.player.block = 0
+        execute_relic_triggers("onPlayerEndTurn", state)
+        assert state.player.block == 3
+
+    def test_cloak_clasp_zero_cards(self):
+        """CloakClasp should gain 0 block with empty hand."""
+        state = create_combat_with_relic("CloakClasp")
+        state.hand = []
+        state.player.block = 0
+        execute_relic_triggers("onPlayerEndTurn", state)
+        assert state.player.block == 0
+
+
+class TestMawBank:
+    """Maw Bank: gain 12 gold entering non-shop rooms."""
+
+    def test_maw_bank_gains_gold_on_monster_room(self):
+        """Maw Bank should gain 12 gold entering a monster room."""
+        state = create_combat_with_relic("Maw Bank")
+        state.gold = 50
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "MONSTER"})
+        assert state.gold == 62
+
+    def test_maw_bank_no_gold_at_shop(self):
+        """Maw Bank should NOT gain gold at a shop."""
+        state = create_combat_with_relic("Maw Bank")
+        state.gold = 50
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "SHOP"})
+        assert state.gold == 50
+
+    def test_maw_bank_deactivated(self):
+        """Maw Bank should not gain gold when deactivated (counter=-2)."""
+        state = create_combat_with_relic("Maw Bank")
+        state.gold = 50
+        state.set_relic_counter("Maw Bank", -2)
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "MONSTER"})
+        assert state.gold == 50
+
+
+class TestMealTicket:
+    """Meal Ticket: heal 15 HP when entering a shop."""
+
+    def test_meal_ticket_heals_at_shop(self):
+        """Meal Ticket should heal 15 HP when entering a shop."""
+        state = create_combat_with_relic("Meal Ticket",
+                                         player_hp=60, player_max_hp=80)
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "SHOP"})
+        assert state.player.hp == 75
+
+    def test_meal_ticket_no_heal_at_monster(self):
+        """Meal Ticket should NOT heal at non-shop rooms."""
+        state = create_combat_with_relic("Meal Ticket",
+                                         player_hp=60, player_max_hp=80)
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "MONSTER"})
+        assert state.player.hp == 60
+
+
+class TestAncientTeaSet:
+    """Ancient Tea Set: gain 2 energy on turn 1 if last room was rest."""
+
+    def test_ancient_tea_set_gains_energy_from_rest(self):
+        """Ancient Tea Set should gain 2 energy on turn 1 when counter is -2 (rest room)."""
+        state = create_combat_with_relic("Ancient Tea Set")
+        state.turn = 1
+        state.set_relic_counter("Ancient Tea Set", -2)
+        initial_energy = state.energy
+        execute_relic_triggers("atTurnStart", state)
+        assert state.energy == initial_energy + 2
+
+    def test_ancient_tea_set_no_energy_normally(self):
+        """Ancient Tea Set should not gain energy when counter is 0 (not from rest)."""
+        state = create_combat_with_relic("Ancient Tea Set")
+        state.turn = 1
+        state.set_relic_counter("Ancient Tea Set", 0)
+        initial_energy = state.energy
+        execute_relic_triggers("atTurnStart", state)
+        assert state.energy == initial_energy
+
+    def test_ancient_tea_set_only_turn_one(self):
+        """Ancient Tea Set should only trigger on turn 1."""
+        state = create_combat_with_relic("Ancient Tea Set")
+        state.turn = 2
+        state.set_relic_counter("Ancient Tea Set", -2)
+        initial_energy = state.energy
+        execute_relic_triggers("atTurnStart", state)
+        assert state.energy == initial_energy
+
+
+class TestFaceOfCleric:
+    """Face Of Cleric: gain 1 max HP after combat."""
+
+    def test_face_of_cleric_gains_max_hp(self):
+        """Face Of Cleric should increase max HP by 1 after combat victory."""
+        state = create_combat_with_relic("Face Of Cleric",
+                                         player_hp=70, player_max_hp=80)
+        initial_max = state.player.max_hp
+        initial_hp = state.player.hp
+        execute_relic_triggers("onVictory", state)
+        assert state.player.max_hp == initial_max + 1
+        assert state.player.hp == initial_hp + 1
+
+
+class TestSsserpentHead:
+    """Ssserpent Head: gain 50 gold at ? (EVENT) rooms."""
+
+    def test_ssserpent_head_gains_gold_at_event(self):
+        """Ssserpent Head should gain 50 gold at EVENT rooms."""
+        state = create_combat_with_relic("Ssserpent Head")
+        state.gold = 100
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "EVENT"})
+        assert state.gold == 150
+
+    def test_ssserpent_head_no_gold_at_monster(self):
+        """Ssserpent Head should NOT gain gold at non-EVENT rooms."""
+        state = create_combat_with_relic("Ssserpent Head")
+        state.gold = 100
+        execute_relic_triggers("onEnterRoom", state, {"room_type": "MONSTER"})
+        assert state.gold == 100
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

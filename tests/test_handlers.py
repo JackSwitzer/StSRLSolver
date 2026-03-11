@@ -1395,3 +1395,377 @@ class TestDesigner:
         )
         assert result.gold_change == -90
         assert len(result.cards_removed) == 1
+
+
+# =============================================================================
+# UNTESTED EVENT HANDLERS (batch 2026-03-11 audit)
+# =============================================================================
+
+
+class TestColosseum:
+    """Colosseum: multi-phase fight event.
+    Phase 1: Enter the colosseum (fight Slavers)
+    Phase 2 (after first fight won): Fight Nobs or Cowardice (leave)
+    """
+
+    def test_enter_triggers_combat(self):
+        """Entering the colosseum should trigger combat with Slavers."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Colosseum")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "ColosseumSlavers"
+        assert result.event_complete is False
+
+    def test_first_fight_won_offers_second_fight(self):
+        """After winning first fight, second phase offers fight or leave."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Colosseum")
+        run = _make_run()
+
+        # Simulate entering combat
+        handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+
+        # Simulate first combat won
+        event_state.phase = EventPhase.COMBAT_WON
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert event_state.first_fight_won is True
+        assert event_state.phase == EventPhase.SECONDARY
+
+    def test_cowardice_leaves(self):
+        """Choosing cowardice in phase 2 should leave without combat."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Colosseum")
+        event_state.phase = EventPhase.SECONDARY
+        event_state.first_fight_won = True
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "cowardice"
+        assert result.combat_triggered is False
+
+    def test_fight_nobs_triggers_second_combat(self):
+        """Fighting Nobs in phase 2 should trigger second combat."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Colosseum")
+        event_state.phase = EventPhase.SECONDARY
+        event_state.first_fight_won = True
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "TwoNobs"
+
+
+class TestMaskedBandits:
+    """MaskedBandits: pay (lose all gold) or fight for rewards."""
+
+    def test_pay_loses_all_gold(self):
+        """Paying should lose all gold."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MaskedBandits")
+        run = _make_run()
+        run.add_gold(200)
+        initial_gold = run.gold
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.gold == 0
+        assert result.gold_change == -initial_gold
+
+    def test_fight_triggers_combat(self):
+        """Fighting should trigger combat with bandits."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MaskedBandits")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "ThreeBandits"
+        assert result.event_complete is False
+
+
+class TestAddict:
+    """Addict (Pleading Vagrant): pay 85g for relic, steal (relic + Shame), or leave.
+
+    Java: 0=Pay 85 gold for relic, 1=Steal relic+Shame (free), 2=Leave.
+    """
+
+    def test_pay_costs_gold_gives_relic(self):
+        """Paying should cost 85 gold and give a relic."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Addict")
+        run = _make_run()
+        run.add_gold(200)
+        initial_gold = run.gold
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.gold == initial_gold - 85
+        assert len(result.relics_gained) == 1
+
+    def test_rob_gives_relic_and_shame(self):
+        """Stealing should give a relic and a Shame curse."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Addict")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert len(result.relics_gained) == 1
+        assert "Shame" in result.cards_gained
+
+    def test_leave_no_changes(self):
+        """Leaving should not change anything."""
+        handler = EventHandler()
+        event_state = EventState(event_id="Addict")
+        run = _make_run()
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+
+        result = handler.execute_choice(
+            event_state, 2, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.gold == initial_gold
+        assert len(run.deck) == initial_deck_size
+        assert result.choice_name == "leave"
+
+
+class TestMysteriousSphere:
+    """MysteriousSphere: open (fight 2 Orb Walkers for rare relic) or leave."""
+
+    def test_open_triggers_combat(self):
+        """Opening the sphere should trigger combat."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MysteriousSphere")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.combat_triggered is True
+        assert result.combat_encounter == "TwoOrbWalkers"
+        assert result.event_complete is False
+
+    def test_leave_no_combat(self):
+        """Leaving should not trigger combat."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MysteriousSphere")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.combat_triggered is False
+        assert result.choice_name == "leave"
+
+
+class TestMoaiHead:
+    """MoaiHead: enter (lose max HP, heal to full), offer Golden Idol (333g), or leave."""
+
+    def test_enter_loses_max_hp_heals_to_full(self):
+        """Entering should lose max HP but heal to full."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MoaiHead")
+        run = _make_run(ascension=0)
+        run.damage(30)  # Take some damage first
+        initial_max_hp = run.max_hp
+        initial_hp = run.current_hp
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        # Should lose 12.5% max HP (A0)
+        expected_loss = int(initial_max_hp * 0.125)
+        assert run.max_hp == initial_max_hp - expected_loss
+        # Should heal to full (new max)
+        assert run.current_hp == run.max_hp
+
+    def test_leave_no_changes(self):
+        """Leaving should not change anything."""
+        handler = EventHandler()
+        event_state = EventState(event_id="MoaiHead")
+        run = _make_run()
+        initial_hp = run.current_hp
+        initial_max_hp = run.max_hp
+        initial_gold = run.gold
+
+        result = handler.execute_choice(
+            event_state, 2, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.current_hp == initial_hp
+        assert run.max_hp == initial_max_hp
+        assert run.gold == initial_gold
+        assert result.choice_name == "leave"
+
+
+class TestWindingHalls:
+    """WindingHalls: embrace madness, retrace steps, or press on."""
+
+    def test_embrace_madness_takes_damage_gives_madness(self):
+        """Embrace should take damage and give 2 Madness cards."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WindingHalls")
+        run = _make_run(ascension=0)
+        initial_hp = run.current_hp
+        initial_deck_size = len(run.deck)
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.current_hp < initial_hp  # Took damage
+        assert len(result.cards_gained) == 2
+        assert all(c == "Madness" for c in result.cards_gained)
+
+    def test_retrace_heals_gives_writhe(self):
+        """Retrace should heal and give Writhe curse."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WindingHalls")
+        run = _make_run(ascension=0)
+        run.damage(30)  # Damage to test healing
+        initial_hp = run.current_hp
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.current_hp > initial_hp  # Healed
+        assert "Writhe" in result.cards_gained
+
+    def test_press_on_loses_max_hp(self):
+        """Press on should lose 5% max HP."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WindingHalls")
+        run = _make_run(ascension=0)
+        initial_max_hp = run.max_hp
+
+        result = handler.execute_choice(
+            event_state, 2, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        expected_loss = int(initial_max_hp * 0.05)
+        assert run.max_hp == initial_max_hp - expected_loss
+
+
+class TestWeMeetAgain:
+    """WeMeetAgain: give potion (relic), give gold (card), give card (potion), or leave."""
+
+    def test_give_potion_gets_relic(self):
+        """Giving a potion should reward a relic."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WeMeetAgain")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert len(result.relics_gained) == 1
+
+    def test_give_gold_gets_card(self):
+        """Giving 50 gold should reward a card."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WeMeetAgain")
+        run = _make_run()
+        run.add_gold(100)
+        initial_gold = run.gold
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.gold == initial_gold - 50
+        assert len(result.cards_gained) == 1
+
+    def test_give_card_requires_selection(self):
+        """Giving a card without card_idx should require card selection."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WeMeetAgain")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 2, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.requires_card_selection is True
+        assert result.event_complete is False
+
+    def test_leave_no_changes(self):
+        """Leaving should not change anything."""
+        handler = EventHandler()
+        event_state = EventState(event_id="WeMeetAgain")
+        run = _make_run()
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+
+        result = handler.execute_choice(
+            event_state, 3, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert run.gold == initial_gold
+        assert len(run.deck) == initial_deck_size
+        assert result.choice_name == "leave"
+
+
+class TestAccursedBlacksmith:
+    """AccursedBlacksmith: upgrade card (gain Parasite curse) or leave."""
+
+    def test_upgrade_with_card_idx_upgrades_and_curses(self):
+        """Upgrading should upgrade a card and give Parasite curse."""
+        handler = EventHandler()
+        event_state = EventState(event_id="AccursedBlacksmith")
+        run = _make_run()
+        initial_deck_size = len(run.deck)
+
+        # Find an upgradeable card
+        upgradeable_idx = None
+        for i, card in enumerate(run.deck):
+            if not card.upgraded and card.id not in ["AscendersBane"]:
+                upgradeable_idx = i
+                break
+
+        assert upgradeable_idx is not None, "Should have at least one upgradeable card"
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100),
+            card_idx=upgradeable_idx, misc_rng=_make_rng(200)
+        )
+        assert "Parasite" in result.cards_gained
+        assert len(run.deck) == initial_deck_size + 1  # Parasite added
+
+    def test_upgrade_without_card_idx_requires_selection(self):
+        """Upgrading without card_idx should require card selection."""
+        handler = EventHandler()
+        event_state = EventState(event_id="AccursedBlacksmith")
+        run = _make_run()
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.requires_card_selection is True
+        assert result.card_selection_type == "upgrade"
+        assert result.event_complete is False
+
+    def test_leave_no_changes(self):
+        """Leaving should not change the deck."""
+        handler = EventHandler()
+        event_state = EventState(event_id="AccursedBlacksmith")
+        run = _make_run()
+        initial_deck_size = len(run.deck)
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert len(run.deck) == initial_deck_size
+        assert result.choice_name == "leave"

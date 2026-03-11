@@ -1876,3 +1876,210 @@ class TestFaceTraderHandlerBehavior:
         assert run.current_hp == initial_hp
         assert len(run.relics) == initial_relic_count
         assert result.choice_name == "leave"
+
+
+# ===========================================================================
+# M-14: Addict (Pleading Vagrant) option ordering matches Java
+# ===========================================================================
+
+
+class TestAddictOptionOrdering:
+    """Java Addict.java: 0=Pay 85g for relic, 1=Steal relic+Shame, 2=Leave."""
+
+    def test_addict_option_0_pay_gives_relic(self):
+        """Option 0: pay 85 gold to get a relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.gold = 200
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="Addict")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.choice_name == "pay"
+        assert result.gold_change == -85
+        assert run.gold == 200 - 85
+        assert len(result.relics_gained) == 1
+        assert len(run.relics) == initial_relic_count + 1
+        # No curse from paying
+        assert len(result.cards_gained) == 0
+
+    def test_addict_option_1_steal_gives_relic_and_shame(self):
+        """Option 1: steal relic + Shame curse (free, no gold cost)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_relic_count = len(run.relics)
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="Addict")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert result.choice_name == "rob"
+        # No gold cost for stealing
+        assert run.gold == initial_gold
+        # Gets relic
+        assert len(result.relics_gained) == 1
+        assert len(run.relics) == initial_relic_count + 1
+        # Gets Shame curse
+        assert "Shame" in result.cards_gained
+        assert len(run.deck) == initial_deck_size + 1
+
+    def test_addict_option_2_leave(self):
+        """Option 2: leave (nothing happens)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_relic_count = len(run.relics)
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="Addict")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert result.choice_name == "leave"
+        assert run.gold == initial_gold
+        assert len(run.relics) == initial_relic_count
+        assert len(run.deck) == initial_deck_size
+
+    def test_addict_choice_generator_has_3_options(self):
+        """Choice generator should offer pay, steal, leave."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.gold = 200
+
+        event_state = EventState(event_id="Addict")
+        choices = handler.get_available_choices(event_state, run)
+
+        assert len(choices) == 3
+        assert choices[0].name == "pay"
+        assert choices[1].name == "rob"
+        assert choices[2].name == "leave"
+
+
+# ===========================================================================
+# M-17: Transform events preserve card rarity
+# ===========================================================================
+
+
+class TestTransformPreservesRarity:
+    """Java transformCard() preserves the rarity of the original card.
+    Affects Transmogrifier, Augmenter/DrugDealer, and Designer."""
+
+    def _add_card_of_rarity(self, run, rarity_str):
+        """Add a card of the given rarity to the deck and return its index."""
+        from packages.engine.content.cards import ALL_CARDS, CardRarity
+        for card_id, card_def in ALL_CARDS.items():
+            if (hasattr(card_def, 'rarity')
+                    and str(card_def.rarity).lower().endswith(rarity_str.lower())
+                    and card_def.card_type.value not in ("STATUS", "CURSE")
+                    and not card_id.endswith("+")):
+                run.add_card(card_id)
+                return len(run.deck) - 1
+        return None
+
+    def test_transmogrifier_preserves_rare_rarity(self):
+        """Transmogrifier transforms a rare card into another rare card."""
+        from packages.engine.content.cards import ALL_CARDS
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        # Find a rare card
+        card_idx = self._add_card_of_rarity(run, "rare")
+        assert card_idx is not None
+
+        event_state = EventState(event_id="Transmogrifier")
+        misc_rng = Random(42)
+        event_rng = Random(42)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng,
+                                        card_idx=card_idx, misc_rng=misc_rng)
+
+        assert len(result.cards_gained) == 1
+        new_card_id = result.cards_gained[0]
+        new_card_def = ALL_CARDS.get(new_card_id.rstrip("+"))
+        assert new_card_def is not None
+        assert "rare" in str(new_card_def.rarity).lower(), \
+            f"Expected rare card, got {new_card_def.rarity} for {new_card_id}"
+
+    def test_transmogrifier_preserves_uncommon_rarity(self):
+        """Transmogrifier transforms an uncommon card into another uncommon card."""
+        from packages.engine.content.cards import ALL_CARDS
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        card_idx = self._add_card_of_rarity(run, "uncommon")
+        assert card_idx is not None
+
+        event_state = EventState(event_id="Transmogrifier")
+        misc_rng = Random(42)
+        event_rng = Random(42)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng,
+                                        card_idx=card_idx, misc_rng=misc_rng)
+
+        assert len(result.cards_gained) == 1
+        new_card_id = result.cards_gained[0]
+        new_card_def = ALL_CARDS.get(new_card_id.rstrip("+"))
+        assert new_card_def is not None
+        assert "uncommon" in str(new_card_def.rarity).lower(), \
+            f"Expected uncommon card, got {new_card_def.rarity} for {new_card_id}"
+
+    def test_augmenter_preserves_rare_rarity(self):
+        """Augmenter transform option preserves rarity."""
+        from packages.engine.content.cards import ALL_CARDS
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+
+        card_idx = self._add_card_of_rarity(run, "rare")
+        assert card_idx is not None
+
+        event_state = EventState(event_id="Augmenter")
+        misc_rng = Random(42)
+        event_rng = Random(42)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng,
+                                        card_idx=card_idx, misc_rng=misc_rng)
+
+        assert len(result.cards_gained) == 1
+        new_card_id = result.cards_gained[0]
+        new_card_def = ALL_CARDS.get(new_card_id.rstrip("+"))
+        assert new_card_def is not None
+        assert "rare" in str(new_card_def.rarity).lower(), \
+            f"Expected rare card, got {new_card_def.rarity} for {new_card_id}"
+
+    def test_designer_cleanup_preserves_uncommon_rarity(self):
+        """Designer cleanup transform preserves rarity."""
+        from packages.engine.content.cards import ALL_CARDS
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.gold = 500  # Enough for cleanup option
+
+        card_idx = self._add_card_of_rarity(run, "uncommon")
+        assert card_idx is not None
+
+        event_state = EventState(event_id="Designer")
+        misc_rng = Random(42)
+        event_rng = Random(42)
+
+        # Initialize designer to get costs computed
+        handler.get_available_choices(event_state, run)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng,
+                                        card_idx=card_idx, misc_rng=misc_rng)
+
+        # Check if we got a transform (depends on misc_rng choosing transform vs remove)
+        if len(result.cards_gained) > 0:
+            new_card_id = result.cards_gained[0]
+            new_card_def = ALL_CARDS.get(new_card_id.rstrip("+"))
+            assert new_card_def is not None
+            assert "uncommon" in str(new_card_def.rarity).lower(), \
+                f"Expected uncommon card, got {new_card_def.rarity} for {new_card_id}"
