@@ -110,7 +110,7 @@ SPECIAL/GENERATED CARDS:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .registry import (
     effect, effect_simple, effect_custom, EffectContext
@@ -1301,7 +1301,23 @@ def get_card_effects(card_id: str) -> List[str]:
     """
     # Strip upgrade suffix if present
     base_id = card_id.rstrip("+")
-    return WATCHER_CARD_EFFECTS.get(base_id, [])
+    # Check all card effect registries
+    if base_id in WATCHER_CARD_EFFECTS:
+        return WATCHER_CARD_EFFECTS[base_id]
+    # Defer to other registries (defined later in file) via lazy lookup
+    return _get_card_effects_all(base_id)
+
+
+def _get_card_effects_all(base_id: str) -> List[str]:
+    """Lookup card effects across all registries."""
+    for registry in (_ALL_CARD_EFFECTS_EXTRA,):
+        if base_id in registry:
+            return registry[base_id]
+    return []
+
+
+# Populated after all registries are defined
+_ALL_CARD_EFFECTS_EXTRA: Dict[str, List[str]] = {}
 
 
 # =============================================================================
@@ -1684,6 +1700,11 @@ def can_play_card(ctx: EffectContext, card_id: str) -> tuple:
         )
         if non_attacks > 0:
             return (False, "Can only play when only Attacks in hand")
+
+    # Grand Finale - only if draw pile is empty
+    if base_id == "Grand Finale":
+        if ctx.state.draw_pile:
+            return (False, "Can only play when draw pile is empty")
 
     return (True, "")
 
@@ -3298,3 +3319,9 @@ SILENT_CARD_EFFECTS = {
     # === SPECIAL ===
     "Shiv": [],  # Just damage + exhaust
 }
+
+# =============================================================================
+# POPULATE CROSS-REGISTRY LOOKUP
+# =============================================================================
+_ALL_CARD_EFFECTS_EXTRA.update(IRONCLAD_CARD_EFFECTS)
+_ALL_CARD_EFFECTS_EXTRA.update(SILENT_CARD_EFFECTS)

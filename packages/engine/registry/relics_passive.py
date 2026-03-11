@@ -56,6 +56,13 @@ PASSIVE_RELICS = {
     # Chest/reward modifiers
     "Black Star": {"double_elite_relics": True},
     "Cursed Key": {"curse_on_chest": True},
+
+    # UI / visibility modifiers
+    "Frozen Eye": {"draw_pile_visible": True},
+
+    # Card reward modifiers
+    "Prismatic Shard": {"any_class_cards": True},
+    "Discerning Monocle": {"rare_card_chance_boost": True},
 }
 
 
