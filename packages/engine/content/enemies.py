@@ -174,6 +174,17 @@ class Enemy:
         """Get damage values based on ascension. Override in subclass."""
         return {}
 
+    def copy(self) -> 'Enemy':
+        """Create an independent copy with its own RNG state (safe for MCTS)."""
+        import copy as _copy
+        clone = _copy.copy(self)  # shallow copy of all attributes
+        clone.ai_rng = self.ai_rng.copy()
+        clone.hp_rng = self.hp_rng.copy() if self.hp_rng is not self.ai_rng else clone.ai_rng
+        clone.state = _copy.copy(self.state)
+        clone.state.move_history = list(self.state.move_history)
+        clone.state.powers = dict(self.state.powers)
+        return clone
+
     def roll_move(self) -> MoveInfo:
         """Roll next move using AI RNG."""
         roll = self.ai_rng.random(99)  # 0-99 inclusive

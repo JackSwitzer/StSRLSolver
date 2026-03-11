@@ -590,7 +590,7 @@ class TestXCostBehavior:
         ctx.energy_spent = 3
         execute_effect("draw_x_next_turn", ctx)
         execute_effect("gain_x_energy_next_turn", ctx)
-        assert state.player.statuses.get("NextTurnDraw", 0) == 3
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 3
         assert state.player.statuses.get("NextTurnEnergy", 0) == 3
 
     def test_doppelganger_upgraded_x_plus_1(self):
@@ -601,7 +601,7 @@ class TestXCostBehavior:
         ctx.energy_spent = 3
         execute_effect("draw_x_next_turn", ctx)
         execute_effect("gain_x_energy_next_turn", ctx)
-        assert state.player.statuses.get("NextTurnDraw", 0) == 4
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 4
         assert state.player.statuses.get("NextTurnEnergy", 0) == 4
 
 
@@ -743,7 +743,7 @@ class TestEnergyDrawBehavior:
         card = get_card("Predator")
         ctx = make_ctx(state, card)
         execute_effect("draw_2_next_turn", ctx)
-        assert state.player.statuses.get("NextTurnDraw", 0) == 2
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 2
 
 
 # =============================================================================
@@ -971,7 +971,7 @@ class TestPowerBehavior:
         ctx = make_ctx(state, card)
         execute_effect("gain_intangible", ctx)
         execute_effect("lose_1_dexterity_each_turn", ctx)
-        assert state.player.statuses.get("Intangible", 0) == 2
+        assert state.player.statuses.get("IntangiblePlayer", 0) == 2
         assert state.player.statuses.get("WraithFormPower", 0) == 1
 
     def test_wraith_form_upgraded_3_intangible(self):
@@ -980,7 +980,7 @@ class TestPowerBehavior:
         card = get_card("Wraith Form v2", upgraded=True)
         ctx = make_ctx(state, card)
         execute_effect("gain_intangible", ctx)
-        assert state.player.statuses.get("Intangible", 0) == 3
+        assert state.player.statuses.get("IntangiblePlayer", 0) == 3
 
     def test_phantasmal_killer_applies_power(self):
         """Phantasmal Killer: apply PhantasmalKiller power (double damage next turn)."""

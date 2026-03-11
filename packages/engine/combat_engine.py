@@ -214,7 +214,7 @@ class CombatEngine:
         new_engine.state = self.state.copy()
         new_engine.state._combat_engine_ref = new_engine
         new_engine.enemy_data = self.enemy_data
-        new_engine.enemy_objects = list(self.enemy_objects)
+        new_engine.enemy_objects = [e.copy() if e else None for e in self.enemy_objects]
         new_engine.shuffle_rng = self.shuffle_rng.copy() if hasattr(self.shuffle_rng, 'copy') else self.shuffle_rng
         new_engine.card_rng = self.card_rng.copy() if hasattr(self.card_rng, 'copy') else self.card_rng
         new_engine.ai_rng = self.ai_rng.copy() if hasattr(self.ai_rng, 'copy') else self.ai_rng

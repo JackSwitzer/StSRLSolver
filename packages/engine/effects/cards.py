@@ -2683,7 +2683,7 @@ def draw_to_x_cards(ctx: EffectContext) -> None:
 @effect_simple("draw_2_next_turn")
 def draw_2_next_turn(ctx: EffectContext) -> None:
     """Draw 2 cards next turn (Predator)."""
-    ctx.apply_status_to_player("NextTurnDraw", 2)
+    ctx.apply_status_to_player("DrawCardNextTurn", 2)
 
 
 @effect_simple("draw_x_next_turn")
@@ -2691,7 +2691,7 @@ def draw_x_next_turn(ctx: EffectContext) -> None:
     """Draw X cards next turn (Doppelganger)."""
     x = ctx.energy_spent if hasattr(ctx, 'energy_spent') and ctx.energy_spent > 0 else ctx.energy
     bonus = 1 if ctx.is_upgraded else 0
-    ctx.apply_status_to_player("NextTurnDraw", x + bonus)
+    ctx.apply_status_to_player("DrawCardNextTurn", x + bonus)
 
 
 @effect_simple("draw_1_discard_1_each_turn")
@@ -2899,7 +2899,7 @@ def attacks_apply_poison(ctx: EffectContext) -> None:
 def gain_intangible(ctx: EffectContext) -> None:
     """Gain Intangible (Wraith Form)."""
     amount = ctx.magic_number if ctx.magic_number > 0 else 2
-    ctx.apply_status_to_player("Intangible", amount)
+    ctx.apply_status_to_player("IntangiblePlayer", amount)
 
 
 @effect_simple("lose_1_dexterity_each_turn")
@@ -3053,7 +3053,7 @@ def upgrade_all_cards_in_combat(ctx: EffectContext) -> None:
 @effect_simple("gain_intangible_1")
 def gain_intangible_1(ctx: EffectContext) -> None:
     """Ghostly - gain 1 Intangible."""
-    ctx.apply_status_to_player("Intangible", 1)
+    ctx.apply_status_to_player("IntangiblePlayer", 1)
 
 
 @effect_simple("end_of_turn_take_damage")
