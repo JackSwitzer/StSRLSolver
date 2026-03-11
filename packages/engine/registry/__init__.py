@@ -698,6 +698,11 @@ def execute_power_triggers(hook: str, state: CombatState,
         handler_result = handler(ctx)
         if handler_result is not None:
             result = handler_result
+            # Chain: update trigger_data so the next handler sees the
+            # modified value (matches Java where each hook receives the
+            # output of the previous one).
+            if "value" in trigger_data:
+                trigger_data["value"] = result
 
     return result
 

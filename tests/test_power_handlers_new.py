@@ -77,7 +77,7 @@ class TestNewHandlerRegistration:
         assert POWER_REGISTRY.has_handler("onAttacked", "Angry")
 
     def test_curiosity_registered(self):
-        assert POWER_REGISTRY.has_handler("onUseCard", "Curiosity")
+        assert POWER_REGISTRY.has_handler("onPlayCard", "Curiosity")
 
     def test_growth_power_registered(self):
         assert POWER_REGISTRY.has_handler("atEndOfRound", "GrowthPower")
@@ -343,7 +343,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 1
         mock_card = type("Card", (), {"card_type": CardType.POWER, "id": "TestPower"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "TestPower"}
         )
         assert enemy.statuses.get("Strength") == 1
@@ -355,7 +355,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 1
         mock_card = type("Card", (), {"card_type": CardType.ATTACK, "id": "Strike"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "Strike"}
         )
         assert enemy.statuses.get("Strength", 0) == 0
@@ -367,7 +367,7 @@ class TestCuriosity:
         enemy.statuses["Curiosity"] = 3
         mock_card = type("Card", (), {"card_type": CardType.POWER, "id": "TestPower"})()
         execute_power_triggers(
-            "onUseCard", state, enemy,
+            "onPlayCard", state, enemy,
             {"card": mock_card, "card_id": "TestPower"}
         )
         assert enemy.statuses.get("Strength") == 3
@@ -720,13 +720,11 @@ class TestEdgeCases:
     def test_double_damage_stacks_with_strength(self):
         """Double Damage and Strength should stack correctly.
 
-        Each power handler reads the original trigger_data["value"].
-        The last handler's return value is the final result.
+        Handler return values are chained through trigger_data["value"],
+        matching Java's power iteration.
         Priority: Double Damage (6) runs before Strength (100).
-        Double Damage: 10 * 2 = 20 (returned first).
-        Strength: 10 + 3 = 13 (returned last, overwrites).
-        Final result: 13. This matches the current dispatch model where
-        handlers read the original value, not a chained result.
+        Double Damage: 10 * 2 = 20 (chained into trigger_data).
+        Strength: 20 + 3 = 23 (reads chained value).
         """
         state = _make_state()
         state.player.statuses["Strength"] = 3
@@ -735,8 +733,8 @@ class TestEdgeCases:
             "atDamageGive", state, state.player,
             {"value": 10.0, "damage_type": "NORMAL"}
         )
-        # Strength runs last (priority 100) and reads original value 10 + 3 = 13
-        assert result == 13.0
+        # Chained: DoubleDamage(10*2=20) -> Strength(20+3=23)
+        assert result == 23.0
 
     def test_angry_and_thorns_interaction(self):
         """Angry should not trigger from Thorns damage type."""

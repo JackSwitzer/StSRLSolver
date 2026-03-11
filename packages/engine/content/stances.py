@@ -208,7 +208,7 @@ WRATH_ENTRY_CARDS = [
     "Eruption",      # 2 cost, 9 dmg, enter Wrath
     "Tantrum",       # 1 cost, 3x3 dmg, enter Wrath, shuffle into draw
     "Crescendo",     # 0 cost, enter Wrath, exhaust, retain
-    "Indignation",   # 1 cost, enter Wrath OR 3 Mantra if in Wrath
+    "Indignation",   # 1 cost, enter Wrath OR Vuln all enemies if in Wrath
     "Ragnarok",      # 3 cost, 5x5 dmg, enter Wrath (if not exhausted version)
 ]
 

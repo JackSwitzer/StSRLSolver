@@ -231,17 +231,18 @@ class TestConditionalStanceEffects:
         execute_effect("if_calm_draw_else_calm", ctx_basic)
         assert ctx_basic.stance == "Calm"
 
-    def test_indignation_in_wrath_gains_mantra(self, ctx_basic):
-        """Indignation in Wrath gains 3 mantra."""
+    def test_indignation_in_wrath_vulns_all(self, ctx_basic):
+        """Indignation in Wrath applies Vulnerable to all enemies (Java parity)."""
         ctx_basic.state.stance = "Wrath"
         ctx_basic.is_upgraded = False
-        execute_effect("if_wrath_gain_mantra_else_wrath", ctx_basic)
-        assert ctx_basic.get_player_status("Mantra") == 3
+        execute_effect("if_wrath_vuln_all_else_wrath", ctx_basic)
+        for enemy in ctx_basic.living_enemies:
+            assert enemy.statuses.get("Vulnerable", 0) == 3
 
     def test_indignation_not_in_wrath_enters_wrath(self, ctx_basic):
         """Indignation outside Wrath enters Wrath."""
         ctx_basic.state.stance = "Neutral"
-        execute_effect("if_wrath_gain_mantra_else_wrath", ctx_basic)
+        execute_effect("if_wrath_vuln_all_else_wrath", ctx_basic)
         assert ctx_basic.stance == "Wrath"
 
     def test_halt_wrath_bonus(self, ctx_basic):
@@ -440,12 +441,12 @@ class TestBlockAndDamageEffects:
         assert damage == 5
 
     def test_spirit_shield_block(self, ctx_basic):
-        """Spirit Shield gains block per card in hand."""
+        """Spirit Shield gains block per card in hand, excluding itself (Java parity)."""
         ctx_basic.state.hand = ["Strike_P"] * 5
         ctx_basic.magic_number = 3  # 3 block per card
         initial_block = ctx_basic.player.block
         execute_effect("gain_block_per_card_in_hand", ctx_basic)
-        assert ctx_basic.player.block == initial_block + 15  # 5 cards * 3
+        assert ctx_basic.player.block == initial_block + 12  # (5-1) cards * 3 = 12
 
     def test_wallop_block_from_damage(self, ctx_basic):
         """Wallop: gain block equal to unblocked damage dealt."""

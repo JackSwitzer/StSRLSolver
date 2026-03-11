@@ -397,6 +397,42 @@ class TestUntestedEnemyAI:
         moves = self._roll_moves(e, 5)
         assert len(moves) == 5
 
+    def test_acid_slime_s_a17_alternation(self):
+        """A17+ AcidSlime_S: Java takeTurn hardcodes LICK->TACKLE->LICK->TACKLE.
+
+        In Java, getMove() only runs once at init (returns LICK because
+        lastTwoMoves(TACKLE) is false). After that, takeTurn() directly
+        sets the next move: case TACKLE -> setMove(LICK), case LICK -> setMove(TACKLE).
+        """
+        e = AcidSlimeS(Random(42), ascension=20, hp_rng=Random(42))
+        moves = self._roll_moves(e, 6)
+        # Pattern must be: LICK, TACKLE, LICK, TACKLE, LICK, TACKLE
+        assert moves == [
+            AcidSlimeS.LICK, AcidSlimeS.TACKLE,
+            AcidSlimeS.LICK, AcidSlimeS.TACKLE,
+            AcidSlimeS.LICK, AcidSlimeS.TACKLE,
+        ], f"Expected strict LICK/TACKLE alternation at A17+, got {moves}"
+
+    def test_acid_slime_s_a17_first_move_is_lick(self):
+        """A17+ AcidSlime_S always starts with LICK (debuff), regardless of RNG seed."""
+        for seed in [1, 42, 100, 999, 12345]:
+            e = AcidSlimeS(Random(seed), ascension=17, hp_rng=Random(seed))
+            first = e.roll_move()
+            assert first.move_id == AcidSlimeS.LICK, (
+                f"Seed {seed}: first move should be LICK, got {first.move_id}"
+            )
+
+    def test_acid_slime_s_below_a17_random(self):
+        """Below A17, AcidSlime_S uses 50/50 random (not alternating)."""
+        e = AcidSlimeS(Random(42), ascension=0, hp_rng=Random(42))
+        moves = self._roll_moves(e, 10)
+        # Should have some mix (not strictly alternating) over 10 rolls
+        has_tackle = AcidSlimeS.TACKLE in moves
+        has_lick = AcidSlimeS.LICK in moves
+        assert has_tackle and has_lick, (
+            f"Expected both TACKLE and LICK in random pattern, got {moves}"
+        )
+
 
 # =============================================================================
 # Ascension HP Scaling for Encounters

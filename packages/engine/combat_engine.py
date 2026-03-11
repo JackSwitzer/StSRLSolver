@@ -232,8 +232,8 @@ class CombatEngine:
         return new_engine
 
     def get_living_enemies(self) -> List[EnemyCombatState]:
-        """Get all living enemies."""
-        return [e for e in self.state.enemies if e.hp > 0]
+        """Get all living enemies (excludes dead and escaping)."""
+        return [e for e in self.state.enemies if e.hp > 0 and not e.is_escaping]
 
     def is_combat_over(self) -> bool:
         """Check if combat has ended."""
@@ -279,43 +279,32 @@ class CombatEngine:
         for enemy in self.state.enemies:
             self._roll_enemy_move(enemy)
 
-        # Execute registry-based atBattleStart triggers (Vajra, Lantern, etc.)
-        execute_relic_triggers("atBattleStart", self.state)
-
-        # Execute atBattleStartPreDraw triggers (Pure Water adds Miracle)
+        # Java parity: atBattleStartPreDraw fires BEFORE atBattleStart
+        # (Pure Water adds Miracle to draw pile before atBattleStart relics fire)
         execute_relic_triggers("atBattleStartPreDraw", self.state)
+        execute_relic_triggers("atBattleStart", self.state)
 
         # Start first turn
         self._start_player_turn()
 
     def _start_player_turn(self):
-        """Begin a player turn."""
+        """Begin a player turn.
+
+        Java order (GameActionManager.getNextAction, lines 318-354):
+          1. applyStartOfTurnRelics  (stance.atStartOfTurn + relic.atTurnStart)
+          2. applyStartOfTurnCards   (card.atTurnStart for all piles)
+          3. applyStartOfTurnPowers  (power.atStartOfTurn)
+          4. applyStartOfTurnOrbs    (orb.onStartOfTurn)
+          5. ++turn
+          6. Block reset             (Barricade/Blur/Calipers)
+          7. DrawCardAction          (draw hand)
+          8. PostDraw relics + powers
+        """
         self.state.turn += 1
         self.phase = CombatPhase.PLAYER_TURN
 
         # Reset energy
         self.state.energy = self.state.max_energy
-
-        # Lose block (unless Barricade/Blur/Calipers)
-        if not self._has_barricade():
-            blur = self.state.player.statuses.get("Blur", 0)
-            if blur > 0:
-                # Blur: retain all block, decrement Blur
-                blur -= 1
-                if blur <= 0:
-                    del self.state.player.statuses["Blur"]
-                else:
-                    self.state.player.statuses["Blur"] = blur
-            elif self._has_calipers():
-                # Calipers: lose only 15 block instead of all
-                self.state.player.block = max(0, self.state.player.block - 15)
-            else:
-                self.state.player.block = 0
-
-        # Divinity auto-exit at start of turn (Java: DivinityStance.atStartOfTurn)
-        # Must happen after block reset so Mental Fortress block from exit persists
-        if self._get_stance() == StanceID.DIVINITY:
-            self._change_stance(StanceID.NEUTRAL)
 
         # Reset turn counters
         self.state.cards_played_this_turn = 0
@@ -325,8 +314,20 @@ class CombatEngine:
         self.state.last_card_type = ""
         self.state.discarded_this_turn = 0
 
+        # --- Step 1: Start-of-turn triggers (BEFORE block reset, Java parity) ---
+
+        # Divinity auto-exit (Java: DivinityStance.atStartOfTurn, called via
+        # applyStartOfTurnRelics → stance.atStartOfTurn)
+        if self._get_stance() == StanceID.DIVINITY:
+            self._change_stance(StanceID.NEUTRAL)
+
         # Execute registry-based atTurnStart relic triggers
         execute_relic_triggers("atTurnStart", self.state)
+
+        # Java: applyStartOfTurnCards — reset per-turn card state
+        # (cost modifications from previous turn expire, etc.)
+        # Clear any temporary cost overrides stored in card_costs
+        self.state.card_costs.clear()
 
         # Trigger start of turn powers (inline and registry)
         self._trigger_start_of_turn()
@@ -341,17 +342,55 @@ class CombatEngine:
         # Execute onEnergyRecharge power triggers (DevaForm, Energized)
         execute_power_triggers("onEnergyRecharge", self.state, self.state.player)
 
-        # Draw cards (default 5)
+        # --- Step 6: Block reset (AFTER start-of-turn triggers, Java parity) ---
+        if not self._has_barricade():
+            blur = self.state.player.statuses.get("Blur", 0)
+            if blur > 0:
+                # Blur: retain all block (like Barricade) while active.
+                # Java: Blur decrements at atEndOfRound, NOT at block reset.
+                pass
+            elif self._has_calipers():
+                # Calipers: lose only 15 block instead of all
+                self.state.player.block = max(0, self.state.player.block - 15)
+            else:
+                self.state.player.block = 0
+
+        # --- Step 7: Draw cards ---
+        # Java: gameHandSize starts at 5, modified by relics (onEquip) and powers
         draw_count = 5
+
+        # Relic draw bonuses (Ring of the Serpent +1, Snecko Eye +2)
+        for relic_id in self.state.relics:
+            try:
+                from .content.relics import ALL_RELICS
+                relic_def = ALL_RELICS.get(relic_id)
+                if relic_def and relic_def.hand_size_bonus:
+                    draw_count += relic_def.hand_size_bonus
+            except Exception:
+                pass
+
+        # Draw power (positive) and Draw Reduction (negative)
+        draw_count += self.state.player.statuses.get("Draw", 0)
+        draw_count -= self.state.player.statuses.get("Draw Reduction", 0)
+        draw_count -= self.state.player.statuses.get("DrawReduction", 0)
+
+        # DrawCardNextTurn: temporary bonus from previous turn
+        next_turn_draw = self.state.player.statuses.get("DrawCardNextTurn", 0)
+        if next_turn_draw > 0:
+            draw_count += next_turn_draw
+            self.state.player.statuses["DrawCardNextTurn"] = 0
+
         no_draw = (
             self.state.player.statuses.get("NoDraw", 0)
             or self.state.player.statuses.get("No Draw", 0)
         )
         if no_draw > 0:
             draw_count = 0
+
+        draw_count = max(0, draw_count)
         self._draw_cards(draw_count)
 
-        # Trigger post-draw hooks (Java: applyStartOfTurnPostDrawRelics/Powers).
+        # --- Step 8: Post-draw triggers ---
         execute_relic_triggers("atTurnStartPostDraw", self.state)
         execute_power_triggers("atStartOfTurnPostDraw", self.state, self.state.player)
 
@@ -382,59 +421,55 @@ class CombatEngine:
         self._start_player_turn()
 
     def end_turn(self):
-        """End the player's turn."""
+        """End the player's turn.
+
+        Java order (AbstractRoom.endTurn + GameActionManager.callEndOfTurnActions):
+          1. applyEndOfTurnTriggers — player power atEndOfTurn (BEFORE discard)
+          2. ClearCardQueue
+          3. DiscardAtEndOfTurnAction — discard hand (retain cards preserved)
+          4. applyEndOfTurnRelics — relic onPlayerEndTurn
+          5. applyEndOfTurnPreCardPowers — Metallicize, Plated Armor, LikeWater
+          6. TriggerEndOfTurnOrbsAction
+          7. hand cards triggerOnEndOfTurnForPlayingCard
+          8. stance.onEndOfTurn
+          Then: EndTurnAction → MonsterStartTurnAction → monster turns → end of round
+        """
         if self.phase != CombatPhase.PLAYER_TURN:
             return
 
         self.log.log(self.state.turn, "turn_end",
                     cards_played=self.state.cards_played_this_turn)
 
-        # Execute registry-based onPlayerEndTurn triggers
-        execute_relic_triggers("onPlayerEndTurn", self.state)
-
-        # Discard hand (unless Runic Pyramid)
-        self._discard_hand()
-
-        # Execute atEndOfTurnPreEndTurnCards power triggers (Metallicize, Plated Armor, Like Water)
-        execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
-
-        # Like Water (inline fallback)
-        like_water = self.state.player.statuses.get("LikeWater", 0)
-        if like_water > 0 and self._get_stance() == StanceID.CALM:
-            self.state.player.block += like_water
-
-        # Metallicize (inline fallback)
-        metallicize = self.state.player.statuses.get("Metallicize", 0)
-        if metallicize > 0:
-            self.state.player.block += metallicize
-
-        # Plated Armor (inline fallback)
-        plated = self.state.player.statuses.get("Plated Armor", 0)
-        if plated > 0:
-            self.state.player.block += plated
-
-        # Study: add Insight to draw pile
-        study = self.state.player.statuses.get("Study", 0)
-        if study > 0:
-            for _ in range(study):
-                self.state.draw_pile.append("Insight")
-
-        # Regen: heal at end of turn (Java: no decrement, persists entire combat)
-        regen = self.state.player.statuses.get("Regen", 0)
-        if regen > 0:
-            heal = min(regen, self.state.player.max_hp - self.state.player.hp)
-            self.state.player.hp += heal
-
-        # Execute atEndOfTurn power triggers (Constricted, Combust, Ritual, etc.)
+        # Step 1: Player power atEndOfTurn triggers BEFORE discard (Java parity)
         execute_power_triggers("atEndOfTurn", self.state, self.state.player)
         for enemy in self.state.enemies:
             if not enemy.is_dead:
                 execute_power_triggers("atEndOfTurn", self.state, enemy)
 
+        # Step 2: triggerOnEndOfTurnForPlayingCard — auto-play end-of-turn cards
+        # (Burn deals 2 damage, Regret loses HP per card in hand, Decay deals 2 damage)
+        # Java: fires from callEndOfTurnActions BEFORE DiscardAtEndOfTurnAction
+        self._trigger_end_of_turn_cards()
+
+        # Step 3: Discard hand (unless Runic Pyramid)
+        self._discard_hand()
+
+        # Step 4: End-of-turn relic triggers
+        execute_relic_triggers("onPlayerEndTurn", self.state)
+
+        # Step 5: atEndOfTurnPreEndTurnCards power triggers (Metallicize, Plated Armor, LikeWater)
+        execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
+
+        # Regen: heal at end of turn (not in registry)
+        regen = self.state.player.statuses.get("Regen", 0)
+        if regen > 0:
+            heal = min(regen, self.state.player.max_hp - self.state.player.hp)
+            self.state.player.hp += heal
+
         # Process enemy turns
         self._do_enemy_turns()
 
-        # Execute atEndOfRound power triggers (decrement Weak, Vulnerable, Frail)
+        # End of round: decrement Weak, Vulnerable, Frail
         execute_power_triggers("atEndOfRound", self.state, self.state.player)
         for enemy_state in self.state.enemies:
             if not enemy_state.is_dead:
@@ -444,6 +479,31 @@ class CombatEngine:
         if not self._check_combat_end():
             # Start next player turn
             self._start_player_turn()
+
+    def _trigger_end_of_turn_cards(self):
+        """Trigger end-of-turn effects for cards in hand.
+
+        Java: callEndOfTurnActions iterates hand, calls
+        c.triggerOnEndOfTurnForPlayingCard() on each card.
+        - Burn: Deal 2 damage to player
+        - Burn+: Deal 4 damage to player
+        - Regret: Lose HP equal to cards in hand
+        - Decay: Deal 2 damage to player
+        """
+        for card_id in list(self.state.hand):  # copy list since hand shouldn't change
+            base_id = card_id.rstrip("+")
+            is_upgraded = card_id.endswith("+")
+            if base_id == "Burn":
+                dmg = 4 if is_upgraded else 2
+                self.state.player.hp -= dmg
+                self.state.total_damage_taken += dmg
+            elif base_id == "Decay":
+                self.state.player.hp -= 2
+                self.state.total_damage_taken += 2
+            elif base_id == "Regret":
+                hp_loss = len(self.state.hand)
+                self.state.player.hp -= hp_loss
+                self.state.total_damage_taken += hp_loss
 
     def _discard_hand(self):
         """Discard all cards in hand."""
@@ -480,7 +540,7 @@ class CombatEngine:
         self.phase = CombatPhase.ENEMY_TURN
 
         for enemy in self.state.enemies:
-            if enemy.hp <= 0:
+            if enemy.hp <= 0 or enemy.is_escaping:
                 continue
 
             # Block decays at start of each enemy's turn (per-enemy)
@@ -515,6 +575,10 @@ class CombatEngine:
             # Execute enemy's move
             self._execute_enemy_move(enemy)
 
+            # Check if enemy escaped and all enemies are now gone
+            if enemy.is_escaping and self._check_combat_end():
+                return
+
             # Check if player died
             if self.state.player.hp <= 0:
                 # Check for Fairy in a Bottle before ending combat
@@ -524,7 +588,7 @@ class CombatEngine:
 
         # Decrement enemy debuffs
         for enemy in self.state.enemies:
-            if enemy.hp <= 0:
+            if enemy.hp <= 0 or enemy.is_escaping:
                 continue
             for debuff in ["Vulnerable", "Weak", "Frail"]:
                 if enemy.statuses.get(debuff, 0) > 0:
@@ -534,7 +598,7 @@ class CombatEngine:
 
         # Roll next moves
         for enemy in self.state.enemies:
-            if enemy.hp > 0:
+            if enemy.hp > 0 and not enemy.is_escaping:
                 self._roll_enemy_move(enemy)
 
         # Decrement player debuffs
@@ -581,51 +645,59 @@ class CombatEngine:
                 if self.state.player.statuses.get("Vulnerable", 0) > 0:
                     damage_f *= VULN_MULT
 
-                # Floor to int only at the end (Java parity)
-                damage = max(0, int(damage_f))
-
-                # Torii: reduce damage 2-5 to 1 (BEFORE Intangible)
-                if "Torii" in self.state.relics and 2 <= damage <= 5:
-                    damage = 1
-
-                # Intangible: cap damage to 1
-                if self.state.player.statuses.get("Intangible", 0) > 0 and damage > 1:
-                    damage = 1
-
-                # Dispatch damage modification hooks for parity coverage.
+                # --- Phase 1: applyPowers equivalent ---
+                # Fire atDamageGive on enemy (Strength/Weak already
+                # hardcoded above; hook fires for side-effects and any
+                # additional powers like Double Damage on enemies).
                 execute_power_triggers(
                     "atDamageGive",
                     self.state,
                     enemy,
-                    {"value": float(damage), "damage_type": "NORMAL"},
+                    {"value": float(damage_f), "damage_type": "NORMAL"},
                 )
+                # Fire atDamageReceive on player (Vulnerable already
+                # hardcoded; hook fires for additional powers like Slow).
                 execute_power_triggers(
                     "atDamageReceive",
                     self.state,
                     self.state.player,
-                    {"value": float(damage), "damage_type": "NORMAL"},
+                    {"value": float(damage_f), "damage_type": "NORMAL"},
                 )
-                execute_power_triggers(
+                # Fire atDamageFinalReceive on player and USE the return
+                # value.  This handles Intangible (cap to 1) and Flight
+                # (halve damage) via registered power hooks.
+                final_receive = execute_power_triggers(
                     "atDamageFinalReceive",
                     self.state,
                     self.state.player,
-                    {"value": float(damage), "damage_type": "NORMAL"},
+                    {"value": float(damage_f), "damage_type": "NORMAL"},
                 )
+                if final_receive is not None:
+                    damage_f = float(final_receive)
 
-                # Power damage replacement hook (Buffer, Invincible, etc.)
+                # Floor to int only at the end (Java parity)
+                damage = max(0, int(damage_f))
+
+                # --- Phase 2: block absorption (decrementBlock) ---
+                blocked = min(self.state.player.block, damage)
+                hp_damage = damage - blocked
+                self.state.player.block -= blocked
+
+                # --- Phase 3: post-block damage modification ---
+                # onAttackedToChangeDamage (Buffer, Invincible)
                 replaced_damage = execute_power_triggers(
                     "onAttackedToChangeDamage",
                     self.state,
                     self.state.player,
-                    {"value": damage, "damage_type": "NORMAL"},
+                    {"value": hp_damage, "damage_type": "NORMAL"},
                 )
                 if replaced_damage is not None:
-                    damage = max(0, int(replaced_damage))
+                    hp_damage = max(0, int(replaced_damage))
 
-                # Apply block
-                blocked = min(self.state.player.block, damage)
-                hp_damage = damage - blocked
-                self.state.player.block -= blocked
+                # Torii: reduce unblocked damage 2-5 to 1 (post-block,
+                # matches Java Torii.onAttacked)
+                if "Torii" in self.state.relics and 2 <= hp_damage <= 5:
+                    hp_damage = 1
 
                 # Tungsten Rod: reduce all HP loss by 1 (minimum 0)
                 if hp_damage > 0 and "Tungsten Rod" in self.state.relics:
@@ -765,6 +837,12 @@ class CombatEngine:
                 self._handle_reptomancer_spawn(enemy, effects["spawn_daggers"])
             if "spawn_torchheads" in effects:
                 self._handle_collector_spawn(enemy, effects["spawn_torchheads"])
+
+            # Enemy escape (Looter, Mugger, Gremlins)
+            # In Java, EscapeAction sets isEscaping=true and the monster leaves.
+            if effects.get("escape"):
+                enemy.is_escaping = True
+                self.log.log(self.state.turn, "enemy_escaped", enemy=enemy.id)
 
         # Mark first turn as complete
         enemy.first_turn = False
@@ -999,8 +1077,8 @@ class CombatEngine:
 
     def _check_combat_end(self) -> bool:
         """Check if combat should end. Returns True if ended."""
-        # All enemies dead?
-        all_dead = all(e.hp <= 0 for e in self.state.enemies)
+        # All enemies dead or escaped?
+        all_dead = all(e.hp <= 0 or e.is_escaping for e in self.state.enemies)
         if all_dead:
             self._end_combat(player_won=True)
             return True
@@ -1125,9 +1203,16 @@ class CombatEngine:
         if card.current_cost > self.state.energy:
             return False
 
-        # Unplayable check
+        # Unplayable check — relics can override for CURSE/STATUS cards
         if card.cost == -2 or "unplayable" in card.effects:
-            return False
+            # Blue Candle allows playing Curse cards (cost 0, exhaust, lose 1 HP)
+            if card.card_type == CardType.CURSE and self.state.has_relic("Blue Candle"):
+                pass  # allowed — effect is handled in onPlayCard trigger
+            # Medical Kit allows playing Status cards (cost 0, exhaust)
+            elif card.card_type == CardType.STATUS and self.state.has_relic("Medical Kit"):
+                pass  # allowed — effect is handled in onPlayCard trigger
+            else:
+                return False
 
         # Signature Move check
         if "only_attack_in_hand" in card.effects:
@@ -1138,8 +1223,12 @@ class CombatEngine:
             if attacks_in_hand > 1:
                 return False
 
-        # Entangled check
+        # Entangled check (can't play Attacks)
         if self.state.player.statuses.get("Entangled", 0) > 0 and card.card_type == CardType.ATTACK:
+            return False
+
+        # NoSkills check (can't play Skills this turn)
+        if self.state.player.statuses.get("NoSkills", 0) > 0 and card.card_type == CardType.SKILL:
             return False
 
         return True
@@ -1171,6 +1260,9 @@ class CombatEngine:
         # Pay energy - X-cost cards spend all remaining energy
         if card.cost == -1:
             cost = self.state.energy
+            # Chemical X: +2 to X cost (Java: ChemicalX relic onUseCard)
+            if self.state.has_relic("Chemical X"):
+                cost += 2
             self._x_cost_amount = cost  # Store for effect scaling
             self.state.energy = 0
             self.energy_spent += cost
@@ -1180,10 +1272,7 @@ class CombatEngine:
                 self.state.energy -= cost
                 self.energy_spent += cost
 
-        # Remove from hand
-        self.state.hand.pop(hand_index)
-
-        # Track card play
+        # Track card play (Java: incremented during cardQueue processing, before use)
         self.state.cards_played_this_turn += 1
         self.state.total_cards_played += 1
         self.state.last_card_type = card.card_type.value if hasattr(card.card_type, 'value') else str(card.card_type)
@@ -1203,29 +1292,45 @@ class CombatEngine:
             if target_enemy.hp <= 0:
                 target_enemy = None
 
-        # Trigger registry-based onPlayCard relics (Shuriken, Kunai, etc.)
-        execute_relic_triggers("onPlayCard", self.state, {"card": card})
+        # Java parity: onPlayCard hooks fire WHILE card is still in hand
+        # (Java fires p.onPlayCard, r.onPlayCard, stance.onPlayCard before card.use)
+        play_card_data = {"card": card}
+        execute_relic_triggers("onPlayCard", self.state, play_card_data)
+        # Also fire monster power onPlayCard (Java: each monster power gets onPlayCard)
+        for enemy in self.state.enemies:
+            if not enemy.is_dead:
+                execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
+
+        # Collect signals from onPlayCard triggers
+        force_exhaust = play_card_data.get("force_exhaust", False)
+        amplify_replay = play_card_data.get("amplify_replay", False)
+
+        # NOW remove from hand (Java: card moves to limbo/cardInUse during use)
+        self.state.hand.pop(hand_index)
 
         # Apply card effects
         self._apply_card_effects(card, target_index, result)
 
-        # Card destination
-        if card.exhaust:
+        # Amplify: replay Power card effects (Java: queues a copy of the card)
+        if amplify_replay:
+            self._apply_card_effects(card, target_index, result)
+
+        # Trigger onUseCard power triggers (After Image, Duplication, etc.)
+        # Java: fires in UseCardAction constructor, BEFORE card destination
+        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
+
+        # Card destination (Java: happens in UseCardAction.update, AFTER onUseCard)
+        if card.exhaust or force_exhaust:
             self.state.exhaust_pile.append(card_id)
-            # Trigger registry-based onExhaust relics and powers
             execute_relic_triggers("onExhaust", self.state, {"card": card})
             execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
             if card.id == "Sentinel":
                 self.state.energy += 3 if card.upgraded else 2
         elif card.shuffle_back:
-            # Random position in draw pile
             pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
             self.state.draw_pile.insert(pos, card_id)
         else:
             self.state.discard_pile.append(card_id)
-
-        # Trigger onUseCard power triggers (After Image, Duplication, etc.)
-        execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
 
         # Trigger onAfterUseCard power triggers (Beat of Death, Slow, Time Warp)
         force_end_turn = False
@@ -1354,6 +1459,27 @@ class CombatEngine:
                     self._apply_status(enemy, "Vulnerable", vuln_amount)
                     effects.append({"type": "debuff", "debuff": "Vulnerable", "amount": vuln_amount})
 
+        # Conjure Blade: add Expunger to hand with X hits (upgraded: X+1)
+        if "add_expunger_to_hand" in card.effects:
+            x = self._x_cost_amount
+            if card.upgraded:
+                x += 1
+            # Add Expunger to hand; store hit count in card_costs as a workaround
+            self.state.hand.append("Expunger")
+            # Track expunger hits for when it's played
+            self.state.relic_counters["_expunger_hits"] = x
+            effects.append({"type": "conjure", "card": "Expunger", "hits": x})
+
+        # Simmering Fury: apply two separate powers (Java parity)
+        if "wrath_next_turn_draw_next_turn" in card.effects:
+            draw_amount = card.magic_number if card.magic_number > 0 else 2
+            self.state.player.statuses["WrathNextTurn"] = 1
+            self.state.player.statuses["DrawCardNextTurn"] = (
+                self.state.player.statuses.get("DrawCardNextTurn", 0) + draw_amount
+            )
+            effects.append({"type": "power", "power": "WrathNextTurn", "amount": 1})
+            effects.append({"type": "power", "power": "DrawCardNextTurn", "amount": draw_amount})
+
     def _apply_card_damage(self, card: Card, target_index: int, effects: List):
         """Apply damage from a card."""
         # Calculate number of hits
@@ -1423,19 +1549,23 @@ class CombatEngine:
                                 "damage_type": "NORMAL",
                             },
                         )
-                        execute_power_triggers(
-                            "onAttacked",
-                            self.state,
-                            enemy,
-                            {
+                        on_attacked_data = {
                                 "attacker": self.state.player,
                                 "card": card,
                                 "card_id": card.id,
                                 "damage": enemy_damages[i],
                                 "unblocked_damage": actual_damage,
                                 "damage_type": "NORMAL",
-                            },
+                            }
+                        execute_power_triggers(
+                            "onAttacked",
+                            self.state,
+                            enemy,
+                            on_attacked_data,
                         )
+                        # Compulsive/Reactive: re-roll move on hit
+                        if on_attacked_data.get("reroll_move") and enemy.hp > 0:
+                            self._roll_enemy_move(enemy)
                         effects.append({
                             "type": "damage",
                             "target": enemy.id,
@@ -1482,19 +1612,23 @@ class CombatEngine:
                             "damage_type": "NORMAL",
                         },
                     )
-                    execute_power_triggers(
-                        "onAttacked",
-                        self.state,
-                        enemy,
-                        {
+                    on_attacked_data = {
                             "attacker": self.state.player,
                             "card": card,
                             "card_id": card.id,
                             "damage": damage_per_hit,
                             "unblocked_damage": actual_damage,
                             "damage_type": "NORMAL",
-                        },
+                        }
+                    execute_power_triggers(
+                        "onAttacked",
+                        self.state,
+                        enemy,
+                        on_attacked_data,
                     )
+                    # Compulsive/Reactive: re-roll move on hit
+                    if on_attacked_data.get("reroll_move") and enemy.hp > 0:
+                        self._roll_enemy_move(enemy)
                     effects.append({
                         "type": "damage",
                         "target": enemy.id,
@@ -1798,8 +1932,17 @@ class CombatEngine:
             elif card.card_type == CardType.POWER:
                 self.state.powers_played_this_turn += 1
 
-            execute_relic_triggers("onPlayCard", self.state, {"card": card})
+            play_card_data = {"card": card}
+            execute_relic_triggers("onPlayCard", self.state, play_card_data)
+            for enemy in self.state.enemies:
+                if not enemy.is_dead:
+                    execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
+
             self._apply_card_effects(card, target_index, result)
+
+            # Amplify: replay Power card effects
+            if play_card_data.get("amplify_replay"):
+                self._apply_card_effects(card, target_index, result)
 
             execute_power_triggers("onUseCard", self.state, self.state.player, {"card": card, "card_id": card.id})
 
@@ -1831,7 +1974,8 @@ class CombatEngine:
             result["played"] = True
 
         # Destination handling mirrors normal card flow.
-        if card.exhaust:
+        force_exhaust_auto = play_card_data.get("force_exhaust", False) if not unplayable else False
+        if card.exhaust or force_exhaust_auto:
             self.state.exhaust_pile.append(card_id)
             if not unplayable:
                 execute_relic_triggers("onExhaust", self.state, {"card": card})

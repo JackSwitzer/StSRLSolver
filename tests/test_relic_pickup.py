@@ -499,6 +499,46 @@ class TestPandorasBox:
         assert watcher_run.count_card("Eruption") > 0
         assert watcher_run.count_card("Vigilance") > 0
 
+    def test_pandoras_box_replacement_cards_are_valid(self, watcher_run):
+        """Pandora's Box: Each Strike/Defend is replaced by a valid non-curse card.
+
+        Watcher starter deck has 4 Strike_P and 4 Defend_P = 8 total.
+        After Pandora's Box those 8 slots must be filled with valid cards:
+          - No Strike_P / Defend_P remaining
+          - No Curse-type cards (transform picks from srcCommon/Uncommon/Rare)
+          - All replacement card IDs are registered in ALL_CARDS
+          - Eruption and Vigilance are untouched
+        """
+        initial_deck_size = len(watcher_run.deck)
+        initial_strikes = watcher_run.count_card("Strike_P")
+        initial_defends = watcher_run.count_card("Defend_P")
+        num_transformed = initial_strikes + initial_defends
+
+        from packages.engine.state.rng import Random, seed_to_long
+        card_rng = Random(seed_to_long("PANDORA_TEST"))
+        watcher_run.add_relic("Pandora's Box", card_rng=card_rng)
+
+        # Deck size unchanged: transform not remove
+        assert len(watcher_run.deck) == initial_deck_size, (
+            f"Deck size changed: was {initial_deck_size}, now {len(watcher_run.deck)}"
+        )
+
+        # All Strikes and Defends gone
+        assert watcher_run.count_card("Strike_P") == 0
+        assert watcher_run.count_card("Defend_P") == 0
+
+        # Eruption and Vigilance untouched
+        assert watcher_run.count_card("Eruption") >= 1
+        assert watcher_run.count_card("Vigilance") >= 1
+
+        # Every card in deck must be registered and non-Curse
+        for card in watcher_run.deck:
+            assert card.id in ALL_CARDS, f"Unknown card ID in deck after Pandora's Box: {card.id!r}"
+            card_def = ALL_CARDS[card.id]
+            assert card_def.card_type != CardType.CURSE, (
+                f"Curse card {card.id!r} found in deck after Pandora's Box"
+            )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

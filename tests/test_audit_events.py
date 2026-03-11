@@ -1377,3 +1377,502 @@ class TestSssserpentHandlerBehavior:
 
         assert run.gold == initial_gold
         assert len(run.deck) == initial_deck_size
+
+
+# ===========================================================================
+# FIX TESTS - AFFECTS_RL event handler bugs (verified against Java source)
+# ===========================================================================
+
+class TestAugmenterHandlerBehavior:
+    """Behavior tests for Augmenter (DrugDealer) event handler.
+
+    Java: DrugDealer.java
+    - Option 0 (Ingest): gain J.A.X. ONLY, no card removal
+    - Option 1 (Transform): transform 2 cards
+    - Option 2 (Inject Mutagens): always give MutagenicStrength (Circlet if already owned)
+    """
+
+    def test_option0_gives_jax_only_no_card_removal(self):
+        """Augmenter option 0 gives J.A.X. and does NOT remove any card."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_deck_size = len(run.deck)
+
+        event_state = EventState(event_id="Augmenter")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert "J.A.X." in result.cards_gained
+        assert any(c.id == "J.A.X." for c in run.deck)
+        # Deck size increases by 1 (J.A.X. added, nothing removed)
+        assert len(run.deck) == initial_deck_size + 1
+        assert result.cards_removed == []
+
+    def test_option2_gives_mutagenic_strength_relic(self):
+        """Augmenter option 2 always gives MutagenicStrength relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="Augmenter")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert "MutagenicStrength" in result.relics_gained
+        assert run.has_relic("MutagenicStrength")
+        assert len(run.relics) == initial_relic_count + 1
+        # No card gain or removal
+        assert result.cards_gained == []
+        assert result.cards_removed == []
+
+    def test_option2_gives_circlet_if_already_has_mutagenic(self):
+        """Augmenter option 2 gives Circlet if player already has MutagenicStrength."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_relic("MutagenicStrength")
+
+        event_state = EventState(event_id="Augmenter")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert "Circlet" in result.relics_gained
+        assert run.has_relic("Circlet")
+
+
+class TestAugmenterChoiceGenerator:
+    """Tests for Augmenter choice generator matching Java DrugDealer.java.
+
+    Java has 3 options:
+    - Option 0 = Ingest (J.A.X.)
+    - Option 1 = Transform 2 cards (disabled if < 2 purgeable)
+    - Option 2 = Inject Mutagens (MutagenicStrength)
+    """
+
+    def test_augmenter_has_3_choices_with_enough_cards(self):
+        """Augmenter should present 3 choices when player has >= 2 purgeable cards."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        event_state = EventState(event_id="Augmenter")
+
+        choices = handler.get_available_choices(event_state, run)
+
+        assert len(choices) == 3
+        assert choices[0].name == "mechanical"
+        assert choices[1].name == "transform"
+        assert choices[2].name == "mutagenic"
+
+    def test_augmenter_transform_hidden_if_too_few_cards(self):
+        """Transform option hidden if player has < 2 purgeable cards."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        # Remove all but 1 card
+        while len(run.deck) > 1:
+            run.deck.pop()
+
+        event_state = EventState(event_id="Augmenter")
+        choices = handler.get_available_choices(event_state, run)
+
+        # Only J.A.X. and Mutagenic should be available
+        assert len(choices) == 2
+        names = [c.name for c in choices]
+        assert "mechanical" in names
+        assert "mutagenic" in names
+        assert "transform" not in names
+
+
+class TestTheJoustHandlerBehavior:
+    """Behavior tests for The Joust event handler.
+
+    Java: TheJoust.java
+    - BET_AMT = 50 (both choices deduct 50 gold up front)
+    - ownerWins = miscRng.randomBoolean(0.3f)
+    - choice 0 = murderer (wins if owner loses = 70%), win reward = 100 gold
+    - choice 1 = owner (wins if owner wins = 30%), win reward = 250 gold
+    """
+
+    def test_both_choices_deduct_50_gold_on_loss(self):
+        """Both joust choices deduct 50 gold when the bet is lost."""
+        handler = EventHandler()
+
+        # Find a seed where random_float() >= 0.30 (owner loses = murderer wins)
+        # This means choice 0 (murderer) wins and choice 1 (owner) loses
+        losing_owner_seed = None
+        for seed in range(10000):
+            if Random(seed).random_float() >= 0.30:
+                losing_owner_seed = seed
+                break
+
+        # choice 1 (owner) loses with this seed — gold should decrease by 50
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_gold(200)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="TheJoust")
+        misc_rng = Random(losing_owner_seed)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == initial_gold - 50
+        assert result.gold_change == -50
+
+    def test_murderer_win_gives_100_gold(self):
+        """Betting on murderer (choice 0) and winning gives 100 gold (net +50)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_gold(200)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="TheJoust")
+        event_rng = Random(12345)
+
+        # Find a misc_rng seed where owner loses (random_float >= 0.30)
+        # Try multiple seeds until owner loses
+        winning_misc_rng = None
+        for seed in range(10000):
+            test_rng = Random(seed)
+            if test_rng.random_float() >= 0.30:
+                winning_misc_rng = Random(seed)
+                break
+
+        result = handler.execute_choice(event_state, 0, run, event_rng,
+                                        misc_rng=winning_misc_rng)
+
+        # Net gain should be +50 (100 received - 50 bet)
+        assert result.gold_change == 50
+        assert run.gold == initial_gold + 50
+
+    def test_owner_win_gives_250_gold(self):
+        """Betting on owner (choice 1) and winning gives 250 gold (net +200)."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_gold(200)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="TheJoust")
+        event_rng = Random(12345)
+
+        # Find a misc_rng seed where owner wins (random_float < 0.30)
+        winning_misc_rng = None
+        for seed in range(10000):
+            test_rng = Random(seed)
+            if test_rng.random_float() < 0.30:
+                winning_misc_rng = Random(seed)
+                break
+
+        result = handler.execute_choice(event_state, 1, run, event_rng,
+                                        misc_rng=winning_misc_rng)
+
+        # Net gain should be +200 (250 received - 50 bet)
+        assert result.gold_change == 200
+        assert run.gold == initial_gold + 200
+
+    def test_choices_require_50_gold(self):
+        """Both joust choices require 50 gold."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        event_state = EventState(event_id="TheJoust")
+
+        choices = handler.get_available_choices(event_state, run)
+
+        assert len(choices) == 2
+        for c in choices:
+            assert c.requires_gold == 50, f"Choice {c.name} should require 50 gold"
+
+
+class TestTheLibrarySleepHandlerBehavior:
+    """Behavior tests for The Library Sleep option.
+
+    Java: TheLibrary.java
+    - healAmt = A15+ ? round(maxHealth * 0.20) : round(maxHealth * 0.33)
+    - Sleep heals healAmt HP (NOT full heal)
+    """
+
+    def test_sleep_heals_33_percent_below_a15(self):
+        """Sleep heals 33% of max HP below A15."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.damage(50)  # Take damage so there's room to heal
+        initial_hp = run.current_hp
+        max_hp = run.max_hp
+
+        event_state = EventState(event_id="TheLibrary")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        expected_heal = int(max_hp * 0.33 + 0.5)  # MathUtils.round equivalent
+        assert result.hp_change == expected_heal
+        assert run.current_hp == initial_hp + expected_heal
+
+    def test_sleep_heals_20_percent_a15(self):
+        """Sleep heals 20% of max HP at A15+."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=15)
+        run.damage(50)  # Take damage so there's room to heal
+        initial_hp = run.current_hp
+        max_hp = run.max_hp
+
+        event_state = EventState(event_id="TheLibrary")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        expected_heal = int(max_hp * 0.20 + 0.5)  # MathUtils.round equivalent
+        assert result.hp_change == expected_heal
+        assert run.current_hp == initial_hp + expected_heal
+
+    def test_sleep_does_not_heal_to_full(self):
+        """Sleep does NOT heal to full HP."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        # Take more damage than 33% so we can't be healed to full
+        # Watcher starts ~72 HP, 33% = ~24. Take 40 damage.
+        run.damage(40)
+        initial_hp = run.current_hp
+        max_hp = run.max_hp
+
+        event_state = EventState(event_id="TheLibrary")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        # Should NOT be at full HP
+        assert run.current_hp < max_hp
+        # Should heal exactly 33% (not to full)
+        assert result.hp_change == int(max_hp * 0.33 + 0.5)
+
+
+class TestTombOfLordRedMaskHandlerBehavior:
+    """Behavior tests for Tomb of Lord Red Mask event handler.
+
+    Java: TombRedMask.java
+    - WITH Red Mask: option 0 = gain 222 gold (keep relic)
+    - WITHOUT Red Mask: option 0 = pay all gold, gain Red Mask relic
+    - option 1 = leave (both cases)
+    """
+
+    def test_with_red_mask_gains_222_gold(self):
+        """With Red Mask: choice 0 gains 222 gold, keeps the relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_relic("Red Mask")
+        initial_gold = run.gold
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="TombOfLordRedMask")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 222
+        assert run.gold == initial_gold + 222
+        # Red Mask is KEPT (Java does not remove it)
+        assert run.has_relic("Red Mask")
+        assert len(run.relics) == initial_relic_count
+
+    def test_without_red_mask_pays_all_gold_gains_relic(self):
+        """Without Red Mask: choice 0 pays all gold, gains Red Mask relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_gold(100)  # Give some gold to pay
+        initial_gold = run.gold
+        assert not run.has_relic("Red Mask")
+
+        event_state = EventState(event_id="TombOfLordRedMask")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == 0
+        assert result.gold_change == -initial_gold
+        assert "Red Mask" in result.relics_gained
+        assert run.has_relic("Red Mask")
+
+    def test_leave_makes_no_changes(self):
+        """Leave (choice 1) makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_deck_size = len(run.deck)
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="TombOfLordRedMask")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == initial_gold
+        assert len(run.deck) == initial_deck_size
+        assert len(run.relics) == initial_relic_count
+        assert result.choice_name == "leave"
+
+    def test_choices_context_dependent_with_red_mask(self):
+        """Choice generator shows wear_mask option when player has Red Mask."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        run.add_relic("Red Mask")
+
+        event_state = EventState(event_id="TombOfLordRedMask")
+        choices = handler.get_available_choices(event_state, run)
+
+        assert len(choices) == 2
+        assert choices[0].name == "wear_mask"
+        assert choices[1].name == "leave"
+
+    def test_choices_context_dependent_without_red_mask(self):
+        """Choice generator shows pay_gold option when player lacks Red Mask."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        assert not run.has_relic("Red Mask")
+
+        event_state = EventState(event_id="TombOfLordRedMask")
+        choices = handler.get_available_choices(event_state, run)
+
+        assert len(choices) == 2
+        assert choices[0].name == "pay_gold"
+        assert choices[1].name == "leave"
+
+
+class TestFaceTraderHandlerBehavior:
+    """Behavior tests for Face Trader event handler.
+
+    Java: FaceTrader.java
+    - goldReward = A15+ ? 50 : 75
+    - damage = max(maxHealth / 10, 1)
+    - choice 0 (Touch): take damage, gain gold, NO relic
+    - choice 1 (Trade): gain random face relic from [CultistMask, FaceOfCleric,
+        GremlinMask, NlothsMask, SsserpentHead], no gold cost
+    - choice 2 (Leave): nothing
+    """
+
+    def test_touch_takes_max_hp_tenth_damage(self):
+        """Touch takes max_hp // 10 damage."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_hp = run.current_hp
+        max_hp = run.max_hp
+        expected_damage = max(max_hp // 10, 1)
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.hp_change == -expected_damage
+        assert run.current_hp == initial_hp - expected_damage
+
+    def test_touch_gives_75_gold_below_a15(self):
+        """Touch gives 75 gold below A15."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 75
+        assert run.gold == initial_gold + 75
+
+    def test_touch_gives_50_gold_a15(self):
+        """Touch gives 50 gold at A15+."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=15)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.gold_change == 50
+        assert run.gold == initial_gold + 50
+
+    def test_touch_gives_no_relic(self):
+        """Touch option gives no relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 0, run, event_rng, misc_rng=misc_rng)
+
+        assert result.relics_gained == []
+        assert len(run.relics) == initial_relic_count
+
+    def test_trade_gives_face_relic(self):
+        """Trade option gives a random face relic."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_relic_count = len(run.relics)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        face_relics = {"CultistMask", "FaceOfCleric", "GremlinMask", "NlothsMask",
+                       "SsserpentHead"}
+        assert len(result.relics_gained) == 1
+        assert result.relics_gained[0] in face_relics
+        assert len(run.relics) == initial_relic_count + 1
+        # No gold cost for trade
+        assert run.gold == initial_gold
+        # No HP cost for trade
+        assert result.hp_change == 0
+
+    def test_trade_no_gold_cost(self):
+        """Trade option has no gold cost."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 1, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == initial_gold
+        assert result.gold_change == 0
+
+    def test_leave_no_changes(self):
+        """Leave makes no changes."""
+        handler = EventHandler()
+        run = create_watcher_run("TESTSEED", ascension=10)
+        initial_gold = run.gold
+        initial_hp = run.current_hp
+        initial_relic_count = len(run.relics)
+
+        event_state = EventState(event_id="FaceTrader")
+        misc_rng = Random(12345)
+        event_rng = Random(12345)
+
+        result = handler.execute_choice(event_state, 2, run, event_rng, misc_rng=misc_rng)
+
+        assert run.gold == initial_gold
+        assert run.current_hp == initial_hp
+        assert len(run.relics) == initial_relic_count
+        assert result.choice_name == "leave"

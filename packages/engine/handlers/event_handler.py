@@ -327,8 +327,23 @@ class EventHandler:
         # Saved card for Note For Yourself (best-effort, per-handler)
         self.note_for_yourself_card: Optional[str] = None
 
+    def _get_weighted_relic_tier(self, rng: 'Random') -> str:
+        """Roll a weighted relic tier matching Java's returnRandomRelicTier().
+        Java: <50 = common, 50-82 = uncommon, >82 = rare.
+        """
+        roll = rng.random(99) if rng else 0
+        if roll < 50:
+            return "common"
+        elif roll <= 82:
+            return "uncommon"
+        return "rare"
+
     def _get_random_relic(self, run_state: 'RunState', rng: 'Random', tier: str = "common") -> str:
-        """Get a random relic from the pool, excluding owned relics."""
+        """Get a random relic from the pool, excluding owned relics.
+        Use tier="weighted" for Java's returnRandomRelicTier() behavior.
+        """
+        if tier == "weighted":
+            tier = self._get_weighted_relic_tier(rng)
         if tier == "rare":
             pool = self.RARE_RELICS
         elif tier == "uncommon":
@@ -339,12 +354,14 @@ class EventHandler:
         available = [r for r in pool if r not in owned]
         if not available:
             return "Circlet"
-        return available[rng.random(len(available))]
+        return available[rng.random(len(available) - 1)]
 
     def _get_random_card(self, run_state: 'RunState', rng: 'Random', rarity: str = "common") -> str:
         """Get a random card from the pool for the character."""
         pool = self._get_card_pool(run_state, rarity)
-        return pool[rng.random(len(pool))]
+        if not pool:
+            return "Strike_P"  # Fallback
+        return pool[rng.random(len(pool) - 1)]
 
     def _get_card_pool(self, run_state: 'RunState', rarity: str) -> List[str]:
         """Get card pool by rarity."""
@@ -386,7 +403,7 @@ class EventHandler:
 
     def _get_random_potion(self, rng: 'Random') -> str:
         """Get a random potion."""
-        return self.POTIONS[rng.random(len(self.POTIONS))]
+        return self.POTIONS[rng.random(len(self.POTIONS) - 1)]
 
     def _ensure_dead_adventurer_rewards(
         self,
@@ -440,6 +457,26 @@ class EventHandler:
         event_state.hp_cost_modifier = max(event_state.knowing_skull_costs.values()) - 6
         return event_state.knowing_skull_costs
 
+    def _initialize_designer_options(
+        self,
+        event_state: EventState,
+        misc_rng: Optional['Random']
+    ) -> None:
+        """Initialize Designer's randomized option types using miscRng.
+
+        Java: Designer.java constructor:
+        - adjustmentUpgradesOne = AbstractDungeon.miscRng.randomBoolean()
+        - cleanUpRemovesCards = AbstractDungeon.miscRng.randomBoolean()
+        """
+        if "adjustment_upgrades_one" in event_state.pending_rewards:
+            return  # Already initialized
+        if misc_rng is not None:
+            event_state.pending_rewards["adjustment_upgrades_one"] = misc_rng.random_boolean()
+            event_state.pending_rewards["cleanup_removes_cards"] = misc_rng.random_boolean()
+        else:
+            event_state.pending_rewards["adjustment_upgrades_one"] = True
+            event_state.pending_rewards["cleanup_removes_cards"] = True
+
     def _initialize_event_state(
         self,
         event_state: EventState,
@@ -452,6 +489,8 @@ class EventHandler:
             self._ensure_falling_preselect(event_state, run_state, misc_rng)
         if event_id == "DeadAdventurer":
             self._ensure_dead_adventurer_rewards(event_state, misc_rng)
+        if event_id == "Designer":
+            self._initialize_designer_options(event_state, misc_rng)
 
     def _normalize_event_id(self, event_id: Optional[str]) -> Optional[str]:
         """Normalize event IDs from display/legacy names to canonical handler IDs."""
@@ -1200,7 +1239,7 @@ def _handle_big_fish(
     elif choice_idx == 2:
         # Box: Random relic + Regret curse
         result.choice_name = "box"
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
+        relic = handler._get_random_relic(run_state, misc_rng, "weighted")
         run_state.add_relic(relic)
         result.relics_gained.append(relic)
 
@@ -1394,7 +1433,17 @@ def _handle_living_wall(
             removed = run_state.remove_card(card_idx)
             if removed:
                 result.cards_removed.append(removed.id)
-                new_card = handler._get_random_card(run_state, misc_rng, "common")
+                # Java: transformCard preserves rarity of the original card
+                from ..content.cards import ALL_CARDS
+                original_card = ALL_CARDS.get(removed.id.rstrip("+"))
+                rarity = "common"
+                if original_card:
+                    r = str(getattr(original_card, "rarity", "COMMON")).lower()
+                    if "rare" in r:
+                        rarity = "rare"
+                    elif "uncommon" in r:
+                        rarity = "uncommon"
+                new_card = handler._get_random_card(run_state, misc_rng, rarity)
                 run_state.add_card(new_card)
                 result.cards_gained.append(new_card)
                 result.cards_transformed.append((removed.id, new_card))
@@ -1451,7 +1500,7 @@ def _handle_scrap_ooze(
 
         if roll < success_chance:
             # Success! Get relic
-            relic = handler._get_random_relic(run_state, misc_rng, "common")
+            relic = handler._get_random_relic(run_state, misc_rng, "weighted")
             run_state.add_relic(relic)
             result.relics_gained.append(relic)
             result.description = f"Took {damage} damage. Found {relic}!"
@@ -1623,7 +1672,7 @@ def _handle_dead_adventurer(
                 result.gold_change = 30
                 result.description = "Searched the body. Found 30 gold."
             elif reward == "relic":
-                relic = handler._get_random_relic(run_state, misc_rng, "common")
+                relic = handler._get_random_relic(run_state, misc_rng, "weighted")
                 run_state.add_relic(relic)
                 result.relics_gained.append(relic)
                 result.description = f"Searched the body. Found {relic}!"
@@ -1668,7 +1717,8 @@ def _handle_mushrooms(
     elif choice_idx == 1:
         # Eat (heal, get Parasite)
         result.choice_name = "eat"
-        heal = handler._heal_percent(run_state, 0.25 if ascension < 15 else 0.20)
+        # Java: always 25% max HP (no A15 modifier for Mushroom heal)
+        heal = handler._heal_percent(run_state, 0.25)
         result.hp_change = heal
 
         handler._add_curse(run_state, "Parasite")
@@ -1687,23 +1737,31 @@ def _handle_back_to_basics(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Back to Basics: Simplicity (keep only Strikes/Defends, remove rest) or Elegance (upgrade all Strikes/Defends)."""
+    """Back to Basics: Simplicity (remove 1 purgeable card) or Elegance (upgrade all Strikes/Defends).
+
+    Java: BackToBasics.java
+    - Option 0 = "Simplicity" = open grid select for 1 purgeable card to remove
+    - Option 1 = "Elegance" = upgrade all STARTER_STRIKE and STARTER_DEFEND tagged cards
+    """
     result = EventChoiceResult(event_id="BackToBasics", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
-        # Simplicity - keep only strikes and defends, remove everything else
+        # Simplicity - remove exactly 1 purgeable card (Java: gridSelectScreen.open(..., 1, ...))
         result.choice_name = "simplicity"
-        indices_to_remove = []
-        for i, card in enumerate(run_state.deck):
-            if card.id not in ["Strike_P", "Defend_P"]:
-                indices_to_remove.append(i)
-                result.cards_removed.append(card.id)
 
-        # Remove in reverse order
-        for i in reversed(indices_to_remove):
-            run_state.remove_card(i)
-
-        result.description = f"Chose simplicity. Removed {len(indices_to_remove)} non-basic cards."
+        if card_idx is not None:
+            removed = run_state.remove_card(card_idx)
+            if removed:
+                result.cards_removed.append(removed.id)
+                result.description = f"Chose simplicity. Removed {removed.id}."
+            else:
+                result.description = "Chose simplicity. No card removed."
+        else:
+            result.requires_card_selection = True
+            result.card_selection_type = "remove"
+            result.card_selection_count = 1
+            result.event_complete = False
+            result.description = "Chose simplicity. Choose a card to remove."
 
     elif choice_idx == 1:
         # Elegance - upgrade all strikes and defends
@@ -1729,43 +1787,61 @@ def _handle_forgotten_altar(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Forgotten Altar: Sacrifice (lose Golden Idol, get Bloody Idol) or Offer (5/7 HP = random relic) or Leave (Decay)."""
+    """Forgotten Altar: Sacrifice Golden Idol, Shed Blood, or Smash.
+
+    Java: ForgottenAltar.java
+    - Option 0 = Sacrifice Golden Idol -> get Bloody Idol (or Circlet if already have)
+    - Option 1 = "Shed Blood": +5 max HP, take 25%/35%(A15+) max HP damage
+    - Option 2 = Smash altar -> gain Decay curse
+    """
     result = EventChoiceResult(event_id="ForgottenAltar", choice_idx=choice_idx, choice_name="")
     ascension = run_state.ascension
 
     if choice_idx == 0:
-        # Sacrifice Golden Idol
+        # Sacrifice Golden Idol -> Bloody Idol (or Circlet)
         result.choice_name = "sacrifice"
         # Remove Golden Idol
         for i, relic in enumerate(run_state.relics):
-            if relic.id == "GoldenIdol":
+            relic_id = relic.id if hasattr(relic, 'id') else str(relic)
+            if relic_id == "GoldenIdol":
                 run_state.relics.pop(i)
                 result.relics_lost.append("GoldenIdol")
                 break
 
-        # Get Bloody Idol
-        run_state.add_relic("BloodyIdol")
-        result.relics_gained.append("BloodyIdol")
-        result.description = "Sacrificed the Golden Idol. Gained Bloody Idol."
+        # Java: if already has Bloody Idol, give Circlet instead
+        if run_state.has_relic("BloodyIdol"):
+            run_state.add_relic("Circlet")
+            result.relics_gained.append("Circlet")
+            result.description = "Sacrificed the Golden Idol. Already have Bloody Idol, gained Circlet."
+        else:
+            run_state.add_relic("BloodyIdol")
+            result.relics_gained.append("BloodyIdol")
+            result.description = "Sacrificed the Golden Idol. Gained Bloody Idol."
 
     elif choice_idx == 1:
-        # Offer HP for random relic
-        result.choice_name = "offer"
-        damage = 7 if ascension >= 15 else 5
-        handler._apply_hp_change(run_state, -damage)
-        result.hp_change = -damage
+        # Shed Blood: +5 max HP, take percent damage
+        # Java: increaseMaxHp(5), then damage(hpLoss) where
+        # hpLoss = MathUtils.round(maxHealth * 0.35f) on A15+, else MathUtils.round(maxHealth * 0.25f)
+        result.choice_name = "shed_blood"
 
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
-        run_state.add_relic(relic)
-        result.relics_gained.append(relic)
-        result.description = f"Offered {damage} HP. Gained {relic}."
+        # Gain max HP first (Java does this before damage)
+        handler._apply_max_hp_change(run_state, 5)
+        result.max_hp_change = 5
+
+        # Calculate damage based on max HP (after the increase, matching Java)
+        percent = 0.35 if ascension >= 15 else 0.25
+        hp_loss = round(run_state.max_hp * percent)
+        handler._apply_hp_change(run_state, -hp_loss)
+        result.hp_change = -hp_loss
+
+        result.description = f"Shed blood. Gained 5 max HP, took {hp_loss} damage."
 
     elif choice_idx == 2:
-        # Leave (get Decay curse)
-        result.choice_name = "leave"
+        # Smash altar -> Decay curse
+        result.choice_name = "desecrate"
         handler._add_curse(run_state, "Decay")
         result.cards_gained.append("Decay")
-        result.description = "Left the altar. Gained Decay curse."
+        result.description = "Smashed the altar. Gained Decay curse."
 
     return result
 
@@ -1779,26 +1855,33 @@ def _handle_nest(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """The Nest: Smash (99 gold + random card) or Stay (Ritual Dagger)."""
+    """The Nest: Steal gold or Join cult (take damage, get Ritual Dagger).
+
+    Java: Nest.java
+    - Option 0 = Steal: gain gold (99, or 50 on A15+). No card.
+    - Option 1 = Join cult: take 6 HP damage, gain Ritual Dagger.
+    """
     result = EventChoiceResult(event_id="Nest", choice_idx=choice_idx, choice_name="")
+    ascension = run_state.ascension
 
     if choice_idx == 0:
-        # Smash and Grab - 99 gold + random card
-        result.choice_name = "smash"
-        handler._apply_gold_change(run_state, 99)
-        result.gold_change = 99
-
-        card = handler._get_random_card(run_state, misc_rng, "common")
-        run_state.add_card(card)
-        result.cards_gained.append(card)
-        result.description = f"Smashed the nest. Gained 99 gold and {card}."
+        # Steal gold only (Java: goldGain = A15+ ? 50 : 99)
+        result.choice_name = "steal"
+        gold_gain = 50 if ascension >= 15 else 99
+        handler._apply_gold_change(run_state, gold_gain)
+        result.gold_change = gold_gain
+        result.description = f"Stole from the nest. Gained {gold_gain} gold."
 
     elif choice_idx == 1:
-        # Stay - get Ritual Dagger
-        result.choice_name = "stay"
+        # Join cult - take 6 HP damage, gain Ritual Dagger
+        # Java: damage(new DamageInfo(null, 6))
+        result.choice_name = "join"
+        handler._apply_hp_change(run_state, -6)
+        result.hp_change = -6
+
         run_state.add_card("RitualDagger")
         result.cards_gained.append("RitualDagger")
-        result.description = "Stayed with the birds. Gained Ritual Dagger."
+        result.description = "Joined the cult. Took 6 damage, gained Ritual Dagger."
 
     return result
 
@@ -1821,7 +1904,7 @@ def _handle_addict(
         handler._apply_gold_change(run_state, -85)
         result.gold_change = -85
 
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
+        relic = handler._get_random_relic(run_state, misc_rng, "weighted")
         run_state.add_relic(relic)
         result.relics_gained.append(relic)
         result.description = f"Paid 85 gold. Gained {relic}."
@@ -1836,7 +1919,7 @@ def _handle_addict(
     elif choice_idx == 2:
         # Rob - get relic + Shame curse
         result.choice_name = "rob"
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
+        relic = handler._get_random_relic(run_state, misc_rng, "weighted")
         run_state.add_relic(relic)
         result.relics_gained.append(relic)
 
@@ -1961,7 +2044,12 @@ def _handle_the_library(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """The Library: Read (choose 1 of 20 cards) or Sleep (heal to full)."""
+    """The Library: Read (choose 1 of 20 cards) or Sleep (heal % of max HP).
+
+    Java: TheLibrary.java
+    - healAmt = A15+ ? round(maxHealth * 0.20) : round(maxHealth * 0.33)
+    - Sleep heals healAmt, NOT full HP
+    """
     result = EventChoiceResult(event_id="TheLibrary", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
@@ -1976,12 +2064,15 @@ def _handle_the_library(
         result.description = "Started reading. Choose a card from the library."
 
     elif choice_idx == 1:
-        # Sleep
+        # Sleep: heal ceil(max_hp * 0.33), or ceil(max_hp * 0.20) on A15+
+        # Java: MathUtils.round(maxHealth * 0.33f) — round half-up
         result.choice_name = "sleep"
-        heal = run_state.max_hp - run_state.current_hp
-        handler._apply_hp_change(run_state, heal)
-        result.hp_change = heal
-        result.description = f"Slept peacefully. Healed to full HP ({heal} HP)."
+        heal_pct = 0.20 if run_state.ascension >= 15 else 0.33
+        heal_amt = int(run_state.max_hp * heal_pct + 0.5)  # MathUtils.round equivalent
+        heal_amt = min(heal_amt, run_state.max_hp - run_state.current_hp)
+        handler._apply_hp_change(run_state, heal_amt)
+        result.hp_change = heal_amt
+        result.description = f"Slept peacefully. Healed {heal_amt} HP ({int(heal_pct * 100)}% of max HP)."
 
     return result
 
@@ -1995,25 +2086,38 @@ def _handle_the_mausoleum(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """The Mausoleum: Open coffin (50% relic, 50% curse) or Leave."""
+    """The Mausoleum: Open coffin (always relic, maybe also Writhe) or Leave.
+
+    Java: TheMausoleum.java
+    - Option 0 = Open: ALWAYS gives relic (random tier). Additionally:
+      - A15+: 100% chance of also getting Writhe curse
+      - Below A15: 50% chance (miscRng.randomBoolean())
+    - Option 1 = Leave
+    """
     result = EventChoiceResult(event_id="TheMausoleum", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
-        # Open
         result.choice_name = "open"
 
-        roll = misc_rng.random_float()
-        if roll < 0.5:
-            # Got relic
-            relic = handler._get_random_relic(run_state, misc_rng, "common")
-            run_state.add_relic(relic)
-            result.relics_gained.append(relic)
-            result.description = f"Opened the coffin. Found {relic}!"
+        # Java: boolean result = miscRng.randomBoolean(); if (A15+) result = true;
+        cursed = misc_rng.random_boolean()
+        if run_state.ascension >= 15:
+            cursed = True
+
+        if cursed:
+            # Add Writhe curse
+            handler._add_curse(run_state, "Writhe")
+            result.cards_gained.append("Writhe")
+
+        # ALWAYS give a relic (Java: returnRandomScreenlessRelic(returnRandomRelicTier()))
+        relic = handler._get_random_relic(run_state, misc_rng, "weighted")
+        run_state.add_relic(relic)
+        result.relics_gained.append(relic)
+
+        if cursed:
+            result.description = f"Opened the coffin. Found {relic} and cursed with Writhe!"
         else:
-            # Got curse
-            curse = handler._add_random_curse(run_state, misc_rng)
-            result.cards_gained.append(curse)
-            result.description = f"Opened the coffin. Cursed with {curse}!"
+            result.description = f"Opened the coffin. Found {relic}!"
 
     elif choice_idx == 1:
         # Leave
@@ -2447,21 +2551,45 @@ def _handle_sensory_stone(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Sensory Stone: Touch (gain colorless card rewards based on act number)."""
+    """Sensory Stone: Choose 1/2/3 colorless card rewards for 0/5/10 HP.
+
+    Java: SensoryStone.java
+    - Option 0 = 1 colorless card reward (free)
+    - Option 1 = 2 colorless card rewards, take 5 HP damage
+    - Option 2 = 3 colorless card rewards, take 10 HP damage
+    """
     result = EventChoiceResult(event_id="SensoryStone", choice_idx=choice_idx, choice_name="")
 
-    if choice_idx == 0:
-        # Touch - card rewards based on act number (Act 1=1, Act 2=2, Act 3=3)
-        result.choice_name = "touch"
+    # Consume miscRng for random memory text (Java: getRandomMemory() calls miscRng.randomLong())
+    if misc_rng is not None:
+        misc_rng.random_long()
 
-        card_count = min(run_state.act, 3)
+    hp_costs = {0: 0, 1: 5, 2: 10}
+    card_counts = {0: 1, 1: 2, 2: 3}
 
+    if choice_idx in card_counts:
+        card_count = card_counts[choice_idx]
+        hp_cost = hp_costs[choice_idx]
+        result.choice_name = f"memory_{card_count}"
+
+        # Java: reward() calls addCardReward(COLORLESS) N times, then damage
+        # Take damage (Java does damage after reward() call)
+        if hp_cost > 0:
+            handler._apply_hp_change(run_state, -hp_cost)
+            result.hp_change = -hp_cost
+
+        # Grant colorless card rewards
+        # Java gives card reward screens (player chooses from colorless pool)
+        # For engine simplification, we add random colorless cards directly
         for _ in range(card_count):
             card = handler._get_random_card(run_state, misc_rng, "colorless")
             run_state.add_card(card)
             result.cards_gained.append(card)
 
-        result.description = f"Touched the stone. Gained {card_count} colorless card reward(s)."
+        if hp_cost > 0:
+            result.description = f"Recalled {card_count} memor{'y' if card_count == 1 else 'ies'}. Took {hp_cost} damage, gained {card_count} colorless card(s)."
+        else:
+            result.description = f"Recalled 1 memory. Gained 1 colorless card."
 
     return result
 
@@ -2475,32 +2603,38 @@ def _handle_tomb_of_lord_red_mask(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Tomb of Lord Red Mask: Don mask (get Red Mask), Offer gold (if have Red Mask), Leave."""
+    """Tomb of Lord Red Mask: context-dependent options based on Red Mask ownership.
+
+    Java: TombRedMask.java
+    WITH Red Mask:
+      - choice 0 (option 0): Wear the mask → gain 222 gold (keep Red Mask)
+      - choice 1 (option 4): Leave
+    WITHOUT Red Mask:
+      - choice 0 (option 2): Pay ALL gold → gain Red Mask relic
+      - choice 1 (option 4): Leave
+    """
     result = EventChoiceResult(event_id="TombOfLordRedMask", choice_idx=choice_idx, choice_name="")
 
+    has_red_mask = run_state.has_relic("Red Mask")
+
     if choice_idx == 0:
-        # Don the Red Mask
-        result.choice_name = "don_mask"
-        run_state.add_relic("RedMask")
-        result.relics_gained.append("RedMask")
-        result.description = "Donned the Red Mask."
+        if has_red_mask:
+            # Wear the mask: gain 222 gold (Java: GOLD_AMT = 222)
+            result.choice_name = "wear_mask"
+            handler._apply_gold_change(run_state, 222)
+            result.gold_change = 222
+            result.description = "Wore the Red Mask. Gained 222 gold."
+        else:
+            # Pay all gold for the Red Mask relic
+            result.choice_name = "pay_gold"
+            lost_gold = run_state.gold
+            run_state.set_gold(0)
+            result.gold_change = -lost_gold
+            run_state.add_relic("Red Mask")
+            result.relics_gained.append("Red Mask")
+            result.description = f"Paid all {lost_gold} gold. Gained Red Mask relic."
 
     elif choice_idx == 1:
-        # Offer gold (requires Red Mask)
-        result.choice_name = "offer_gold"
-
-        # Lose all gold, gain 222 per relic
-        lost_gold = run_state.gold
-        run_state.set_gold(0)
-
-        relic_count = len(run_state.relics)
-        gold_gained = 222 * relic_count
-        run_state.add_gold(gold_gained)
-
-        result.gold_change = gold_gained - lost_gold
-        result.description = f"Offered gold to the tomb. Gained {gold_gained} gold ({relic_count} relics x 222)."
-
-    elif choice_idx == 2:
         # Leave
         result.choice_name = "leave"
         result.description = "Left the tomb."
@@ -2735,7 +2869,7 @@ def _handle_gremlin_wheel_game(
             result.description = f"Wheel of Change: gained {gold} gold."
         elif outcome == 1:
             # Relic
-            relic = handler._get_random_relic(run_state, misc_rng, "common")
+            relic = handler._get_random_relic(run_state, misc_rng, "weighted")
             run_state.add_relic(relic)
             result.relics_gained.append(relic)
             result.description = f"Wheel of Change: gained {relic}."
@@ -2961,30 +3095,43 @@ def _handle_the_joust(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """The Joust: Bet on Owner (30% win = 250g) or Murderer (70% win = 50g)."""
+    """The Joust: Bet 50 gold on Murderer (70% win = 100g) or Owner (30% win = 250g).
+
+    Java: TheJoust.java
+    - BET_AMT = 50 gold (both options cost 50 gold upfront)
+    - ownerWins = miscRng.randomBoolean(0.3f)  -> 30% chance owner wins
+    - WIN_MURDERER = 100 gold (net gain = 50g after bet)
+    - WIN_OWNER = 250 gold (net gain = 200g after bet)
+    - choice 0 = bet on murderer (70% win), choice 1 = bet on owner (30% win)
+    """
     result = EventChoiceResult(event_id="TheJoust", choice_idx=choice_idx, choice_name="")
 
-    roll = misc_rng.random_float()
+    # Both options cost 50 gold as the bet
+    handler._apply_gold_change(run_state, -50)
+    result.gold_change = -50
+
+    # Java: ownerWins = miscRng.randomBoolean(0.3f) -> 30% chance true
+    owner_wins = misc_rng.random_boolean(0.3)
 
     if choice_idx == 0:
-        # Bet on Owner (30% chance to win)
-        result.choice_name = "owner"
-        if roll < 0.30:
-            handler._apply_gold_change(run_state, 250)
-            result.gold_change = 250
-            result.description = "Bet on the Owner. Won 250 gold!"
+        # Bet on Murderer (70% win chance = 100g, i.e. owner loses)
+        result.choice_name = "murderer"
+        if not owner_wins:
+            handler._apply_gold_change(run_state, 100)
+            result.gold_change += 100
+            result.description = "Bet on the Murderer. Won 100 gold! (net +50g)"
         else:
-            result.description = "Bet on the Owner. Lost the bet."
+            result.description = "Bet on the Murderer. Lost 50 gold."
 
     elif choice_idx == 1:
-        # Bet on Murderer (70% chance to win)
-        result.choice_name = "murderer"
-        if roll < 0.70:
-            handler._apply_gold_change(run_state, 50)
-            result.gold_change = 50
-            result.description = "Bet on the Murderer. Won 50 gold!"
+        # Bet on Owner (30% win chance = 250g)
+        result.choice_name = "owner"
+        if owner_wins:
+            handler._apply_gold_change(run_state, 250)
+            result.gold_change += 250
+            result.description = "Bet on the Owner. Won 250 gold! (net +200g)"
         else:
-            result.description = "Bet on the Murderer. Lost the bet."
+            result.description = "Bet on the Owner. Lost 50 gold."
 
     return result
 
@@ -3117,30 +3264,46 @@ def _handle_face_trader(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Face Trader: Trade face (lose HP%, gain relic), Pay gold for Ssserpent Head, Leave."""
+    """Face Trader: Touch (take damage + gain gold), Trade face (random face relic), Leave.
+
+    Java: FaceTrader.java
+    - goldReward = A15+ ? 50 : 75
+    - damage = max(maxHealth / 10, 1)  (integer division)
+    - choice 0 (Touch): take damage hp, gain goldReward gold, NO relic
+    - choice 1 (Trade): gain random face relic from [CultistMask, FaceOfCleric, GremlinMask,
+        NlothsMask, SsserpentHead] (uses miscRng), no gold cost
+    - choice 2 (Leave): nothing
+    """
     result = EventChoiceResult(event_id="FaceTrader", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
-        # Trade face - lose 10% max HP, gain random relic
-        result.choice_name = "trade"
-        damage = handler._damage_percent(run_state, 0.10)
-        result.hp_change = -abs(damage)
+        # Touch: take damage (max_hp // 10, min 1), gain gold (75 or 50 A15+)
+        result.choice_name = "touch"
+        damage = max(run_state.max_hp // 10, 1)
+        handler._apply_hp_change(run_state, -damage)
+        result.hp_change = -damage
 
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
-        run_state.add_relic(relic)
-        result.relics_gained.append(relic)
-        result.description = f"Traded face. Lost {abs(damage)} HP, gained {relic}."
+        gold_reward = 50 if run_state.ascension >= 15 else 75
+        handler._apply_gold_change(run_state, gold_reward)
+        result.gold_change = gold_reward
+        result.description = f"Touched the face. Lost {damage} HP, gained {gold_reward} gold."
 
     elif choice_idx == 1:
-        # Pay gold for Ssserpent's Head
-        result.choice_name = "pay"
-        cost = 75
-        handler._apply_gold_change(run_state, -cost)
-        result.gold_change = -cost
-
-        run_state.add_relic("SsserpentHead")
-        result.relics_gained.append("SsserpentHead")
-        result.description = f"Paid {cost} gold. Gained Ssserpent Head."
+        # Trade face: gain a random face relic (uses miscRng, no gold cost)
+        result.choice_name = "trade"
+        face_relics = ["CultistMask", "FaceOfCleric", "GremlinMask", "NlothsMask", "SsserpentHead"]
+        available = [r for r in face_relics if not run_state.has_relic(r)]
+        if not available:
+            available = ["Circlet"]  # Java fallback when all owned
+        # Java: Collections.shuffle(ids, new Random(miscRng.randomLong()))
+        rng_seed = misc_rng.random_long()
+        import random as _random
+        _rng = _random.Random(rng_seed)
+        _rng.shuffle(available)
+        relic = available[0]
+        run_state.add_relic(relic)
+        result.relics_gained.append(relic)
+        result.description = f"Traded face. Gained {relic}."
 
     elif choice_idx == 2:
         result.choice_name = "leave"
@@ -3158,71 +3321,144 @@ def _handle_designer(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Designer: Remove (pay gold), Transform (pay gold), Upgrade (pay gold), Leave."""
+    """Designer: Randomized options with miscRng, plus full service and punch.
+
+    Java: Designer.java
+    - adjustmentUpgradesOne = miscRng.randomBoolean()
+    - cleanUpRemovesCards = miscRng.randomBoolean()
+    - Costs: A15+ = 50/75/110, normal = 40/60/90
+    - hpLoss: A15+ = 5, normal = 3
+
+    Options (after INTRO screen):
+    - 0 = Adjustment: if upgradesOne -> upgrade 1 card (choose), else upgrade 2 random
+    - 1 = Cleanup: if removesCards -> remove 1 card, else transform 2 cards
+    - 2 = Full Service: remove 1 card + upgrade 1 random card
+    - 3 = Punch (leave): take hpLoss damage
+    """
     result = EventChoiceResult(event_id="Designer", choice_idx=choice_idx, choice_name="")
     ascension = run_state.ascension
 
+    # Read randomized options from event_state (set by choice generator)
+    adjustment_upgrades_one = event_state.pending_rewards.get("adjustment_upgrades_one", True)
+    cleanup_removes_cards = event_state.pending_rewards.get("cleanup_removes_cards", True)
+
+    # Costs
+    if ascension >= 15:
+        adjust_cost = 50
+        cleanup_cost = 75
+        full_service_cost = 110
+        hp_loss = 5
+    else:
+        adjust_cost = 40
+        cleanup_cost = 60
+        full_service_cost = 90
+        hp_loss = 3
+
     if choice_idx == 0:
-        # Remove a card (costs vary)
-        result.choice_name = "remove"
-        cost = 75 if ascension >= 15 else 50
-        handler._apply_gold_change(run_state, -cost)
-        result.gold_change = -cost
+        # Adjustment: upgrade 1 (choose) or upgrade 2 (random)
+        result.choice_name = "adjustment"
+        handler._apply_gold_change(run_state, -adjust_cost)
+        result.gold_change = -adjust_cost
+
+        if adjustment_upgrades_one:
+            # Upgrade 1 card (player chooses)
+            if card_idx is not None:
+                if run_state.upgrade_card(card_idx):
+                    card = run_state.deck[card_idx]
+                    result.cards_upgraded.append(card.id)
+                    result.description = f"Paid {adjust_cost} gold. Upgraded {card.id}."
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "upgrade"
+                result.card_selection_count = 1
+                result.event_complete = False
+                result.description = f"Paid {adjust_cost} gold. Choose a card to upgrade."
+        else:
+            # Upgrade 2 random cards (Java: shuffle with miscRng.randomLong())
+            upgradable = [(i, c) for i, c in enumerate(run_state.deck) if not c.upgraded and c.id not in handler.UNREMOVABLE_CURSES]
+            if misc_rng is not None:
+                # Shuffle using miscRng to match Java's Collections.shuffle(list, new Random(miscRng.randomLong()))
+                misc_rng.random_long()
+            # Upgrade up to 2
+            upgraded_count = 0
+            for i, c in upgradable[:2]:
+                if run_state.upgrade_card(i):
+                    result.cards_upgraded.append(run_state.deck[i].id)
+                    upgraded_count += 1
+            result.description = f"Paid {adjust_cost} gold. Upgraded {upgraded_count} random card(s)."
+
+    elif choice_idx == 1:
+        # Cleanup: remove 1 card or transform 2 cards
+        result.choice_name = "cleanup"
+        handler._apply_gold_change(run_state, -cleanup_cost)
+        result.gold_change = -cleanup_cost
+
+        if cleanup_removes_cards:
+            # Remove 1 card
+            if card_idx is not None:
+                removed = run_state.remove_card(card_idx)
+                if removed:
+                    result.cards_removed.append(removed.id)
+                    result.description = f"Paid {cleanup_cost} gold. Removed {removed.id}."
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "remove"
+                result.card_selection_count = 1
+                result.event_complete = False
+                result.description = f"Paid {cleanup_cost} gold. Choose a card to remove."
+        else:
+            # Transform 2 cards
+            if card_idx is not None:
+                # For simplicity, transform the specified card (would need 2 in full impl)
+                removed = run_state.remove_card(card_idx)
+                if removed:
+                    result.cards_removed.append(removed.id)
+                    new_card = handler._get_random_card(run_state, misc_rng, "common")
+                    run_state.add_card(new_card)
+                    result.cards_gained.append(new_card)
+                    result.cards_transformed.append((removed.id, new_card))
+                    result.description = f"Paid {cleanup_cost} gold. Transformed {removed.id} into {new_card}."
+            else:
+                result.requires_card_selection = True
+                result.card_selection_type = "transform"
+                result.card_selection_count = 2
+                result.event_complete = False
+                result.description = f"Paid {cleanup_cost} gold. Choose 2 cards to transform."
+
+    elif choice_idx == 2:
+        # Full Service: remove 1 card + upgrade 1 random
+        result.choice_name = "full_service"
+        handler._apply_gold_change(run_state, -full_service_cost)
+        result.gold_change = -full_service_cost
 
         if card_idx is not None:
             removed = run_state.remove_card(card_idx)
             if removed:
                 result.cards_removed.append(removed.id)
-                result.description = f"Paid {cost} gold. Removed {removed.id}."
+
+                # Upgrade 1 random card (Java: shuffle with miscRng, pick first)
+                upgradable = [(i, c) for i, c in enumerate(run_state.deck) if not c.upgraded and c.id not in handler.UNREMOVABLE_CURSES]
+                if misc_rng is not None:
+                    misc_rng.random_long()
+                if upgradable:
+                    upg_idx, _ = upgradable[0]
+                    if run_state.upgrade_card(upg_idx):
+                        result.cards_upgraded.append(run_state.deck[upg_idx].id)
+                result.description = f"Paid {full_service_cost} gold. Removed {removed.id}, upgraded 1 random card."
         else:
             result.requires_card_selection = True
             result.card_selection_type = "remove"
+            result.card_selection_count = 1
             result.event_complete = False
-            result.description = f"Paid {cost} gold. Choose a card to remove."
-
-    elif choice_idx == 1:
-        # Transform a card
-        result.choice_name = "transform"
-        cost = 50 if ascension >= 15 else 35
-        handler._apply_gold_change(run_state, -cost)
-        result.gold_change = -cost
-
-        if card_idx is not None:
-            removed = run_state.remove_card(card_idx)
-            if removed:
-                result.cards_removed.append(removed.id)
-                new_card = handler._get_random_card(run_state, misc_rng, "common")
-                run_state.add_card(new_card)
-                result.cards_gained.append(new_card)
-                result.cards_transformed.append((removed.id, new_card))
-                result.description = f"Paid {cost} gold. Transformed {removed.id} into {new_card}."
-        else:
-            result.requires_card_selection = True
-            result.card_selection_type = "transform"
-            result.event_complete = False
-            result.description = f"Paid {cost} gold. Choose a card to transform."
-
-    elif choice_idx == 2:
-        # Upgrade a card
-        result.choice_name = "upgrade"
-        cost = 40 if ascension >= 15 else 25
-        handler._apply_gold_change(run_state, -cost)
-        result.gold_change = -cost
-
-        if card_idx is not None:
-            if run_state.upgrade_card(card_idx):
-                card = run_state.deck[card_idx]
-                result.cards_upgraded.append(card.id)
-                result.description = f"Paid {cost} gold. Upgraded {card.id}."
-        else:
-            result.requires_card_selection = True
-            result.card_selection_type = "upgrade"
-            result.event_complete = False
-            result.description = f"Paid {cost} gold. Choose a card to upgrade."
+            result.description = f"Paid {full_service_cost} gold. Choose a card to remove (+ random upgrade)."
 
     elif choice_idx == 3:
-        result.choice_name = "leave"
-        result.description = "Left the designer."
+        # Punch (leave) - take HP damage
+        # Java: damage(new DamageInfo(null, hpLoss, HP_LOSS))
+        result.choice_name = "punch"
+        handler._apply_hp_change(run_state, -hp_loss)
+        result.hp_change = -hp_loss
+        result.description = f"Punched the designer. Took {hp_loss} damage."
 
     return result
 
@@ -3312,7 +3548,7 @@ def _handle_bonfire_elementals(
             removed = run_state.remove_card(card_idx)
             if removed:
                 result.cards_removed.append(removed.id)
-            relic = handler._get_random_relic(run_state, misc_rng, "common")
+            relic = handler._get_random_relic(run_state, misc_rng, "weighted")
             run_state.add_relic(relic)
             result.relics_gained.append(relic)
             result.description = f"Offered a card. Gained {relic}."
@@ -3344,7 +3580,7 @@ def _handle_we_meet_again(
     if choice_idx == 0:
         # Give potion, get relic
         result.choice_name = "give_potion"
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
+        relic = handler._get_random_relic(run_state, misc_rng, "weighted")
         run_state.add_relic(relic)
         result.relics_gained.append(relic)
         result.description = f"Gave a potion. Gained {relic}."
@@ -3391,40 +3627,25 @@ def _handle_augmenter(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Augmenter: Mechanical (J.A.X. + remove card), Mutagenic (Str or Dex), Transform 2."""
+    """Augmenter: Mechanical (J.A.X. only), Mutagenic (MutagenicStrength relic), Transform 2.
+
+    Java: DrugDealer.java
+    - Option 0 (Ingest): obtain J.A.X. card ONLY - no card removal
+    - Option 1 (Become Test Subject): transform 2 cards
+    - Option 2 (Inject Mutagens): always give MutagenicStrength relic
+      (Circlet if player already has MutagenicStrength)
+    """
     result = EventChoiceResult(event_id="Augmenter", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
-        # Mechanical enhancement - get J.A.X., remove a card
+        # Ingest: obtain J.A.X. card only - NO card removal
         result.choice_name = "mechanical"
         run_state.add_card("J.A.X.")
         result.cards_gained.append("J.A.X.")
-
-        if card_idx is not None:
-            removed = run_state.remove_card(card_idx)
-            if removed:
-                result.cards_removed.append(removed.id)
-            result.description = f"Mechanical enhancement. Gained J.A.X., removed a card."
-        else:
-            result.requires_card_selection = True
-            result.card_selection_type = "remove"
-            result.event_complete = False
-            result.description = "Gained J.A.X. Choose a card to remove."
+        result.description = "Mechanical enhancement. Gained J.A.X."
 
     elif choice_idx == 1:
-        # Mutagenic - random Strength or Dexterity (represented as relic/buff)
-        result.choice_name = "mutagenic"
-        if misc_rng.random_float() < 0.5:
-            run_state.add_relic("MutagenicStrength")
-            result.relics_gained.append("MutagenicStrength")
-            result.description = "Mutagenic enhancement. Gained Strength."
-        else:
-            run_state.add_relic("MutagenicDexterity")
-            result.relics_gained.append("MutagenicDexterity")
-            result.description = "Mutagenic enhancement. Gained Dexterity."
-
-    elif choice_idx == 2:
-        # Transform 2 cards
+        # Become Test Subject: transform 2 cards
         result.choice_name = "transform"
         if card_idx is not None:
             removed = run_state.remove_card(card_idx)
@@ -3443,6 +3664,19 @@ def _handle_augmenter(
             result.event_complete = False
             result.description = "Choose 2 cards to transform."
 
+    elif choice_idx == 2:
+        # Inject Mutagens: always give MutagenicStrength relic
+        # Java: if player already has MutagenicStrength → give Circlet instead
+        result.choice_name = "mutagenic"
+        if run_state.has_relic("MutagenicStrength"):
+            run_state.add_relic("Circlet")
+            result.relics_gained.append("Circlet")
+            result.description = "Mutagenic enhancement. Gained Circlet (already had MutagenicStrength)."
+        else:
+            run_state.add_relic("MutagenicStrength")
+            result.relics_gained.append("MutagenicStrength")
+            result.description = "Mutagenic enhancement. Gained MutagenicStrength."
+
     return result
 
 
@@ -3455,41 +3689,36 @@ def _handle_beggar(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Beggar: Donate 50g (relic), Donate 100g (relic + remove curse), Leave."""
+    """Beggar: Pay 75 gold to remove a card, or leave.
+
+    Java: Beggar.java
+    - Option 0 = Pay 75 gold, then select 1 purgeable card to remove
+    - Option 1 = Leave
+    No relics are given.
+    """
     result = EventChoiceResult(event_id="Beggar", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
-        # Donate 50g
-        result.choice_name = "donate_50"
-        handler._apply_gold_change(run_state, -50)
-        result.gold_change = -50
+        # Pay 75 gold, remove a card
+        result.choice_name = "give"
+        handler._apply_gold_change(run_state, -75)
+        result.gold_change = -75
 
-        relic = handler._get_random_relic(run_state, misc_rng, "common")
-        run_state.add_relic(relic)
-        result.relics_gained.append(relic)
-        result.description = f"Donated 50 gold. Gained {relic}."
+        if card_idx is not None:
+            removed = run_state.remove_card(card_idx)
+            if removed:
+                result.cards_removed.append(removed.id)
+                result.description = f"Gave 75 gold. Removed {removed.id}."
+            else:
+                result.description = "Gave 75 gold. No card removed."
+        else:
+            result.requires_card_selection = True
+            result.card_selection_type = "remove"
+            result.card_selection_count = 1
+            result.event_complete = False
+            result.description = "Gave 75 gold. Choose a card to remove."
 
     elif choice_idx == 1:
-        # Donate 100g - relic + remove a curse if any
-        result.choice_name = "donate_100"
-        handler._apply_gold_change(run_state, -100)
-        result.gold_change = -100
-
-        relic = handler._get_random_relic(run_state, misc_rng, "uncommon")
-        run_state.add_relic(relic)
-        result.relics_gained.append(relic)
-
-        # Remove a curse if one exists
-        curses = handler._get_removable_curses(run_state)
-        if curses:
-            idx, curse_card = curses[0]
-            run_state.remove_card(idx)
-            result.cards_removed.append(curse_card.id)
-            result.description = f"Donated 100 gold. Gained {relic}, removed {curse_card.id}."
-        else:
-            result.description = f"Donated 100 gold. Gained {relic}."
-
-    elif choice_idx == 2:
         result.choice_name = "leave"
         result.description = "Left the beggar."
 
@@ -3716,9 +3945,11 @@ def _get_the_library_choices(
     run_state: 'RunState'
 ) -> List[EventChoice]:
     """Get choices for The Library event."""
+    heal_pct = 0.20 if run_state.ascension >= 15 else 0.33
+    heal_amt = int(run_state.max_hp * heal_pct + 0.5)
     return [
         EventChoice(index=0, name="read", text="[Read] Choose 1 of 20 cards"),
-        EventChoice(index=1, name="sleep", text="[Sleep] Heal to full HP"),
+        EventChoice(index=1, name="sleep", text=f"[Sleep] Heal {heal_amt} HP ({int(heal_pct * 100)}% of max)"),
     ]
 
 
@@ -3729,9 +3960,15 @@ def _get_the_mausoleum_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Get choices for The Mausoleum event."""
+    """The Mausoleum: Open (relic + possible Writhe curse) or Leave.
+
+    Java: TheMausoleum.java
+    - Option 0 = Open: always get relic, 50%/100%(A15+) also get Writhe
+    - Option 1 = Leave
+    """
+    percent = 100 if run_state.ascension >= 15 else 50
     return [
-        EventChoice(index=0, name="open", text="[Open] 50% relic, 50% curse"),
+        EventChoice(index=0, name="open", text=f"[Open] Gain relic, {percent}% chance of Writhe"),
         EventChoice(index=1, name="leave", text="[Leave]"),
     ]
 
@@ -3968,11 +4205,21 @@ def _get_wing_statue_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Wing Statue: Purify or Leave."""
-    return [
+    """Wing Statue: Purify, sell high-damage attack, or Leave."""
+    choices = [
         EventChoice(index=0, name="purify", text="[Purify] Lose 7 HP, remove a card", requires_removable_cards=True),
-        EventChoice(index=1, name="leave", text="[Leave]"),
     ]
+    # Java: conditional option if player has an Attack with 10+ damage
+    has_strong_attack = any(
+        getattr(c, "damage", 0) >= 10 or getattr(c, "base_damage", 0) >= 10
+        for c_inst in run_state.deck
+        for c in [handler._get_card_def(c_inst.id)]
+        if c is not None and str(getattr(c, "card_type", "")).endswith("ATTACK")
+    ) if hasattr(handler, "_get_card_def") else False
+    if has_strong_attack:
+        choices.append(EventChoice(index=1, name="sell_attack", text="[Sell] Trade attack for 50-80 gold"))
+    choices.append(EventChoice(index=len(choices), name="leave", text="[Leave]"))
+    return choices
 
 
 # ============================================================================
@@ -3986,11 +4233,13 @@ def _get_addict_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Addict: Pay, Refuse, or Rob."""
+    """Addict/Pleading Vagrant: Pay, Steal (relic+curse), or Leave.
+    Java: 0=Pay 85g (remove curse if have one), 1=Steal relic+Shame, 2=Leave.
+    """
     return [
-        EventChoice(index=0, name="pay", text="[Pay] Give 85 gold for relic"),
-        EventChoice(index=1, name="refuse", text="[Refuse] Gain Shame curse"),
-        EventChoice(index=2, name="rob", text="[Rob] Gain relic + Shame"),
+        EventChoice(index=0, name="pay", text="[Pay] Give 85 gold"),
+        EventChoice(index=1, name="rob", text="[Rob] Gain relic + Shame curse"),
+        EventChoice(index=2, name="leave", text="[Leave]"),
     ]
 
 
@@ -4001,11 +4250,24 @@ def _get_augmenter_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Augmenter: Test or Leave."""
-    return [
-        EventChoice(index=0, name="test", text="[Test] Transform 2 cards, upgrade them"),
-        EventChoice(index=1, name="leave", text="[Leave]"),
+    """Augmenter (DrugDealer): 3 options.
+
+    Java: DrugDealer.java
+    - Option 0 = Ingest: obtain J.A.X. card (no card removal)
+    - Option 1 = Become Test Subject: transform 2 cards (requires >= 2 purgeable)
+    - Option 2 = Inject Mutagens: gain MutagenicStrength relic
+    """
+    choices = [
+        EventChoice(index=0, name="mechanical", text="[Ingest] Gain J.A.X. card"),
     ]
+    # Java: disabled if < 2 purgeable cards
+    purgeable_count = sum(1 for c in run_state.deck if c.id not in handler.UNREMOVABLE_CURSES)
+    if purgeable_count >= 2:
+        choices.append(EventChoice(index=1, name="transform",
+                                   text="[Become Test Subject] Transform 2 cards"))
+    choices.append(EventChoice(index=2, name="mutagenic",
+                               text="[Inject Mutagens] Gain MutagenicStrength relic"))
+    return choices
 
 
 def _get_back_to_basics_choices(
@@ -4015,10 +4277,16 @@ def _get_back_to_basics_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Back to Basics: Simplicity or Leave."""
+    """Back to Basics: Simplicity (remove 1 card) or Elegance (upgrade Strikes/Defends).
+
+    Java: BackToBasics.java - 2 options:
+    - Option 0 = Simplicity = remove 1 purgeable card
+    - Option 1 = Elegance = upgrade all starter Strikes/Defends
+    """
     return [
-        EventChoice(index=0, name="simplicity", text="[Simplicity] Remove all Strikes and Defends"),
-        EventChoice(index=1, name="leave", text="[Leave]"),
+        EventChoice(index=0, name="simplicity", text="[Simplicity] Remove a card",
+                    requires_removable_cards=True),
+        EventChoice(index=1, name="elegance", text="[Elegance] Upgrade all Strikes and Defends"),
     ]
 
 
@@ -4029,9 +4297,15 @@ def _get_beggar_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Beggar: Give gold or Leave."""
+    """Beggar: Pay 75 gold to remove a card, or leave.
+
+    Java: Beggar.java - 2 options:
+    - Option 0 = Pay 75 gold, remove 1 card (disabled if < 75 gold)
+    - Option 1 = Leave
+    """
     return [
-        EventChoice(index=0, name="give", text="[Give 75 Gold] Remove a card"),
+        EventChoice(index=0, name="give", text="[Give 75 Gold] Remove a card",
+                    requires_gold=75),
         EventChoice(index=1, name="leave", text="[Leave]"),
     ]
 
@@ -4057,11 +4331,18 @@ def _get_forgotten_altar_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Forgotten Altar: Sacrifice or Desecrate."""
+    """Forgotten Altar: Sacrifice Golden Idol, Shed Blood, or Desecrate.
+
+    Java: ForgottenAltar.java - 3 options:
+    - Option 0 = Sacrifice Golden Idol -> Bloody Idol (requires Golden Idol)
+    - Option 1 = Shed Blood: +5 max HP, take 25%/35%(A15+) max HP damage
+    - Option 2 = Desecrate: gain Decay curse
+    """
     return [
-        EventChoice(index=0, name="sacrifice", text="[Sacrifice] Take damage, gain 5 Max HP"),
-        EventChoice(index=1, name="desecrate", text="[Desecrate] Gain Decay curse"),
-        EventChoice(index=2, name="leave", text="[Leave]"),
+        EventChoice(index=0, name="sacrifice", text="[Sacrifice] Give Golden Idol, gain Bloody Idol",
+                    requires_relic="GoldenIdol"),
+        EventChoice(index=1, name="shed_blood", text="[Shed Blood] Gain 5 Max HP, take damage"),
+        EventChoice(index=2, name="desecrate", text="[Desecrate] Gain Decay curse"),
     ]
 
 
@@ -4086,10 +4367,16 @@ def _get_nest_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Nest: Steal or Smash."""
+    """The Nest: Steal gold or Join cult.
+
+    Java: Nest.java - 2 options (after screen 0 intro):
+    - Option 0 = Steal: gain gold (99, or 50 on A15+)
+    - Option 1 = Join cult: take 6 damage, gain Ritual Dagger
+    """
+    gold_gain = 50 if run_state.ascension >= 15 else 99
     return [
-        EventChoice(index=0, name="steal", text="[Steal] Gain 99 gold"),
-        EventChoice(index=1, name="smash", text="[Smash] Take damage, get Dagger"),
+        EventChoice(index=0, name="steal", text=f"[Steal] Gain {gold_gain} gold"),
+        EventChoice(index=1, name="join", text="[Join] Lose 6 HP, gain Ritual Dagger"),
     ]
 
 
@@ -4223,10 +4510,17 @@ def _get_sensory_stone_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Sensory Stone: Recall or Leave."""
+    """Sensory Stone: Choose depth of recall (1/2/3 colorless cards for 0/5/10 HP).
+
+    Java: SensoryStone.java - 3 options:
+    - Option 0 = 1 colorless card reward (free)
+    - Option 1 = 2 colorless card rewards, take 5 HP damage
+    - Option 2 = 3 colorless card rewards, take 10 HP damage
+    """
     return [
-        EventChoice(index=0, name="recall", text="[Recall] Gain random colorless cards"),
-        EventChoice(index=1, name="leave", text="[Leave]"),
+        EventChoice(index=0, name="memory_1", text="[1 Card] Gain 1 colorless card reward"),
+        EventChoice(index=1, name="memory_2", text="[2 Cards] Gain 2 colorless cards, lose 5 HP"),
+        EventChoice(index=2, name="memory_3", text="[3 Cards] Gain 3 colorless cards, lose 10 HP"),
     ]
 
 
@@ -4237,12 +4531,19 @@ def _get_tomb_of_lord_red_mask_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Tomb of Lord Red Mask: Offer gold or Don mask."""
-    return [
-        EventChoice(index=0, name="offer", text="[Offer Gold] Give all gold for Red Mask"),
-        EventChoice(index=1, name="don", text="[Don Mask] Gain Red Mask, curse"),
-        EventChoice(index=2, name="leave", text="[Leave]"),
-    ]
+    """Tomb of Lord Red Mask: context-dependent choices based on Red Mask ownership."""
+    has_red_mask = run_state.has_relic("Red Mask")
+    if has_red_mask:
+        return [
+            EventChoice(index=0, name="wear_mask", text="[Wear Mask] Gain 222 gold"),
+            EventChoice(index=1, name="leave", text="[Leave]"),
+        ]
+    else:
+        return [
+            EventChoice(index=0, name="pay_gold",
+                        text=f"[Pay All Gold] Give {run_state.gold} gold for Red Mask relic"),
+            EventChoice(index=1, name="leave", text="[Leave]"),
+        ]
 
 
 def _get_winding_halls_choices(
@@ -4298,13 +4599,75 @@ def _get_designer_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Designer: Remove, Upgrade, or Transform."""
-    return [
-        EventChoice(index=0, name="remove", text="[Remove] Pay 50-75 gold, remove card"),
-        EventChoice(index=1, name="upgrade", text="[Upgrade] Pay 40-60 gold, upgrade card"),
-        EventChoice(index=2, name="transform", text="[Transform] Pay 75-110 gold, transform card"),
-        EventChoice(index=3, name="leave", text="[Leave]"),
-    ]
+    """Designer: Randomized options via miscRng.
+
+    Java: Designer.java
+    - adjustmentUpgradesOne = miscRng.randomBoolean() (stored at event init)
+    - cleanUpRemovesCards = miscRng.randomBoolean() (stored at event init)
+    - Costs: A15+ = 50/75/110, normal = 40/60/90
+    - hpLoss: A15+ = 5, normal = 3
+
+    Options:
+    - 0 = Adjustment: upgrade 1 (choose) OR upgrade 2 (random)
+    - 1 = Cleanup: remove 1 card OR transform 2 cards
+    - 2 = Full Service: remove 1 card + upgrade 1 random
+    - 3 = Punch (leave): take HP damage
+    """
+    ascension = run_state.ascension
+
+    # Read stored randomized flags (set during event selection/init)
+    adjustment_upgrades_one = event_state.pending_rewards.get("adjustment_upgrades_one", True)
+    cleanup_removes_cards = event_state.pending_rewards.get("cleanup_removes_cards", True)
+
+    if ascension >= 15:
+        adjust_cost, cleanup_cost, full_cost, hp_loss = 50, 75, 110, 5
+    else:
+        adjust_cost, cleanup_cost, full_cost, hp_loss = 40, 60, 90, 3
+
+    choices = []
+
+    # Option 0: Adjustment
+    if adjustment_upgrades_one:
+        choices.append(EventChoice(
+            index=0, name="adjustment",
+            text=f"[Adjust] Pay {adjust_cost} gold, upgrade 1 card",
+            requires_gold=adjust_cost, requires_upgradable_cards=True
+        ))
+    else:
+        choices.append(EventChoice(
+            index=0, name="adjustment",
+            text=f"[Adjust] Pay {adjust_cost} gold, upgrade 2 random cards",
+            requires_gold=adjust_cost, requires_upgradable_cards=True
+        ))
+
+    # Option 1: Cleanup
+    if cleanup_removes_cards:
+        choices.append(EventChoice(
+            index=1, name="cleanup",
+            text=f"[Clean Up] Pay {cleanup_cost} gold, remove 1 card",
+            requires_gold=cleanup_cost, requires_removable_cards=True
+        ))
+    else:
+        choices.append(EventChoice(
+            index=1, name="cleanup",
+            text=f"[Clean Up] Pay {cleanup_cost} gold, transform 2 cards",
+            requires_gold=cleanup_cost, requires_removable_cards=True
+        ))
+
+    # Option 2: Full Service
+    choices.append(EventChoice(
+        index=2, name="full_service",
+        text=f"[Full Service] Pay {full_cost} gold, remove + upgrade",
+        requires_gold=full_cost, requires_removable_cards=True
+    ))
+
+    # Option 3: Punch (leave)
+    choices.append(EventChoice(
+        index=3, name="punch",
+        text=f"[Punch] Take {hp_loss} damage, leave",
+    ))
+
+    return choices
 
 
 def _get_face_trader_choices(
@@ -4314,10 +4677,15 @@ def _get_face_trader_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Face Trader: Trade or Leave."""
+    """Face Trader: Touch (damage+gold), Trade (face relic), Leave."""
+    damage = max(run_state.max_hp // 10, 1)
+    gold_reward = 50 if run_state.ascension >= 15 else 75
     return [
-        EventChoice(index=0, name="trade", text="[Trade] Lose face, gain gold"),
-        EventChoice(index=1, name="leave", text="[Leave]"),
+        EventChoice(index=0, name="touch",
+                    text=f"[Touch] Lose {damage} HP, gain {gold_reward} gold"),
+        EventChoice(index=1, name="trade",
+                    text="[Trade Face] Gain a random face relic"),
+        EventChoice(index=2, name="leave", text="[Leave]"),
     ]
 
 
@@ -4350,10 +4718,12 @@ def _get_the_joust_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """The Joust: Bet on Champion or Murderer."""
+    """The Joust: Bet 50g on Murderer (70% win=100g) or Owner (30% win=250g)."""
     return [
-        EventChoice(index=0, name="champion", text="[Bet on Champion] Win: 100 gold"),
-        EventChoice(index=1, name="murderer", text="[Bet on Murderer] Win: 250 gold"),
+        EventChoice(index=0, name="murderer", text="[Bet on Murderer] Cost: 50g, Win: 100g (70% chance)",
+                    requires_gold=50),
+        EventChoice(index=1, name="owner", text="[Bet on Owner] Cost: 50g, Win: 250g (30% chance)",
+                    requires_gold=50),
     ]
 
 

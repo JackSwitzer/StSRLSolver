@@ -248,11 +248,11 @@ class EffectExecutor:
         stance_mult = self.STANCE_DAMAGE_MULT.get(self.state.stance, 1.0)
         damage = int(damage * stance_mult)
 
-        # Apply Wreath of Flame
-        wreath = self.state.player.statuses.get("WreathOfFlame", 0)
-        if wreath > 0:
-            damage += wreath
-            self.state.player.statuses["WreathOfFlame"] = 0
+        # Apply Vigor (was WreathOfFlame, now unified under Vigor status)
+        vigor = self.state.player.statuses.get("Vigor", 0)
+        if vigor > 0:
+            damage += vigor
+            self.state.player.statuses["Vigor"] = 0
 
         # Check for multi-hit
         hits = 1
@@ -320,7 +320,7 @@ class EffectExecutor:
 
     # Effects that are no-ops or handled elsewhere (passive/tracked effects)
     _NOOP_EFFECTS = frozenset([
-        "only_attack_in_hand", "cost_reduces_each_turn", "gain_damage_when_retained_4",
+        "only_attack_in_hand", "cost_reduces_each_turn", "gain_damage_when_retained",
         "gains_block_when_retained", "on_stance_change_play_from_discard",
         "on_scry_play_from_discard", "unplayable", "damage_x_times",
         "choose_attack_from_any_class", "play_card_from_draw_twice", "discover_card",
@@ -402,7 +402,7 @@ class EffectExecutor:
         # Calm/Wrath conditionals
         "if_calm_draw_else_calm": _if_calm_draw_else_calm,
         "if_calm_draw_3_else_calm": _if_calm_draw_else_calm,  # Alias
-        "if_wrath_gain_mantra_else_wrath": lambda s, c, cd, r: c.gain_mantra(5 if c.is_upgraded else 3) if c.stance == "Wrath" else c.change_stance("Wrath"),
+        "if_wrath_vuln_all_else_wrath": lambda s, c, cd, r: c.apply_status_to_all_enemies("Vulnerable", 5 if c.is_upgraded else 3) if c.stance == "Wrath" else c.change_stance("Wrath"),
 
         # Damage effects
         "damage_per_enemy": lambda s, c, cd, r: c.deal_damage_to_enemy(c.target, cd.damage * len(c.living_enemies)) if c.target else None,
@@ -421,7 +421,7 @@ class EffectExecutor:
         "add_through_violence_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("ThroughViolence+" if c.is_upgraded else "ThroughViolence", "top"),
         "shuffle_beta_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Beta+" if c.is_upgraded else "Beta", "random"),
         "shuffle_omega_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Omega", "random"),
-        "add_expunger_to_hand": lambda s, c, cd, r: (c.add_card_to_hand("Expunger"), c.extra_data.__setitem__("expunger_x", c.energy_spent)),
+        "add_expunger_to_hand": lambda s, c, cd, r: (c.add_card_to_hand("Expunger"), c.extra_data.__setitem__("expunger_x", (c.energy_spent + 1) if c.is_upgraded else c.energy_spent)),
 
         # Energy effects
         "gain_1_energy": lambda s, c, cd, r: c.gain_energy(2 if c.is_upgraded else 1),
@@ -450,8 +450,8 @@ class EffectExecutor:
         "add_insight_end_turn": lambda s, c, cd, r: c.apply_status_to_player("Study", 1),
         "gain_energy_each_turn_stacking": lambda s, c, cd, r: c.apply_status_to_player("DevaForm", 1),
         "created_cards_upgraded": lambda s, c, cd, r: c.apply_status_to_player("MasterReality", 1),
-        "next_attack_plus_damage": lambda s, c, cd, r: c.apply_status_to_player("WreathOfFlame", cd.magic_number if cd.magic_number > 0 else 5),
-        "wrath_next_turn_draw_next_turn": lambda s, c, cd, r: c.apply_status_to_player("SimmeringFury", cd.magic_number if cd.magic_number > 0 else 2),
+        "next_attack_plus_damage": lambda s, c, cd, r: c.apply_status_to_player("Vigor", cd.magic_number if cd.magic_number > 0 else 5),
+        "wrath_next_turn_draw_next_turn": lambda s, c, cd, r: (c.apply_status_to_player("WrathNextTurn", 1), c.apply_status_to_player("DrawCardNextTurn", cd.magic_number if cd.magic_number > 0 else 2)),
         "free_attack_next_turn": lambda s, c, cd, r: c.apply_status_to_player("FreeAttackPower", 1),
         "block_gain_applies_weak": lambda s, c, cd, r: c.apply_status_to_player("WaveOfTheHand", cd.magic_number if cd.magic_number > 0 else 1),
         "die_next_turn": lambda s, c, cd, r: c.apply_status_to_player("Blasphemy", 1),
@@ -610,14 +610,20 @@ class EffectExecutor:
             if mantra_result.get("divinity_triggered"):
                 result.stance_changed_to = "Divinity"
 
-        # Simmering Fury - enter Wrath and draw
-        simmering = ctx.get_player_status("SimmeringFury")
-        if simmering > 0:
+        # Simmering Fury powers: WrathNextTurn and DrawCardNextTurn
+        # (Java: SimmeringFury applies two separate powers)
+        wrath_next = ctx.get_player_status("WrathNextTurn")
+        if wrath_next > 0:
             ctx.change_stance("Wrath")
-            ctx.draw_cards(simmering)
-            ctx.remove_status_from_player("SimmeringFury")
+            ctx.remove_status_from_player("WrathNextTurn")
             result.stance_changed_to = "Wrath"
-            result.effects_executed.append(f"simmering_fury_{simmering}")
+            result.effects_executed.append("wrath_next_turn")
+
+        draw_next = ctx.get_player_status("DrawCardNextTurn")
+        if draw_next > 0:
+            ctx.draw_cards(draw_next)
+            ctx.remove_status_from_player("DrawCardNextTurn")
+            result.effects_executed.append(f"draw_card_next_turn_{draw_next}")
 
         return result
 
@@ -648,10 +654,8 @@ class EffectExecutor:
                 ctx.add_card_to_draw_pile("Insight", "random")
             result.effects_executed.append(f"study_{study}")
 
-        # Blasphemy - die at end of turn
-        if ctx.get_player_status("Blasphemy") > 0:
-            self.state.player.hp = 0
-            result.effects_executed.append("blasphemy_death")
+        # Blasphemy: death is now handled by EndTurnDeath power trigger at
+        # atStartOfTurn (Java parity: die at START of next turn, not end of this one).
 
         return result
 

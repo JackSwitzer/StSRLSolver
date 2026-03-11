@@ -138,6 +138,7 @@ class EnemyCombatState(EntityState):
     move_effects: Dict[str, int] = field(default_factory=dict)
     move_history: List[int] = field(default_factory=list)  # History of move IDs for AI patterns
     first_turn: bool = True  # Whether this is the enemy's first turn
+    is_escaping: bool = False  # True when enemy is fleeing combat (Looter, Mugger, Gremlins)
 
     def copy(self) -> EnemyCombatState:
         """Create a shallow copy with copied dicts."""
@@ -156,6 +157,7 @@ class EnemyCombatState(EntityState):
             move_effects=self.move_effects.copy(),
             move_history=self.move_history.copy(),
             first_turn=self.first_turn,
+            is_escaping=self.is_escaping,
         )
 
     @property
@@ -174,8 +176,8 @@ class EnemyCombatState(EntityState):
         return self.statuses.get("Strength", 0)
 
     def is_alive(self) -> bool:
-        """Check if enemy is alive."""
-        return self.hp > 0
+        """Check if enemy is alive and not escaping."""
+        return self.hp > 0 and not self.is_escaping
 
 
 # =============================================================================

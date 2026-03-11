@@ -37,7 +37,7 @@ ATTACKS:
 - Wallop: 9/14 damage, gain Block = unblocked damage dealt
 - Weave: 4/6 damage, auto-plays from discard on Scry
 - WheelKick: 15/20 damage, draw 2
-- WindmillStrike: 7/10 damage, Retain, +4 damage each turn retained
+- WindmillStrike: 7/10 damage, Retain, +4/5 damage each turn retained
 - FearNoEvil: 8/11 damage, enter Calm if enemy attacking
 - SandsOfTime: 20/26 damage, Retain, cost -1 each turn retained
 - CarveReality: 6/10 damage, add Smite to hand
@@ -93,7 +93,7 @@ POWERS:
 - Foresight: Scry 3/4 at start of turn
 - DevaForm: Gain 1 Energy at start of each turn (stacks)
 - Devotion: Gain 3/4 Mantra at start of turn
-- Fasting: Gain 3/4 Strength and Dexterity, lose 1 Focus
+- Fasting: Gain 3/4 Strength and Dexterity, lose 1 Energy per turn (EnergyDown)
 - MasterReality: Created cards are Upgraded
 
 SPECIAL/GENERATED CARDS:
@@ -465,12 +465,15 @@ def _if_calm_draw_else_calm_alias(ctx: EffectContext) -> None:
     if_calm_draw_else_calm(ctx)
 
 
-@effect_simple("if_wrath_gain_mantra_else_wrath")
-def if_wrath_gain_mantra_else_wrath(ctx: EffectContext) -> None:
-    """If in Wrath gain mantra, else enter Wrath (Indignation)."""
+@effect_simple("if_wrath_vuln_all_else_wrath")
+def if_wrath_vuln_all_else_wrath(ctx: EffectContext) -> None:
+    """If in Wrath apply Vulnerable to ALL enemies, else enter Wrath (Indignation).
+
+    Java: IndignationAction applies VulnerablePower(magicNumber) to all enemies.
+    """
     if ctx.stance == "Wrath":
         amount = 5 if ctx.is_upgraded else 3
-        ctx.gain_mantra(amount)
+        ctx.apply_status_to_all_enemies("Vulnerable", amount)
     else:
         ctx.change_stance("Wrath")
 
@@ -550,9 +553,14 @@ def gain_block_equal_unblocked(ctx: EffectContext) -> None:
 
 @effect_simple("gain_block_per_card_in_hand")
 def gain_block_per_card(ctx: EffectContext) -> None:
-    """Gain block for each card in hand (Spirit Shield)."""
+    """Gain block for each card in hand excluding Spirit Shield itself.
+
+    Java: SpiritShield.use() skips `this` card in the count.
+    """
     per_card = ctx.magic_number if ctx.magic_number > 0 else 3
-    block = per_card * len(ctx.hand)
+    # Exclude this card (Spirit Shield) from count - Java does `if (c == this) continue`
+    card_count = max(0, len(ctx.hand) - 1)
+    block = per_card * card_count
     ctx.gain_block(block)
 
 
@@ -748,16 +756,27 @@ def master_reality_power(ctx: EffectContext) -> None:
 
 @effect_simple("next_attack_plus_damage")
 def wreath_of_flame_effect(ctx: EffectContext) -> None:
-    """Wreath of Flame - Next attack deals extra damage."""
+    """Wreath of Flame - Next attack deals extra damage via Vigor.
+
+    Java: Applies VigorPower(amount). Using standard Vigor status for
+    proper stacking with other Vigor sources (Akabeko relic, etc.).
+    """
     amount = ctx.magic_number if ctx.magic_number > 0 else 5
-    ctx.apply_status_to_player("WreathOfFlame", amount)
+    ctx.apply_status_to_player("Vigor", amount)
 
 
 @effect_simple("wrath_next_turn_draw_next_turn")
 def simmering_fury_effect(ctx: EffectContext) -> None:
-    """Simmering Fury - Next turn enter Wrath and draw."""
-    amount = ctx.magic_number if ctx.magic_number > 0 else 2
-    ctx.apply_status_to_player("SimmeringFury", amount)
+    """Simmering Fury - Next turn enter Wrath and draw.
+
+    Java: SimmeringFury.java applies TWO separate powers:
+      1. WrathNextTurnPower (enter Wrath at start of next turn)
+      2. DrawCardNextTurnPower(magicNumber) (draw 2/3 at start of next turn)
+    These are separate powers that stack independently.
+    """
+    draw_amount = ctx.magic_number if ctx.magic_number > 0 else 2
+    ctx.apply_status_to_player("WrathNextTurn", 1)
+    ctx.apply_status_to_player("DrawCardNextTurn", draw_amount)
 
 
 @effect_simple("free_attack_next_turn")
@@ -861,8 +880,14 @@ def collect_effect(ctx: EffectContext) -> None:
 
 @effect_simple("add_expunger_to_hand")
 def conjure_blade_effect(ctx: EffectContext) -> None:
-    """Add Expunger to hand with X hits (Conjure Blade)."""
+    """Add Expunger to hand with X hits (Conjure Blade).
+
+    Java: ConjureBlade.java passes energyOnUse + 1 when upgraded,
+    energyOnUse when not upgraded, to ConjureBladeAction.
+    """
     x = ctx.extra_data.get("x_cost", 1)
+    if ctx.is_upgraded:
+        x += 1
     ctx.add_card_to_hand("Expunger")
     # Store the X value for Expunger's hits
     ctx.extra_data["expunger_hits"] = x
@@ -999,10 +1024,13 @@ def only_attack_in_hand(ctx: EffectContext) -> None:
     pass
 
 
-@effect_simple("gain_damage_when_retained_4")
+@effect_simple("gain_damage_when_retained")
 def gain_damage_when_retained(ctx: EffectContext) -> None:
     """
-    Windmill Strike - gains +4 damage each turn retained.
+    Windmill Strike - gains +4/5 damage each turn retained.
+
+    Java: WindmillStrike.onRetained() calls upgradeDamage(magicNumber).
+    Base magicNumber=4, upgraded magicNumber=5.
 
     This is tracked by the combat system when cards are retained.
     The damage bonus is stored in extra_data.
@@ -1118,15 +1146,18 @@ def retain_card_effect(ctx: EffectContext) -> None:
 @effect_simple("gain_strength_and_dex_lose_focus")
 def fasting_effect(ctx: EffectContext) -> None:
     """
-    Fasting - gain Strength and Dexterity (Watcher has no Focus).
+    Fasting - gain Strength and Dexterity, lose 1 energy/turn.
 
-    Base: +3 Str, +3 Dex
-    Upgraded: +4 Str, +4 Dex
+    Java: Applies Strength, Dexterity, AND EnergyDownPower(1).
+    The Focus loss is N/A for Watcher, but EnergyDown IS applied.
+    Base: +3 Str, +3 Dex, -1 energy/turn
+    Upgraded: +4 Str, +4 Dex, -1 energy/turn
     """
     amount = 4 if ctx.is_upgraded else 3
     ctx.apply_status_to_player("Strength", amount)
     ctx.apply_status_to_player("Dexterity", amount)
-    # Watcher doesn't have Focus, so no loss
+    # EnergyDownPower: lose 1 energy at start of each turn
+    ctx.apply_status_to_player("EnergyDownPower", 1)
 
 
 # =============================================================================
@@ -1177,7 +1208,7 @@ WATCHER_CARD_EFFECTS = {
     "Wallop": ["gain_block_equal_unblocked_damage"],
     "Weave": ["on_scry_play_from_discard"],
     "WheelKick": ["draw_2"],
-    "WindmillStrike": ["gain_damage_when_retained_4"],
+    "WindmillStrike": ["gain_damage_when_retained"],
     "Conclude": ["end_turn"],
     "CarveReality": ["add_smite_to_hand"],
 
@@ -1207,7 +1238,7 @@ WATCHER_CARD_EFFECTS = {
     # === UNCOMMON SKILLS ===
     "Collect": ["put_x_miracles_on_draw"],
     "DeceiveReality": ["add_safety_to_hand"],
-    "Indignation": ["if_wrath_gain_mantra_else_wrath"],
+    "Indignation": ["if_wrath_vuln_all_else_wrath"],
     "Meditate": ["put_cards_from_discard_to_hand", "enter_calm", "end_turn"],
     "Perseverance": ["gains_block_when_retained"],
     "Pray": ["gain_mantra_add_insight"],
@@ -1401,15 +1432,21 @@ def apply_start_of_turn_effects(ctx: EffectContext) -> dict:
             old_stance = mantra_result.get("old_stance", "Neutral")
             trigger_on_stance_change(ctx, old_stance, "Divinity")
 
-    # Simmering Fury - Enter Wrath and draw
-    simmering = ctx.get_player_status("SimmeringFury")
-    if simmering > 0:
+    # Simmering Fury powers: WrathNextTurn and DrawCardNextTurn
+    # (Java: SimmeringFury applies two separate powers)
+    wrath_next = ctx.get_player_status("WrathNextTurn")
+    if wrath_next > 0:
         ctx.change_stance("Wrath")
-        ctx.draw_cards(simmering)
-        ctx.remove_status_from_player("SimmeringFury")
+        ctx.remove_status_from_player("WrathNextTurn")
         result["stance_changed"] = "Wrath"
-        result["cards_drawn"] += simmering
-        result["effects"].append(f"simmering_fury_{simmering}")
+        result["effects"].append("wrath_next_turn")
+
+    draw_next = ctx.get_player_status("DrawCardNextTurn")
+    if draw_next > 0:
+        ctx.draw_cards(draw_next)
+        ctx.remove_status_from_player("DrawCardNextTurn")
+        result["cards_drawn"] += draw_next
+        result["effects"].append(f"draw_card_next_turn_{draw_next}")
 
     return result
 
@@ -1460,18 +1497,8 @@ def apply_end_of_turn_effects(ctx: EffectContext) -> dict:
             result["damage_dealt"] += dmg
         result["effects"].append(f"omega_{omega}")
 
-    # Blasphemy - Die at end of turn (the turn AFTER playing it)
-    blasphemy = ctx.get_player_status("Blasphemy")
-    if blasphemy > 0:
-        # Decrement counter, die when it reaches 0
-        new_val = blasphemy - 1
-        if new_val <= 0:
-            ctx.state.player.hp = 0
-            result["player_died"] = True
-            result["effects"].append("blasphemy_death")
-            ctx.remove_status_from_player("Blasphemy")
-        else:
-            ctx.state.player.statuses["Blasphemy"] = new_val
+    # Blasphemy: death is now handled by EndTurnDeath power trigger at
+    # atStartOfTurn (Java parity: die at START of next turn, not end of this one).
 
     # Handle retained cards bonuses
     _process_retained_cards(ctx, result)
@@ -1510,11 +1537,13 @@ def _process_retained_cards(ctx: EffectContext, result: dict) -> None:
             ctx.state.card_costs[card_id] = new_cost
         result["effects"].append(f"establishment_{len(retained_cards)}_cards")
 
-    # Windmill Strike damage bonus
+    # Windmill Strike damage bonus (Java: upgradeDamage(magicNumber))
+    # Base magicNumber=4, upgraded magicNumber=5
     for card_id in retained_cards:
         if card_id.startswith("WindmillStrike"):
             bonus = ctx.extra_data.get(f"windmill_bonus_{card_id}", 0)
-            ctx.extra_data[f"windmill_bonus_{card_id}"] = bonus + 4
+            retain_bonus = 5 if card_id.endswith("+") else 4
+            ctx.extra_data[f"windmill_bonus_{card_id}"] = bonus + retain_bonus
 
     # Sands of Time cost reduction
     for card_id in retained_cards:

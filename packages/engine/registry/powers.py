@@ -138,9 +138,16 @@ def next_turn_block_start(ctx: PowerContext) -> None:
 
 @power_trigger("atStartOfTurn", power="Foresight")
 def foresight_start(ctx: PowerContext) -> None:
-    """Foresight: Scry at start of turn."""
-    # Track scry count for the turn - combat engine handles actual scry UI
-    ctx.state.pending_scry = getattr(ctx.state, 'pending_scry', 0) + ctx.amount
+    """Foresight: Scry N at start of turn.
+
+    Uses engine._scry to actually perform the scry (auto-discard heuristic).
+    """
+    engine = getattr(ctx.state, '_combat_engine_ref', None)
+    if engine:
+        engine._scry(ctx.amount)
+    else:
+        # Fallback: set pending_scry for external handling
+        ctx.state.pending_scry = getattr(ctx.state, 'pending_scry', 0) + ctx.amount
 
 
 @power_trigger("atStartOfTurn", power="InfiniteBlades")
@@ -296,17 +303,20 @@ def noxious_fumes_start(ctx: PowerContext) -> None:
 
 @power_trigger("atStartOfTurnPostDraw", power="Devotion")
 def devotion_start(ctx: PowerContext) -> None:
-    """Devotion: Gain Mantra at start of turn."""
-    current_mantra = ctx.player.statuses.get("Mantra", 0)
-    new_mantra = current_mantra + ctx.amount
-    if new_mantra >= 10:
-        # Enter Divinity
-        ctx.state.stance = "Divinity"
-        ctx.player.statuses["Mantra"] = new_mantra - 10
-        if ctx.player.statuses["Mantra"] <= 0:
-            del ctx.player.statuses["Mantra"]
+    """Devotion: Gain Mantra at start of turn.
+
+    Uses engine._add_mantra to ensure Divinity transition fires
+    onChangeStance hooks (MentalFortress, Rushdown, Violet Lotus).
+    """
+    engine = getattr(ctx.state, '_combat_engine_ref', None)
+    if engine:
+        engine._add_mantra(ctx.amount)
     else:
-        ctx.player.statuses["Mantra"] = new_mantra
+        # Fallback for tests without engine: manipulate state.mantra directly
+        ctx.state.mantra += ctx.amount
+        if ctx.state.mantra >= 10:
+            ctx.state.mantra -= 10
+            ctx.state.stance = "Divinity"
 
 
 # =============================================================================
@@ -1187,9 +1197,9 @@ def phantasmal_killer_start(ctx: PowerContext) -> None:
     del ctx.player.statuses["PhantasmalKiller"]
 
 
-@power_trigger("atStartOfTurn", power="Blur")
-def blur_start(ctx: PowerContext) -> None:
-    """Blur: Don't remove block (already handled), but decrement Blur."""
+@power_trigger("atEndOfRound", power="Blur")
+def blur_end_of_round(ctx: PowerContext) -> None:
+    """Blur: decrement at end of round (Java: BlurPower.atEndOfRound)."""
     current = ctx.player.statuses.get("Blur", 0)
     if current > 1:
         ctx.player.statuses["Blur"] = current - 1
@@ -1478,10 +1488,11 @@ def angry_on_attacked(ctx: PowerContext) -> None:
         ctx.owner.statuses["Strength"] = ctx.owner.statuses.get("Strength", 0) + ctx.amount
 
 
-# --- Curiosity: onUseCard Power -> gain Strength ---
+# --- Curiosity: onPlayCard Power -> gain Strength ---
+# Java fires onUseCard on each monster's powers; Python dispatches onPlayCard to enemies.
 
-@power_trigger("onUseCard", power="Curiosity")
-def curiosity_on_use(ctx: PowerContext) -> None:
+@power_trigger("onPlayCard", power="Curiosity")
+def curiosity_on_play(ctx: PowerContext) -> None:
     """Curiosity: Gain Strength when player plays a Power card.
 
     Java: CuriosityPower.onUseCard -- if card.type == POWER, gain Strength.
@@ -1661,3 +1672,422 @@ def cannot_change_stance_end(ctx: PowerContext) -> None:
     The stance-change blocking check is inline in the combat engine.
     """
     ctx.player.statuses.pop("CannotChangeStancePower", None)
+
+
+# =============================================================================
+# MISSING WATCHER POWERS (added from Java parity audit 2026-03-03)
+# =============================================================================
+
+# --- EndTurnDeath (Blasphemy): die at end of turn ---
+# NOTE: Java fires at atStartOfTurn (next turn), but for RL simplicity
+# we keep end-of-turn timing. The rare edge cases (Blasphemy+Vault,
+# Blasphemy+Fairy) don't affect agent training.
+
+@power_trigger("atEndOfTurn", power="EndTurnDeath")
+@power_trigger("atEndOfTurn", power="Blasphemy")
+def end_turn_death(ctx: PowerContext) -> None:
+    """EndTurnDeath/Blasphemy: Kill player at end of turn.
+
+    Java timing: atStartOfTurn (next turn). Simplified to end-of-turn
+    for RL training since the timing edge cases are rare.
+    """
+    ctx.player.hp = 0
+    ctx.player.statuses.pop("EndTurnDeath", None)
+    ctx.player.statuses.pop("Blasphemy", None)
+
+
+# --- EnergyDownPower (Fasting): lose energy at start of turn ---
+
+@power_trigger("atStartOfTurn", power="EnergyDownPower")
+@power_trigger("atStartOfTurn", power="Fasting")
+def energy_down_start(ctx: PowerContext) -> None:
+    """EnergyDownPower: Lose energy at start of turn (Fasting card).
+
+    Java: EnergyDownPower.atStartOfTurn() → LoseEnergyAction(amount).
+    Persists until removed.
+    """
+    ctx.state.energy = max(0, ctx.state.energy - ctx.amount)
+
+
+# --- AngelForm / LiveForeverPower: gain Plated Armor at end of turn ---
+
+@power_trigger("atEndOfTurn", power="AngelForm")
+@power_trigger("atEndOfTurn", power="LiveForever")
+def angel_form_end(ctx: PowerContext) -> None:
+    """AngelForm/LiveForever: Gain Plated Armor at end of turn.
+
+    Java: LiveForeverPower.atEndOfTurn() → ApplyPowerAction(PlatedArmor, amount).
+    """
+    current = ctx.player.statuses.get("Plated Armor", 0)
+    ctx.player.statuses["Plated Armor"] = current + ctx.amount
+
+
+# =============================================================================
+# MISSING ENEMY POWERS (batch implementation 2026-03-03)
+# =============================================================================
+
+# --- AngerPower: Nob gains Str when player plays Skill ---
+@power_trigger("onPlayCard", power="Anger")
+def anger_on_play_card(ctx: PowerContext) -> None:
+    """Anger: Gain Strength when player plays a Skill card.
+    Java: AngerPower.onPlayCard — if card.type == SKILL, gain amount Str.
+    Used by GremlinNob.
+    """
+    card = ctx.trigger_data.get("card")
+    if card is not None:
+        from ..content.cards import CardType
+        if getattr(card, "card_type", None) == CardType.SKILL:
+            if ctx.owner is not None:
+                current = ctx.owner.statuses.get("Strength", 0)
+                ctx.owner.statuses["Strength"] = current + ctx.amount
+
+
+# --- HexPower: shuffle Daze on non-Attack play ---
+@power_trigger("onUseCard", power="Hex")
+def hex_on_use(ctx: PowerContext) -> None:
+    """Hex: Add Daze to draw pile when player plays non-Attack.
+    Java: HexPower.onUseCard — if card.type != ATTACK, shuffle Daze into draw.
+    Used by Hexaghost (via enemy power).
+    """
+    card = ctx.trigger_data.get("card")
+    if card is not None:
+        from ..content.cards import CardType
+        if getattr(card, "card_type", None) != CardType.ATTACK:
+            ctx.state.draw_pile.append("Daze")
+            ctx.shuffle_in_place(ctx.state.draw_pile)
+
+
+# --- GainStrengthPower (Shackled): regain Str at end of turn ---
+@power_trigger("atEndOfTurn", power="Shackled")
+@power_trigger("atEndOfTurn", power="GainStrength")
+def shackled_end(ctx: PowerContext) -> None:
+    """Shackled/GainStrength: Regain Strength at end of turn.
+    Java: GainStrengthPower.atEndOfTurn — gain amount Str then remove.
+    Applied when temporary Strength loss expires.
+    """
+    if ctx.owner is not None:
+        current = ctx.owner.statuses.get("Strength", 0)
+        ctx.owner.statuses["Strength"] = current + ctx.amount
+        if ctx.owner.statuses["Strength"] == 0:
+            ctx.owner.statuses.pop("Strength", None)
+    _sync_owner_power_amount(ctx, "Shackled", 0)
+    _sync_owner_power_amount(ctx, "GainStrength", 0)
+
+
+# --- GenericStrengthUpPower: gain Str each round ---
+@power_trigger("atEndOfRound", power="Generic Strength Up Power")
+def generic_str_up_end(ctx: PowerContext) -> None:
+    """GenericStrengthUpPower: Gain Strength at end of round."""
+    if ctx.owner is not None:
+        current = ctx.owner.statuses.get("Strength", 0)
+        ctx.owner.statuses["Strength"] = current + ctx.amount
+
+
+# --- ForcefieldPower (Nullify Attack): reduce non-Attack damage ---
+@power_trigger("atDamageFinalReceive", power="Nullify Attack")
+@power_trigger("atDamageFinalReceive", power="Forcefield")
+def forcefield_receive(ctx: PowerContext) -> int:
+    """Forcefield: Reduce all non-HP_LOSS damage to 0.
+    Java: ForcefieldPower.atDamageFinalReceive — if not HP_LOSS, return 0.
+    Used by Spheric Guardian.
+    """
+    damage = ctx.trigger_data.get("value", ctx.damage)
+    if ctx.damage_type != "HP_LOSS":
+        return 0
+    return damage
+
+
+# --- ShiftingPower: lose Strength equal to unblocked damage (temporary) ---
+@power_trigger("onAttacked", power="Shifting")
+def shifting_attacked(ctx: PowerContext) -> None:
+    """Shifting: Lose Strength equal to unblocked damage taken, regain at end of turn.
+
+    Java: ShiftingPower.onAttacked — apply -damageAmount Str + GainStrength(damageAmount).
+    Used by Nemesis, Book of Stabbing.
+    """
+    damage = ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0))
+    if damage > 0 and ctx.owner is not None:
+        ctx.owner.statuses["Strength"] = ctx.owner.statuses.get("Strength", 0) - damage
+        # GainStrength: restores Strength at end of turn (unless Artifact blocks it)
+        if ctx.owner.statuses.get("Artifact", 0) <= 0:
+            ctx.owner.statuses["GainStrength"] = ctx.owner.statuses.get("GainStrength", 0) + damage
+
+
+# --- TheBombPower: deal damage after 3 turns ---
+@power_trigger("atEndOfTurn", power="TheBomb")
+def the_bomb_end(ctx: PowerContext) -> None:
+    """TheBomb: Count down, deal massive damage when reaching 0.
+    Java: TheBombPower.atEndOfTurn — decrement, deal 40 dmg at 0.
+    """
+    if ctx.owner is not None:
+        key = f"__bomb_counter__{id(ctx.owner)}"
+        counter = ctx.state.relic_counters.get(key, 3)
+        counter -= 1
+        if counter <= 0:
+            # Deal damage to all enemies (it's a player power)
+            for enemy in ctx.living_enemies:
+                hp_dmg = max(0, ctx.amount - enemy.block)
+                enemy.block = max(0, enemy.block - ctx.amount)
+                enemy.hp = max(0, enemy.hp - hp_dmg)
+            ctx.state.relic_counters.pop(key, None)
+            ctx.player.statuses.pop("TheBomb", None)
+        else:
+            ctx.state.relic_counters[key] = counter
+
+
+# --- RegenerateMonsterPower: enemy heals at end of turn ---
+@power_trigger("atEndOfTurn", power="Regenerate")
+@power_trigger("atEndOfTurn", power="RegenerateMonster")
+def regenerate_monster_end(ctx: PowerContext) -> None:
+    """RegenerateMonsterPower: Heal at end of turn.
+    Java: RegenerateMonsterPower.atEndOfTurn — heal(amount).
+    """
+    if ctx.owner is not None and ctx.owner is not ctx.player:
+        heal = min(ctx.amount, ctx.owner.max_hp - ctx.owner.hp)
+        if heal > 0:
+            ctx.owner.hp += heal
+
+
+# --- PainfulStabsPower: add Wound when attacked ---
+@power_trigger("onAttacked", power="Painful Stabs")
+def painful_stabs_attacked(ctx: PowerContext) -> None:
+    """PainfulStabs: Add Wound to player discard when dealing unblocked damage.
+    Java: PainfulStabsPower.onAttacked — if dmg > 0, add Wound.
+    """
+    damage = ctx.trigger_data.get("damage", 0)
+    if damage > 0:
+        ctx.state.discard_pile.append("Wound")
+
+
+# --- NoSkillsPower: remove at end of turn (can't play check is in combat engine) ---
+@power_trigger("atEndOfTurn", power="NoSkills")
+def no_skills_end(ctx: PowerContext) -> None:
+    """NoSkillsPower: Remove at end of turn."""
+    ctx.player.statuses.pop("NoSkills", None)
+
+
+# --- ConfusionPower (Snecko Eye): randomize card costs on draw ---
+@power_trigger("onCardDraw", power="Confusion")
+def confusion_on_draw(ctx: PowerContext) -> None:
+    """Confusion: Randomize drawn card cost to 0-3.
+    Java: ConfusionPower.onCardDraw — set cost to cardRandomRng.random(3).
+    """
+    card_id = ctx.trigger_data.get("card_id", "")
+    if card_id:
+        rng = ctx._card_random_rng()
+        new_cost = rng.random(3) if rng else 0
+        ctx.state.card_costs[card_id] = new_cost
+
+
+# --- CollectPower: add Miracles at start of turn ---
+@power_trigger("onEnergyRecharge", power="Collect")
+def collect_energy(ctx: PowerContext) -> None:
+    """CollectPower: Add Miracle to hand (from Collect card).
+    Java: CollectPower.onEnergyRecharge — add Miracle to hand, decrement.
+    """
+    for _ in range(ctx.amount):
+        ctx.add_card_to_hand("Miracle")
+    new_val = ctx.amount - 1
+    if new_val <= 0:
+        ctx.player.statuses.pop("Collect", None)
+    else:
+        ctx.player.statuses["Collect"] = new_val
+
+
+# =============================================================================
+# ADDITIONAL MISSING POWERS (batch implementation 2026-03-11)
+# =============================================================================
+
+# --- AttackBurnPower: exhaust Attack cards played by the player ---
+@power_trigger("onPlayCard", power="Attack Burn")
+def attack_burn_on_play(ctx: PowerContext) -> None:
+    """Attack Burn: When player plays an Attack, exhaust it instead of discarding.
+
+    Java: AttackBurnPower.onUseCard — sets action.exhaustCard = true on Attacks.
+    Also decrements 1 per round after first application (handled by atEndOfRound).
+    Used by Book of Stabbing.
+    """
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        # Mark card for exhaust — the combat engine checks this flag
+        ctx.trigger_data["force_exhaust"] = True
+
+
+@power_trigger("atEndOfRound", power="Attack Burn")
+def attack_burn_end_round(ctx: PowerContext) -> None:
+    """Attack Burn: Decrement by 1 each round, skip first round.
+
+    Java: AttackBurnPower.atEndOfRound — justApplied skip, then ReducePower 1.
+    """
+    if ctx.owner is None:
+        return
+    key = _runtime_counter_key(ctx, "attack_burn_skip")
+    skip = ctx.state.relic_counters.get(key, 1)
+    if skip:
+        ctx.state.relic_counters[key] = 0
+    else:
+        new_val = ctx.amount - 1
+        if new_val <= 0:
+            ctx.owner.statuses.pop("Attack Burn", None)
+        else:
+            _sync_owner_power_amount(ctx, "Attack Burn", new_val)
+
+
+# --- Compulsive (Reactive): re-roll intent when hit ---
+@power_trigger("onAttacked", power="Compulsive")
+def compulsive_on_attacked(ctx: PowerContext) -> None:
+    """Compulsive/Reactive: Re-roll enemy move when taking non-lethal damage.
+
+    Java: ReactivePower (ID="Compulsive").onAttacked — if info.owner != null,
+    type != HP_LOSS/THORNS, damageAmount > 0 and < currentHealth, re-roll move.
+    Used by WrithingMass.
+    """
+    if ctx.owner is None or ctx.owner is ctx.player:
+        return
+    damage = ctx.trigger_data.get("unblocked_damage", ctx.trigger_data.get("damage", 0))
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    attacker = ctx.trigger_data.get("attacker")
+    if (attacker is not None and damage > 0
+            and damage_type not in ("HP_LOSS", "THORNS")
+            and damage < ctx.owner.hp):
+        # Signal the combat engine to re-roll this enemy's move
+        ctx.trigger_data["reroll_move"] = True
+
+
+# --- Sharp Hide: deal THORNS damage to player on Attack play ---
+@power_trigger("onPlayCard", power="Sharp Hide")
+def sharp_hide_on_play(ctx: PowerContext) -> None:
+    """Sharp Hide: Deal damage to player when they play an Attack.
+
+    Java: SharpHidePower.onUseCard — if card.type == ATTACK, deal amount THORNS to player.
+    Used by Shelled Parasite.
+    """
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.ATTACK:
+        if ctx.owner is not None:
+            ctx.player.hp -= ctx.amount
+            ctx.state.total_damage_taken += ctx.amount
+
+
+# --- DrawReduction: reduce draw by amount, decrement at end of round ---
+@power_trigger("atEndOfRound", power="Draw Reduction")
+def draw_reduction_end_round(ctx: PowerContext) -> None:
+    """DrawReduction: Decrement by 1 each round, skip first round.
+
+    Java: DrawReductionPower.atEndOfRound — justApplied skip, then ReducePower 1.
+    onInitialApplication reduces gameHandSize, onRemove restores it.
+    In Python, draw count check happens in _start_player_turn via DrawDown status.
+    """
+    if ctx.owner is None:
+        return
+    key = _runtime_counter_key(ctx, "draw_reduction_skip")
+    skip = ctx.state.relic_counters.get(key, 1)
+    if skip:
+        ctx.state.relic_counters[key] = 0
+    else:
+        new_val = ctx.amount - 1
+        if new_val <= 0:
+            ctx.owner.statuses.pop("Draw Reduction", None)
+            ctx.owner.statuses.pop("DrawReduction", None)
+        else:
+            _sync_owner_power_amount(ctx, "Draw Reduction", new_val)
+
+
+# --- PlatedArmor wasHPLost: decrement by 1 when player loses HP ---
+@power_trigger("wasHPLost", power="Plated Armor")
+def plated_armor_hp_lost(ctx: PowerContext) -> None:
+    """PlatedArmor wasHPLost: Lose 1 stack when taking non-self/non-HP_LOSS damage.
+
+    Java: PlatedArmorPower.wasHPLost — if info.owner != null && owner != self
+    && type != HP_LOSS/THORNS && damageAmount > 0, reduce by 1.
+    """
+    if ctx.owner is None:
+        return
+    damage = ctx.trigger_data.get("damage", 0)
+    damage_type = ctx.trigger_data.get("damage_type", "NORMAL")
+    is_self = ctx.trigger_data.get("is_self_damage", False)
+    if damage > 0 and not is_self and damage_type not in ("HP_LOSS", "THORNS"):
+        new_val = ctx.amount - 1
+        if new_val <= 0:
+            ctx.owner.statuses.pop("Plated Armor", None)
+        else:
+            _sync_owner_power_amount(ctx, "Plated Armor", new_val)
+
+
+# --- Amplify: next Power card is played twice ---
+@power_trigger("onPlayCard", power="Amplify")
+def amplify_on_play(ctx: PowerContext) -> None:
+    """Amplify: When player plays a Power card, play it again (double effect).
+
+    Java: AmplifyPower.onUseCard — if card.type == POWER and !purgeOnUse,
+    queue a copy. Decrement, remove at 0. Also removed at end of turn.
+    In Python, we signal the engine to replay the card's effects.
+    """
+    if ctx.owner is None or ctx.owner is not ctx.player:
+        return
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) == CardType.POWER:
+        ctx.trigger_data["amplify_replay"] = True
+        new_val = ctx.amount - 1
+        if new_val <= 0:
+            ctx.player.statuses.pop("Amplify", None)
+        else:
+            ctx.player.statuses["Amplify"] = new_val
+
+
+@power_trigger("atEndOfTurn", power="Amplify")
+def amplify_end_turn(ctx: PowerContext) -> None:
+    """Amplify: Remove at end of turn.
+
+    Java: AmplifyPower.atEndOfTurn(isPlayer) — remove.
+    """
+    if ctx.owner is ctx.player:
+        ctx.player.statuses.pop("Amplify", None)
+
+
+# --- Rebound: next card goes to top of draw pile instead of discard ---
+@power_trigger("onAfterUseCard", power="Rebound")
+def rebound_after_use(ctx: PowerContext) -> None:
+    """Rebound: Put next non-Power card on top of draw pile instead of discard.
+
+    Java: ReboundPower.onAfterUseCard — skip first card (justEvoked),
+    then set action.reboundCard = true for non-Power cards. Decrement.
+    Removed at end of turn.
+    """
+    if ctx.owner is None or ctx.owner is not ctx.player:
+        return
+    key = _runtime_counter_key(ctx, "rebound_skip")
+    skip = ctx.state.relic_counters.get(key, 1)
+    if skip:
+        ctx.state.relic_counters[key] = 0
+        return
+    from ..content.cards import CardType
+    card = ctx.trigger_data.get("card")
+    if card is not None and getattr(card, "card_type", None) != CardType.POWER:
+        # Move card from discard to top of draw pile
+        card_id = ctx.trigger_data.get("card_id", getattr(card, "id", ""))
+        upgraded_id = card_id + "+" if getattr(card, "upgraded", False) and not card_id.endswith("+") else card_id
+        # Try to find the card in discard pile and move to draw
+        for cid in [upgraded_id, card_id]:
+            if cid in ctx.state.discard_pile:
+                ctx.state.discard_pile.remove(cid)
+                ctx.state.draw_pile.append(cid)  # top of draw pile
+                break
+    new_val = ctx.amount - 1
+    if new_val <= 0:
+        ctx.player.statuses.pop("Rebound", None)
+    else:
+        ctx.player.statuses["Rebound"] = new_val
+
+
+@power_trigger("atEndOfTurn", power="Rebound")
+def rebound_end_turn(ctx: PowerContext) -> None:
+    """Rebound: Remove at end of turn.
+
+    Java: ReboundPower.atEndOfTurn(isPlayer) — remove.
+    """
+    if ctx.owner is ctx.player:
+        ctx.player.statuses.pop("Rebound", None)

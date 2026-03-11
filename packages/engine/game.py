@@ -1791,14 +1791,13 @@ class GameRunner:
             except (KeyError, TypeError, ValueError):
                 return False
 
-        # Log the decision
-        available = self.get_available_actions()
+        # Log the decision (lazy: skip re-enumerating available actions)
         log_entry = DecisionLogEntry(
             floor=self.run_state.floor,
             act=self.run_state.act,
             phase=self.phase,
             action_taken=action,
-            available_actions=available,
+            available_actions=[],  # Avoid double get_available_actions() call
             state_snapshot=self._create_state_snapshot(),
         )
 
@@ -2475,6 +2474,9 @@ class GameRunner:
 
     def _handle_neow_action(self, action: NeowAction) -> Tuple[bool, Dict]:
         """Handle Neow blessing choice using NeowHandler."""
+        # Lazily initialize blessings if needed (normally done by get_available_actions)
+        if self.neow_blessings is None:
+            self._get_neow_actions()
         if self.neow_blessings is None or action.choice_index >= len(self.neow_blessings):
             return False, {"error": "Invalid Neow choice"}
 

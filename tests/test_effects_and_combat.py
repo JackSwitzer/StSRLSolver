@@ -573,11 +573,12 @@ class TestEffectExecutor:
         assert len(state.draw_pile) == 1
 
     def test_end_of_turn_blasphemy(self):
+        """Blasphemy death is now handled by registry power trigger at atEndOfTurn."""
         state = make_state(player_statuses={"Blasphemy": 1}, player_hp=50)
-        executor = EffectExecutor(state)
-        result = executor.apply_end_of_turn_effects()
+        # Trigger via registry (not inline executor)
+        from packages.engine.registry import execute_power_triggers
+        execute_power_triggers("atEndOfTurn", state, state.player)
         assert state.player.hp == 0
-        assert "blasphemy_death" in result.effects_executed
 
     def test_create_executor_factory(self):
         state = make_state()
@@ -824,16 +825,18 @@ class TestCardEffects:
         execute_effect("if_calm_draw_3_else_calm", ctx)
         assert state.stance == "Calm"
 
-    def test_if_wrath_gain_mantra_else_wrath_in_wrath(self):
+    def test_if_wrath_vuln_all_else_wrath_in_wrath(self):
+        """Indignation in Wrath: apply Vulnerable to all enemies (Java parity)."""
         state = make_state(stance="Wrath")
         ctx = make_ctx(state=state)
-        execute_effect("if_wrath_gain_mantra_else_wrath", ctx)
-        assert ctx.mantra_gained == 3
+        execute_effect("if_wrath_vuln_all_else_wrath", ctx)
+        for enemy in state.enemies:
+            assert enemy.statuses.get("Vulnerable", 0) == 3
 
-    def test_if_wrath_gain_mantra_else_wrath_not_wrath(self):
+    def test_if_wrath_vuln_all_else_wrath_not_wrath(self):
         state = make_state(stance="Neutral")
         ctx = make_ctx(state=state)
-        execute_effect("if_wrath_gain_mantra_else_wrath", ctx)
+        execute_effect("if_wrath_vuln_all_else_wrath", ctx)
         assert state.stance == "Wrath"
 
     def test_if_in_wrath_extra_block(self):
@@ -877,10 +880,11 @@ class TestCardEffects:
         assert enemy.hp == 50
 
     def test_gain_block_per_card_in_hand(self):
+        """Spirit Shield excludes itself from count (Java parity)."""
         state = make_state(hand=["A", "B", "C"])
         ctx = make_ctx(state=state, magic=4)
         execute_effect("gain_block_per_card_in_hand", ctx)
-        assert state.player.block == 12  # 4 * 3
+        assert state.player.block == 8  # 4 * (3-1) = 4 * 2 (excludes self)
 
     def test_apply_mark(self):
         enemy = make_enemy()
@@ -1095,15 +1099,19 @@ class TestCardEffectsUtils:
         assert result["mantra_gained"] == 3
 
     def test_apply_start_of_turn_effects_simmering_fury(self):
+        """Simmering Fury uses two separate powers: WrathNextTurn + DrawCardNextTurn."""
         state = make_state(
             stance="Neutral",
-            player_statuses={"SimmeringFury": 2},
+            player_statuses={"WrathNextTurn": 1, "DrawCardNextTurn": 2},
             draw=["A", "B", "C"], hand=[],
         )
         ctx = make_ctx(state=state)
         result = apply_start_of_turn_effects(ctx)
         assert state.stance == "Wrath"
         assert result["cards_drawn"] == 2
+        # Both powers should be consumed
+        assert state.player.statuses.get("WrathNextTurn", 0) == 0
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 0
 
     def test_apply_end_of_turn_effects_like_water(self):
         state = make_state(stance="Calm", player_statuses={"LikeWater": 7})
@@ -1126,11 +1134,11 @@ class TestCardEffectsUtils:
         assert state.stance == "Neutral"
 
     def test_apply_end_of_turn_blasphemy(self):
+        """Blasphemy death is now handled by registry power trigger at atEndOfTurn."""
         state = make_state(player_hp=50, player_statuses={"Blasphemy": 1})
-        ctx = make_ctx(state=state)
-        result = apply_end_of_turn_effects(ctx)
-        # Blasphemy decrements: 1 -> 0 means death
-        assert result["player_died"] is True
+        # Trigger via registry (not inline effects)
+        from packages.engine.registry import execute_power_triggers
+        execute_power_triggers("atEndOfTurn", state, state.player)
         assert state.player.hp == 0
 
     def test_apply_end_of_turn_study(self):
@@ -1468,11 +1476,149 @@ class TestExecutorSpecialEffects:
         assert state.player.statuses["Vigor"] == 0
 
     def test_wreath_of_flame(self):
+        """Wreath of Flame now uses Vigor status (Java parity)."""
         enemy = make_enemy(hp=100)
-        state = make_state(enemies=[enemy], energy=3, player_statuses={"WreathOfFlame": 5})
+        state = make_state(enemies=[enemy], energy=3, player_statuses={"Vigor": 5})
         card = get_card("Strike_P")
         executor = EffectExecutor(state)
         result = executor.play_card(card, target_idx=0)
         # 6 + 5 = 11
         assert enemy.hp == 89
-        assert state.player.statuses["WreathOfFlame"] == 0
+        assert state.player.statuses["Vigor"] == 0
+
+
+# =============================================================================
+# Card Parity Bug Fix Tests (2026-03-03 audit)
+# =============================================================================
+
+class TestConjureBladeUpgraded:
+    """Conjure Blade upgraded should give X+1 hits on Expunger (Java parity)."""
+
+    def test_conjure_blade_base_effect_handler(self):
+        """Base Conjure Blade: Expunger hits = X (energy spent)."""
+        state = make_state(hand=[], energy=3)
+        ctx = make_ctx(state=state, upgraded=False)
+        ctx.extra_data["x_cost"] = 3
+        from packages.engine.effects.cards import conjure_blade_effect
+        conjure_blade_effect(ctx)
+        assert ctx.extra_data["expunger_hits"] == 3
+
+    def test_conjure_blade_upgraded_effect_handler(self):
+        """Upgraded Conjure Blade: Expunger hits = X+1 (Java: energyOnUse + 1)."""
+        state = make_state(hand=[], energy=3)
+        ctx = make_ctx(state=state, upgraded=True)
+        ctx.extra_data["x_cost"] = 3
+        from packages.engine.effects.cards import conjure_blade_effect
+        conjure_blade_effect(ctx)
+        assert ctx.extra_data["expunger_hits"] == 4  # X+1
+
+    def test_conjure_blade_upgraded_zero_energy(self):
+        """Upgraded Conjure Blade with 0 energy still gives 1 hit (0+1)."""
+        state = make_state(hand=[], energy=0)
+        ctx = make_ctx(state=state, upgraded=True)
+        ctx.extra_data["x_cost"] = 0
+        from packages.engine.effects.cards import conjure_blade_effect
+        conjure_blade_effect(ctx)
+        assert ctx.extra_data["expunger_hits"] == 1  # 0+1
+
+
+class TestWindmillStrikeRetainBonus:
+    """WindmillStrike should gain +4/+5 damage per retain (base/upgraded)."""
+
+    def test_windmill_strike_base_magic(self):
+        """Base WindmillStrike has magic_number=4."""
+        card = get_card("WindmillStrike")
+        assert card.magic_number == 4
+
+    def test_windmill_strike_upgraded_magic(self):
+        """Upgraded WindmillStrike has magic_number=5."""
+        card = get_card("WindmillStrike", upgraded=True)
+        assert card.magic_number == 5
+
+    def test_windmill_retain_bonus_base(self):
+        """Base WindmillStrike: +4 damage per retain."""
+        from packages.engine.effects.cards import _process_retained_cards
+        state = make_state(hand=["WindmillStrike"])
+        ctx = make_ctx(state=state)
+        result = {"effects": []}
+        _process_retained_cards(ctx, result)
+        # After 1 retain, bonus should be 4
+        assert ctx.extra_data.get("windmill_bonus_WindmillStrike", 0) == 4
+
+    def test_windmill_retain_bonus_upgraded(self):
+        """Upgraded WindmillStrike: +5 damage per retain."""
+        from packages.engine.effects.cards import _process_retained_cards
+        state = make_state(hand=["WindmillStrike+"])
+        ctx = make_ctx(state=state)
+        result = {"effects": []}
+        _process_retained_cards(ctx, result)
+        # After 1 retain, bonus should be 5 (upgraded)
+        assert ctx.extra_data.get("windmill_bonus_WindmillStrike+", 0) == 5
+
+    def test_windmill_retain_bonus_stacks(self):
+        """WindmillStrike retain bonus stacks over multiple retains."""
+        from packages.engine.effects.cards import _process_retained_cards
+        state = make_state(hand=["WindmillStrike"])
+        ctx = make_ctx(state=state)
+        result = {"effects": []}
+        # Retain once
+        _process_retained_cards(ctx, result)
+        assert ctx.extra_data.get("windmill_bonus_WindmillStrike", 0) == 4
+        # Retain again
+        _process_retained_cards(ctx, result)
+        assert ctx.extra_data.get("windmill_bonus_WindmillStrike", 0) == 8
+
+
+class TestSimmeringFuryTwoPowers:
+    """Simmering Fury should apply WrathNextTurn + DrawCardNextTurn (Java parity)."""
+
+    def test_simmering_fury_applies_two_powers(self):
+        """Playing Simmering Fury applies both WrathNextTurn and DrawCardNextTurn."""
+        state = make_state()
+        ctx = make_ctx(state=state, magic=2)
+        from packages.engine.effects.cards import simmering_fury_effect
+        simmering_fury_effect(ctx)
+        assert state.player.statuses.get("WrathNextTurn", 0) == 1
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 2
+
+    def test_simmering_fury_upgraded_draw_3(self):
+        """Upgraded Simmering Fury draws 3 instead of 2."""
+        state = make_state()
+        ctx = make_ctx(state=state, upgraded=True, magic=3)
+        from packages.engine.effects.cards import simmering_fury_effect
+        simmering_fury_effect(ctx)
+        assert state.player.statuses.get("WrathNextTurn", 0) == 1
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 3
+
+    def test_simmering_fury_does_not_use_combined_status(self):
+        """Simmering Fury should NOT apply a combined 'SimmeringFury' status."""
+        state = make_state()
+        ctx = make_ctx(state=state, magic=2)
+        from packages.engine.effects.cards import simmering_fury_effect
+        simmering_fury_effect(ctx)
+        assert "SimmeringFury" not in state.player.statuses
+
+    def test_simmering_fury_draw_stacks(self):
+        """Multiple Simmering Fury casts stack DrawCardNextTurn."""
+        state = make_state()
+        ctx = make_ctx(state=state, magic=2)
+        from packages.engine.effects.cards import simmering_fury_effect
+        simmering_fury_effect(ctx)
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 2
+        # Play a second Simmering Fury
+        simmering_fury_effect(ctx)
+        # DrawCardNextTurn should stack (2+2=4)
+        assert state.player.statuses.get("DrawCardNextTurn", 0) == 4
+
+    def test_simmering_fury_start_of_turn_resolves(self):
+        """WrathNextTurn enters Wrath, DrawCardNextTurn draws at start of turn."""
+        state = make_state(
+            stance="Neutral",
+            player_statuses={"WrathNextTurn": 1, "DrawCardNextTurn": 3},
+            draw=["A", "B", "C", "D"], hand=[],
+        )
+        ctx = make_ctx(state=state)
+        result = apply_start_of_turn_effects(ctx)
+        assert state.stance == "Wrath"
+        assert result["cards_drawn"] == 3
+        assert len(state.hand) == 3

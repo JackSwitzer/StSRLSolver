@@ -1295,8 +1295,8 @@ class NeowHandler:
             result.blessing_applied = f"Gained {bonus} Max HP"
 
         elif btype == NeowBlessingType.THREE_ENEMY_KILL:
-            # This flag is stored in run state and checked during combat
-            run_state.neow_bonus_first_three_enemies = True
+            # Java: adds NeowsLament relic with counter=3
+            run_state.add_relic("NeowsBlessing", counter=3)
             result.blessing_applied = "First 3 combat enemies will have 1 HP"
 
         elif btype == NeowBlessingType.UPGRADE_CARD:
