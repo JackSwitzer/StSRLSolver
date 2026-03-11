@@ -1641,18 +1641,9 @@ def block_return_on_attacked(ctx: PowerContext) -> None:
 
 # --- EstablishmentPower: reduce retained card costs ---
 
-@power_trigger("atEndOfTurn", power="EstablishmentPower")
-@power_trigger("atEndOfTurn", power="Establishment")
-def establishment_end(ctx: PowerContext) -> None:
-    """Establishment: Reduce cost of retained cards by 1 at end of turn.
-
-    Java: EstablishmentPower works via onRetainedCards callback.
-    Since we don't have per-card cost tracking, this is a no-op placeholder.
-    The effect requires per-card current_cost mutation which is tracked elsewhere.
-    """
-    # Per-card cost reduction for retained cards would need card instance tracking.
-    # This is a known limitation -- placeholder for when card cost tracking is added.
-    pass
+# Establishment: cost reduction for retained cards handled inline in
+# combat_engine.py _start_player_turn() using card_costs dict.
+# Reduces cost of cards in hand (retained from last turn) by Establishment stacks.
 
 
 # --- FreeAttackPower: onUseCard decrement on ATTACK ---

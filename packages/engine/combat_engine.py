@@ -300,8 +300,11 @@ class CombatEngine:
         self.state.turn += 1
         self.phase = CombatPhase.PLAYER_TURN
 
-        # Reset energy
-        self.state.energy = self.state.max_energy
+        # Reset energy (Ice Cream: conserve unspent energy between turns)
+        if self.state.has_relic("Ice Cream"):
+            self.state.energy += self.state.max_energy
+        else:
+            self.state.energy = self.state.max_energy
 
         # Reset turn counters
         self.state.cards_played_this_turn = 0
@@ -326,6 +329,16 @@ class CombatEngine:
         # All deprecated Aura cards also override but aren't in-game.
         # Net effect: reset per-turn cost modifications, which card_costs.clear() handles.
         self.state.card_costs.clear()
+
+        # Establishment: reduce cost of retained cards (cards still in hand from last turn)
+        establishment = self.state.player.statuses.get("Establishment", 0)
+        if establishment > 0 and self.state.turn > 1:
+            for card_id in self.state.hand:
+                card = self._get_card(card_id)
+                current_cost = card.cost if card.cost >= 0 else 0
+                new_cost = max(0, current_cost - establishment)
+                if new_cost != current_cost:
+                    self.state.card_costs[card_id] = new_cost
 
         # Trigger start of turn powers (inline and registry)
         self._trigger_start_of_turn()

@@ -661,23 +661,8 @@ def art_of_war_end_turn(ctx: RelicContext) -> None:
     ctx.set_relic_counter("Art of War", flag)
 
 
-@relic_trigger("onPlayerEndTurn", relic="Ice Cream")
-def ice_cream_end_turn(ctx: RelicContext) -> None:
-    """Ice Cream: Unused energy is conserved between turns."""
-    # TODO: Actual implementation should:
-    # 1. Track unused energy at end of turn
-    # 2. Add it back at start of next turn
-    # This is primarily a passive flag checked by energy system (see relics_passive.py)
-    pass
-
-
-@relic_trigger("atTurnStart", relic="Ice Cream")
-def ice_cream_turn_start(ctx: RelicContext) -> None:
-    """Ice Cream: Add conserved energy from previous turn."""
-    # TODO: Actual implementation should:
-    # 1. Restore conserved energy from previous turn
-    # This is primarily a passive flag checked by energy system (see relics_passive.py)
-    pass
+# Ice Cream: energy conservation handled inline in combat_engine.py _start_player_turn()
+# (adds max_energy to current instead of resetting to max_energy)
 
 
 @relic_trigger("onPlayerEndTurn", relic="CloakClasp")
