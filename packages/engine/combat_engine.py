@@ -466,8 +466,11 @@ class CombatEngine:
             heal = min(regen, self.state.player.max_hp - self.state.player.hp)
             self.state.player.hp += heal
 
-        # Process enemy turns
-        self._do_enemy_turns()
+        # Process enemy turns (unless Vault was played — skip enemies)
+        if self.state.skip_enemy_turn:
+            self.state.skip_enemy_turn = False
+        else:
+            self._do_enemy_turns()
 
         # End of round: decrement Weak, Vulnerable, Frail
         execute_power_triggers("atEndOfRound", self.state, self.state.player)

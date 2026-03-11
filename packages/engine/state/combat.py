@@ -231,6 +231,9 @@ class CombatState:
     pending_scry_cards: List[str] = field(default_factory=list)
     pending_scry_selection: bool = False
 
+    # Vault: skip enemy turn this end-of-turn
+    skip_enemy_turn: bool = False
+
     # RNG state for deterministic simulation (seed0, seed1)
     shuffle_rng_state: tuple = (0, 0)
     card_rng_state: tuple = (0, 0)
@@ -297,6 +300,7 @@ class CombatState:
             # Scry pending state
             pending_scry_cards=self.pending_scry_cards.copy(),
             pending_scry_selection=self.pending_scry_selection,
+            skip_enemy_turn=self.skip_enemy_turn,
             # RNG state
             shuffle_rng_state=self.shuffle_rng_state,
             card_rng_state=self.card_rng_state,

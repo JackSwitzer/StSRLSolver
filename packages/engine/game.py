@@ -3278,11 +3278,20 @@ class GameRunner:
                 hp_rng=floor_hp_rng,
             )
 
+            # Compute energy from base (3) + boss relic bonuses
+            from .content.relics import ALL_RELICS
+            energy = 3
+            for r in self.run_state.relics:
+                relic_data = ALL_RELICS.get(r.id)
+                if relic_data and relic_data.energy_bonus:
+                    energy += relic_data.energy_bonus
+
             self.current_combat = create_combat_from_enemies(
                 enemies=enemies,
                 player_hp=self.run_state.current_hp,
                 player_max_hp=self.run_state.max_hp,
                 deck=deck_ids,
+                energy=energy,
                 relics=relics,
                 potions=potions,
                 ascension=self.run_state.ascension,

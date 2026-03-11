@@ -607,8 +607,10 @@ def end_turn_effect(ctx: EffectContext) -> None:
 
 @effect_simple("take_extra_turn")
 def take_extra_turn(ctx: EffectContext) -> None:
-    """Take an extra turn after this one (Vault)."""
+    """Vault: skip enemy turn (Java: SkipEnemiesTurnAction)."""
     ctx.extra_data["extra_turn"] = True
+    # Set flag on combat state so end_turn() skips _do_enemy_turns()
+    ctx.state.skip_enemy_turn = True
 
 
 # =============================================================================
