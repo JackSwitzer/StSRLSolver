@@ -68,6 +68,9 @@ class EventState:
     # Generated rewards to give after combat
     pending_rewards: Dict[str, Any] = field(default_factory=dict)
 
+    # N'loth preselected relic indices (2 relics randomly chosen from player collection)
+    nloth_relic_indices: List[int] = field(default_factory=list)
+
     # Combat enemy to spawn
     combat_encounter: Optional[str] = None
 
@@ -457,6 +460,43 @@ class EventHandler:
         event_state.hp_cost_modifier = max(event_state.knowing_skull_costs.values()) - 6
         return event_state.knowing_skull_costs
 
+    def _initialize_nloth_relics(
+        self,
+        event_state: EventState,
+        run_state: 'RunState',
+        misc_rng: Optional['Random']
+    ) -> None:
+        """Initialize N'loth's preselected relic choices using miscRng.
+
+        Java: Nloth.java constructor shuffles player relics via:
+            Collections.shuffle(relics, new Random(miscRng.randomLong()))
+        then picks the first 2 as trade options.
+        """
+        if event_state.nloth_relic_indices:
+            return  # Already initialized
+
+        if len(run_state.relics) < 2:
+            # Not enough relics to trade -- shouldn't happen normally
+            event_state.nloth_relic_indices = list(range(len(run_state.relics)))
+            return
+
+        # Build list of relic indices
+        indices = list(range(len(run_state.relics)))
+
+        if misc_rng is not None:
+            # Java uses Collections.shuffle with new Random(miscRng.randomLong())
+            # We approximate by using miscRng to pick 2 distinct indices
+            seed_val = misc_rng.random_long()
+            # Fisher-Yates shuffle using seed_val
+            import random as py_random
+            rng = py_random.Random(seed_val & 0xFFFFFFFF)
+            shuffled = indices[:]
+            rng.shuffle(shuffled)
+            event_state.nloth_relic_indices = shuffled[:2]
+        else:
+            # Fallback: first two relics
+            event_state.nloth_relic_indices = [0, 1]
+
     def _initialize_designer_options(
         self,
         event_state: EventState,
@@ -489,6 +529,8 @@ class EventHandler:
             self._ensure_falling_preselect(event_state, run_state, misc_rng)
         if event_id == "DeadAdventurer":
             self._ensure_dead_adventurer_rewards(event_state, misc_rng)
+        if event_id == "Nloth":
+            self._initialize_nloth_relics(event_state, run_state, misc_rng)
         if event_id == "Designer":
             self._initialize_designer_options(event_state, misc_rng)
 
@@ -1550,6 +1592,27 @@ def _handle_sssserpent(
     return result
 
 
+def _player_has_strong_attack(handler: EventHandler, run_state: 'RunState') -> bool:
+    """Check if player has an Attack card with baseDamage >= 10 in their deck.
+
+    Java: CardHelper.hasCardWithXDamage(10) checks c.baseDamage >= 10 for
+    ATTACK type cards. In Java, baseDamage includes upgrade modifications.
+    """
+    for c_inst in run_state.deck:
+        c = handler._get_card_def(c_inst.id)
+        if c is None:
+            continue
+        if c.card_type != CardType.ATTACK:
+            continue
+        # Compute effective damage (base + upgrade delta if upgraded)
+        dmg = c.base_damage
+        if c_inst.upgraded:
+            dmg += c.upgrade_damage
+        if dmg >= 10:
+            return True
+    return False
+
+
 def _handle_wing_statue(
     handler: EventHandler,
     event_state: EventState,
@@ -1559,7 +1622,13 @@ def _handle_wing_statue(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Winged Statue: Purify (lose 7 HP, remove a card) or Leave."""
+    """Winged Statue: Purify (lose 7 HP, remove a card), Sell Attack (50-80 gold), or Leave.
+
+    Java: GoldenWing.java
+    - Option 0: Lose 7 HP, remove a card from deck
+    - Option 1: If player has an Attack with baseDamage >= 10, gain 50-80 gold (miscRng)
+    - Option 2 (or 1 if no sell): Leave
+    """
     result = EventChoiceResult(event_id="WingStatue", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
@@ -1580,7 +1649,22 @@ def _handle_wing_statue(
             result.description = "Purified. Took 7 damage. Choose a card to remove."
 
     elif choice_idx == 1:
-        # Leave
+        # Check if sell_attack is available (same condition as choice generator)
+        has_strong_attack = _player_has_strong_attack(handler, run_state)
+        if has_strong_attack:
+            # Sell high-damage attack for gold
+            result.choice_name = "sell_attack"
+            gold = misc_rng.random(50, 80) if misc_rng else 65
+            handler._apply_gold_change(run_state, gold)
+            result.gold_change = gold
+            result.description = f"Sold an attack to the statue. Gained {gold} gold."
+        else:
+            # No sell option -- this index is leave
+            result.choice_name = "leave"
+            result.description = "Left the statue."
+
+    elif choice_idx == 2:
+        # Leave (when sell_attack option was present)
         result.choice_name = "leave"
         result.description = "Left the statue."
 
@@ -1895,7 +1979,13 @@ def _handle_addict(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """Pleading Vagrant: Pay 85g for relic, Refuse (Shame curse), Rob (relic + Shame)."""
+    """Pleading Vagrant: Pay 85g for relic, Steal (relic + Shame curse), or Leave.
+
+    Java (Addict.java):
+      Option 0: Pay 85 gold for a random relic
+      Option 1: Steal relic + gain Shame curse (free, no gold cost)
+      Option 2: Leave (nothing happens)
+    """
     result = EventChoiceResult(event_id="Addict", choice_idx=choice_idx, choice_name="")
 
     if choice_idx == 0:
@@ -1910,14 +2000,7 @@ def _handle_addict(
         result.description = f"Paid 85 gold. Gained {relic}."
 
     elif choice_idx == 1:
-        # Refuse - gain Shame curse
-        result.choice_name = "refuse"
-        handler._add_curse(run_state, "Shame")
-        result.cards_gained.append("Shame")
-        result.description = "Refused. Gained Shame curse."
-
-    elif choice_idx == 2:
-        # Rob - get relic + Shame curse
+        # Steal - get relic + Shame curse (free)
         result.choice_name = "rob"
         relic = handler._get_random_relic(run_state, misc_rng, "weighted")
         run_state.add_relic(relic)
@@ -1925,7 +2008,12 @@ def _handle_addict(
 
         handler._add_curse(run_state, "Shame")
         result.cards_gained.append("Shame")
-        result.description = f"Robbed the vagrant. Gained {relic} and Shame curse."
+        result.description = f"Stole from the vagrant. Gained {relic} and Shame curse."
+
+    elif choice_idx == 2:
+        # Leave
+        result.choice_name = "leave"
+        result.description = "Left the vagrant alone."
 
     return result
 
@@ -2962,7 +3050,17 @@ def _handle_transmogrifier(
             removed = run_state.remove_card(card_idx)
             if removed:
                 result.cards_removed.append(removed.id)
-                new_card = handler._get_random_card(run_state, misc_rng, "common")
+                # Java: transformCard preserves rarity of the original card
+                from ..content.cards import ALL_CARDS
+                original_card = ALL_CARDS.get(removed.id.rstrip("+"))
+                rarity = "common"
+                if original_card:
+                    r = str(getattr(original_card, "rarity", "COMMON")).lower()
+                    if "rare" in r:
+                        rarity = "rare"
+                    elif "uncommon" in r:
+                        rarity = "uncommon"
+                new_card = handler._get_random_card(run_state, misc_rng, rarity)
                 run_state.add_card(new_card)
                 result.cards_gained.append(new_card)
                 result.cards_transformed.append((removed.id, new_card))
@@ -3413,7 +3511,17 @@ def _handle_designer(
                 removed = run_state.remove_card(card_idx)
                 if removed:
                     result.cards_removed.append(removed.id)
-                    new_card = handler._get_random_card(run_state, misc_rng, "common")
+                    # Java: transformCard preserves rarity of the original card
+                    from ..content.cards import ALL_CARDS
+                    original_card = ALL_CARDS.get(removed.id.rstrip("+"))
+                    rarity = "common"
+                    if original_card:
+                        r = str(getattr(original_card, "rarity", "COMMON")).lower()
+                        if "rare" in r:
+                            rarity = "rare"
+                        elif "uncommon" in r:
+                            rarity = "uncommon"
+                    new_card = handler._get_random_card(run_state, misc_rng, rarity)
                     run_state.add_card(new_card)
                     result.cards_gained.append(new_card)
                     result.cards_transformed.append((removed.id, new_card))
@@ -3472,22 +3580,40 @@ def _handle_nloth(
     card_idx: Optional[int] = None,
     misc_rng: Optional['Random'] = None
 ) -> EventChoiceResult:
-    """N'loth: Trade a relic for N'loth's Gift, or Leave."""
+    """N'loth: Trade one of 2 preselected relics for N'loth's Gift, or Leave.
+
+    Java: Nloth.java -- player picks one of 2 randomly chosen relics to trade.
+    If player already has N'loth's Gift, they get a Circlet instead.
+    """
     result = EventChoiceResult(event_id="Nloth", choice_idx=choice_idx, choice_name="")
 
-    if choice_idx == 0:
-        # Trade oldest non-starter relic for N'loth's Gift
-        result.choice_name = "trade"
-        if len(run_state.relics) > 0:
-            traded = run_state.relics.pop(0)
+    # Determine number of trade options (from preselected relics)
+    num_trade_options = len(event_state.nloth_relic_indices)
+
+    if choice_idx < num_trade_options:
+        # Trade the selected relic
+        result.choice_name = f"trade_{choice_idx}"
+        relic_idx = event_state.nloth_relic_indices[choice_idx]
+
+        if relic_idx < len(run_state.relics):
+            traded = run_state.relics[relic_idx]
             traded_id = traded.id if hasattr(traded, 'id') else str(traded)
+            # Remove the relic by index
+            run_state.relics.pop(relic_idx)
             result.relics_lost.append(traded_id)
 
-        run_state.add_relic("NlothsGift")
-        result.relics_gained.append("NlothsGift")
-        result.description = "Traded a relic for N'loth's Gift."
+        # Java: if already has NlothsGift, give Circlet instead
+        has_gift = any(
+            (r.id if hasattr(r, 'id') else str(r)) == "NlothsGift"
+            for r in run_state.relics
+        )
+        gift_id = "Circlet" if has_gift else "NlothsGift"
+        run_state.add_relic(gift_id)
+        result.relics_gained.append(gift_id)
+        result.description = f"Traded {result.relics_lost[0] if result.relics_lost else 'a relic'} for {gift_id}."
 
-    elif choice_idx == 1:
+    else:
+        # Leave
         result.choice_name = "leave"
         result.description = "Left N'loth."
 
@@ -3651,7 +3777,17 @@ def _handle_augmenter(
             removed = run_state.remove_card(card_idx)
             if removed:
                 result.cards_removed.append(removed.id)
-                new_card = handler._get_random_card(run_state, misc_rng, "common")
+                # Java: transformCard preserves rarity of the original card
+                from ..content.cards import ALL_CARDS
+                original_card = ALL_CARDS.get(removed.id.rstrip("+"))
+                rarity = "common"
+                if original_card:
+                    r = str(getattr(original_card, "rarity", "COMMON")).lower()
+                    if "rare" in r:
+                        rarity = "rare"
+                    elif "uncommon" in r:
+                        rarity = "uncommon"
+                new_card = handler._get_random_card(run_state, misc_rng, rarity)
                 run_state.add_card(new_card)
                 result.cards_gained.append(new_card)
                 result.cards_transformed.append((removed.id, new_card))
@@ -4205,17 +4341,15 @@ def _get_wing_statue_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """Wing Statue: Purify, sell high-damage attack, or Leave."""
+    """Wing Statue: Purify, sell high-damage attack, or Leave.
+
+    Java: GoldenWing.java -- option 1 only shown if CardHelper.hasCardWithXDamage(10).
+    """
     choices = [
         EventChoice(index=0, name="purify", text="[Purify] Lose 7 HP, remove a card", requires_removable_cards=True),
     ]
-    # Java: conditional option if player has an Attack with 10+ damage
-    has_strong_attack = any(
-        getattr(c, "damage", 0) >= 10 or getattr(c, "base_damage", 0) >= 10
-        for c_inst in run_state.deck
-        for c in [handler._get_card_def(c_inst.id)]
-        if c is not None and str(getattr(c, "card_type", "")).endswith("ATTACK")
-    ) if hasattr(handler, "_get_card_def") else False
+    # Java: conditional option if player has an Attack with baseDamage >= 10
+    has_strong_attack = _player_has_strong_attack(handler, run_state)
     if has_strong_attack:
         choices.append(EventChoice(index=1, name="sell_attack", text="[Sell] Trade attack for 50-80 gold"))
     choices.append(EventChoice(index=len(choices), name="leave", text="[Leave]"))
@@ -4234,11 +4368,11 @@ def _get_addict_choices(
     run_state: 'RunState'
 ) -> List[EventChoice]:
     """Addict/Pleading Vagrant: Pay, Steal (relic+curse), or Leave.
-    Java: 0=Pay 85g (remove curse if have one), 1=Steal relic+Shame, 2=Leave.
+    Java: 0=Pay 85g for relic, 1=Steal relic+Shame (free), 2=Leave.
     """
     return [
-        EventChoice(index=0, name="pay", text="[Pay] Give 85 gold"),
-        EventChoice(index=1, name="rob", text="[Rob] Gain relic + Shame curse"),
+        EventChoice(index=0, name="pay", text="[Pay] Give 85 gold for relic"),
+        EventChoice(index=1, name="rob", text="[Steal] Gain relic + Shame curse"),
         EventChoice(index=2, name="leave", text="[Leave]"),
     ]
 
@@ -4748,11 +4882,22 @@ def _get_nloth_choices(
     event_state: EventState,
     run_state: 'RunState'
 ) -> List[EventChoice]:
-    """N'loth: Gift or Leave."""
-    return [
-        EventChoice(index=0, name="gift", text="[Gift] Give relic for N'loth's Gift"),
-        EventChoice(index=1, name="leave", text="[Leave]"),
-    ]
+    """N'loth: Trade one of 2 preselected relics for N'loth's Gift, or Leave.
+
+    Java: Nloth.java presents 2 relics (shuffled from player's collection).
+    The preselected indices are stored in event_state.nloth_relic_indices.
+    """
+    choices = []
+    for i, relic_idx in enumerate(event_state.nloth_relic_indices):
+        if relic_idx < len(run_state.relics):
+            relic = run_state.relics[relic_idx]
+            relic_id = relic.id if hasattr(relic, 'id') else str(relic)
+            choices.append(EventChoice(
+                index=i, name=f"trade_{i}",
+                text=f"[Trade] Give {relic_id} for N'loth's Gift"
+            ))
+    choices.append(EventChoice(index=len(choices), name="leave", text="[Leave]"))
+    return choices
 
 
 def _get_we_meet_again_choices(

@@ -880,9 +880,9 @@ class RewardHandler:
             ID of replaced relic if any
         """
         replacements = {
-            "BlackBlood": "BurningBlood",
-            "RingOfTheSerpent": "RingOfTheSnake",
-            "FrozenCore": "CrackedCore",
+            "Black Blood": "Burning Blood",
+            "Ring of the Serpent": "Ring of the Snake",
+            "FrozenCore": "Cracked Core",
             "HolyWater": "PureWater",
         }
 

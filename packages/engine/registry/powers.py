@@ -1061,6 +1061,16 @@ def energized_energy(ctx: PowerContext) -> None:
     del ctx.player.statuses["Energized"]
 
 
+@power_trigger("onEnergyRecharge", power="EnergizedBlue")
+def energized_blue_energy(ctx: PowerContext) -> None:
+    """EnergizedBlue (Defect): Identical to Energized. Gain energy, then remove.
+
+    Java: EnergizedBluePower.onEnergyRecharge -- same mechanic as EnergizedPower.
+    """
+    ctx.gain_energy(ctx.amount)
+    del ctx.player.statuses["EnergizedBlue"]
+
+
 @power_trigger("atStartOfTurn", power="Berserk")
 def berserk_energy(ctx: PowerContext) -> None:
     """Berserk: Gain 1 energy at start of each turn (Java: BerserkPower.atStartOfTurn)."""
@@ -2084,3 +2094,63 @@ def rebound_end_turn(ctx: PowerContext) -> None:
     """
     if ctx.owner is ctx.player:
         ctx.player.statuses.pop("Rebound", None)
+
+
+# =============================================================================
+# NON-WATCHER POWERS (LOW PRIORITY -- for multi-class support)
+# =============================================================================
+
+
+@power_trigger("atStartOfTurn", power="Hello")
+def hello_start_of_turn(ctx: PowerContext) -> None:
+    """Hello World (Defect): Add random common card(s) to hand at start of turn.
+
+    Java: HelloPower.atStartOfTurn -- for each amount, add a random common card
+    to hand via MakeTempCardInHandAction. Uses cardRandomRng.
+    """
+    from ..content.cards import ALL_CARDS, CardRarity
+    common_cards = [
+        cid for cid, c in ALL_CARDS.items()
+        if c.rarity == CardRarity.COMMON and not cid.endswith("+")
+    ]
+    if not common_cards:
+        return
+    for _ in range(ctx.amount):
+        if hasattr(ctx.state, 'card_random_rng') and ctx.state.card_random_rng:
+            idx = ctx.state.card_random_rng.random(len(common_cards) - 1)
+        else:
+            idx = 0
+        card_id = common_cards[idx]
+        if len(ctx.state.hand) < 10:
+            ctx.state.hand.append(card_id)
+
+
+@power_trigger("atStartOfTurn", power="Night Terror")
+def nightmare_start_of_turn(ctx: PowerContext) -> None:
+    """Nightmare (Silent): Add copies of stored card to hand, then remove power.
+
+    Java: NightmarePower.atStartOfTurn -- adds `amount` copies of the stored
+    card to hand via MakeTempCardInHandAction, then removes the power.
+    The stored card ID is kept in trigger_data or state metadata.
+    """
+    # The card to copy is stored when Nightmare is played.
+    # We store it as "NightmareCard" in the player's statuses dict (as a string).
+    card_id = ctx.player.statuses.get("NightmareCard", "")
+    if card_id:
+        for _ in range(ctx.amount):
+            if len(ctx.state.hand) < 10:
+                ctx.state.hand.append(card_id)
+        ctx.player.statuses.pop("NightmareCard", None)
+    ctx.player.statuses.pop("Night Terror", None)
+
+
+@power_trigger("atStartOfTurn", power="Winter")
+def winter_start_of_turn(ctx: PowerContext) -> None:
+    """Winter (Defect): Channel Frost orb(s) at start of turn.
+
+    Java: WinterPower.atStartOfTurn -- channels `amount` Frost orbs.
+    Defect-only power.
+    """
+    from ..effects.orbs import channel_orb
+    for _ in range(ctx.amount):
+        channel_orb(ctx.state, "Frost")

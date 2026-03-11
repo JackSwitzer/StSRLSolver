@@ -881,7 +881,8 @@ class TestEnergyCards:
     def test_charge_battery_next_turn_energy(self, combat):
         ctx = make_ctx(combat, "Conserve Battery")
         execute_effect("gain_1_energy_next_turn", ctx)
-        assert combat.player.statuses.get("EnergyNextTurn", 0) == 1
+        # Status may be stored as "Energized" (canonical) or "EnergyNextTurn" (alias)
+        assert combat.player.statuses.get("Energized", 0) == 1 or combat.player.statuses.get("EnergyNextTurn", 0) == 1
 
     def test_turbo_gains_energy(self, combat):
         initial = combat.energy

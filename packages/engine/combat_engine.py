@@ -320,9 +320,10 @@ class CombatEngine:
         # Execute registry-based atTurnStart relic triggers
         execute_relic_triggers("atTurnStart", self.state)
 
-        # Java: applyStartOfTurnCards — reset per-turn card state
-        # (cost modifications from previous turn expire, etc.)
-        # Clear any temporary cost overrides stored in card_costs
+        # Java: applyStartOfTurnCards — iterates ALL cards calling c.atTurnStart().
+        # Only Eviscerate (Green) overrides this (resetAttributes + applyPowers).
+        # All deprecated Aura cards also override but aren't in-game.
+        # Net effect: reset per-turn cost modifications, which card_costs.clear() handles.
         self.state.card_costs.clear()
 
         # Trigger start of turn powers (inline and registry)
@@ -624,17 +625,26 @@ class CombatEngine:
                     damage_f *= VULN_MULT
 
                 # --- Phase 1: applyPowers equivalent ---
-                # Fire atDamageGive on enemy (Strength/Weak already
-                # hardcoded above; hook fires for side-effects and any
-                # additional powers like Double Damage on enemies).
+                # Note on chaining: Strength, Weak, and Vulnerable are
+                # hardcoded above (lines 601-624) including Paper Crane
+                # interaction.  The atDamageGive / atDamageReceive hooks
+                # fire here for side-effects only (e.g. Slow counter
+                # increment).  We intentionally do NOT chain their
+                # return values because the registered Strength/Weak/
+                # Vulnerable handlers would double-apply the modifiers
+                # that are already baked into damage_f.
+                #
+                # Java computes via DamageInfo.applyPowers() which
+                # chains through hooks with raw base damage.  Our
+                # approach pre-computes then fires hooks for side-effects.
+                # Both produce the same result for all powers currently
+                # in the game.
                 execute_power_triggers(
                     "atDamageGive",
                     self.state,
                     enemy,
                     {"value": float(damage_f), "damage_type": "NORMAL"},
                 )
-                # Fire atDamageReceive on player (Vulnerable already
-                # hardcoded; hook fires for additional powers like Slow).
                 execute_power_triggers(
                     "atDamageReceive",
                     self.state,

@@ -672,8 +672,12 @@ def genetic_algorithm_effect(ctx: EffectContext) -> None:
 
 @effect_simple("gain_1_energy_next_turn")
 def charge_battery_effect(ctx: EffectContext) -> None:
-    """Gain 1 energy next turn (Charge Battery)."""
-    ctx.apply_status_to_player("EnergyNextTurn", 1)
+    """Gain 1 energy next turn (Charge Battery).
+
+    Java: ConserveBattery applies EnergizedBluePower, which fires onEnergyRecharge.
+    We use the same 'Energized' status that our Energized power handler consumes.
+    """
+    ctx.apply_status_to_player("Energized", 1)
 
 
 @effect_simple("gain_energy_magic")
