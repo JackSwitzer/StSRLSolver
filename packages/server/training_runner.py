@@ -204,7 +204,7 @@ def _agent_worker(
         combats: List[Dict] = []
         decisions: List[Dict] = []
         deck_changes: List[str] = []
-        initial_deck = Counter(getattr(runner.run_state, "deck", []))
+        initial_deck = Counter(str(c) for c in getattr(runner.run_state, "deck", []))
 
         # Per-combat tracking
         combat_start_hp = 0
@@ -434,7 +434,7 @@ def _agent_worker(
             total_wins += 1
 
         # Detect deck changes (Counter handles duplicates correctly)
-        final_deck = Counter(getattr(rs, "deck", []))
+        final_deck = Counter(str(c) for c in getattr(rs, "deck", []))
         for card, count in (final_deck - initial_deck).items():
             for _ in range(count):
                 deck_changes.append(f"+{card}")
@@ -449,14 +449,19 @@ def _agent_worker(
             "seed": seed,
             "won": won,
             "floor": final_floor,
+            "floors_reached": final_floor,
             "hp_remaining": final_hp,
             "hp_history": hp_history,
             "combats": combats[:10],  # cap to keep size down
             "decisions": decisions[:15],
             "deck_changes": deck_changes[:20],
             "duration_s": round(duration, 1),
+            "duration": round(duration, 1),
             "plan_calls": plan_calls,
             "plan_avg_ms": round(plan_total_ms / max(plan_calls, 1), 1),
+            "mcts_calls": plan_calls,
+            "mcts_avg_ms": round(plan_total_ms / max(plan_calls, 1), 1),
+            "total_steps": step,
             "episode": episode,
             "wins": total_wins,
             "trivial": trivial,

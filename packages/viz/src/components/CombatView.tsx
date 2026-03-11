@@ -93,8 +93,9 @@ function estimateDamage(card: CardInstance, combat: CombatState, _target: EnemyS
   const weak = combat.player.powers.find((p) => p.id === 'weakened' || p.id === 'weak');
   if (weak && weak.amount > 0) base = Math.floor(base * 0.75);
 
-  if (combat.stance === 'wrath') base = Math.floor(base * 2);
-  if (combat.stance === 'divinity') base = Math.floor(base * 3);
+  const s = (combat.stance || '').toLowerCase();
+  if (s === 'wrath') base = Math.floor(base * 2);
+  if (s === 'divinity') base = Math.floor(base * 3);
 
   if (_target) {
     const vuln = _target.powers.find((p) => p.id === 'vulnerable' || p.id === 'vuln');
@@ -130,8 +131,9 @@ export const CombatView = ({ combat, combatType, compact = false }: CombatViewPr
   const primaryTarget = enemies.length > 0 ? enemies[0] : null;
   const damagePreview = hoveredCard ? estimateDamage(hoveredCard, combat, primaryTarget) : null;
 
-  const stanceColor = STANCE_COLORS[stance] || STANCE_COLORS.neutral;
-  const stanceBg = STANCE_BG[stance] || STANCE_BG.neutral;
+  const stanceLower = (stance || 'neutral').toLowerCase();
+  const stanceColor = STANCE_COLORS[stanceLower] || STANCE_COLORS.neutral;
+  const stanceBg = STANCE_BG[stanceLower] || STANCE_BG.neutral;
 
   const spriteSize = compact ? 60 : 90;
 
@@ -213,7 +215,7 @@ export const CombatView = ({ combat, combatType, compact = false }: CombatViewPr
 
           {/* Stance badge */}
           <div className="combat-stance-badge" style={{ background: stanceBg, borderColor: stanceColor, color: stanceColor }}>
-            {STANCE_LABELS[stance] || stance}
+            {STANCE_LABELS[stanceLower] || stance}
           </div>
 
           {/* Energy orbs */}

@@ -25,11 +25,22 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
 CHECKPOINT_DIR = Path("logs/checkpoints")
 TRAJECTORY_DIR = Path("logs/trajectories")
+
+# Default reward shaping weights (configurable via config dict).
+DEFAULT_REWARD_WEIGHTS: Dict[str, float] = {
+    "combat_victory": 0.1,
+    "elite_kill": 0.2,
+    "boss_kill": 0.5,
+    "floor_progress": 0.01,
+    "hp_efficiency": 0.05,  # normalized HP remaining after combat
+    "step_cost": -0.001,
+}
 
 
 @dataclass
@@ -121,6 +132,200 @@ class SeedPool:
         return len([s for s, c in self.play_counts.items() if c > 0])
 
 
+def _make_policy_fn(model, encoder, action_space, runner, action_dim):
+    """Create a policy function that bridges CombatEngine state to the neural network.
+
+    The returned callable has signature ``(CombatEngine) -> (action_priors, value)``
+    where ``action_priors`` maps Action objects to float prior probabilities and
+    ``value`` is a scalar win-probability estimate.
+
+    The run-level observation (deck, relics, potions, HP, floor, etc.) is
+    snapshot from *runner* when this factory is called and cached for the
+    lifetime of the returned closure.  Only the combat portion is re-encoded
+    on each call.  This is correct because MCTS only mutates combat state.
+    """
+    # Snapshot run-level observation once (immutable during MCTS search).
+    try:
+        run_obs = runner.get_observation()
+    except Exception:
+        run_obs = {"run": {}, "combat": None}
+
+    # Pre-build the run portion of the feature vector.
+    _run_arr_cache = [None]
+
+    def _get_run_arr():
+        if _run_arr_cache[0] is None:
+            # Encode with a dummy combat section to get the run features.
+            full = encoder.observation_to_array(run_obs)
+            _run_arr_cache[0] = full
+        return _run_arr_cache[0]
+
+    def policy_fn(engine):
+        """Evaluate a CombatEngine state with the neural network.
+
+        Returns:
+            (action_priors, value) where action_priors maps Action -> float.
+        """
+        # 1. Build observation: start from cached run features, overlay combat.
+        base_arr = _get_run_arr().copy()
+
+        # Overlay combat features directly from engine state.
+        state = engine.state
+        player = state.player
+        off_cs = encoder._off_combat_scalars
+        base_arr[off_cs] = float(state.energy)
+        base_arr[off_cs + 1] = float(player.block)
+        base_arr[off_cs + 2] = float(state.turn)
+        base_arr[off_cs + 3] = float(len(state.hand))
+        base_arr[off_cs + 4] = float(len(state.draw_pile))
+        base_arr[off_cs + 5] = float(len(state.discard_pile))
+        base_arr[off_cs + 6] = float(len(getattr(state, "exhaust_pile", [])))
+
+        # Stance one-hot
+        from packages.engine.rl_observations import STANCE_IDS, _stance_to_index
+        off_st = encoder._off_combat_stance
+        for i in range(len(STANCE_IDS)):
+            base_arr[off_st + i] = 0.0
+        stance_idx = _stance_to_index(getattr(state, "stance", "Neutral"))
+        base_arr[off_st + stance_idx] = 1.0
+
+        # Enemies
+        off_e = encoder._off_combat_enemies
+        n_per = encoder.n_per_enemy
+        for i in range(encoder.max_enemies):
+            ebase = off_e + i * n_per
+            base_arr[ebase:ebase + n_per] = 0.0
+        for ei, enemy in enumerate(state.enemies):
+            if ei >= encoder.max_enemies:
+                break
+            ebase = off_e + ei * n_per
+            emax = max(getattr(enemy, "max_hp", 1), 1)
+            base_arr[ebase] = enemy.hp / emax
+            base_arr[ebase + 1] = float(emax)
+            base_arr[ebase + 2] = float(enemy.block)
+            base_arr[ebase + 3] = float(getattr(enemy, "move_damage", 0) or 0)
+            base_arr[ebase + 4] = float(getattr(enemy, "move_hits", 0) or 0)
+            base_arr[ebase + 5] = 1.0 if enemy.hp > 0 else 0.0
+
+        # 2. Get legal actions and build action mask.
+        legal_actions = engine.get_legal_actions()
+        if not legal_actions:
+            return {}, 0.0
+
+        # Build action IDs for mask lookup.
+        # CombatEngine actions are PlayCard/EndTurn/UsePotion objects.
+        # We need to map them to action_space string IDs that match the
+        # format produced by GameRunner._make_action_id.
+        from packages.engine.state.combat import PlayCard, UsePotion, EndTurn
+
+        action_ids = {}  # action_obj id -> str id
+        for act in legal_actions:
+            if isinstance(act, PlayCard):
+                parts = [f"play_card", f"card_index={act.card_idx}"]
+                if act.target_idx >= 0:
+                    parts.append(f"target_index={act.target_idx}")
+                aid = "|".join(parts)
+            elif isinstance(act, UsePotion):
+                parts = [f"use_potion", f"potion_slot={act.potion_idx}"]
+                if act.target_idx >= 0:
+                    parts.append(f"target_index={act.target_idx}")
+                aid = "|".join(parts)
+            elif isinstance(act, EndTurn):
+                aid = "end_turn"
+            else:
+                aid = str(act)
+            action_ids[id(act)] = aid
+
+        mask = np.zeros(action_dim, dtype=np.bool_)
+        action_to_mask_idx = {}  # action obj id -> mask index
+        for act in legal_actions:
+            aid = action_ids[id(act)]
+            idx = action_space.register(aid)
+            if idx < action_dim:
+                mask[idx] = True
+                action_to_mask_idx[id(act)] = idx
+
+        # 3. Forward pass through neural network.
+        obs_tensor = torch.tensor(base_arr, dtype=torch.float32).unsqueeze(0)
+        mask_tensor = torch.tensor(mask, dtype=torch.bool).unsqueeze(0)
+
+        with torch.no_grad():
+            logits, value, _ = model(obs_tensor, mask_tensor)
+
+        probs = F.softmax(logits[0], dim=-1).numpy()
+        val = value.item()
+
+        # 4. Map network probabilities back to Action objects.
+        action_priors = {}
+        for act in legal_actions:
+            midx = action_to_mask_idx.get(id(act))
+            if midx is not None and midx < len(probs):
+                action_priors[act] = float(probs[midx])
+            else:
+                action_priors[act] = 1e-6
+
+        return action_priors, val
+
+    return policy_fn
+
+
+def _compute_shaped_reward(
+    runner,
+    hp_before: int,
+    max_hp: int,
+    was_in_combat: bool,
+    combat_just_ended: bool,
+    room_type: str,
+    prev_floor: int,
+    weights: Dict[str, float],
+) -> float:
+    """Compute shaped reward signal for a single step.
+
+    Args:
+        runner: GameRunner instance.
+        hp_before: HP before the action.
+        max_hp: Max HP (for normalization).
+        was_in_combat: Whether we were in combat before this step.
+        combat_just_ended: Whether combat just ended this step.
+        room_type: Room type string ("monster", "elite", "boss").
+        prev_floor: Floor number before the action.
+        weights: Reward weight dictionary (see DEFAULT_REWARD_WEIGHTS).
+
+    Returns:
+        Shaped reward float.
+    """
+    reward = weights.get("step_cost", -0.001)
+    rs = runner.run_state
+    hp_after = rs.current_hp
+
+    # Combat victory rewards
+    if combat_just_ended and not runner.game_lost:
+        reward += weights.get("combat_victory", 0.1)
+        if room_type == "elite":
+            reward += weights.get("elite_kill", 0.2)
+        elif room_type == "boss":
+            reward += weights.get("boss_kill", 0.5)
+
+        # HP efficiency: reward for preserving HP during combat
+        if max_hp > 0:
+            hp_ratio = hp_after / max_hp
+            reward += weights.get("hp_efficiency", 0.05) * hp_ratio
+
+    # Floor progress
+    current_floor = getattr(rs, "floor", 0)
+    if current_floor > prev_floor:
+        reward += weights.get("floor_progress", 0.01) * (current_floor - prev_floor)
+
+    # Terminal rewards
+    if runner.game_over:
+        if runner.game_won:
+            reward += 1.0
+        elif runner.game_lost:
+            reward -= 0.5
+
+    return reward
+
+
 def _play_game_worker(args: Tuple) -> Optional[Dict]:
     """Worker function: play one game with MCTS + model, collect transitions."""
     seed, model_weights_path, config = args
@@ -137,11 +342,17 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
     combat_sims = config.get("combat_sims", 64)
     deep_sims = config.get("deep_sims", 128)
     deep_prob = config.get("deep_prob", 0.25)  # KataGo playout cap
+    reward_weights = config.get("reward_weights", DEFAULT_REWARD_WEIGHTS)
 
     # Load model on CPU for worker (MPS doesn't fork well)
     obs_dim = config.get("obs_dim", 1186)
     action_dim = config.get("action_dim", 2048)
-    model = StSPolicyValueNet(obs_dim=obs_dim, action_dim=action_dim)
+    hidden_dim = config.get("hidden_dim", 256)
+    num_layers = config.get("num_layers", 3)
+    model = StSPolicyValueNet(
+        obs_dim=obs_dim, action_dim=action_dim,
+        hidden_dim=hidden_dim, num_layers=num_layers,
+    )
     if model_weights_path and Path(model_weights_path).exists():
         checkpoint = torch.load(model_weights_path, map_location="cpu", weights_only=True)
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -151,14 +362,14 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
     action_space = ActionSpace()
     planner = StrategicPlanner()
 
-    # MCTS without neural policy (uniform priors, heuristic value) for now.
-    # The model is used for value estimation only.
-    mcts = CombatMCTS(policy_fn=None, num_simulations=combat_sims)
-
     try:
         runner = GameRunner(seed=seed, ascension=ascension, character=character, verbose=False)
     except Exception:
         return None
+
+    # Build neural policy function for MCTS.
+    policy_fn = _make_policy_fn(model, encoder, action_space, runner, action_dim)
+    mcts = CombatMCTS(policy_fn=policy_fn, num_simulations=combat_sims)
 
     transitions: List[Dict] = []
     t0 = time.monotonic()
@@ -166,6 +377,8 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
     in_combat = False
     combat_start_hp = 0
     combat_turns = 0
+    prev_floor = 0
+    reached_act3 = False
 
     while not runner.game_over and step < 5000:
         try:
@@ -176,17 +389,28 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
             break
 
         phase = runner.phase
+        rs = runner.run_state
+        current_floor = getattr(rs, "floor", 0)
+        room_type = getattr(runner, "current_room_type", "monster")
+
+        # Track act 3 progression
+        if getattr(rs, "act", 1) >= 3:
+            reached_act3 = True
 
         if phase == GamePhase.COMBAT:
             engine = runner.current_combat
 
             if not in_combat:
                 in_combat = True
-                combat_start_hp = getattr(runner.run_state, "current_hp", 0)
+                combat_start_hp = getattr(rs, "current_hp", 0)
                 combat_turns = 0
+                # Refresh policy_fn with current run-level obs for this combat.
+                policy_fn = _make_policy_fn(model, encoder, action_space, runner, action_dim)
+                mcts.policy_fn = policy_fn
 
             if engine and len(actions) > 1:
                 combat_turns += 1
+                hp_before = getattr(rs, "current_hp", 0)
 
                 # KataGo playout cap: deep vs shallow
                 use_deep = np.random.random() < deep_prob
@@ -220,20 +444,39 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
                                     if idx < action_dim:
                                         mask[idx] = True
 
-                            # Map MCTS action probs to indices via string matching
+                            # Map MCTS action probs to indices.
+                            # Build matching IDs from Action objects to find
+                            # corresponding action dict IDs.
                             mcts_policy = np.zeros(action_dim, dtype=np.float32)
                             best_idx = 0
+
+                            def _action_to_id(act):
+                                """Convert Action object to runner-format ID string."""
+                                from packages.engine.state.combat import PlayCard, UsePotion, EndTurn
+                                if isinstance(act, PlayCard):
+                                    parts = ["play_card", f"card_index={act.card_idx}"]
+                                    if act.target_idx >= 0:
+                                        parts.append(f"target_index={act.target_idx}")
+                                    return "|".join(parts)
+                                elif isinstance(act, UsePotion):
+                                    parts = ["use_potion", f"potion_slot={act.potion_idx}"]
+                                    if act.target_idx >= 0:
+                                        parts.append(f"target_index={act.target_idx}")
+                                    return "|".join(parts)
+                                elif isinstance(act, EndTurn):
+                                    return "end_turn"
+                                return str(act)
+
+                            # Pre-build ID lookup for action dicts
+                            ad_by_id = {ad.get("id"): ad for ad in action_dicts}
                             for act, prob in action_probs.items():
-                                act_str = str(act)
-                                # Find matching action dict by string repr
-                                for ad in action_dicts:
-                                    if ad.get("id") == act_str or str(ad.get("id", "")) == act_str:
-                                        idx = action_space.register(ad["id"])
-                                        if idx < action_dim:
-                                            mcts_policy[idx] = prob
-                                        if act == best_action:
-                                            best_idx = idx
-                                        break
+                                act_id = _action_to_id(act)
+                                if act_id in ad_by_id:
+                                    idx = action_space.register(act_id)
+                                    if idx < action_dim:
+                                        mcts_policy[idx] = prob
+                                    if act == best_action:
+                                        best_idx = idx
 
                             total_p = mcts_policy.sum()
                             if total_p > 0:
@@ -244,8 +487,17 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
                                 "mask": mask,
                                 "action": best_idx,
                                 "mcts_policy": mcts_policy,
-                                "reward": 0.0,
+                                "reward": 0.0,  # filled below after action
                                 "done": False,
+                                # Aux targets (filled after combat ends)
+                                "hp_after_combat": 0.0,
+                                "turns_in_combat": 0.0,
+                                "reached_act3": float(reached_act3),
+                                # Bookkeeping for reward shaping
+                                "_hp_before": hp_before,
+                                "_floor_before": current_floor,
+                                "_room_type": room_type,
+                                "_combat_idx": len(transitions),
                             })
                         except Exception:
                             pass
@@ -262,7 +514,26 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
                         else:
                             ga = CombatAction(action_type="end_turn")
                         runner.take_action(ga)
+
+                        # Compute shaped reward for the transition we just recorded.
+                        combat_just_ended = (runner.phase != GamePhase.COMBAT)
+                        if transitions and transitions[-1].get("_combat_idx") == len(transitions) - 1:
+                            t_last = transitions[-1]
+                            t_last["reward"] = _compute_shaped_reward(
+                                runner,
+                                t_last["_hp_before"],
+                                max(getattr(rs, "max_hp", 72), 1),
+                                was_in_combat=True,
+                                combat_just_ended=combat_just_ended,
+                                room_type=t_last["_room_type"],
+                                prev_floor=t_last["_floor_before"],
+                                weights=reward_weights,
+                            )
+                            if combat_just_ended:
+                                t_last["done"] = True
+
                         step += 1
+                        prev_floor = current_floor
                         continue
                     except Exception:
                         pass
@@ -270,8 +541,17 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
             # Fallback
             runner.take_action(actions[0])
         else:
+            # Leaving combat -- backfill aux targets for transitions from this combat.
             if in_combat:
                 in_combat = False
+                hp_after = getattr(rs, "current_hp", 0)
+                for t in transitions:
+                    if t.get("hp_after_combat", -1) == 0.0 and t.get("_room_type"):
+                        max_hp = max(getattr(rs, "max_hp", 72), 1)
+                        t["hp_after_combat"] = hp_after / max_hp
+                        t["turns_in_combat"] = float(combat_turns)
+                        t["reached_act3"] = float(reached_act3)
+
             # Non-combat: use heuristic planner
             if len(actions) == 1:
                 runner.take_action(actions[0])
@@ -294,6 +574,7 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
                 runner.take_action(actions[0])
 
         step += 1
+        prev_floor = current_floor
 
     duration = time.monotonic() - t0
     rs = runner.run_state
@@ -301,7 +582,16 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
     final_floor = getattr(rs, "floor", 0)
     final_hp = getattr(rs, "current_hp", 0)
 
-    # Compute returns for all transitions
+    # Backfill aux targets for any transitions still in combat at game end.
+    if in_combat:
+        max_hp_val = max(getattr(rs, "max_hp", 72), 1)
+        for t in transitions:
+            if t.get("hp_after_combat", -1) == 0.0 and t.get("_room_type"):
+                t["hp_after_combat"] = final_hp / max_hp_val
+                t["turns_in_combat"] = float(combat_turns)
+                t["reached_act3"] = float(reached_act3)
+
+    # Compute returns for all transitions (reward shaping already applied).
     if won:
         terminal = 0.5 + 0.5 * (final_hp / 72.0)
     else:
@@ -311,6 +601,11 @@ def _play_game_worker(args: Tuple) -> Optional[Dict]:
     for t in reversed(transitions):
         t["value_target"] = G
         G = t["reward"] + 1.0 * G * (1.0 - float(t["done"]))
+
+    # Clean up bookkeeping keys before returning.
+    for t in transitions:
+        for k in ("_hp_before", "_floor_before", "_room_type", "_combat_idx"):
+            t.pop(k, None)
 
     return {
         "seed": seed,
@@ -384,6 +679,7 @@ class SelfPlayTrainer:
         sync_every: int = 200,
         eval_every: int = 500,
         ascension: int = 20,
+        reward_weights: Optional[Dict[str, float]] = None,
     ):
         from packages.training.torch_policy_net import StSPolicyValueNet, PPOTrainer, _get_device
 
@@ -405,6 +701,7 @@ class SelfPlayTrainer:
             "deep_prob": deep_prob,
             "obs_dim": self.model.obs_dim,
             "action_dim": self.model.action_dim,
+            "reward_weights": reward_weights or DEFAULT_REWARD_WEIGHTS,
         }
 
         # Stats
@@ -456,6 +753,7 @@ class SelfPlayTrainer:
         all_actions = []
         all_mcts_policies = []
         all_value_targets = []
+        all_aux_targets = []
 
         for r in results:
             for t in r["transitions"]:
@@ -464,6 +762,11 @@ class SelfPlayTrainer:
                 all_actions.append(t["action"])
                 all_mcts_policies.append(t["mcts_policy"])
                 all_value_targets.append(t.get("value_target", 0.0))
+                all_aux_targets.append([
+                    t.get("hp_after_combat", 0.0),
+                    t.get("turns_in_combat", 0.0),
+                    t.get("reached_act3", 0.0),
+                ])
 
         if not all_obs:
             return {"policy_loss": 0, "value_loss": 0, "entropy": 0, "total_loss": 0, "num_transitions": 0}
@@ -472,6 +775,7 @@ class SelfPlayTrainer:
         masks_t = torch.from_numpy(np.stack(all_masks)).bool()
         actions_t = torch.tensor(all_actions, dtype=torch.long)
         returns_t = torch.tensor(all_value_targets, dtype=torch.float32)
+        aux_t = torch.tensor(all_aux_targets, dtype=torch.float32)
 
         # Get old log probs from current model (before update)
         self.model.eval()
@@ -485,9 +789,10 @@ class SelfPlayTrainer:
         # Compute advantages from returns and current values
         advantages = returns_t - values.cpu()
 
-        # Train
+        # Train with auxiliary targets
         metrics = self.trainer.train_on_batch(
             obs_t, actions_t, old_lp, advantages, returns_t, masks_t,
+            aux_targets=aux_t,
         )
         metrics["num_transitions"] = len(all_obs)
         return metrics
