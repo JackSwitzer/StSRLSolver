@@ -1304,3 +1304,122 @@ class TestConfusionPower:
             {}
         )
         assert len(state.card_costs) == 0
+
+
+# =============================================================================
+# SECTION: Stasis Power (BronzeOrb)
+# =============================================================================
+
+class TestStasisPower:
+    """Stasis: BronzeOrb steals card from draw pile; returns on death."""
+
+    def test_stasis_registered(self):
+        """Stasis onDeath handler is registered."""
+        assert POWER_REGISTRY.has_handler("onDeath", "Stasis")
+
+    def test_stasis_returns_card_to_hand(self):
+        """When BronzeOrb dies, stolen card goes to player hand if < 10."""
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=10, max_hp=10, id="BronzeOrb")],
+            deck=["Strike", "Defend", "Eruption"],
+        )
+        # Simulate stolen card stored by _apply_stasis
+        state.relic_counters["__stasis_card__:0"] = "Eruption"
+        state.enemies[0].statuses["Stasis"] = -1
+
+        # Player hand has room
+        state.hand = ["Strike", "Defend"]
+
+        # Fire onDeath
+        execute_power_triggers("onDeath", state, state.enemies[0], {
+            "dying_enemy": state.enemies[0],
+        })
+
+        assert "Eruption" in state.hand
+        assert "__stasis_card__:0" not in state.relic_counters
+
+    def test_stasis_returns_card_to_discard_if_hand_full(self):
+        """When hand is full (10), stolen card goes to discard pile."""
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=10, max_hp=10, id="BronzeOrb")],
+            deck=["Strike"],
+        )
+        state.relic_counters["__stasis_card__:0"] = "Eruption"
+        state.enemies[0].statuses["Stasis"] = -1
+        state.hand = ["Strike"] * 10  # Full hand
+
+        execute_power_triggers("onDeath", state, state.enemies[0], {
+            "dying_enemy": state.enemies[0],
+        })
+
+        assert "Eruption" in state.discard_pile
+        assert state.hand.count("Strike") == 10  # Hand unchanged
+
+    def test_stasis_no_card_stored(self):
+        """Stasis fires but no card key found -- no crash."""
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=10, max_hp=10, id="BronzeOrb")],
+        )
+        state.enemies[0].statuses["Stasis"] = -1
+        # No __stasis_card__ key set
+        execute_power_triggers("onDeath", state, state.enemies[0], {
+            "dying_enemy": state.enemies[0],
+        })
+        # Should not crash, hand unchanged
+
+
+class TestStasisCombatEngine:
+    """Integration test: BronzeOrb stasis effect via combat engine."""
+
+    def test_apply_stasis_steals_rare_first(self):
+        """_apply_stasis prefers rare cards over common ones."""
+        from packages.engine.content.cards import CardRarity, ALL_CARDS
+
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="BronzeOrb")],
+            deck=["Strike_P", "Defend_P", "Eruption"],
+        )
+        # Put cards in draw pile with a rare card
+        state.draw_pile = ["Strike_P", "Brilliance", "Defend_P"]
+        engine = CombatEngine(state)
+
+        # Verify Brilliance is RARE
+        assert ALL_CARDS["Brilliance"].rarity == CardRarity.RARE
+
+        engine._apply_stasis(state.enemies[0])
+
+        # Rare card should be stolen
+        assert state.relic_counters.get("__stasis_card__:0") == "Brilliance"
+        assert "Brilliance" not in state.draw_pile
+        assert state.enemies[0].statuses.get("Stasis") == -1
+
+    def test_apply_stasis_from_discard_if_draw_empty(self):
+        """When draw pile empty, steal from discard pile."""
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="BronzeOrb")],
+            deck=["Strike_P"],
+        )
+        state.draw_pile = []
+        state.discard_pile = ["Defend_P", "Eruption"]
+        engine = CombatEngine(state)
+
+        engine._apply_stasis(state.enemies[0])
+
+        stolen = state.relic_counters.get("__stasis_card__:0")
+        assert stolen is not None
+        assert stolen not in state.discard_pile
+
+    def test_apply_stasis_nothing_if_piles_empty(self):
+        """When both draw and discard piles empty, nothing happens."""
+        state = _make_state(
+            enemies=[EnemyCombatState(hp=50, max_hp=50, id="BronzeOrb")],
+            deck=["Strike_P"],
+        )
+        state.draw_pile = []
+        state.discard_pile = []
+        engine = CombatEngine(state)
+
+        engine._apply_stasis(state.enemies[0])
+
+        assert "__stasis_card__:0" not in state.relic_counters
+        assert "Stasis" not in state.enemies[0].statuses

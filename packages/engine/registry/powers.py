@@ -2146,3 +2146,58 @@ def winter_start_of_turn(ctx: PowerContext) -> None:
     from ..effects.orbs import channel_orb
     for _ in range(ctx.amount):
         channel_orb(ctx.state, "Frost")
+
+
+# =============================================================================
+# STASIS (BronzeOrb onDeath — return stolen card to player)
+# =============================================================================
+
+@power_trigger("onDeath", power="Stasis")
+def stasis_on_death(ctx: PowerContext) -> None:
+    """Stasis: Return stolen card to player's hand (or discard if hand full).
+
+    Java: StasisPower.onDeath — if hand < 10, MakeTempCardInHandAction;
+    else MakeTempCardInDiscardAction.  The card was stored by _apply_stasis
+    in combat_engine.py under relic_counters['__stasis_card__:{enemy_idx}'].
+    """
+    dying_enemy = ctx.trigger_data.get("dying_enemy")
+    if dying_enemy is None:
+        return
+
+    # Find enemy index
+    enemy_idx = -1
+    for idx, e in enumerate(ctx.state.enemies):
+        if e is dying_enemy:
+            enemy_idx = idx
+            break
+
+    stasis_key = f"__stasis_card__:{enemy_idx}"
+    stolen_card = ctx.state.relic_counters.pop(stasis_key, None)
+    if stolen_card is None:
+        return
+
+    # Return card: hand if < 10, discard otherwise (Java parity)
+    if len(ctx.state.hand) < 10:
+        ctx.state.hand.append(stolen_card)
+    else:
+        ctx.state.discard_pile.append(stolen_card)
+
+
+# =============================================================================
+# DEAD CODE DOCUMENTATION
+# =============================================================================
+# The following Java powers exist as classes but are NEVER instantiated
+# by any card, relic, enemy, or event in the base game. Verified by grepping
+# the entire decompiled/ directory for "new <ClassName>" — zero matches.
+#
+# - ConservePower (ID="Conserve"): atEndOfRound decrements. Dead code.
+# - RechargingCorePower (ID="RechargingCore"): atStartOfTurn timer for energy.
+#     Dead code — NOT the same as Frozen Core relic.
+# - SkillBurnPower (ID="Skill Burn"): exhaust Skills when played.
+#     Dead code — BookOfStabbing uses PainfulStabsPower, not SkillBurn.
+# - StrikeUpPower (ID="StrikeUp"): boost Strike card base damage.
+#     Dead code — never applied by any card or relic.
+# - TimeMazePower (ID="TimeMazePower"): end turn after N cards, Endless-mode
+#     Blight mechanic. TimeEater uses TimeWarpPower (already implemented).
+#     Not relevant for standard A20 gameplay.
+# =============================================================================

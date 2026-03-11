@@ -854,6 +854,10 @@ class CombatEngine:
             if "spawn_torchheads" in effects:
                 self._handle_collector_spawn(enemy, effects["spawn_torchheads"])
 
+            # BronzeOrb Stasis: steal a card from player's draw/discard pile
+            if effects.get("stasis"):
+                self._apply_stasis(enemy)
+
             # Enemy escape (Looter, Mugger, Gremlins)
             # In Java, EscapeAction sets isEscaping=true and the monster leaves.
             if effects.get("escape"):
@@ -1651,6 +1655,65 @@ class CombatEngine:
                     if self.enemy_objects and len(self.enemy_objects) == len(self.state.enemies) - 1:
                         self.enemy_objects.append(real_spawn)
                     self._roll_enemy_move(new_enemy)
+
+    def _apply_stasis(self, enemy: EnemyCombatState):
+        """BronzeOrb Stasis: steal highest-rarity card from draw pile (or discard).
+
+        Java: ApplyStasisAction — tries Rare, then Uncommon, then Common, then
+        any random card.  Prefers draw pile; falls back to discard pile.
+        The stolen card is stored in relic_counters keyed by enemy index and
+        a Stasis power is applied to the enemy so the onDeath trigger returns it.
+        """
+        from .content.cards import ALL_CARDS, CardRarity
+
+        if not self.state.draw_pile and not self.state.discard_pile:
+            return
+
+        # Choose source pile (draw pile first, discard pile as fallback)
+        if self.state.draw_pile:
+            source = self.state.draw_pile
+            source_name = "draw"
+        else:
+            source = self.state.discard_pile
+            source_name = "discard"
+
+        # Pick by rarity: Rare > Uncommon > Common > any
+        stolen_card = None
+        priority = [CardRarity.RARE, CardRarity.UNCOMMON, CardRarity.COMMON]
+        for rarity in priority:
+            for card_id in source:
+                card_data = ALL_CARDS.get(card_id.rstrip("+"))
+                if card_data and card_data.rarity == rarity:
+                    stolen_card = card_id
+                    break
+            if stolen_card:
+                break
+
+        # Fallback: any card
+        if stolen_card is None and source:
+            stolen_card = source[0]
+
+        if stolen_card is None:
+            return
+
+        # Remove from source pile
+        source.remove(stolen_card)
+
+        # Store stolen card keyed by enemy index
+        enemy_idx = -1
+        for idx, e in enumerate(self.state.enemies):
+            if e is enemy:
+                enemy_idx = idx
+                break
+
+        stasis_key = f"__stasis_card__:{enemy_idx}"
+        self.state.relic_counters[stasis_key] = stolen_card  # type: ignore[assignment]
+
+        # Apply Stasis power to enemy (amount=-1, matching Java)
+        enemy.statuses["Stasis"] = -1
+
+        self.log.log(self.state.turn, "stasis",
+                    enemy=enemy.id, card=stolen_card, source=source_name)
 
     def _on_enemy_death(self, enemy: EnemyCombatState):
         """Handle enemy death triggers."""
