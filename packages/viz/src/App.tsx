@@ -1,5 +1,5 @@
-import { TrainingView } from './components/TrainingView';
+import { MissionControl } from './components/MissionControl';
 
 export const App = () => {
-  return <TrainingView />;
+  return <MissionControl />;
 };

@@ -4,9 +4,11 @@ import type {
   AgentEpisodeMsg,
   MCTSResultMsg,
   AgentInfo,
+  SystemStatsMsg,
 } from '../types/training';
 
 const MAX_EPISODES = 200;
+const MAX_HISTORY = 200;
 
 type Action =
   | { type: 'connected' }
@@ -16,11 +18,14 @@ type Action =
   | { type: 'agent_episode'; episode: AgentEpisodeMsg }
   | { type: 'mcts_result'; result: MCTSResultMsg }
   | { type: 'agent_combat'; agent_id: number; combat: any }
+  | { type: 'system_stats'; stats: SystemStatsMsg }
+  | { type: 'metrics_history'; floor_history: number[]; loss_history: number[]; win_history: number[] }
   | { type: 'toggle_focus'; agentId: number }
   | { type: 'clear_focus' }
   | { type: 'select_agent'; index: number }
   | { type: 'next_focused' }
-  | { type: 'prev_focused' };
+  | { type: 'prev_focused' }
+  | { type: 'set_paused'; paused: boolean };
 
 interface FullState {
   training: TrainingState;
@@ -37,6 +42,11 @@ const initialState: FullState = {
     activeFocusIndex: 0,
     selectedAgentIndex: 0,
     combatStates: {},
+    systemStats: null,
+    floorHistory: [],
+    lossHistory: [],
+    winHistory: [],
+    paused: false,
   },
   connected: false,
 };
@@ -54,7 +64,10 @@ function reducer(state: FullState, action: Action): FullState {
       return { ...state, training: { ...t, stats: action.stats } };
     case 'agent_episode': {
       const episodes = [action.episode, ...t.episodes].slice(0, MAX_EPISODES);
-      return { ...state, training: { ...t, episodes } };
+      // Accumulate local history from episodes
+      const floorHistory = [...t.floorHistory, action.episode.floors_reached].slice(-MAX_HISTORY);
+      const winHistory = [...t.winHistory, action.episode.won ? 1 : 0].slice(-MAX_HISTORY);
+      return { ...state, training: { ...t, episodes, floorHistory, winHistory } };
     }
     case 'mcts_result':
       return { ...state, training: { ...t, mctsResult: action.result } };
@@ -62,6 +75,18 @@ function reducer(state: FullState, action: Action): FullState {
       const combatStates = { ...t.combatStates, [action.agent_id]: action.combat };
       return { ...state, training: { ...t, combatStates } };
     }
+    case 'system_stats':
+      return { ...state, training: { ...t, systemStats: action.stats } };
+    case 'metrics_history':
+      return {
+        ...state,
+        training: {
+          ...t,
+          floorHistory: action.floor_history.slice(-MAX_HISTORY),
+          lossHistory: action.loss_history.slice(-MAX_HISTORY),
+          winHistory: action.win_history.slice(-MAX_HISTORY),
+        },
+      };
     case 'toggle_focus': {
       const ids = [...t.focusedAgentIds];
       const idx = ids.indexOf(action.agentId);
@@ -87,6 +112,8 @@ function reducer(state: FullState, action: Action): FullState {
       const prev = (t.activeFocusIndex - 1 + t.focusedAgentIds.length) % t.focusedAgentIds.length;
       return { ...state, training: { ...t, activeFocusIndex: prev } };
     }
+    case 'set_paused':
+      return { ...state, training: { ...t, paused: action.paused } };
     default:
       return state;
   }
@@ -110,14 +137,13 @@ export function useTrainingState() {
         dispatch({ type: 'connected' });
         ws.send(JSON.stringify({
           type: 'training_start',
-          config: { num_agents: 4, mcts_sims: 64, ascension: 20, seed: 'Test123' },
+          config: { num_agents: 8, mcts_sims: 32, ascension: 20, seed: 'Test123' },
         }));
       };
 
       ws.onclose = () => {
         dispatch({ type: 'disconnected' });
         wsRef.current = null;
-        // Auto-reconnect after 2s unless unmounted
         if (!unmounted) {
           reconnectTimerRef.current = setTimeout(connect, 2000);
         }
@@ -146,6 +172,12 @@ export function useTrainingState() {
             case 'agent_combat':
               dispatch({ type: 'agent_combat', agent_id: msg.agent_id, combat: msg.combat });
               break;
+            case 'system_stats':
+              dispatch({ type: 'system_stats', stats: msg });
+              break;
+            case 'metrics_history':
+              dispatch({ type: 'metrics_history', floor_history: msg.floor_history, loss_history: msg.loss_history, win_history: msg.win_history });
+              break;
           }
         } catch { /* ignore parse errors */ }
       };
@@ -164,12 +196,16 @@ export function useTrainingState() {
     };
   }, []);
 
-  const toggleFocus = useCallback((agentId: number) => {
-    dispatch({ type: 'toggle_focus', agentId });
+  const sendMsg = useCallback((msg: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'training_focus', agent_id: agentId }));
+      wsRef.current.send(JSON.stringify(msg));
     }
   }, []);
+
+  const toggleFocus = useCallback((agentId: number) => {
+    dispatch({ type: 'toggle_focus', agentId });
+    sendMsg({ type: 'training_focus', agent_id: agentId });
+  }, [sendMsg]);
 
   const clearFocus = useCallback(() => {
     dispatch({ type: 'clear_focus' });
@@ -183,19 +219,18 @@ export function useTrainingState() {
   const prevFocused = useCallback(() => dispatch({ type: 'prev_focused' }), []);
 
   const stopTraining = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'training_stop' }));
-    }
-  }, []);
+    sendMsg({ type: 'training_stop' });
+    dispatch({ type: 'set_paused', paused: true });
+  }, [sendMsg]);
 
   const resumeTraining = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'training_resume',
-        config: { num_agents: 4, mcts_sims: 64, ascension: 20, seed: 'Test123' },
-      }));
-    }
-  }, []);
+    sendMsg({ type: 'training_resume', config: { num_agents: 8, mcts_sims: 32, ascension: 20, seed: 'Test123' } });
+    dispatch({ type: 'set_paused', paused: false });
+  }, [sendMsg]);
+
+  const sendControl = useCallback((config: { num_agents?: number; mcts_sims?: number; ascension?: number }) => {
+    sendMsg({ type: 'training_config', config });
+  }, [sendMsg]);
 
   return {
     state: fullState.training,
@@ -207,5 +242,7 @@ export function useTrainingState() {
     prevFocused,
     stopTraining,
     resumeTraining,
+    sendControl,
+    sendMsg,
   };
 }

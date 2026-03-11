@@ -1,10 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
 :root {
-  --bg: #1a1a2e;
-  --surface: #16213e;
-  --text: #e0e0e0;
-  --accent: #e94560;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --text: #c9d1d9;
+  --text2: #8b949e;
+  --accent: #00ff41;
+  --amber: #ffb700;
+  --red: #ff4444;
+  --blue: #4488ff;
   --energy: #ffd700;
-  --border: #2a2a44;
+  --border: #30363d;
 }
 
 * {
@@ -14,7 +21,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   margin: 0;
   overflow: hidden;
   height: 100vh;
@@ -24,6 +31,22 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Hide scrollbars globally but allow scroll */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+button {
+  font-family: inherit;
 }
 
 /* ---- Layout ---- */
