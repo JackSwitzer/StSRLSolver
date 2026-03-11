@@ -301,25 +301,36 @@ class TestBug4EndOfTurnCardDamagePipeline:
 # =============================================================================
 
 class TestBug5RegenKeyMismatch:
-    """The inline Regen heal code must use the same key as the registry power."""
+    """Regeneration should heal at end of turn and decrement.
+
+    Previously the inline code read 'Regen' while the power stored
+    'Regeneration', so the heal never fired."""
 
     def test_regeneration_heals_at_end_of_turn(self):
-        """Player with Regeneration power should heal at end of turn."""
+        """Player with Regeneration power should heal when ending turn."""
         engine = _make_engine(deck=["Strike_P"] * 10, player_hp=50)
         engine.start_combat()
 
-        # The registry power uses "Regeneration" key
         engine.state.player.statuses["Regeneration"] = 5
-        engine.state.player.hp = 50  # below max
+        engine.state.player.hp = 50
         engine.state.player.max_hp = 80
-
-        # The inline code at end_turn reads the regen key
-        # After fix it should read "Regeneration"
         initial_hp = engine.state.player.hp
 
-        # Call the regen section directly: it's in end_turn after atEndOfTurnPreEndTurnCards
-        regen = engine.state.player.statuses.get("Regeneration", 0)
-        if regen <= 0:
-            # Fallback check old key
-            regen = engine.state.player.statuses.get("Regen", 0)
-        assert regen == 5, f"Regeneration should be 5 but got {regen}"
+        # End turn triggers atEndOfTurn which should include Regeneration heal
+        engine.end_turn()
+
+        # Player should have healed 5 HP (minus any enemy damage)
+        # Check that Regeneration decremented
+        regen_remaining = engine.state.player.statuses.get("Regeneration", 0)
+        assert regen_remaining == 4, (
+            f"Regeneration should decrement from 5 to 4, got {regen_remaining}"
+        )
+        # HP should have increased by 5 (before enemy damage is applied)
+        # Since enemy does 6 damage, net is -1 from the heal
+        # But we can check total: initial(50) + heal(5) - enemy_damage
+        # Just verify the heal happened by checking HP > initial - enemy_damage
+        expected_no_heal = initial_hp - 6  # enemy does 6
+        assert engine.state.player.hp > expected_no_heal, (
+            f"Regeneration should have healed: HP={engine.state.player.hp}, "
+            f"without heal would be {expected_no_heal}"
+        )

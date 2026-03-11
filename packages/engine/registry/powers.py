@@ -109,16 +109,17 @@ def poison_start(ctx: PowerContext) -> None:
             del ctx.owner.statuses["Poison"]
 
 
-@power_trigger("atStartOfTurn", power="Regeneration")
-def regeneration_start(ctx: PowerContext) -> None:
-    """Regeneration: Heal at start of turn, then decrement."""
-    if ctx.owner == ctx.player:
-        heal = min(ctx.amount, ctx.player.max_hp - ctx.player.hp)
-        ctx.player.hp += heal
-        # Decrement
-        ctx.player.statuses["Regeneration"] = ctx.amount - 1
-        if ctx.player.statuses["Regeneration"] <= 0:
-            del ctx.player.statuses["Regeneration"]
+@power_trigger("atEndOfTurn", power="Regeneration")
+def regeneration_end_of_turn(ctx: PowerContext) -> None:
+    """Regeneration: Heal at end of turn, then decrement (Java: RegenPower.atEndOfTurn)."""
+    owner = ctx.owner
+    heal = min(ctx.amount, owner.max_hp - owner.hp)
+    owner.hp += heal
+    # Decrement — use the key actually stored in statuses (may be "Regen" alias)
+    regen_key = "Regeneration" if "Regeneration" in owner.statuses else "Regen"
+    owner.statuses[regen_key] = ctx.amount - 1
+    if owner.statuses[regen_key] <= 0:
+        del owner.statuses[regen_key]
 
 
 @power_trigger("atStartOfTurn", power="Choked")

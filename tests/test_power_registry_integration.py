@@ -16,7 +16,7 @@ from packages.engine.registry.powers import (
     metallicize_end, plated_armor_end, like_water_end,
     constricted_end, combust_end, ritual_end,
     weak_end_round, vulnerable_end_round, frail_end_round,
-    poison_start, regeneration_start, choked_start,
+    poison_start, regeneration_end_of_turn, choked_start,
     after_image_on_use, choked_on_use,
     dark_embrace_exhaust, feel_no_pain_exhaust,
     mental_fortress_stance, rushdown_stance,

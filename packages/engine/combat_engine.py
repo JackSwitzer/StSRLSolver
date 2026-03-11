@@ -463,11 +463,7 @@ class CombatEngine:
         # Step 5: atEndOfTurnPreEndTurnCards power triggers (Metallicize, Plated Armor, LikeWater)
         execute_power_triggers("atEndOfTurnPreEndTurnCards", self.state, self.state.player)
 
-        # Regen: heal at end of turn (not in registry)
-        regen = self.state.player.statuses.get("Regen", 0)
-        if regen > 0:
-            heal = min(regen, self.state.player.max_hp - self.state.player.hp)
-            self.state.player.hp += heal
+        # Regeneration: handled by registry power trigger at atEndOfTurn (step 1 above)
 
         # Process enemy turns (unless Vault was played — skip enemies)
         if self.state.skip_enemy_turn:
