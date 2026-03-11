@@ -1654,7 +1654,7 @@ def _handle_wing_statue(
         if has_strong_attack:
             # Sell high-damage attack for gold
             result.choice_name = "sell_attack"
-            gold = misc_rng.random(50, 80) if misc_rng else 65
+            gold = misc_rng.random_range(50, 80) if misc_rng else 65
             handler._apply_gold_change(run_state, gold)
             result.gold_change = gold
             result.description = f"Sold an attack to the statue. Gained {gold} gold."
@@ -3603,11 +3603,8 @@ def _handle_nloth(
             result.relics_lost.append(traded_id)
 
         # Java: if already has NlothsGift, give Circlet instead
-        has_gift = any(
-            (r.id if hasattr(r, 'id') else str(r)) == "NlothsGift"
-            for r in run_state.relics
-        )
-        gift_id = "Circlet" if has_gift else "NlothsGift"
+        has_gift = run_state.has_relic("Nloth's Gift")
+        gift_id = "Circlet" if has_gift else "Nloth's Gift"
         run_state.add_relic(gift_id)
         result.relics_gained.append(gift_id)
         result.description = f"Traded {result.relics_lost[0] if result.relics_lost else 'a relic'} for {gift_id}."

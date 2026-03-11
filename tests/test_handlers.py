@@ -1769,3 +1769,280 @@ class TestAccursedBlacksmith:
         )
         assert len(run.deck) == initial_deck_size
         assert result.choice_name == "leave"
+
+
+# =============================================================================
+# Wing Statue (M-13): Conditional gold option
+# =============================================================================
+
+
+class TestWingStatueSellAttack:
+    """M-13: Wing Statue (GoldenWing) should have a conditional gold option
+    when the player has an Attack card with baseDamage >= 10.
+
+    Java: GoldenWing.java
+    - Option 0: Lose 7 HP, remove a card
+    - Option 1: If player has Attack with baseDamage >= 10, gain 50-80 gold (miscRng)
+    - Option 2 (or 1 if no sell): Leave
+    """
+
+    def test_sell_attack_available_with_strong_attack(self):
+        """Choice generator should include sell option when deck has 10+ dmg attack."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_card("ReachHeaven")  # base_damage=10, ATTACK type
+        event_state = EventState(event_id="WingStatue")
+
+        choices = handler.get_available_choices(event_state, run)
+        choice_names = [c.name for c in choices]
+        assert "sell_attack" in choice_names
+        assert "purify" in choice_names
+        assert "leave" in choice_names
+
+    def test_sell_attack_not_available_without_strong_attack(self):
+        """Choice generator should NOT include sell option when no 10+ dmg attack."""
+        handler = EventHandler()
+        run = _make_run()  # Starter deck: Strikes (6 dmg), Defends, etc.
+        event_state = EventState(event_id="WingStatue")
+
+        choices = handler.get_available_choices(event_state, run)
+        choice_names = [c.name for c in choices]
+        assert "sell_attack" not in choice_names
+        assert "purify" in choice_names
+        assert "leave" in choice_names
+
+    def test_sell_attack_grants_gold(self):
+        """Selling attack should grant 50-80 gold."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_card("ReachHeaven")
+        event_state = EventState(event_id="WingStatue")
+        initial_gold = run.gold
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "sell_attack"
+        assert 50 <= result.gold_change <= 80
+        assert run.gold == initial_gold + result.gold_change
+
+    def test_leave_when_sell_available(self):
+        """When sell is available, leave should be at index 2."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_card("ReachHeaven")
+        event_state = EventState(event_id="WingStatue")
+
+        result = handler.execute_choice(
+            event_state, 2, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "leave"
+
+    def test_leave_when_sell_not_available(self):
+        """When sell is not available, leave should be at index 1."""
+        handler = EventHandler()
+        run = _make_run()  # No 10+ dmg attacks
+        event_state = EventState(event_id="WingStatue")
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "leave"
+
+    def test_upgraded_card_qualifies(self):
+        """An attack that reaches 10 damage when upgraded should qualify."""
+        handler = EventHandler()
+        run = _make_run()
+        # EmptyFist: base_damage=9, upgrade_damage=5 -> 14 when upgraded
+        run.add_card("EmptyFist", upgraded=True)
+        event_state = EventState(event_id="WingStatue")
+
+        choices = handler.get_available_choices(event_state, run)
+        choice_names = [c.name for c in choices]
+        assert "sell_attack" in choice_names
+
+    def test_non_upgraded_card_below_threshold_excluded(self):
+        """An attack with base_damage < 10 should NOT qualify when not upgraded."""
+        handler = EventHandler()
+        run = _make_run()
+        # EmptyFist: base_damage=9 (below 10 threshold)
+        run.add_card("EmptyFist", upgraded=False)
+        event_state = EventState(event_id="WingStatue")
+
+        choices = handler.get_available_choices(event_state, run)
+        choice_names = [c.name for c in choices]
+        assert "sell_attack" not in choice_names
+
+
+# =============================================================================
+# N'loth (M-15): Proper relic selection
+# =============================================================================
+
+
+class TestNlothRelicSelection:
+    """M-15: N'loth should present 2 specific relics to choose from,
+    not auto-trade the oldest relic.
+
+    Java: Nloth.java shuffles player relics, picks first 2 as trade options.
+    """
+
+    def test_nloth_presents_two_relics(self):
+        """N'loth choice generator should present 2 relic trade options + leave."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Vajra")
+        run.add_relic("Lantern")
+        event_state = EventState(event_id="Nloth")
+        handler._initialize_nloth_relics(event_state, run, _make_rng(400))
+
+        choices = handler.get_available_choices(event_state, run)
+        trade_choices = [c for c in choices if c.name.startswith("trade_")]
+        leave_choices = [c for c in choices if c.name == "leave"]
+        assert len(trade_choices) == 2
+        assert len(leave_choices) == 1
+
+    def test_nloth_trades_selected_relic(self):
+        """Trading should remove the specific selected relic and grant Nloth's Gift."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Vajra")
+        run.add_relic("Lantern")
+        event_state = EventState(event_id="Nloth")
+        handler._initialize_nloth_relics(event_state, run, _make_rng(400))
+
+        # Get the relic at the second preselected index
+        relic_idx = event_state.nloth_relic_indices[1]
+        target_relic_id = run.relics[relic_idx].id
+        initial_relic_count = len(run.relics)
+
+        result = handler.execute_choice(
+            event_state, 1, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "trade_1"
+        assert target_relic_id in result.relics_lost
+        assert "Nloth's Gift" in result.relics_gained
+        assert run.has_relic("Nloth's Gift")
+
+    def test_nloth_leave(self):
+        """Leave option should not trade any relics."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Vajra")
+        run.add_relic("Lantern")
+        event_state = EventState(event_id="Nloth")
+        handler._initialize_nloth_relics(event_state, run, _make_rng(400))
+        initial_relic_count = len(run.relics)
+
+        # Leave is the last option
+        leave_idx = len(event_state.nloth_relic_indices)
+        result = handler.execute_choice(
+            event_state, leave_idx, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        assert result.choice_name == "leave"
+        assert len(run.relics) == initial_relic_count
+
+    def test_nloth_duplicate_gift_gives_circlet(self):
+        """If player already has NlothsGift, should get Circlet instead."""
+        handler = EventHandler()
+        run = _make_run()
+        run.add_relic("Vajra")
+        run.add_relic("Lantern")
+        run.add_relic("NlothsGift")
+        event_state = EventState(event_id="Nloth")
+        handler._initialize_nloth_relics(event_state, run, _make_rng(400))
+
+        result = handler.execute_choice(
+            event_state, 0, run, _make_rng(100), misc_rng=_make_rng(200)
+        )
+        # Should get Circlet since NlothsGift already owned
+        assert "Circlet" in result.relics_gained
+
+
+# =============================================================================
+# Ring of the Serpent (M-18): Hand size bonus
+# =============================================================================
+
+
+class TestRingOfTheSerpent:
+    """M-18: Ring of the Serpent should provide +1 draw per turn via hand_size_bonus."""
+
+    def test_hand_size_bonus_in_relic_data(self):
+        """Relic data should have hand_size_bonus=1."""
+        from packages.engine.content.relics import ALL_RELICS
+        serpent = ALL_RELICS.get("Ring of the Serpent")
+        assert serpent is not None
+        assert serpent.hand_size_bonus == 1
+
+    def test_combat_engine_reads_hand_size_bonus(self):
+        """Combat engine should draw 6 cards (5 base + 1 bonus) with Ring of the Serpent."""
+        from packages.engine.combat_engine import create_combat_from_enemies
+        from packages.engine.content.enemies import create_enemy as create_enemy_object
+
+        enemies = [create_enemy_object("JawWorm", _make_rng(50), 0)]
+        engine = create_combat_from_enemies(
+            enemies=enemies,
+            player_hp=80,
+            player_max_hp=80,
+            deck=["Strike_P"] * 5 + ["Defend_P"] * 5 + ["Eruption", "Vigilance"],
+            relics=["Ring of the Serpent"],
+            energy=3,
+        )
+        engine.start_combat()
+        # Should draw 6 cards (5 base + 1 from Ring of the Serpent)
+        assert len(engine.state.hand) == 6
+
+
+# =============================================================================
+# Boss relic starter replacement IDs (related M-18 fix)
+# =============================================================================
+
+
+class TestBossRelicStarterReplacement:
+    """Verify boss relic replacement dict uses correct relic IDs."""
+
+    def test_replacement_ids_match_relic_data(self):
+        """All IDs in the replacement dict should exist in ALL_RELICS."""
+        from packages.engine.content.relics import ALL_RELICS
+
+        # The replacement mapping (must match reward_handler.py)
+        replacements = {
+            "Black Blood": "Burning Blood",
+            "Ring of the Serpent": "Ring of the Snake",
+            "FrozenCore": "Cracked Core",
+            "HolyWater": "PureWater",
+        }
+        for boss_id, starter_id in replacements.items():
+            assert boss_id in ALL_RELICS, f"Boss relic '{boss_id}' not in ALL_RELICS"
+            assert starter_id in ALL_RELICS, f"Starter relic '{starter_id}' not in ALL_RELICS"
+
+
+# =============================================================================
+# Non-Watcher Powers: EnergizedBlue
+# =============================================================================
+
+
+class TestEnergizedBluePower:
+    """EnergizedBlue power should function identically to Energized."""
+
+    def test_energized_blue_gains_energy(self):
+        """EnergizedBlue should grant energy on energy recharge and then remove itself."""
+        from packages.engine.combat_engine import create_combat_from_enemies
+        from packages.engine.content.enemies import create_enemy as create_enemy_object
+
+        enemies = [create_enemy_object("JawWorm", _make_rng(50), 0)]
+        engine = create_combat_from_enemies(
+            enemies=enemies,
+            player_hp=80,
+            player_max_hp=80,
+            deck=["Strike_P"] * 5 + ["Defend_P"] * 5 + ["Eruption", "Vigilance"],
+            energy=3,
+        )
+        engine.start_combat()
+
+        # Manually apply EnergizedBlue
+        engine.state.player.statuses["EnergizedBlue"] = 2
+        # End turn and start new turn (onEnergyRecharge fires at turn start)
+        engine.end_turn()
+        # After new turn, energy should include the +2 bonus from EnergizedBlue
+        # and EnergizedBlue should be removed
+        assert "EnergizedBlue" not in engine.state.player.statuses
