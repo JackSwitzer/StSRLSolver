@@ -6,11 +6,10 @@ import { AgentCard } from './AgentCard';
 import { Sparkline } from './Sparkline';
 import { ControlPanel } from './ControlPanel';
 import { EventFeed } from './EventFeed';
-import { CombatView } from './CombatView';
+import { AgentDetailPanel } from './AgentDetailPanel';
+import type { DetailTab } from './AgentDetailPanel';
 
 // ---- Types ----
-
-type DetailTab = 'combat' | 'run' | 'mcts';
 
 // ---- Helpers ----
 
@@ -61,96 +60,6 @@ const SysBar = ({ label, value, max, color = '#4488ff' }: {
   </div>
 );
 
-// Agent detail panel shown at bottom when an agent is selected
-const AgentDetailPanel = ({
-  agent,
-  combat,
-  tab,
-  onTabChange,
-  onClose,
-}: {
-  agent: AgentInfo;
-  combat: any;
-  tab: DetailTab;
-  onTabChange: (t: DetailTab) => void;
-  onClose: () => void;
-}) => {
-  const agentAny = agent as any;
-  const hpRatio = agent.max_hp > 0 ? agent.hp / agent.max_hp : 0;
-  const hpC = hpRatio > 0.6 ? '#00ff41' : hpRatio > 0.3 ? '#ffb700' : '#ff4444';
-  const tabs: DetailTab[] = ['combat', 'run', 'mcts'];
-
-  return (
-    <div style={{
-      borderTop: '1px solid #30363d',
-      background: '#0d1117',
-      flexShrink: 0,
-      maxHeight: '320px',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-    }}>
-      {/* Detail header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '4px 10px',
-        borderBottom: '1px solid #30363d',
-        background: '#161b22',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: '#c9d1d9' }}>{agent.name || AGENT_NAMES[agent.id]}</span>
-        <span style={{ fontSize: '10px', color: '#8b949e' }}>F{Math.floor(agent.floor)} | {agent.phase}</span>
-        <span style={{ fontSize: '10px', color: hpC }}>{agent.hp}/{agent.max_hp} HP</span>
-        {agentAny.stance && (
-          <span style={{ fontSize: '10px', color: '#8b949e' }}>Stance: {agentAny.stance}</span>
-        )}
-        <div style={{ flex: 1 }} />
-        {/* Tab buttons */}
-        {tabs.map((t) => (
-          <button key={t} onClick={() => onTabChange(t)} style={{
-            background: tab === t ? '#21262d' : 'transparent',
-            border: `1px solid ${tab === t ? '#30363d' : 'transparent'}`,
-            color: tab === t ? '#c9d1d9' : '#8b949e',
-            fontSize: '10px',
-            padding: '2px 8px',
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            letterSpacing: '0.3px',
-          }}>{t}</button>
-        ))}
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '10px',
-        }}>[ESC]</button>
-      </div>
-
-      {/* Tab content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 10px' }}>
-        {tab === 'combat' && (
-          combat
-            ? <CombatView combat={combat} />
-            : <span style={{ fontSize: '11px', color: '#8b949e' }}>
-                {agent.phase === 'COMBAT' ? 'Loading combat state...' : `Agent is in ${agent.phase} phase`}
-              </span>
-        )}
-        {tab === 'run' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
-            <StatBlock label="Episode" value={String(agent.episode)} />
-            <StatBlock label="Wins" value={String(agent.wins)} color="#00ff41" />
-            <StatBlock label="Floor" value={String(Math.floor(agent.floor))} />
-            <StatBlock label="Seed" value={agent.seed?.slice(0, 8) ?? '?'} />
-            <StatBlock label="Status" value={agent.status} />
-          </div>
-        )}
-        {tab === 'mcts' && (
-          <span style={{ fontSize: '11px', color: '#8b949e' }}>MCTS data — focus an agent to see tree search results</span>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ---- Main MissionControl ----
 
 export const MissionControl = () => {
@@ -165,7 +74,7 @@ export const MissionControl = () => {
   const [numAgents, _setNumAgents] = useState(8);
 
   const { stats, agents, episodes, focusedAgentIds, selectedAgentIndex,
-          combatStates, floorHistory, winHistory, systemStats } = state;
+          combatStates, floorHistory, winHistory, systemStats, mctsResult } = state;
 
   // Default placeholder agents when none connected
   const displayAgents: AgentInfo[] = agents.length > 0
@@ -244,15 +153,25 @@ export const MissionControl = () => {
       }
       if (key === 'Tab') {
         e.preventDefault();
-        if (e.shiftKey) prevFocused(); else nextFocused();
+        if (showDetail) {
+          // Cycle detail tabs when detail panel is open
+          const tabs: DetailTab[] = ['combat', 'run', 'mcts'];
+          const cur = tabs.indexOf(detailTab);
+          const next = e.shiftKey
+            ? (cur - 1 + tabs.length) % tabs.length
+            : (cur + 1) % tabs.length;
+          setDetailTab(tabs[next]);
+        } else {
+          if (e.shiftKey) prevFocused(); else nextFocused();
+        }
         return;
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    displayAgents.length, selectedAgentIndex, showControl, showDetail,
-    stats, selectAgent, clearFocus, stopTraining, resumeTraining, nextFocused, prevFocused,
+    displayAgents.length, selectedAgentIndex, showControl, showDetail, detailTab,
+    stats, selectAgent, clearFocus, stopTraining, resumeTraining, nextFocused, prevFocused, setDetailTab,
   ]);
 
   // Mocked system stats if server doesn't send them
@@ -462,6 +381,8 @@ export const MissionControl = () => {
         <AgentDetailPanel
           agent={selectedAgent}
           combat={selectedCombat}
+          mcts={mctsResult}
+          episodes={episodes}
           tab={detailTab}
           onTabChange={setDetailTab}
           onClose={() => setShowDetail(false)}
