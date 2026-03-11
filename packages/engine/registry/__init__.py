@@ -202,7 +202,7 @@ class BaseContext:
 
         # Check artifact for debuffs
         # Standard debuffs that are always blocked by Artifact
-        debuffs = {"Weak", "Weakened", "Vulnerable", "Frail", "Poison", "Constricted"}
+        debuffs = {"Weakened", "Vulnerable", "Frail", "Poison", "Constricted"}
         # Negative Strength/Dexterity applications are also debuffs (e.g., from Wraith Form)
         is_stat_debuff = power_id in {"Strength", "Dexterity"} and amount < 0
 

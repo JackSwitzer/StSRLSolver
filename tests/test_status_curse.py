@@ -188,7 +188,7 @@ class MockCombatState:
 
         # Doubt: gain 1 weak
         if card.id == "Doubt" and "end_of_turn_gain_weak_1" in card.effects:
-            self.player.apply_power("Weak", 1)
+            self.player.apply_power("Weakened", 1)
 
         # Shame: gain 1 frail
         if card.id == "Shame" and "end_of_turn_gain_frail_1" in card.effects:
@@ -519,7 +519,7 @@ class TestEndOfTurnEffects:
         player.add_to_hand(get_card("Doubt"))
         combat = MockCombatState(player)
         combat.end_of_turn()
-        assert player.powers.get("Weak", 0) == 1
+        assert player.powers.get("Weakened", 0) == 1
 
     def test_doubt_stacks_weak_each_turn(self):
         """Doubt applies Weak each turn."""
@@ -530,11 +530,11 @@ class TestEndOfTurnEffects:
         combat.end_of_turn()
         # Doubt is not ethereal, so it stays in hand
         # It already triggers once, so Weak = 1
-        assert player.powers.get("Weak", 0) == 1
+        assert player.powers.get("Weakened", 0) == 1
         # Simulate next turn - doubt is still there
         combat.end_of_turn()
         # Should have 2 weak from 2 turns
-        assert player.powers.get("Weak", 0) == 2
+        assert player.powers.get("Weakened", 0) == 2
 
     def test_shame_applies_frail_at_end_of_turn(self):
         """Shame applies 1 Frail at end of turn."""
@@ -1063,7 +1063,7 @@ class TestCombinedEndOfTurnScenarios:
         player.add_to_hand(get_card("Shame"))
         combat = MockCombatState(player)
         combat.end_of_turn()
-        assert player.powers.get("Weak", 0) == 1
+        assert player.powers.get("Weakened", 0) == 1
         assert player.powers.get("Frail", 0) == 1
 
 

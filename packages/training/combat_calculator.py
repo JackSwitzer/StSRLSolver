@@ -31,7 +31,7 @@ class Enemy:
     intent_damage: int  # 0 if not attacking
     intent_hits: int    # number of hits
     is_attacking: bool
-    debuffs: Dict[str, int]  # e.g., {"Vulnerable": 2, "Weak": 1}
+    debuffs: Dict[str, int]  # e.g., {"Vulnerable": 2, "Weakened": 1}
 
 
 @dataclass
@@ -262,7 +262,7 @@ class CombatCalculator:
                     dmg = int(dmg * 1.5)
 
                 # Adjust for weak on enemy
-                if enemy.debuffs.get("Weak", 0) > 0:
+                if enemy.debuffs.get("Weakened", 0) > 0:
                     dmg = int(dmg * 0.75)
 
                 total += dmg

@@ -383,7 +383,7 @@ class EffectContext:
         # Get player modifiers
         strength = player.statuses.get("Strength", 0)
         vigor = player.statuses.get("Vigor", 0)
-        weak = player.statuses.get("Weak", 0) > 0
+        weak = player.statuses.get("Weakened", 0) > 0
 
         # Get stance multiplier
         stance = self.state.stance

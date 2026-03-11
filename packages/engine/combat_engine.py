@@ -605,7 +605,7 @@ class CombatEngine:
         if enemy.move_damage > 0:
             # Use float math throughout, floor only at end (Java parity)
             base_damage = float(enemy.move_damage + enemy_strength)
-            if enemy.statuses.get("Weakened", 0) > 0 or enemy.statuses.get("Weak", 0) > 0:
+            if enemy.statuses.get("Weakened", 0) > 0:
                 weak_mult = WEAK_MULT
                 if "Paper Crane" in self.state.relics:
                     weak_mult = 0.60  # Paper Crane: 40% reduction
@@ -755,7 +755,7 @@ class CombatEngine:
             if "strength" in effects:
                 enemy.statuses["Strength"] = enemy.statuses.get("Strength", 0) + effects["strength"]
             if "weak" in effects:
-                self._apply_debuff_to_player("Weak", effects["weak"])
+                self._apply_debuff_to_player("Weakened", effects["weak"])
             if "vulnerable" in effects:
                 self._apply_debuff_to_player("Vulnerable", effects["vulnerable"])
             if "frail" in effects:
@@ -1287,8 +1287,8 @@ class CombatEngine:
             if enemy.hp > 0:
                 if "apply_weak" in card.effects or "if_last_card_attack_weak" in card.effects:
                     weak_amount = card.magic_number if card.magic_number > 0 else 1
-                    self._apply_status(enemy, "Weak", weak_amount)
-                    effects.append({"type": "debuff", "debuff": "Weak", "amount": weak_amount})
+                    self._apply_status(enemy, "Weakened", weak_amount)
+                    effects.append({"type": "debuff", "debuff": "Weakened", "amount": weak_amount})
                 if "apply_vulnerable" in card.effects or "if_last_card_skill_vulnerable" in card.effects:
                     vuln_amount = card.magic_number if card.magic_number > 0 else 1
                     self._apply_status(enemy, "Vulnerable", vuln_amount)
@@ -1864,7 +1864,7 @@ class CombatEngine:
         # Get player modifiers
         strength = player.statuses.get("Strength", 0) * strength_multiplier
         vigor = player.statuses.get("Vigor", 0)
-        weak = player.statuses.get("Weakened", 0) > 0 or player.statuses.get("Weak", 0) > 0
+        weak = player.statuses.get("Weakened", 0) > 0
 
         # Get stance multiplier
         stance = self._get_stance()
@@ -2125,7 +2125,7 @@ class CombatEngine:
         """Apply status to target using canonical IDs and onApplyPower hooks."""
         resolved_status = resolve_power_id(status)
 
-        if resolved_status in ("Weak", "Weakened", "Vulnerable", "Frail", "Poison", "Constricted"):
+        if resolved_status in ("Weakened", "Vulnerable", "Frail", "Poison", "Constricted"):
             artifact = target.statuses.get("Artifact", 0)
             if artifact > 0:
                 artifact -= 1
@@ -2230,7 +2230,7 @@ class CombatEngine:
             enemy.statuses = dict(real_enemy.state.powers)
 
             # Clear debuffs
-            for debuff in ["Weak", "Vulnerable", "Frail", "Poison"]:
+            for debuff in ["Weakened", "Vulnerable", "Frail", "Poison"]:
                 enemy.statuses.pop(debuff, None)
 
             # Gain phase 2 powers per ascension

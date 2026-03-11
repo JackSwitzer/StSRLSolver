@@ -105,7 +105,7 @@ def player_debuffed():
     """Player with common debuffs (Weak, Vulnerable, Frail)."""
     return EntityState(
         hp=60, max_hp=80, block=0,
-        statuses={"Weak": 2, "Vulnerable": 2, "Frail": 2}
+        statuses={"Weakened": 2, "Vulnerable": 2, "Frail": 2}
     )
 
 
@@ -146,7 +146,7 @@ def louse():
         move_damage=6,
         move_hits=1,
         move_block=0,
-        move_effects={"Weak": 1}
+        move_effects={"Weakened": 1}
     )
 
 

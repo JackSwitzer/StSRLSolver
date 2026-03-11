@@ -289,16 +289,16 @@ class TestFullTurnSimulation:
 
         # Give player some block and statuses
         state.player.block = 15
-        state.player.statuses["Weak"] = 2
+        state.player.statuses["Weakened"] = 2
         state.player.statuses["Vulnerable"] = 1
 
         # End turn effects
         state.player.block = 0  # Block decays
-        state.player.statuses["Weak"] -= 1
+        state.player.statuses["Weakened"] -= 1
         state.player.statuses["Vulnerable"] -= 1
 
         assert state.player.block == 0
-        assert state.player.statuses["Weak"] == 1
+        assert state.player.statuses["Weakened"] == 1
         assert state.player.statuses.get("Vulnerable", 0) == 0
 
     def test_turn_counter_increments(self, basic_combat):

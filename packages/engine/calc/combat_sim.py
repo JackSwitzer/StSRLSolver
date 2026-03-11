@@ -580,7 +580,7 @@ class CombatSimulator:
         # Get player modifiers
         strength = state.player.statuses.get("Strength", 0)
         vigor = state.player.statuses.get("Vigor", 0)
-        weak = state.player.statuses.get("Weak", 0) > 0 or state.player.statuses.get("Weakened", 0) > 0
+        weak = state.player.statuses.get("Weakened", 0) > 0
 
         # Get stance multiplier
         stance_id = self._get_stance_id(state.stance)

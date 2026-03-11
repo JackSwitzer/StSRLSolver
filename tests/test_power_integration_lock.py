@@ -398,7 +398,7 @@ class TestPowerCardInteractions:
             hand=["Strike_P"],
             deck=["Strike_P"] * 5,
             enemies=[enemy],
-            player_statuses={"Weak": 2},
+            player_statuses={"Weakened": 2},
         )
         engine = _make_engine(state)
 
@@ -713,7 +713,7 @@ class TestMultiPowerStacking:
             hand=["Strike_P"],
             deck=["Strike_P"] * 5,
             enemies=[enemy],
-            player_statuses={"Strength": 3, "Weak": 2},
+            player_statuses={"Strength": 3, "Weakened": 2},
             stance="Wrath",
         )
         engine = _make_engine(state)

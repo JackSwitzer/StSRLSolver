@@ -7,7 +7,7 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ```
 packages/engine/     # Pure Python game engine (source of truth)
 packages/parity/     # Seed catalog + parity verification tools
-tests/               # 4500+ tests (pytest)
+tests/               # 5978 tests (pytest)
 mod/                 # Java EVTracker mod
 decompiled/          # Java source reference
 docs/vault/          # Game mechanics ground truth
@@ -16,12 +16,12 @@ docs/                # ARCHITECTURE.md
 
 ## Testing
 ```bash
-uv run pytest tests/ -q              # Run all 4500+ tests
+uv run pytest tests/ -q              # Run all 5978 tests
 uv run pytest tests/test_parity.py   # Parity verification
-uv run pytest tests/ --cov=packages/engine  # Coverage (~68%)
+uv run pytest tests/ --cov=packages/engine  # Coverage (~76%)
 ```
 
-## Java Parity Status (Verified 2026-02-04)
+## Java Parity Status (Last Updated 2026-03-11)
 
 ### Core Mechanics (100% Parity)
 | Domain | Status | Notes |

@@ -476,7 +476,7 @@ class TestEffectExecutor:
 
     def test_weak_reduces_damage(self):
         enemy = make_enemy(hp=100)
-        state = make_state(enemies=[enemy], energy=3, player_statuses={"Weak": 2})
+        state = make_state(enemies=[enemy], energy=3, player_statuses={"Weakened": 2})
         card = get_card("Strike_P")
         executor = EffectExecutor(state)
         result = executor.play_card(card, target_idx=0)

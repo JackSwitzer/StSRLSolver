@@ -80,7 +80,7 @@ class EntityState:
 
     @property
     def is_weak(self) -> bool:
-        return self.statuses.get("Weak", 0) > 0
+        return self.statuses.get("Weakened", 0) > 0
 
     @property
     def is_vulnerable(self) -> bool:

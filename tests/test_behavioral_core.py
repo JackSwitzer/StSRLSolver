@@ -384,7 +384,7 @@ class TestStatusEffects:
         normal_damage = hp_before - enemy.hp
 
         # Apply weak to player and deal again
-        engine.state.player.statuses["Weak"] = 3
+        engine.state.player.statuses["Weakened"] = 3
         hp_before = enemy.hp
         idx = _find_card_in_hand(engine, "Strike_P")
         engine.play_card(idx, target_index=0)
@@ -439,7 +439,7 @@ class TestStatusEffects:
         ctx = EffectContext(state=engine.state, target=enemy)
         ctx.apply_status_to_enemy(enemy, "Weak", 2)
 
-        assert enemy.statuses.get("Weak", 0) == 0, "Artifact should block Weak"
+        assert enemy.statuses.get("Weakened", 0) == 0, "Artifact should block Weak"
         assert enemy.statuses.get("Artifact", 0) == 0, "Artifact counter should decrement"
 
 

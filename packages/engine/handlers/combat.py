@@ -377,7 +377,7 @@ class CombatRunner:
     def _calculate_player_damage(self, base: int, target: Optional[EnemyCombatState]) -> int:
         strength = self.state.player.statuses.get("Strength", 0)
         vigor = self.state.player.statuses.get("Vigor", 0)
-        weak = self.state.player.statuses.get("Weak", 0) > 0
+        weak = self.state.player.statuses.get("Weakened", 0) > 0
         vuln = bool(target and target.statuses.get("Vulnerable", 0) > 0)
 
         # Pen Nib compatibility behavior: every 10th attack doubles damage.

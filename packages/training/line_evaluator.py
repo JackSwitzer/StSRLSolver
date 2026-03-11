@@ -532,7 +532,7 @@ def simulate_from_engine(engine: Any) -> Tuple[SimulatedPlayer, List[SimulatedEn
         strength=player.statuses.get("Strength", 0),
         dexterity=player.statuses.get("Dexterity", 0),
         vulnerable=player.statuses.get("Vulnerable", 0),
-        weak=player.statuses.get("Weak", 0),
+        weak=player.statuses.get("Weakened", 0),
     )
 
     sim_enemies = []
@@ -551,7 +551,7 @@ def simulate_from_engine(engine: Any) -> Tuple[SimulatedPlayer, List[SimulatedEn
             intent_hits=move_hits,
             is_attacking=is_attacking,
             vulnerable=e.statuses.get("Vulnerable", 0),
-            weak=e.statuses.get("Weak", 0),
+            weak=e.statuses.get("Weakened", 0),
         ))
 
     hand = [{"id": card_id} for card_id in state.hand]
