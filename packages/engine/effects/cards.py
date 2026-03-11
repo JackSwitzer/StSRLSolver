@@ -174,13 +174,6 @@ def gain_block_effect(ctx: EffectContext, amount: int) -> None:
     ctx.gain_block(amount)
 
 
-@effect_simple("gain_block_2")
-def gain_block_2(ctx: EffectContext) -> None:
-    """Gain 2 block (Just Lucky)."""
-    amount = 3 if ctx.is_upgraded else 2
-    ctx.gain_block(amount)
-
-
 # =============================================================================
 # Stance Effects
 # =============================================================================
@@ -233,13 +226,6 @@ def gain_mantra_2(ctx: EffectContext) -> None:
     ctx.gain_mantra(amount)
 
 
-@effect_simple("gain_mantra_3")
-def gain_mantra_3(ctx: EffectContext) -> None:
-    """Gain 3 mantra (Pray base)."""
-    amount = 4 if ctx.is_upgraded else 3
-    ctx.gain_mantra(amount)
-
-
 @effect_simple("gain_mantra_5")
 def gain_mantra_5(ctx: EffectContext) -> None:
     """Gain 5 mantra (Worship base)."""
@@ -255,12 +241,6 @@ def gain_mantra_5(ctx: EffectContext) -> None:
 def scry_effect(ctx: EffectContext) -> None:
     """Scry using card's magic number."""
     amount = ctx.magic_number if ctx.magic_number > 0 else 1
-    ctx.scry(amount)
-
-
-@effect("scry_n")
-def scry_n_effect(ctx: EffectContext, amount: int) -> None:
-    """Scry X cards - look at top X cards and discard any."""
     ctx.scry(amount)
 
 
@@ -332,13 +312,6 @@ def apply_dexterity_effect(ctx: EffectContext, amount: int) -> None:
     ctx.apply_status_to_player("Dexterity", amount)
 
 
-@effect_simple("apply_weak_1")
-def apply_weak_1(ctx: EffectContext) -> None:
-    """Apply 1 Weak to target (Sash Whip conditional)."""
-    amount = 2 if ctx.is_upgraded else 1
-    ctx.apply_status_to_target("Weak", amount)
-
-
 @effect_simple("apply_vulnerable_1")
 def apply_vulnerable_1(ctx: EffectContext) -> None:
     """Apply 1 Vulnerable to target (Crush Joints conditional)."""
@@ -350,25 +323,12 @@ def apply_vulnerable_1(ctx: EffectContext) -> None:
 # Card Generation Effects
 # =============================================================================
 
-@effect_simple("add_miracle_to_hand")
-def add_miracle_to_hand(ctx: EffectContext) -> None:
-    """Add a Miracle to hand (Pure Water relic)."""
-    card_id = "Miracle+" if ctx.is_upgraded else "Miracle"
-    ctx.add_card_to_hand(card_id)
-
 
 @effect_simple("add_insight_to_draw")
 def add_insight_to_draw(ctx: EffectContext) -> None:
     """Add an Insight to top of draw pile (Evaluate)."""
     card_id = "Insight+" if ctx.is_upgraded else "Insight"
     ctx.add_card_to_draw_pile(card_id, "top")
-
-
-@effect_simple("add_insight_to_draw_random")
-def add_insight_to_draw_random(ctx: EffectContext) -> None:
-    """Add an Insight to draw pile at random position (Pray)."""
-    card_id = "Insight+" if ctx.is_upgraded else "Insight"
-    ctx.add_card_to_draw_pile(card_id, "random")
 
 
 @effect_simple("add_smite_to_hand")
@@ -1160,22 +1120,6 @@ def fasting_effect(ctx: EffectContext) -> None:
     ctx.apply_status_to_player("Dexterity", amount)
     # EnergyDownPower: lose 1 energy at start of each turn
     ctx.apply_status_to_player("EnergyDownPower", 1)
-
-
-# =============================================================================
-# HAND OF GREED (Missing Attack)
-# =============================================================================
-
-@effect_simple("hand_of_greed")
-def hand_of_greed_effect(ctx: EffectContext) -> None:
-    """
-    Hand of Greed - deal damage, gain gold if fatal.
-
-    20/25 damage, gain 20/25 gold on kill.
-    """
-    # Damage is handled by base_damage
-    # Gold tracking for kills
-    ctx.extra_data["hand_of_greed_gold"] = 25 if ctx.is_upgraded else 20
 
 
 # =============================================================================

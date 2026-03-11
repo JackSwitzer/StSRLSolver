@@ -847,7 +847,7 @@ def effect_simple(name: str):
 
 
 def effect_custom(name: str, pattern: str, param_types: List[type] = None):
-    """
+    r"""
     Decorator for effects with custom patterns.
 
     Args:
