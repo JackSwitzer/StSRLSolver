@@ -203,7 +203,7 @@ class TestPoisonBehavior:
         execute_effect("apply_weak_2_all", ctx)
         for e in state.enemies:
             assert e.statuses.get("Poison", 0) == 4
-            assert e.statuses.get("Weak", 0) == 2
+            assert e.statuses.get("Weakened", 0) == 2
 
     def test_corpse_explosion_applies_poison_and_power(self):
         """Corpse Explosion: apply 6 Poison + CorpseExplosion to target."""
@@ -562,7 +562,7 @@ class TestXCostBehavior:
         ctx = make_ctx(state, card, state.enemies[0], 0)
         ctx.energy_spent = 3
         execute_effect("apply_weak_x", ctx)
-        assert state.enemies[0].statuses.get("Weak", 0) == 3
+        assert state.enemies[0].statuses.get("Weakened", 0) == 3
 
     def test_malaise_applies_strength_down_x(self):
         """Malaise: apply X Strength down to target."""
@@ -580,7 +580,7 @@ class TestXCostBehavior:
         ctx = make_ctx(state, card, state.enemies[0], 0)
         ctx.energy_spent = 3
         execute_effect("apply_weak_x", ctx)
-        assert state.enemies[0].statuses.get("Weak", 0) == 4  # X+1
+        assert state.enemies[0].statuses.get("Weakened", 0) == 4  # X+1
 
     def test_doppelganger_draws_and_energy_next_turn(self):
         """Doppelganger: draw X and gain X energy next turn."""
@@ -875,7 +875,7 @@ class TestConditionalBehavior:
             draw_pile=["Strike_G"],
             energy=0,
         )
-        state.enemies[0].statuses["Weak"] = 2
+        state.enemies[0].statuses["Weakened"] = 2
         card = get_card("Heel Hook")
         ctx = make_ctx(state, card, state.enemies[0], 0)
         execute_effect("if_target_weak_gain_energy_draw", ctx)
@@ -1131,7 +1131,7 @@ class TestFullPlayIntegration:
         assert result.success
         assert result.energy_spent == 0  # 0 cost
         assert enemy.hp < 50  # Dealt damage
-        assert enemy.statuses.get("Weak", 0) == 1
+        assert enemy.statuses.get("Weakened", 0) == 1
 
     def test_play_bane_on_poisoned_target(self):
         """Bane: full play with poisoned target deals double damage."""

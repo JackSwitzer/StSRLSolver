@@ -2899,7 +2899,7 @@ def deal_damage_per_card_played(ctx: EffectContext) -> None:
 @effect_simple("if_target_weak_gain_energy_draw")
 def if_target_weak_gain_energy_draw(ctx: EffectContext) -> None:
     """If target is Weak, gain energy and draw (Heel Hook)."""
-    if ctx.target and ctx.target.statuses.get("Weak", 0) > 0:
+    if ctx.target and (ctx.target.statuses.get("Weakened", 0) > 0 or ctx.target.statuses.get("Weak", 0) > 0):
         ctx.gain_energy(1)
         ctx.draw_cards(1)
 

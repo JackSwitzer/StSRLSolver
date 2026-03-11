@@ -466,9 +466,12 @@ class EffectContext:
         if enemy.is_dead:
             return False
 
+        # Normalize Weak → Weakened (Java canonical ID)
+        resolved = "Weakened" if status == "Weak" else status
+
         # Check Artifact for debuffs
-        debuffs = {"Weak", "Vulnerable", "Frail", "Poison", "Mark", "Constricted"}
-        if status in debuffs:
+        debuffs = {"Weakened", "Vulnerable", "Frail", "Poison", "Mark", "Constricted"}
+        if resolved in debuffs:
             artifact = enemy.statuses.get("Artifact", 0)
             if artifact > 0:
                 enemy.statuses["Artifact"] = artifact - 1
@@ -476,9 +479,9 @@ class EffectContext:
                     del enemy.statuses["Artifact"]
                 return False  # Blocked by artifact
 
-        current = enemy.statuses.get(status, 0)
-        enemy.statuses[status] = current + amount
-        self.statuses_applied.append((enemy.id, status, amount))
+        current = enemy.statuses.get(resolved, 0)
+        enemy.statuses[resolved] = current + amount
+        self.statuses_applied.append((enemy.id, resolved, amount))
         return True
 
     def apply_status_to_all_enemies(self, status: str, amount: int) -> int:
@@ -491,9 +494,12 @@ class EffectContext:
 
     def apply_status_to_player(self, status: str, amount: int) -> bool:
         """Apply a status effect to the player."""
+        # Normalize Weak → Weakened (Java canonical ID)
+        resolved = "Weakened" if status == "Weak" else status
+
         # Check Artifact for debuffs
-        debuffs = {"Weak", "Vulnerable", "Frail", "Poison", "Constricted"}
-        if status in debuffs:
+        debuffs = {"Weakened", "Vulnerable", "Frail", "Poison", "Constricted"}
+        if resolved in debuffs:
             artifact = self.state.player.statuses.get("Artifact", 0)
             if artifact > 0:
                 self.state.player.statuses["Artifact"] = artifact - 1
@@ -501,9 +507,9 @@ class EffectContext:
                     del self.state.player.statuses["Artifact"]
                 return False  # Blocked by artifact
 
-        current = self.state.player.statuses.get(status, 0)
-        self.state.player.statuses[status] = current + amount
-        self.statuses_applied.append(("player", status, amount))
+        current = self.state.player.statuses.get(resolved, 0)
+        self.state.player.statuses[resolved] = current + amount
+        self.statuses_applied.append(("player", resolved, amount))
         return True
 
     def remove_status_from_player(self, status: str) -> int:

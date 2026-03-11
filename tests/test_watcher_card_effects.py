@@ -469,8 +469,8 @@ class TestStatusEffects:
 
     def test_apply_weak_to_target(self, ctx_basic):
         """Apply Weak to target."""
-        ctx_basic.apply_status_to_target("Weak", 2)
-        assert ctx_basic.target.statuses.get("Weak") == 2
+        ctx_basic.apply_status_to_target("Weakened", 2)
+        assert ctx_basic.target.statuses.get("Weakened") == 2
 
     def test_apply_vulnerable_to_target(self, ctx_basic):
         """Apply Vulnerable to target."""
@@ -502,9 +502,9 @@ class TestStatusEffects:
     def test_artifact_blocks_debuff(self, ctx_basic):
         """Artifact blocks debuff application."""
         ctx_basic.target.statuses["Artifact"] = 1
-        result = ctx_basic.apply_status_to_target("Weak", 2)
+        result = ctx_basic.apply_status_to_target("Weakened", 2)
         assert result == False
-        assert ctx_basic.target.statuses.get("Weak", 0) == 0
+        assert ctx_basic.target.statuses.get("Weakened", 0) == 0
         assert ctx_basic.target.statuses.get("Artifact", 0) == 0
 
 
@@ -534,7 +534,7 @@ class TestConditionalLastCardEffects:
         ctx_basic.extra_data["last_card_type"] = "ATTACK"
         ctx_basic.is_upgraded = False
         execute_effect("if_last_card_attack_weak", ctx_basic)
-        assert ctx_basic.target.statuses.get("Weak") == 1
+        assert ctx_basic.target.statuses.get("Weakened") == 1
 
     def test_crush_joints_vulnerable_after_skill(self, ctx_basic):
         """Crush Joints applies Vulnerable if last card was Skill."""

@@ -739,13 +739,13 @@ class TestIntimidate:
         state = make_state(enemies=enemies)
         play_card(state, "Intimidate", free=True)
         for enemy in state.enemies:
-            assert enemy.statuses.get("Weak", 0) >= 1
+            assert enemy.statuses.get("Weakened", 0) >= 1
 
     def test_intimidate_upgraded_applies_2_weak(self):
         enemies = [create_enemy("E1", hp=50, max_hp=50)]
         state = make_state(enemies=enemies)
         play_card(state, "Intimidate", upgraded=True, free=True)
-        assert state.enemies[0].statuses.get("Weak", 0) == 2
+        assert state.enemies[0].statuses.get("Weakened", 0) == 2
 
 
 # =============================================================================
@@ -1076,14 +1076,14 @@ class TestShockwave:
         state = make_state(enemies=enemies)
         play_card(state, "Shockwave", free=True)
         for enemy in state.enemies:
-            assert enemy.statuses.get("Weak", 0) >= 3
+            assert enemy.statuses.get("Weakened", 0) >= 3
             assert enemy.statuses.get("Vulnerable", 0) >= 3
 
     def test_shockwave_upgraded_applies_5(self):
         enemies = [create_enemy("E1", hp=50, max_hp=50)]
         state = make_state(enemies=enemies)
         play_card(state, "Shockwave", upgraded=True, free=True)
-        assert state.enemies[0].statuses.get("Weak", 0) == 5
+        assert state.enemies[0].statuses.get("Weakened", 0) == 5
         assert state.enemies[0].statuses.get("Vulnerable", 0) == 5
 
 
@@ -1169,13 +1169,13 @@ class TestUppercut:
     def test_uppercut_applies_weak_and_vulnerable(self):
         state = make_state()
         play_card(state, "Uppercut", target_idx=0, free=True)
-        assert state.enemies[0].statuses.get("Weak", 0) >= 1
+        assert state.enemies[0].statuses.get("Weakened", 0) >= 1
         assert state.enemies[0].statuses.get("Vulnerable", 0) >= 1
 
     def test_uppercut_upgraded_applies_2(self):
         state = make_state()
         play_card(state, "Uppercut", target_idx=0, upgraded=True, free=True)
-        assert state.enemies[0].statuses.get("Weak", 0) == 2
+        assert state.enemies[0].statuses.get("Weakened", 0) == 2
         assert state.enemies[0].statuses.get("Vulnerable", 0) == 2
 
 

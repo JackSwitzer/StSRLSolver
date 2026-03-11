@@ -586,27 +586,14 @@ class CombatEngine:
                     self._end_combat(player_won=False)
                     return
 
-        # Decrement enemy debuffs
-        for enemy in self.state.enemies:
-            if enemy.hp <= 0 or enemy.is_escaping:
-                continue
-            for debuff in ["Vulnerable", "Weak", "Frail"]:
-                if enemy.statuses.get(debuff, 0) > 0:
-                    enemy.statuses[debuff] -= 1
-                    if enemy.statuses[debuff] <= 0:
-                        del enemy.statuses[debuff]
+        # NOTE: Debuff decrement (Weakened/Vulnerable/Frail) is handled by
+        # registry power triggers at atEndOfRound (powers.py:463-487).
+        # Do NOT also decrement here — that would double-decrement.
 
         # Roll next moves
         for enemy in self.state.enemies:
             if enemy.hp > 0 and not enemy.is_escaping:
                 self._roll_enemy_move(enemy)
-
-        # Decrement player debuffs
-        for debuff in ["Weak", "Vulnerable", "Frail"]:
-            if self.state.player.statuses.get(debuff, 0) > 0:
-                self.state.player.statuses[debuff] -= 1
-                if self.state.player.statuses[debuff] <= 0:
-                    del self.state.player.statuses[debuff]
 
     def _execute_enemy_move(self, enemy: EnemyCombatState):
         """Execute a single enemy's move."""
@@ -626,7 +613,7 @@ class CombatEngine:
         if enemy.move_damage > 0:
             # Use float math throughout, floor only at end (Java parity)
             base_damage = float(enemy.move_damage + enemy_strength)
-            if enemy.statuses.get("Weak", 0) > 0:
+            if enemy.statuses.get("Weakened", 0) > 0 or enemy.statuses.get("Weak", 0) > 0:
                 weak_mult = WEAK_MULT
                 if "Paper Crane" in self.state.relics:
                     weak_mult = 0.60  # Paper Crane: 40% reduction
@@ -2097,7 +2084,7 @@ class CombatEngine:
         # Get player modifiers
         strength = player.statuses.get("Strength", 0) * strength_multiplier
         vigor = player.statuses.get("Vigor", 0)
-        weak = player.statuses.get("Weak", 0) > 0
+        weak = player.statuses.get("Weakened", 0) > 0 or player.statuses.get("Weak", 0) > 0
 
         # Get stance multiplier
         stance = self._get_stance()
@@ -2364,7 +2351,7 @@ class CombatEngine:
         """Apply status to target using canonical IDs and onApplyPower hooks."""
         resolved_status = resolve_power_id(status)
 
-        if resolved_status in ("Weak", "Vulnerable", "Frail", "Poison", "Constricted"):
+        if resolved_status in ("Weak", "Weakened", "Vulnerable", "Frail", "Poison", "Constricted"):
             artifact = target.statuses.get("Artifact", 0)
             if artifact > 0:
                 artifact -= 1

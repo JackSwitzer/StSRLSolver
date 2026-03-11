@@ -352,7 +352,7 @@ class CombatRunner:
             and self.state.has_relic("Champion Belt")
             and target.statuses.get("Vulnerable", 0) > vulnerable_before
         ):
-            target.statuses["Weak"] = target.statuses.get("Weak", 0) + 1
+            target.statuses["Weakened"] = target.statuses.get("Weakened", 0) + 1
 
         self._sync_runtime_state()
 

@@ -98,7 +98,7 @@ def test_champions_belt_applies_weak_with_vulnerable():
 
     # Should also have Weak
     assert enemy.statuses.get("Vulnerable", 0) == 2
-    assert enemy.statuses.get("Weak", 0) == 1
+    assert enemy.statuses.get("Weakened", 0) == 1
 
 
 def test_fossilized_helix_prevents_first_damage():

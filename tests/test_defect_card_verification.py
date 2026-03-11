@@ -723,19 +723,19 @@ class TestConditionalCards:
         combat.enemies[0].move_damage = 10
         ctx = make_ctx(combat, "Go for the Eyes")
         execute_effect("if_attacking_apply_weak", ctx)
-        assert combat.enemies[0].statuses.get("Weak", 0) == 1
+        assert combat.enemies[0].statuses.get("Weakened", 0) == 1
 
     def test_go_for_the_eyes_no_weak_if_not_attacking(self, combat):
         combat.enemies[0].move_damage = 0
         ctx = make_ctx(combat, "Go for the Eyes")
         execute_effect("if_attacking_apply_weak", ctx)
-        assert combat.enemies[0].statuses.get("Weak", 0) == 0
+        assert combat.enemies[0].statuses.get("Weakened", 0) == 0
 
     def test_go_for_the_eyes_upgraded_2_weak(self, combat):
         combat.enemies[0].move_damage = 10
         ctx = make_ctx(combat, "Go for the Eyes", upgraded=True)
         execute_effect("if_attacking_apply_weak", ctx)
-        assert combat.enemies[0].statuses.get("Weak", 0) == 2
+        assert combat.enemies[0].statuses.get("Weakened", 0) == 2
 
     def test_ftl_draws_if_under_threshold(self, combat):
         combat.cards_played_this_turn = 1

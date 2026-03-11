@@ -236,16 +236,16 @@ class TestEffectContext:
         enemy = make_enemy()
         state = make_state(enemies=[enemy])
         ctx = make_ctx(state=state, target=enemy, target_idx=0)
-        ctx.apply_status_to_target("Weak", 2)
-        assert enemy.statuses["Weak"] == 2
+        ctx.apply_status_to_target("Weakened", 2)
+        assert enemy.statuses["Weakened"] == 2
 
     def test_apply_status_blocked_by_artifact(self):
         enemy = make_enemy(statuses={"Artifact": 1})
         state = make_state(enemies=[enemy])
         ctx = make_ctx(state=state, target=enemy, target_idx=0)
-        result = ctx.apply_status_to_target("Weak", 2)
+        result = ctx.apply_status_to_target("Weakened", 2)
         assert result is False
-        assert "Weak" not in enemy.statuses
+        assert "Weakened" not in enemy.statuses
 
     def test_apply_status_to_player(self):
         state = make_state()
@@ -708,7 +708,7 @@ class TestCardEffects:
         state = make_state(enemies=[enemy])
         ctx = make_ctx(state=state, target=enemy, target_idx=0)
         execute_effect("apply_weak_2", ctx)
-        assert enemy.statuses["Weak"] == 2
+        assert enemy.statuses["Weakened"] == 2
 
     def test_apply_vulnerable(self):
         enemy = make_enemy()
@@ -1259,7 +1259,7 @@ class TestCombatRunner:
 
         # Decay (2) + Regret (5 cards in hand at trigger time) = 7 HP loss.
         assert runner.state.player.hp == start_hp - 7
-        assert runner.state.player.statuses.get("Weak", 0) >= 1
+        assert runner.state.player.statuses.get("Weakened", 0) >= 1
         assert runner.state.player.statuses.get("Frail", 0) >= 1
         # Pride should add one extra copy to draw pile.
         assert runner.state.draw_pile.count("Pride") == 1
@@ -1392,7 +1392,7 @@ class TestExecutorSpecialEffects:
         result = EffectResult(success=True)
         handled = executor._handle_special_effect("if_last_card_attack_weak_1", ctx, card, result)
         assert handled is True
-        assert enemy.statuses.get("Weak", 0) > 0
+        assert enemy.statuses.get("Weakened", 0) > 0
 
     def test_gain_block_equal_unblocked_damage(self):
         enemy = make_enemy(hp=50)
