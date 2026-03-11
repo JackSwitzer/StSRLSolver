@@ -833,6 +833,9 @@ class TestPerEnemyBlockDecay:
         state = create_combat_state(player_hp=80, enemies=[e1, e2])
         engine = CombatEngine(state)
         engine.start_combat()
+        # Set move_block after start_combat since _roll_enemy_move overwrites it
+        engine.state.enemies[0].move_block = 5
+        engine.state.enemies[1].move_block = 8
         engine.end_turn()
         # Both should have had block reset to 0, then gained from move_block
         assert engine.state.enemies[0].block == 5
@@ -1150,6 +1153,9 @@ class TestEnemyMetallicize:
         state = create_combat_state(player_hp=80, enemies=[enemy])
         engine = CombatEngine(state)
         engine.start_combat()
+        # Set move_block after start_combat since _roll_enemy_move overwrites it
+        engine.state.enemies[0].move_block = 10
+        engine.state.enemies[0].move_damage = 0
         engine.end_turn()
         # Block reset to 0, +4 metallicize, +10 from move = 14
         assert engine.state.enemies[0].block >= 14

@@ -122,10 +122,6 @@ class CombatLog:
         """Add a log entry."""
         self.entries.append(CombatLogEntry(turn=turn, event_type=event_type, data=data))
 
-    def get_events(self, event_type: str) -> List[CombatLogEntry]:
-        """Get all events of a specific type."""
-        return [e for e in self.entries if e.event_type == event_type]
-
 
 # =============================================================================
 # COMBAT ENGINE
@@ -372,7 +368,6 @@ class CombatEngine:
         # Draw power (positive) and Draw Reduction (negative)
         draw_count += self.state.player.statuses.get("Draw", 0)
         draw_count -= self.state.player.statuses.get("Draw Reduction", 0)
-        draw_count -= self.state.player.statuses.get("DrawReduction", 0)
 
         # DrawCardNextTurn: temporary bonus from previous turn
         next_turn_draw = self.state.player.statuses.get("DrawCardNextTurn", 0)
@@ -380,10 +375,7 @@ class CombatEngine:
             draw_count += next_turn_draw
             self.state.player.statuses["DrawCardNextTurn"] = 0
 
-        no_draw = (
-            self.state.player.statuses.get("NoDraw", 0)
-            or self.state.player.statuses.get("No Draw", 0)
-        )
+        no_draw = self.state.player.statuses.get("NoDraw", 0)
         if no_draw > 0:
             draw_count = 0
 
@@ -415,10 +407,6 @@ class CombatEngine:
         # Defect orb passives trigger at start of turn; Cables bonus is handled
         # by its dedicated relic trigger.
         trigger_orb_start_of_turn(self.state, include_cables=False)
-
-    def start_turn(self):
-        """Public interface for starting a new player turn."""
-        self._start_player_turn()
 
     def end_turn(self):
         """End the player's turn.
@@ -885,194 +873,13 @@ class CombatEngine:
                     return
                 break
 
-        roll = self.ai_rng.random(99) if hasattr(self.ai_rng, 'random') else (
-            (self.state.turn * 17 + hash(enemy.id) + len(enemy.move_history)) % 100
-        )
-
-        enemy_id = enemy.id
-
-        # =====================================================================
-        # Jaw Worm: Turn 1 = Chomp. Then cycles Bellow -> Thrash -> repeat
-        # =====================================================================
-        if enemy_id == "JawWorm":
-            if enemy.first_turn:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Chomp", intent=Intent.ATTACK, base_damage=11))
-            else:
-                last = enemy.move_history[-1] if enemy.move_history else 1
-                if last == 1 or last == 3:
-                    # Bellow: +3 str, +6 block
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=2, name="Bellow", intent=Intent.DEFEND_BUFF,
-                        block=6, effects={"strength": 3}))
-                elif last == 2:
-                    # Thrash: 7 dmg + 5 block
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=3, name="Thrash", intent=Intent.ATTACK_DEFEND,
-                        base_damage=7, block=5))
-            return
-
-        # =====================================================================
-        # Cultist: Turn 1 = Incantation (Ritual). Then always Dark Strike
-        # =====================================================================
-        if enemy_id == "Cultist":
-            if enemy.first_turn:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Incantation", intent=Intent.BUFF,
-                    effects={"ritual": 3}))
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Dark Strike", intent=Intent.ATTACK,
-                    base_damage=6))
-            return
-
-        # =====================================================================
-        # Red Louse / Green Louse: Random Bite (5-7 dmg) or Grow/Spit
-        # =====================================================================
-        if enemy_id in ("LouseRed", "Louse (Red)", "RedLouse"):
-            if roll < 50:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Bite", intent=Intent.ATTACK,
-                    base_damage=5 + (roll % 3)))  # 5-7
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Grow", intent=Intent.BUFF,
-                    effects={"strength": 3}))
-            return
-
-        if enemy_id in ("LouseGreen", "Louse (Green)", "GreenLouse"):
-            if roll < 50:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Bite", intent=Intent.ATTACK,
-                    base_damage=5 + (roll % 3)))  # 5-7
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Spit Web", intent=Intent.DEBUFF,
-                    effects={"weak": 2}))
-            return
-
-        # =====================================================================
-        # Gremlin Nob: Turn 1 = Rush. If player played Skill -> Skull Bash.
-        #              Else Bellow (+2 str)
-        # =====================================================================
-        if enemy_id in ("GremlinNob", "Gremlin Nob"):
-            if enemy.first_turn:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Rush", intent=Intent.ATTACK, base_damage=14))
-            elif self.state.skills_played_this_turn > 0:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Skull Bash", intent=Intent.ATTACK_DEBUFF,
-                    base_damage=6, effects={"vulnerable": 2}))
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=3, name="Bellow", intent=Intent.BUFF,
-                    effects={"strength": 2}))
-            return
-
-        # =====================================================================
-        # Lagavulin: Sleeps 3 turns (8 block each). Then cycles Attack / Siphon
-        # =====================================================================
-        if enemy_id in ("Lagavulin",):
-            turn_count = len(enemy.move_history)
-            if turn_count < 3:
-                # Sleeping
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Sleep", intent=Intent.SLEEP, block=8))
-            else:
-                last = enemy.move_history[-1] if enemy.move_history else 1
-                if last != 2:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=2, name="Attack", intent=Intent.ATTACK,
-                        base_damage=18))
-                else:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=3, name="Siphon Soul", intent=Intent.STRONG_DEBUFF,
-                        effects={"player_strength": -1, "player_dexterity": -1}))
-            return
-
-        # =====================================================================
-        # Sentry: Cycles Bolt (9 dmg) and Beam (9 dmg + Dazed to discard)
-        # =====================================================================
-        if enemy_id in ("Sentry",):
-            last = enemy.move_history[-1] if enemy.move_history else 0
-            if last != 1:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Bolt", intent=Intent.ATTACK, base_damage=9))
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Beam", intent=Intent.ATTACK,
-                    base_damage=9, effects={"add_dazed": 1}))
-            return
-
-        # =====================================================================
-        # Slime Boss: Slam (35 dmg) then Slime. On half HP, splits.
-        # =====================================================================
-        if enemy_id in ("SlimeBoss", "Slime Boss"):
-            last = enemy.move_history[-1] if enemy.move_history else 0
-            if last != 1:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Slam", intent=Intent.ATTACK, base_damage=35))
-            else:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Slime", intent=Intent.STRONG_DEBUFF,
-                    effects={"slimed": 3}))
-            return
-
-        # =====================================================================
-        # Hexaghost: Turn 1 = Activate, Turn 2 = Divider (6x), then cycles
-        # =====================================================================
-        if enemy_id in ("Hexaghost",):
-            turn_count = len(enemy.move_history)
-            if turn_count == 0:
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=1, name="Activate", intent=Intent.BUFF))
-            elif turn_count == 1:
-                # Divider: 6 hits, damage based on player HP / 12 + 1
-                div_damage = max(1, self.state.player.hp // 12 + 1)
-                self._set_enemy_move(enemy, MoveInfo(
-                    move_id=2, name="Divider", intent=Intent.ATTACK,
-                    base_damage=div_damage, hits=6, is_multi=True))
-            else:
-                # Cycle through attack patterns
-                cycle_pos = (turn_count - 2) % 4
-                if cycle_pos == 0:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=3, name="Sear", intent=Intent.ATTACK,
-                        base_damage=6, effects={"add_burn": 1}))
-                elif cycle_pos == 1:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=4, name="Tackle", intent=Intent.ATTACK_DEBUFF,
-                        base_damage=5, hits=2, is_multi=True))
-                elif cycle_pos == 2:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=5, name="Sear", intent=Intent.ATTACK,
-                        base_damage=6, effects={"add_burn": 1}))
-                else:
-                    self._set_enemy_move(enemy, MoveInfo(
-                        move_id=6, name="Inferno", intent=Intent.ATTACK,
-                        base_damage=2, hits=6, is_multi=True,
-                        effects={"add_burn": 3}))
-            return
-
-        # =====================================================================
-        # Default fallback: cycle through existing move data on the enemy
-        # =====================================================================
-        last_move = enemy.move_history[-1] if enemy.move_history else 0
-        # Use whatever move data is already on the enemy, alternating
-        if enemy.move_damage > 0 and last_move != 2:
-            self._set_enemy_move(enemy, MoveInfo(
-                move_id=2, name="Attack", intent=Intent.ATTACK,
-                base_damage=enemy.move_damage))
-        elif enemy.move_block > 0:
-            self._set_enemy_move(enemy, MoveInfo(
-                move_id=1, name="Defend", intent=Intent.DEFEND,
-                block=enemy.move_block))
-        else:
-            # Absolute fallback: basic attack
-            damage = enemy.move_damage if enemy.move_damage > 0 else 6
-            self._set_enemy_move(enemy, MoveInfo(
-                move_id=2, name="Attack", intent=Intent.ATTACK,
-                base_damage=damage))
+        # No real Enemy object available — use a basic attack fallback.
+        # Production code always provides real Enemy objects via
+        # create_combat_from_enemies; this only fires for bare test scaffolds.
+        damage = enemy.move_damage if enemy.move_damage > 0 else 6
+        self._set_enemy_move(enemy, MoveInfo(
+            move_id=1, name="Attack", intent=Intent.ATTACK,
+            base_damage=damage))
 
     def _set_enemy_move(self, enemy: EnemyCombatState, move: MoveInfo):
         """Set an enemy's next move."""
@@ -1280,10 +1087,50 @@ class CombatEngine:
                 self.state.energy -= cost
                 self.energy_spent += cost
 
-        # Track card play (Java: incremented during cardQueue processing, before use)
+        # Java parity: onPlayCard hooks fire WHILE card is still in hand
+        # (Java fires p.onPlayCard, r.onPlayCard, stance.onPlayCard before card.use)
+        play_card_data = {"card": card}
+        execute_relic_triggers("onPlayCard", self.state, play_card_data)
+        for enemy in self.state.enemies:
+            if not enemy.is_dead:
+                execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
+        force_exhaust = play_card_data.get("force_exhaust", False)
+
+        # NOW remove from hand (Java: card moves to limbo/cardInUse during use)
+        self.state.hand.pop(hand_index)
+
+        # Execute shared card logic (counters, effects, triggers, destination)
+        self._execute_card_common(card, card_id, target_index, result, force_exhaust=force_exhaust)
+
+        # Log
+        self.log.log(self.state.turn, "play_card",
+                    card=card_id,
+                    target=target_index,
+                    effects=result["effects"])
+
+        return result
+
+    def _execute_card_common(
+        self,
+        card: Card,
+        card_id: str,
+        target_index: int,
+        result: Dict[str, Any],
+        force_exhaust: bool = False,
+    ) -> None:
+        """Execute card effects, triggers, and destination handling.
+
+        Common logic shared between play_card (hand plays) and _autoplay_card
+        (Distilled Chaos / PlayTopCardAction). Callers handle validation,
+        energy payment, hand removal, and onPlayCard triggers before calling
+        this method.
+        """
+        # Track card play counters
         self.state.cards_played_this_turn += 1
         self.state.total_cards_played += 1
-        self.state.last_card_type = card.card_type.value if hasattr(card.card_type, 'value') else str(card.card_type)
+        self.state.last_card_type = (
+            card.card_type.value if hasattr(card.card_type, "value") else str(card.card_type)
+        )
         self.cards_played_sequence.append(card_id)
 
         if card.card_type == CardType.ATTACK:
@@ -1292,28 +1139,6 @@ class CombatEngine:
             self.state.skills_played_this_turn += 1
         elif card.card_type == CardType.POWER:
             self.state.powers_played_this_turn += 1
-
-        # Get target enemy
-        target_enemy = None
-        if 0 <= target_index < len(self.state.enemies):
-            target_enemy = self.state.enemies[target_index]
-            if target_enemy.hp <= 0:
-                target_enemy = None
-
-        # Java parity: onPlayCard hooks fire WHILE card is still in hand
-        # (Java fires p.onPlayCard, r.onPlayCard, stance.onPlayCard before card.use)
-        play_card_data = {"card": card}
-        execute_relic_triggers("onPlayCard", self.state, play_card_data)
-        # Also fire monster power onPlayCard (Java: each monster power gets onPlayCard)
-        for enemy in self.state.enemies:
-            if not enemy.is_dead:
-                execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
-
-        # Collect signals from onPlayCard triggers
-        force_exhaust = play_card_data.get("force_exhaust", False)
-
-        # NOW remove from hand (Java: card moves to limbo/cardInUse during use)
-        self.state.hand.pop(hand_index)
 
         # Apply card effects
         self._apply_card_effects(card, target_index, result)
@@ -1362,12 +1187,6 @@ class CombatEngine:
                 continue
             execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
 
-        # Log
-        self.log.log(self.state.turn, "play_card",
-                    card=card_id,
-                    target=target_index,
-                    effects=result["effects"])
-
         # Time Eater 12-card counter check (after card is played)
         self._check_time_eater_numen()
 
@@ -1377,8 +1196,6 @@ class CombatEngine:
 
         # Check combat end
         self._check_combat_end()
-
-        return result
 
     def _apply_card_effects(self, card: Card, target_index: int, result: Dict):
         """Apply all effects of a card."""
@@ -1925,82 +1742,32 @@ class CombatEngine:
         card = self._get_card(card_id)
         result = {"card": card_id, "target_index": target_index, "effects": [], "played": False}
 
-        # Unplayable cards still move to destination piles but do not execute effects.
+        # Unplayable cards skip all triggers but still go to their destination pile.
         unplayable = card.cost == -2 or "unplayable" in card.effects
 
         if not unplayable:
-            self.state.cards_played_this_turn += 1
-            self.state.total_cards_played += 1
-            self.state.last_card_type = (
-                card.card_type.value if hasattr(card.card_type, "value") else str(card.card_type)
-            )
-            self.cards_played_sequence.append(card_id)
-
-            if card.card_type == CardType.ATTACK:
-                self.state.attacks_played_this_turn += 1
-            elif card.card_type == CardType.SKILL:
-                self.state.skills_played_this_turn += 1
-            elif card.card_type == CardType.POWER:
-                self.state.powers_played_this_turn += 1
-
+            # Fire onPlayCard triggers (card is not in hand for autoplay)
             play_card_data = {"card": card}
             execute_relic_triggers("onPlayCard", self.state, play_card_data)
             for enemy in self.state.enemies:
                 if not enemy.is_dead:
                     execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
+            force_exhaust = play_card_data.get("force_exhaust", False)
 
-            self._apply_card_effects(card, target_index, result)
-
-            use_card_data = {"card": card, "card_id": card.id}
-            execute_power_triggers("onUseCard", self.state, self.state.player, use_card_data)
-
-            # Amplify: replay Power card effects
-            if use_card_data.get("amplify_replay"):
-                self._apply_card_effects(card, target_index, result)
-
-            force_end_turn = False
-            after_use_data = {"card": card, "card_id": card.id}
-            execute_power_triggers("onAfterUseCard", self.state, self.state.player, after_use_data)
-            if after_use_data.get("force_end_turn"):
-                force_end_turn = True
-
-            for enemy in self.state.enemies:
-                if enemy.hp <= 0:
-                    continue
-                enemy_trigger = {"card": card, "card_id": card.id}
-                execute_power_triggers("onAfterUseCard", self.state, enemy, enemy_trigger)
-                if enemy_trigger.get("force_end_turn"):
-                    force_end_turn = True
-
-            after_play_data = {"card": card, "card_id": card.id}
-            execute_power_triggers("onAfterCardPlayed", self.state, self.state.player, after_play_data)
-            for enemy in self.state.enemies:
-                if enemy.hp <= 0:
-                    continue
-                execute_power_triggers("onAfterCardPlayed", self.state, enemy, after_play_data)
-
-            self._check_time_eater_numen()
-            if force_end_turn or "end_turn" in card.effects:
-                self.end_turn()
-
+            # Execute shared card logic (counters, effects, triggers, destination)
+            self._execute_card_common(card, card_id, target_index, result, force_exhaust=force_exhaust)
             result["played"] = True
-
-        # Destination handling mirrors normal card flow.
-        force_exhaust_auto = play_card_data.get("force_exhaust", False) if not unplayable else False
-        if card.exhaust or force_exhaust_auto:
-            self.state.exhaust_pile.append(card_id)
-            if not unplayable:
-                execute_relic_triggers("onExhaust", self.state, {"card": card})
-                execute_power_triggers("onExhaust", self.state, self.state.player, {"card": card})
-                if card.id == "Sentinel":
-                    self.state.energy += 3 if card.upgraded else 2
-        elif card.shuffle_back:
-            pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
-            self.state.draw_pile.insert(pos, card_id)
         else:
-            self.state.discard_pile.append(card_id)
+            # Unplayable: send to destination pile without triggers
+            if card.exhaust:
+                self.state.exhaust_pile.append(card_id)
+            elif card.shuffle_back:
+                pos = self.state.turn % (len(self.state.draw_pile) + 1) if self.state.draw_pile else 0
+                self.state.draw_pile.insert(pos, card_id)
+            else:
+                self.state.discard_pile.append(card_id)
+            self._check_combat_end()
 
-        self._check_combat_end()
         return result
 
     def _play_top_cards_from_draw_pile(self, count: int) -> List[Dict[str, Any]]:
@@ -2333,12 +2100,6 @@ class CombatEngine:
         if potion and potion.target_type == PotionTargetType.ENEMY:
             return "enemy"
         return "self"
-
-    def _has_violet_lotus(self) -> bool:
-        """Check if player has Violet Lotus relic."""
-        return (self.state.relic_counters.get("_violet_lotus", 0) > 0 or
-                self.state.has_relic("Violet Lotus") or
-                self.state.has_relic("VioletLotus"))
 
     def _has_barricade(self) -> bool:
         """Check if player has Barricade (relic or power)."""
@@ -2740,67 +2501,3 @@ def create_simple_combat(
     )
 
     return CombatEngine(state)
-
-
-# =============================================================================
-# TESTING
-# =============================================================================
-
-if __name__ == "__main__":
-    print("=== Combat Engine Test ===\n")
-
-    # Create a simple combat
-    engine = create_simple_combat(
-        enemy_id="JawWorm",
-        enemy_hp=42,
-        enemy_damage=11,
-        player_hp=80,
-    )
-
-    # Start combat
-    engine.start_combat()
-
-    print("Initial state:")
-    state = engine.get_state_dict()
-    print(f"  Player: {state['player']['hp']} HP, {state['player']['energy']} energy")
-    print(f"  Hand: {state['hand']}")
-    print(f"  Enemy: {state['enemies'][0]['name']} - {state['enemies'][0]['hp']} HP")
-
-    # Play a few turns
-    max_turns = 10
-    turn = 0
-
-    while not engine.is_combat_over() and turn < max_turns:
-        turn += 1
-        print(f"\n--- Turn {engine.state.turn} ---")
-
-        actions = engine.get_legal_actions()
-        print(f"Available actions: {len(actions)}")
-
-        # Play cards until we can't
-        cards_played = 0
-        for action in actions:
-            if isinstance(action, PlayCard):
-                result = engine.execute_action(action)
-                if result.get("success"):
-                    print(f"Played: {result['card']}")
-                    cards_played += 1
-                    if engine.is_combat_over():
-                        break
-
-        # End turn if not over
-        if not engine.is_combat_over():
-            engine.execute_action(EndTurn())
-
-    # Get result
-    if engine.is_combat_over():
-        result = engine.get_result()
-        print(f"\n=== Combat Result ===")
-        print(f"Victory: {result.victory}")
-        print(f"HP remaining: {result.hp_remaining}")
-        print(f"HP lost: {result.hp_lost}")
-        print(f"Turns: {result.turns}")
-        print(f"Cards played: {result.cards_played}")
-        print(f"Damage dealt: {result.damage_dealt}")
-    else:
-        print("\nCombat did not finish within max turns")
