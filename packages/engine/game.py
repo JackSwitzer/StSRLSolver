@@ -43,7 +43,7 @@ from .generation.map import (
     get_map_seed_offset, map_to_string, generate_act4_map
 )
 from .combat_engine import (
-    CombatEngine, CombatResult, PlayCard, EndTurn, UsePotion,
+    CombatEngine, CombatResult, PlayCard, EndTurn, UsePotion, SelectScryDiscard,
     CombatPhase as CombatEnginePhase, create_simple_combat,
     create_combat_from_enemies,
 )
@@ -59,7 +59,7 @@ from .handlers.shop_handler import (
     ShopActionType, ShopResult,
 )
 from .handlers.reward_handler import (
-    RewardHandler, CombatRewards, BossRelicChoices,
+    RewardHandler, CombatRewards, CardReward, BossRelicChoices,
     ClaimGoldAction, ClaimPotionAction, SkipPotionAction,
     PickCardAction, SkipCardAction, SingingBowlAction,
     ClaimRelicAction, ClaimEmeraldKeyAction, SkipEmeraldKeyAction,
@@ -113,10 +113,11 @@ class NeowAction:
 @dataclass(frozen=True)
 class CombatAction:
     """Action during combat (delegated to combat system)."""
-    action_type: str  # "play_card", "use_potion", "end_turn"
+    action_type: str  # "play_card", "use_potion", "end_turn", "select_scry_discard"
     card_idx: int = -1
     target_idx: int = -1
     potion_idx: int = -1
+    scry_discard_indices: tuple = ()  # Indices into pending_scry_cards to discard
 
 
 @dataclass(frozen=True)
@@ -916,6 +917,144 @@ class GameRunner:
             parent_action_id=parent_action_id,
         )
 
+    def _build_pending_selection_for_neow(
+        self,
+        neow_result: NeowResult,
+    ) -> Optional[PendingSelectionContext]:
+        """Build selection context for Neow blessings that require card input."""
+        sel_type = neow_result.card_selection_type or ""
+        candidate_indices: List[int] = []
+        pile = "deck"
+        metadata: Dict[str, Any] = {"neow_selection_type": sel_type}
+
+        if sel_type == "upgrade":
+            candidate_indices = [idx for idx, _ in self.run_state.get_upgradeable_cards()]
+        elif sel_type in ("remove", "remove_two"):
+            candidate_indices = [idx for idx, _ in self.run_state.get_removable_cards()]
+            if sel_type == "remove_two":
+                metadata["multi_step_remaining"] = 2
+        elif sel_type in ("transform", "transform_two"):
+            candidate_indices = [idx for idx, _ in self.run_state.get_removable_cards()]
+            if sel_type == "transform_two":
+                metadata["multi_step_remaining"] = 2
+        elif sel_type == "choose" and neow_result.card_choices:
+            pile = "offer"
+            candidate_indices = list(range(len(neow_result.card_choices)))
+            metadata["offer_cards"] = [
+                card.id if hasattr(card, "id") else str(card)
+                for card in neow_result.card_choices
+            ]
+        else:
+            return None
+
+        if not candidate_indices:
+            return None
+
+        return PendingSelectionContext(
+            selection_type="card_select",
+            source_action_type="neow_blessing",
+            pile=pile,
+            min_cards=1,
+            max_cards=1,
+            candidate_indices=candidate_indices,
+            metadata=metadata,
+            parent_action_id="neow",
+        )
+
+    def _apply_pending_neow_selection(self, action_dict: ActionDict) -> Dict[str, Any]:
+        """Resolve pending Neow card selection."""
+        if not self.pending_selection:
+            return {"success": False, "error": "No pending selection"}
+
+        ctx = self.pending_selection
+        if ctx.source_action_type != "neow_blessing":
+            return {"success": False, "error": "Not a Neow selection"}
+        if action_dict.get("type") != "select_cards":
+            return {"success": False, "error": "Expected select_cards action"}
+
+        params = action_dict.get("params", {}) or {}
+        selected = [int(i) for i in params.get("card_indices", [])]
+        if len(selected) != 1:
+            return {"success": False, "error": "Must select exactly one card"}
+
+        idx = selected[0]
+        allowed = set(ctx.candidate_indices)
+        if idx not in allowed:
+            return {"success": False, "error": "Invalid selected card index"}
+
+        sel_type = ctx.metadata.get("neow_selection_type", "")
+        result_data: Dict[str, Any] = {"neow_selection_type": sel_type}
+
+        if sel_type == "upgrade":
+            self.run_state.upgrade_card(idx)
+            card = self.run_state.deck[idx]
+            self._log(f"  Neow: upgraded {card.id if hasattr(card, 'id') else card}")
+            result_data["upgraded_index"] = idx
+        elif sel_type in ("remove", "remove_two"):
+            removed = self.run_state.remove_card(idx)
+            self._log(f"  Neow: removed {removed.id if removed else 'card'}")
+            result_data["removed"] = removed.id if removed else None
+            # Handle multi-step (remove_two): set up another selection
+            remaining = ctx.metadata.get("multi_step_remaining", 1) - 1
+            if remaining > 0:
+                removable = self.run_state.get_removable_cards()
+                if removable:
+                    new_candidates = [i for i, _ in removable]
+                    self.pending_selection = PendingSelectionContext(
+                        selection_type="card_select",
+                        source_action_type="neow_blessing",
+                        pile="deck",
+                        min_cards=1,
+                        max_cards=1,
+                        candidate_indices=new_candidates,
+                        metadata={"neow_selection_type": sel_type, "multi_step_remaining": remaining},
+                        parent_action_id="neow",
+                    )
+                    return {"success": True, "data": result_data, "requires_selection": True}
+        elif sel_type in ("transform", "transform_two"):
+            removed = self.run_state.remove_card(idx)
+            self._log(f"  Neow: transformed {removed.id if removed else 'card'}")
+            result_data["transformed"] = removed.id if removed else None
+            remaining = ctx.metadata.get("multi_step_remaining", 1) - 1
+            if remaining > 0:
+                removable = self.run_state.get_removable_cards()
+                if removable:
+                    new_candidates = [i for i, _ in removable]
+                    self.pending_selection = PendingSelectionContext(
+                        selection_type="card_select",
+                        source_action_type="neow_blessing",
+                        pile="deck",
+                        min_cards=1,
+                        max_cards=1,
+                        candidate_indices=new_candidates,
+                        metadata={"neow_selection_type": sel_type, "multi_step_remaining": remaining},
+                        parent_action_id="neow",
+                    )
+                    return {"success": True, "data": result_data, "requires_selection": True}
+        elif sel_type == "choose":
+            offer_cards = list(ctx.metadata.get("offer_cards", []))
+            if idx < 0 or idx >= len(offer_cards):
+                return {"success": False, "error": "Invalid offered card index"}
+            chosen_card_id = offer_cards[idx]
+            # Check if the card choice has upgrade info
+            neow_result = self.neow_pending_result
+            if neow_result and neow_result.card_choices and idx < len(neow_result.card_choices):
+                card_obj = neow_result.card_choices[idx]
+                self.run_state.add_card(card_obj.id, getattr(card_obj, 'upgraded', False))
+            else:
+                self.run_state.add_card(chosen_card_id, False)
+            self._log(f"  Neow: chose card {chosen_card_id}")
+            result_data["chosen_card"] = chosen_card_id
+
+        # Selection complete: clear state and proceed to map
+        self.pending_selection = None
+        self.neow_pending_result = None
+        self.neow_blessings = None
+        self.phase = GamePhase.MAP_NAVIGATION
+        self._sync_rng_counters()
+
+        return {"success": True, "data": result_data}
+
     def _selection_context_actions(self) -> List[ActionDict]:
         """Emit explicit follow-up actions for pending selection state."""
         if not self.pending_selection:
@@ -1088,6 +1227,8 @@ class GameRunner:
             return self._apply_pending_relic_selection(action_dict)
         if ctx.source_action_type == "event_choice":
             return self._apply_pending_event_selection(action_dict)
+        if ctx.source_action_type == "neow_blessing":
+            return self._apply_pending_neow_selection(action_dict)
 
         if not self.current_combat:
             return {"success": False, "error": "No combat context for selection"}
@@ -1213,6 +1354,9 @@ class GameRunner:
             elif action.action_type == "end_turn":
                 params = {}
                 label = "End turn"
+            elif action.action_type == "select_scry_discard":
+                params = {"discard_indices": list(action.scry_discard_indices)}
+                label = f"Scry discard {list(action.scry_discard_indices)}"
         elif isinstance(action, RewardAction):
             if action.reward_type == "card":
                 card_reward_idx = action.choice_index // 100
@@ -1360,6 +1504,12 @@ class GameRunner:
             )
         if action_type == "end_turn":
             return CombatAction(action_type="end_turn")
+        if action_type == "select_scry_discard":
+            indices = params.get("discard_indices", [])
+            return CombatAction(
+                action_type="select_scry_discard",
+                scry_discard_indices=tuple(int(i) for i in indices),
+            )
         if action_type == "event_choice":
             return EventAction(choice_index=int(params["choice_index"]))
         if action_type == "pick_card":
@@ -1463,6 +1613,13 @@ class GameRunner:
                     action["requires"] = ["card_indices"]
                 else:
                     action["requires"] = ["card_indices"]
+
+            # Enrich scry actions with the cards being scried
+            if self.current_combat.state.pending_scry_selection:
+                scry_cards = self.current_combat.state.pending_scry_cards
+                for action in actions:
+                    if action.get("type") == "select_scry_discard":
+                        action["scry_cards"] = list(scry_cards)
 
         if self.phase == GamePhase.BOSS_REWARDS:
             unresolved = True
@@ -2220,6 +2377,11 @@ class GameRunner:
                 ))
             elif isinstance(action, EndTurn):
                 actions.append(CombatAction(action_type="end_turn"))
+            elif isinstance(action, SelectScryDiscard):
+                actions.append(CombatAction(
+                    action_type="select_scry_discard",
+                    scry_discard_indices=action.discard_indices,
+                ))
 
         return actions
 
@@ -2460,6 +2622,15 @@ class GameRunner:
 
         target_node = paths[action.node_index]
 
+        # Wing Boots: decrement counter when flying to a non-edge-connected node
+        flew = getattr(target_node, 'is_winged_path', False)
+        if flew:
+            charges = self.run_state.get_relic_counter("Wing Boots")
+            if charges > 0:
+                self.run_state.set_relic_counter("Wing Boots", charges - 1)
+                self._log(f"Wing Boots: flew to ({target_node.x}, {target_node.y}) "
+                          f"({charges - 1} uses remaining)")
+
         # Move to the node
         self.run_state.move_to(target_node.x, target_node.y)
         self.run_state.advance_floor()
@@ -2470,7 +2641,10 @@ class GameRunner:
         # Dispatch to appropriate room handler
         self._enter_room(target_node)
 
-        return True, {"room_type": target_node.room_type.name}
+        result = {"room_type": target_node.room_type.name}
+        if flew:
+            result["flew"] = True
+        return True, result
 
     def _handle_neow_action(self, action: NeowAction) -> Tuple[bool, Dict]:
         """Handle Neow blessing choice using NeowHandler."""
@@ -2499,38 +2673,23 @@ class GameRunner:
         if result.drawback_applied:
             self._log(f"  Drawback: {result.drawback_applied}")
 
-        # Check if blessing requires card selection - auto-select
+        # Check if blessing requires card selection
         if result.requires_card_selection:
             sel_type = result.card_selection_type
-            self._log(f"  (Auto-selecting for Neow: {sel_type})")
-            if sel_type == "upgrade":
-                upgradeable = self.run_state.get_upgradeable_cards()
-                if upgradeable:
-                    idx = upgradeable[0][0]
-                    self.run_state.upgrade_card(idx)
-                    self._log(f"  Auto-upgraded card at index {idx}")
-            elif sel_type in ("remove", "remove_two"):
-                removable = self.run_state.get_removable_cards()
-                count = 2 if sel_type == "remove_two" else 1
-                for _ in range(count):
-                    if removable:
-                        idx = removable[0][0]
-                        removed = self.run_state.remove_card(idx)
-                        self._log(f"  Auto-removed {removed.id if removed else 'card'}")
-                        removable = self.run_state.get_removable_cards()
-            elif sel_type in ("transform", "transform_two"):
-                removable = self.run_state.get_removable_cards()
-                count = 2 if sel_type == "transform_two" else 1
-                for _ in range(count):
-                    if removable:
-                        idx = removable[0][0]
-                        removed = self.run_state.remove_card(idx)
-                        self._log(f"  Auto-transformed {removed.id if removed else 'card'}")
-                        removable = self.run_state.get_removable_cards()
-            elif sel_type == "choose" and result.card_choices:
-                card = result.card_choices[0]
-                self.run_state.add_card(card.id, getattr(card, 'upgraded', False))
-                self._log(f"  Auto-chose card: {card.id}")
+            selection_ctx = self._build_pending_selection_for_neow(result)
+            if selection_ctx is not None:
+                # Store result and set up pending selection for agent
+                self.neow_pending_result = result
+                self.pending_selection = selection_ctx
+                self._log(f"  Neow requires {sel_type} selection")
+                self._sync_rng_counters()
+                return True, {
+                    "choice": action.choice_index,
+                    "blessing_type": blessing.blessing_type.value,
+                    "result": result.blessing_applied,
+                    "drawback": result.drawback_applied,
+                    "requires_selection": True,
+                }
 
         # Clear Neow state and proceed to map
         self.neow_blessings = None
@@ -2570,6 +2729,14 @@ class GameRunner:
             result = self.current_combat.execute_action(engine_action)
             if result.get("success"):
                 self._log(f"Used potion: {result.get('potion', 'potion')}")
+
+        elif action.action_type == "select_scry_discard":
+            engine_action = SelectScryDiscard(discard_indices=action.scry_discard_indices)
+            result = self.current_combat.execute_action(engine_action)
+            if result.get("success"):
+                self._log(f"Scry discard: kept={result.get('kept', [])}, discarded={result.get('discarded', [])}")
+            else:
+                self._log(f"Scry discard failed: {result.get('error', 'unknown')}")
 
         elif action.action_type == "end_turn":
             engine_action = EndTurn()
@@ -3022,10 +3189,17 @@ class GameRunner:
                 )
                 if cards:
                     self._log("Dream Catcher: choose a card reward")
-                    # Store card choices and transition to a card reward selection
-                    # For now, auto-skip (full implementation would need a sub-phase)
                     self._log(f"  Available: {[c.name for c in cards]}")
                     result["dream_catcher_cards"] = [c.id for c in cards]
+                    # Transition to COMBAT_REWARDS phase so the agent can pick/skip
+                    card_reward = CardReward(cards=cards)
+                    self.current_rewards = CombatRewards(
+                        room_type="rest",
+                        card_rewards=[card_reward],
+                    )
+                    self.phase = GamePhase.COMBAT_REWARDS
+                    self._sync_rng_counters()
+                    return True, result
 
         elif action.action_type == "upgrade":
             if action.card_index >= 0:
@@ -3320,6 +3494,16 @@ class GameRunner:
         self.current_combat.state.potion_rng = self.potion_rng
         self.current_combat.state.relic_rng = self.relic_rng
         self.current_combat.state.player_class = str(self.run_state.character).upper()
+
+        # Propagate persistent relic counters from RunState to CombatState.
+        # These counters persist across combats (Pen Nib, Nunchaku, Ink Bottle,
+        # Happy Flower, Sundial, Incense Burner, Girya, Neow's Lament, etc.)
+        for relic_inst in self.run_state.relics:
+            counter = getattr(relic_inst, 'counter', -1)
+            if counter is not None and counter >= 0:
+                relic_id = getattr(relic_inst, 'id', None)
+                if relic_id:
+                    self.current_combat.state.relic_counters[relic_id] = relic_inst.counter
 
         # Start combat
         self.current_combat.start_combat()

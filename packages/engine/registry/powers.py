@@ -140,11 +140,12 @@ def next_turn_block_start(ctx: PowerContext) -> None:
 def foresight_start(ctx: PowerContext) -> None:
     """Foresight: Scry N at start of turn.
 
-    Uses engine._scry to actually perform the scry (auto-discard heuristic).
+    Uses heuristic mode because the agent cannot take an intermediate action
+    during start-of-turn triggers (auto-discards curses/statuses, keeps rest).
     """
     engine = getattr(ctx.state, '_combat_engine_ref', None)
     if engine:
-        engine._scry(ctx.amount)
+        engine._scry(ctx.amount, heuristic=True)
     else:
         # Fallback: set pending_scry for external handling
         ctx.state.pending_scry = getattr(ctx.state, 'pending_scry', 0) + ctx.amount

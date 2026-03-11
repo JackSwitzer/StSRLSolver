@@ -76,6 +76,9 @@ MEMBERSHIP_CARD_DISCOUNT = 0.5
 # The Courier discount
 COURIER_DISCOUNT = 0.8
 
+# Discerning Monocle discount (Java: DiscerningMonocle.MULTIPLIER = 0.8f)
+DISCERNING_MONOCLE_DISCOUNT = 0.8
+
 
 # ============================================================================
 # SHOP ITEM DATACLASSES
@@ -210,6 +213,8 @@ def generate_shop_inventory(
         discount *= MEMBERSHIP_CARD_DISCOUNT
     if run_state.has_relic("The Courier"):
         discount *= COURIER_DISCOUNT
+    if run_state.has_relic("Discerning Monocle"):
+        discount *= DISCERNING_MONOCLE_DISCOUNT
 
     # Get owned relics for exclusion
     owned_relics = set(run_state.get_relic_ids())
@@ -231,6 +236,7 @@ def generate_shop_inventory(
         has_the_courier=run_state.has_relic("The Courier"),
         has_smiling_mask=run_state.has_relic("Smiling Mask"),
         has_prismatic_shard=run_state.has_relic("PrismaticShard"),
+        has_discerning_monocle=run_state.has_relic("Discerning Monocle"),
     )
 
     inv = result.inventory
@@ -330,6 +336,7 @@ def generate_shop_inventory_simple(
         has_membership_card=run_state.has_relic("Membership Card"),
         has_the_courier=run_state.has_relic("The Courier"),
         has_prismatic_shard=run_state.has_relic("PrismaticShard"),
+        has_discerning_monocle=run_state.has_relic("Discerning Monocle"),
     )
 
     # Convert to ShopState

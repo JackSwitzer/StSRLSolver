@@ -769,6 +769,7 @@ def predict_shop_inventory(
     has_prismatic_shard: bool = False,
     has_smiling_mask: bool = False,
     ascension_level: int = 0,
+    has_discerning_monocle: bool = False,
 ) -> ShopPredictionResult:
     """
     Predict complete shop inventory for a given game state.
@@ -790,6 +791,7 @@ def predict_shop_inventory(
         has_prismatic_shard: Allows any class cards in colored slots
         has_smiling_mask: Overrides purge cost to flat 50g
         ascension_level: Ascension level (A16+ adds 10% price markup)
+        has_discerning_monocle: 20% discount (Java: DiscerningMonocle.MULTIPLIER=0.8f)
 
     Returns:
         ShopPredictionResult with inventory and final counter values
@@ -810,6 +812,8 @@ def predict_shop_inventory(
     if has_membership_card:
         discount *= 0.5
     if has_the_courier:
+        discount *= 0.8
+    if has_discerning_monocle:
         discount *= 0.8
 
     # Default owned relics to starter only

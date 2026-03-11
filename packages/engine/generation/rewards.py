@@ -980,6 +980,7 @@ def generate_shop_inventory(
     has_membership_card: bool = False,
     has_the_courier: bool = False,
     has_prismatic_shard: bool = False,
+    has_discerning_monocle: bool = False,
 ) -> ShopInventory:
     """
     Generate a complete shop inventory.
@@ -1001,6 +1002,7 @@ def generate_shop_inventory(
         has_membership_card: 50% discount relic
         has_the_courier: 20% discount + always has removal
         has_prismatic_shard: Allows any class cards in colored slots
+        has_discerning_monocle: 20% discount (Java: DiscerningMonocle.MULTIPLIER=0.8f)
 
     Returns:
         ShopInventory with all items and prices
@@ -1012,6 +1014,8 @@ def generate_shop_inventory(
     if has_membership_card:
         discount *= 0.5
     if has_the_courier:
+        discount *= 0.8
+    if has_discerning_monocle:
         discount *= 0.8
 
     # Generate colored cards (5 cards: mix of rarities)

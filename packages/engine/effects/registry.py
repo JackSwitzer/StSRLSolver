@@ -657,12 +657,20 @@ class EffectContext:
         """
         Scry X cards.
 
-        If auto_keep_all is True (simulation mode), all cards are kept on top.
-        Otherwise, sets pending_scry_selection=True for agent to choose
-        which cards to discard via SelectScryDiscard action.
+        Delegates to CombatEngine._scry() when a combat engine reference is
+        available, so that agent-controlled scry selection is used consistently.
+        Falls back to EffectContext-local implementation when no engine is
+        available (e.g. standalone effect tests).
 
         Returns list of cards that were scryed.
         """
+        # Try to delegate to the CombatEngine for consistent agent-controlled scry
+        engine = getattr(self.state, '_combat_engine_ref', None)
+        if engine is not None:
+            engine._scry(amount)
+            return list(self.state.pending_scry_cards) if self.state.pending_scry_selection else []
+
+        # Fallback: standalone effect context (no combat engine)
         # Golden Eye: Scry 2 additional cards
         if self.has_relic("GoldenEye") or self.has_relic("Golden Eye"):
             amount += 2

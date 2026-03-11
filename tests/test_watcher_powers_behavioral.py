@@ -205,15 +205,18 @@ class TestForesight:
     def test_scries_cards(self):
         state = _make_state()
         state.player.statuses["Foresight"] = 3
-        # Put some cards in draw pile including a curse
-        state.draw_pile = ["Wound", "Strike", "Strike", "Defend", "Strike"]
+        # Put some cards in draw pile with a status/curse near the top
+        # (top = end of list) so it's in the scried cards
+        state.draw_pile = ["Strike", "Strike", "Strike", "Defend", "Wound"]
         original_draw_len = len(state.draw_pile)
         engine = _make_engine(state)
 
         execute_power_triggers("atStartOfTurn", state, state.player)
-        # The auto-scry should have discarded the Wound (status/curse)
-        # Draw pile should have one fewer card (Wound moved to discard)
-        assert "Wound" not in state.draw_pile or len(state.draw_pile) < original_draw_len
+        # The heuristic auto-scry should have discarded the Wound (status card)
+        # and kept Strike and Defend on top.  Wound moved to discard.
+        assert "Wound" not in state.draw_pile
+        assert "Wound" in state.discard_pile
+        assert len(state.draw_pile) == original_draw_len - 1
 
     def test_scry_triggers_nirvana(self):
         """Foresight scry should trigger Nirvana block gain."""
@@ -300,10 +303,14 @@ class TestNirvana:
         state = _make_state()
         state.player.statuses["Nirvana"] = 3
         state.player.block = 0
+        state.draw_pile = ["Strike", "Defend", "Strike"]
         engine = _make_engine(state)
 
-        # Trigger scry
+        # Trigger scry - sets up pending selection
         engine._scry(2)
+        assert state.pending_scry_selection
+        # Complete scry (keep all) - this fires onScry triggers including Nirvana
+        engine._complete_scry_selection(())
         assert state.player.block >= 3  # At least base Nirvana block
 
 

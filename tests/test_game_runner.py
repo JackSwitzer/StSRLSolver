@@ -197,7 +197,22 @@ class TestNeowActions:
             r = GameRunner(seed="NEOW5", ascension=0, skip_neow=False, verbose=False)
             success = r.take_action(action)
             assert success, f"Neow action {i} failed"
-            assert r.phase == GamePhase.MAP_NAVIGATION
+            # Some blessings require card selection before proceeding to map
+            if r.pending_selection is not None:
+                # Complete the selection by picking the first option
+                sel_actions = r.get_available_action_dicts()
+                assert len(sel_actions) > 0, f"Neow action {i} has pending selection but no actions"
+                result = r.take_action_dict(sel_actions[0])
+                assert result.get("success", False), f"Neow selection for action {i} failed"
+                # Handle multi-step selections (e.g. remove_two)
+                while r.pending_selection is not None:
+                    sel_actions = r.get_available_action_dicts()
+                    assert len(sel_actions) > 0
+                    result = r.take_action_dict(sel_actions[0])
+                    assert result.get("success", False)
+            assert r.phase == GamePhase.MAP_NAVIGATION, (
+                f"Neow action {i} didn't transition to MAP_NAVIGATION"
+            )
 
 
 # =============================================================================

@@ -285,6 +285,16 @@ def vajra_start(ctx: RelicContext) -> None:
     ctx.apply_power_to_player("Strength", 1)
 
 
+@relic_trigger("atBattleStart", relic="Girya")
+def girya_start(ctx: RelicContext) -> None:
+    """Girya: Grant Strength equal to lift counter at combat start.
+    Java: Girya.atBattleStart — if counter != 0, apply StrengthPower(counter).
+    """
+    counter = ctx.get_relic_counter("Girya", 0)
+    if counter > 0:
+        ctx.apply_power_to_player("Strength", counter)
+
+
 @relic_trigger("atBattleStart", relic="Cracked Core")
 def cracked_core_start(ctx: RelicContext) -> None:
     """Cracked Core: Channel 1 Lightning at combat start (Defect starter)."""
@@ -1567,8 +1577,12 @@ def omamori_obtain_card(ctx: RelicContext) -> str:
 
 @relic_trigger("onEquip", relic="Girya")
 def girya_equip(ctx: RelicContext) -> None:
-    """Girya: Can lift 3 times total."""
-    ctx.set_relic_counter("Girya", 3)
+    """Girya: Initialize counter at 0. Counter counts UP as lifts are used (max 3).
+    Java: Girya() constructor sets this.counter = 0.
+    NOTE: This handler is dead code -- onEquip triggers are not called in combat.
+    Real equip logic lives in RunState._on_relic_obtained().
+    """
+    ctx.set_relic_counter("Girya", 0)
 
 
 @relic_trigger("onRestOption", relic="Girya")

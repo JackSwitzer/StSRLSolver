@@ -181,6 +181,16 @@ class CombatRunner:
 
         self.state = self.engine.state
 
+        # Propagate persistent relic counters from RunState to CombatState.
+        # Counters like Girya (lift count), Pen Nib, Nunchaku, etc. persist
+        # across combats and are needed by atBattleStart triggers.
+        for relic_inst in run_state.relics:
+            counter = getattr(relic_inst, 'counter', -1)
+            if counter is not None and counter >= 0:
+                relic_id = getattr(relic_inst, 'id', None)
+                if relic_id:
+                    self.state.relic_counters[relic_id] = counter
+
         # Compatibility attributes expected by legacy tests.
         self.phase = CombatPhase.PLAYER_TURN_START
         self.combat_over = False

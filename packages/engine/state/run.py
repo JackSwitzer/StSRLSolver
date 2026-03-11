@@ -1098,7 +1098,9 @@ class RunState:
         Get available nodes to travel to from current position.
 
         Returns:
-            List of reachable MapRoomNodes
+            List of reachable MapRoomNodes.  When the player has Wing Boots
+            with remaining charges, nodes reachable only via flying have
+            ``is_winged_path = True`` so the caller can decrement the counter.
         """
         current_map = self.get_current_map()
         if not current_map:
@@ -1111,6 +1113,7 @@ class RunState:
         # Get current node and return connected nodes
         current_node = current_map[self.map_position.y][self.map_position.x]
         next_nodes = []
+        edge_connected_coords = set()
 
         for edge in current_node.edges:
             if edge.is_boss:
@@ -1118,7 +1121,20 @@ class RunState:
                 boss_node = MapRoomNode(x=3, y=current_node.y + 2, room_type=RoomType.BOSS)
                 next_nodes.append(boss_node)
             else:
-                next_nodes.append(current_map[edge.dst_y][edge.dst_x])
+                node = current_map[edge.dst_y][edge.dst_x]
+                next_nodes.append(node)
+                edge_connected_coords.add((edge.dst_x, edge.dst_y))
+
+        # Wing Boots: allow flying to any node in the next row
+        wing_boots_charges = self.get_relic_counter("Wing Boots") if self.has_relic("Wing Boots") else 0
+        if wing_boots_charges > 0:
+            next_row = current_node.y + 1
+            if next_row < len(current_map):
+                for node in current_map[next_row]:
+                    if node.has_edges() and (node.x, node.y) not in edge_connected_coords:
+                        # Mark as a fly path so the engine can decrement Wing Boots
+                        node.is_winged_path = True
+                        next_nodes.append(node)
 
         return next_nodes
 

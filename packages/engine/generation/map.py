@@ -61,6 +61,9 @@ class MapRoomNode:
     offset_x: float = 0.0
     offset_y: float = 0.0
 
+    # Wing Boots: set to True when this path is reachable only via flying
+    is_winged_path: bool = False
+
     def has_edges(self) -> bool:
         """Check if node has any outgoing edges."""
         return len(self.edges) > 0

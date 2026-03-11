@@ -43,6 +43,7 @@ from .state.combat import (
     PlayCard,
     UsePotion,
     EndTurn,
+    SelectScryDiscard,
     Action,
     create_player,
     create_enemy,
@@ -989,6 +990,10 @@ class CombatEngine:
         if self.phase != CombatPhase.PLAYER_TURN or self.state.combat_over:
             return []
 
+        # If scry selection is pending, only return scry discard options
+        if self.state.pending_scry_selection and self.state.pending_scry_cards:
+            return self.state._get_scry_actions()
+
         actions: List[Action] = []
         living_enemies = [i for i, e in enumerate(self.state.enemies) if e.hp > 0]
 
@@ -1067,6 +1072,8 @@ class CombatEngine:
             return self.play_card(action.card_idx, action.target_idx)
         elif isinstance(action, UsePotion):
             return self.use_potion(action.potion_idx, action.target_idx)
+        elif isinstance(action, SelectScryDiscard):
+            return self._complete_scry_selection(action.discard_indices)
         return {"type": "unknown", "error": "Unknown action type"}
 
     def play_card(self, hand_index: int, target_index: int = -1) -> Dict[str, Any]:
@@ -1996,13 +2003,19 @@ class CombatEngine:
             self.state.mantra -= 10
             self._change_stance(StanceID.DIVINITY)
 
-    def _scry(self, amount: int):
-        """Scry - look at top cards of draw pile, discard chosen ones.
+    def _scry(self, amount: int, heuristic: bool = False):
+        """Scry - look at top cards of draw pile, agent chooses which to discard.
 
-        For the RL engine, we auto-discard status/curse cards (Burns, Daze,
-        Wound, Slimed, Void, Curse*) and keep the rest. This is a reasonable
-        heuristic for simulation purposes.
+        Sets pending_scry_selection=True so the agent can select which cards
+        to discard via a SelectScryDiscard action.  When ``heuristic=True``
+        (used for start-of-turn power triggers like Foresight where the agent
+        cannot take an intermediate action), a simple heuristic auto-discards
+        curses/statuses and keeps everything else.
         """
+        # Golden Eye relic: +2 to all scry amounts
+        if self.state.has_relic("GoldenEye") or self.state.has_relic("Golden Eye"):
+            amount += 2
+
         actual_amount = min(amount, len(self.state.draw_pile))
         if actual_amount <= 0:
             # Still trigger onScry hooks even if no cards were revealed.
@@ -2018,25 +2031,83 @@ class CombatEngine:
         revealed = self.state.draw_pile[-actual_amount:]
         self.state.draw_pile = self.state.draw_pile[:-actual_amount]
 
-        # For the RL engine, discard all revealed cards.
-        # A future decision-point implementation could let the agent choose.
-        for card_id in revealed:
-            self.state.discard_pile.append(card_id)
+        if heuristic:
+            # Auto-discard curses and statuses, keep everything else.
+            for card_id in revealed:
+                card = self._get_card(card_id)
+                if card.card_type in (CardType.CURSE, CardType.STATUS):
+                    self.state.discard_pile.append(card_id)
+                else:
+                    # Keep: put back on top of draw pile
+                    self.state.draw_pile.append(card_id)
+
+            # Trigger onScry hooks (Nirvana, etc.)
+            execute_power_triggers(
+                "onScry",
+                self.state,
+                self.state.player,
+                {"cards_scried": actual_amount},
+            )
+
+            # Trigger Weave from discard
+            self._trigger_weave_from_discard()
+        else:
+            # Agent decision mode: set pending state and wait for SelectScryDiscard action.
+            self.state.pending_scry_cards = list(revealed)
+            self.state.pending_scry_selection = True
+
+    def _complete_scry_selection(self, discard_indices: tuple) -> Dict[str, Any]:
+        """Complete a pending scry by choosing which cards to discard.
+
+        Args:
+            discard_indices: Tuple of indices into pending_scry_cards to discard.
+
+        Returns:
+            Dict with kept/discarded card lists.
+        """
+        if not self.state.pending_scry_selection:
+            return {"success": False, "error": "No pending scry selection"}
+
+        cards = self.state.pending_scry_cards
+        kept: List[str] = []
+        discarded: List[str] = []
+
+        for idx, card_id in enumerate(cards):
+            if idx in discard_indices:
+                self.state.discard_pile.append(card_id)
+                discarded.append(card_id)
+            else:
+                kept.append(card_id)
+
+        # Put kept cards back on top of draw pile (reverse so first revealed is on top)
+        for card_id in reversed(kept):
+            self.state.draw_pile.append(card_id)
+
+        # Clear pending state
+        self.state.pending_scry_cards = []
+        self.state.pending_scry_selection = False
 
         # Trigger onScry hooks (Nirvana, etc.)
         execute_power_triggers(
             "onScry",
             self.state,
             self.state.player,
-            {"cards_scried": actual_amount},
+            {"cards_scried": len(cards)},
         )
 
         # Trigger Weave from discard
+        self._trigger_weave_from_discard()
+
+        return {"success": True, "action": "scry_selection", "kept": kept, "discarded": discarded}
+
+    def _trigger_weave_from_discard(self):
+        """Move all Weave cards from discard pile to hand (triggered on scry)."""
         weaves = [i for i, card_id in enumerate(self.state.discard_pile)
                  if "Weave" in card_id]
         for i in reversed(weaves):
-            card_id = self.state.discard_pile.pop(i)
-            self.state.hand.append(card_id)
+            if len(self.state.hand) < 10:
+                card_id = self.state.discard_pile.pop(i)
+                self.state.hand.append(card_id)
 
     # =========================================================================
     # Deck Management
