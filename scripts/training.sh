@@ -100,7 +100,7 @@ cmd_start() {
             --workers) workers=$2; shift 2 ;;
             --batch)   batch=$2; shift 2 ;;
             --asc)     asc=$2; shift 2 ;;
-            --headless) headless="--headless"; shift ;;
+            --headless) headless="--headless-after 0"; shift ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -118,8 +118,8 @@ cmd_start() {
     echo $! > "$PID_DIR/caffeinate.pid"
     echo "  caffeinate: PID $!"
 
-    # Start training in a new process group
-    setsid uv run python -m packages.training.overnight \
+    # Start training (macOS doesn't have setsid, use nohup instead)
+    nohup uv run python -m packages.training.overnight \
         --games "$games" \
         --workers "$workers" \
         --batch-size "$batch" \
