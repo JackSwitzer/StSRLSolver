@@ -65,7 +65,7 @@ class MLXStrategicNet:
     Architecture mirrors PyTorch StrategicNet exactly:
     - Input projection: input_dim -> hidden_dim (Linear + LayerNorm + ReLU)
     - 4 residual blocks
-    - Multi-head output: policy, value, floor, combat_cost, act_completion
+    - Multi-head output: policy, value, floor, act_completion
     """
 
     def __init__(
@@ -100,10 +100,6 @@ class MLXStrategicNet:
         self.floor_1 = nn.Linear(hidden_dim, 64)
         self.floor_2 = nn.Linear(64, 1)
 
-        # Combat cost head
-        self.cost_1 = nn.Linear(hidden_dim, 64)
-        self.cost_2 = nn.Linear(64, 1)
-
         # Act completion head
         self.act_1 = nn.Linear(hidden_dim, 64)
         self.act_2 = nn.Linear(64, 3)
@@ -116,7 +112,7 @@ class MLXStrategicNet:
             action_mask: [batch, action_dim] bool tensor (True=valid)
 
         Returns:
-            dict with policy_logits, value, floor_pred, combat_cost, act_completion
+            dict with policy_logits, value, floor_pred, act_completion
         """
         # Input projection
         h = mx.maximum(self.input_norm(self.input_linear(x)), 0)
@@ -136,9 +132,6 @@ class MLXStrategicNet:
         # Floor
         floor_pred = self.floor_2(mx.maximum(self.floor_1(h), 0)).squeeze(-1)
 
-        # Combat cost
-        combat_cost = self.cost_2(mx.maximum(self.cost_1(h), 0)).squeeze(-1)
-
         # Act completion (sigmoid)
         act_completion = mx.sigmoid(self.act_2(mx.maximum(self.act_1(h), 0)))
 
@@ -146,7 +139,6 @@ class MLXStrategicNet:
             "policy_logits": logits,
             "value": value,
             "floor_pred": floor_pred,
-            "combat_cost": combat_cost,
             "act_completion": act_completion,
         }
 
@@ -238,9 +230,6 @@ class MLXStrategicNet:
 
         _load_linear(net.floor_1, state_dict, "floor_head.0")
         _load_linear(net.floor_2, state_dict, "floor_head.2")
-
-        _load_linear(net.cost_1, state_dict, "combat_cost_head.0")
-        _load_linear(net.cost_2, state_dict, "combat_cost_head.2")
 
         _load_linear(net.act_1, state_dict, "act_head.0")
         _load_linear(net.act_2, state_dict, "act_head.2")

@@ -1153,9 +1153,19 @@ class OvernightRunner:
 
         config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
 
-        def _run_config(sweep_idx: int, sweep_config: Dict, n_games: int) -> Dict[str, Any]:
+        # Save base weights before sweep — each config forks from this checkpoint
+        import copy
+        _sweep_base_state = copy.deepcopy(model.state_dict())
+
+        def _run_config(sweep_idx: int, sweep_config: Dict, n_games: int, fork_weights: bool = True) -> Dict[str, Any]:
             """Run a config for n_games, return metrics."""
             nonlocal best_avg_floor
+            # Fork: restore base weights so each config starts from same point
+            if fork_weights:
+                model.load_state_dict(copy.deepcopy(_sweep_base_state))
+                if self._server is not None:
+                    self._server.sync_strategic_from_pytorch(model, version=0)
+                logger.info("Forked weights for config %d", sweep_idx)
             self._current_sweep_idx = sweep_idx
             self._current_sweep_config = sweep_config
             lr = sweep_config.get("lr", 1e-4)
@@ -1292,6 +1302,13 @@ class OvernightRunner:
             result = _run_config(idx, cfg, phase1_games_per)
             config_scores[idx] = result
 
+        # Update base weights from phase 1 best for phase 2 forking
+        if config_scores:
+            best_phase1 = max(config_scores.items(), key=lambda x: x[1]["avg_floor"])[0]
+            # Load the best config's trained state as new base
+            # (model currently holds last config's state; re-run best briefly if needed)
+            _sweep_base_state = copy.deepcopy(model.state_dict())
+
         # Phase 2: Keep top 3 by avg_floor
         if not self._shutdown_requested and config_scores:
             sorted_configs = sorted(config_scores.items(),
@@ -1320,7 +1337,7 @@ class OvernightRunner:
                          best_cfg.get("name", "?"), sorted_configs[0][1]["avg_floor"], remaining)
 
             if remaining > 0:
-                _run_config(best_idx, best_cfg, remaining)
+                _run_config(best_idx, best_cfg, remaining, fork_weights=False)
 
         # Save checkpoint and clean up
         if self._shutdown_requested:

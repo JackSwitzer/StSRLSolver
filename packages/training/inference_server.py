@@ -128,8 +128,6 @@ class MLXStrategicBackend:
         _load_linear(net.value_2, "value_head.2")
         _load_linear(net.floor_1, "floor_head.0")
         _load_linear(net.floor_2, "floor_head.2")
-        _load_linear(net.cost_1, "combat_cost_head.0")
-        _load_linear(net.cost_2, "combat_cost_head.2")
         _load_linear(net.act_1, "act_head.0")
         _load_linear(net.act_2, "act_head.2")
 

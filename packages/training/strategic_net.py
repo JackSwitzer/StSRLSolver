@@ -52,14 +52,12 @@ class StrategicNet(nn.Module):
             - decision: policy logits over action space
             - value: P(win) estimate [-1, 1]
             - floor_pred: predicted final floor
-            - combat_cost: predicted HP loss next combat
             - act_completion: P(clear act 1/2/3)
 
     Outputs dict:
         "policy_logits": [batch, action_dim]
         "value": [batch]
         "floor_pred": [batch]
-        "combat_cost": [batch]
         "act_completion": [batch, 3]
     """
 
@@ -110,13 +108,6 @@ class StrategicNet(nn.Module):
             nn.Linear(64, 1),
         )
 
-        # Combat cost (predicted HP loss): 384 -> 64 -> 1
-        self.combat_cost_head = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1),
-        )
-
         # Act completion P(clear act 1/2/3): 384 -> 64 -> 3
         self.act_head = nn.Sequential(
             nn.Linear(hidden_dim, 64),
@@ -149,7 +140,7 @@ class StrategicNet(nn.Module):
             action_mask: [batch, action_dim] bool tensor (True=valid)
 
         Returns:
-            Dict with policy_logits, value, floor_pred, combat_cost, act_completion
+            Dict with policy_logits, value, floor_pred, act_completion
         """
         h = self.input_proj(x)
         h = self.trunk(h)
@@ -163,7 +154,6 @@ class StrategicNet(nn.Module):
             "policy_logits": logits,
             "value": self.value_head(h).squeeze(-1),
             "floor_pred": self.floor_head(h).squeeze(-1),
-            "combat_cost": self.combat_cost_head(h).squeeze(-1),
             "act_completion": self.act_head(h),
         }
 

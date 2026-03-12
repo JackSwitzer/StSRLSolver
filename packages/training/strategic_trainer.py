@@ -6,7 +6,6 @@ Trains periodically with PPO + auxiliary losses.
 
 Auxiliary losses:
 - floor_prediction: MSE on predicted final floor
-- combat_cost: MSE on predicted HP loss in next combat
 - act_completion: BCE on P(clear act 1/2/3)
 
 Phase 2A fixes (2026-03-12):
@@ -44,7 +43,6 @@ class StrategicTransition:
     episode_id: int = 0       # unique episode identifier for GAE computation
     # Auxiliary targets (filled after game ends)
     final_floor: float = 0.0
-    hp_lost_next_combat: float = 0.0
     cleared_act1: float = 0.0
     cleared_act2: float = 0.0
     cleared_act3: float = 0.0
@@ -165,30 +163,6 @@ class StrategicTrainer:
             episode_id=episode_id,
         ))
 
-    def backfill_aux_targets(
-        self,
-        final_floor: int,
-        cleared_acts: List[bool],
-        hp_losses: List[float],
-    ) -> None:
-        """Backfill auxiliary targets after a game ends.
-
-        Args:
-            final_floor: Floor reached at game end.
-            cleared_acts: [act1_cleared, act2_cleared, act3_cleared]
-            hp_losses: Per-transition HP loss in the following combat (if any).
-        """
-        n = len(self.buffer)
-        for i in range(n):
-            t = self.buffer[i]
-            t.final_floor = final_floor / 55.0
-            if len(cleared_acts) >= 3:
-                t.cleared_act1 = float(cleared_acts[0])
-                t.cleared_act2 = float(cleared_acts[1])
-                t.cleared_act3 = float(cleared_acts[2])
-            if i < len(hp_losses):
-                t.hp_lost_next_combat = hp_losses[i]
-
     def compute_gae(self) -> tuple[np.ndarray, np.ndarray]:
         """Compute GAE advantages and returns from buffer.
 
@@ -262,7 +236,6 @@ class StrategicTrainer:
 
         # Auxiliary targets
         floor_targets = torch.tensor([t.final_floor for t in self.buffer], dtype=torch.float32)
-        cost_targets = torch.tensor([t.hp_lost_next_combat for t in self.buffer], dtype=torch.float32)
         act_targets = torch.tensor(
             [[t.cleared_act1, t.cleared_act2, t.cleared_act3] for t in self.buffer],
             dtype=torch.float32,
@@ -298,7 +271,6 @@ class StrategicTrainer:
                 b_adv = adv_t[idx].to(device)
                 b_ret = ret_t[idx].to(device)
                 b_floor = floor_targets[idx].to(device)
-                b_cost = cost_targets[idx].to(device)
                 b_act = act_targets[idx].to(device)
 
                 # Forward
@@ -306,7 +278,6 @@ class StrategicTrainer:
                 logits = out["policy_logits"]
                 values = out["value"]
                 floor_pred = out["floor_pred"]
-                cost_pred = out["combat_cost"]
                 act_pred = out["act_completion"]
 
                 log_probs = F.log_softmax(logits, dim=-1)
@@ -329,9 +300,8 @@ class StrategicTrainer:
 
                 # Auxiliary losses
                 floor_loss = F.mse_loss(floor_pred, b_floor)
-                cost_loss = F.mse_loss(cost_pred, b_cost)
                 act_loss = F.binary_cross_entropy(act_pred, b_act)
-                aux_loss = (floor_loss + cost_loss + act_loss) / 3.0
+                aux_loss = (floor_loss + act_loss) / 2.0
 
                 # Total loss
                 loss = (
