@@ -46,52 +46,72 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# System stats collection (no psutil dependency)
+# System stats collection (psutil-based)
 # ---------------------------------------------------------------------------
 
+try:
+    import psutil
+
+    _HAS_PSUTIL = True
+except ImportError:  # pragma: no cover
+    _HAS_PSUTIL = False
+
+# Prime psutil's CPU measurement on import so the first real call returns
+# a meaningful value (psutil.cpu_percent needs a prior sample).
+if _HAS_PSUTIL:
+    psutil.cpu_percent(interval=None)
+
+# GPU detection (cached at module level -- doesn't change at runtime)
+_GPU_INFO: Dict[str, Any] = {"available": False, "name": "N/A"}
+try:
+    import torch
+
+    if torch.backends.mps.is_available():
+        _GPU_INFO = {"available": True, "name": "Apple MPS"}
+    elif torch.cuda.is_available():
+        _GPU_INFO = {"available": True, "name": torch.cuda.get_device_name(0)}
+except Exception:
+    pass
+
+
 def _collect_system_stats() -> Dict[str, Any]:
-    """Collect CPU% and RAM usage via subprocess/os. Lightweight (<1ms typical)."""
-    # RAM: total via sysconf, used via vm_stat
-    try:
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        total_pages = os.sysconf("SC_PHYS_PAGES")
-        ram_total_gb = round(page_size * total_pages / (1024 ** 3), 1)
-
-        vm_out = subprocess.check_output(["vm_stat"], timeout=1).decode()
-        free_pages = 0
-        inactive_pages = 0
-        for line in vm_out.splitlines():
-            if line.startswith("Pages free:"):
-                free_pages = int(line.split(":")[1].strip().rstrip("."))
-            elif line.startswith("Pages inactive:"):
-                inactive_pages = int(line.split(":")[1].strip().rstrip("."))
-        used_pages = total_pages - free_pages - inactive_pages
-        ram_used_gb = round(page_size * used_pages / (1024 ** 3), 1)
-    except Exception:
-        ram_total_gb = 0.0
-        ram_used_gb = 0.0
-
-    # CPU: sum %cpu of all processes
-    try:
-        ps_out = subprocess.check_output(
-            ["ps", "-A", "-o", "%cpu"], timeout=1
-        ).decode()
-        cpu_values = []
-        for line in ps_out.splitlines()[1:]:  # skip header
-            line = line.strip()
-            if line:
-                try:
-                    cpu_values.append(float(line))
-                except ValueError:
-                    pass
-        cpu_percent = round(min(sum(cpu_values), 100.0 * os.cpu_count()), 1)
-    except Exception:
-        cpu_percent = 0.0
+    """Collect CPU%, RAM, and GPU info.  <1 ms typical with psutil."""
+    if _HAS_PSUTIL:
+        cpu_pct = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        ram_used_gb = round(mem.used / (1024 ** 3), 1)
+        ram_total_gb = round(mem.total / (1024 ** 3), 1)
+        ram_pct = round(mem.percent, 1)
+    else:
+        # Fallback: use os.sysconf (macOS / Linux)
+        try:
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            total_pages = os.sysconf("SC_PHYS_PAGES")
+            ram_total_gb = round(page_size * total_pages / (1024 ** 3), 1)
+            vm_out = subprocess.check_output(["vm_stat"], timeout=1).decode()
+            free_pages = 0
+            inactive_pages = 0
+            for line in vm_out.splitlines():
+                if line.startswith("Pages free:"):
+                    free_pages = int(line.split(":")[1].strip().rstrip("."))
+                elif line.startswith("Pages inactive:"):
+                    inactive_pages = int(line.split(":")[1].strip().rstrip("."))
+            used_pages = total_pages - free_pages - inactive_pages
+            ram_used_gb = round(page_size * used_pages / (1024 ** 3), 1)
+            ram_pct = round(ram_used_gb / ram_total_gb * 100, 1) if ram_total_gb else 0.0
+        except Exception:
+            ram_total_gb = 0.0
+            ram_used_gb = 0.0
+            ram_pct = 0.0
+        cpu_pct = 0.0  # can't reliably get CPU without psutil
 
     return {
-        "cpu_percent": cpu_percent,
+        "cpu_pct": round(cpu_pct, 1),
+        "ram_pct": ram_pct,
         "ram_used_gb": ram_used_gb,
         "ram_total_gb": ram_total_gb,
+        "gpu_available": _GPU_INFO["available"],
+        "gpu_name": _GPU_INFO["name"],
     }
 
 _STRATEGY_NAMES = {
@@ -512,14 +532,11 @@ class GameServer:
     async def _handle_training_stop(
         self, data: Dict[str, Any], websocket: ServerConnection, conn_id: int,
     ) -> Optional[Dict[str, Any]]:
-        """Stop training."""
+        """Pause training (preserves coordinator state)."""
         if self._training:
-            await self._training.stop()
-            if self._training_poll_task:
-                self._training_poll_task.cancel()
-            self._training = None
-            logger.info("Training stopped")
-        return {"type": "training_stopped"}
+            self._training.pause()
+            logger.info("Training paused")
+        return {"type": "training_paused"}
 
     def _handle_training_focus(self, data: Dict[str, Any], conn_id: int) -> Optional[Dict[str, Any]]:
         """Toggle focus on a specific agent (add/remove from focused set)."""
@@ -570,22 +587,30 @@ class GameServer:
             return make_error(f"Unknown command action: {action}", "command")
 
     async def _broadcast_system_stats(self) -> None:
-        """Broadcast system stats to all connected clients every 2 seconds."""
+        """Broadcast system stats to all connected clients every 5 seconds."""
         while True:
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(5.0)
             if not self._connections:
                 continue
             try:
                 stats = _collect_system_stats()
-                worker_count = len(self._training.processes) if self._training else 0
-                worker_max = self._training.num_agents if self._training else 0
+                worker_count = 0
+                if self._training:
+                    try:
+                        worker_count = len(self._training.processes)
+                    except Exception:
+                        worker_count = self._training.num_agents if self._training else 0
                 msg = json.dumps({
                     "type": MessageType.SYSTEM_STATS.value,
-                    "cpu_percent": stats["cpu_percent"],
+                    # Fields matching frontend SystemStatsMsg interface
+                    "cpu_pct": stats["cpu_pct"],
+                    "ram_pct": stats["ram_pct"],
                     "ram_used_gb": stats["ram_used_gb"],
                     "ram_total_gb": stats["ram_total_gb"],
-                    "worker_count": worker_count,
-                    "worker_max": worker_max,
+                    "workers": worker_count,
+                    # Extra fields (frontend ignores, but useful for debugging)
+                    "gpu_available": stats["gpu_available"],
+                    "gpu_name": stats["gpu_name"],
                     "paused": self._training.paused if self._training else False,
                     "timestamp": round(time.time(), 1),
                 })

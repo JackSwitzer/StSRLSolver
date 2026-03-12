@@ -1,30 +1,40 @@
 #!/bin/bash
-# Launch the native Tauri app (requires Rust + tauri-cli)
-# Falls back to browser if Tauri not available
-# Usage: ./scripts/app.sh [--train]
+# Launch the native Tauri app.
+# Services (WS + Vite) are managed by beforeDevCommand in tauri.conf.json
+# which calls ./scripts/services.sh start.
+#
+# Usage:
+#   ./scripts/app.sh          # Launch native app (dev mode)
+#   ./scripts/app.sh --build  # Build production .app bundle
+#   ./scripts/app.sh --stop   # Stop all services
 
 set -e
 cd "$(dirname "$0")/.."
 
-CARGO_TAURI="/Users/jackswitzer/.cargo/bin/cargo-tauri"
+case "${1:-}" in
+    --stop)
+        ./scripts/services.sh stop
+        exit 0
+        ;;
+    --build)
+        echo "Building production app..."
+        PATH="$HOME/.cargo/bin:$PATH" cargo tauri build
+        exit 0
+        ;;
+    --status)
+        ./scripts/services.sh status
+        exit 0
+        ;;
+esac
 
-if [ -f "$CARGO_TAURI" ] || command -v cargo-tauri &>/dev/null; then
-    echo "Launching native Tauri app..."
-    # Kill stale ports
-    lsof -ti:8080 | xargs kill 2>/dev/null || true
-    lsof -ti:5174 | xargs kill 2>/dev/null || true
-    sleep 1
+# Clean shutdown on exit
+trap './scripts/services.sh stop 2>/dev/null' EXIT INT TERM
 
-    # Start WS server in background
-    uv run python -m packages.server --port 8080 &
-    sleep 2
+echo "Launching STS RL Mission Control..."
+echo ""
 
-    # Launch Tauri dev mode (builds + opens native window)
-    cd src-tauri
-    /Users/jackswitzer/.cargo/bin/cargo tauri dev
-else
-    echo "Tauri CLI not found. Falling back to browser..."
-    echo "Install: /Users/jackswitzer/.cargo/bin/cargo install tauri-cli"
-    echo ""
-    exec ./scripts/dev.sh "$@"
-fi
+# cargo tauri dev will:
+#   1. Run beforeDevCommand (./scripts/services.sh start)
+#   2. Wait for devUrl (http://localhost:5174)
+#   3. Open native WebKit window
+PATH="$HOME/.cargo/bin:$PATH" cargo tauri dev

@@ -3,6 +3,7 @@ import type {
   TrainingState,
   AgentEpisodeMsg,
   MCTSResultMsg,
+  PlannerResultMsg,
   AgentInfo,
   SystemStatsMsg,
 } from '../types/training';
@@ -17,7 +18,10 @@ type Action =
   | { type: 'training_stats'; stats: any }
   | { type: 'agent_episode'; episode: AgentEpisodeMsg }
   | { type: 'mcts_result'; result: MCTSResultMsg }
+  | { type: 'planner_result'; result: PlannerResultMsg }
   | { type: 'agent_combat'; agent_id: number; combat: any }
+  | { type: 'agent_map'; agent_id: number; map: any }
+  | { type: 'agent_run_state'; agent_id: number; deck: any[]; relics: any[]; potions: any[]; gold: number }
   | { type: 'system_stats'; stats: SystemStatsMsg }
   | { type: 'metrics_history'; floor_history: number[]; loss_history: number[]; win_history: number[] }
   | { type: 'toggle_focus'; agentId: number }
@@ -38,15 +42,19 @@ const initialState: FullState = {
     stats: null,
     episodes: [],
     mctsResult: null,
+    plannerResult: null,
     focusedAgentIds: [],
     activeFocusIndex: 0,
     selectedAgentIndex: 0,
     combatStates: {},
+    mapStates: {},
+    runStates: {},
     systemStats: null,
     floorHistory: [],
     lossHistory: [],
     winHistory: [],
     paused: false,
+    deathStats: { byFloor: {}, byEnemy: {}, floorEnemyPairs: [], totalDeaths: 0 },
   },
   connected: false,
 };
@@ -67,13 +75,38 @@ function reducer(state: FullState, action: Action): FullState {
       // Accumulate local history from episodes
       const floorHistory = [...t.floorHistory, action.episode.floors_reached].slice(-MAX_HISTORY);
       const winHistory = [...t.winHistory, action.episode.won ? 1 : 0].slice(-MAX_HISTORY);
-      return { ...state, training: { ...t, episodes, floorHistory, winHistory } };
+      // Track death stats
+      let deathStats = t.deathStats;
+      if (!action.episode.won) {
+        const df = action.episode.death_floor ?? action.episode.floors_reached;
+        const de = action.episode.death_enemy ?? 'Unknown';
+        const byFloor = { ...deathStats.byFloor };
+        byFloor[df] = (byFloor[df] ?? 0) + 1;
+        const byEnemy = { ...deathStats.byEnemy };
+        byEnemy[de] = (byEnemy[de] ?? 0) + 1;
+        // Rebuild top pairs from byFloor+byEnemy (lightweight)
+        const pairs = Object.entries(byFloor).map(([f, c]) => ({ floor: Number(f), enemy: de, count: c }));
+        deathStats = { byFloor, byEnemy, floorEnemyPairs: pairs, totalDeaths: deathStats.totalDeaths + 1 };
+      }
+      return { ...state, training: { ...t, episodes, floorHistory, winHistory, deathStats } };
     }
     case 'mcts_result':
       return { ...state, training: { ...t, mctsResult: action.result } };
+    case 'planner_result':
+      return { ...state, training: { ...t, plannerResult: action.result } };
     case 'agent_combat': {
       const combatStates = { ...t.combatStates, [action.agent_id]: action.combat };
       return { ...state, training: { ...t, combatStates } };
+    }
+    case 'agent_map': {
+      const mapStates = { ...t.mapStates, [action.agent_id]: action.map };
+      return { ...state, training: { ...t, mapStates } };
+    }
+    case 'agent_run_state': {
+      const runStates = { ...t.runStates, [action.agent_id]: {
+        deck: action.deck, relics: action.relics, potions: action.potions, gold: action.gold,
+      }};
+      return { ...state, training: { ...t, runStates } };
     }
     case 'system_stats':
       return { ...state, training: { ...t, systemStats: action.stats } };
@@ -99,9 +132,22 @@ function reducer(state: FullState, action: Action): FullState {
       return { ...state, training: { ...t, focusedAgentIds: ids, activeFocusIndex: activeIdx } };
     }
     case 'clear_focus':
-      return { ...state, training: { ...t, focusedAgentIds: [], activeFocusIndex: 0, combatStates: {} } };
-    case 'select_agent':
+      return { ...state, training: { ...t, focusedAgentIds: [], activeFocusIndex: 0, combatStates: {}, mapStates: {}, runStates: {} } };
+    case 'select_agent': {
+      // Clear stale combat/map/run data from previously selected agent
+      const prevId = t.agents[t.selectedAgentIndex]?.id;
+      const nextId = t.agents[action.index]?.id;
+      if (prevId !== undefined && prevId !== nextId) {
+        const combatStates = { ...t.combatStates };
+        const mapStates = { ...t.mapStates };
+        const runStates = { ...t.runStates };
+        delete combatStates[prevId];
+        delete mapStates[prevId];
+        delete runStates[prevId];
+        return { ...state, training: { ...t, selectedAgentIndex: action.index, combatStates, mapStates, runStates } };
+      }
       return { ...state, training: { ...t, selectedAgentIndex: action.index } };
+    }
     case 'next_focused': {
       if (t.focusedAgentIds.length === 0) return state;
       const next = (t.activeFocusIndex + 1) % t.focusedAgentIds.length;
@@ -130,14 +176,15 @@ export function useTrainingState() {
     function connect() {
       if (unmounted) return;
 
-      const ws = new WebSocket('ws://localhost:8080');
+      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         dispatch({ type: 'connected' });
         ws.send(JSON.stringify({
           type: 'training_start',
-          config: { num_agents: 8, mcts_sims: 32, ascension: 20, seed: 'Test123' },
+          config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' },
         }));
       };
 
@@ -169,8 +216,17 @@ export function useTrainingState() {
             case 'mcts_result':
               dispatch({ type: 'mcts_result', result: msg });
               break;
+            case 'planner_result':
+              dispatch({ type: 'planner_result', result: msg });
+              break;
             case 'agent_combat':
               dispatch({ type: 'agent_combat', agent_id: msg.agent_id, combat: msg.combat });
+              break;
+            case 'agent_map':
+              dispatch({ type: 'agent_map', agent_id: msg.agent_id, map: msg.map });
+              break;
+            case 'agent_run_state':
+              dispatch({ type: 'agent_run_state', agent_id: msg.agent_id, deck: msg.deck, relics: msg.relics, potions: msg.potions, gold: msg.gold });
               break;
             case 'system_stats':
               dispatch({ type: 'system_stats', stats: msg });
@@ -224,7 +280,7 @@ export function useTrainingState() {
   }, [sendMsg]);
 
   const resumeTraining = useCallback(() => {
-    sendMsg({ type: 'training_resume', config: { num_agents: 8, mcts_sims: 32, ascension: 20, seed: 'Test123' } });
+    sendMsg({ type: 'training_resume', config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' } });
     dispatch({ type: 'set_paused', paused: false });
   }, [sendMsg]);
 
