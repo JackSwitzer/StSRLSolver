@@ -77,3 +77,6 @@ target/
 .claude/projects/
 .claude/plans/
 .claude/.credentials.env
+
+# Vite cache
+packages/viz/.vite/
