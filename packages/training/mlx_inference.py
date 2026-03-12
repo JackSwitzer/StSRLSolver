@@ -38,6 +38,16 @@ def check_mlx():
         raise RuntimeError("MLX not available. Install with: uv add mlx")
 
 
+def _as_float32_array(values: np.ndarray) -> np.ndarray:
+    """Return a contiguous float32 array without copying when possible."""
+    return np.ascontiguousarray(np.asarray(values, dtype=np.float32))
+
+
+def _as_bool_array(values: np.ndarray) -> np.ndarray:
+    """Return a contiguous bool array without copying when possible."""
+    return np.ascontiguousarray(np.asarray(values, dtype=np.bool_))
+
+
 class MLXResidualBlock:
     """Residual block: Linear + LayerNorm + ReLU with skip connection."""
 
@@ -161,8 +171,8 @@ class MLXStrategicNet:
         Returns:
             (action_index, value, policy_probs)
         """
-        obs = mx.array(obs_np[np.newaxis].astype(np.float32))
-        mask = mx.array(action_mask_np[np.newaxis].astype(np.bool_))
+        obs = mx.array(_as_float32_array(obs_np)[np.newaxis])
+        mask = mx.array(_as_bool_array(action_mask_np)[np.newaxis])
 
         out = self(obs, mask)
         logits = out["policy_logits"][0]
@@ -194,8 +204,8 @@ class MLXStrategicNet:
         Returns:
             (logits [N, action_dim], values [N]) as numpy arrays
         """
-        obs = mx.array(obs_batch.astype(np.float32))
-        mask = mx.array(mask_batch.astype(np.bool_))
+        obs = mx.array(_as_float32_array(obs_batch))
+        mask = mx.array(_as_bool_array(mask_batch))
 
         out = self(obs, mask)
         mx.eval(out["policy_logits"], out["value"])

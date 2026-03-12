@@ -47,6 +47,17 @@ logger = logging.getLogger(__name__)
 # Module-level client installed by workers via InferenceClient.setup_worker()
 _CLIENT: Optional["InferenceClient"] = None
 
+
+def _copy_obs_into(row: np.ndarray, obs: object, input_dim: int) -> None:
+    """Copy an observation into a preallocated row with pad/truncate semantics."""
+    if obs is None:
+        return
+
+    obs_arr = np.asarray(obs, dtype=np.float32).reshape(-1)
+    length = min(obs_arr.shape[0], input_dim)
+    if length:
+        row[:length] = obs_arr[:length]
+
 # ──────────────────────────────────────────────────────────────
 # Backend implementations
 # ──────────────────────────────────────────────────────────────
@@ -264,6 +275,8 @@ class InferenceServer:
 
         # Backend state (guarded by server thread only after start)
         self._strategic_backend: Optional[MLXStrategicBackend | TorchStrategicBackend] = None
+        self._strategic_obs_buffer: Optional[np.ndarray] = None
+        self._strategic_mask_buffer: Optional[np.ndarray] = None
 
         # Stats
         self._stats_lock = threading.Lock()
@@ -474,6 +487,22 @@ class InferenceServer:
             if len(s["forward_ms"]) > self._ROLLING:
                 s["forward_ms"] = s["forward_ms"][-self._ROLLING :]
 
+    def _get_strategic_batch_buffers(
+        self,
+        input_dim: int,
+        action_dim: int,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return reusable numpy buffers sized for the current backend."""
+        obs_shape = (self.max_batch_size, input_dim)
+        if self._strategic_obs_buffer is None or self._strategic_obs_buffer.shape != obs_shape:
+            self._strategic_obs_buffer = np.empty(obs_shape, dtype=np.float32)
+
+        mask_shape = (self.max_batch_size, action_dim)
+        if self._strategic_mask_buffer is None or self._strategic_mask_buffer.shape != mask_shape:
+            self._strategic_mask_buffer = np.empty(mask_shape, dtype=np.bool_)
+
+        return self._strategic_obs_buffer, self._strategic_mask_buffer
+
     def _forward_strategic(self, reqs: list) -> None:
         """Build batch tensor, forward pass, scatter responses."""
         if self._strategic_backend is None:
@@ -486,20 +515,15 @@ class InferenceServer:
         input_dim = backend._net.input_dim if hasattr(backend._net, "input_dim") else 260
 
         n = len(reqs)
-        obs_batch = np.zeros((n, input_dim), dtype=np.float32)
-        mask_batch = np.zeros((n, action_dim), dtype=bool)
+        obs_buffer, mask_buffer = self._get_strategic_batch_buffers(input_dim, action_dim)
+        obs_batch = obs_buffer[:n]
+        mask_batch = mask_buffer[:n]
+        obs_batch.fill(0.0)
+        mask_batch.fill(False)
 
         for i, req in enumerate(reqs):
             obs = req.get("obs")
-            if obs is None or len(obs) != input_dim:
-                # Zero-pad or truncate gracefully
-                obs_arr = np.zeros(input_dim, dtype=np.float32)
-                if obs is not None:
-                    length = min(len(obs), input_dim)
-                    obs_arr[:length] = obs[:length]
-                obs_batch[i] = obs_arr
-            else:
-                obs_batch[i] = obs.astype(np.float32)
+            _copy_obs_into(obs_batch[i], obs, input_dim)
 
             n_actions = req.get("n_actions")
             if n_actions is not None and n_actions > 0:
