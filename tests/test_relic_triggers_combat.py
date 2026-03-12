@@ -31,6 +31,7 @@ from packages.engine.state.combat import (
 )
 from packages.engine.content.cards import ALL_CARDS, CardType, get_card
 from packages.engine.effects.orbs import get_orb_manager, channel_orb
+from packages.engine.combat_engine import CombatEngine, CombatPhase
 
 
 # =============================================================================
@@ -278,6 +279,42 @@ class TestCardPlayRelics:
         execute_relic_triggers("onEmptyHand", state)
 
         assert len(state.hand) == 1, "Unceasing Top should draw 1 card on empty hand"
+
+    def test_unceasing_top_integration_play_last_card_draws(self):
+        """Unceasing Top: Playing the last card in hand triggers draw via combat engine."""
+        state = create_combat_with_relic("Unceasing Top")
+        # Hand has exactly one card: a 0-cost Strike
+        state.hand = ["Strike_P"]
+        state.draw_pile = ["Defend_P", "Defend_P", "Defend_P"]
+        state.energy = 3
+
+        engine = CombatEngine(state)
+        engine.phase = CombatPhase.PLAYER_TURN
+
+        # Play the only card — hand should become empty, triggering Unceasing Top
+        engine.play_card(0, target_index=0)
+
+        # After playing Strike (hand emptied), Unceasing Top should have drawn 1
+        assert len(state.hand) == 1, (
+            "Unceasing Top should draw 1 card when hand empties after playing a card"
+        )
+
+    def test_unceasing_top_no_trigger_with_cards_remaining(self):
+        """Unceasing Top: Playing a card with cards still in hand should NOT trigger draw."""
+        state = create_combat_with_relic("Unceasing Top")
+        state.hand = ["Strike_P", "Defend_P"]
+        state.draw_pile = ["Defend_P", "Defend_P"]
+        state.energy = 3
+
+        engine = CombatEngine(state)
+        engine.phase = CombatPhase.PLAYER_TURN
+
+        # Play first card — hand still has Defend_P, so no Unceasing Top trigger
+        engine.play_card(0, target_index=0)
+
+        assert len(state.hand) == 1, (
+            "Unceasing Top should NOT draw when hand is not empty"
+        )
 
     def test_paper_krane_increases_weak_to_40_percent(self):
         """Paper Krane: Weak enemy deals 40% less damage (not 25%)."""
