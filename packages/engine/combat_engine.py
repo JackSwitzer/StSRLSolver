@@ -1783,6 +1783,9 @@ class CombatEngine:
         """Handle enemy death triggers."""
         execute_power_triggers("onDeath", self.state, enemy, {"dying_enemy": enemy})
 
+        # Relic onMonsterDeath triggers (Gremlin Horn, The Specimen)
+        execute_relic_triggers("onMonsterDeath", self.state, {"enemy": enemy})
+
         # Spore Cloud (FungiBeast): apply Vulnerable to player
         spore_cloud = enemy.statuses.get("Spore Cloud", 0)
         if spore_cloud > 0:
