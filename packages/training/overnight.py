@@ -157,6 +157,8 @@ def _pick_combat_action(actions, runner):
     total_enemy_hp = sum(e.hp for e in enemies if e.hp > 0)
     strength = player.statuses.get("Strength", 0)
     dexterity = player.statuses.get("Dexterity", 0)
+    room_type = getattr(runner, "current_room_type", "monster")
+    is_boss_or_elite = room_type in ("boss", "elite")
 
     best_action = actions[0]
     best_score = -1000.0
@@ -180,6 +182,11 @@ def _pick_combat_action(actions, runner):
                 dmg = base_dmg + strength
                 if in_wrath:
                     dmg = int(dmg * 2)
+                # Vulnerable: 1.5x damage
+                if 0 <= a.target_idx < len(enemies):
+                    target = enemies[a.target_idx]
+                    if target.statuses.get("Vulnerable", 0) > 0:
+                        dmg = int(dmg * 1.5)
                 # Lethal bonus
                 if 0 <= a.target_idx < len(enemies) and enemies[a.target_idx].hp > 0:
                     if dmg >= enemies[a.target_idx].hp:
@@ -222,7 +229,19 @@ def _pick_combat_action(actions, runner):
                 score -= 100.0
 
         elif a.action_type == "use_potion":
-            score = 3.0
+            if is_boss_or_elite:
+                # Boss/elite: use potions aggressively
+                potion_id = ""
+                if 0 <= a.potion_idx < len(runner.run_state.potion_slots):
+                    potion_id = runner.run_state.potion_slots[a.potion_idx].potion_id or ""
+                if any(k in potion_id for k in ("Fire", "Explosive", "Attack", "Strength")):
+                    score = 18.0
+                elif any(k in potion_id for k in ("Block", "Energy")):
+                    score = 14.0
+                else:
+                    score = 8.0
+            else:
+                score = 3.0  # Save potions for boss/elite
 
         if score > best_score:
             best_score = score
@@ -455,6 +474,27 @@ def _play_one_game(
         t["cleared_act2"] = float(cleared_acts[1])
         t["cleared_act3"] = float(cleared_acts[2])
 
+    # Capture deck and death info for episode logging
+    deck_final = []
+    try:
+        deck_final = [
+            (c.id + "+" if getattr(c, "upgraded", False) else c.id)
+            if hasattr(c, "id") else str(c)
+            for c in getattr(rs, "deck", [])
+        ]
+    except Exception:
+        pass
+
+    death_enemy = ""
+    try:
+        if not won and runner.current_combat is not None:
+            for e in runner.current_combat.state.enemies:
+                if e.hp > 0:
+                    death_enemy = getattr(e, "name", getattr(e, "id", ""))
+                    break
+    except Exception:
+        pass
+
     return {
         "seed": seed,
         "won": won,
@@ -463,6 +503,9 @@ def _play_one_game(
         "decisions": decisions,
         "duration_s": round(duration, 2),
         "transitions": transitions,
+        "deck_final": deck_final,
+        "death_enemy": death_enemy,
+        "room_type": getattr(runner, "current_room_type", ""),
     }
 
 
@@ -587,6 +630,9 @@ class OvernightRunner:
             "decisions": result["decisions"],
             "duration_s": result["duration_s"],
             "num_transitions": len(result.get("transitions", [])),
+            "deck_final": result.get("deck_final", []),
+            "death_enemy": result.get("death_enemy", ""),
+            "death_room": result.get("room_type", ""),
         }
         with open(self._episodes_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
