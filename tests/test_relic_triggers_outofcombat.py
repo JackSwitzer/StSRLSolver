@@ -46,14 +46,16 @@ def test_maw_bank_gains_12_gold_on_room_entry_until_spent():
     assert runner.run_state.gold == after_spend
 
 
-def test_maw_bank_triggers_on_shop_entry_before_disable():
+def test_maw_bank_does_not_trigger_at_shop():
+    """Java parity: MawBank.onEnterRoom skips ShopRoom — no gold gained."""
     runner = GameRunner(seed="MAWBANK_SHOP", ascension=0, verbose=False)
     runner.run_state.add_relic("MawBank")
 
     start_gold = runner.run_state.gold
     _enter_room(runner, RoomType.SHOP)
 
-    assert runner.run_state.gold == start_gold + 12
+    # Maw Bank should NOT gain gold at shops (Java: `if !(room instanceof ShopRoom)`)
+    assert runner.run_state.gold == start_gold
 
 
 def test_meal_ticket_heals_on_shop_entry():

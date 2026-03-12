@@ -132,6 +132,29 @@ class MapPosition:
         return f"({self.x}, {self.y})"
 
 
+class _HealRelicProxy:
+    """Minimal duck-typed proxy so execute_relic_triggers can check relics
+    owned by a RunState when dispatching onPlayerHeal.
+
+    Only needs: has_relic, get_relic_counter, set_relic_counter, .relics list.
+    """
+
+    def __init__(self, run_state: 'RunState'):
+        self._rs = run_state
+        self.relics = [r.id for r in run_state.relics]
+        self.enemies: list = []
+
+    def has_relic(self, relic_id: str) -> bool:
+        return self._rs.has_relic(relic_id)
+
+    def get_relic_counter(self, relic_id: str, default: int = 0) -> int:
+        val = self._rs.get_relic_counter(relic_id)
+        return val if val != -1 else default
+
+    def set_relic_counter(self, relic_id: str, value: int) -> None:
+        self._rs.set_relic_counter(relic_id, value)
+
+
 @dataclass
 class RunState:
     """
@@ -1019,15 +1042,25 @@ class RunState:
         """
         Heal HP.
 
+        Dispatches the ``onPlayerHeal`` relic hook so that relics like
+        Magic Flower (1.5x healing) and Mark of the Bloom (no healing)
+        are handled through the registry rather than inline checks.
+
         Args:
             amount: Amount to heal (affected by relics)
         """
         if self.has_relic("Mark of the Bloom"):
             return  # Can't heal
 
-        # Magic Flower increases healing by 50%
-        if self.has_relic("Magic Flower"):
-            amount = int(amount * 1.5)
+        # Dispatch onPlayerHeal through the relic registry so registered
+        # handlers (e.g. Magic Flower) can modify the heal amount.
+        from ..registry import execute_relic_triggers
+        proxy = _HealRelicProxy(self)
+        modified = execute_relic_triggers(
+            "onPlayerHeal", proxy, {"heal_amount": amount}
+        )
+        if modified is not None:
+            amount = modified
 
         self.current_hp = min(self.current_hp + amount, self.max_hp)
 
