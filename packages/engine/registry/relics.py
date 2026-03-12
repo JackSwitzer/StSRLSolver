@@ -1595,17 +1595,22 @@ def girya_equip(ctx: RelicContext) -> None:
 
 @relic_trigger("onRestOption", relic="Girya")
 def girya_lift(ctx: RelicContext) -> None:
-    """Girya: Using lift grants +1 Strength permanently."""
+    """Girya: Lift at rest site increments counter (max 3).
+
+    Java: Girya.addCampfireOption — adds "Lift" if counter < 3.
+    Java: LiftOption.useOption — increments counter, shows Strength VFX.
+
+    NOTE: In the Python engine, the actual lift logic is handled by
+    RestHandler.lift() which increments girya.counter. The Strength is
+    then applied at combat start via the atBattleStart handler above.
+    This hook is called as a notification after lift completes.
+    """
     option = ctx.trigger_data.get("option", "")
     if option == "lift":
-        uses = ctx.get_relic_counter("Girya", 0)
-        if uses > 0:
-            # Grant permanent Strength (stored in run state, not combat state)
-            if hasattr(ctx.state, 'permanent_strength'):
-                ctx.state.permanent_strength = ctx.state.permanent_strength + 1
-            else:
-                ctx.state.permanent_strength = 1
-            ctx.set_relic_counter("Girya", uses - 1)
+        # Notification-only: RestHandler.lift() already incremented the counter.
+        # This hook exists for parity with Java's addCampfireOption hook
+        # and for future extensibility (e.g., logging, achievements).
+        pass
 
 
 @relic_trigger("onEquip", relic="Shovel")
