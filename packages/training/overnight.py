@@ -84,6 +84,154 @@ EVENT_REWARDS = {
 
 
 # ---------------------------------------------------------------------------
+# Lightweight combat heuristic (no simulation, ~0ms per call)
+# ---------------------------------------------------------------------------
+
+# Card data: {card_id: (cost, base_dmg, base_block, is_attack)} for scoring
+# Only needs core Watcher cards — unknown cards get defaults
+_CARD_STATS = {
+    "Strike_P": (1, 6, 0, True), "Strike_P+": (1, 9, 0, True),
+    "Defend_P": (1, 0, 5, False), "Defend_P+": (1, 0, 8, False),
+    "Eruption": (2, 9, 0, True), "Eruption+": (1, 9, 0, True),
+    "Vigilance": (2, 0, 8, False), "Vigilance+": (2, 0, 12, False),
+    "BowlingBash": (1, 7, 0, True), "BowlingBash+": (1, 10, 0, True),
+    "CrushJoints": (1, 8, 0, True), "CrushJoints+": (1, 10, 0, True),
+    "CutThroughFate": (1, 7, 0, True), "CutThroughFate+": (1, 9, 0, True),
+    "EmptyBody": (1, 0, 7, False), "EmptyBody+": (1, 0, 11, False),
+    "EmptyFist": (1, 9, 0, True), "EmptyFist+": (1, 14, 0, True),
+    "Flurry": (0, 4, 0, True), "Flurry+": (0, 6, 0, True),
+    "FlyingSleeves": (1, 4, 0, True), "FlyingSleeves+": (1, 6, 0, True),
+    "FollowUp": (1, 7, 0, True), "FollowUp+": (1, 11, 0, True),
+    "Halt": (0, 0, 3, False), "Halt+": (0, 0, 4, False),
+    "Prostrate": (0, 0, 4, False), "Prostrate+": (0, 0, 4, False),
+    "Tantrum": (1, 3, 0, True), "Tantrum+": (1, 3, 0, True),
+    "InnerPeace": (1, 0, 0, False), "InnerPeace+": (1, 0, 0, False),
+    "Crescendo": (1, 0, 0, False), "Crescendo+": (0, 0, 0, False),
+    "Tranquility": (1, 0, 0, False), "Tranquility+": (0, 0, 0, False),
+    "WheelKick": (2, 15, 0, True), "WheelKick+": (2, 20, 0, True),
+    "Conclude": (1, 12, 0, True), "Conclude+": (1, 16, 0, True),
+    "Ragnarok": (3, 5, 0, True), "Ragnarok+": (3, 5, 0, True),
+    "SashWhip": (1, 8, 0, True), "SashWhip+": (1, 11, 0, True),
+    "JustLucky": (0, 3, 0, True), "JustLucky+": (0, 4, 0, True),
+    "TalkToTheHand": (1, 5, 0, True), "TalkToTheHand+": (1, 7, 0, True),
+    "Wallop": (2, 9, 9, True), "Wallop+": (2, 12, 12, True),
+    "Miracle": (0, 0, 0, False), "Miracle+": (0, 0, 0, False),
+    "Smite": (1, 12, 0, True), "Smite+": (1, 16, 0, True),
+    "Protect": (2, 0, 12, False), "Protect+": (2, 0, 16, False),
+    "Worship": (2, 0, 0, False), "Worship+": (2, 0, 0, False),
+    "PressurePoints": (1, 0, 0, False), "PressurePoints+": (1, 0, 0, False),
+    # Status/Curse
+    "Slimed": (1, 0, 0, False), "Wound": (-2, 0, 0, False),
+    "Daze": (-2, 0, 0, False), "Burn": (-2, 0, 0, False),
+    "AscendersBane": (-2, 0, 0, False),
+}
+
+# Stance-changing cards
+_WRATH_CARDS = {"Eruption", "Eruption+", "Tantrum", "Tantrum+", "Crescendo", "Crescendo+"}
+_CALM_CARDS = {"Vigilance", "Vigilance+", "InnerPeace", "InnerPeace+", "Tranquility", "Tranquility+"}
+_EXIT_STANCE_CARDS = {"EmptyBody", "EmptyBody+", "EmptyFist", "EmptyFist+"}
+
+
+def _pick_combat_action(actions, runner):
+    """Score combat actions and pick the best one. Fast heuristic (~0ms)."""
+    if len(actions) <= 1:
+        return actions[0]
+
+    combat = runner.current_combat
+    if combat is None:
+        return actions[0]
+
+    state = combat.state
+    player = state.player
+    enemies = state.enemies
+
+    # Compute incoming damage
+    incoming = 0
+    for e in enemies:
+        if e.hp > 0 and getattr(e, "move_damage", 0) > 0:
+            incoming += e.move_damage * getattr(e, "move_hits", 1)
+
+    stance = getattr(state, "stance", "Neutral")
+    in_wrath = stance == "Wrath"
+    in_calm = stance == "Calm"
+    total_enemy_hp = sum(e.hp for e in enemies if e.hp > 0)
+    strength = player.statuses.get("Strength", 0)
+    dexterity = player.statuses.get("Dexterity", 0)
+
+    best_action = actions[0]
+    best_score = -1000.0
+
+    for a in actions:
+        score = 0.0
+
+        if a.action_type == "end_turn":
+            score = -1.0 if state.energy > 0 else 5.0
+
+        elif a.action_type == "play_card":
+            if a.card_idx < 0 or a.card_idx >= len(state.hand):
+                continue
+            card_id = str(state.hand[a.card_idx])
+            cost, base_dmg, base_block, is_attack = _CARD_STATS.get(
+                card_id, (1, 6 if "Strike" in card_id else 0, 5 if "Defend" in card_id else 0, "Strike" in card_id)
+            )
+
+            # Damage scoring
+            if base_dmg > 0:
+                dmg = base_dmg + strength
+                if in_wrath:
+                    dmg = int(dmg * 2)
+                # Lethal bonus
+                if 0 <= a.target_idx < len(enemies) and enemies[a.target_idx].hp > 0:
+                    if dmg >= enemies[a.target_idx].hp:
+                        score += 20.0
+                score += dmg * 1.5
+
+            # Block scoring (weighted by incoming damage)
+            if base_block > 0:
+                block = base_block + dexterity
+                useful_block = min(block, max(incoming, 1))
+                score += useful_block * 2.0 + max(0, block - incoming) * 0.3
+
+            # Stance management (Watcher-critical)
+            if card_id in _WRATH_CARDS:
+                if incoming == 0 or total_enemy_hp <= state.energy * 10:
+                    score += 15.0  # Safe Wrath
+                elif in_wrath:
+                    score += 5.0  # Already in Wrath, this is fine
+                else:
+                    score -= 10.0  # Dangerous to enter Wrath
+            elif card_id in _CALM_CARDS:
+                if in_wrath and incoming > 0:
+                    score += 25.0  # Exit Wrath under fire
+                elif not in_calm:
+                    score += 5.0  # Bank energy
+            elif card_id in _EXIT_STANCE_CARDS:
+                if in_wrath and incoming > 0:
+                    score += 20.0
+
+            # Miracle: gain energy, always good to play early
+            if card_id in ("Miracle", "Miracle+"):
+                score += 12.0
+
+            # Zero-cost cards: almost always worth playing
+            if cost == 0:
+                score += 8.0
+
+            # Can't afford
+            if cost > state.energy:
+                score -= 100.0
+
+        elif a.action_type == "use_potion":
+            score = 3.0
+
+        if score > best_score:
+            best_score = score
+            best_action = a
+
+    return best_action
+
+
+# ---------------------------------------------------------------------------
 # Worker function — runs in subprocess via ProcessPoolExecutor
 # ---------------------------------------------------------------------------
 
@@ -110,7 +258,7 @@ def _play_one_game(
     import torch.nn.functional as F
     import io
 
-    from packages.engine.game import GameRunner, GamePhase
+    from packages.engine.game import GameRunner, GamePhase, CombatAction
     from packages.training.planner import StrategicPlanner
 
     # Lazy-import model class and encoder
@@ -166,8 +314,8 @@ def _play_one_game(
         if phase == GamePhase.COMBAT:
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
-            # Combat: use first action (heuristic/planner handles this)
-            runner.take_action(actions[0])
+            # Lightweight combat heuristic: score each action
+            runner.take_action(_pick_combat_action(actions, runner))
         elif len(actions) == 1:
             # Check for combat-end event rewards
             if was_in_combat and phase != GamePhase.COMBAT:
