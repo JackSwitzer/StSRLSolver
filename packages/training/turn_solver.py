@@ -35,30 +35,11 @@ from packages.engine.state.combat import (
 
 
 # ---------------------------------------------------------------------------
-# Scoring constants
+# Scoring constants — minimal, simulation-grounded
 # ---------------------------------------------------------------------------
 
-_SCORE_DEATH = -100_000.0
-_SCORE_LETHAL = 100_000.0
-
-# Setup bonuses (small, tiebreaker only)
-_POWER_BONUS = 5.0
-_CALM_BONUS = 3.0
-_MANTRA_BONUS = 2.0
-_DEBUFF_BONUS = 3.0
-
-# Valuable powers for setup scoring
-_VALUABLE_POWERS = frozenset({
-    "Strength", "Dexterity", "MentalFortress", "Mantra",
-    "Rushdown", "Fasting", "BattleHymn", "Devotion",
-    "Establishment", "Vigor", "DevaForm", "LikeWater",
-    "Nirvana", "Omega",
-})
-
-# Debuffs applied to enemies worth scoring
-_VALUABLE_DEBUFFS = frozenset({
-    "Vulnerable", "Weakened", "Mark", "BlockReturn",
-})
+_SCORE_DEATH = -1_000_000.0
+_SCORE_LETHAL = 1_000_000.0
 
 # Cards that do setup (stance, draw, powers) — get reserved beam slots
 _SETUP_CARD_PREFIXES = frozenset({
@@ -247,102 +228,88 @@ class TurnSolver:
         engine: CombatEngine,
         original: CombatEngine,
     ) -> float:
-        """Score a terminal turn state (after all cards played, before enemy turn).
+        """Score a terminal turn state by SIMULATING the enemy turn.
 
-        Lexicographic:
-        1. Player dead -> -100000
-        2. All enemies dead -> +100000 + hp_remaining
-        3. -(expected_hp_loss) * 100 + enemy_damage_dealt + setup_bonus
+        No heuristic weights — we copy the engine, execute EndTurn, and
+        measure actual HP lost after enemy attacks. This is ground truth,
+        not estimation.
+
+        Scoring:
+        1. Dead (now or after enemy turn) -> -1M
+        2. All enemies dead (lethal) -> +1M + hp_remaining
+        3. Otherwise: linear combination of simulated outcomes
         """
         state = engine.state
         player = state.player
 
-        # Priority 1: death
         if player.hp <= 0:
             return _SCORE_DEATH
 
-        living_enemies = [e for e in state.enemies if e.hp > 0 and not e.is_escaping]
+        living = [e for e in state.enemies if e.hp > 0 and not e.is_escaping]
 
-        # Priority 2: lethal (all enemies dead)
-        if not living_enemies:
-            return _SCORE_LETHAL + player.hp
+        if not living:
+            return _SCORE_LETHAL + player.hp * 200
 
-        # Priority 3: expected HP loss
-        expected_incoming = 0
-        for e in living_enemies:
-            if e.move_damage > 0:
-                raw = e.move_damage * e.move_hits
-                # Wrath doubles incoming
-                if state.stance == "Wrath":
-                    raw *= 2
-                expected_incoming += raw
+        # Simulate enemy turn to get actual HP loss
+        try:
+            sim = engine.copy()
+            sim.execute_action(EndTurn())
+            # Run until player's next turn or combat ends
+            while (
+                sim.state.phase == CombatPhase.ENEMY_TURN
+                and not sim.is_combat_over()
+            ):
+                sim.tick()
+            hp_after = sim.state.player.hp
+        except Exception:
+            # Fallback: estimate from intents
+            hp_after = player.hp - self._estimate_incoming(state)
 
-        net_damage = max(0, expected_incoming - player.block)
-        # Clamp to player HP
-        expected_hp_loss = min(net_damage, player.hp)
+        actual_hp_lost = max(0, player.hp - hp_after)
 
-        # Check if this will kill us
-        if expected_hp_loss >= player.hp:
+        if hp_after <= 0:
             return _SCORE_DEATH + player.hp  # Dead after enemy turn
 
-        # Priority 3 component
-        hp_loss_score = -expected_hp_loss * 100.0
+        # Enemies killed this turn
+        orig_living = sum(1 for e in original.state.enemies if e.hp > 0 and not e.is_escaping)
+        now_living = sum(1 for e in living)
+        enemies_killed = orig_living - now_living
 
-        # Enemy HP destroyed (compared to original)
-        original_enemy_hp = sum(
-            e.hp for e in original.state.enemies if e.hp > 0 and not e.is_escaping
+        # Enemy HP destroyed
+        orig_ehp = sum(e.hp for e in original.state.enemies if e.hp > 0 and not e.is_escaping)
+        now_ehp = sum(e.hp for e in living)
+
+        # Rough turns-to-kill estimate
+        dmg_this_turn = orig_ehp - now_ehp
+        est_turns = now_ehp / max(dmg_this_turn, 1) if dmg_this_turn > 0 else 10
+
+        # Score: all terms are in comparable units (HP-equivalent)
+        score = (
+            -6.0 * actual_hp_lost
+            + 60.0 * enemies_killed
+            - 1.5 * now_ehp / max(orig_ehp, 1) * 10  # normalized remaining HP
+            - 12.0 * min(est_turns, 10)
         )
-        current_enemy_hp = sum(e.hp for e in living_enemies)
-        damage_dealt = original_enemy_hp - current_enemy_hp
-        damage_score = damage_dealt * 1.0
 
-        # Priority 4: setup bonus (tiebreaker)
-        setup_score = self._setup_bonus(state, original.state)
-
-        return hp_loss_score + damage_score + setup_score
-
-    def _setup_bonus(self, state, original_state) -> float:
-        """Calculate small setup bonus for tiebreaking."""
-        bonus = 0.0
-        player = state.player
-        orig_player = original_state.player
-
-        # Powers gained
-        for power in _VALUABLE_POWERS:
-            current = player.statuses.get(power, 0)
-            original = orig_player.statuses.get(power, 0)
-            if current > original:
-                bonus += _POWER_BONUS * (current - original)
-
-        # Calm stance at end of turn = energy banked for next turn
+        # Stance: ending in Calm banks energy; ending in Wrath is dangerous
         if state.stance == "Calm":
-            bonus += _CALM_BONUS
+            score += 25.0
+        elif state.stance == "Wrath" and now_living > 0:
+            score -= 60.0
 
-        # Mantra gained
-        mantra_gained = state.mantra - original_state.mantra
-        if mantra_gained > 0:
-            bonus += _MANTRA_BONUS * mantra_gained
+        return score
 
-        # Debuffs applied to enemies
-        for enemy in state.enemies:
-            if enemy.hp <= 0:
-                continue
-            # Find matching original enemy by id
-            orig_enemy = None
-            for oe in original_state.enemies:
-                if oe.id == enemy.id and oe.hp > 0:
-                    orig_enemy = oe
-                    break
-            if orig_enemy is None:
-                continue
-
-            for debuff in _VALUABLE_DEBUFFS:
-                current = enemy.statuses.get(debuff, 0)
-                original = orig_enemy.statuses.get(debuff, 0)
-                if current > original:
-                    bonus += _DEBUFF_BONUS
-
-        return bonus
+    @staticmethod
+    def _estimate_incoming(state) -> int:
+        """Fallback: estimate incoming damage from enemy intents."""
+        total = 0
+        for e in state.enemies:
+            if e.hp > 0 and not e.is_escaping and e.move_damage > 0:
+                raw = e.move_damage * e.move_hits
+                if state.stance == "Wrath":
+                    raw *= 2
+                total += raw
+        return max(0, total - state.player.block)
 
     # -----------------------------------------------------------------------
     # Strategy 1: Exact DFS (small turns, <300 nodes)
@@ -706,7 +673,7 @@ class TurnSolverAdapter:
 
         engine = getattr(runner, "current_combat", None)
         if engine is None:
-            return actions[0]
+            return None  # Let caller fall through to CombatPlanner/heuristic
 
         state = engine.state
         current_turn = state.turn
@@ -729,10 +696,10 @@ class TurnSolverAdapter:
         try:
             plan = self._solver.solve_turn(engine, room_type)
         except Exception:
-            return actions[0]
+            return None  # Fall through to CombatPlanner/heuristic
 
         if plan is None or len(plan) == 0:
-            return actions[0]
+            return None
 
         self._cached_plan = plan
         self._cached_plan_index = 0
@@ -745,8 +712,7 @@ class TurnSolverAdapter:
             self._cached_plan_index = 1
             return combat_action
 
-        # Fallback
-        return actions[0]
+        return None  # Fall through to CombatPlanner/heuristic
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.

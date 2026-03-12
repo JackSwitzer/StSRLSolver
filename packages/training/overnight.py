@@ -39,37 +39,64 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 DEFAULT_SWEEP_CONFIGS = [
-    # --- Pure on-policy (no heuristic override, NN generates all data) ---
-    {"name": "pure_med", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
-    {"name": "pure_low_lr", "epsilon_mode": "none",
+    # --- Pure on-policy (varying LR + batch size, standard 50ms TurnSolver) ---
+    {"name": "pure_low_lr_b256", "epsilon_mode": "none",
+     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 256, "entropy_coeff": 0.03, "temperature": 0.8,
+     "turn_solver_ms": 50.0},
+    {"name": "pure_med_b512", "epsilon_mode": "none",
      "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8},
-    {"name": "pure_high_lr", "epsilon_mode": "none",
-     "lr": 1e-3, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
-    {"name": "pure_restarts", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 256, "entropy_coeff": 0.04, "temperature": 1.0},
+     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
+    {"name": "pure_med_b1024", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
+    {"name": "pure_high_lr_b256", "epsilon_mode": "none",
+     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 256, "entropy_coeff": 0.08, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
 
     # --- Importance-weighted epsilon-greedy (correct behavior policy) ---
-    {"name": "iw_explore", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.8, "epsilon_end": 0.3, "epsilon_decay": 50000,
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
-    {"name": "iw_low_lr", "epsilon_mode": "importance_weighted",
+    {"name": "iw_low_lr_b512", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.7, "epsilon_end": 0.2, "epsilon_decay": 40000,
+     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 512, "entropy_coeff": 0.02, "temperature": 0.8,
+     "turn_solver_ms": 50.0},
+    {"name": "iw_med_b256", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.8, "epsilon_end": 0.3, "epsilon_decay": 50000,
      "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8},
-    {"name": "iw_high_lr", "epsilon_mode": "importance_weighted",
+     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
+    {"name": "iw_high_lr_b256", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.5, "epsilon_end": 0.2, "epsilon_decay": 30000,
-     "lr": 1e-3, "lr_schedule": "linear_decay",
-     "batch_size": 256, "entropy_coeff": 0.02, "temperature": 0.7},
-    {"name": "iw_restarts", "epsilon_mode": "importance_weighted",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 256, "entropy_coeff": 0.03, "temperature": 0.7,
+     "turn_solver_ms": 50.0},
+    {"name": "iw_restarts_b1024", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.6, "epsilon_end": 0.25, "epsilon_decay": 40000,
-     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 256, "entropy_coeff": 0.04, "temperature": 1.0},
+     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
+
+    # --- Turbo configs (higher TurnSolver budget, larger batch) ---
+    {"name": "turbo_fast_b512", "epsilon_mode": "none",
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8,
+     "turn_solver_ms": 25.0},
+    {"name": "turbo_deep_b512", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 100.0},
+    {"name": "turbo_deep_b1024", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.6, "epsilon_end": 0.2, "epsilon_decay": 40000,
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 100.0},
+    {"name": "turbo_max_b1024", "epsilon_mode": "none",
+     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
+     "turn_solver_ms": 100.0},
 ]
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
@@ -443,6 +470,7 @@ def _play_one_game(
     epsilon_start: float = 0.8,
     epsilon_end: float = 0.3,
     epsilon_decay: int = 50000,
+    turn_solver_ms: float = 50.0,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
@@ -474,7 +502,9 @@ def _play_one_game(
     encoder = RunStateEncoder()
     planner = StrategicPlanner()
     combat_planner = CombatPlanner(top_k=3, lookahead_turns=1)  # Fast config for training
-    turn_solver = TurnSolverAdapter(time_budget_ms=50.0, node_budget=5000)
+    # Scale node budget proportionally with time budget (100 nodes per ms)
+    _node_budget = max(1000, int(turn_solver_ms * 100))
+    turn_solver = TurnSolverAdapter(time_budget_ms=turn_solver_ms, node_budget=_node_budget)
 
     client = get_client()
 
@@ -939,14 +969,37 @@ class OvernightRunner:
         )
         logger.info("Worker pool started (%d processes)", self.workers)
 
-        # --- Signal handler for graceful shutdown ---
+        # --- Signal handlers ---
         def _handle_shutdown(signum, frame):
             sig_name = signal.Signals(signum).name
             logger.info("Graceful shutdown requested (%s), finishing current batch...", sig_name)
             self._shutdown_requested = True
 
+        def _handle_reload(signum, frame):
+            """Hot-reload config from {run_dir}/reload.json on SIGUSR1."""
+            reload_path = self.run_dir / "reload.json"
+            if reload_path.exists():
+                try:
+                    import json as _json
+                    cfg = _json.loads(reload_path.read_text())
+                    logger.info("Hot-reload from %s: %s", reload_path, cfg)
+                    if "entropy_coeff" in cfg:
+                        trainer.entropy_coeff = cfg["entropy_coeff"]
+                        logger.info("  entropy_coeff -> %s", cfg["entropy_coeff"])
+                    if "temperature" in cfg:
+                        self.temperature = cfg["temperature"]
+                        logger.info("  temperature -> %s", cfg["temperature"])
+                    if "lr" in cfg:
+                        for pg in trainer.optimizer.param_groups:
+                            pg["lr"] = cfg["lr"]
+                        logger.info("  lr -> %s", cfg["lr"])
+                    reload_path.unlink()
+                except Exception as e:
+                    logger.error("Hot-reload failed: %s", e)
+
         signal.signal(signal.SIGTERM, _handle_shutdown)
         signal.signal(signal.SIGINT, _handle_shutdown)
+        signal.signal(signal.SIGUSR1, _handle_reload)
 
         seed_pool = SeedPool(max_plays=5)
         best_avg_floor = 0.0
@@ -988,11 +1041,12 @@ class OvernightRunner:
             sweep_start = time.monotonic()
             sweep_floors: Deque[int] = deque(maxlen=200)
 
+            ts_ms = sweep_config.get("turn_solver_ms", 50.0)
             logger.info(
-                "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f",
+                "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f, ts=%.0fms",
                 config_name, lr,
                 sweep_config.get("entropy_coeff", 0.05),
-                batch_size, temp,
+                batch_size, temp, ts_ms,
             )
 
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
@@ -1170,19 +1224,20 @@ class OvernightRunner:
         """
         seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
 
-        # Extract epsilon params from current sweep config
+        # Extract epsilon and turn solver params from current sweep config
         cfg = self._current_sweep_config
         eps_mode = cfg.get("epsilon_mode", "none")
         eps_start = cfg.get("epsilon_start", 0.8)
         eps_end = cfg.get("epsilon_end", 0.3)
         eps_decay = cfg.get("epsilon_decay", 50000)
+        ts_ms = cfg.get("turn_solver_ms", 50.0)
 
         # Submit all games to the persistent pool
         async_results = [
             self._executor.apply_async(
                 _play_one_game,
                 (seed, self.ascension, self.temperature, self.total_games,
-                 eps_mode, eps_start, eps_end, eps_decay),
+                 eps_mode, eps_start, eps_end, eps_decay, ts_ms),
             )
             for seed in seeds
         ]

@@ -1,0 +1,48 @@
+{
+  "_comment": "Milestone-triggered audit hook. Sketch for triggering audits at training milestones.",
+  "_usage": "This config is read by the training loop (overnight.py) to decide when to trigger an audit.",
+  "_note": "Not a Claude Code hook — this is a training-system config file.",
+
+  "milestone_audit": {
+    "enabled": false,
+    "trigger_every_n_games": 100000,
+    "trigger_on_win_rate_change": 0.05,
+    "trigger_on_avg_floor_plateau": {
+      "enabled": true,
+      "window_games": 10000,
+      "plateau_threshold": 0.3
+    },
+    "audit_command": "./scripts/nightly-audit.sh --milestone",
+    "status_file": "logs/weekend-run/status.json",
+    "cooldown_minutes": 120,
+    "max_concurrent": 1
+  },
+
+  "integration_sketch": {
+    "_comment": "Add to overnight.py main loop, after status.json write:",
+    "python_snippet": [
+      "# In overnight.py, after updating status.json:",
+      "import json, subprocess, time",
+      "",
+      "HOOK_CONFIG = '.claude/hooks/nightly-audit.json'",
+      "LAST_MILESTONE_AUDIT = 0",
+      "",
+      "def maybe_trigger_milestone_audit(total_games, status):",
+      "    global LAST_MILESTONE_AUDIT",
+      "    try:",
+      "        with open(HOOK_CONFIG) as f:",
+      "            cfg = json.load(f)['milestone_audit']",
+      "        if not cfg.get('enabled', False):",
+      "            return",
+      "        interval = cfg.get('trigger_every_n_games', 100000)",
+      "        cooldown = cfg.get('cooldown_minutes', 120) * 60",
+      "        if total_games - LAST_MILESTONE_AUDIT >= interval:",
+      "            if time.time() - getattr(maybe_trigger_milestone_audit, '_last_run', 0) > cooldown:",
+      "                subprocess.Popen(cfg['audit_command'].split(), cwd=os.getcwd())",
+      "                LAST_MILESTONE_AUDIT = total_games",
+      "                maybe_trigger_milestone_audit._last_run = time.time()",
+      "    except (FileNotFoundError, KeyError, json.JSONDecodeError):",
+      "        pass  # Hook not configured, skip silently"
+    ]
+  }
+}

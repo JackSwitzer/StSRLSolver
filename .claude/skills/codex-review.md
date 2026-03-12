@@ -1,4 +1,4 @@
-# GPT 5.4 Review Skill
+# Codex Review Skill
 
 Use this skill when the user asks for a GPT 5.4 / codex review of code, plans, or architecture.
 
@@ -20,18 +20,47 @@ Invoke with: `/codex-review <topic or file path>`
 4. **Parse and present**: Summarize findings with actionable items
 
 ## Auth
-- Codex CLI at `/Applications/Codex.app/Contents/Resources/codex` — has its own login/auth
-- **NOT OpenRouter** — uses native Codex app authentication
+- Codex CLI at `/Applications/Codex.app/Contents/Resources/codex` -- has its own login/auth
+- **NOT OpenRouter** -- uses native Codex app authentication
 - If auth fails: run `/Applications/Codex.app/Contents/Resources/codex login`
 
-## Scripts
-- `scripts/gpt54-review.sh <prompt_file> [output_file] [effort]` — ad-hoc reviews
-- `scripts/nightly-audit.sh [run-dir]` — automated training audit
-- `scripts/audit-setup.sh install|uninstall|status|run-now` — manage nightly cron
+## Command Format
 
-## Effort Selection
-- **high**: Code reviews, bug hunts, quick checks (8K tokens)
-- **extra-high**: Architecture decisions, scoping reviews, weekend run audits (16K tokens)
+The Codex CLI `exec` subcommand runs a one-shot prompt:
+
+```bash
+# Quick check (high effort)
+/Applications/Codex.app/Contents/Resources/codex exec \
+  -m gpt-5.4 \
+  -c 'reasoning_effort="high"' \
+  --sandbox read-only \
+  "Your prompt here"
+
+# Deep review (extra-high effort)
+/Applications/Codex.app/Contents/Resources/codex exec \
+  -m gpt-5.4 \
+  -c 'reasoning_effort="extra-high"' \
+  --sandbox read-only \
+  "Your prompt here"
+```
+
+Key flags:
+- `-m gpt-5.4` -- model selection
+- `-c 'reasoning_effort="high"'` -- config override (high or extra-high)
+- `--sandbox read-only` -- filesystem access (read-only for safety)
+- The prompt is the final positional argument (string)
+
+## Scripts
+- `scripts/gpt54-review.sh <prompt_file> [output_file] [effort]` -- ad-hoc reviews
+- `scripts/nightly-audit.sh [run-dir]` -- automated training audit + email notification
+- `scripts/audit-setup.sh install|uninstall|status|run-now` -- manage launchd schedule (9pm daily)
+
+## Effort Levels
+
+| Level | Flag | Use Case | Approx Tokens |
+|-------|------|----------|---------------|
+| **high** | `reasoning_effort="high"` | Code reviews, bug hunts, quick checks | ~8K |
+| **extra-high** | `reasoning_effort="extra-high"` | Architecture decisions, scoping reviews, overnight run audits | ~16K |
 
 ## Prompt Template
 ```
@@ -48,3 +77,12 @@ SPECIFIC QUESTIONS:
 
 Provide: (a) critical bugs, (b) performance wins, (c) dead code, (d) ranked improvements.
 ```
+
+## Nightly Audit
+
+The nightly audit (`scripts/nightly-audit.sh`) runs three Codex reviews:
+1. **Training status** (high effort) -- progress, health, recommendations
+2. **Code quality sweep** (extra-high effort) -- recently changed files, bugs, dead code
+3. **Combat performance** (high effort) -- floor distribution, death analysis, bottlenecks
+
+Results written to `{run-dir}/audits/YYYY-MM-DD-HHMM-audit.md` and emailed via Mail.app.
