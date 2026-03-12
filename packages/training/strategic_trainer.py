@@ -8,6 +8,12 @@ Auxiliary losses:
 - floor_prediction: MSE on predicted final floor
 - combat_cost: MSE on predicted HP loss in next combat
 - act_completion: BCE on P(clear act 1/2/3)
+
+Phase 2A fixes (2026-03-12):
+- batch_size default 32 -> 256
+- LR warmup over first 100 train steps
+- Entropy starts at 0.05, decays to 0.01 minimum
+- Buffer accumulates across train_batch calls (only trims excess)
 """
 
 from __future__ import annotations
@@ -60,6 +66,12 @@ class StrategicTrainer:
 
     Collects transitions at every non-combat decision point.
     Trains periodically with PPO + auxiliary losses.
+
+    Key changes from v1:
+    - batch_size=256 (was 32)
+    - LR warmup: linear over first warmup_steps train steps
+    - Entropy: starts at 0.05, min_coeff=0.01
+    - Buffer accumulation: only trims excess after training, never fully clears
     """
 
     def __init__(
@@ -69,12 +81,13 @@ class StrategicTrainer:
         gamma: float = 1.0,
         gae_lambda: float = 0.95,
         clip_epsilon: float = 0.2,
-        entropy_coeff: float = 0.01,
+        entropy_coeff: float = 0.05,
         value_coeff: float = 0.5,
         aux_coeff: float = 0.25,
         max_grad_norm: float = 0.5,
         ppo_epochs: int = 4,
-        batch_size: int = 32,
+        batch_size: int = 256,
+        warmup_steps: int = 100,
         checkpoint_dir: str = "logs/strategic_checkpoints",
     ):
         self.model = model
@@ -82,15 +95,19 @@ class StrategicTrainer:
         self.gae_lambda = gae_lambda
         self.clip_epsilon = clip_epsilon
         self.entropy_coeff = entropy_coeff
+        self._initial_entropy_coeff = entropy_coeff
         self.value_coeff = value_coeff
         self.aux_coeff = aux_coeff
         self.max_grad_norm = max_grad_norm
         self.ppo_epochs = ppo_epochs
         self.batch_size = batch_size
+        self.warmup_steps = warmup_steps
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+        self._base_lr = lr
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-5)
+        # Cosine annealing starts after warmup completes
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=10000, eta_min=1e-5,
         )
@@ -98,6 +115,17 @@ class StrategicTrainer:
         self.buffer: List[StrategicTransition] = []
         self.best_avg_floor = 0.0
         self.train_steps = 0
+
+    def _apply_lr_warmup(self) -> None:
+        """Apply linear LR warmup during early training steps.
+
+        Sets LR = base_lr * (train_steps / warmup_steps) for the first
+        warmup_steps steps. After warmup, cosine annealing takes over.
+        """
+        if self.train_steps < self.warmup_steps:
+            warmup_factor = max(self.train_steps / self.warmup_steps, 1e-3)
+            for pg in self.optimizer.param_groups:
+                pg["lr"] = self._base_lr * warmup_factor
 
     def add_transition(
         self,
@@ -175,13 +203,19 @@ class StrategicTrainer:
     def train_batch(self) -> Dict[str, float]:
         """PPO update with GAE on the current buffer.
 
-        Returns dict of loss metrics. Clears buffer after training.
+        Returns dict of loss metrics.
+        After training, trims buffer to keep at most batch_size transitions
+        (the most recent ones) rather than clearing entirely. This ensures
+        we always have enough data to train on.
         """
         if len(self.buffer) < self.batch_size:
             return {"policy_loss": 0, "value_loss": 0, "total_loss": 0, "num_transitions": len(self.buffer)}
 
         device = next(self.model.parameters()).device
         self.model.train()
+
+        # Apply LR warmup before optimizer step
+        self._apply_lr_warmup()
 
         # Compute advantages
         advantages, returns = self.compute_gae()
@@ -252,7 +286,7 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss
+                # Value loss (clipped for stability)
                 value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
@@ -298,15 +332,22 @@ class StrategicTrainer:
             for k in total_metrics:
                 total_metrics[k] /= num_mini_batches
 
-        self.scheduler.step()
+        # Only step cosine scheduler after warmup
+        if self.train_steps >= self.warmup_steps:
+            self.scheduler.step()
         self.train_steps += 1
 
         total_metrics["lr"] = self.optimizer.param_groups[0]["lr"]
+        total_metrics["entropy_coeff"] = self.entropy_coeff
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
 
-        # Clear buffer
-        self.buffer.clear()
+        # Trim buffer: keep most recent transitions instead of clearing entirely.
+        # This ensures we always have data available for the next train step.
+        # Only trim when buffer exceeds 2 * batch_size after training.
+        if len(self.buffer) > 2 * self.batch_size:
+            # Keep the most recent batch_size transitions
+            self.buffer = self.buffer[-self.batch_size:]
 
         return total_metrics
 
@@ -324,6 +365,9 @@ class StrategicTrainer:
             return True
         return False
 
-    def decay_entropy(self, min_coeff: float = 0.001, decay: float = 0.999):
-        """Anneal entropy coefficient."""
+    def decay_entropy(self, min_coeff: float = 0.01, decay: float = 0.999):
+        """Anneal entropy coefficient.
+
+        Starts at 0.05 (set in __init__), decays to min_coeff=0.01.
+        """
         self.entropy_coeff = max(min_coeff, self.entropy_coeff * decay)
