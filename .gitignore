@@ -69,3 +69,4 @@ node_modules/
 bun.lock
 logs/
 target/
+.run/

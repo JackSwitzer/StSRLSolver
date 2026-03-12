@@ -5,13 +5,14 @@
   "identifier": "com.slaytherl.viewer",
   "build": {
     "frontendDist": "../packages/viz/dist",
-    "devUrl": "http://localhost:5174"
+    "devUrl": "http://localhost:5174",
+    "beforeBuildCommand": "cd ../packages/viz && bun run build"
   },
   "app": {
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Slay the Spire RL Viewer",
+        "title": "STS RL Mission Control",
         "width": 1920,
         "height": 1080,
         "resizable": true,
