@@ -41,6 +41,7 @@ class StrategicTransition:
     done: bool                # episode termination
     value: float              # value estimate at decision time
     log_prob: float           # log probability of chosen action
+    episode_id: int = 0       # unique episode identifier for GAE computation
     # Auxiliary targets (filled after game ends)
     final_floor: float = 0.0
     hp_lost_next_combat: float = 0.0
@@ -89,6 +90,9 @@ class StrategicTrainer:
         batch_size: int = 256,
         warmup_steps: int = 100,
         checkpoint_dir: str = "logs/strategic_checkpoints",
+        lr_schedule: str = "cosine",
+        lr_T_max: int = 30000,
+        lr_T_0: int = 5000,
     ):
         self.model = model
         self.gamma = gamma
@@ -107,10 +111,21 @@ class StrategicTrainer:
 
         self._base_lr = lr
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-5)
-        # Cosine annealing starts after warmup completes
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=10000, eta_min=1e-5,
-        )
+
+        # Configurable LR schedule (starts after warmup)
+        if lr_schedule == "linear_decay":
+            self.scheduler = torch.optim.lr_scheduler.LinearLR(
+                self.optimizer, start_factor=1.0, end_factor=0.1,
+                total_iters=lr_T_max,
+            )
+        elif lr_schedule == "cosine_warm_restarts":
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                self.optimizer, T_0=lr_T_0, eta_min=1e-5,
+            )
+        else:  # "cosine" (default)
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=lr_T_max, eta_min=1e-5,
+            )
 
         self.buffer: List[StrategicTransition] = []
         self.best_avg_floor = 0.0
@@ -136,6 +151,7 @@ class StrategicTrainer:
         done: bool,
         value: float,
         log_prob: float,
+        episode_id: int = 0,
     ) -> None:
         """Record a transition at a non-combat decision point."""
         self.buffer.append(StrategicTransition(
@@ -146,6 +162,7 @@ class StrategicTrainer:
             done=done,
             value=value,
             log_prob=log_prob,
+            episode_id=episode_id,
         ))
 
     def backfill_aux_targets(
@@ -175,6 +192,11 @@ class StrategicTrainer:
     def compute_gae(self) -> tuple[np.ndarray, np.ndarray]:
         """Compute GAE advantages and returns from buffer.
 
+        Computes GAE per-episode to avoid cross-episode contamination.
+        Transitions from different games are interleaved in the buffer
+        (via ProcessPoolExecutor as_completed ordering), so we group by
+        episode_id and compute GAE within each episode independently.
+
         Returns:
             (advantages, returns) each of shape (N,)
         """
@@ -182,20 +204,29 @@ class StrategicTrainer:
         if N == 0:
             return np.array([], dtype=np.float32), np.array([], dtype=np.float32)
 
-        rewards = np.array([t.reward for t in self.buffer], dtype=np.float32)
         values = np.array([t.value for t in self.buffer], dtype=np.float32)
-        dones = np.array([t.done for t in self.buffer], dtype=np.float32)
-
         advantages = np.zeros(N, dtype=np.float32)
-        gae = 0.0
-        for t in reversed(range(N)):
-            if t == N - 1:
-                next_val = 0.0  # bootstrap with 0 at end of buffer
-            else:
-                next_val = values[t + 1] * (1.0 - dones[t])
-            delta = rewards[t] + self.gamma * next_val - values[t]
-            gae = delta + self.gamma * self.gae_lambda * (1.0 - dones[t]) * gae
-            advantages[t] = gae
+
+        # Group buffer indices by episode
+        episodes: Dict[int, List[int]] = {}
+        for i, t in enumerate(self.buffer):
+            episodes.setdefault(t.episode_id, []).append(i)
+
+        for ep_indices in episodes.values():
+            ep_len = len(ep_indices)
+            ep_rewards = [self.buffer[i].reward for i in ep_indices]
+            ep_values = [self.buffer[i].value for i in ep_indices]
+            ep_dones = [self.buffer[i].done for i in ep_indices]
+
+            gae = 0.0
+            for t in reversed(range(ep_len)):
+                if t == ep_len - 1:
+                    next_val = 0.0  # terminal bootstrap
+                else:
+                    next_val = ep_values[t + 1] * (1.0 - ep_dones[t])
+                delta = ep_rewards[t] + self.gamma * next_val - ep_values[t]
+                gae = delta + self.gamma * self.gae_lambda * (1.0 - ep_dones[t]) * gae
+                advantages[ep_indices[t]] = gae
 
         returns = advantages + values
         return advantages, returns
