@@ -13,10 +13,11 @@ import type { DetailTab } from './AgentDetailPanel';
 
 // ---- Helpers ----
 
-function winRatePct(stats: { win_rate?: number } | null): string {
-  if (!stats || !stats.win_rate) return '0.0%';
-  return `${(stats.win_rate * 100).toFixed(1)}%`;
-}
+// Unused until win rate is non-zero, keep for future use
+// function winRatePct(stats: { win_rate?: number } | null): string {
+//   if (!stats || !stats.win_rate) return '0.0%';
+//   return `${(stats.win_rate * 100).toFixed(1)}%`;
+// }
 
 // ---- Sub-components ----
 
@@ -215,11 +216,14 @@ export const MissionControl = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <div style={{
             width: '6px', height: '6px',
-            background: connected ? '#00ff41' : '#ff4444',
+            background: connected ? (state.paused ? '#ffb700' : '#00ff41') : '#ff4444',
             borderRadius: '50%',
-            boxShadow: connected ? '0 0 6px #00ff41' : 'none',
+            boxShadow: connected ? (state.paused ? '0 0 6px #ffb700' : '0 0 6px #00ff41') : 'none',
+            animation: state.paused ? 'pulse 1.5s ease-in-out infinite' : 'none',
           }} />
-          <span style={{ fontSize: '9px', color: '#8b949e' }}>{connected ? 'CONNECTED' : 'OFFLINE'}</span>
+          <span style={{ fontSize: '9px', color: state.paused ? '#ffb700' : '#8b949e' }}>
+            {!connected ? 'OFFLINE' : state.paused ? 'PAUSED' : 'RUNNING'}
+          </span>
         </div>
 
         {/* Key metrics */}
@@ -233,9 +237,10 @@ export const MissionControl = () => {
           <StatBlock label="Avg Floor" value={avgFloor > 0 ? avgFloor.toFixed(1) : '---'} />
           <StatBlock label="MCTS" value={mctsMs > 0 ? `${mctsMs.toFixed(0)}ms` : '---'} />
           <StatBlock
-            label="Win Rate"
-            value={winRatePct(stats)}
-            color={(stats?.win_rate ?? 0) > 0 ? '#00ff41' : '#8b949e'}
+            label="Best Floor"
+            value={stats?.max_floor ? String(stats.max_floor) : '---'}
+            color={stats?.max_floor && stats.max_floor >= 17 ? '#00ff41' : '#ffb700'}
+            sub={stats?.win_rate && stats.win_rate > 0 ? `WR: ${(stats.win_rate * 100).toFixed(1)}%` : undefined}
           />
           <StatBlock label="Episodes" value={totalEpisodes > 0 ? totalEpisodes.toLocaleString() : '---'} />
         </div>

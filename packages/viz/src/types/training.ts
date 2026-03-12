@@ -61,6 +61,8 @@ export interface TrainingStatsMsg {
   win_count: number;
   win_rate: number;
   avg_floor: number;
+  max_floor?: number;
+  train_steps?: number;
   mcts_avg_ms: number;
   eps_per_min: number;
   uptime: number;

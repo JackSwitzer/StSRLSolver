@@ -215,6 +215,21 @@ export const StatsOverviewPanel = ({
     return { data, current };
   }, [winHistory]);
 
+  // ---- Computed: Rolling Avg Floor (last 50) ----
+  const rollingAvgFloor = useMemo(() => {
+    if (floorHistory.length === 0) return { data: [], current: 0 };
+    const windowSize = 50;
+    const data: number[] = [];
+    for (let i = 0; i < floorHistory.length; i++) {
+      const start = Math.max(0, i - windowSize + 1);
+      const window = floorHistory.slice(start, i + 1);
+      const avg = window.reduce((s, v) => s + v, 0) / window.length;
+      data.push(avg);
+    }
+    const current = data.length > 0 ? data[data.length - 1] : 0;
+    return { data, current };
+  }, [floorHistory]);
+
   // ---- Computed: Avg HP Lost Per Combat ----
   const avgHpLost = useMemo(() => {
     let totalLost = 0;
@@ -549,28 +564,36 @@ export const StatsOverviewPanel = ({
           )}
         </div>
 
-        {/* Win Rate Trend */}
+        {/* Rolling Avg Floor (more useful than WR when WR is 0) */}
         <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
           <SectionHeader
             right={
-              <span style={{ color: '#00ff41', fontSize: '11px', fontWeight: 700 }}>
-                {(rollingWinRate.current * 100).toFixed(1)}%
+              <span style={{ color: '#ffb700', fontSize: '11px', fontWeight: 700 }}>
+                {rollingAvgFloor.current.toFixed(1)}
               </span>
             }
           >
-            Win Rate (rolling 20)
+            Avg Floor (rolling 50)
           </SectionHeader>
 
-          {rollingWinRate.data.length > 1 ? (
+          {rollingAvgFloor.data.length > 1 ? (
             <Sparkline
-              data={rollingWinRate.data}
+              data={rollingAvgFloor.data}
               width={280}
               height={36}
-              color="#00ff41"
+              color="#ffb700"
               fill={true}
+              label="Floor"
             />
           ) : (
             <EmptyState text="Need 2+ episodes for trend" />
+          )}
+
+          {/* Show win rate below when it's non-zero */}
+          {rollingWinRate.current > 0 && (
+            <div style={{ marginTop: '4px', fontSize: '9px', color: '#8b949e' }}>
+              Win Rate (rolling 20): <span style={{ color: '#00ff41' }}>{(rollingWinRate.current * 100).toFixed(1)}%</span>
+            </div>
           )}
         </div>
 
