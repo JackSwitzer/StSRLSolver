@@ -6,19 +6,25 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ## Project Structure (Monorepo)
 ```
 packages/engine/     # Pure Python game engine (source of truth)
+packages/engine-rs/  # Rust CombatEngine + PyO3 bindings (scaffold, 63 tests)
+packages/training/   # RL training: overnight.py, strategic_trainer.py, mlx_inference.py
+packages/server/     # WebSocket server + training_runner.py
 packages/parity/     # Seed catalog + parity verification tools
-tests/               # 5978 tests (pytest)
+packages/viz/        # React 19 + Vite dashboard (Tauri native app)
+tests/               # 6060 tests (pytest)
 mod/                 # Java EVTracker mod
-decompiled/          # Java source reference
+scripts/             # services.sh, training.sh, app.sh
 docs/vault/          # Game mechanics ground truth
 docs/                # ARCHITECTURE.md
 ```
 
 ## Testing
 ```bash
-uv run pytest tests/ -q              # Run all 5978 tests
+uv run pytest tests/ -q              # Run all 6060 tests
 uv run pytest tests/test_parity.py   # Parity verification
 uv run pytest tests/ --cov=packages/engine  # Coverage (~76%)
+export PATH="$HOME/.cargo/bin:$PATH" PYO3_PYTHON=.venv/bin/python3
+cargo test --lib --manifest-path packages/engine-rs/Cargo.toml  # 63 Rust tests
 ```
 
 ## Java Parity Status (Last Updated 2026-03-11)
@@ -67,12 +73,14 @@ while not runner.game_over:
 ```
 
 ## Git Branches
-- **main**: Clean monorepo (engine + tests + parity)
+- **main**: Clean monorepo (engine + tests + parity + training + viz)
 - **archive/pre-cleanup** (tag): Full project snapshot pre-cleanup
 - **archive/sts-oracle**: Web dashboard
 - **archive/vod-extraction**: VOD/training pipeline
 - **archive/comparison-tools**: Verification scripts
 - **archive/old-master**: Original StSRLSolver repo
+- **archive/codex-2026-03**, **archive/work-2026-03**, **archive/feat-2026-03**, **archive/misc-2026-03**: Archived dev branches
+- External archives: `~/Desktop/sts-archive/` (decompiled/, logs/, java deps)
 
 ## Workflow
 
@@ -89,40 +97,11 @@ while not runner.game_over:
 
 ### Subagent Templates
 
-**Decompile Search Agent:**
+**Decompile Search Agent** (decompiled/ archived to ~/Desktop/sts-archive/):
 ```
-Investigate [TOPIC] in the decompiled Slay the Spire code.
+Investigate [TOPIC] in the archived Slay the Spire source.
 
-Locations to search:
-- /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/
-- /Users/jackswitzer/Desktop/SlayTheSpireRL/game_sources/
-
-Search for:
-- [SEARCH_TERMS]
-
-Key questions:
-- [QUESTIONS]
-
-Report back with:
-1. File paths and line numbers
-2. Relevant code snippets
-3. How the mechanics work
-4. Which RNG streams are used (cardRng, miscRng, relicRng, etc.)
-```
-
-**Doc Update Agent:**
-```
-Update /Users/jackswitzer/Desktop/SlayTheSpireRL/docs/vault/verified-seeds.md with new findings.
-
-New data to add:
-- [SEED_DATA]
-
-Update these sections:
-- Neow Option cardRng Consumption table (if Neow-related)
-- Verified Test Results table
-- Practical Usage notes (if new offset discovered)
-
-Follow existing table formats. Keep notes concise.
+Location: ~/Desktop/sts-archive/decompiled/java-src/com/megacrit/cardcrawl/
 ```
 
 ## Resource Model
