@@ -35,14 +35,26 @@ stop_service() {
         local pid
         pid=$(cat "$PID_DIR/$name.pid")
         if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null
-            # Wait up to 3 seconds for graceful shutdown
-            for i in 1 2 3; do
+            # Kill entire process group (catches child workers)
+            local pgid
+            pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+            if [ -n "$pgid" ] && [ "$pgid" != "0" ]; then
+                kill -- -"$pgid" 2>/dev/null || kill "$pid" 2>/dev/null
+            else
+                kill "$pid" 2>/dev/null
+            fi
+            # Wait up to 5 seconds for graceful shutdown
+            for i in 1 2 3 4 5; do
                 kill -0 "$pid" 2>/dev/null || break
                 sleep 1
             done
-            # Force kill if still alive
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            # Force kill process group if still alive
+            if kill -0 "$pid" 2>/dev/null; then
+                if [ -n "$pgid" ] && [ "$pgid" != "0" ]; then
+                    kill -9 -- -"$pgid" 2>/dev/null || true
+                fi
+                kill -9 "$pid" 2>/dev/null || true
+            fi
             echo "  $name (PID $pid): stopped"
         else
             echo "  $name: not running (stale PID file)"

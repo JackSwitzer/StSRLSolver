@@ -70,3 +70,10 @@ bun.lock
 logs/
 target/
 .run/
+
+# Claude Code (track config, exclude ephemeral)
+.claude/worktrees/
+.claude/worktree/
+.claude/projects/
+.claude/plans/
+.claude/.credentials.env
