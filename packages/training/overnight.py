@@ -7,6 +7,7 @@ Manages long-running training sessions with:
 - Status file writing for monitoring
 - Integration with StrategicTrainer + combat self-play
 - Multiprocessing for parallel game execution (Phase 2A)
+- Centralized GPU inference server (Phase 2B)
 
 Phase 2A changes (2026-03-12):
 - ProcessPoolExecutor for parallel game execution (8 workers -> 15+ games/min)
@@ -14,15 +15,20 @@ Phase 2A changes (2026-03-12):
 - episodes.jsonl logging per game
 - --batch-size CLI arg for PPO mini-batch size
 - Temperature-based exploration during training
+
+Phase 2B changes (centralized inference server):
+- Workers are torch-free; all forward passes batched in main process via InferenceServer
+- Persistent mp.Pool (no executor teardown per batch)
+- Weight sync after each PPO update via server.sync_strategic_from_pytorch()
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import multiprocessing as mp
 import time
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
@@ -32,14 +38,46 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 DEFAULT_SWEEP_CONFIGS = [
-    {"lr": 3e-4, "batch_size": 256, "mcts_sims": 32, "entropy_coeff": 0.05},
-    {"lr": 1e-4, "batch_size": 256, "mcts_sims": 32, "entropy_coeff": 0.05},
-    {"lr": 3e-4, "batch_size": 256, "mcts_sims": 64, "entropy_coeff": 0.03},
-    {"lr": 1e-4, "batch_size": 512, "mcts_sims": 64, "entropy_coeff": 0.03},
-    {"lr": 5e-5, "batch_size": 256, "mcts_sims": 32, "entropy_coeff": 0.05},
-    {"lr": 3e-4, "batch_size": 256, "mcts_sims": 16, "entropy_coeff": 0.05},
-    {"lr": 1e-4, "batch_size": 256, "mcts_sims": 48, "entropy_coeff": 0.03},
-    {"lr": 5e-4, "batch_size": 256, "mcts_sims": 32, "entropy_coeff": 0.05},
+    # --- Pure on-policy (no heuristic override, NN generates all data) ---
+    {"name": "pure_med", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
+    {"name": "pure_low_lr", "epsilon_mode": "none",
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8},
+    {"name": "pure_high_lr", "epsilon_mode": "none",
+     "lr": 1e-3, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
+    {"name": "pure_restarts", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 256, "entropy_coeff": 0.04, "temperature": 1.0},
+
+    # --- Importance-weighted epsilon-greedy (correct behavior policy) ---
+    {"name": "iw_explore", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.8, "epsilon_end": 0.3, "epsilon_decay": 50000,
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0},
+    {"name": "iw_low_lr", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.7, "epsilon_end": 0.2, "epsilon_decay": 40000,
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8},
+    {"name": "iw_high_lr", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.5, "epsilon_end": 0.2, "epsilon_decay": 30000,
+     "lr": 1e-3, "lr_schedule": "linear_decay",
+     "batch_size": 256, "entropy_coeff": 0.02, "temperature": 0.7},
+    {"name": "iw_restarts", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.6, "epsilon_end": 0.25, "epsilon_decay": 40000,
+     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 256, "entropy_coeff": 0.04, "temperature": 1.0},
+]
+
+# Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
+ASCENSION_BREAKPOINTS = [
+    (17, 0.05, 1),   # Clearing Act 1 somewhat reliably -> A1
+    (17, 0.15, 3),   # 15% WR -> A3
+    (17, 0.30, 5),   # 30% WR -> A5
+    (33, 0.10, 7),   # Reaching Act 2 boss at 10% -> A7
+    (33, 0.25, 10),  # 25% WR past Act 2 -> A10
 ]
 
 
@@ -132,8 +170,86 @@ _CALM_CARDS = {"Vigilance", "Vigilance+", "InnerPeace", "InnerPeace+", "Tranquil
 _EXIT_STANCE_CARDS = {"EmptyBody", "EmptyBody+", "EmptyFist", "EmptyFist+"}
 
 
-def _pick_combat_action(actions, runner):
-    """Score combat actions and pick the best one. Fast heuristic (~0ms)."""
+# Per-turn plan cache for CombatPlanner (reset per combat turn)
+_turn_plan_cache: Dict[str, Any] = {}  # {seed: (turn_num, card_queue, cards_played)}
+
+
+def _try_combat_planner(actions, runner, combat_planner, state):
+    """Try CombatPlanner for boss/elite. Returns action or None to fall back to heuristic.
+
+    Re-plans every turn (not cached across turns). Handles infinite turns by
+    switching to finish-fast mode after 50 cards in one turn.
+    """
+    from packages.training.combat_planner import CombatPlanner, TurnPlan
+
+    seed = getattr(runner, "seed", "?")
+    turn_num = getattr(state, "turn", 0)
+    cache_key = seed
+
+    # Check if we have a cached plan for this turn
+    cached = _turn_plan_cache.get(cache_key)
+    if cached is not None:
+        cached_turn, card_queue, cards_played = cached
+        if cached_turn == turn_num and card_queue:
+            # Infinite loop detection: >50 cards in one turn = finish-fast mode
+            if cards_played > 50:
+                _turn_plan_cache.pop(cache_key, None)
+                return None  # Fall back to heuristic (which prioritizes damage)
+
+            # Try to match next planned card to available actions
+            next_card_id, next_target = card_queue[0]
+            for a in actions:
+                if a.action_type == "play_card":
+                    if a.card_idx < len(state.hand):
+                        hand_card = str(state.hand[a.card_idx])
+                        if hand_card == next_card_id:
+                            target_match = (next_target is None or a.target_idx == next_target)
+                            if target_match:
+                                card_queue.pop(0)
+                                _turn_plan_cache[cache_key] = (turn_num, card_queue, cards_played + 1)
+                                return a
+
+            # Planned card not in hand anymore (drawn new cards, etc.) — re-plan
+            _turn_plan_cache.pop(cache_key, None)
+        elif cached_turn != turn_num:
+            # New turn — clear old plan
+            _turn_plan_cache.pop(cache_key, None)
+
+    # Plan this turn from scratch
+    try:
+        engine = runner.current_combat
+        if engine is None:
+            return None
+        plan = combat_planner.plan_turn(engine)
+        if plan and plan.card_sequence:
+            card_queue = list(plan.card_sequence)
+            next_card_id, next_target = card_queue[0]
+
+            # Match first card to available actions
+            for a in actions:
+                if a.action_type == "play_card":
+                    if a.card_idx < len(state.hand):
+                        hand_card = str(state.hand[a.card_idx])
+                        if hand_card == next_card_id:
+                            target_match = (next_target is None or a.target_idx == next_target)
+                            if target_match:
+                                card_queue.pop(0)
+                                _turn_plan_cache[cache_key] = (turn_num, card_queue, 1)
+                                return a
+
+            # No match found for first card — fall back to heuristic
+            return None
+    except Exception:
+        return None
+
+    return None
+
+
+def _pick_combat_action(actions, runner, combat_planner=None, turn_solver_adapter=None):
+    """Score combat actions and pick the best one.
+
+    Priority: TurnSolver (all fights) > CombatPlanner (boss/elite) > heuristic.
+    """
     if len(actions) <= 1:
         return actions[0]
 
@@ -144,6 +260,22 @@ def _pick_combat_action(actions, runner):
     state = combat.state
     player = state.player
     enemies = state.enemies
+    room_type = getattr(runner, "current_room_type", "monster")
+
+    # TurnSolver: works for all fight types
+    if turn_solver_adapter is not None:
+        try:
+            result = turn_solver_adapter.pick_action(actions, runner, room_type)
+            if result is not None:
+                return result
+        except Exception:
+            pass  # Fall through to heuristic
+
+    # CombatPlanner fallback for boss/elite
+    if combat_planner is not None and room_type in ("boss", "elite"):
+        planned = _try_combat_planner(actions, runner, combat_planner, state)
+        if planned is not None:
+            return planned
 
     # Compute incoming damage
     incoming = 0
@@ -154,11 +286,14 @@ def _pick_combat_action(actions, runner):
     stance = getattr(state, "stance", "Neutral")
     in_wrath = stance == "Wrath"
     in_calm = stance == "Calm"
-    total_enemy_hp = sum(e.hp for e in enemies if e.hp > 0)
+    live_enemies = [e for e in enemies if e.hp > 0]
+    n_live_enemies = len(live_enemies)
+    total_enemy_hp = sum(e.hp for e in live_enemies)
     strength = player.statuses.get("Strength", 0)
     dexterity = player.statuses.get("Dexterity", 0)
     room_type = getattr(runner, "current_room_type", "monster")
     is_boss_or_elite = room_type in ("boss", "elite")
+    player_hp = player.hp
 
     best_action = actions[0]
     best_score = -1000.0
@@ -198,6 +333,24 @@ def _pick_combat_action(actions, runner):
                 block = base_block + dexterity
                 useful_block = min(block, max(incoming, 1))
                 score += useful_block * 2.0 + max(0, block - incoming) * 0.3
+                # Panic block: triple priority when low HP and big incoming
+                if player_hp < 15 and incoming > 10:
+                    score *= 3.0
+
+            # Focus-fire: bonus for targeting lowest-HP enemy (reduces incoming faster)
+            if base_dmg > 0 and 0 <= a.target_idx < len(enemies):
+                target = enemies[a.target_idx]
+                if target.hp > 0 and n_live_enemies > 1:
+                    # Extra bonus for killing weakest enemy this turn
+                    if dmg >= target.hp:
+                        score += 3.0  # On top of existing +20 lethal
+                    # Slight preference for lower HP targets
+                    if target.hp == min(e.hp for e in live_enemies):
+                        score += 2.0
+
+            # AoE bonus: prefer multi-target cards when 2+ enemies
+            if n_live_enemies >= 2 and hasattr(a, "targets_all"):
+                score += 4.0 * (n_live_enemies - 1)
 
             # Stance management (Watcher-critical)
             if card_id in _WRATH_CARDS:
@@ -210,11 +363,15 @@ def _pick_combat_action(actions, runner):
             elif card_id in _CALM_CARDS:
                 if in_wrath and incoming > 0:
                     score += 25.0  # Exit Wrath under fire
+                elif in_wrath and incoming > player_hp // 2:
+                    score += 30.0  # URGENT: exit Wrath, incoming > half HP
                 elif not in_calm:
                     score += 5.0  # Bank energy
             elif card_id in _EXIT_STANCE_CARDS:
                 if in_wrath and incoming > 0:
                     score += 20.0
+                if in_wrath and incoming > player_hp // 2:
+                    score += 25.0  # URGENT exit
 
             # Miracle: gain energy, always good to play early
             if card_id in ("Miracle", "Miracle+"):
@@ -251,53 +408,74 @@ def _pick_combat_action(actions, runner):
 
 
 # ---------------------------------------------------------------------------
-# Worker function — runs in subprocess via ProcessPoolExecutor
+# Worker initializer — called once per worker process by mp.Pool
+# ---------------------------------------------------------------------------
+
+def _worker_init(request_q, response_qs, slot_q):
+    """Called once per worker process to set up InferenceClient.
+
+    Pops a unique slot_id from slot_q so each worker knows which
+    response queue to listen on. If slot acquisition fails, the worker
+    runs without an InferenceClient (falls back to heuristic planner).
+    """
+    from packages.training.inference_server import InferenceClient
+    try:
+        slot_id = slot_q.get(timeout=10)
+    except Exception:
+        # No slot available — worker runs without inference server.
+        # This is safer than defaulting to slot 0 (which would collide).
+        logger.warning("Worker failed to acquire slot from slot_q — running heuristic-only")
+        return
+    InferenceClient.setup_worker(request_q, response_qs[slot_id], slot_id)
+
+
+# ---------------------------------------------------------------------------
+# Worker function — runs in subprocess via mp.Pool
 # ---------------------------------------------------------------------------
 
 def _play_one_game(
     seed: str,
     ascension: int,
-    model_weights: Optional[bytes],
-    model_config: Optional[Dict[str, Any]],
     temperature: float,
+    total_games: int = 0,
+    epsilon_mode: str = "none",
+    epsilon_start: float = 0.8,
+    epsilon_end: float = 0.3,
+    epsilon_decay: int = 50000,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
-    This function runs in a worker process. It receives model weights as
-    serialized bytes (not a model object) to avoid pickling torch models
-    across processes. If model_weights is None, it uses random actions
-    for strategic decisions.
+    This function runs in a worker process. Workers are torch-free: all
+    neural-network inference is delegated to the InferenceServer running
+    in the main process via InferenceClient. If the server is unavailable
+    (client is None or request times out), the worker falls back to the
+    heuristic StrategicPlanner.
+
+    Epsilon-greedy: with probability epsilon, use heuristic planner instead
+    of NN for strategic decisions (still records NN value/log_prob for training).
+    Epsilon decays from 1.0 to 0.3 over 50K games.
 
     Returns a dict with:
         seed, won, floor, hp, decisions, duration_s,
         transitions: list of dicts with (obs, action_mask, action, reward,
                      done, value, log_prob, final_floor, cleared_act1/2/3)
     """
-    import torch
-    import torch.nn.functional as F
-    import io
+    import random as _random
 
     from packages.engine.game import GameRunner, GamePhase, CombatAction
     from packages.training.planner import StrategicPlanner
-
-    # Lazy-import model class and encoder
-    from packages.training.strategic_net import StrategicNet
+    from packages.training.combat_planner import CombatPlanner
     from packages.training.state_encoder_v2 import RunStateEncoder
+    from packages.training.inference_server import get_client
+
+    from packages.training.turn_solver import TurnSolverAdapter
 
     encoder = RunStateEncoder()
     planner = StrategicPlanner()
+    combat_planner = CombatPlanner(top_k=3, lookahead_turns=1)  # Fast config for training
+    turn_solver = TurnSolverAdapter(time_budget_ms=5.0, node_budget=1000)
 
-    # Load model on CPU (MPS/CUDA don't fork well)
-    model = None
-    if model_weights is not None and model_config is not None:
-        try:
-            model = StrategicNet(**model_config)
-            buf = io.BytesIO(model_weights)
-            state_dict = torch.load(buf, map_location="cpu", weights_only=True)
-            model.load_state_dict(state_dict)
-            model.eval()
-        except Exception:
-            model = None
+    client = get_client()
 
     try:
         runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
@@ -333,8 +511,8 @@ def _play_one_game(
         if phase == GamePhase.COMBAT:
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
-            # Lightweight combat heuristic: score each action
-            runner.take_action(_pick_combat_action(actions, runner))
+            # Combat: TurnSolver > CombatPlanner > heuristic
+            runner.take_action(_pick_combat_action(actions, runner, combat_planner, turn_solver))
         elif len(actions) == 1:
             # Check for combat-end event rewards
             if was_in_combat and phase != GamePhase.COMBAT:
@@ -351,38 +529,97 @@ def _play_one_game(
 
             n_actions = len(actions)
 
-            if model is not None:
-                # Encode state
-                run_obs = encoder.encode(rs)
-                mask = np.zeros(model.action_dim, dtype=np.bool_)
-                mask[:n_actions] = True
+            # Map GamePhase to phase_type for state encoding
+            _PHASE_MAP = {
+                GamePhase.MAP_NAVIGATION: "path",
+                GamePhase.COMBAT_REWARDS: "card_pick",
+                GamePhase.BOSS_REWARDS: "card_pick",
+                GamePhase.REST: "rest",
+                GamePhase.SHOP: "shop",
+                GamePhase.EVENT: "event",
+                GamePhase.NEOW: "other",
+                GamePhase.TREASURE: "other",
+            }
+            phase_type = _PHASE_MAP.get(phase, "other")
 
-                # Forward pass on CPU
-                with torch.no_grad():
-                    obs_t = torch.from_numpy(run_obs).float().unsqueeze(0)
-                    mask_t = torch.from_numpy(mask).bool().unsqueeze(0)
+            # Encode state with phase context (always needed for obs recording)
+            run_obs = encoder.encode(rs, phase_type=phase_type)
 
-                    out = model(obs_t, mask_t)
-                    logits = out["policy_logits"]
-                    value = out["value"].item()
+            # ACTION_DIM constant — must match StrategicNet.action_dim
+            _ACTION_DIM = 256
+            mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
+            mask[:n_actions] = True
 
+            # --- Inference via centralized server ---
+            action_idx: int = 0
+            value: float = 0.0
+            log_prob: float = 0.0
+            logits_np: Optional[np.ndarray] = None
+
+            if client is not None:
+                resp = client.infer_strategic(run_obs, n_actions)
+                if resp is not None and resp.get("ok"):
+                    logits_np = resp["logits"]  # numpy array, length action_dim
+                    value = float(resp["value"])
+
+                    # Temperature-scaled sampling
                     if temperature > 0:
-                        probs = F.softmax(logits / temperature, dim=-1)
-                        dist = torch.distributions.Categorical(probs)
-                        action_idx = dist.sample().item()
+                        logits_scaled = logits_np / temperature
+                        logits_scaled = logits_scaled - logits_scaled.max()
+                        probs = np.exp(logits_scaled)
+                        probs /= probs.sum()
+                        action_idx = int(np.random.choice(len(probs), p=probs))
                     else:
-                        action_idx = logits.argmax(dim=-1).item()
+                        action_idx = int(np.argmax(logits_np))
 
-                    # Compute log_prob at the actual temperature
-                    probs_base = F.softmax(logits, dim=-1)
-                    dist_base = torch.distributions.Categorical(probs_base)
-                    log_prob = dist_base.log_prob(
-                        torch.tensor(action_idx)
-                    ).item()
+                    # log_prob on unscaled logits (for PPO IS ratio)
+                    logits_base = logits_np - logits_np.max()
+                    probs_base = np.exp(logits_base)
+                    probs_base /= probs_base.sum()
+                    log_prob = float(np.log(probs_base[action_idx] + 1e-8))
 
-                # Clamp to valid range
-                action_idx = min(action_idx, n_actions - 1)
+                    # Clamp to valid range
+                    action_idx = min(action_idx, n_actions - 1)
+                else:
+                    # Server timed out or returned error — fall back to heuristic
+                    client = None
 
+            if client is not None and logits_np is not None:
+                # Recompute probs_base for behavior policy log_prob
+                logits_base = logits_np - logits_np.max()
+                probs_base = np.exp(logits_base)
+                probs_base /= probs_base.sum()
+
+                # Epsilon-greedy heuristic override (only in importance_weighted mode)
+                used_heuristic = False
+                if epsilon_mode == "importance_weighted":
+                    epsilon = max(epsilon_end, epsilon_start - total_games / max(epsilon_decay, 1))
+                    if _random.random() < epsilon:
+                        if phase == GamePhase.MAP_NAVIGATION:
+                            heuristic_idx = planner.plan_path_choice(runner, actions)
+                        elif phase == GamePhase.REST:
+                            heuristic_idx = planner.plan_rest_site(runner, actions)
+                        elif phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS):
+                            heuristic_idx = planner.plan_card_pick(runner, actions)
+                        elif phase == GamePhase.SHOP:
+                            heuristic_idx = planner.plan_shop_action(runner, actions)
+                        elif phase == GamePhase.EVENT:
+                            heuristic_idx = planner.plan_event_choice(runner, actions)
+                        else:
+                            heuristic_idx = action_idx
+                        action_idx = min(heuristic_idx, n_actions - 1)
+                        used_heuristic = True
+
+                    # Correct behavior policy: b(a|s) = (1-eps)*pi(a|s) + eps*I(a==heuristic)
+                    pi_prob = float(probs_base[action_idx])
+                    if used_heuristic:
+                        behavior_prob = (1.0 - epsilon) * pi_prob + epsilon
+                    else:
+                        behavior_prob = (1.0 - epsilon) * pi_prob
+                    log_prob = float(np.log(max(behavior_prob, 1e-8)))
+                # else: epsilon_mode == "none" — pure on-policy, log_prob already correct
+
+            if client is not None:
                 # --- PBRS reward ---
                 # Take action first, then compute Phi(s') - gamma * Phi(s)
                 runner.take_action(actions[action_idx])
@@ -426,7 +663,7 @@ def _play_one_game(
                 })
 
             else:
-                # No model: use heuristic planner
+                # No inference server available: use heuristic planner
                 if phase == GamePhase.MAP_NAVIGATION:
                     idx = planner.plan_path_choice(runner, actions)
                 elif phase == GamePhase.REST:
@@ -458,14 +695,18 @@ def _play_one_game(
         final_floor >= 51,
     ]
 
-    # Terminal reward on last transition
+    # Terminal reward on last transition (only if game truly ended)
+    truly_terminal = runner.game_over or won
     if transitions:
-        if won:
-            transitions[-1]["reward"] += 1.0
-        else:
-            progress = final_floor / 55.0
-            transitions[-1]["reward"] += -0.5 * (1 - progress)
-        transitions[-1]["done"] = True
+        if truly_terminal:
+            if won:
+                transitions[-1]["reward"] += 1.0
+            else:
+                progress = final_floor / 55.0
+                transitions[-1]["reward"] += -0.5 * (1 - progress)
+            transitions[-1]["done"] = True
+        # Truncated games (step >= 5000, error): leave done=False so GAE
+        # bootstraps from value estimate instead of zero
 
     # Backfill aux targets
     for t in transitions:
@@ -559,6 +800,14 @@ class OvernightRunner:
         self.recent_floors: Deque[int] = deque(maxlen=100)
         self.recent_wins: Deque[bool] = deque(maxlen=100)
         self.sweep_results: List[Dict[str, Any]] = []
+        self._episode_counter = 0  # Unique ID per game for GAE episode separation
+
+        # Current sweep config (set by _run_config for epsilon forwarding)
+        self._current_sweep_config: Dict[str, Any] = {}
+
+        # Inference server + persistent pool (created in run())
+        self._server = None
+        self._executor: Optional[Any] = None
 
     def should_be_headless(self) -> bool:
         """Check if we should be in headless mode based on schedule."""
@@ -638,24 +887,6 @@ class OvernightRunner:
         with open(self._episodes_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
 
-    def _serialize_model_weights(self, model) -> tuple[Optional[bytes], Optional[Dict]]:
-        """Serialize model state_dict to bytes for sending to workers."""
-        import torch
-        import io
-
-        try:
-            config = {
-                "input_dim": model.input_dim,
-                "hidden_dim": model.hidden_dim,
-                "action_dim": model.action_dim,
-                "num_blocks": model.num_blocks,
-            }
-            buf = io.BytesIO()
-            torch.save(model.state_dict(), buf)
-            return buf.getvalue(), config
-        except Exception:
-            return None, None
-
     def run(self) -> Dict[str, Any]:
         """Main overnight loop.
 
@@ -687,44 +918,82 @@ class OvernightRunner:
             model.param_count(), device,
         )
 
+        # --- Inference server setup ---
+        from packages.training.inference_server import InferenceServer
+
+        self._server = InferenceServer(
+            n_workers=self.workers, max_batch_size=self.workers
+        )
+        self._server.sync_strategic_from_pytorch(model, version=0)
+        self._server.start()
+        logger.info("InferenceServer started (workers=%d)", self.workers)
+
+        # Persistent worker pool using server's queues (spawn context for Metal safety)
+        ctx = mp.get_context("spawn")
+        self._executor = ctx.Pool(
+            processes=self.workers,
+            initializer=_worker_init,
+            initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
+        )
+        logger.info("Worker pool started (%d processes)", self.workers)
+
         seed_pool = SeedPool(max_plays=5)
         best_avg_floor = 0.0
 
-        for sweep_idx, sweep_config in enumerate(self.sweep_configs):
+        # Adaptive 3-phase sweep:
+        # Phase 1: Each config gets equal games (~25% of total each)
+        # Phase 2: Keep top 2 configs, each gets ~15% more games
+        # Phase 3: All-in on best config with remaining games
+        n_configs = len(self.sweep_configs)
+        phase1_games_per = self.max_games // (n_configs * 3)  # ~33% of budget split equally
+        phase2_games_per = self.max_games // 9                 # ~33% split between top 3
+        # phase3 gets the rest
+
+        config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
+
+        def _run_config(sweep_idx: int, sweep_config: Dict, n_games: int) -> Dict[str, Any]:
+            """Run a config for n_games, return metrics."""
+            nonlocal best_avg_floor
             self._current_sweep_idx = sweep_idx
+            self._current_sweep_config = sweep_config
             lr = sweep_config.get("lr", 1e-4)
             batch_size = sweep_config.get("batch_size", self.ppo_batch_size)
+            temp = sweep_config.get("temperature", self.temperature)
+            self.temperature = temp
+
             trainer = StrategicTrainer(
                 model=model,
                 lr=lr,
                 entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
                 clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
                 batch_size=batch_size,
+                lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                lr_T_max=sweep_config.get("lr_T_max", 30000),
+                lr_T_0=sweep_config.get("lr_T_0", 5000),
             )
 
+            config_name = sweep_config.get("name", f"config_{sweep_idx}")
             sweep_games = 0
             sweep_start = time.monotonic()
+            sweep_floors: Deque[int] = deque(maxlen=200)
 
             logger.info(
-                "Sweep %d/%d: lr=%.1e, ent=%.3f, clip=%.2f, batch=%d",
-                sweep_idx + 1, len(self.sweep_configs),
-                lr,
+                "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f",
+                config_name, lr,
                 sweep_config.get("entropy_coeff", 0.05),
-                sweep_config.get("clip_epsilon", 0.2),
-                batch_size,
+                batch_size, temp,
             )
 
-            while sweep_games < self._games_per_sweep and self.total_games < self.max_games:
+            while sweep_games < n_games and self.total_games < self.max_games:
                 batch_t0 = time.monotonic()
-                batch_results = self._play_batch(
-                    model, encoder, seed_pool, trainer,
-                )
+                batch_results = self._play_batch(model, encoder, seed_pool, trainer)
                 batch_duration = time.monotonic() - batch_t0
 
                 for result in batch_results:
                     self._record_game(result["won"], result["floor"])
                     self._log_episode(result)
                     sweep_games += 1
+                    sweep_floors.append(result["floor"])
 
                 games_per_min = len(batch_results) / max(batch_duration / 60.0, 0.01)
 
@@ -733,30 +1002,37 @@ class OvernightRunner:
                     metrics = trainer.train_batch()
                     trainer.decay_entropy()
 
-                    # Logging
+                    # Sync updated weights to inference server
+                    if self._server is not None:
+                        self._server.sync_strategic_from_pytorch(
+                            model, version=trainer.train_steps
+                        )
+
                     avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
                     wr = sum(self.recent_wins) / max(len(self.recent_wins), 1)
 
                     logger.info(
-                        "Games %d | WR %.1f%% | Floor %.1f | Loss %.4f | "
-                        "Trans %d | Buffer %d | Ent %.3f | LR %.1e | %.1f g/min",
-                        self.total_games, wr * 100, avg_floor,
+                        "[%s] Games %d | Floor %.1f | WR %.1f%% | Loss %.4f | "
+                        "Ent %.3f | LR %.1e | %.1f g/min",
+                        config_name, self.total_games, avg_floor, wr * 100,
                         metrics.get("total_loss", 0),
-                        metrics.get("num_transitions", 0),
-                        len(trainer.buffer),
                         metrics.get("entropy_coeff", 0),
                         metrics.get("lr", 0),
                         games_per_min,
                     )
 
-                    # Checkpoint on improvement
                     if trainer.maybe_checkpoint(avg_floor):
                         best_avg_floor = avg_floor
                         logger.info("New best avg floor: %.1f", avg_floor)
 
-                # Write status
+                    # Adaptive ascension scaling
+                    if self.total_games % 5000 < self.games_per_batch:
+                        self._check_ascension_bump()
+
                 self.write_status({
                     "sweep_config": sweep_config,
+                    "sweep_phase": "adaptive",
+                    "config_name": config_name,
                     "sweep_games": sweep_games,
                     "train_steps": trainer.train_steps,
                     "buffer_size": len(trainer.buffer),
@@ -764,21 +1040,65 @@ class OvernightRunner:
                     "entropy_coeff": trainer.entropy_coeff,
                 })
 
-            # Record sweep results
             sweep_elapsed = time.monotonic() - sweep_start
-            avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
-            self.sweep_results.append({
+            sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1)
+
+            result_info = {
                 "config": sweep_config,
                 "games": sweep_games,
-                "avg_floor": round(avg_floor, 1),
+                "avg_floor": round(sweep_avg, 1),
                 "win_rate": round(sum(self.recent_wins) / max(len(self.recent_wins), 1) * 100, 1),
                 "duration_min": round(sweep_elapsed / 60, 1),
                 "train_steps": trainer.train_steps,
-            })
+            }
+            self.sweep_results.append(result_info)
+            return result_info
+
+        # Phase 1: Explore all configs
+        logger.info("=== Phase 1: Exploring %d configs (%d games each) ===",
+                     n_configs, phase1_games_per)
+        for idx, cfg in enumerate(self.sweep_configs):
+            result = _run_config(idx, cfg, phase1_games_per)
+            config_scores[idx] = result
+
+        # Phase 2: Keep top 3 by avg_floor
+        sorted_configs = sorted(config_scores.items(),
+                                key=lambda x: x[1]["avg_floor"], reverse=True)
+        top3 = sorted_configs[:3]
+        top_names = ", ".join(
+            f"{self.sweep_configs[idx].get('name', '?')} ({info['avg_floor']:.1f})"
+            for idx, info in top3
+        )
+        logger.info("=== Phase 2: Top 3 configs: %s ===", top_names)
+
+        for idx, _ in top3:
+            result = _run_config(idx, self.sweep_configs[idx], phase2_games_per)
+            config_scores[idx] = result
+
+        # Phase 3: All-in on best
+        sorted_configs = sorted(config_scores.items(),
+                                key=lambda x: x[1]["avg_floor"], reverse=True)
+        best_idx = sorted_configs[0][0]
+        best_cfg = self.sweep_configs[best_idx]
+        remaining = self.max_games - self.total_games
+        logger.info("=== Phase 3: All-in on '%s' (%.1f avg floor, %d games remaining) ===",
+                     best_cfg.get("name", "?"), sorted_configs[0][1]["avg_floor"], remaining)
+
+        if remaining > 0:
+            _run_config(best_idx, best_cfg, remaining)
 
         # Final save
         model.save(self.run_dir / "final_strategic.pt")
         self._write_summary()
+
+        # Cleanup inference server and worker pool
+        if self._executor is not None:
+            self._executor.terminate()
+            self._executor.join()
+            self._executor = None
+        if self._server is not None:
+            self._server.stop()
+            self._server = None
 
         return {
             "total_games": self.total_games,
@@ -787,6 +1107,24 @@ class OvernightRunner:
             "sweep_results": self.sweep_results,
         }
 
+    def _check_ascension_bump(self) -> None:
+        """Check if we should increase ascension based on recent performance.
+
+        Evaluated against rolling 1K-game window (or whatever recent_floors holds).
+        Only increases, never decreases.
+        """
+        if len(self.recent_floors) < 50:
+            return
+        avg_floor = sum(self.recent_floors) / len(self.recent_floors)
+        wr = sum(self.recent_wins) / max(len(self.recent_wins), 1)
+        for min_floor, min_wr, target_asc in ASCENSION_BREAKPOINTS:
+            if avg_floor >= min_floor and wr >= min_wr and self.ascension < target_asc:
+                logger.info(
+                    "Ascension bump: A%d -> A%d (avg_floor=%.1f, WR=%.1f%%)",
+                    self.ascension, target_asc, avg_floor, wr * 100,
+                )
+                self.ascension = target_asc
+
     def _play_batch(
         self,
         model,
@@ -794,65 +1132,90 @@ class OvernightRunner:
         seed_pool,
         trainer,
     ) -> List[Dict[str, Any]]:
-        """Play a batch of games in parallel using ProcessPoolExecutor.
+        """Play a batch of games in parallel using the persistent mp.Pool.
 
-        Workers receive serialized model weights (bytes) and return raw
-        transitions as numpy arrays. The main process then adds transitions
-        to the trainer buffer.
+        Workers are torch-free; inference is handled by the InferenceServer
+        running in the main process. No weight serialization per batch.
         """
-        # Serialize model weights once for all workers
-        model_weights, model_config = self._serialize_model_weights(model)
-
-        # Collect seeds
         seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
 
+        # Extract epsilon params from current sweep config
+        cfg = self._current_sweep_config
+        eps_mode = cfg.get("epsilon_mode", "none")
+        eps_start = cfg.get("epsilon_start", 0.8)
+        eps_end = cfg.get("epsilon_end", 0.3)
+        eps_decay = cfg.get("epsilon_decay", 50000)
+
+        # Submit all games to the persistent pool
+        async_results = [
+            self._executor.apply_async(
+                _play_one_game,
+                (seed, self.ascension, self.temperature, self.total_games,
+                 eps_mode, eps_start, eps_end, eps_decay),
+            )
+            for seed in seeds
+        ]
+
         results: List[Dict[str, Any]] = []
+        timed_out = False
+        for ar, seed in zip(async_results, seeds):
+            try:
+                result = ar.get(timeout=120)
+            except Exception as e:
+                logger.warning("Game %s failed: %s", seed, e)
+                result = {
+                    "seed": seed, "won": False, "floor": 0, "hp": 0,
+                    "decisions": 0, "duration_s": 0.0, "transitions": [],
+                }
+                timed_out = True
 
-        # Use ProcessPoolExecutor for true parallelism
-        with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            futures = {
-                executor.submit(
-                    _play_one_game,
-                    seed,
-                    self.ascension,
-                    model_weights,
-                    model_config,
-                    self.temperature,
-                ): seed
-                for seed in seeds
-            }
+            # Add transitions from this game to trainer buffer
+            # Each game gets a unique episode_id for per-episode GAE
+            self._episode_counter += 1
+            ep_id = self._episode_counter
+            for t in result.get("transitions", []):
+                trainer.add_transition(
+                    obs=t["obs"],
+                    action_mask=t["action_mask"],
+                    action=t["action"],
+                    reward=t["reward"],
+                    done=t["done"],
+                    value=t["value"],
+                    log_prob=t["log_prob"],
+                    episode_id=ep_id,
+                )
+                # Backfill aux targets
+                buf_t = trainer.buffer[-1]
+                buf_t.final_floor = t["final_floor"]
+                buf_t.cleared_act1 = t["cleared_act1"]
+                buf_t.cleared_act2 = t["cleared_act2"]
+                buf_t.cleared_act3 = t["cleared_act3"]
 
-            for future in as_completed(futures):
-                seed = futures[future]
+            seed_pool.record_result(seed, {"won": result["won"], "floor": result["floor"]})
+            results.append(result)
+
+        # If any worker timed out, recreate pool to avoid hung workers
+        if timed_out and self._executor is not None:
+            logger.warning("Recreating worker pool after timeout")
+            try:
+                self._executor.terminate()
+                self._executor.join(timeout=5)
+            except Exception:
+                pass
+            # Drain and refill slot queue for clean worker init
+            while not self._server.slot_q.empty():
                 try:
-                    result = future.result(timeout=120)  # 2 min timeout per game
-                except Exception as e:
-                    logger.warning("Game %s failed: %s", seed, e)
-                    result = {
-                        "seed": seed, "won": False, "floor": 0, "hp": 0,
-                        "decisions": 0, "duration_s": 0.0, "transitions": [],
-                    }
-
-                # Add transitions from this game to trainer buffer
-                for t in result.get("transitions", []):
-                    trainer.add_transition(
-                        obs=t["obs"],
-                        action_mask=t["action_mask"],
-                        action=t["action"],
-                        reward=t["reward"],
-                        done=t["done"],
-                        value=t["value"],
-                        log_prob=t["log_prob"],
-                    )
-                    # Backfill aux targets
-                    buf_t = trainer.buffer[-1]
-                    buf_t.final_floor = t["final_floor"]
-                    buf_t.cleared_act1 = t["cleared_act1"]
-                    buf_t.cleared_act2 = t["cleared_act2"]
-                    buf_t.cleared_act3 = t["cleared_act3"]
-
-                seed_pool.record_result(seed, {"won": result["won"], "floor": result["floor"]})
-                results.append(result)
+                    self._server.slot_q.get_nowait()
+                except Exception:
+                    break
+            for i in range(self._server.n_workers):
+                self._server.slot_q.put(i)
+            ctx = mp.get_context("spawn")
+            self._executor = ctx.Pool(
+                processes=self.workers,
+                initializer=_worker_init,
+                initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
+            )
 
         return results
 

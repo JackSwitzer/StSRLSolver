@@ -70,7 +70,7 @@ class MLXStrategicNet:
 
     def __init__(
         self,
-        input_dim: int = 254,
+        input_dim: int = 260,
         hidden_dim: int = 768,
         action_dim: int = 256,
         num_blocks: int = 4,

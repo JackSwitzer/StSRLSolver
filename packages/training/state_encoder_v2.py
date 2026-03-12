@@ -168,8 +168,9 @@ def _get_relic_index(relic_id: str) -> int:
 #  21  map lookahead (3 rows x 7 room-type features)
 #   4  progress features
 #   3  recent combat HP losses
+#   6  decision phase type (one-hot)
 # ---
-# 254  total (approximately 250)
+# 260  total
 
 _CARD_EFFECT_DIM = 18
 _MAX_POTION_SLOTS = 5
@@ -177,6 +178,17 @@ _POTION_FUNC_DIM = 4  # damage, heal, block, utility
 _N_RELICS = 181
 _MAP_ROWS = 3
 _MAP_COLS = 7
+_PHASE_DIM = 6  # path, card_pick, rest, shop, event, other
+
+# Phase type mapping for the 6-dim one-hot
+PHASE_TYPE_MAP = {
+    "path": 0,
+    "card_pick": 1,
+    "rest": 2,
+    "shop": 3,
+    "event": 4,
+    "other": 5,
+}
 
 
 class RunStateEncoder:
@@ -189,17 +201,25 @@ class RunStateEncoder:
     - Potion functional summary
     - Map lookahead
     - Progress features
+    - Decision phase type (one-hot: path/card/rest/shop/event/other)
     """
 
-    RUN_DIM = 6 + 3 + 16 + _N_RELICS + (_MAX_POTION_SLOTS * _POTION_FUNC_DIM) + (_MAP_ROWS * _MAP_COLS) + 4 + 3
+    _BASE_DIM = 6 + 3 + 16 + _N_RELICS + (_MAX_POTION_SLOTS * _POTION_FUNC_DIM) + (_MAP_ROWS * _MAP_COLS) + 4 + 3
     # = 6 + 3 + 16 + 181 + 20 + 21 + 4 + 3 = 254
+    RUN_DIM = _BASE_DIM + _PHASE_DIM  # 254 + 6 = 260
 
     def __init__(self):
         self._relic_catalog = _get_relic_catalog()
         self._n_relics = len(self._relic_catalog)
 
-    def encode(self, run_state) -> np.ndarray:
-        """Encode run state into a fixed-size float32 vector."""
+    def encode(self, run_state, phase_type: str = "other") -> np.ndarray:
+        """Encode run state into a fixed-size float32 vector.
+
+        Args:
+            run_state: The run state object.
+            phase_type: Decision type — one of "path", "card_pick", "rest",
+                        "shop", "event", "other". Used for 6-dim one-hot.
+        """
         features = np.zeros(self.RUN_DIM, dtype=np.float32)
         off = 0
 
@@ -336,6 +356,11 @@ class RunStateEncoder:
         features[off + 1] = float(run_state.current_hp < max_hp * 0.5)  # below 50%
         features[off + 2] = float(run_state.current_hp < max_hp * 0.25)  # danger zone
         off += 3
+
+        # --- Decision phase type (6 dims one-hot) ---
+        phase_idx = PHASE_TYPE_MAP.get(phase_type, PHASE_TYPE_MAP["other"])
+        features[off + phase_idx] = 1.0
+        off += _PHASE_DIM
 
         return features
 
