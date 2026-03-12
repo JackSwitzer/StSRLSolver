@@ -52,10 +52,11 @@ class StrategicPlanner:
 
         Scores each reachable node by room-type desirability given
         current run state (HP, deck quality, relics, potions).
+        Looks ahead along edges to score downstream nodes at discount.
 
         Args:
             runner: GameRunner instance.
-            available_paths: List of path descriptions (MapRoomNode or dicts).
+            available_paths: List of MapRoomNode or path descriptions.
 
         Returns:
             Index into available_paths for the best choice.
@@ -66,12 +67,30 @@ class StrategicPlanner:
         rs = runner.run_state
         hp_pct = rs.current_hp / max(rs.max_hp, 1)
 
+        # Get full map for lookahead
+        current_map = None
+        if hasattr(rs, "get_current_map"):
+            current_map = rs.get_current_map()
+
         best_idx = 0
         best_score = float('-inf')
 
         for i, path in enumerate(available_paths):
             room_type = self._extract_room_type(path)
             score = self._score_room(room_type, hp_pct, rs)
+
+            # Lookahead: score downstream nodes at 0.3x discount
+            if current_map and hasattr(path, "edges"):
+                for edge in path.edges[:2]:
+                    dst_y = getattr(edge, "dst_y", -1)
+                    dst_x = getattr(edge, "dst_x", -1)
+                    if 0 <= dst_y < len(current_map):
+                        for node in current_map[dst_y]:
+                            if getattr(node, "x", -1) == dst_x:
+                                next_rt = self._extract_room_type(node)
+                                score += 0.3 * self._score_room(next_rt, hp_pct, rs)
+                                break
+
             if score > best_score:
                 best_score = score
                 best_idx = i
@@ -88,29 +107,32 @@ class StrategicPlanner:
         return "unknown"
 
     def _score_room(self, room_type: str, hp_pct: float, run_state: Any) -> float:
-        """Score a room type given current run state."""
-        rt = room_type.lower()
+        """Score a room type given current run state.
 
-        if rt in ("rest", "rest_site"):
-            # Prefer rest when low HP
-            return 3.0 if hp_pct < 0.5 else 1.0
+        Handles both full names ('monster') and enum values ('M').
+        """
+        rt = room_type.lower().strip()
 
-        if rt in ("monster", "combat"):
-            return 2.0 if hp_pct > 0.6 else 0.5
+        if rt in ("rest", "rest_site", "r"):
+            # Prefer rest when low HP, avoid when healthy
+            return 4.0 if hp_pct < 0.4 else 2.5 if hp_pct < 0.6 else 0.5
 
-        if rt == "elite":
+        if rt in ("monster", "combat", "m"):
+            return 2.0 if hp_pct > 0.5 else 0.5
+
+        if rt in ("elite", "e"):
             # Elites give relics but are dangerous
-            return 2.5 if hp_pct > 0.7 else -1.0
+            return 2.5 if hp_pct > 0.75 else -2.0
 
-        if rt == "event":
+        if rt in ("event", "?"):
             return 1.5
 
-        if rt in ("shop", "merchant"):
+        if rt in ("shop", "merchant", "$"):
             gold = getattr(run_state, "gold", 0)
-            return 2.0 if gold > 100 else 0.8
+            return 2.5 if gold > 100 else 1.0
 
-        if rt in ("treasure", "chest"):
-            return 2.0
+        if rt in ("treasure", "chest", "t"):
+            return 2.5
 
         return 0.0
 
