@@ -10,6 +10,7 @@ import type {
 
 const MAX_EPISODES = 200;
 const MAX_HISTORY = 200;
+const DEFAULT_TRAINING_CONFIG = { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' };
 
 type Action =
   | { type: 'connected' }
@@ -165,6 +166,22 @@ function reducer(state: FullState, action: Action): FullState {
   }
 }
 
+function normalizeMetricsHistory(msg: any): { floor_history: number[]; loss_history: number[]; win_history: number[] } {
+  if (Array.isArray(msg?.data)) {
+    return {
+      floor_history: msg.data.map((entry: any) => Number(entry?.floor ?? 0)),
+      loss_history: msg.data.map((entry: any) => Number(entry?.loss ?? 0)),
+      win_history: msg.data.map((entry: any) => Number(entry?.win_rate ?? 0)),
+    };
+  }
+
+  return {
+    floor_history: Array.isArray(msg?.floor_history) ? msg.floor_history : [],
+    loss_history: Array.isArray(msg?.loss_history) ? msg.loss_history : [],
+    win_history: Array.isArray(msg?.win_history) ? msg.win_history : [],
+  };
+}
+
 export function useTrainingState() {
   const [fullState, dispatch] = useReducer(reducer, initialState);
   const wsRef = useRef<WebSocket | null>(null);
@@ -184,7 +201,7 @@ export function useTrainingState() {
         dispatch({ type: 'connected' });
         ws.send(JSON.stringify({
           type: 'training_start',
-          config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' },
+          config: DEFAULT_TRAINING_CONFIG,
         }));
       };
 
@@ -232,7 +249,7 @@ export function useTrainingState() {
               dispatch({ type: 'system_stats', stats: msg });
               break;
             case 'metrics_history':
-              dispatch({ type: 'metrics_history', floor_history: msg.floor_history, loss_history: msg.loss_history, win_history: msg.win_history });
+              dispatch({ type: 'metrics_history', ...normalizeMetricsHistory(msg) });
               break;
           }
         } catch { /* ignore parse errors */ }
@@ -280,12 +297,16 @@ export function useTrainingState() {
   }, [sendMsg]);
 
   const resumeTraining = useCallback(() => {
-    sendMsg({ type: 'training_resume', config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' } });
+    sendMsg({ type: 'training_resume', config: DEFAULT_TRAINING_CONFIG });
     dispatch({ type: 'set_paused', paused: false });
   }, [sendMsg]);
 
   const sendControl = useCallback((config: { num_agents?: number; mcts_sims?: number; ascension?: number }) => {
-    sendMsg({ type: 'training_config', config });
+    const params: Record<string, number> = {};
+    if (config.num_agents !== undefined) params.workers = config.num_agents;
+    if (config.mcts_sims !== undefined) params.sims = config.mcts_sims;
+    if (config.ascension !== undefined) params.ascension = config.ascension;
+    sendMsg({ type: 'command', action: 'set_config', params });
   }, [sendMsg]);
 
   return {

@@ -181,7 +181,17 @@ export interface TrainingFocusMsg {
   agent_id: number;
 }
 
-export type ClientMessage = TrainingStartMsg | TrainingFocusMsg;
+export interface TrainingCommandMsg {
+  type: 'command';
+  action: 'pause' | 'resume' | 'stop' | 'set_config';
+  params?: {
+    workers?: number;
+    sims?: number;
+    ascension?: number;
+  };
+}
+
+export type ClientMessage = TrainingStartMsg | TrainingFocusMsg | TrainingCommandMsg;
 
 // --- Client state ---
 

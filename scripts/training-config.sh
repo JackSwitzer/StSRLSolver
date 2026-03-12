@@ -10,27 +10,37 @@
 
 PORT=8080
 CMD=""
+ACTION=""
 WORKERS=4
+WORKERS_SET=0
 SIMS=64
+SIMS_SET=0
 ASCENSION=20
+ASCENSION_SET=0
 SEED="Test123"
-EXTRA_FIELDS=""
+PARAM_ENTRIES=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --port) PORT=$2; shift 2 ;;
-        --pause) CMD="training_pause"; shift ;;
-        --resume) CMD="training_resume"; shift ;;
-        --stop) CMD="training_stop"; shift ;;
+        --pause) CMD="command"; ACTION="pause"; shift ;;
+        --resume) CMD="command"; ACTION="resume"; shift ;;
+        --stop) CMD="command"; ACTION="stop"; shift ;;
         --start) CMD="training_start"; shift ;;
-        --workers) WORKERS=$2; shift 2 ;;
-        --sims) SIMS=$2; shift 2 ;;
-        --ascension) ASCENSION=$2; shift 2 ;;
+        --workers) WORKERS=$2; WORKERS_SET=1; shift 2 ;;
+        --sims) SIMS=$2; SIMS_SET=1; shift 2 ;;
+        --ascension) ASCENSION=$2; ASCENSION_SET=1; shift 2 ;;
         --seed) SEED=$2; shift 2 ;;
         --set)
             KEY="${2%%=*}"
             VAL="${2#*=}"
-            EXTRA_FIELDS="$EXTRA_FIELDS, \"$KEY\": \"$VAL\""
+            [ "$KEY" = "num_agents" ] && KEY="workers"
+            [ "$KEY" = "mcts_sims" ] && KEY="sims"
+            PARAM_ENTRIES="${PARAM_ENTRIES}${KEY}=${VAL}"$'\n'
+            if [ -z "$CMD" ]; then
+                CMD="command"
+                ACTION="set_config"
+            fi
             shift 2 ;;
         -h|--help)
             echo "Usage: ./scripts/training-config.sh [--pause|--resume|--stop|--start]"
@@ -42,18 +52,68 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "$CMD" ]; then
-    echo '{"error": "No command specified. Use --pause, --resume, --stop, or --start."}'
+    echo '{"error": "No command specified. Use --pause, --resume, --stop, --start, or --set."}'
     exit 1
 fi
 
 cd "$(dirname "$0")/.."
 
-# Build the message JSON
-if [ "$CMD" = "training_start" ] || [ "$CMD" = "training_resume" ]; then
-    MSG="{\"type\": \"$CMD\", \"config\": {\"num_agents\": $WORKERS, \"mcts_sims\": $SIMS, \"ascension\": $ASCENSION, \"seed\": \"$SEED\"$EXTRA_FIELDS}}"
-else
-    MSG="{\"type\": \"$CMD\"$EXTRA_FIELDS}"
-fi
+MSG=$(
+    CMD="$CMD" \
+    ACTION="$ACTION" \
+    WORKERS="$WORKERS" \
+    WORKERS_SET="$WORKERS_SET" \
+    SIMS="$SIMS" \
+    SIMS_SET="$SIMS_SET" \
+    ASCENSION="$ASCENSION" \
+    ASCENSION_SET="$ASCENSION_SET" \
+    SEED="$SEED" \
+    PARAM_ENTRIES="$PARAM_ENTRIES" \
+    python3 - <<'PY'
+import json
+import os
+
+
+def parse_value(raw: str):
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+cmd = os.environ["CMD"]
+msg = {"type": cmd}
+
+if cmd == "training_start":
+    msg["config"] = {
+        "num_agents": int(os.environ["WORKERS"]),
+        "mcts_sims": int(os.environ["SIMS"]),
+        "ascension": int(os.environ["ASCENSION"]),
+        "seed": os.environ["SEED"],
+    }
+elif cmd == "command":
+    action = os.environ["ACTION"]
+    msg["action"] = action
+    if action == "set_config":
+        params = {}
+        if os.environ["WORKERS_SET"] == "1":
+            params["workers"] = int(os.environ["WORKERS"])
+        if os.environ["SIMS_SET"] == "1":
+            params["sims"] = int(os.environ["SIMS"])
+        if os.environ["ASCENSION_SET"] == "1":
+            params["ascension"] = int(os.environ["ASCENSION"])
+
+        for entry in os.environ["PARAM_ENTRIES"].splitlines():
+            if not entry:
+                continue
+            key, value = entry.split("=", 1)
+            params[key] = parse_value(value)
+
+        msg["params"] = params
+
+print(json.dumps(msg))
+PY
+)
 
 uv run python -c "
 import asyncio, websockets, json, sys
