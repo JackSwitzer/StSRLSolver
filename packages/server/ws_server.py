@@ -40,6 +40,7 @@ from .protocol import (
     make_error,
     make_conquerer_path_result,
     make_conquerer_complete,
+    make_metrics_history,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,16 @@ def _strategy_name(path_id: int) -> str:
     return _STRATEGY_NAMES.get(path_id, f"path_{path_id}")
 
 
+def _project_metrics_history(history: Any) -> Dict[str, Any]:
+    """Convert coordinator history rows into the flattened dashboard payload."""
+    rows = list(history or [])
+    return make_metrics_history(
+        floor_history=[float(row.get("floor", 0.0)) for row in rows],
+        loss_history=[float(row.get("loss", 0.0)) for row in rows],
+        win_history=[float(row.get("win_rate", 0.0)) for row in rows],
+    )
+
+
 class GameServer:
     """WebSocket server that manages game sessions and streams state."""
 
@@ -170,10 +181,7 @@ class GameServer:
 
         # Send metrics history immediately on connect
         if self._training and self._training.metrics_history:
-            await websocket.send(json.dumps({
-                "type": MessageType.METRICS_HISTORY.value,
-                "data": list(self._training.metrics_history),
-            }))
+            await websocket.send(json.dumps(_project_metrics_history(self._training.metrics_history)))
 
         try:
             async for raw_message in websocket:

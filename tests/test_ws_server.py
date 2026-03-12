@@ -9,8 +9,10 @@ the websockets client library, and verify the full request/response protocol.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import socket
+from types import SimpleNamespace
 
 import pytest
 import websockets
@@ -24,6 +26,7 @@ from packages.server.protocol import (
     make_step,
     make_game_over,
     make_error,
+    make_metrics_history,
 )
 from packages.server.ws_server import GameServer
 
@@ -113,6 +116,13 @@ class TestProtocol:
         assert msg["type"] == "error"
         assert "request_type" not in msg
 
+    def test_make_metrics_history(self):
+        msg = make_metrics_history([1.0, 2.0], [0.3], [0.0, 1.0])
+        assert msg["type"] == "metrics_history"
+        assert msg["floor_history"] == [1.0, 2.0]
+        assert msg["loss_history"] == [0.3]
+        assert msg["win_history"] == [0.0, 1.0]
+
     def test_all_messages_json_serializable(self):
         """Every constructor must produce JSON-serializable output."""
         messages = [
@@ -123,6 +133,7 @@ class TestProtocol:
             make_step(1, {}, {}),
             make_game_over(False, {}),
             make_error("err"),
+            make_metrics_history([], [], []),
         ]
         for msg in messages:
             json.dumps(msg)  # must not raise
@@ -249,6 +260,36 @@ def test_take_action_returns_result():
             assert "observation" in resp
 
     asyncio.run(_run_with_server(_test))
+
+
+def test_metrics_history_bootstrap_matches_dashboard_shape():
+    async def _test():
+        port = _find_free_port()
+        server = GameServer(host="localhost", port=port)
+        server._training = SimpleNamespace(
+            metrics_history=deque(
+                [
+                    {"floor": 6.5, "loss": 0.25, "win_rate": 0.0},
+                    {"floor": 8.0, "loss": 0.15, "win_rate": 1.0},
+                ],
+                maxlen=1000,
+            ),
+        )
+        ws_server = await websockets.serve(server.handler, server.host, server.port)
+        try:
+            async with websockets.connect(f"ws://localhost:{port}") as ws:
+                resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                assert resp == {
+                    "type": "metrics_history",
+                    "floor_history": [6.5, 8.0],
+                    "loss_history": [0.25, 0.15],
+                    "win_history": [0.0, 1.0],
+                }
+        finally:
+            ws_server.close()
+            await ws_server.wait_closed()
+
+    asyncio.run(_test())
 
 
 def test_get_observation():

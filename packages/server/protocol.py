@@ -162,3 +162,17 @@ def make_conquerer_complete(result: Dict[str, Any]) -> Dict[str, Any]:
         "type": MessageType.CONQUERER_COMPLETE.value,
         **result,
     }
+
+
+def make_metrics_history(
+    floor_history: List[float],
+    loss_history: List[float],
+    win_history: List[float],
+) -> Dict[str, Any]:
+    """Build a metrics_history response for the training dashboard."""
+    return {
+        "type": MessageType.METRICS_HISTORY.value,
+        "floor_history": floor_history,
+        "loss_history": loss_history,
+        "win_history": win_history,
+    }
