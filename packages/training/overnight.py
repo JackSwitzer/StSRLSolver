@@ -542,6 +542,7 @@ class OvernightRunner:
         self.eval_every = config.get("eval_every", 500)
         self.ppo_batch_size = config.get("ppo_batch_size", 256)
         self.temperature = config.get("temperature", 1.0)
+        self.resume_path = config.get("resume_path", None)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -670,8 +671,17 @@ class OvernightRunner:
         device = _get_device()
         encoder = RunStateEncoder()
 
-        # Initialize model
-        model = StrategicNet(input_dim=encoder.RUN_DIM).to(device)
+        # Initialize model (optionally resume from checkpoint)
+        if self.resume_path:
+            try:
+                model = StrategicNet.load(self.resume_path, device=device)
+                model.train()
+                logger.info("Resumed model from %s", self.resume_path)
+            except Exception as e:
+                logger.warning("Failed to resume from %s: %s — starting fresh", self.resume_path, e)
+                model = StrategicNet(input_dim=encoder.RUN_DIM).to(device)
+        else:
+            model = StrategicNet(input_dim=encoder.RUN_DIM).to(device)
         logger.info(
             "Strategic model: %d parameters, device=%s",
             model.param_count(), device,
@@ -894,6 +904,7 @@ def main():
     parser.add_argument("--headless-after", type=int, default=30, help="Go headless after N minutes")
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
     args = parser.parse_args()
 
     runner = OvernightRunner({
@@ -906,6 +917,7 @@ def main():
         "headless_after_min": args.headless_after,
         "visual_at": args.visual_at,
         "temperature": args.temperature,
+        "resume_path": args.resume,
     })
 
     result = runner.run()

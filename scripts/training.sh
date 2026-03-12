@@ -93,7 +93,7 @@ cmd_start() {
     fi
 
     # Parse args
-    local games=10000 workers=8 batch=256 asc=0 headless=""
+    local games=10000 workers=8 batch=256 asc=0 headless="" resume=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -101,6 +101,7 @@ cmd_start() {
             --batch)   batch=$2; shift 2 ;;
             --asc)     asc=$2; shift 2 ;;
             --headless) headless="--headless-after 0"; shift ;;
+            --resume)  resume="--resume $2"; shift 2 ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -125,6 +126,7 @@ cmd_start() {
         --batch-size "$batch" \
         --ascension "$asc" \
         $headless \
+        $resume \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
