@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { AgentInfo } from '../types/training';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type { AgentInfo, CombatMiniSummary } from '../types/training';
 import { AGENT_NAMES } from '../types/training';
 import { useTrainingState } from '../hooks/useTrainingState';
 import { AgentCard } from './AgentCard';
-import { Sparkline } from './Sparkline';
+import { MultiAgentView } from './MultiAgentView';
 import { ControlPanel } from './ControlPanel';
-import { EventFeed } from './EventFeed';
+import { StatsOverviewPanel } from './StatsOverviewPanel';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import type { DetailTab } from './AgentDetailPanel';
 
@@ -16,13 +16,6 @@ import type { DetailTab } from './AgentDetailPanel';
 function winRatePct(stats: { win_rate?: number } | null): string {
   if (!stats || !stats.win_rate) return '0.0%';
   return `${(stats.win_rate * 100).toFixed(1)}%`;
-}
-
-// Rolling win rate from recent history
-function rollingWinRate(winHistory: number[], window = 50): number {
-  const slice = winHistory.slice(-window);
-  if (slice.length === 0) return 0;
-  return slice.reduce((a, b) => a + b, 0) / slice.length;
 }
 
 // ---- Sub-components ----
@@ -37,29 +30,6 @@ const StatBlock = ({ label, value, color = '#c9d1d9', sub }: {
   </div>
 );
 
-const ProgressBar = ({ value, max, color = '#00ff41', height = 4 }: {
-  value: number; max: number; color?: string; height?: number;
-}) => {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
-  return (
-    <div style={{ background: '#21262d', height, overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.3s linear' }} />
-    </div>
-  );
-};
-
-const SysBar = ({ label, value, max, color = '#4488ff' }: {
-  label: string; value: number; max: number; color?: string;
-}) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#8b949e' }}>
-      <span>{label}</span>
-      <span style={{ color: '#c9d1d9' }}>{value.toFixed(0)}/{max}</span>
-    </div>
-    <ProgressBar value={value} max={max} color={color} height={3} />
-  </div>
-);
-
 // ---- Main MissionControl ----
 
 export const MissionControl = () => {
@@ -70,11 +40,12 @@ export const MissionControl = () => {
 
   const [showControl, setShowControl] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const [detailTab, setDetailTab] = useState<DetailTab>('combat');
+  const [detailTab, setDetailTab] = useState<DetailTab>('run');
   const [numAgents, _setNumAgents] = useState(8);
+  const [viewMode, setViewMode] = useState<'grid' | 'live'>('grid');
 
   const { stats, agents, episodes, focusedAgentIds, selectedAgentIndex,
-          combatStates, floorHistory, winHistory, systemStats, mctsResult } = state;
+          combatStates, mapStates, runStates, floorHistory, winHistory, systemStats, mctsResult, plannerResult, deathStats } = state;
 
   // Default placeholder agents when none connected
   const displayAgents: AgentInfo[] = agents.length > 0
@@ -95,9 +66,20 @@ export const MissionControl = () => {
   // Selected agent (for detail panel)
   const selectedAgent = displayAgents[selectedAgentIndex] ?? null;
   const selectedCombat = selectedAgent ? combatStates[selectedAgent.id] ?? null : null;
+  const selectedMap = selectedAgent ? mapStates[selectedAgent.id] ?? null : null;
+  const selectedRunState = selectedAgent ? runStates[selectedAgent.id] ?? null : null;
 
-  // Rolling win rate
-  const recentWR = rollingWinRate(winHistory, 50);
+  // Auto-focus selected agent when detail panel opens so we get combat state
+  const selectedId = selectedAgent?.id ?? -1;
+  const prevShowDetailRef = useRef(false);
+  useEffect(() => {
+    if (showDetail && !prevShowDetailRef.current && selectedId >= 0) {
+      if (!focusedAgentIds.includes(selectedId)) {
+        toggleFocus(selectedId);
+      }
+    }
+    prevShowDetailRef.current = showDetail;
+  }, [showDetail, selectedId]);
 
   // Keyboard handling
   useEffect(() => {
@@ -107,11 +89,17 @@ export const MissionControl = () => {
 
       const key = e.key;
       const n = displayAgents.length;
-      const cols = Math.ceil(Math.sqrt(n));
+      // Grid uses auto-fill with 180px min; at ~1920px that's ~8-10 cols. Use 4 for 8 agents.
+      const cols = viewMode === 'live' ? Math.min(4, n) : Math.min(n, 4);
 
       if (key === 'c' || key === 'C') {
         e.preventDefault();
         setShowControl((v) => !v);
+        return;
+      }
+      if (key === 'v' || key === 'V') {
+        e.preventDefault();
+        setViewMode((v) => v === 'grid' ? 'live' : 'grid');
         return;
       }
       if (key === 'Escape' || key === 'q' || key === 'Q') {
@@ -155,7 +143,7 @@ export const MissionControl = () => {
         e.preventDefault();
         if (showDetail) {
           // Cycle detail tabs when detail panel is open
-          const tabs: DetailTab[] = ['combat', 'run', 'mcts'];
+          const tabs: DetailTab[] = ['combat', 'run', 'map', 'mcts', 'decisions', 'replay', 'deaths'];
           const cur = tabs.indexOf(detailTab);
           const next = e.shiftKey
             ? (cur - 1 + tabs.length) % tabs.length
@@ -170,15 +158,9 @@ export const MissionControl = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    displayAgents.length, selectedAgentIndex, showControl, showDetail, detailTab,
+    displayAgents.length, selectedAgentIndex, showControl, showDetail, detailTab, viewMode,
     stats, selectAgent, clearFocus, stopTraining, resumeTraining, nextFocused, prevFocused, setDetailTab,
   ]);
-
-  // Mocked system stats if server doesn't send them
-  const cpu = systemStats?.cpu_pct ?? 0;
-  const ramUsed = systemStats?.ram_used_gb ?? 0;
-  const ramTotal = systemStats?.ram_total_gb ?? 16;
-  const workers = systemStats?.workers ?? agents.length;
 
   const isRunning = !!stats && !state.paused;
   const totalEpisodes = stats?.total_episodes ?? 0;
@@ -186,19 +168,14 @@ export const MissionControl = () => {
   const avgFloor = stats?.avg_floor ?? 0;
   const mctsMs = stats?.mcts_avg_ms ?? 0;
 
-  // Derived sparkline: smooth out floor history
-  const floorSparkData = floorHistory.length > 0 ? floorHistory : [];
-  // Rolling 10-episode win rate for sparkline
-  const winSparkData = useMemo(() => {
-    if (winHistory.length < 2) return [];
-    const out: number[] = [];
-    const window = 20;
-    for (let i = 0; i < winHistory.length; i++) {
-      const slice = winHistory.slice(Math.max(0, i - window + 1), i + 1);
-      out.push(slice.reduce((a, b) => a + b, 0) / slice.length * 100);
+  // Build combat summaries map from agent data for MultiAgentView
+  const combatSummaries = useMemo(() => {
+    const map: Record<number, CombatMiniSummary> = {};
+    for (const a of displayAgents) {
+      if (a.combat_summary) map[a.id] = a.combat_summary;
     }
-    return out;
-  }, [winHistory]);
+    return map;
+  }, [displayAgents]);
 
   const handleStart = useCallback((config: { num_agents: number; mcts_sims: number; ascension: number }) => {
     sendMsg({ type: 'training_start', config: { ...config, seed: 'Test123' } });
@@ -228,6 +205,11 @@ export const MissionControl = () => {
         <span style={{ fontSize: '12px', fontWeight: 700, color: '#00ff41', letterSpacing: '1px' }}>
           STS RL MISSION CONTROL
         </span>
+        {stats?.run_id && (
+          <span style={{ fontSize: '9px', color: '#8b949e', fontFamily: 'monospace' }}>
+            RUN {stats.run_id}
+          </span>
+        )}
 
         {/* Status dot */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -290,107 +272,70 @@ export const MissionControl = () => {
         </div>
       </header>
 
-      {/* ===== CHARTS + STATS ROW ===== */}
+      {/* ===== AGENTS STRIP ===== */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr 1fr',
-        gap: '0',
-        borderBottom: '1px solid #30363d',
         flexShrink: 0,
+        borderBottom: '1px solid #30363d',
+        padding: '4px 8px',
         background: '#161b22',
       }}>
-        {/* Floor trend sparkline */}
-        <div style={{ padding: '8px 12px', borderRight: '1px solid #30363d' }}>
-          <div style={{ fontSize: '9px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-            Avg Floor / Episode
-          </div>
-          <Sparkline data={floorSparkData} width={200} height={36} color="#4488ff" />
-          <div style={{ fontSize: '9px', color: '#8b949e', marginTop: '2px' }}>
-            cur: <span style={{ color: '#4488ff' }}>
-              {floorSparkData.length > 0 ? floorSparkData[floorSparkData.length - 1].toFixed(0) : '---'}
-            </span>
-          </div>
-        </div>
-
-        {/* Win rate sparkline */}
-        <div style={{ padding: '8px 12px', borderRight: '1px solid #30363d' }}>
-          <div style={{ fontSize: '9px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-            Rolling Win Rate (20ep)
-          </div>
-          <Sparkline data={winSparkData} width={200} height={36} color="#00ff41" />
-          <div style={{ fontSize: '9px', color: '#8b949e', marginTop: '2px' }}>
-            cur: <span style={{ color: '#00ff41' }}>{(recentWR * 100).toFixed(1)}%</span>
-          </div>
-        </div>
-
-        {/* Win rate + progress */}
-        <div style={{ padding: '8px 12px', borderRight: '1px solid #30363d', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ fontSize: '9px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Win Rate</div>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: '#00ff41' }}>
-            {winRatePct(stats)}
-          </div>
-          <ProgressBar
-            value={Math.round((stats?.win_rate ?? 0) * 100)}
-            max={100}
-            color="#00ff41"
-            height={4}
+        {viewMode === 'live' ? (
+          <MultiAgentView
+            agents={displayAgents}
+            combatSummaries={combatSummaries}
+            selectedIndex={selectedAgentIndex}
+            onSelectAgent={selectAgent}
+            onExpandAgent={() => setShowDetail(true)}
           />
-          <div style={{ fontSize: '9px', color: '#8b949e' }}>
-            target: <span style={{ color: '#ffb700' }}>96%</span>
-            {' | '}
-            eps: <span style={{ color: '#c9d1d9' }}>{totalEpisodes.toLocaleString()}</span>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+            gap: '4px',
+          }}>
+            {displayAgents.map((agent, idx) => (
+              <AgentCard
+                key={agent.id}
+                index={idx}
+                agent={agent}
+                selected={selectedAgentIndex === idx}
+                focused={focusedAgentIds.includes(agent.id)}
+                onSelect={() => selectAgent(idx)}
+                onToggleFocus={() => toggleFocus(agent.id)}
+              />
+            ))}
           </div>
-        </div>
-
-        {/* System stats */}
-        <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <div style={{ fontSize: '9px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '1px' }}>System</div>
-          <SysBar label="CPU" value={cpu} max={100} color="#4488ff" />
-          <SysBar label="RAM (GB)" value={ramUsed} max={ramTotal} color="#ffb700" />
-          <div style={{ fontSize: '9px', color: '#8b949e' }}>
-            Workers: <span style={{ color: '#c9d1d9' }}>{workers}</span>
-            {' | '}
-            MCTS: <span style={{ color: '#c9d1d9' }}>{mctsMs.toFixed(0)}ms</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* ===== AGENTS GRID ===== */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-          gap: '4px',
-        }}>
-          {displayAgents.map((agent, idx) => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              index={idx}
-              selected={selectedAgentIndex === idx}
-              focused={focusedAgentIds.includes(agent.id)}
-              onSelect={() => selectAgent(idx)}
-              onToggleFocus={() => toggleFocus(agent.id)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ===== AGENT DETAIL PANEL ===== */}
-      {showDetail && selectedAgent && (
+      {/* ===== MAIN CONTENT: STATS or DETAIL ===== */}
+      {showDetail && selectedAgent ? (
         <AgentDetailPanel
           agent={selectedAgent}
           combat={selectedCombat}
+          mapData={selectedMap}
+          runState={selectedRunState}
           mcts={mctsResult}
+          planner={plannerResult}
           episodes={episodes}
+          deathStats={deathStats}
           tab={detailTab}
           onTabChange={setDetailTab}
           onClose={() => setShowDetail(false)}
         />
+      ) : (
+        <StatsOverviewPanel
+          agents={displayAgents}
+          episodes={episodes}
+          stats={stats}
+          systemStats={systemStats}
+          deathStats={deathStats}
+          floorHistory={floorHistory}
+          winHistory={winHistory}
+        />
       )}
 
-      {/* ===== EVENT FEED ===== */}
-      <EventFeed episodes={episodes} />
+
 
       {/* ===== FOOTER ===== */}
       <footer style={{
@@ -408,6 +353,7 @@ export const MissionControl = () => {
         <KbdHint keys="Enter/E" label="detail" />
         <KbdHint keys="Space" label="play/pause" />
         <KbdHint keys="C" label="control" />
+        <KbdHint keys="V" label="live view" />
         <KbdHint keys="Esc" label="back" />
         <KbdHint keys="Tab" label="cycle" />
         <div style={{ flex: 1 }} />

@@ -1,25 +1,34 @@
 import { useEffect } from 'react';
-import type { AgentInfo, MCTSResultMsg, AgentEpisodeMsg } from '../types/training';
+import type { AgentInfo, MCTSResultMsg, PlannerResultMsg, AgentEpisodeMsg, DeathStats } from '../types/training';
 import { AGENT_NAMES } from '../types/training';
 import { CombatTab } from './CombatTab';
 import { RunSummaryTab } from './RunSummaryTab';
 import { MCTSTab } from './MCTSTab';
+import { ReplayTab } from './ReplayTab';
+import { DeathMapPanel } from './DeathMapPanel';
+import { DecisionLogPanel } from './DecisionLogPanel';
+import { MapPanel } from './MapPanel';
+import type { MapData } from './MapPanel';
 
-export type DetailTab = 'combat' | 'run' | 'mcts';
-const TABS: DetailTab[] = ['combat', 'run', 'mcts'];
+export type DetailTab = 'combat' | 'run' | 'map' | 'mcts' | 'decisions' | 'replay' | 'deaths';
+const TABS: DetailTab[] = ['combat', 'run', 'map', 'mcts', 'decisions', 'replay', 'deaths'];
 
 interface AgentDetailPanelProps {
   agent: AgentInfo;
   combat: any | null;
+  mapData: MapData | null;
+  runState: { deck: any[]; relics: any[]; potions: any[]; gold: number } | null;
   mcts: MCTSResultMsg | null;
+  planner: PlannerResultMsg | null;
   episodes: AgentEpisodeMsg[];
+  deathStats: DeathStats;
   tab: DetailTab;
   onTabChange: (t: DetailTab) => void;
   onClose: () => void;
 }
 
 export const AgentDetailPanel = ({
-  agent, combat, mcts, episodes, tab, onTabChange, onClose,
+  agent, combat, mapData, runState, mcts, planner, episodes, deathStats, tab, onTabChange, onClose,
 }: AgentDetailPanelProps) => {
   const agentAny = agent as any;
   const hpRatio = agent.max_hp > 0 ? agent.hp / agent.max_hp : 0;
@@ -31,29 +40,28 @@ export const AgentDetailPanel = ({
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.key === 'Tab' && !e.shiftKey) {
-        // Only intercept if no modifier used for panel navigation
-        // Parent MissionControl handles Tab for focus cycling — we skip here
-        // The detail-panel tab cycling is handled by parent
+        // Parent MissionControl handles Tab for focus cycling
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [tab, onTabChange]);
 
-  // Extract run extras from combat state if available
-  const runExtras = combat ? {
-    deck: agentAny.deck ?? combat.deck,
-    relics: agentAny.relics ?? combat.relics,
-    potions: agentAny.potions ?? combat.potions,
-    gold: agentAny.gold ?? combat.gold,
+  // Extract run extras from dedicated run state, combat state, or agent data
+  const deck = runState?.deck ?? agentAny.deck ?? combat?.deck;
+  const relics = runState?.relics ?? agentAny.relics ?? combat?.relics;
+  const potions = runState?.potions ?? agentAny.potions ?? combat?.potions;
+  const gold = runState?.gold ?? agentAny.gold ?? combat?.gold;
+  const runExtras = (deck || relics || potions || gold != null) ? {
+    deck, relics, potions, gold,
   } : undefined;
 
   return (
     <div style={{
       borderTop: '1px solid #00ff41',
       background: '#161b22',
-      flexShrink: 0,
-      height: '280px',
+      flex: 1,
+      minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -102,7 +110,7 @@ export const AgentDetailPanel = ({
               fontFamily: 'inherit',
             }}
           >
-            {t}
+            {t === 'decisions' ? 'decide' : t}
           </button>
         ))}
 
@@ -138,8 +146,20 @@ export const AgentDetailPanel = ({
             runExtras={runExtras}
           />
         )}
+        {tab === 'map' && (
+          <MapPanel mapData={mapData} agentName={agent.name || AGENT_NAMES[agent.id]} />
+        )}
         {tab === 'mcts' && (
-          <MCTSTab mcts={mcts} />
+          <MCTSTab mcts={mcts} planner={planner} />
+        )}
+        {tab === 'decisions' && (
+          <DecisionLogPanel episodes={episodes} agentId={agent.id} />
+        )}
+        {tab === 'replay' && (
+          <ReplayTab episodes={episodes} agentId={agent.id} />
+        )}
+        {tab === 'deaths' && (
+          <DeathMapPanel deathStats={deathStats} episodes={episodes} />
         )}
       </div>
     </div>

@@ -85,13 +85,14 @@ export const AgentCard = ({ agent, index, selected, focused, onSelect, onToggleF
         <span style={{ fontSize: '9px', color: '#8b949e', flexShrink: 0 }}>
           [{phaseIcon}]
         </span>
-        {inCombat && agentAny.stance && (
+        {agentAny.stance && agentAny.stance !== 'Neutral' && (
           <span style={{
             fontSize: '8px',
             color: STANCE_COLORS[agentAny.stance] ?? '#8b949e',
             flexShrink: 0,
+            fontWeight: 700,
           }}>
-            {agentAny.stance?.slice(0, 1).toUpperCase()}
+            {agentAny.stance}
           </span>
         )}
       </div>
@@ -127,17 +128,26 @@ export const AgentCard = ({ agent, index, selected, focused, onSelect, onToggleF
         </div>
       )}
 
-      {/* Row 3: turn/hand + wins */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#8b949e' }}>
+      {/* Row 3: deck/relics/potions/gold */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', color: '#8b949e' }}>
+        <span>
+          {agentAny.deck_size != null && <><span style={{ color: '#4488ff' }}>{agentAny.deck_size}</span>c </>}
+          {agentAny.relic_count != null && <><span style={{ color: '#ffb700' }}>{agentAny.relic_count}</span>r </>}
+          {agentAny.potion_count != null && <><span style={{ color: '#ff44ff' }}>{agentAny.potion_count}/{agentAny.potion_max ?? 2}</span>p</>}
+        </span>
+        <span>
+          {agentAny.gold != null && <><span style={{ color: '#ffb700' }}>{agentAny.gold}</span>g </>}
+          <span style={{ color: '#00ff41' }}>{agent.wins}W</span>
+        </span>
+      </div>
+      {/* Row 4: turn/hand or status + episode */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', color: '#8b949e' }}>
         <span>
           {inCombat
             ? `T${agentAny.turn ?? '?'} H${agentAny.hand_size ?? '?'}`
             : agent.status}
         </span>
-        <span>
-          <span style={{ color: '#00ff41' }}>{agent.wins}W</span>{' '}
-          Ep{agent.episode}
-        </span>
+        <span>Ep{agent.episode}</span>
       </div>
     </div>
   );
