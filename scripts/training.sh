@@ -45,25 +45,22 @@ stop_training() {
 
     echo "Stopping training (PID $pid)..."
 
-    # Kill entire process group
     local pgid
     pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
 
-    if [ -n "$pgid" ] && [ "$pgid" != "0" ]; then
-        kill -- -"$pgid" 2>/dev/null || kill "$pid" 2>/dev/null
-    else
-        kill "$pid" 2>/dev/null
-    fi
+    # Send SIGTERM to main process (triggers graceful shutdown + checkpoint save)
+    kill -TERM "$pid" 2>/dev/null
 
-    # Wait up to 10 seconds for graceful shutdown
-    for i in $(seq 1 10); do
+    # Wait up to 30 seconds for graceful shutdown
+    echo "  Waiting up to 30s for graceful shutdown..."
+    for i in $(seq 1 30); do
         kill -0 "$pid" 2>/dev/null || break
         sleep 1
     done
 
-    # Force kill if still alive
+    # Force kill entire process group if still alive
     if kill -0 "$pid" 2>/dev/null; then
-        echo "  Force killing..."
+        echo "  Force killing process group..."
         if [ -n "$pgid" ] && [ "$pgid" != "0" ]; then
             kill -9 -- -"$pgid" 2>/dev/null || true
         fi
@@ -169,19 +166,30 @@ cmd_status() {
 
     echo ""
 
-    # Read status.json if it exists
-    if [ -f "$STATUS_FILE" ]; then
-        echo "--- Latest Status ---"
+    # Find the most recent status.json (check weekend-run and training dirs)
+    local status_file=""
+    for sf in "logs/weekend-run/status.json" "$STATUS_FILE"; do
+        if [ -f "$sf" ]; then
+            if [ -z "$status_file" ] || [ "$sf" -nt "$status_file" ]; then
+                status_file="$sf"
+            fi
+        fi
+    done
+
+    if [ -n "$status_file" ]; then
+        echo "--- Latest Status ($status_file) ---"
         python3 -c "
 import json, sys
-with open('$STATUS_FILE') as f:
+with open('$status_file') as f:
     s = json.load(f)
-print(f'Episodes:    {s.get(\"total_episodes\", \"?\")}')
-print(f'Avg Floor:   {s.get(\"avg_floor\", \"?\")}')
-print(f'Max Floor:   {s.get(\"max_floor\", \"?\")}')
-print(f'Win Rate:    {s.get(\"win_rate\", \"?\")}')
+print(f'Games:       {s.get(\"total_games\", \"?\")}')
+print(f'Wins:        {s.get(\"total_wins\", \"?\")}')
+print(f'Win Rate:    {s.get(\"win_rate_100\", s.get(\"win_rate\", \"?\"))}%')
+print(f'Avg Floor:   {s.get(\"avg_floor_100\", s.get(\"avg_floor\", \"?\"))}')
 print(f'Train Steps: {s.get(\"train_steps\", \"?\")}')
 print(f'Games/min:   {s.get(\"games_per_min\", \"?\")}')
+print(f'Elapsed:     {s.get(\"elapsed_hours\", \"?\")}h')
+print(f'Config:      {s.get(\"config_name\", \"?\")}')
 " 2>/dev/null || echo "(status.json parse error)"
     else
         echo "(no status.json yet)"
@@ -189,13 +197,86 @@ print(f'Games/min:   {s.get(\"games_per_min\", \"?\")}')
 
     echo ""
 
-    # Tail latest log
-    local latest_log
-    latest_log=$(ls -t "$LOG_DIR"/run_*.log 2>/dev/null | head -1)
+    # Tail latest log (check weekend nohup.log and training run logs)
+    local latest_log=""
+    local weekend_log="logs/weekend-run/nohup.log"
+    local training_log
+    training_log=$(ls -t "$LOG_DIR"/run_*.log 2>/dev/null | head -1)
+
+    if [ -f "$weekend_log" ] && [ -f "$training_log" ]; then
+        # Use whichever was modified more recently
+        if [ "$weekend_log" -nt "$training_log" ]; then
+            latest_log="$weekend_log"
+        else
+            latest_log="$training_log"
+        fi
+    elif [ -f "$weekend_log" ]; then
+        latest_log="$weekend_log"
+    elif [ -n "$training_log" ]; then
+        latest_log="$training_log"
+    fi
+
     if [ -n "$latest_log" ]; then
-        echo "--- Last 10 log lines ---"
+        echo "--- Last 10 log lines ($latest_log) ---"
         tail -10 "$latest_log"
     fi
+}
+
+cmd_weekend() {
+    if training_alive; then
+        local pid
+        pid=$(cat "$PID_DIR/training.pid")
+        echo "Training already running (PID $pid). Use 'stop' first."
+        exit 1
+    fi
+
+    # Parse args (weekend has larger defaults)
+    local games=500000 workers=8 batch=256 asc=0 extra_args=""
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --games)   games=$2; shift 2 ;;
+            --workers) workers=$2; shift 2 ;;
+            --batch)   batch=$2; shift 2 ;;
+            --asc)     asc=$2; shift 2 ;;
+            *) echo "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local run_dir="logs/weekend-run"
+    local run_log="$run_dir/nohup.log"
+
+    mkdir -p "$run_dir"
+
+    echo "Starting weekend training run..."
+    echo "  Games: $games | Workers: $workers | Batch: $batch | Ascension: $asc"
+    echo "  Run dir: $run_dir"
+    echo "  Log: $run_log"
+
+    # Start caffeinate to prevent sleep (display + idle + system + disk)
+    caffeinate -dims &
+    echo $! > "$PID_DIR/caffeinate.pid"
+    echo "  caffeinate: PID $!"
+
+    # Launch training headless with dedicated run-dir
+    nohup uv run python -m packages.training.overnight \
+        --games "$games" \
+        --workers "$workers" \
+        --batch-size "$batch" \
+        --ascension "$asc" \
+        --headless-after 0 \
+        --run-dir "$run_dir" \
+        > "$run_log" 2>&1 &
+
+    local train_pid=$!
+    echo "$train_pid" > "$PID_DIR/training.pid"
+    echo "  training: PID $train_pid"
+    echo ""
+    echo "Monitor with: ./scripts/training.sh status"
+    echo "Stop with:    ./scripts/training.sh stop"
+    echo ""
+    echo "Weekend mode: headless, caffeinated, long-running."
 }
 
 cmd_resume() {
@@ -222,15 +303,23 @@ case "${1:-status}" in
     stop)    cmd_stop ;;
     status)  cmd_status ;;
     resume)  shift; cmd_resume "$@" ;;
+    weekend) shift; cmd_weekend "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend} [options]"
         echo ""
-        echo "Options for start:"
-        echo "  --games N      Total games to play (default: 10000)"
+        echo "Commands:"
+        echo "  start      Start training (default 10K games)"
+        echo "  stop       Graceful shutdown (SIGTERM → 30s → SIGKILL)"
+        echo "  status     Read status.json + tail log"
+        echo "  resume     Resume from latest checkpoint"
+        echo "  weekend    Long-running headless mode (default 500K games)"
+        echo ""
+        echo "Options for start/weekend:"
+        echo "  --games N      Total games to play"
         echo "  --workers N    Parallel workers (default: 8)"
         echo "  --batch N      Batch size for PPO (default: 256)"
         echo "  --asc N        Ascension level (default: 0)"
-        echo "  --headless     No dashboard output"
+        echo "  --headless     No dashboard output (start only)"
         exit 1
         ;;
 esac

@@ -51,7 +51,7 @@ from .combat_engine import (
     create_combat_from_enemies,
 )
 from .handlers.combat import create_enemies_from_encounter, ENCOUNTER_TABLE
-from .content.cards import get_card, CardTarget, CardType, CardColor, ALL_CARDS
+from .content.cards import get_card, CardTarget, CardType, CardColor, CardRarity, ALL_CARDS
 from .generation.encounters import (
     generate_exordium_encounters, generate_city_encounters,
     generate_beyond_encounters, generate_ending_encounters,
@@ -203,6 +203,83 @@ class PendingSelectionContext:
     candidate_values: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     parent_action_id: str = ""
+
+
+# =============================================================================
+# Event auto-select heuristics
+# =============================================================================
+
+# Priority for removal/transform: remove worst cards first
+_REMOVE_PRIORITY = {
+    "Strike_P": 10, "Strike_R": 10, "Strike_G": 10, "Strike_B": 10,
+    "Defend_P": 8, "Defend_R": 8, "Defend_G": 8, "Defend_B": 8,
+    "AscendersBane": 15, "Curse": 12, "Injury": 12, "Regret": 12,
+    "Pain": 12, "Doubt": 12, "Shame": 12, "Decay": 12, "Writhe": 12,
+    "Parasite": 12, "Normality": 14, "CurseOfTheBell": 12,
+    "Necronomicurse": 11,
+}
+
+_RARITY_UPGRADE_VALUE = {
+    CardRarity.RARE: 4,
+    CardRarity.UNCOMMON: 3,
+    CardRarity.COMMON: 2,
+    CardRarity.BASIC: 1,
+    CardRarity.SPECIAL: 0,
+    CardRarity.CURSE: 0,
+}
+
+_RARITY_DUPLICATE_VALUE = {
+    CardRarity.RARE: 4,
+    CardRarity.UNCOMMON: 3,
+    CardRarity.COMMON: 2,
+    CardRarity.BASIC: 0,
+    CardRarity.SPECIAL: 1,
+    CardRarity.CURSE: -10,
+}
+
+
+def _worst_card_to_remove(candidates: list) -> int:
+    """Pick the index of the worst card to remove from (idx, card) pairs."""
+    best_idx, best_score = candidates[0][0], -1
+    for idx, card in candidates:
+        score = _REMOVE_PRIORITY.get(card.id, 0)
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+    return best_idx
+
+
+def _best_card_to_upgrade(candidates: list) -> int:
+    """Pick the index of the best card to upgrade from (idx, card) pairs."""
+    best_idx, best_score = candidates[0][0], -1
+    for idx, card in candidates:
+        card_data = ALL_CARDS.get(card.id)
+        rarity_val = _RARITY_UPGRADE_VALUE.get(
+            card_data.rarity if card_data else CardRarity.BASIC, 1
+        )
+        # Prefer non-upgraded, higher rarity cards
+        score = rarity_val * 2 + (0 if card.upgraded else 1)
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+    return best_idx
+
+
+def _best_card_to_duplicate(deck: list):
+    """Pick the best card to duplicate from the deck."""
+    best_card, best_score = deck[0], -100
+    for card in deck:
+        card_data = ALL_CARDS.get(card.id)
+        score = _RARITY_DUPLICATE_VALUE.get(
+            card_data.rarity if card_data else CardRarity.BASIC, 0
+        )
+        # Prefer upgraded copies
+        if card.upgraded:
+            score += 1
+        if score > best_score:
+            best_score = score
+            best_card = card
+    return best_card
 
 
 # =============================================================================
@@ -2999,44 +3076,40 @@ class GameRunner:
                 "combat_encounter": result.combat_encounter,
             }
 
-        # Handle card selection requirement - auto-select first valid card.
-        # This fallback should not fire when using the JSON action API
-        # (take_action_dict), which sets up pending selections instead.
+        # Handle card selection requirement via heuristic auto-select.
+        # The JSON action API (take_action_dict) routes through
+        # pending_selection instead; this path is for take_action().
         if result.requires_card_selection:
             sel_type = result.card_selection_type
-            logger.warning(
-                "Event auto-select fallback fired for event=%s sel_type=%s "
-                "(bypasses agent control -- selection should be handled via "
-                "pending_selection)",
-                getattr(self.current_event_state, "event_id", "?"),
-                sel_type,
-            )
             self._log(f"  (Auto-selecting card for: {sel_type})")
             selected_idx = None
 
             if sel_type == "upgrade":
                 upgradeable = self.run_state.get_upgradeable_cards()
                 if upgradeable:
-                    selected_idx = upgradeable[0][0]
+                    # Pick highest-value card to upgrade (rare > uncommon > common > basic)
+                    selected_idx = _best_card_to_upgrade(upgradeable)
                     self.run_state.upgrade_card(selected_idx)
                     self._log(f"  Auto-upgraded card at index {selected_idx}")
             elif sel_type == "remove":
                 removable = self.run_state.get_removable_cards()
                 if removable:
-                    selected_idx = removable[0][0]
+                    # Remove worst card (Strikes > Defends > Curses)
+                    selected_idx = _worst_card_to_remove(removable)
                     removed = self.run_state.remove_card(selected_idx)
                     self._log(f"  Auto-removed {removed.id if removed else 'card'}")
             elif sel_type == "transform":
                 removable = self.run_state.get_removable_cards()
                 if removable:
-                    selected_idx = removable[0][0]
+                    selected_idx = _worst_card_to_remove(removable)
                     removed = self.run_state.remove_card(selected_idx)
                     self._log(f"  Auto-transformed {removed.id if removed else 'card'}")
             elif sel_type == "duplicate":
                 if self.run_state.deck:
-                    card = self.run_state.deck[0]
-                    self.run_state.add_card(card.id, getattr(card, 'upgraded', False))
-                    self._log(f"  Auto-duplicated {card.id}")
+                    # Duplicate best card (highest rarity non-basic)
+                    best = _best_card_to_duplicate(self.run_state.deck)
+                    self.run_state.add_card(best.id, getattr(best, 'upgraded', False))
+                    self._log(f"  Auto-duplicated {best.id}")
             elif sel_type == "choose":
                 # Card choose from library/Neow - skip (take nothing)
                 self._log(f"  Auto-skipped card choice")

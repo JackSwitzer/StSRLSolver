@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import multiprocessing as mp
+import signal
 import time
 from collections import deque
 from datetime import datetime
@@ -794,6 +795,9 @@ class OvernightRunner:
         # Episodes log file
         self._episodes_path = self.run_dir / "episodes.jsonl"
 
+        # Graceful shutdown flag (set by signal handler)
+        self._shutdown_requested = False
+
         # Stats tracking
         self.total_games = 0
         self.total_wins = 0
@@ -937,6 +941,15 @@ class OvernightRunner:
         )
         logger.info("Worker pool started (%d processes)", self.workers)
 
+        # --- Signal handler for graceful shutdown ---
+        def _handle_shutdown(signum, frame):
+            sig_name = signal.Signals(signum).name
+            logger.info("Graceful shutdown requested (%s), finishing current batch...", sig_name)
+            self._shutdown_requested = True
+
+        signal.signal(signal.SIGTERM, _handle_shutdown)
+        signal.signal(signal.SIGINT, _handle_shutdown)
+
         seed_pool = SeedPool(max_plays=5)
         best_avg_floor = 0.0
 
@@ -984,7 +997,7 @@ class OvernightRunner:
                 batch_size, temp,
             )
 
-            while sweep_games < n_games and self.total_games < self.max_games:
+            while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
                 batch_t0 = time.monotonic()
                 batch_results = self._play_batch(model, encoder, seed_pool, trainer)
                 batch_duration = time.monotonic() - batch_t0
@@ -1000,7 +1013,14 @@ class OvernightRunner:
                 # Train if enough transitions
                 if len(trainer.buffer) >= trainer.batch_size:
                     metrics = trainer.train_batch()
-                    trainer.decay_entropy()
+                    # Only decay entropy when there's learning signal
+                    # (avg floor above random baseline of ~5)
+                    avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+                    if avg_floor > 7.0:
+                        trainer.decay_entropy(min_coeff=0.01, decay=0.999)
+                    elif avg_floor > 5.5:
+                        # Slow decay while still exploring
+                        trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
 
                     # Sync updated weights to inference server
                     if self._server is not None:
@@ -1058,36 +1078,46 @@ class OvernightRunner:
         logger.info("=== Phase 1: Exploring %d configs (%d games each) ===",
                      n_configs, phase1_games_per)
         for idx, cfg in enumerate(self.sweep_configs):
+            if self._shutdown_requested:
+                break
             result = _run_config(idx, cfg, phase1_games_per)
             config_scores[idx] = result
 
         # Phase 2: Keep top 3 by avg_floor
-        sorted_configs = sorted(config_scores.items(),
-                                key=lambda x: x[1]["avg_floor"], reverse=True)
-        top3 = sorted_configs[:3]
-        top_names = ", ".join(
-            f"{self.sweep_configs[idx].get('name', '?')} ({info['avg_floor']:.1f})"
-            for idx, info in top3
-        )
-        logger.info("=== Phase 2: Top 3 configs: %s ===", top_names)
+        if not self._shutdown_requested and config_scores:
+            sorted_configs = sorted(config_scores.items(),
+                                    key=lambda x: x[1]["avg_floor"], reverse=True)
+            top3 = sorted_configs[:3]
+            top_names = ", ".join(
+                f"{self.sweep_configs[idx].get('name', '?')} ({info['avg_floor']:.1f})"
+                for idx, info in top3
+            )
+            logger.info("=== Phase 2: Top 3 configs: %s ===", top_names)
 
-        for idx, _ in top3:
-            result = _run_config(idx, self.sweep_configs[idx], phase2_games_per)
-            config_scores[idx] = result
+            for idx, _ in top3:
+                if self._shutdown_requested:
+                    break
+                result = _run_config(idx, self.sweep_configs[idx], phase2_games_per)
+                config_scores[idx] = result
 
         # Phase 3: All-in on best
-        sorted_configs = sorted(config_scores.items(),
-                                key=lambda x: x[1]["avg_floor"], reverse=True)
-        best_idx = sorted_configs[0][0]
-        best_cfg = self.sweep_configs[best_idx]
-        remaining = self.max_games - self.total_games
-        logger.info("=== Phase 3: All-in on '%s' (%.1f avg floor, %d games remaining) ===",
-                     best_cfg.get("name", "?"), sorted_configs[0][1]["avg_floor"], remaining)
+        if not self._shutdown_requested and config_scores:
+            sorted_configs = sorted(config_scores.items(),
+                                    key=lambda x: x[1]["avg_floor"], reverse=True)
+            best_idx = sorted_configs[0][0]
+            best_cfg = self.sweep_configs[best_idx]
+            remaining = self.max_games - self.total_games
+            logger.info("=== Phase 3: All-in on '%s' (%.1f avg floor, %d games remaining) ===",
+                         best_cfg.get("name", "?"), sorted_configs[0][1]["avg_floor"], remaining)
 
-        if remaining > 0:
-            _run_config(best_idx, best_cfg, remaining)
+            if remaining > 0:
+                _run_config(best_idx, best_cfg, remaining)
 
-        # Final save
+        # Save checkpoint and clean up
+        if self._shutdown_requested:
+            logger.info("Saving checkpoint before shutdown...")
+            model.save(self.run_dir / "shutdown_checkpoint.pt")
+            logger.info("Checkpoint saved to %s", self.run_dir / "shutdown_checkpoint.pt")
         model.save(self.run_dir / "final_strategic.pt")
         self._write_summary()
 
@@ -1099,6 +1129,9 @@ class OvernightRunner:
         if self._server is not None:
             self._server.stop()
             self._server = None
+
+        if self._shutdown_requested:
+            logger.info("Graceful shutdown complete. %d games played.", self.total_games)
 
         return {
             "total_games": self.total_games,

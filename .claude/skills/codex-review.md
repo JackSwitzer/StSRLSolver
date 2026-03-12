@@ -1,4 +1,4 @@
-# Codex GPT 5.4 Review Skill
+# GPT 5.4 Review Skill
 
 Use this skill when the user asks for a GPT 5.4 / codex review of code, plans, or architecture.
 
@@ -8,54 +8,43 @@ Invoke with: `/codex-review <topic or file path>`
 ## Instructions
 
 1. **Gather context**: Read the relevant files and construct a focused review prompt
-2. **Run codex**: Execute GPT 5.4 via the codex CLI with high reasoning:
+2. **Write prompt to temp file**, then run:
 ```bash
-source ~/.claude/.credentials.env && bunx @openai/codex@latest exec \
-  -s read-only \
-  --ephemeral \
+/Applications/Codex.app/Contents/Resources/codex exec \
   -m gpt-5.4 \
   -c 'reasoning_effort="high"' \
-  "<review prompt>"
+  --sandbox read-only \
+  "$(cat /tmp/gpt54-prompt.txt)"
 ```
-3. **Parse and present**: Summarize findings back to the user with actionable items
+3. **Or use the script**: `./scripts/gpt54-review.sh /tmp/gpt54-prompt.txt /tmp/gpt54-result.md high`
+4. **Parse and present**: Summarize findings with actionable items
+
+## Auth
+- Codex CLI at `/Applications/Codex.app/Contents/Resources/codex` — has its own login/auth
+- **NOT OpenRouter** — uses native Codex app authentication
+- If auth fails: run `/Applications/Codex.app/Contents/Resources/codex login`
+
+## Scripts
+- `scripts/gpt54-review.sh <prompt_file> [output_file] [effort]` — ad-hoc reviews
+- `scripts/nightly-audit.sh [run-dir]` — automated training audit
+- `scripts/audit-setup.sh install|uninstall|status|run-now` — manage nightly cron
+
+## Effort Selection
+- **high**: Code reviews, bug hunts, quick checks (8K tokens)
+- **extra-high**: Architecture decisions, scoping reviews, weekend run audits (16K tokens)
 
 ## Prompt Template
-
-Structure the review prompt as:
 ```
-You are reviewing [WHAT] for [PROJECT CONTEXT].
+You are reviewing [WHAT] for the Slay the Spire RL project.
+PROJECT: Python game engine + RL training (PPO, MLX inference, multiprocessing).
+HARDWARE: M4 Mac Mini (10 cores, 24GB RAM, MPS GPU, MLX for inference).
 
-CURRENT STATE:
-[Brief description of what exists]
-
-PROPOSED CHANGES / PLAN:
-[What's being reviewed]
-
+CURRENT STATE: [description]
+CODE TO REVIEW: [paste key sections]
 SPECIFIC QUESTIONS:
-1. [Question about correctness]
-2. [Question about performance]
-3. [Question about architecture]
+1. [Correctness]
+2. [Performance]
+3. [Architecture]
 
-CONSTRAINTS:
-- [Hardware: M4 Mac Mini, 10 cores, 24GB RAM]
-- [Performance: X games/min throughput]
-- [Other relevant constraints]
-
-Provide: (a) assessment, (b) specific improvements, (c) alternatives if approach is wrong, (d) performance optimizations
+Provide: (a) critical bugs, (b) performance wins, (c) dead code, (d) ranked improvements.
 ```
-
-## Model Selection
-- **ALWAYS use `gpt-5.4`** — never 4.1, o4-mini, or other models
-- **Reasoning effort**: `high` for reviews, `extra-high` for architecture/scoping
-- **Sandbox**: `read-only` for reviews, `full` only if codex needs to write files
-
-## Error Handling
-- If codex times out (>3 min), kill and retry with a shorter, more focused prompt
-- If model is unsupported, check that `gpt-5.4` is spelled correctly
-- Run in background for long reviews, foreground for quick checks
-
-## Common Review Types
-- **Code review**: Pass file contents + specific concerns
-- **Architecture review**: Pass system diagram + design decisions
-- **Performance review**: Include benchmarks + target metrics
-- **Bug hunt**: Pass failing test + relevant code + error output
