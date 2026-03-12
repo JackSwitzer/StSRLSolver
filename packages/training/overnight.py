@@ -474,7 +474,7 @@ def _play_one_game(
     encoder = RunStateEncoder()
     planner = StrategicPlanner()
     combat_planner = CombatPlanner(top_k=3, lookahead_turns=1)  # Fast config for training
-    turn_solver = TurnSolverAdapter(time_budget_ms=5.0, node_budget=1000)
+    turn_solver = TurnSolverAdapter(time_budget_ms=50.0, node_budget=5000)
 
     client = get_client()
 
@@ -729,11 +729,9 @@ def _play_one_game(
 
     death_enemy = ""
     try:
-        if not won and runner.current_combat is not None:
-            for e in runner.current_combat.state.enemies:
-                if e.hp > 0:
-                    death_enemy = getattr(e, "name", getattr(e, "id", ""))
-                    break
+        death_enemies = getattr(runner, "last_death_enemies", [])
+        if death_enemies:
+            death_enemy = ", ".join(death_enemies)
     except Exception:
         pass
 

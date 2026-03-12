@@ -351,6 +351,7 @@ class GameRunner:
 
         # Combat state (when in combat)
         self.current_combat = None
+        self.last_death_enemies: list = []
         self.pending_rewards: List[Dict] = []  # Legacy format for backwards compatibility
 
         # Combat rewards (new system using RewardHandler)
@@ -3664,6 +3665,20 @@ class GameRunner:
 
     def _end_combat(self, victory: bool, combat_result: Optional[CombatResult] = None):
         """End a combat encounter and generate rewards using RewardHandler."""
+        # Capture death info before clearing combat reference
+        if not victory and self.current_combat is not None:
+            try:
+                enemies = self.current_combat.state.enemies
+                alive = [e for e in enemies if e.hp > 0]
+                names = [getattr(e, "name", getattr(e, "id", "?")) for e in alive]
+                self.last_death_enemies = names or [
+                    getattr(e, "name", getattr(e, "id", "?")) for e in enemies
+                ]
+            except Exception:
+                self.last_death_enemies = []
+        elif victory:
+            self.last_death_enemies = []
+
         # Clean up combat engine
         self.current_combat = None
 
