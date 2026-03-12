@@ -221,7 +221,8 @@ class StrategicTrainer:
             gae = 0.0
             for t in reversed(range(ep_len)):
                 if t == ep_len - 1:
-                    next_val = 0.0  # terminal bootstrap
+                    # Bootstrap with value estimate if episode was truncated (not truly terminal)
+                    next_val = 0.0 if ep_dones[t] else ep_values[t]
                 else:
                     next_val = ep_values[t + 1] * (1.0 - ep_dones[t])
                 delta = ep_rewards[t] + self.gamma * next_val - ep_values[t]

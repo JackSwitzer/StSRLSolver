@@ -1,11 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ScreenMode } from '../types/training';
 
-const MODE_BY_KEY: Record<string, ScreenMode> = {
-  '1': 'grid', '2': 'combat', '3': 'map', '4': 'mcts', '5': 'stats',
-  F1: 'grid', F2: 'combat', F3: 'map', F4: 'mcts', F5: 'stats',
-};
-
 interface KeyboardNavOptions {
   numAgents: number;
   columns: number;
@@ -17,12 +12,13 @@ interface KeyboardNavOptions {
   onUnfocus: () => void;
   onNextFocused?: () => void;
   onPrevFocused?: () => void;
+  onPlayPause?: () => void;
 }
 
 export function useKeyboardNav({
   numAgents, columns, selectedIndex, screenMode,
   onScreenChange, onAgentChange, onFocus, onUnfocus,
-  onNextFocused, onPrevFocused,
+  onNextFocused, onPrevFocused, onPlayPause,
 }: KeyboardNavOptions): void {
   const selRef = useRef(selectedIndex);
   selRef.current = selectedIndex;
@@ -34,17 +30,70 @@ export function useKeyboardNav({
 
       const key = e.key;
 
-      // Screen mode (always active)
-      if (MODE_BY_KEY[key]) {
-        e.preventDefault();
-        onScreenChange(MODE_BY_KEY[key]);
-        return;
-      }
-
-      // Escape (always active)
+      // Escape: close overlay / unfocus
       if (key === 'Escape') {
         e.preventDefault();
         onUnfocus();
+        return;
+      }
+
+      // Space: play/pause toggle
+      if (key === ' ') {
+        e.preventDefault();
+        onPlayPause?.();
+        return;
+      }
+
+      // D = Dashboard (grid overview)
+      if (key === 'd' || key === 'D') {
+        // Only switch view when NOT in grid mode (where D means arrow-right)
+        if (screenMode !== 'grid') {
+          e.preventDefault();
+          onScreenChange('grid');
+          return;
+        }
+      }
+
+      // F = Combat Feed
+      if (key === 'f' || key === 'F') {
+        e.preventDefault();
+        onScreenChange('feed');
+        return;
+      }
+
+      // S = Stats view (only when NOT in grid mode where S means arrow-down)
+      if ((key === 's' || key === 'S') && screenMode !== 'grid') {
+        e.preventDefault();
+        onScreenChange('stats_view');
+        return;
+      }
+
+      // T = Training metrics view
+      if (key === 't' || key === 'T') {
+        e.preventDefault();
+        onScreenChange('training_view');
+        return;
+      }
+
+      // 1-8: Select agent directly
+      const num = parseInt(key, 10);
+      if (num >= 1 && num <= 8 && num <= numAgents) {
+        e.preventDefault();
+        onAgentChange(num - 1);
+        return;
+      }
+
+      // [ / ]: Prev/Next agent
+      if (key === '[') {
+        e.preventDefault();
+        if (onPrevFocused) onPrevFocused();
+        else onAgentChange(Math.max(0, selRef.current - 1));
+        return;
+      }
+      if (key === ']') {
+        e.preventDefault();
+        if (onNextFocused) onNextFocused();
+        else onAgentChange(Math.min(numAgents - 1, selRef.current + 1));
         return;
       }
 
@@ -90,9 +139,19 @@ export function useKeyboardNav({
           return;
         }
       }
+
+      // Legacy F-key bindings
+      const fKeyMap: Record<string, ScreenMode> = {
+        F1: 'grid', F2: 'combat', F3: 'map', F4: 'mcts', F5: 'stats',
+      };
+      if (fKeyMap[key]) {
+        e.preventDefault();
+        onScreenChange(fKeyMap[key]);
+        return;
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [numAgents, columns, screenMode, onScreenChange, onAgentChange, onFocus, onUnfocus, onNextFocused, onPrevFocused]);
+  }, [numAgents, columns, screenMode, onScreenChange, onAgentChange, onFocus, onUnfocus, onNextFocused, onPrevFocused, onPlayPause]);
 }

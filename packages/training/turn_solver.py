@@ -297,6 +297,13 @@ class TurnSolver:
         elif state.stance == "Wrath" and now_living > 0:
             score -= 60.0
 
+        # Penalize unspent energy (unless Ice Cream relic present)
+        unspent = state.energy
+        if unspent > 0:
+            has_ice_cream = any(r.relic_id == "IceCream" for r in getattr(state, 'relics', []))
+            if not has_ice_cream:
+                score -= 3.0 * unspent
+
         return score
 
     @staticmethod
@@ -656,6 +663,14 @@ class TurnSolverAdapter:
         self._cached_plan: Optional[List[Action]] = None
         self._cached_plan_index: int = 0
         self._cached_turn: int = -1
+        self._cached_combat_id: int = -1
+
+    def reset(self):
+        """Invalidate cached plan. Call at the start of each new combat."""
+        self._cached_plan = None
+        self._cached_plan_index = 0
+        self._cached_turn = -1
+        self._cached_combat_id = -1
 
     def pick_action(self, actions: list, runner, room_type: str = "monster"):
         """Pick best combat action.
@@ -674,6 +689,14 @@ class TurnSolverAdapter:
         engine = getattr(runner, "current_combat", None)
         if engine is None:
             return None  # Let caller fall through to CombatPlanner/heuristic
+
+        # Invalidate cache when combat identity changes (new fight)
+        combat_id = id(engine)
+        if combat_id != self._cached_combat_id:
+            self._cached_plan = None
+            self._cached_plan_index = 0
+            self._cached_turn = -1
+            self._cached_combat_id = combat_id
 
         state = engine.state
         current_turn = state.turn

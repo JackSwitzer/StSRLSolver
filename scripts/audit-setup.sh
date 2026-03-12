@@ -41,7 +41,7 @@ generate_plist() {
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>21</integer>
+        <integer>20</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>
@@ -89,7 +89,7 @@ cmd_install() {
 
     launchctl load "$PLIST_PATH"
     echo "Loaded $LABEL"
-    echo "  Schedule: daily at 21:00 (9pm)"
+    echo "  Schedule: daily at 20:00 (8pm)"
     echo "  Log: $LOG_DIR/launchd.log"
     echo ""
     cmd_status
@@ -124,7 +124,7 @@ cmd_status() {
     # Show plist schedule
     if [ -f "$PLIST_PATH" ]; then
         echo "Plist: $PLIST_PATH"
-        echo "Schedule: daily at 21:00 (9pm)"
+        echo "Schedule: daily at 20:00 (8pm)"
     else
         echo "Plist: NOT FOUND (run install to generate)"
     fi

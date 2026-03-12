@@ -148,6 +148,19 @@ EVENT_REWARDS = {
     "boss_win": 0.40,
 }
 
+# Stall detection: if avg floor doesn't improve over this many games, reset entropy
+STALL_DETECTION_WINDOW = 2000
+STALL_IMPROVEMENT_THRESHOLD = 0.5  # Must improve avg floor by at least this much
+
+# Stance transition reward shaping (initialized, learnable via hot-reload)
+# Calm (blue) = safe energy, Wrath (red) = damage but risky, Divinity (purple) = burst
+STANCE_CHANGE_REWARDS = {
+    "Calm": 0.1,       # Blue — energy generation, defensive
+    "Wrath": 0.2,      # Red — damage mode, rewarded more than passive
+    "Divinity": 0.3,   # Purple — burst damage, highest reward
+    "Neutral": 0.0,    # No reward for going neutral
+}
+
 
 # ---------------------------------------------------------------------------
 # Lightweight combat heuristic (no simulation, ~0ms per call)
@@ -198,6 +211,7 @@ _CALM_CARDS = {"Vigilance", "Vigilance+", "InnerPeace", "InnerPeace+", "Tranquil
 _EXIT_STANCE_CARDS = {"EmptyBody", "EmptyBody+", "EmptyFist", "EmptyFist+"}
 
 
+# TODO: Move _turn_plan_cache into TurnSolverAdapter instance (currently global, leaks across games)
 # Per-turn plan cache for CombatPlanner (reset per combat turn)
 _turn_plan_cache: Dict[str, Any] = {}  # {seed: (turn_num, card_queue, cards_played)}
 
@@ -322,6 +336,7 @@ def _pick_combat_action(actions, runner, combat_planner=None, turn_solver_adapte
     room_type = getattr(runner, "current_room_type", "monster")
     is_boss_or_elite = room_type in ("boss", "elite")
     player_hp = player.hp
+    player_max_hp = getattr(player, "max_hp", player_hp)
 
     best_action = actions[0]
     best_score = -1000.0
@@ -414,19 +429,31 @@ def _pick_combat_action(actions, runner, combat_planner=None, turn_solver_adapte
                 score -= 100.0
 
         elif a.action_type == "use_potion":
+            potion_id = ""
+            if 0 <= a.potion_idx < len(runner.run_state.potion_slots):
+                potion_id = runner.run_state.potion_slots[a.potion_idx].potion_id or ""
+
+            hp_ratio = player_hp / max(player_max_hp, 1)
+
             if is_boss_or_elite:
-                # Boss/elite: use potions aggressively
-                potion_id = ""
-                if 0 <= a.potion_idx < len(runner.run_state.potion_slots):
-                    potion_id = runner.run_state.potion_slots[a.potion_idx].potion_id or ""
                 if any(k in potion_id for k in ("Fire", "Explosive", "Attack", "Strength")):
-                    score = 18.0
-                elif any(k in potion_id for k in ("Block", "Energy")):
+                    score = 16.0
+                elif any(k in potion_id for k in ("Block", "Energy", "Dexterity")):
                     score = 14.0
+                elif "Fairy" in potion_id:
+                    score = 2.0  # Save fairy for death prevention
                 else:
-                    score = 8.0
+                    score = 10.0
             else:
-                score = 3.0  # Save potions for boss/elite
+                # Use potions more aggressively when low HP
+                base = 5.0
+                if hp_ratio < 0.3:
+                    base = 12.0
+                elif hp_ratio < 0.5:
+                    base = 8.0
+                if "Fairy" in potion_id:
+                    base = 1.0  # Almost never use fairy proactively
+                score = base
 
         if score > best_score:
             best_score = score
@@ -491,6 +518,9 @@ def _play_one_game(
     """
     import random as _random
 
+    # Clear module-level turn plan cache to avoid memory leak between games
+    _turn_plan_cache.clear()
+
     from packages.engine.game import GameRunner, GamePhase, CombatAction
     from packages.training.planner import StrategicPlanner
     from packages.training.combat_planner import CombatPlanner
@@ -526,6 +556,20 @@ def _play_one_game(
     # Track combat events for event-based rewards
     was_in_combat = False
     combat_room_type = "monster"
+    prev_deck_size = len(getattr(runner.run_state, "deck", []))
+
+    # Per-combat stats tracking
+    combats: List[Dict[str, Any]] = []
+    combat_start_hp = 0
+    combat_cards_played = 0
+    combat_turns = 0
+    combat_start_time = 0.0
+    combat_potions_used = 0
+    combat_stance_changes = 0
+    prev_stance = "Neutral"
+    # Per-turn card tracking
+    turn_cards: List[str] = []  # Cards played this turn
+    turns_log: List[Dict[str, Any]] = []  # Per-turn log for current combat
 
     while not runner.game_over and step < 5000:
         try:
@@ -540,14 +584,62 @@ def _play_one_game(
         current_floor = getattr(rs, "floor", 0)
 
         if phase == GamePhase.COMBAT:
+            if not was_in_combat:
+                # Combat just started — reset solver cache, record baseline
+                turn_solver.reset()
+                combat_start_hp = getattr(rs, "current_hp", 0)
+                combat_cards_played = 0
+                combat_turns = 0
+                combat_start_time = time.monotonic()
+                combat_potions_used = 0
+                combat_stance_changes = 0
+                prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
+                turn_cards = []
+                turns_log = []
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
-            # Combat: TurnSolver > CombatPlanner > heuristic
-            runner.take_action(_pick_combat_action(actions, runner, combat_planner, turn_solver))
+            # Track card plays, potion uses, stance changes
+            action = _pick_combat_action(actions, runner, combat_planner, turn_solver)
+            if hasattr(action, "action_type"):
+                atype = getattr(action, "action_type", "")
+                if atype == "play_card":
+                    combat_cards_played += 1
+                    card_id = getattr(action, "card_id", "") or getattr(action, "card_name", "?")
+                    turn_cards.append(card_id)
+                elif atype == "use_potion":
+                    combat_potions_used += 1
+                    turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
+                elif atype == "end_turn":
+                    combat_turns += 1
+                    turns_log.append({"turn": combat_turns, "cards": turn_cards[:]})
+                    turn_cards.clear()
+            runner.take_action(action)
+            # Detect stance changes after action
+            combat_state = getattr(runner, "current_combat", None)
+            if combat_state is not None:
+                cur_stance = getattr(combat_state.state, "stance", "Neutral")
+                if cur_stance != prev_stance:
+                    combat_stance_changes += 1
+                    prev_stance = cur_stance
         elif len(actions) == 1:
             # Check for combat-end event rewards
             if was_in_combat and phase != GamePhase.COMBAT:
                 was_in_combat = False
+                # Record combat summary
+                # Include final turn's cards if any
+                if turn_cards:
+                    turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
+                combats.append({
+                    "floor": current_floor,
+                    "room_type": combat_room_type,
+                    "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+                    "cards_played": combat_cards_played,
+                    "turns": combat_turns,
+                    "potions_used": combat_potions_used,
+                    "stance_changes": combat_stance_changes,
+                    "turns_detail": turns_log[:],
+                    "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
+                })
             runner.take_action(actions[0])
         else:
             # Strategic decision point
@@ -557,6 +649,21 @@ def _play_one_game(
             combat_just_ended = was_in_combat and phase != GamePhase.COMBAT
             if combat_just_ended:
                 was_in_combat = False
+                # Record combat summary
+                # Include final turn's cards if any
+                if turn_cards:
+                    turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
+                combats.append({
+                    "floor": current_floor,
+                    "room_type": combat_room_type,
+                    "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+                    "cards_played": combat_cards_played,
+                    "turns": combat_turns,
+                    "potions_used": combat_potions_used,
+                    "stance_changes": combat_stance_changes,
+                    "turns_detail": turns_log[:],
+                    "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
+                })
 
             n_actions = len(actions)
 
@@ -675,6 +782,12 @@ def _play_one_game(
                     hp_pct = new_rs.current_hp / max(new_rs.max_hp, 1)
                     event_reward *= (0.5 + 0.5 * hp_pct)
 
+                # Card removal reward (deck thinning is almost always good)
+                new_deck_size = len(getattr(new_rs, "deck", []))
+                if new_deck_size < prev_deck_size:
+                    event_reward += 0.20 * (prev_deck_size - new_deck_size)
+                prev_deck_size = new_deck_size
+
                 reward = pbrs_reward + event_reward
                 prev_potential = new_potential
 
@@ -684,6 +797,8 @@ def _play_one_game(
                     "action_mask": mask,
                     "action": action_idx,
                     "reward": reward,
+                    "pbrs": pbrs_reward,
+                    "event_reward": event_reward,
                     "done": False,
                     "value": value,
                     "log_prob": log_prob,
@@ -776,6 +891,7 @@ def _play_one_game(
         "deck_final": deck_final,
         "death_enemy": death_enemy,
         "room_type": getattr(runner, "current_room_type", ""),
+        "combats": combats,
     }
 
 
@@ -834,6 +950,11 @@ class OvernightRunner:
         self.sweep_results: List[Dict[str, Any]] = []
         self._episode_counter = 0  # Unique ID per game for GAE episode separation
 
+        # Stall detection: track avg floor at checkpoints to detect training plateaus
+        self._stall_checkpoint_floor = 0.0
+        self._stall_checkpoint_games = 0
+        self._construction_failures = 0
+
         # Current sweep config (set by _run_config for epsilon forwarding)
         self._current_sweep_config: Dict[str, Any] = {}
 
@@ -888,21 +1009,30 @@ class OvernightRunner:
             "current_sweep": self._current_sweep_idx,
             "total_sweeps": len(self.sweep_configs),
             "headless": self.should_be_headless(),
+            "construction_failures": self._construction_failures,
             **stats,
         }
         status_path = self.run_dir / "status.json"
         status_path.write_text(json.dumps(status, indent=2))
 
-    def _record_game(self, won: bool, floor: int) -> None:
+    def _record_game(self, result: Dict[str, Any]) -> None:
         """Record a game result."""
         self.total_games += 1
-        if won:
+        if result["won"]:
             self.total_wins += 1
-        self.recent_floors.append(floor)
-        self.recent_wins.append(won)
+        self.recent_floors.append(result["floor"])
+        self.recent_wins.append(result["won"])
+        if result.get("construction_failure"):
+            self._construction_failures += 1
 
     def _log_episode(self, result: Dict[str, Any]) -> None:
         """Append one episode to episodes.jsonl."""
+        # Compute reward breakdown from transitions
+        transitions = result.get("transitions", [])
+        total_reward = sum(t.get("reward", 0) for t in transitions)
+        total_pbrs = sum(t.get("pbrs", 0) for t in transitions)
+        total_event = sum(t.get("event_reward", 0) for t in transitions)
+
         entry = {
             "timestamp": datetime.now().isoformat(),
             "seed": result["seed"],
@@ -911,10 +1041,15 @@ class OvernightRunner:
             "hp": result["hp"],
             "decisions": result["decisions"],
             "duration_s": result["duration_s"],
-            "num_transitions": len(result.get("transitions", [])),
+            "num_transitions": len(transitions),
+            "total_reward": round(total_reward, 4),
+            "pbrs_reward": round(total_pbrs, 4),
+            "event_reward": round(total_event, 4),
             "deck_final": result.get("deck_final", []),
             "death_enemy": result.get("death_enemy", ""),
             "death_room": result.get("room_type", ""),
+            "combats": result.get("combats", []),
+            "construction_failure": result.get("construction_failure", False),
         }
         with open(self._episodes_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
@@ -993,6 +1128,9 @@ class OvernightRunner:
                         for pg in trainer.optimizer.param_groups:
                             pg["lr"] = cfg["lr"]
                         logger.info("  lr -> %s", cfg["lr"])
+                    if "stance_rewards" in cfg:
+                        STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
+                        logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
                     reload_path.unlink()
                 except Exception as e:
                     logger.error("Hot-reload failed: %s", e)
@@ -1055,7 +1193,7 @@ class OvernightRunner:
                 batch_duration = time.monotonic() - batch_t0
 
                 for result in batch_results:
-                    self._record_game(result["won"], result["floor"])
+                    self._record_game(result)
                     self._log_episode(result)
                     sweep_games += 1
                     sweep_floors.append(result["floor"])
@@ -1065,14 +1203,33 @@ class OvernightRunner:
                 # Train if enough transitions
                 if len(trainer.buffer) >= trainer.batch_size:
                     metrics = trainer.train_batch()
-                    # Only decay entropy when there's learning signal
-                    # (avg floor above random baseline of ~5)
-                    avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
-                    if avg_floor > 7.0:
-                        trainer.decay_entropy(min_coeff=0.01, decay=0.999)
-                    elif avg_floor > 5.5:
-                        # Slow decay while still exploring
+
+                    # Use per-sweep floors for entropy gating (not global)
+                    sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
+                    # Only decay entropy when there's real learning signal
+                    if sweep_avg > 7.0:
+                        trainer.decay_entropy(min_coeff=0.02, decay=0.999)
+                    elif sweep_avg > 5.5:
                         trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
+
+                    # Stall detection: if no improvement over STALL_DETECTION_WINDOW games, reset entropy
+                    games_since_checkpoint = self.total_games - self._stall_checkpoint_games
+                    if games_since_checkpoint >= STALL_DETECTION_WINDOW:
+                        current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+                        improvement = current_avg - self._stall_checkpoint_floor
+                        if improvement < STALL_IMPROVEMENT_THRESHOLD:
+                            # Training is stalled — reset entropy to encourage exploration
+                            old_ent = trainer.entropy_coeff
+                            trainer.entropy_coeff = max(0.05, old_ent * 2.0)
+                            logger.warning(
+                                "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
+                                "(improvement %.1f < %.1f). Entropy reset: %.4f -> %.4f",
+                                self._stall_checkpoint_floor, current_avg,
+                                games_since_checkpoint, improvement,
+                                STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
+                            )
+                        self._stall_checkpoint_floor = current_avg
+                        self._stall_checkpoint_games = self.total_games
 
                     # Sync updated weights to inference server
                     if self._server is not None:
@@ -1296,6 +1453,13 @@ class OvernightRunner:
                     break
             for i in range(self._server.n_workers):
                 self._server.slot_q.put(i)
+            # Drain stale responses from all queues
+            for rq in self._server.response_qs:
+                while not rq.empty():
+                    try:
+                        rq.get_nowait()
+                    except Exception:
+                        break
             ctx = mp.get_context("spawn")
             self._executor = ctx.Pool(
                 processes=self.workers,

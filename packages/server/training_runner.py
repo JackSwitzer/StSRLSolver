@@ -307,13 +307,11 @@ def _agent_worker(
     stop_event: mp.Event,
     pause_event: mp.Event,
     config: Dict[str, Any],
-    combat_transitions_queue: Optional[mp.Queue] = None,
 ) -> None:
     """Run games in an infinite loop, pushing events to queue.
 
     Uses GumbelMCTS (neural-guided) for combat decisions with CombatPlanner
     as fallback, and StrategicPlanner for non-combat decisions.
-    Combat transitions are pushed to combat_transitions_queue for training.
     """
     from packages.engine.game import GameRunner, GamePhase, CombatAction
     from packages.training.planner import StrategicPlanner
@@ -518,70 +516,6 @@ def _agent_worker(
                                     "strategy": 3,  # MCTS
                                     "player_hp": player_hp,
                                 })
-
-                                # Collect combat transition for training (deep searches only)
-                                if use_deep and combat_transitions_queue is not None:
-                                    try:
-                                        obs_dict = runner.get_observation()
-                                        obs_arr = encoder.observation_to_array(obs_dict)
-
-                                        action_dicts = runner.get_available_action_dicts()
-                                        action_space.register_actions(action_dicts)
-                                        mask = np.zeros(combat_model.action_dim, dtype=bool)
-                                        for ad in action_dicts:
-                                            aid = ad.get("id")
-                                            if aid is not None:
-                                                idx = action_space.register(aid)
-                                                if idx < combat_model.action_dim:
-                                                    mask[idx] = True
-
-                                        # Map MCTS probs to action indices
-                                        mcts_policy = np.zeros(combat_model.action_dim, dtype=np.float32)
-                                        best_idx = 0
-
-                                        def _act_to_id(act):
-                                            if isinstance(act, PlayCard):
-                                                parts = ["play_card", f"card_index={act.card_idx}"]
-                                                if act.target_idx >= 0:
-                                                    parts.append(f"target_index={act.target_idx}")
-                                                return "|".join(parts)
-                                            elif isinstance(act, UsePotion):
-                                                parts = ["use_potion", f"potion_slot={act.potion_idx}"]
-                                                if act.target_idx >= 0:
-                                                    parts.append(f"target_index={act.target_idx}")
-                                                return "|".join(parts)
-                                            elif isinstance(act, EndTurn):
-                                                return "end_turn"
-                                            return str(act)
-
-                                        ad_by_id = {ad.get("id"): ad for ad in action_dicts}
-                                        for act, prob in action_probs.items():
-                                            act_id = _act_to_id(act)
-                                            if act_id in ad_by_id:
-                                                idx = action_space.register(act_id)
-                                                if idx < combat_model.action_dim:
-                                                    mcts_policy[idx] = prob
-                                                if act is best_action:
-                                                    best_idx = idx
-
-                                        total_p = mcts_policy.sum()
-                                        if total_p > 0:
-                                            mcts_policy /= total_p
-
-                                        # Get value estimate from policy_fn
-                                        _, value_est = gumbel_mcts.policy_fn(engine)
-
-                                        combat_transitions_queue.put_nowait({
-                                            "obs": obs_arr,
-                                            "mask": mask,
-                                            "action": best_idx,
-                                            "mcts_policy": mcts_policy,
-                                            "value": float(value_est),
-                                            "agent_id": agent_id,
-                                            "floor": current_floor,
-                                        })
-                                    except Exception:
-                                        pass  # Don't let transition collection break the game
 
                                 # Execute best MCTS action
                                 if isinstance(best_action, PlayCard):
@@ -1168,10 +1102,8 @@ class TrainingCoordinator:
         self.latest_combat: Dict[int, Dict] = {}
         # Latest map state per agent (for immediate send on focus)
         self.latest_map: Dict[int, Dict] = {}
-
-        # Combat transitions queue + buffer (for neural combat training)
-        self.combat_transitions_queue: Optional[mp.Queue] = None
-        self.combat_buffer: List[Dict] = []
+        # Latest run state per agent (deck/relics/potions/gold) for immediate send on focus
+        self.latest_run_state: Dict[int, Dict] = {}
 
         # WS subscribers
         self._subscribers: Set[int] = set()
@@ -1206,7 +1138,6 @@ class TrainingCoordinator:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
         self.event_queue = mp.Queue(maxsize=5000)
-        self.combat_transitions_queue = mp.Queue(maxsize=2000)
         self.stop_event = mp.Event()
         self.pause_event = mp.Event()
         self.start_time = time.time()
@@ -1224,7 +1155,7 @@ class TrainingCoordinator:
         self.latest_mcts.clear()
         self.latest_combat.clear()
         self.latest_map.clear()
-        self.combat_buffer.clear()
+        self.latest_run_state.clear()
 
         # Reset agent states
         for i in range(self.num_agents):
@@ -1252,8 +1183,7 @@ class TrainingCoordinator:
 
         p = mp.Process(
             target=_agent_worker,
-            args=(agent_id, self.event_queue, self.stop_event, self.pause_event, cfg,
-                  self.combat_transitions_queue),
+            args=(agent_id, self.event_queue, self.stop_event, self.pause_event, cfg),
             daemon=True,
         )
         p.start()
@@ -1485,6 +1415,11 @@ class TrainingCoordinator:
         if cached_map:
             self._send_to(conn_id, {"type": "agent_map", "agent_id": agent_id, "map": cached_map})
 
+        # Immediately send cached run state (deck/relics/potions/gold)
+        cached_run_state = self.latest_run_state.get(agent_id)
+        if cached_run_state:
+            self._send_to(conn_id, cached_run_state)
+
         # Immediately send cached MCTS result
         cached_mcts = self.latest_mcts.get(agent_id)
         if cached_mcts:
@@ -1536,17 +1471,6 @@ class TrainingCoordinator:
                     last_stats = now
                     self._broadcast(self._build_stats())
 
-            # Drain combat transitions queue into buffer
-            if self.combat_transitions_queue is not None:
-                ct_drained = 0
-                while ct_drained < 50:
-                    try:
-                        transition = self.combat_transitions_queue.get_nowait()
-                        self.combat_buffer.append(transition)
-                        ct_drained += 1
-                    except Exception:
-                        break
-
             # Resource logging every 30s
             if now - last_resource > 30.0:
                 last_resource = now
@@ -1594,6 +1518,8 @@ class TrainingCoordinator:
                         "potions": event.get("potions", []),
                         "gold": event.get("gold", 0),
                     }
+                    # Cache for immediate send on focus
+                    self.latest_run_state[agent_id] = run_state_msg
                     for conn_id, focused_set in self._focused.items():
                         if agent_id in focused_set:
                             self._send_to(conn_id, run_state_msg)

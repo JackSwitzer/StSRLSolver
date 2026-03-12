@@ -54,6 +54,7 @@ class EffectResult:
         return self.extra.get("end_turn", False)
 
 
+# LEGACY: EffectExecutor is runtime-dead but test-pinned. Do not delete until tests are migrated.
 class EffectExecutor:
     """
     Executes card effects and manages combat state.

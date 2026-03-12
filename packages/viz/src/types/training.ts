@@ -1,8 +1,8 @@
 // TypeScript types for training viewer WS protocol
 
-export type ScreenMode = 'grid' | 'combat' | 'map' | 'mcts' | 'stats';
+export type ScreenMode = 'grid' | 'combat' | 'map' | 'mcts' | 'stats' | 'feed' | 'stats_view' | 'training_view';
 
-export const SCREEN_MODES: ScreenMode[] = ['grid', 'combat', 'map', 'mcts', 'stats'];
+export const SCREEN_MODES: ScreenMode[] = ['grid', 'combat', 'map', 'mcts', 'stats', 'feed', 'stats_view', 'training_view'];
 
 export const AGENT_NAMES = [
   'Oracle', 'Gambler', 'Wanderer', 'Wildcard',
