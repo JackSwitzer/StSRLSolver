@@ -32,70 +32,70 @@ import time
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SWEEP_CONFIGS = [
-    # --- Pure on-policy (varying LR + batch size, standard 50ms TurnSolver) ---
-    {"name": "pure_low_lr_b256", "epsilon_mode": "none",
-     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.03, "temperature": 0.8,
-     "turn_solver_ms": 50.0},
-    {"name": "pure_med_b512", "epsilon_mode": "none",
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
+    # --- Pure on-policy: bigger batches for 7M+ model, 50ms TurnSolver ---
+    {"name": "pure_low_lr_b512", "epsilon_mode": "none",
+     "lr": 3e-5, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8,
      "turn_solver_ms": 50.0},
     {"name": "pure_med_b1024", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
      "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
      "turn_solver_ms": 50.0},
-    {"name": "pure_high_lr_b256", "epsilon_mode": "none",
-     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 256, "entropy_coeff": 0.08, "temperature": 1.0,
+    {"name": "pure_high_b2048", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 2048, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 50.0},
+    {"name": "pure_restarts_b1024", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
+     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
      "turn_solver_ms": 50.0},
 
-    # --- Importance-weighted epsilon-greedy (correct behavior policy) ---
-    {"name": "iw_low_lr_b512", "epsilon_mode": "importance_weighted",
+    # --- Importance-weighted epsilon-greedy (off-policy correction) ---
+    {"name": "iw_low_lr_b1024", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.7, "epsilon_end": 0.2, "epsilon_decay": 40000,
-     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.02, "temperature": 0.8,
+     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 1024, "entropy_coeff": 0.02, "temperature": 0.8,
      "turn_solver_ms": 50.0},
-    {"name": "iw_med_b256", "epsilon_mode": "importance_weighted",
+    {"name": "iw_med_b512", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.8, "epsilon_end": 0.3, "epsilon_decay": 50000,
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 1.0,
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
      "turn_solver_ms": 50.0},
-    {"name": "iw_high_lr_b256", "epsilon_mode": "importance_weighted",
+    {"name": "iw_high_b1024", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.5, "epsilon_end": 0.2, "epsilon_decay": 30000,
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 256, "entropy_coeff": 0.03, "temperature": 0.7,
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 1024, "entropy_coeff": 0.03, "temperature": 0.7,
      "turn_solver_ms": 50.0},
-    {"name": "iw_restarts_b1024", "epsilon_mode": "importance_weighted",
+    {"name": "iw_restarts_b2048", "epsilon_mode": "importance_weighted",
      "epsilon_start": 0.6, "epsilon_end": 0.25, "epsilon_decay": 40000,
      "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
+     "batch_size": 2048, "entropy_coeff": 0.08, "temperature": 1.0,
      "turn_solver_ms": 50.0},
 
     # --- Turbo configs (higher TurnSolver budget, larger batch) ---
-    {"name": "turbo_fast_b512", "epsilon_mode": "none",
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8,
+    {"name": "turbo_fast_b1024", "epsilon_mode": "none",
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 1024, "entropy_coeff": 0.03, "temperature": 0.8,
      "turn_solver_ms": 25.0},
-    {"name": "turbo_deep_b512", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
-     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 100.0},
-    {"name": "turbo_deep_b1024", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.6, "epsilon_end": 0.2, "epsilon_decay": 40000,
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 30000,
+    {"name": "turbo_deep_b1024", "epsilon_mode": "none",
+     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
      "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
      "turn_solver_ms": 100.0},
-    {"name": "turbo_max_b1024", "epsilon_mode": "none",
+    {"name": "turbo_deep_b2048", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.6, "epsilon_end": 0.2, "epsilon_decay": 40000,
+     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
+     "batch_size": 2048, "entropy_coeff": 0.05, "temperature": 1.0,
+     "turn_solver_ms": 100.0},
+    {"name": "turbo_max_b2048", "epsilon_mode": "none",
      "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
+     "batch_size": 2048, "entropy_coeff": 0.08, "temperature": 1.0,
      "turn_solver_ms": 100.0},
 ]
 
@@ -719,8 +719,9 @@ def _play_one_game(
                     # Clamp to valid range
                     action_idx = min(action_idx, n_actions - 1)
                 else:
-                    # Server timed out or returned error — fall back to heuristic
-                    client = None
+                    # Server timed out or returned error — fall back to heuristic for this decision
+                    # (don't null client permanently; transient errors recover next call)
+                    logits_np = None
 
             if client is not None and logits_np is not None:
                 # Recompute probs_base for behavior policy log_prob
@@ -757,7 +758,7 @@ def _play_one_game(
                     log_prob = float(np.log(max(behavior_prob, 1e-8)))
                 # else: epsilon_mode == "none" — pure on-policy, log_prob already correct
 
-            if client is not None:
+            if logits_np is not None:
                 # --- PBRS reward ---
                 # Take action first, then compute Phi(s') - gamma * Phi(s)
                 runner.take_action(actions[action_idx])
@@ -929,6 +930,9 @@ class OvernightRunner:
         self.ppo_batch_size = config.get("ppo_batch_size", 256)
         self.temperature = config.get("temperature", 1.0)
         self.resume_path = config.get("resume_path", None)
+        self.hidden_dim = config.get("hidden_dim", 1024)
+        self.num_blocks = config.get("num_blocks", 6)
+        self.max_batch_size = config.get("max_batch_size", 32)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -1077,19 +1081,27 @@ class OvernightRunner:
                 logger.info("Resumed model from %s", self.resume_path)
             except Exception as e:
                 logger.warning("Failed to resume from %s: %s — starting fresh", self.resume_path, e)
-                model = StrategicNet(input_dim=encoder.RUN_DIM).to(device)
+                model = StrategicNet(
+                    input_dim=encoder.RUN_DIM,
+                    hidden_dim=self.hidden_dim,
+                    num_blocks=self.num_blocks,
+                ).to(device)
         else:
-            model = StrategicNet(input_dim=encoder.RUN_DIM).to(device)
+            model = StrategicNet(
+                input_dim=encoder.RUN_DIM,
+                hidden_dim=self.hidden_dim,
+                num_blocks=self.num_blocks,
+            ).to(device)
         logger.info(
-            "Strategic model: %d parameters, device=%s",
-            model.param_count(), device,
+            "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
+            model.param_count(), model.hidden_dim, model.num_blocks, device,
         )
 
         # --- Inference server setup ---
         from packages.training.inference_server import InferenceServer
 
         self._server = InferenceServer(
-            n_workers=self.workers, max_batch_size=self.workers
+            n_workers=self.workers, max_batch_size=self.max_batch_size,
         )
         self._server.sync_strategic_from_pytorch(model, version=0)
         self._server.start()
@@ -1197,9 +1209,50 @@ class OvernightRunner:
                 batch_size, temp, ts_ms,
             )
 
+            # Pipelined loop: submit next batch BEFORE training on current data.
+            # Workers play on slightly stale weights (MLX) while MPS trains.
+            # This overlaps GPU training with CPU game simulation.
+            pending_seeds: Optional[List[str]] = None
+            pending_async: Optional[List[Any]] = None
+            games_per_min = 0.0
+
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
                 batch_t0 = time.monotonic()
-                batch_results = self._play_batch(model, encoder, seed_pool, trainer)
+
+                if pending_async is None:
+                    # First iteration: submit and collect sequentially
+                    seeds, async_results = self._submit_batch(seed_pool)
+                    batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
+                else:
+                    # Overlap: train on buffer while previous batch's games finish
+                    train_metrics = None
+                    if len(trainer.buffer) >= trainer.batch_size:
+                        train_metrics = trainer.train_batch()
+                        # Sync weights so NEXT batch uses updated model
+                        if self._server is not None:
+                            self._server.sync_strategic_from_pytorch(
+                                model, version=trainer.train_steps
+                            )
+
+                    # Now collect the pending batch results
+                    batch_results = self._collect_batch(
+                        pending_seeds, pending_async, seed_pool, trainer,
+                    )
+
+                    # Process training metrics (from training done during collection)
+                    if train_metrics is not None:
+                        self._process_train_metrics(
+                            train_metrics, trainer, config_name, sweep_floors,
+                            games_per_min, best_avg_floor,
+                        )
+                        if trainer.maybe_checkpoint(
+                            sum(self.recent_floors) / max(len(self.recent_floors), 1)
+                        ):
+                            best_avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+                            logger.info("New best avg floor: %.1f", best_avg_floor)
+                        if self.total_games % 5000 < self.games_per_batch:
+                            self._check_ascension_bump()
+
                 batch_duration = time.monotonic() - batch_t0
 
                 for result in batch_results:
@@ -1210,63 +1263,12 @@ class OvernightRunner:
 
                 games_per_min = len(batch_results) / max(batch_duration / 60.0, 0.01)
 
-                # Train if enough transitions
-                if len(trainer.buffer) >= trainer.batch_size:
-                    metrics = trainer.train_batch()
-
-                    # Use per-sweep floors for entropy gating (not global)
-                    sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
-                    # Only decay entropy when there's real learning signal
-                    if sweep_avg > 7.0:
-                        trainer.decay_entropy(min_coeff=0.02, decay=0.999)
-                    elif sweep_avg > 5.5:
-                        trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
-
-                    # Stall detection: if no improvement over STALL_DETECTION_WINDOW games, reset entropy
-                    games_since_checkpoint = self.total_games - self._stall_checkpoint_games
-                    if games_since_checkpoint >= STALL_DETECTION_WINDOW:
-                        current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
-                        improvement = current_avg - self._stall_checkpoint_floor
-                        if improvement < STALL_IMPROVEMENT_THRESHOLD:
-                            # Training is stalled — reset entropy to encourage exploration
-                            old_ent = trainer.entropy_coeff
-                            trainer.entropy_coeff = max(0.05, old_ent * 2.0)
-                            logger.warning(
-                                "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
-                                "(improvement %.1f < %.1f). Entropy reset: %.4f -> %.4f",
-                                self._stall_checkpoint_floor, current_avg,
-                                games_since_checkpoint, improvement,
-                                STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
-                            )
-                        self._stall_checkpoint_floor = current_avg
-                        self._stall_checkpoint_games = self.total_games
-
-                    # Sync updated weights to inference server
-                    if self._server is not None:
-                        self._server.sync_strategic_from_pytorch(
-                            model, version=trainer.train_steps
-                        )
-
-                    avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
-                    wr = sum(self.recent_wins) / max(len(self.recent_wins), 1)
-
-                    logger.info(
-                        "[%s] Games %d | Floor %.1f | WR %.1f%% | Loss %.4f | "
-                        "Ent %.3f | LR %.1e | %.1f g/min",
-                        config_name, self.total_games, avg_floor, wr * 100,
-                        metrics.get("total_loss", 0),
-                        metrics.get("entropy_coeff", 0),
-                        metrics.get("lr", 0),
-                        games_per_min,
-                    )
-
-                    if trainer.maybe_checkpoint(avg_floor):
-                        best_avg_floor = avg_floor
-                        logger.info("New best avg floor: %.1f", avg_floor)
-
-                    # Adaptive ascension scaling
-                    if self.total_games % 5000 < self.games_per_batch:
-                        self._check_ascension_bump()
+                # Submit NEXT batch immediately (non-blocking) so workers start playing
+                # while we handle bookkeeping
+                if sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
+                    pending_seeds, pending_async = self._submit_batch(seed_pool)
+                else:
+                    pending_seeds, pending_async = None, None
 
                 self.write_status({
                     "sweep_config": sweep_config,
@@ -1278,6 +1280,25 @@ class OvernightRunner:
                     "games_per_min": round(games_per_min, 1),
                     "entropy_coeff": trainer.entropy_coeff,
                 })
+
+            # Drain any remaining pending batch
+            if pending_async is not None:
+                batch_results = self._collect_batch(
+                    pending_seeds, pending_async, seed_pool, trainer,
+                )
+                for result in batch_results:
+                    self._record_game(result)
+                    self._log_episode(result)
+                    sweep_games += 1
+                    sweep_floors.append(result["floor"])
+
+            # Final training pass on remaining buffer
+            if len(trainer.buffer) >= trainer.batch_size:
+                metrics = trainer.train_batch()
+                if self._server is not None:
+                    self._server.sync_strategic_from_pytorch(
+                        model, version=trainer.train_steps
+                    )
 
             sweep_elapsed = time.monotonic() - sweep_start
             sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1)
@@ -1384,21 +1405,59 @@ class OvernightRunner:
                 )
                 self.ascension = target_asc
 
-    def _play_batch(
+    def _process_train_metrics(
         self,
-        model,
-        encoder,
-        seed_pool,
+        metrics: Dict[str, float],
         trainer,
-    ) -> List[Dict[str, Any]]:
-        """Play a batch of games in parallel using the persistent mp.Pool.
+        config_name: str,
+        sweep_floors: Deque[int],
+        games_per_min: float,
+        best_avg_floor: float,
+    ) -> None:
+        """Handle post-training bookkeeping: entropy decay, stall detection, logging."""
+        sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
+        if sweep_avg > 7.0:
+            trainer.decay_entropy(min_coeff=0.02, decay=0.999)
+        elif sweep_avg > 5.5:
+            trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
 
-        Workers are torch-free; inference is handled by the InferenceServer
-        running in the main process. No weight serialization per batch.
+        games_since_checkpoint = self.total_games - self._stall_checkpoint_games
+        if games_since_checkpoint >= STALL_DETECTION_WINDOW:
+            current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+            improvement = current_avg - self._stall_checkpoint_floor
+            if improvement < STALL_IMPROVEMENT_THRESHOLD:
+                old_ent = trainer.entropy_coeff
+                trainer.entropy_coeff = max(0.05, old_ent * 2.0)
+                logger.warning(
+                    "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
+                    "(improvement %.1f < %.1f). Entropy reset: %.4f -> %.4f",
+                    self._stall_checkpoint_floor, current_avg,
+                    games_since_checkpoint, improvement,
+                    STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
+                )
+            self._stall_checkpoint_floor = current_avg
+            self._stall_checkpoint_games = self.total_games
+
+        avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+        wr = sum(self.recent_wins) / max(len(self.recent_wins), 1)
+
+        logger.info(
+            "[%s] Games %d | Floor %.1f | WR %.1f%% | Loss %.4f | "
+            "Ent %.3f | LR %.1e | %.1f g/min",
+            config_name, self.total_games, avg_floor, wr * 100,
+            metrics.get("total_loss", 0),
+            metrics.get("entropy_coeff", 0),
+            metrics.get("lr", 0),
+            games_per_min,
+        )
+
+    def _submit_batch(self, seed_pool) -> Tuple[List[str], List[Any]]:
+        """Submit a batch of games to workers. Returns immediately (non-blocking).
+
+        Returns (seeds, async_results) to be collected later via _collect_batch.
         """
         seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
 
-        # Extract epsilon and turn solver params from current sweep config
         cfg = self._current_sweep_config
         eps_mode = cfg.get("epsilon_mode", "none")
         eps_start = cfg.get("epsilon_start", 0.8)
@@ -1406,7 +1465,6 @@ class OvernightRunner:
         eps_decay = cfg.get("epsilon_decay", 50000)
         ts_ms = cfg.get("turn_solver_ms", 50.0)
 
-        # Submit all games to the persistent pool
         async_results = [
             self._executor.apply_async(
                 _play_one_game,
@@ -1415,7 +1473,19 @@ class OvernightRunner:
             )
             for seed in seeds
         ]
+        return seeds, async_results
 
+    def _collect_batch(
+        self,
+        seeds: List[str],
+        async_results: List[Any],
+        seed_pool,
+        trainer,
+    ) -> List[Dict[str, Any]]:
+        """Collect results from a previously submitted batch. Blocks until done.
+
+        Adds transitions to trainer buffer and handles pool recreation on timeout.
+        """
         results: List[Dict[str, Any]] = []
         timed_out = False
         for ar, seed in zip(async_results, seeds):
@@ -1429,8 +1499,6 @@ class OvernightRunner:
                 }
                 timed_out = True
 
-            # Add transitions from this game to trainer buffer
-            # Each game gets a unique episode_id for per-episode GAE
             self._episode_counter += 1
             ep_id = self._episode_counter
             for t in result.get("transitions", []):
@@ -1444,7 +1512,6 @@ class OvernightRunner:
                     log_prob=t["log_prob"],
                     episode_id=ep_id,
                 )
-                # Backfill aux targets
                 buf_t = trainer.buffer[-1]
                 buf_t.final_floor = t["final_floor"]
                 buf_t.cleared_act1 = t["cleared_act1"]
@@ -1454,37 +1521,49 @@ class OvernightRunner:
             seed_pool.record_result(seed, {"won": result["won"], "floor": result["floor"]})
             results.append(result)
 
-        # If any worker timed out, recreate pool to avoid hung workers
         if timed_out and self._executor is not None:
-            logger.warning("Recreating worker pool after timeout")
-            try:
-                self._executor.terminate()
-                self._executor.join(timeout=5)
-            except Exception:
-                pass
-            # Drain and refill slot queue for clean worker init
-            while not self._server.slot_q.empty():
-                try:
-                    self._server.slot_q.get_nowait()
-                except Exception:
-                    break
-            for i in range(self._server.n_workers):
-                self._server.slot_q.put(i)
-            # Drain stale responses from all queues
-            for rq in self._server.response_qs:
-                while not rq.empty():
-                    try:
-                        rq.get_nowait()
-                    except Exception:
-                        break
-            ctx = mp.get_context("spawn")
-            self._executor = ctx.Pool(
-                processes=self.workers,
-                initializer=_worker_init,
-                initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
-            )
+            self._recreate_pool()
 
         return results
+
+    def _play_batch(
+        self,
+        model,
+        encoder,
+        seed_pool,
+        trainer,
+    ) -> List[Dict[str, Any]]:
+        """Play a batch of games (blocking). Convenience wrapper around submit/collect."""
+        seeds, async_results = self._submit_batch(seed_pool)
+        return self._collect_batch(seeds, async_results, seed_pool, trainer)
+
+    def _recreate_pool(self) -> None:
+        """Recreate the worker pool after a timeout or crash."""
+        logger.warning("Recreating worker pool after timeout")
+        try:
+            self._executor.terminate()
+            self._executor.join(timeout=5)
+        except Exception:
+            pass
+        while not self._server.slot_q.empty():
+            try:
+                self._server.slot_q.get_nowait()
+            except Exception:
+                break
+        for i in range(self._server.n_workers):
+            self._server.slot_q.put(i)
+        for rq in self._server.response_qs:
+            while not rq.empty():
+                try:
+                    rq.get_nowait()
+                except Exception:
+                    break
+        ctx = mp.get_context("spawn")
+        self._executor = ctx.Pool(
+            processes=self.workers,
+            initializer=_worker_init,
+            initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
+        )
 
     def _write_summary(self) -> None:
         """Write a summary of the overnight run."""
@@ -1535,6 +1614,9 @@ def main():
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
+    parser.add_argument("--hidden-dim", type=int, default=1024, help="Model hidden dimension (768=3M, 1024=7M)")
+    parser.add_argument("--num-blocks", type=int, default=6, help="Number of residual blocks")
+    parser.add_argument("--max-batch-size", type=int, default=32, help="Max inference batch size")
     args = parser.parse_args()
 
     runner = OvernightRunner({
@@ -1548,6 +1630,9 @@ def main():
         "visual_at": args.visual_at,
         "temperature": args.temperature,
         "resume_path": args.resume,
+        "hidden_dim": args.hidden_dim,
+        "num_blocks": args.num_blocks,
+        "max_batch_size": args.max_batch_size,
     })
 
     result = runner.run()

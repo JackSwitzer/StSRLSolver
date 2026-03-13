@@ -73,9 +73,14 @@ function reducer(state: FullState, action: Action): FullState {
       return { ...state, training: { ...t, stats: action.stats } };
     case 'agent_episode': {
       const episodes = [action.episode, ...t.episodes].slice(0, MAX_EPISODES);
-      // Accumulate local history from episodes
-      const floorHistory = [...t.floorHistory, action.episode.floors_reached].slice(-MAX_HISTORY);
-      const winHistory = [...t.winHistory, action.episode.won ? 1 : 0].slice(-MAX_HISTORY);
+      // Accumulate local history from episodes (skip floor 0 — construction failures)
+      const floorReached = action.episode.floors_reached;
+      const floorHistory = floorReached > 0
+        ? [...t.floorHistory, floorReached].slice(-MAX_HISTORY)
+        : t.floorHistory;
+      const winHistory = floorReached > 0
+        ? [...t.winHistory, action.episode.won ? 1 : 0].slice(-MAX_HISTORY)
+        : t.winHistory;
       // Track death stats (skip floor 0 — those are construction failures, not real deaths)
       let deathStats = t.deathStats;
       const rawDeathFloor = action.episode.death_floor ?? action.episode.floors_reached;

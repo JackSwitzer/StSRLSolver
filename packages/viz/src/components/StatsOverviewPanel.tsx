@@ -187,6 +187,7 @@ export const StatsOverviewPanel = ({
     let highestFloor = 0;
     for (const ep of episodes) {
       const f = ep.floors_reached;
+      if (f <= 0) continue; // Skip construction failures
       counts[f] = (counts[f] || 0) + 1;
       if (counts[f] > maxCount) maxCount = counts[f];
       if (f > highestFloor) highestFloor = f;
@@ -494,7 +495,13 @@ export const StatsOverviewPanel = ({
                 unit="GB"
                 color="#ffb700"
               />
-              <ResourceBar label="GPU (MPS)" value={0} color="#8b949e" />
+              <ResourceBar
+                label="GPU (MPS)"
+                value={systemStats.gpu_mem_allocated_gb ?? 0}
+                max={systemStats.gpu_mem_used_gb && systemStats.gpu_mem_used_gb > 0 ? systemStats.gpu_mem_used_gb : undefined}
+                unit={systemStats.gpu_mem_allocated_gb ? 'GB' : undefined}
+                color={systemStats.gpu_mem_allocated_gb > 0 ? '#00ff41' : '#8b949e'}
+              />
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',

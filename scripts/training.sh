@@ -260,6 +260,7 @@ cmd_weekend() {
     echo "  caffeinate: PID $!"
 
     # Launch training headless with dedicated run-dir
+    # Uses larger model (7M params) and bigger inference batches
     nohup uv run python -m packages.training.overnight \
         --games "$games" \
         --workers "$workers" \
@@ -267,6 +268,9 @@ cmd_weekend() {
         --ascension "$asc" \
         --headless-after 0 \
         --run-dir "$run_dir" \
+        --hidden-dim 1024 \
+        --num-blocks 6 \
+        --max-batch-size 32 \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
