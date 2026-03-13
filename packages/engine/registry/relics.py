@@ -1350,7 +1350,9 @@ def ssserpent_head_enter_room(ctx: RelicContext) -> None:
 @relic_trigger("onObtainCard", relic="Ceramic Fish")
 def ceramic_fish_obtain(ctx: RelicContext) -> None:
     """Ceramic Fish: Gain 9 Gold when adding a card."""
-    if hasattr(ctx.state, 'gold'):
+    if hasattr(ctx.state, 'add_gold'):
+        ctx.state.add_gold(9)
+    elif hasattr(ctx.state, 'gold'):
         ctx.state.gold += 9
 
 
@@ -1398,8 +1400,13 @@ def darkstone_obtain(ctx: RelicContext) -> None:
     if card_id in ALL_CARDS:
         card = ALL_CARDS[card_id]
         if card.card_type == CardType.CURSE:
-            ctx.player.max_hp += 6
-            ctx.player.hp += 6
+            # Support both RunState (gain_max_hp) and CombatState (player.max_hp)
+            if hasattr(ctx.state, 'gain_max_hp'):
+                ctx.state.gain_max_hp(6)
+                ctx.state.current_hp = min(ctx.state.current_hp + 6, ctx.state.max_hp)
+            else:
+                ctx.player.max_hp += 6
+                ctx.player.hp += 6
 
 
 # =============================================================================

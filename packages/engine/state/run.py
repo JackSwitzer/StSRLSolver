@@ -234,44 +234,55 @@ class RunState:
 
     # ----- DECK MANAGEMENT -----
 
-    _EGG_RELIC_BY_TYPE = {
-        CardType.POWER: "Frozen Egg 2",
-        CardType.ATTACK: "Molten Egg 2",
-        CardType.SKILL: "Toxic Egg 2",
-    }
+    def _fire_on_obtain_card_triggers(self, card_id: str) -> Optional[str]:
+        """Dispatch onObtainCard relic triggers through the registry.
 
-    def _apply_on_obtain_card_upgrades(
-        self,
-        card_id: str,
-        upgraded: bool,
-    ) -> Tuple[Optional[object], bool]:
-        """Apply upgrade modifiers for card acquisition (Egg relics)."""
-        card_def = ALL_CARDS.get(card_id)
-        if card_def is None or upgraded:
-            return card_def, upgraded
+        Handlers may:
+        - Modify the card_id (Egg relics upgrade -> return card_id + "+")
+        - Negate the card (Omamori -> return "")
+        - Apply side effects (Ceramic Fish gold, Darkstone Periapt max HP)
 
-        egg_relic = self._EGG_RELIC_BY_TYPE.get(card_def.card_type)
-        if egg_relic and self.has_relic(egg_relic):
-            upgraded = True
+        Returns the (possibly modified) card_id, or "" if negated.
+        """
+        from ..registry import RELIC_REGISTRY, RelicContext
 
-        return card_def, upgraded
+        handlers = RELIC_REGISTRY.get_handlers("onObtainCard")
+        trigger_data = {"card_id": card_id}
+        executed_keys: set = set()
 
-    def _apply_on_obtain_card_side_effects(
-        self,
-        card_id: str,
-        card_def: Optional[object],
-    ) -> None:
-        """Apply non-upgrade relic effects from card acquisition."""
-        if self.has_relic("CeramicFish"):
-            self.add_gold(9)
+        for relic_id, handler in handlers:
+            if not self.has_relic(relic_id):
+                continue
+            # Deduplicate by canonical key (same as execute_relic_triggers)
+            relic_key = self._relic_lookup_key(relic_id)
+            if relic_key in executed_keys:
+                continue
+            executed_keys.add(relic_key)
 
-        if card_def is not None and getattr(card_def, "card_type", None) == CardType.CURSE:
-            if self.has_relic("Darkstone Periapt"):
-                self.gain_max_hp(6)
+            ctx = RelicContext(
+                state=self,  # type: ignore[arg-type]  # RunState duck-types CombatState here
+                relic_id=relic_id,
+                trigger_data=trigger_data,
+            )
+            result = handler(ctx)
+            if result is not None:
+                if isinstance(result, str):
+                    card_id = result
+                    trigger_data["card_id"] = card_id
+                    if card_id == "":
+                        return ""  # Card negated (Omamori)
+
+        return card_id
 
     def add_card(self, card_id: str, upgraded: bool = False, misc_value: int = 0) -> CardInstance:
         """
-        Add a card to the deck.
+        Add a card to the deck, firing onObtainCard relic triggers.
+
+        Relic effects dispatched via the registry:
+        - Egg relics auto-upgrade matching card types
+        - Omamori negates curses (decrements counter)
+        - Ceramic Fish grants 9 gold
+        - Darkstone Periapt grants 6 max HP on curse
 
         Args:
             card_id: Base card ID (e.g., "Strike_P" for Watcher Strike)
@@ -281,22 +292,25 @@ class RunState:
         Returns:
             The created CardInstance
         """
-        card_def, upgraded = self._apply_on_obtain_card_upgrades(card_id, upgraded)
+        # Fire onObtainCard triggers (upgrades, negation, side effects)
+        result_id = self._fire_on_obtain_card_triggers(card_id)
 
-        # Omamori: negate curses (counter decrements)
-        if card_def is not None and getattr(card_def, "card_type", None) == CardType.CURSE:
-            if self.has_relic("Omamori"):
-                omamori_counter = self.get_relic_counter("Omamori")
-                if omamori_counter > 0:
-                    self.set_relic_counter("Omamori", omamori_counter - 1)
-                    return CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)  # Don't add to deck
+        if result_id == "" or result_id is None:
+            # Card was negated (e.g., Omamori blocked a curse)
+            return CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)
+
+        # Check if the card was upgraded by an Egg relic
+        if result_id.endswith("+") and not card_id.endswith("+"):
+            upgraded = True
+            # result_id has "+", but we store base id + upgraded flag
+            card_id = result_id.rstrip("+")
+        elif result_id != card_id:
+            card_id = result_id
 
         card = CardInstance(id=card_id, upgraded=upgraded, misc_value=misc_value)
         self.deck.append(card)
         self.cards_obtained_this_act.append(card_id)
         self.seen_cards.add(card_id)
-
-        self._apply_on_obtain_card_side_effects(card_id, card_def)
 
         return card
 
@@ -900,10 +914,10 @@ class RunState:
                 return True
         return False
 
-    def get_relic_counter(self, relic_id: str) -> int:
-        """Get counter value for a relic (-1 if not found or no counter)."""
+    def get_relic_counter(self, relic_id: str, default: int = -1) -> int:
+        """Get counter value for a relic (default if not found or no counter)."""
         relic = self.get_relic(relic_id)
-        return relic.counter if relic else -1
+        return relic.counter if relic else default
 
     def set_relic_counter(self, relic_id: str, value: int) -> bool:
         """Set counter value for a relic."""
