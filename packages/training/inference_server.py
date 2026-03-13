@@ -754,7 +754,7 @@ class InferenceClient:
         request_q: "mp.Queue",
         response_q: "mp.Queue",
         slot_id: int,
-        timeout_s: float = 2.0,
+        timeout_s: float = 5.0,
     ) -> "InferenceClient":
         """Install a module-level client for this worker process.
 

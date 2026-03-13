@@ -1,6 +1,7 @@
 import numpy as np
 
 from packages.training.inference_server import (
+    InferenceClient,
     InferenceServer,
     StrategicModelConfig,
     build_strategic_weight_sync,
@@ -168,3 +169,9 @@ def test_enqueue_strategic_weights_updates_version_stats():
     stats = server.get_stats()
     assert stats["enqueued_version"] == 9
     assert stats["applied_version"] == 0
+
+
+def test_setup_worker_uses_five_second_default_timeout():
+    client = InferenceClient.setup_worker(request_q=None, response_q=None, slot_id=3)
+
+    assert client.timeout_s == 5.0
