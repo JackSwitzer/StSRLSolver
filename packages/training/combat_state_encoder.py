@@ -271,7 +271,8 @@ def make_mcts_policy_fn(client: Any, input_dim: int = COMBAT_OBS_DIM):
             return priors, value
 
         value = float(result.get("value", 0.0))
-        # Map value from [-1, 1] (tanh output) to [0, 1] for MCTS
+        # Combat values are served directly from the net, so clamp before remapping.
+        value = max(-1.0, min(1.0, value))
         value = (value + 1.0) / 2.0
         return priors, value
 

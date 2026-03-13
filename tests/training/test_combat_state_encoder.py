@@ -247,7 +247,7 @@ class TestMakeMctsPolicyFn:
         mock_client = MagicMock()
         mock_client.infer_combat.return_value = {
             "ok": True,
-            "value": 0.4,  # tanh output in [-1, 1]
+            "value": 0.4,
         }
 
         policy_fn = make_mcts_policy_fn(mock_client)
@@ -265,6 +265,18 @@ class TestMakeMctsPolicyFn:
 
         # Value should be mapped from [-1,1] to [0,1]: (0.4 + 1) / 2 = 0.7
         assert abs(value - 0.7) < 1e-5
+
+    def test_clamps_unbounded_combat_values_before_mapping(self):
+        mock_client = MagicMock()
+        mock_client.infer_combat.return_value = {"ok": True, "value": 3.5}
+
+        policy_fn = make_mcts_policy_fn(mock_client)
+        engine = _make_engine()
+        engine.get_legal_actions = lambda: ["strike", "defend"]
+
+        _, value = policy_fn(engine)
+
+        assert value == 1.0
 
     def test_fallback_on_error(self):
         mock_client = MagicMock()

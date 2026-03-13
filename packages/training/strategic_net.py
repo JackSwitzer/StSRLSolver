@@ -93,12 +93,11 @@ class StrategicNet(nn.Module):
             nn.Linear(256, action_dim),
         )
 
-        # Value: 384 -> 64 -> 1 -> Tanh
+        # Value: 384 -> 64 -> 1 (no Tanh — rewards can exceed [-1, 1])
         self.value_head = nn.Sequential(
             nn.Linear(hidden_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
-            nn.Tanh(),
         )
 
         # Floor prediction: 384 -> 64 -> 1

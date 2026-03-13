@@ -51,8 +51,8 @@ DEFAULT_SWEEP_CONFIGS = [
 
 # Best trajectory replay: keep top N trajectories by floor for experience replay.
 # Replayed at REPLAY_MIX_RATIO fraction of each training batch.
-REPLAY_BUFFER_SIZE = 500       # Max trajectories to keep
-REPLAY_MIN_FLOOR = 8           # Only replay runs that reached at least this floor
+REPLAY_BUFFER_SIZE = 75        # Top ~15% of runs (keeps only the best)
+REPLAY_MIN_FLOOR = 12          # Only replay runs that got deep into Act 1
 REPLAY_MIX_RATIO = 0.25        # 25% of each batch is replayed best trajectories
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
@@ -196,14 +196,15 @@ EVENT_REWARDS = {
 FLOOR_MILESTONES = {
     6: 0.10,    # Survived early floors, first elite territory
     10: 0.15,   # Mid-act 1
-    15: 0.25,   # Final campfire before Act 1 boss
-    16: 0.50,   # Reached Act 1 boss
+    15: 0.20,   # Final campfire before Act 1 boss
+    16: 0.25,   # Reached Act 1 boss
     17: 1.00,   # Beat Act 1 boss (entered Act 2)
-    25: 0.30,   # Mid-act 2
-    33: 0.50,   # Reached Act 2 boss
-    34: 1.00,   # Beat Act 2 boss (entered Act 3)
-    50: 0.50,   # Reached Act 3 boss
-    51: 1.50,   # Beat Act 3 boss
+    25: 0.50,   # Mid-act 2
+    33: 1.00,   # Reached Act 2 boss
+    34: 2.00,   # Beat Act 2 boss (entered Act 3)
+    50: 2.00,   # Reached Act 3 boss
+    51: 3.00,   # Beat Act 3 boss
+    55: 5.00,   # Beat the Heart (win)
 }
 
 # Stall detection: if avg floor doesn't improve over this many games, reset entropy
@@ -574,10 +575,9 @@ _worker_name = "Unknown"
 
 # Worker names — mapped by slot_id for dashboard display
 _WORKER_NAMES = [
-    "Watcher", "Ironclad", "Silent", "Defect",
-    "Neow", "Lagavulin", "Hexaghost", "Champ",
-    "Collector", "Automaton", "Donu", "Deca",
-    "Awakened", "Heart", "Spiker", "Reptomancer",
+    "Watcher", "Divinity", "Mantra", "Calm",
+    "Wrath", "Vigilance", "Eruption", "Rushdown",
+    "Tantrum", "Miracle", "Scry", "Flurry",
 ]
 
 # ---------------------------------------------------------------------------
@@ -687,6 +687,7 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
+    accumulated_stance_reward = 0.0
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -722,6 +723,7 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
+                accumulated_stance_reward = 0.0
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
@@ -733,7 +735,11 @@ def _play_one_game(
                 atype = getattr(action, "action_type", "")
                 if atype == "play_card":
                     combat_cards_played += 1
-                    card_id = getattr(action, "card_id", "") or getattr(action, "card_name", "?")
+                    # Look up actual card name from hand using card_idx
+                    _cidx = getattr(action, "card_idx", -1)
+                    _combat = getattr(runner, "current_combat", None)
+                    _hand = getattr(getattr(_combat, "state", None), "hand", None) if _combat else None
+                    card_id = _hand[_cidx] if _hand and 0 <= _cidx < len(_hand) else "?"
                     turn_cards.append(card_id)
                 elif atype == "use_potion":
                     combat_potions_used += 1
@@ -755,6 +761,7 @@ def _play_one_game(
                 cur_stance = getattr(combat_state.state, "stance", "Neutral")
                 if cur_stance != prev_stance:
                     combat_stance_changes += 1
+                    accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
                     prev_stance = cur_stance
         elif len(actions) == 1:
             # Check for combat-end event rewards
@@ -845,7 +852,9 @@ def _play_one_game(
                     else:
                         action_idx = int(np.argmax(logits_np))
 
-                    # log_prob on unscaled logits (for PPO IS ratio)
+                    # log_prob from UNSCALED policy (matches trainer's forward pass).
+                    # Temperature is an exploration strategy, not part of the policy
+                    # being optimized. PPO ratio = pi_new(a|s) / pi_old(a|s), both unscaled.
                     logits_base = logits_np - logits_np.max()
                     probs_base = np.exp(logits_base)
                     probs_base /= probs_base.sum()
@@ -859,10 +868,10 @@ def _play_one_game(
                     logits_np = None
 
             if client is not None and logits_np is not None:
-                # Recompute probs_base for behavior policy log_prob
-                logits_base = logits_np - logits_np.max()
-                probs_base = np.exp(logits_base)
-                probs_base /= probs_base.sum()
+                # Policy probs from UNSCALED logits (matches trainer evaluation)
+                logits_pi = logits_np - logits_np.max()
+                probs_pi = np.exp(logits_pi)
+                probs_pi /= probs_pi.sum()
 
                 # Epsilon-greedy heuristic override (only in importance_weighted mode)
                 used_heuristic = False
@@ -885,7 +894,7 @@ def _play_one_game(
                         used_heuristic = True
 
                     # Correct behavior policy: b(a|s) = (1-eps)*pi(a|s) + eps*I(a==heuristic)
-                    pi_prob = float(probs_base[action_idx])
+                    pi_prob = float(probs_pi[action_idx])
                     if used_heuristic:
                         behavior_prob = (1.0 - epsilon) * pi_prob + epsilon
                     else:
@@ -901,7 +910,7 @@ def _play_one_game(
                 new_potential = compute_potential(new_rs)
 
                 # PBRS: gamma * Phi(s') - Phi(s) preserves optimal policy
-                gamma = 1.0
+                gamma = 0.99
                 pbrs_reward = gamma * new_potential - prev_potential
 
                 # Event-based rewards on top of PBRS
@@ -932,6 +941,14 @@ def _play_one_game(
                         # Add accumulated per-potion-use rewards
                         event_reward += event_reward_potion_use
 
+                    # Penalize dying without using potions in hard fights
+                    # (checked at game end, but signal proximity matters here too)
+                    if hp_pct < 0.3 and combat_potions_used == 0 and rt in ("elite", "e", "boss", "b"):
+                        _potions = getattr(new_rs, "potions", [])
+                        _has_potions = any(p is not None for p in _potions) if _potions else False
+                        if _has_potions:
+                            event_reward -= 0.30  # Penalty for hoarding potions in tough fights
+
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
                 if new_deck_size < prev_deck_size:
@@ -944,18 +961,15 @@ def _play_one_game(
                         picked = new_deck[-1]  # Most recently added CardInstance
                         card_id = getattr(picked, "id", str(picked))
                         pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward > 0:
+                        if pick_reward != 0:
                             act_mult = 1.5 if current_floor <= 17 else 1.0
                             event_reward += pick_reward * act_mult
 
                 prev_deck_size = new_deck_size
 
-                # Stance change reward (during combat)
-                new_combat = getattr(runner, "current_combat", None)
-                if new_combat is not None:
-                    new_stance = getattr(new_combat.state, "stance", "Neutral")
-                    if new_stance != prev_stance and new_stance in STANCE_CHANGE_REWARDS:
-                        event_reward += STANCE_CHANGE_REWARDS[new_stance]
+                # Stance change rewards accumulated during combat
+                if combat_just_ended and combat_stance_changes > 0:
+                    event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)
@@ -1004,6 +1018,22 @@ def _play_one_game(
         step += 1
         prev_floor = current_floor
 
+    # Record final combat if we died in combat (loop exits before phase changes)
+    if was_in_combat:
+        if turn_cards:
+            turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
+        combats.append({
+            "floor": current_floor,
+            "room_type": combat_room_type,
+            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+            "cards_played": combat_cards_played,
+            "turns": combat_turns,
+            "potions_used": combat_potions_used,
+            "stance_changes": combat_stance_changes,
+            "turns_detail": turns_log[:],
+            "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
+        })
+
     # Game ended
     duration = time.monotonic() - t0
     rs = runner.run_state
@@ -1022,7 +1052,7 @@ def _play_one_game(
     if transitions:
         if truly_terminal:
             if won:
-                transitions[-1]["reward"] += 2.0
+                transitions[-1]["reward"] += 10.0
             else:
                 progress = final_floor / 55.0
                 # Stronger death penalty, especially for early deaths
@@ -1595,21 +1625,22 @@ class OvernightRunner:
                     cfg = _json.loads(reload_path.read_text())
                     logger.info("Hot-reload from %s: %s", reload_path, cfg)
                     # --- Training hyperparams ---
-                    if "entropy_coeff" in cfg:
-                        trainer.entropy_coeff = cfg["entropy_coeff"]
+                    _t = getattr(self, '_trainer', None)
+                    if "entropy_coeff" in cfg and _t:
+                        _t.entropy_coeff = cfg["entropy_coeff"]
                         logger.info("  entropy_coeff -> %s", cfg["entropy_coeff"])
                     if "temperature" in cfg:
                         self.temperature = cfg["temperature"]
                         logger.info("  temperature -> %s", cfg["temperature"])
-                    if "lr" in cfg:
-                        for pg in trainer.optimizer.param_groups:
+                    if "lr" in cfg and _t:
+                        for pg in _t.optimizer.param_groups:
                             pg["lr"] = cfg["lr"]
                         logger.info("  lr -> %s", cfg["lr"])
-                    if "clip_epsilon" in cfg:
-                        trainer.clip_epsilon = cfg["clip_epsilon"]
+                    if "clip_epsilon" in cfg and _t:
+                        _t.clip_epsilon = cfg["clip_epsilon"]
                         logger.info("  clip_epsilon -> %s", cfg["clip_epsilon"])
-                    if "batch_size" in cfg:
-                        trainer.batch_size = cfg["batch_size"]
+                    if "batch_size" in cfg and _t:
+                        _t.batch_size = cfg["batch_size"]
                         logger.info("  batch_size -> %s", cfg["batch_size"])
 
                     # --- Reward shaping ---
@@ -1728,6 +1759,9 @@ class OvernightRunner:
                 lr_T_0=sweep_config.get("lr_T_0", 5000),
             )
 
+            # Store trainer ref for signal handler access (hot-reload)
+            self._trainer = trainer
+
             # Warm restart: restore optimizer + scheduler state from checkpoint
             if _warm_checkpoint is not None:
                 try:
@@ -1742,11 +1776,13 @@ class OvernightRunner:
                     logger.warning("Could not restore optimizer state: %s — using fresh optimizer", e)
                 _warm_checkpoint = None  # Only restore once
 
-            # Pretrain from saved best trajectories (behavioral cloning warmup)
-            self._pretrain_from_trajectories(trainer, model)
-
-            # Deep distillation: intensive PPO training on all saved data (one-time bootstrap)
-            self._deep_distillation(trainer, model, replay_buffer)
+            # Only distill on cold start (no checkpoint). Warm restarts already have
+            # trained weights — re-distilling on the same data wastes time.
+            if _warm_checkpoint is None and trainer.train_steps == 0:
+                self._pretrain_from_trajectories(trainer, model)
+                self._deep_distillation(trainer, model, replay_buffer)
+            else:
+                logger.info("Warm restart (train_steps=%d) — skipping distillation", trainer.train_steps)
 
             # Create worker pool AFTER distillation — strict GPU phase separation.
             # Workers use InferenceServer for GPU, which would compete with PPO training.
@@ -1829,33 +1865,42 @@ class OvernightRunner:
                 train_steps_before = trainer.train_steps
                 train_count = 0
 
-                # Also mix in best trajectories from replay buffer
-                if replay_buffer.size > 0:
-                    from packages.training.strategic_trainer import StrategicTransition
-                    raw_transitions = replay_buffer.sample_transitions(
-                        n=min(trainer.batch_size, 512),
+                # Mix in top trajectory files — always remember the best runs
+                from packages.training.strategic_trainer import StrategicTransition
+                traj_dir = self.run_dir / "best_trajectories"
+                if traj_dir.exists():
+                    traj_files = sorted(
+                        traj_dir.glob("traj_F*.npz"),
+                        key=lambda p: p.stem, reverse=True,
                     )
+                    # Take top 10 trajectories (highest floor, most recent)
+                    top_trajs = traj_files[:10]
                     mixed_count = 0
-                    for t in raw_transitions:
+                    for tf in top_trajs:
                         try:
-                            st = StrategicTransition(
-                                obs=t["obs"], action_mask=t["action_mask"],
-                                action=t["action"], reward=t["reward"],
-                                done=t["done"], value=t["value"],
-                                log_prob=t["log_prob"],
-                                episode_id=t.get("episode_id", 0),
-                                final_floor=t.get("final_floor", 0),
-                                cleared_act1=t.get("cleared_act1", 0),
-                                cleared_act2=t.get("cleared_act2", 0),
-                                cleared_act3=t.get("cleared_act3", 0),
-                            )
-                            trainer.buffer.append(st)
-                            mixed_count += 1
-                        except (KeyError, TypeError):
+                            data = np.load(tf)
+                            n_t = len(data["obs"])
+                            ep_id = hash(tf.stem) % (2**31)
+                            for i in range(n_t):
+                                st = StrategicTransition(
+                                    obs=data["obs"][i],
+                                    action_mask=data["masks"][i],
+                                    action=int(data["actions"][i]),
+                                    reward=float(data["rewards"][i]),
+                                    done=bool(data["dones"][i]),
+                                    value=float(data["values"][i]),
+                                    log_prob=float(data["log_probs"][i]),
+                                    episode_id=ep_id,
+                                    final_floor=float(data["final_floors"][i]),
+                                    cleared_act1=float(data["cleared_act1"][i]),
+                                )
+                                trainer.buffer.append(st)
+                                mixed_count += 1
+                        except Exception:
                             continue
                     if mixed_count > 0:
-                        logger.info("  Mixed in %d replay transitions (best floor %d)",
-                                    mixed_count, replay_buffer.best_floor)
+                        logger.info("  Distilled %d transitions from top %d trajectories",
+                                    mixed_count, len(top_trajs))
 
                 # Save original epochs, temporarily increase for deeper training
                 orig_epochs = trainer.ppo_epochs
@@ -1914,15 +1959,16 @@ class OvernightRunner:
                 if self.total_games % 5000 < COLLECT_GAMES:
                     self._check_ascension_bump()
 
-                # Periodic warm checkpoint
+                # Periodic warm checkpoint — also save trainer state for clean shutdown
+                _ckpt_extra = {
+                    "optimizer_state_dict": trainer.optimizer.state_dict(),
+                    "scheduler_state_dict": trainer.scheduler.state_dict(),
+                    "train_steps": trainer.train_steps,
+                    "total_games": self.total_games,
+                    "entropy_coeff": trainer.entropy_coeff,
+                }
+                self._last_trainer_state = _ckpt_extra
                 if self.total_games % 2000 < COLLECT_GAMES:
-                    _ckpt_extra = {
-                        "optimizer_state_dict": trainer.optimizer.state_dict(),
-                        "scheduler_state_dict": trainer.scheduler.state_dict(),
-                        "train_steps": trainer.train_steps,
-                        "total_games": self.total_games,
-                        "entropy_coeff": trainer.entropy_coeff,
-                    }
                     model.save(self.run_dir / "periodic_checkpoint.pt", extra=_ckpt_extra)
                     model.save(self.run_dir / "shutdown_checkpoint.pt", extra=_ckpt_extra)
 
@@ -1987,14 +2033,10 @@ class OvernightRunner:
                 _run_config(best_idx, best_cfg, remaining, fork_weights=False)
 
         # Save checkpoint and clean up
-        # Build warm-restart state (optimizer + scheduler + training metadata)
-        _warm_state = {
-            "optimizer_state_dict": trainer.optimizer.state_dict(),
-            "scheduler_state_dict": trainer.scheduler.state_dict(),
-            "train_steps": trainer.train_steps,
-            "total_games": self.total_games,
-            "entropy_coeff": trainer.entropy_coeff,
-        }
+        # Build warm-restart state — trainer is local to _run_config, use saved metrics
+        _warm_state = {"total_games": self.total_games}
+        if hasattr(self, '_last_trainer_state'):
+            _warm_state.update(self._last_trainer_state)
         if self._shutdown_requested:
             logger.info("Saving warm checkpoint before shutdown...")
             model.save(self.run_dir / "shutdown_checkpoint.pt", extra=_warm_state)
@@ -2066,7 +2108,7 @@ class OvernightRunner:
             improvement = current_avg - self._stall_checkpoint_floor
             if improvement < STALL_IMPROVEMENT_THRESHOLD:
                 old_ent = trainer.entropy_coeff
-                trainer.entropy_coeff = max(0.05, old_ent * 2.0)
+                trainer.entropy_coeff = min(0.10, max(0.05, old_ent * 2.0))
                 logger.warning(
                     "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
                     "(improvement %.1f < %.1f). Entropy reset: %.4f -> %.4f",
@@ -2104,13 +2146,17 @@ class OvernightRunner:
         eps_decay = cfg.get("epsilon_decay", 50000)
         ts_ms = cfg.get("turn_solver_ms", 50.0)
 
+        # Mixed temperature: ~25% of games use higher temp for exploration
+        explore_temp = self.temperature * 1.5
         async_results = [
             self._executor.apply_async(
                 _play_one_game,
-                (seed, self.ascension, self.temperature, self.total_games,
+                (seed, self.ascension,
+                 explore_temp if i % 4 == 0 else self.temperature,
+                 self.total_games,
                  eps_mode, eps_start, eps_end, eps_decay, ts_ms),
             )
-            for seed in seeds
+            for i, seed in enumerate(seeds)
         ]
         return seeds, async_results
 
@@ -2126,7 +2172,6 @@ class OvernightRunner:
         Adds transitions to trainer buffer and handles pool recreation on timeout.
         """
         results: List[Dict[str, Any]] = []
-        timed_out = False
         for ar, seed in zip(async_results, seeds):
             try:
                 result = ar.get(timeout=120)
@@ -2136,7 +2181,6 @@ class OvernightRunner:
                     "seed": seed, "won": False, "floor": 0, "hp": 0,
                     "decisions": 0, "duration_s": 0.0, "transitions": [],
                 }
-                timed_out = True
 
             self._episode_counter += 1
             ep_id = self._episode_counter
@@ -2171,9 +2215,13 @@ class OvernightRunner:
             n_replay = max(1, int(len(results) * REPLAY_MIX_RATIO))
             replay_transitions = self._replay_buffer.sample_transitions(n_replay * 8)  # ~8 transitions per game
             if replay_transitions:
-                self._episode_counter += 1
-                replay_ep_id = self._episode_counter
+                # Group replay transitions by done boundaries to avoid
+                # cross-episode GAE contamination
+                current_replay_ep = None
                 for t in replay_transitions:
+                    if current_replay_ep is None or t.get("done", False):
+                        self._episode_counter += 1
+                        current_replay_ep = self._episode_counter
                     trainer.add_transition(
                         obs=t["obs"],
                         action_mask=t["action_mask"],
@@ -2182,16 +2230,13 @@ class OvernightRunner:
                         done=t["done"],
                         value=t["value"],
                         log_prob=t["log_prob"],
-                        episode_id=replay_ep_id,
+                        episode_id=current_replay_ep,
                     )
                     buf_t = trainer.buffer[-1]
                     buf_t.final_floor = t["final_floor"]
                     buf_t.cleared_act1 = t["cleared_act1"]
                     buf_t.cleared_act2 = t["cleared_act2"]
                     buf_t.cleared_act3 = t["cleared_act3"]
-
-        if timed_out and self._executor is not None:
-            self._recreate_pool()
 
         return results
 
@@ -2205,34 +2250,6 @@ class OvernightRunner:
         """Play a batch of games (blocking). Convenience wrapper around submit/collect."""
         seeds, async_results = self._submit_batch(seed_pool)
         return self._collect_batch(seeds, async_results, seed_pool, trainer)
-
-    def _recreate_pool(self) -> None:
-        """Recreate the worker pool after a timeout or crash."""
-        logger.warning("Recreating worker pool after timeout")
-        try:
-            self._executor.terminate()
-            self._executor.join(timeout=5)
-        except Exception:
-            pass
-        while not self._server.slot_q.empty():
-            try:
-                self._server.slot_q.get_nowait()
-            except Exception:
-                break
-        for i in range(self._server.n_workers):
-            self._server.slot_q.put(i)
-        for rq in self._server.response_qs:
-            while not rq.empty():
-                try:
-                    rq.get_nowait()
-                except Exception:
-                    break
-        ctx = mp.get_context("spawn")
-        self._executor = ctx.Pool(
-            processes=self.workers,
-            initializer=_worker_init,
-            initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
-        )
 
     def _write_summary(self) -> None:
         """Write a summary of the overnight run."""

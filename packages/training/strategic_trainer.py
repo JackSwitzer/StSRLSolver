@@ -77,7 +77,7 @@ class StrategicTrainer:
         self,
         model: StrategicNet,
         lr: float = 1e-4,
-        gamma: float = 1.0,
+        gamma: float = 0.99,
         gae_lambda: float = 0.95,
         clip_epsilon: float = 0.2,
         entropy_coeff: float = 0.05,

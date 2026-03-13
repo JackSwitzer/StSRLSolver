@@ -245,7 +245,7 @@ cmd_weekend() {
     fi
 
     # Parse args (weekend has larger defaults)
-    local games=500000 workers=16 batch=256 asc=0 extra_args=""
+    local games=500000 workers=12 batch=256 asc=0 extra_args=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -285,7 +285,7 @@ cmd_weekend() {
     nohup uv run python -m packages.training.overnight \
         --games "$games" \
         --workers "$workers" \
-        --batch 32 \
+        --batch 24 \
         --batch-size "$batch" \
         --ascension "$asc" \
         --headless-after 0 \
@@ -312,8 +312,19 @@ cmd_resume() {
         exit 1
     fi
 
+    local checkpoints=()
     local latest_checkpoint
-    latest_checkpoint=$(ls -t logs/overnight/*/checkpoint_*.pt 2>/dev/null | head -1)
+
+    shopt -s nullglob
+    checkpoints=(logs/overnight/*/shutdown_checkpoint.pt logs/overnight/*/periodic_checkpoint.pt)
+    shopt -u nullglob
+
+    if [ ${#checkpoints[@]} -gt 0 ]; then
+        latest_checkpoint=$(ls -t "${checkpoints[@]}" | head -1)
+    else
+        latest_checkpoint=""
+    fi
+
     if [ -z "$latest_checkpoint" ]; then
         echo "No checkpoint found. Use 'start' instead."
         exit 1
@@ -321,6 +332,60 @@ cmd_resume() {
 
     echo "Resuming from: $latest_checkpoint"
     cmd_start --resume "$latest_checkpoint" "$@"
+}
+
+cmd_archive() {
+    # Archive the current weekend-run to a timestamped directory
+    local run_dir="logs/weekend-run"
+    local label="${1:-}"
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M)
+    local archive_name="run_${timestamp}"
+    [ -n "$label" ] && archive_name="${archive_name}_${label}"
+    local archive_dir="logs/runs/${archive_name}"
+
+    if [ ! -d "$run_dir" ]; then
+        echo "No weekend-run directory to archive."
+        return 1
+    fi
+
+    # Stop training if running
+    if training_alive; then
+        echo "Stopping training before archive..."
+        stop_training
+    fi
+
+    mkdir -p "$archive_dir"
+
+    # Move checkpoints and model files
+    for f in shutdown_checkpoint.pt periodic_checkpoint.pt final_strategic.pt; do
+        [ -f "$run_dir/$f" ] && mv "$run_dir/$f" "$archive_dir/"
+    done
+
+    # Copy (not move) status, episodes, summary, logs
+    for f in status.json recent_episodes.json summary.json episodes.jsonl; do
+        [ -f "$run_dir/$f" ] && cp "$run_dir/$f" "$archive_dir/"
+    done
+
+    # Archive all logs
+    for f in "$run_dir"/nohup*.log; do
+        [ -f "$f" ] && mv "$f" "$archive_dir/"
+    done
+
+    # Copy best trajectories if they exist (keep originals for next distillation)
+    if [ -d "$run_dir/best_trajectories" ]; then
+        local traj_count
+        traj_count=$(ls "$run_dir/best_trajectories/"*.npz 2>/dev/null | wc -l | tr -d ' ')
+        echo "  Trajectories: $traj_count files (kept in place for next distillation)"
+    fi
+
+    # Clean stale data for fresh start
+    rm -f "$run_dir/status.json" "$run_dir/recent_episodes.json" "$run_dir/summary.json"
+
+    echo "Archived to: $archive_dir"
+    ls -lh "$archive_dir/" 2>/dev/null | tail -20
+    echo ""
+    echo "Ready for fresh start: ./scripts/training.sh weekend"
 }
 
 cmd_quick_restart() {
@@ -352,8 +417,11 @@ case "${1:-status}" in
     resume)  shift; cmd_resume "$@" ;;
     weekend) shift; cmd_weekend "$@" ;;
     restart) shift; cmd_quick_restart "$@" ;;
+    archive) shift; cmd_archive "$@" ;;
+    fresh)   shift; cmd_archive fresh && cmd_weekend "$@" ;;
+    update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend|restart} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|restart|archive|fresh|update} [options]"
         echo ""
         echo "Commands:"
         echo "  start      Start training (default 10K games)"
@@ -362,6 +430,9 @@ case "${1:-status}" in
         echo "  resume     Resume from latest checkpoint"
         echo "  weekend    Long-running headless mode (default 500K games)"
         echo "  restart    Quick restart: stop, save checkpoint, resume with code changes"
+        echo "  archive    Archive current run to logs/runs/run_TIMESTAMP/ (optional label arg)"
+        echo "  fresh      Archive + start fresh (cold start with distillation from trajectories)"
+        echo "  update     Pull latest code + restart (git pull → restart)"
         echo ""
         echo "Options for start/weekend:"
         echo "  --games N      Total games to play"

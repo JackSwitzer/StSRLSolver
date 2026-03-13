@@ -389,7 +389,7 @@ class InferenceServer:
             model: trained StrategicNet (on any device)
             version: monotonic integer identifying this checkpoint
         """
-        state_dict = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         config = {
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,
@@ -687,8 +687,9 @@ class InferenceServer:
             self.response_qs[worker_slot].put_nowait(resp)
         except Exception as exc:
             logger.warning(
-                "InferenceServer: failed to deliver to worker %d: %s",
+                "InferenceServer: failed to deliver to worker %d: %s(%s)",
                 worker_slot,
+                type(exc).__name__,
                 exc,
             )
 
@@ -735,7 +736,7 @@ class InferenceClient:
         request_q: "mp.Queue",
         response_q: "mp.Queue",
         worker_slot: int,
-        timeout_s: float = 2.0,
+        timeout_s: float = 5.0,
     ):
         self.request_q = request_q
         self.response_q = response_q
@@ -753,7 +754,7 @@ class InferenceClient:
         request_q: "mp.Queue",
         response_q: "mp.Queue",
         slot_id: int,
-        timeout_s: float = 2.0,
+        timeout_s: float = 5.0,
     ) -> "InferenceClient":
         """Install a module-level client for this worker process.
 
@@ -763,7 +764,7 @@ class InferenceClient:
             request_q: shared queue from InferenceServer.request_q
             response_q: this worker's queue from InferenceServer.response_qs[slot_id]
             slot_id: index identifying this worker
-            timeout_s: per-request timeout (default 2s)
+            timeout_s: per-request timeout (default 5s)
 
         Returns:
             The installed InferenceClient instance.
@@ -834,6 +835,22 @@ class InferenceClient:
 
         Returns the response dict, or None if timed out or an error occurred.
         """
+        # Drain any stale responses from previous timed-out requests.
+        # This prevents cascading timeout storms where old responses
+        # permanently desync the queue.
+        drained = 0
+        while True:
+            try:
+                self.response_q.get_nowait()
+                drained += 1
+            except Exception:
+                break
+        if drained:
+            logger.debug(
+                "InferenceClient slot=%d: drained %d stale responses before req_id=%d",
+                self.worker_slot, drained, req["req_id"],
+            )
+
         try:
             self.request_q.put(req, timeout=self.timeout_s)
         except Exception as exc:
