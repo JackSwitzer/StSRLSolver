@@ -77,6 +77,55 @@ from .handlers.event_handler import (
     EventHandler as NewEventHandler, EventState, EventPhase, EventChoiceResult,
 )
 from .registry import execute_relic_triggers
+from .state.combat import EntityState
+
+
+# =============================================================================
+# RunState → CombatState adapter for out-of-combat relic trigger dispatch
+# =============================================================================
+
+class _RunStateRelicProxy:
+    """Lightweight proxy that wraps RunState to satisfy execute_relic_triggers.
+
+    execute_relic_triggers expects a CombatState-like object with:
+      - has_relic(id) / get_relic_counter(id, default) / set_relic_counter(id, val)
+      - .relics (list of str)
+      - .gold (int)
+      - .player (EntityState with .hp / .max_hp)
+      - .enemies (list)
+    """
+
+    def __init__(self, run_state: 'RunState'):
+        self._rs = run_state
+        # EntityState view that writes back to RunState HP
+        self.player = EntityState(
+            hp=run_state.current_hp,
+            max_hp=run_state.max_hp,
+        )
+        self.gold = run_state.gold
+        self.relics = [r.id for r in run_state.relics]
+        self.enemies: list = []
+
+    # --- relic interface expected by execute_relic_triggers / BaseContext ---
+
+    def has_relic(self, relic_id: str) -> bool:
+        return self._rs.has_relic(relic_id)
+
+    def get_relic_counter(self, relic_id: str, default: int = 0) -> int:
+        val = self._rs.get_relic_counter(relic_id)
+        # RunState returns -1 when relic not found; map to default
+        return val if val != -1 else default
+
+    def set_relic_counter(self, relic_id: str, value: int) -> None:
+        self._rs.set_relic_counter(relic_id, value)
+
+    # --- flush mutations back to RunState ---
+
+    def flush(self) -> None:
+        """Write proxy mutations back to the underlying RunState."""
+        self._rs.current_hp = min(self.player.hp, self.player.max_hp)
+        self._rs.max_hp = self.player.max_hp
+        self._rs.gold = self.gold
 
 
 # =============================================================================
@@ -3528,15 +3577,38 @@ class GameRunner:
     # =========================================================================
 
     def _apply_room_entry_relics(self, room_type: RoomType) -> None:
-        """Apply out-of-combat relic effects that trigger on room entry."""
-        # Java Maw Bank: gain 12 gold on every room entry until spent.
-        maw_bank = self.run_state.get_relic("MawBank")
-        if maw_bank and maw_bank.counter != -2:
-            self.run_state.add_gold(12)
+        """Apply out-of-combat relic effects that trigger on room entry.
 
-        # Ssserpent Head: gain 50 gold on entering ? rooms.
-        if room_type == RoomType.EVENT and self.run_state.has_relic("SsserpentHead"):
-            self.run_state.add_gold(50)
+        Dispatches the ``onEnterRoom`` hook through the relic registry so that
+        handlers registered with ``@relic_trigger("onEnterRoom", ...)`` (Maw Bank,
+        Meal Ticket, Ssserpent Head, etc.) are executed automatically.
+        """
+        # Map RoomType enum to the string key the registry handlers expect
+        _ROOM_TYPE_STR = {
+            RoomType.MONSTER: "MONSTER",
+            RoomType.ELITE: "ELITE",
+            RoomType.BOSS: "BOSS",
+            RoomType.EVENT: "EVENT",
+            RoomType.SHOP: "SHOP",
+            RoomType.REST: "REST",
+            RoomType.TREASURE: "TREASURE",
+        }
+        room_str = _ROOM_TYPE_STR.get(room_type, room_type.name)
+
+        old_gold = self.run_state.gold
+        old_hp = self.run_state.current_hp
+
+        proxy = _RunStateRelicProxy(self.run_state)
+        execute_relic_triggers("onEnterRoom", proxy, {"room_type": room_str})
+        proxy.flush()
+
+        # Log observable effects
+        gold_delta = self.run_state.gold - old_gold
+        hp_delta = self.run_state.current_hp - old_hp
+        if gold_delta:
+            self._log(f"  Room entry relics: {gold_delta:+d} gold")
+        if hp_delta:
+            self._log(f"  Room entry relics: healed {hp_delta} HP")
 
     def _enter_room(self, node: MapRoomNode):
         """Enter a room and set up appropriate phase."""
@@ -3814,13 +3886,8 @@ class GameRunner:
         """Enter a shop room and generate inventory."""
         self._log("Entered shop")
 
-        # Trigger Meal Ticket healing
-        if self.run_state.has_relic("MealTicket"):
-            old_hp = self.run_state.current_hp
-            self.run_state.heal(15)
-            actual_heal = self.run_state.current_hp - old_hp
-            if actual_heal > 0:
-                self._log(f"Meal Ticket: healed {actual_heal} HP")
+        # Meal Ticket healing is now handled by the onEnterRoom registry
+        # dispatch in _apply_room_entry_relics (called from _enter_room).
 
         # Generate shop inventory
         self.current_shop = ShopHandler.create_shop(

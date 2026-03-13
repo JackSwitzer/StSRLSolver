@@ -305,11 +305,13 @@ class TestGameRunnerShop:
         assert "leave" in types
 
     def test_meal_ticket_healing(self):
+        from packages.engine.generation.map import MapRoomNode, RoomType
         runner = GameRunner(seed="SHOP3", ascension=0, verbose=False)
         runner.run_state.add_relic("MealTicket")
         runner.run_state.damage(20)
         old_hp = runner.run_state.current_hp
-        runner._enter_shop()
+        # Use _enter_room (not _enter_shop) so onEnterRoom registry dispatch fires
+        runner._enter_room(MapRoomNode(x=0, y=0, room_type=RoomType.SHOP))
         assert runner.run_state.current_hp > old_hp
 
     def test_unknown_shop_action(self):

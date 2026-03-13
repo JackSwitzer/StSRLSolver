@@ -326,12 +326,15 @@ class BaseContext:
     def heal_player(self, amount: int) -> int:
         """Heal the player. Returns actual amount healed.
 
-        Applies onPlayerHeal trigger for relics like Magic Flower that modify healing.
+        Dispatches the ``onPlayerHeal`` hook through the relic registry so that
+        relics like Magic Flower can modify the heal amount before it is applied.
         """
-        # Apply onPlayerHeal triggers to modify heal amount
-        if hasattr(self.state, 'relics') and 'Magic Flower' in self.state.relics:
-            # Magic Flower: Healing is 50% more effective (only in combat)
-            amount = round(amount * 1.5)
+        # Dispatch onPlayerHeal to let registered handlers modify the amount
+        modified = execute_relic_triggers(
+            "onPlayerHeal", self.state, {"heal_amount": amount}
+        )
+        if modified is not None:
+            amount = modified
 
         max_heal = self.player.max_hp - self.player.hp
         actual = min(amount, max_heal)
