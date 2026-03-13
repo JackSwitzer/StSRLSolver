@@ -1249,6 +1249,15 @@ class CombatEngine:
         # Time Eater 12-card counter check (after card is played)
         self._check_time_eater_numen()
 
+        # Unceasing Top: if hand is empty during player turn, fire onEmptyHand
+        # Java: UnceasingTop.onRefreshHand() fires after UseCardAction completes
+        if (
+            self.phase == CombatPhase.PLAYER_TURN
+            and not self.state.combat_over
+            and len(self.state.hand) == 0
+        ):
+            execute_relic_triggers("onEmptyHand", self.state)
+
         # End turn effect
         if force_end_turn or "end_turn" in card.effects:
             self.end_turn()
