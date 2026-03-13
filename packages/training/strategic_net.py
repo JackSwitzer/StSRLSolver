@@ -192,22 +192,25 @@ class StrategicNet(nn.Module):
         """Total trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-    def save(self, path: str | Path) -> None:
-        """Save model weights + config."""
+    def save(self, path: str | Path, extra: dict | None = None) -> None:
+        """Save model weights + config + optional training state. Atomic write."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "model_state_dict": self.state_dict(),
-                "config": {
-                    "input_dim": self.input_dim,
-                    "hidden_dim": self.hidden_dim,
-                    "action_dim": self.action_dim,
-                    "num_blocks": self.num_blocks,
-                },
+        data = {
+            "model_state_dict": self.state_dict(),
+            "config": {
+                "input_dim": self.input_dim,
+                "hidden_dim": self.hidden_dim,
+                "action_dim": self.action_dim,
+                "num_blocks": self.num_blocks,
             },
-            path,
-        )
+        }
+        if extra:
+            data.update(extra)
+        # Atomic write: save to tmp, then rename (rename is atomic on most FS)
+        tmp_path = path.with_suffix(".pt.tmp")
+        torch.save(data, tmp_path)
+        tmp_path.rename(path)
 
     @classmethod
     def load(cls, path: str | Path, device: Optional[torch.device] = None) -> "StrategicNet":

@@ -1,5 +1,10 @@
 import { useState, useCallback } from 'react';
 
+export interface SparklineMarker {
+  index: number;  // data index where the marker appears
+  label: string;  // e.g. "T1", "T2"
+}
+
 interface SparklineProps {
   data: number[];
   width?: number;
@@ -7,9 +12,10 @@ interface SparklineProps {
   color?: string;
   fill?: boolean;
   label?: string;
+  markers?: SparklineMarker[];
 }
 
-export const Sparkline = ({ data, width = 200, height = 40, color = '#00ff41', fill = true, label }: SparklineProps) => {
+export const Sparkline = ({ data, width = 200, height = 40, color = '#00ff41', fill = true, label, markers }: SparklineProps) => {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; value: number } | null>(null);
 
   const points = data.length < 2 ? [] : data;
@@ -51,6 +57,11 @@ export const Sparkline = ({ data, width = 200, height = 40, color = '#00ff41', f
 
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
+  // Compute marker x-positions from data indices
+  const markerCoords = (markers ?? [])
+    .filter((m) => m.index >= 0 && m.index < coords.length)
+    .map((m) => ({ x: coords[m.index].x, label: m.label }));
+
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
       {label && (
@@ -68,6 +79,32 @@ export const Sparkline = ({ data, width = 200, height = 40, color = '#00ff41', f
         {fill && fillPath && (
           <path d={fillPath} fill={color} fillOpacity={0.10} stroke="none" />
         )}
+        {/* Training step markers - vertical dashed lines */}
+        {markerCoords.map((m, i) => (
+          <g key={`marker-${i}`}>
+            <line
+              x1={m.x}
+              y1={pad}
+              x2={m.x}
+              y2={height - pad}
+              stroke="#a78bfa"
+              strokeWidth={0.75}
+              strokeDasharray="2,2"
+              strokeOpacity={0.6}
+            />
+            <text
+              x={m.x}
+              y={height - 1}
+              textAnchor="middle"
+              fill="#a78bfa"
+              fontSize={6}
+              fontFamily="'JetBrains Mono', monospace"
+              opacity={0.7}
+            >
+              {m.label}
+            </text>
+          </g>
+        ))}
         {coords.length > 1 && (
           <polyline
             points={polyPoints}

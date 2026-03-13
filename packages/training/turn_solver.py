@@ -19,12 +19,16 @@ Lexicographic scoring (not weighted sums):
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 import heapq
 
+logger = logging.getLogger(__name__)
+
 from packages.engine.combat_engine import CombatEngine, CombatPhase
+from packages.engine.content.cards import ALL_CARDS, CardType, resolve_card_id
 from packages.engine.state.combat import (
     Action,
     EndTurn,
@@ -52,12 +56,27 @@ _SETUP_CARD_PREFIXES = frozenset({
     "Miracle", "Vault",
 })
 
-# Node budgets per room type
-_BUDGETS: Dict[str, Tuple[float, int]] = {
-    "monster": (2.0, 500),
-    "elite": (30.0, 5_000),
-    "boss": (100.0, 20_000),
+# Stance-entering cards: card_id -> stance (used for action priority)
+_STANCE_CARDS: Dict[str, str] = {
+    "Eruption": "Wrath", "Crescendo": "Wrath", "Tantrum": "Wrath",
+    "Vigilance": "Calm", "ClearTheMind": "Calm",  # Tranquility alias
+    "EmptyBody": "Neutral", "EmptyFist": "Neutral", "EmptyMind": "Neutral",
+    "InnerPeace": "Calm",
 }
+
+# Early cutoff: skip nodes this far below the current best
+_EARLY_CUTOFF_GAP = 200.0
+
+# Node budgets per room type — (time_ms, node_limit)
+# Balanced for 16-worker throughput on M4 Mac Mini
+_BUDGETS: Dict[str, Tuple[float, int]] = {
+    "monster": (10.0, 500),
+    "elite": (100.0, 5_000),
+    "boss": (200.0, 10_000),
+}
+
+# LRU cache size for turn-level plan caching
+_PLAN_CACHE_SIZE = 512
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +124,11 @@ class TurnSolver:
         self._cached_plan_index: int = 0
         self._cached_engine_hash: Optional[int] = None
 
+        # State-based plan cache: hash(board_state) -> (plan, score)
+        # Reuses plans when the same hand+energy+enemy state recurs
+        from collections import OrderedDict
+        self._plan_cache: OrderedDict[int, Tuple[List[Action], float]] = OrderedDict()
+
     # -----------------------------------------------------------------------
     # Public API
     # -----------------------------------------------------------------------
@@ -136,6 +160,17 @@ class TurnSolver:
         if not non_end:
             return [EndTurn()]
 
+        # Check plan cache — reuse if we've seen this exact board state
+        state_key = self._state_hash(engine)
+        if state_key in self._plan_cache:
+            cached_plan, _ = self._plan_cache[state_key]
+            # Move to end (LRU)
+            self._plan_cache.move_to_end(state_key)
+            self._cached_plan = cached_plan
+            self._cached_plan_index = 0
+            self._cached_engine_hash = state_key
+            return cached_plan
+
         # Estimate tree size for strategy selection
         estimated_nodes = self._estimate_tree_size(engine)
 
@@ -144,13 +179,18 @@ class TurnSolver:
         elif estimated_nodes < 5000:
             plan = self._best_first_search(engine, time_ms, node_limit)
         else:
-            plan = self._beam_search(engine, time_ms, node_limit)
+            plan = self._beam_search(engine, time_ms, node_limit, room_type=room_type)
 
         if plan is not None:
             # Cache for tree reuse
             self._cached_plan = plan
             self._cached_plan_index = 0
-            self._cached_engine_hash = self._state_hash(engine)
+            self._cached_engine_hash = state_key
+
+            # Store in plan cache (LRU eviction)
+            self._plan_cache[state_key] = (plan, 0.0)
+            if len(self._plan_cache) > _PLAN_CACHE_SIZE:
+                self._plan_cache.popitem(last=False)
 
         return plan
 
@@ -297,12 +337,19 @@ class TurnSolver:
         elif state.stance == "Wrath" and now_living > 0:
             score -= 60.0
 
-        # Penalize unspent energy (unless Ice Cream relic present)
+        # Penalize unspent energy with playable cards (unless Ice Cream relic present)
         unspent = state.energy
         if unspent > 0:
             has_ice_cream = any(r.relic_id == "IceCream" for r in getattr(state, 'relics', []))
             if not has_ice_cream:
-                score -= 3.0 * unspent
+                # Count playable cards (cost <= unspent energy)
+                costs = state.card_costs
+                playable = sum(1 for card_id in state.hand
+                               if costs.get(card_id, 1) <= unspent)
+                if playable > 0:
+                    score -= 8.0 * unspent + 5.0 * playable
+                else:
+                    score -= 3.0 * unspent
 
         return score
 
@@ -359,9 +406,9 @@ class TurnSolver:
             if best_score >= _SCORE_LETHAL:
                 return
 
-            # Try each non-EndTurn action
-            non_end = [a for a in actions if not isinstance(a, EndTurn)]
-            for action in non_end:
+            # Try each non-EndTurn action, sorted by heuristic priority
+            sorted_non_end = self._sorted_actions(actions, eng)
+            for action in sorted_non_end:
                 if nodes_visited > node_budget or time.monotonic() > deadline:
                     return
 
@@ -436,10 +483,14 @@ class TurnSolver:
             if best_score >= _SCORE_LETHAL:
                 break
 
-            actions = node.engine.get_legal_actions()
-            non_end = [a for a in actions if not isinstance(a, EndTurn)]
+            # Early cutoff: skip nodes far worse than current best
+            if best_score > _SCORE_DEATH and end_score < best_score - _EARLY_CUTOFF_GAP:
+                continue
 
-            for action in non_end:
+            actions = node.engine.get_legal_actions()
+            sorted_non_end = self._sorted_actions(actions, node.engine)
+
+            for action in sorted_non_end:
                 if nodes_visited >= node_budget or time.monotonic() > deadline:
                     break
 
@@ -485,13 +536,22 @@ class TurnSolver:
         node_budget: int,
         beam_width: int = 20,
         reserved_setup_slots: int = 4,
+        room_type: str = "monster",
     ) -> Optional[List[Action]]:
         """Beam search with reserved slots for setup cards.
 
         Keeps `beam_width` candidates per depth level.
         Reserves `reserved_setup_slots` beam positions for setup actions
         (stance changes, powers, draw cards) so they aren't pruned early.
+
+        Beam width scales with fight importance:
+        - boss: 30, elite: 25, monster: 20
         """
+        # Dynamic beam width based on room type
+        if room_type == "boss":
+            beam_width = 30
+        elif room_type == "elite":
+            beam_width = 25
         deadline = time.monotonic() + time_budget_ms / 1000.0
         original = engine
         nodes_visited = 0
@@ -524,10 +584,14 @@ class TurnSolver:
                 if best_score >= _SCORE_LETHAL:
                     return best_plan
 
-                actions = node.engine.get_legal_actions()
-                non_end = [a for a in actions if not isinstance(a, EndTurn)]
+                # Early cutoff: skip nodes far worse than current best
+                if best_score > _SCORE_DEATH and end_score < best_score - _EARLY_CUTOFF_GAP:
+                    continue
 
-                for action in non_end:
+                actions = node.engine.get_legal_actions()
+                sorted_non_end = self._sorted_actions(actions, node.engine)
+
+                for action in sorted_non_end:
                     if nodes_visited >= node_budget or time.monotonic() > deadline:
                         break
 
@@ -582,6 +646,137 @@ class TurnSolver:
         return best_plan
 
     # -----------------------------------------------------------------------
+    # Action priority for move ordering
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _action_priority(action: Action, engine: CombatEngine) -> float:
+        """Return a sort key for action ordering (lower = explore first).
+
+        Priority tiers (lower is better):
+        - 0-99:   Lethal candidates (high damage when enemies are low HP)
+        - 100-199: Stance-entering cards that enable lethal or setup
+        - 200-299: Attack cards (sorted by damage/cost efficiency)
+        - 300-399: Zero-cost cards
+        - 400-499: Setup cards (powers, draw, block)
+        - 500-599: Other playable cards
+        - 600-699: Potions / scry
+        - 900:     EndTurn (always last)
+        """
+        state = engine.state
+
+        if isinstance(action, EndTurn):
+            return 900.0
+
+        if isinstance(action, UsePotion):
+            return 600.0  # Potions are worth trying but after cards
+
+        if isinstance(action, SelectScryDiscard):
+            return 650.0
+
+        if not isinstance(action, PlayCard):
+            return 800.0
+
+        hand = state.hand
+        if action.card_idx < 0 or action.card_idx >= len(hand):
+            return 800.0
+
+        card_id = hand[action.card_idx]
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+
+        # Resolve aliases and look up card data
+        resolved = resolve_card_id(base_id)
+        card_def = ALL_CARDS.get(resolved)
+        if card_def is None:
+            return 500.0  # Unknown card, middle priority
+
+        # Compute effective damage
+        dmg = card_def.damage  # -1 if not an attack
+        if upgraded:
+            dmg = card_def.base_damage + card_def.upgrade_damage if card_def.base_damage >= 0 else -1
+        cost = state.card_costs.get(card_id, card_def.current_cost if not upgraded else (card_def.upgrade_cost if card_def.upgrade_cost is not None else card_def.cost))
+
+        # Wrath doubles damage
+        in_wrath = state.stance == "Wrath"
+        eff_dmg = dmg
+        if dmg > 0 and in_wrath:
+            eff_dmg = dmg * 2
+
+        # Enemy HP info
+        living = [e for e in state.enemies if e.hp > 0 and not e.is_escaping]
+        min_ehp = min((e.hp + e.block for e in living), default=999)
+        total_ehp = sum(e.hp for e in living)
+
+        # --- Tier 0: Lethal candidates (attacks that can kill an enemy) ---
+        if card_def.card_type == CardType.ATTACK and eff_dmg > 0:
+            # Check if this card can kill any enemy
+            if action.target_idx >= 0:
+                # Single target
+                target = next(
+                    (e for i, e in enumerate(state.enemies)
+                     if i == action.target_idx and e.hp > 0),
+                    None,
+                )
+                if target is not None:
+                    effective_hp = target.hp + target.block
+                    if eff_dmg >= effective_hp:
+                        # Can kill! Lower priority = explored first
+                        return 10.0 - min(eff_dmg, 50)
+            else:
+                # AoE or self-target attack
+                if eff_dmg >= min_ehp:
+                    return 20.0 - min(eff_dmg, 50)
+
+            # High damage relative to enemy HP (>50% of min enemy effective HP)
+            if eff_dmg > min_ehp * 0.5:
+                return 50.0 + (1.0 - eff_dmg / max(min_ehp, 1)) * 50
+
+        # --- Tier 1: Stance cards that enable lethal ---
+        if base_id in _STANCE_CARDS or resolved in _STANCE_CARDS:
+            stance_target = _STANCE_CARDS.get(base_id) or _STANCE_CARDS.get(resolved, "")
+            if stance_target == "Wrath" and not in_wrath:
+                # Entering Wrath doubles damage — high priority when enemies are low
+                if total_ehp < 50:
+                    return 100.0  # Very high priority for lethal setup
+                return 150.0
+            elif stance_target == "Calm":
+                # Calm banks energy — good setup
+                return 170.0
+            return 180.0
+
+        # --- Tier 2: Attack cards by damage efficiency ---
+        if card_def.card_type == CardType.ATTACK and eff_dmg > 0:
+            efficiency = eff_dmg / max(cost, 0.5)  # damage per energy
+            return 200.0 + max(0, 50 - efficiency * 10)
+
+        # --- Tier 3: Zero-cost cards (free value) ---
+        if cost == 0:
+            return 300.0
+
+        # --- Tier 4: Setup cards (powers, block, draw) ---
+        if base_id in _SETUP_CARD_PREFIXES or resolved in _SETUP_CARD_PREFIXES:
+            return 400.0
+
+        if card_def.card_type == CardType.POWER:
+            return 410.0
+
+        if card_def.card_type == CardType.SKILL:
+            if card_def.base_block > 0:
+                return 450.0  # Block cards
+            return 460.0
+
+        return 500.0
+
+    def _sorted_actions(
+        self, actions: List[Action], engine: CombatEngine
+    ) -> List[Action]:
+        """Sort non-EndTurn actions by heuristic priority (best first)."""
+        non_end = [a for a in actions if not isinstance(a, EndTurn)]
+        non_end.sort(key=lambda a: self._action_priority(a, engine))
+        return non_end
+
+    # -----------------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------------
 
@@ -616,8 +811,17 @@ class TurnSolver:
         return False
 
     def _state_hash(self, engine: CombatEngine) -> int:
-        """Quick hash for checking if engine state changed (for cache validity)."""
+        """Quick hash for checking if engine state changed (for cache validity).
+
+        Includes enemy state so cache hits are safe across different fights.
+        """
         s = engine.state
+        enemy_key = tuple(
+            (e.id, e.hp, e.block, getattr(e, 'intent', None)) for e in s.enemies if e.hp > 0
+        ) if hasattr(s, 'enemies') else ()
+        power_key = tuple(sorted(
+            (p.id, p.amount) for p in getattr(s.player, 'powers', [])
+        )) if hasattr(s.player, 'powers') else ()
         return hash((
             s.player.hp,
             s.player.block,
@@ -627,6 +831,8 @@ class TurnSolver:
             tuple(s.hand),
             len(s.draw_pile),
             s.cards_played_this_turn,
+            enemy_key,
+            power_key,
         ))
 
     def _invalidate_cache(self) -> None:
@@ -646,6 +852,10 @@ class TurnSolverAdapter:
     Wraps TurnSolver and bridges between the GameRunner's CombatAction format
     and the engine-level Action format used by TurnSolver.
 
+    When an InferenceClient is available, uses GumbelMCTS with GPU-backed
+    value evaluation for elite/boss fights. Falls back to the DFS/beam
+    TurnSolver for normal fights or when the inference server is unavailable.
+
     Usage:
         adapter = TurnSolverAdapter()
         action = adapter.pick_action(actions, runner, room_type="monster")
@@ -655,11 +865,18 @@ class TurnSolverAdapter:
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
+        mcts_simulations: int = 8,
+        use_mcts_for: Optional[Tuple[str, ...]] = None,
     ):
         self._solver = TurnSolver(
             time_budget_ms=time_budget_ms,
             node_budget=node_budget,
         )
+        self._mcts_simulations = mcts_simulations
+        self._use_mcts_for = use_mcts_for or ("elite", "boss")
+        self._mcts_by_budget: Dict[int, Any] = {}  # sim_budget -> GumbelMCTS
+        self._mcts_policy_fn: Optional[Any] = None
+
         self._cached_plan: Optional[List[Action]] = None
         self._cached_plan_index: int = 0
         self._cached_turn: int = -1
@@ -672,8 +889,39 @@ class TurnSolverAdapter:
         self._cached_turn = -1
         self._cached_combat_id = -1
 
+    def _get_mcts(self, num_sims: int) -> Optional[Any]:
+        """Lazily initialize GumbelMCTS with GPU-backed policy_fn if available."""
+        if num_sims in self._mcts_by_budget:
+            return self._mcts_by_budget[num_sims]
+
+        try:
+            from packages.training.inference_server import get_client
+            from packages.training.gumbel_mcts import GumbelMCTS
+            from packages.training.combat_state_encoder import make_mcts_policy_fn
+
+            client = get_client()
+            if client is None:
+                return None
+
+            if self._mcts_policy_fn is None:
+                self._mcts_policy_fn = make_mcts_policy_fn(client)
+
+            mcts = GumbelMCTS(
+                policy_fn=self._mcts_policy_fn,
+                num_simulations=num_sims,
+                max_candidates=min(16, num_sims),
+            )
+            self._mcts_by_budget[num_sims] = mcts
+            return mcts
+        except Exception:
+            return None
+
     def pick_action(self, actions: list, runner, room_type: str = "monster"):
         """Pick best combat action.
+
+        For room types in use_mcts_for (default: elite, boss), attempts
+        GumbelMCTS with GPU-backed value evaluation. Falls back to
+        DFS/beam TurnSolver if MCTS is unavailable or fails.
 
         Args:
             actions: List of CombatAction objects (from GameRunner.get_available_actions)
@@ -715,27 +963,54 @@ class TurnSolverAdapter:
             # Cache invalid — replan
             self._cached_plan = None
 
-        # Solve from scratch
+        # DFS/beam TurnSolver first (fast, strong heuristic)
         try:
             plan = self._solver.solve_turn(engine, room_type)
         except Exception:
-            return None  # Fall through to CombatPlanner/heuristic
+            plan = None
 
-        if plan is None or len(plan) == 0:
-            return None
+        if plan and len(plan) > 0:
+            self._cached_plan = plan
+            self._cached_plan_index = 0
+            self._cached_turn = current_turn
 
-        self._cached_plan = plan
-        self._cached_plan_index = 0
-        self._cached_turn = current_turn
+            engine_action = plan[0]
+            combat_action = self._match_engine_to_combat(engine_action, actions, state)
+            if combat_action is not None:
+                self._cached_plan_index = 1
+                return combat_action
 
-        # Return first action from plan
-        engine_action = plan[0]
-        combat_action = self._match_engine_to_combat(engine_action, actions, state)
-        if combat_action is not None:
-            self._cached_plan_index = 1
-            return combat_action
+        # DFS failed or returned no plan — try GumbelMCTS as fallback
+        if room_type in self._use_mcts_for:
+            num_sims = self._mcts_simulations if room_type in ("elite", "boss") else max(4, self._mcts_simulations // 4)
+            mcts_result = self._try_mcts(engine, actions, state, num_sims)
+            if mcts_result is not None:
+                return mcts_result
 
         return None  # Fall through to CombatPlanner/heuristic
+
+    def _try_mcts(self, engine: Any, actions: list, state: Any, num_sims: int = 16) -> Optional[Any]:
+        """Try to use GumbelMCTS for action selection."""
+        mcts = self._get_mcts(num_sims)
+        if mcts is None:
+            return None
+
+        try:
+            t0 = time.perf_counter()
+            visit_probs = mcts.search(engine)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            if not visit_probs:
+                logger.debug("MCTS: no visit probs after %.1fms", elapsed_ms)
+                return None
+
+            best_engine_action = mcts.select_action(visit_probs, temperature=0.0)
+            combat_action = self._match_engine_to_combat(best_engine_action, actions, state)
+            if combat_action is not None:
+                logger.debug("MCTS: selected action in %.1fms (%d candidates)", elapsed_ms, len(visit_probs))
+            return combat_action
+        except Exception as e:
+            logger.debug("MCTS: failed with %s", e)
+            return None
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.

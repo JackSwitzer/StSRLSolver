@@ -76,6 +76,20 @@ stop_training() {
     fi
 
     rm -f "$PID_DIR/training.pid"
+
+    # Clean up any orphaned worker processes from this project
+    local orphans
+    orphans=$(pgrep -f "packages.training.overnight\|multiprocessing.spawn.*spawn_main" 2>/dev/null | grep -v "^$$" || true)
+    if [ -n "$orphans" ]; then
+        echo "  Cleaning up $(echo "$orphans" | wc -l | tr -d ' ') orphaned workers..."
+        echo "$orphans" | xargs kill 2>/dev/null || true
+        sleep 1
+        echo "$orphans" | xargs kill -9 2>/dev/null || true
+    fi
+
+    # Kill any stale caffeinate processes (keep system ones)
+    pkill -f "caffeinate -dims" 2>/dev/null || true
+
     echo "Training stopped."
 }
 
@@ -231,7 +245,7 @@ cmd_weekend() {
     fi
 
     # Parse args (weekend has larger defaults)
-    local games=500000 workers=8 batch=256 asc=0 extra_args=""
+    local games=500000 workers=16 batch=256 asc=0 extra_args=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -261,16 +275,25 @@ cmd_weekend() {
 
     # Launch training headless with dedicated run-dir
     # Uses larger model (7M params) and bigger inference batches
+    # Check for shutdown checkpoint to auto-resume
+    local resume_flag=""
+    if [ -f "$run_dir/shutdown_checkpoint.pt" ]; then
+        resume_flag="--resume $run_dir/shutdown_checkpoint.pt"
+        echo "  Resuming from shutdown checkpoint"
+    fi
+
     nohup uv run python -m packages.training.overnight \
         --games "$games" \
         --workers "$workers" \
+        --batch 32 \
         --batch-size "$batch" \
         --ascension "$asc" \
         --headless-after 0 \
         --run-dir "$run_dir" \
         --hidden-dim 1024 \
         --num-blocks 6 \
-        --max-batch-size 32 \
+        --max-batch-size 128 \
+        $resume_flag \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
@@ -300,6 +323,26 @@ cmd_resume() {
     cmd_start --resume "$latest_checkpoint" "$@"
 }
 
+cmd_quick_restart() {
+    echo "Quick restart: stop → save → restart with code changes..."
+    local was_running=false
+    if training_alive; then
+        was_running=true
+        stop_training
+    fi
+
+    # Rename old log
+    if [ -f "logs/weekend-run/nohup.log" ]; then
+        local n=1
+        while [ -f "logs/weekend-run/nohup_prev${n}.log" ]; do n=$((n+1)); done
+        mv "logs/weekend-run/nohup.log" "logs/weekend-run/nohup_prev${n}.log"
+        echo "  Old log → nohup_prev${n}.log"
+    fi
+
+    echo "  Restarting weekend mode (auto-resumes from checkpoint)..."
+    cmd_weekend "$@"
+}
+
 # ── Main ────────────────────────────────────────────────
 
 case "${1:-status}" in
@@ -308,8 +351,9 @@ case "${1:-status}" in
     status)  cmd_status ;;
     resume)  shift; cmd_resume "$@" ;;
     weekend) shift; cmd_weekend "$@" ;;
+    restart) shift; cmd_quick_restart "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|restart} [options]"
         echo ""
         echo "Commands:"
         echo "  start      Start training (default 10K games)"
@@ -317,10 +361,11 @@ case "${1:-status}" in
         echo "  status     Read status.json + tail log"
         echo "  resume     Resume from latest checkpoint"
         echo "  weekend    Long-running headless mode (default 500K games)"
+        echo "  restart    Quick restart: stop, save checkpoint, resume with code changes"
         echo ""
         echo "Options for start/weekend:"
         echo "  --games N      Total games to play"
-        echo "  --workers N    Parallel workers (default: 8)"
+        echo "  --workers N    Parallel workers (default: 24)"
         echo "  --batch N      Batch size for PPO (default: 256)"
         echo "  --asc N        Ascension level (default: 0)"
         echo "  --headless     No dashboard output (start only)"

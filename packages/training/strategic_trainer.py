@@ -344,12 +344,9 @@ class StrategicTrainer:
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
 
-        # Trim buffer: keep most recent transitions instead of clearing entirely.
-        # This ensures we always have data available for the next train step.
-        # Only trim when buffer exceeds 2 * batch_size after training.
-        if len(self.buffer) > 2 * self.batch_size:
-            # Keep the most recent batch_size transitions
-            self.buffer = self.buffer[-self.batch_size:]
+        # Don't trim buffer here — caller manages buffer lifecycle.
+        # In phased training: buffer is reused across multiple train_batch() calls
+        # and cleared by the caller after the train phase completes.
 
         return total_metrics
 

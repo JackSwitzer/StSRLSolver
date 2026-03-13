@@ -75,7 +75,7 @@ export const MissionControl = () => {
 
   const { stats, agents, episodes, focusedAgentIds, selectedAgentIndex,
           combatStates, mapStates, runStates, floorHistory, lossHistory, winHistory,
-          systemStats, mctsResult, plannerResult, deathStats } = state;
+          trainStepMarkers, systemStats, mctsResult, plannerResult, deathStats } = state;
 
   // Default placeholder agents when none connected
   const displayAgents: AgentInfo[] = agents.length > 0
@@ -358,8 +358,8 @@ export const MissionControl = () => {
               {systemStats.gpu_available && (
                 <StatBlock
                   label="GPU"
-                  value={systemStats.gpu_mem_used_gb ? `${systemStats.gpu_mem_used_gb}G` : 'idle'}
-                  color={systemStats.gpu_mem_used_gb && systemStats.gpu_mem_used_gb > 0 ? '#a78bfa' : '#8b949e'}
+                  value={systemStats.gpu_util_pct ? `${systemStats.gpu_util_pct.toFixed(0)}%` : 'idle'}
+                  color={systemStats.gpu_util_pct && systemStats.gpu_util_pct > 30 ? '#a78bfa' : '#8b949e'}
                 />
               )}
             </>
@@ -460,6 +460,7 @@ export const MissionControl = () => {
           deathStats={deathStats}
           floorHistory={floorHistory}
           winHistory={winHistory}
+          trainStepMarkers={trainStepMarkers}
         />
       ) : topView === 'feed' ? (
         <CombatFeedView

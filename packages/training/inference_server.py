@@ -27,6 +27,7 @@ Usage (main process):
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 import logging
 import queue
@@ -325,15 +326,18 @@ class InferenceServer:
         self._strategic_backend: Optional[MLXStrategicBackend | TorchStrategicBackend] = None
         self._strategic_obs_buffer: Optional[np.ndarray] = None
         self._strategic_mask_buffer: Optional[np.ndarray] = None
+        self._combat_obs_buffer: Optional[np.ndarray] = None
+        self._combat_mask_buffer: Optional[np.ndarray] = None
 
         # Stats
         self._stats_lock = threading.Lock()
+        self._ROLLING = 1000  # window size for rolling stats
         self._stats = {
             "total_requests": 0,
             "total_batches": 0,
-            "batch_sizes": [],          # rolling window of last 1000
-            "queue_wait_ms": [],         # rolling window of last 1000
-            "forward_ms": [],            # rolling window of last 1000
+            "batch_sizes": deque(maxlen=self._ROLLING),
+            "queue_wait_ms": deque(maxlen=self._ROLLING),
+            "forward_ms": deque(maxlen=self._ROLLING),
             "strategic_requests": 0,
             "combat_requests": 0,
             "errors": 0,
@@ -341,8 +345,6 @@ class InferenceServer:
             "enqueued_version": 0,
             "applied_version": 0,
         }
-        _ROLLING = 1000  # window size for rolling stats
-        self._ROLLING = _ROLLING
 
         # Daemon thread
         self._thread = threading.Thread(
@@ -387,7 +389,7 @@ class InferenceServer:
             model: trained StrategicNet (on any device)
             version: monotonic integer identifying this checkpoint
         """
-        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        state_dict = {k: v.detach().cpu() for k, v in model.state_dict().items()}
         config = {
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,
@@ -409,10 +411,14 @@ class InferenceServer:
         """Return a snapshot of server stats. Thread-safe."""
         with self._stats_lock:
             s = dict(self._stats)
-        if s["total_batches"] > 0:
-            s["avg_batch_size"] = sum(s["batch_sizes"]) / max(len(s["batch_sizes"]), 1)
-            s["avg_queue_wait_ms"] = sum(s["queue_wait_ms"]) / max(len(s["queue_wait_ms"]), 1)
-            s["avg_forward_ms"] = sum(s["forward_ms"]) / max(len(s["forward_ms"]), 1)
+            # Convert deques to summary stats (avoid serializing large rolling windows)
+            s["avg_batch_size"] = sum(s["batch_sizes"]) / max(len(s["batch_sizes"]), 1) if s["batch_sizes"] else 0
+            s["avg_queue_wait_ms"] = sum(s["queue_wait_ms"]) / max(len(s["queue_wait_ms"]), 1) if s["queue_wait_ms"] else 0
+            s["avg_forward_ms"] = sum(s["forward_ms"]) / max(len(s["forward_ms"]), 1) if s["forward_ms"] else 0
+        # Drop raw rolling windows from snapshot (not JSON-serializable, not needed externally)
+        s.pop("batch_sizes", None)
+        s.pop("queue_wait_ms", None)
+        s.pop("forward_ms", None)
         return s
 
     # ------------------------------------------------------------------
@@ -519,7 +525,7 @@ class InferenceServer:
             self._forward_strategic(strategic_reqs)
 
         if combat_reqs:
-            self._forward_combat_placeholder(combat_reqs)
+            self._forward_combat(combat_reqs)
 
         for req in unknown_reqs:
             self._send_error(req, f"unknown route: {req.get('route')!r}")
@@ -534,16 +540,10 @@ class InferenceServer:
             s["total_batches"] += 1
             s["strategic_requests"] += len(strategic_reqs)
             s["combat_requests"] += len(combat_reqs)
-            # Rolling windows (deque-free approach)
+            # Rolling windows (deque handles maxlen automatically)
             s["batch_sizes"].append(n)
-            if len(s["batch_sizes"]) > self._ROLLING:
-                s["batch_sizes"] = s["batch_sizes"][-self._ROLLING :]
             s["queue_wait_ms"].append(queue_wait_ms)
-            if len(s["queue_wait_ms"]) > self._ROLLING:
-                s["queue_wait_ms"] = s["queue_wait_ms"][-self._ROLLING :]
             s["forward_ms"].append(fwd_ms)
-            if len(s["forward_ms"]) > self._ROLLING:
-                s["forward_ms"] = s["forward_ms"][-self._ROLLING :]
 
     def _get_strategic_batch_buffers(
         self,
@@ -614,10 +614,69 @@ class InferenceServer:
             }
             self._send_response(req["worker_slot"], resp)
 
-    def _forward_combat_placeholder(self, reqs: list) -> None:
-        """Placeholder: combat net not yet implemented."""
-        for req in reqs:
-            self._send_error(req, "combat backend not yet implemented")
+    def _get_combat_batch_buffers(self, input_dim: int, action_dim: int) -> tuple:
+        """Return reusable numpy buffers for combat route."""
+        obs_shape = (self.max_batch_size, input_dim)
+        if self._combat_obs_buffer is None or self._combat_obs_buffer.shape != obs_shape:
+            self._combat_obs_buffer = np.empty(obs_shape, dtype=np.float32)
+
+        mask_shape = (self.max_batch_size, action_dim)
+        if self._combat_mask_buffer is None or self._combat_mask_buffer.shape != mask_shape:
+            self._combat_mask_buffer = np.empty(mask_shape, dtype=np.bool_)
+
+        return self._combat_obs_buffer, self._combat_mask_buffer
+
+    def _forward_combat(self, reqs: list) -> None:
+        """Combat value evaluation using the strategic model's value head.
+
+        Reuses the same backend as strategic inference. Combat observations
+        are encoded by combat_state_encoder and fed through the full network,
+        but only the value output is returned.
+        """
+        if self._strategic_backend is None:
+            for req in reqs:
+                self._send_error(req, "combat backend not available (strategic model not synced)")
+            return
+
+        backend = self._strategic_backend
+        action_dim = backend.action_dim
+        input_dim = backend._net.input_dim if hasattr(backend._net, "input_dim") else 260
+
+        n = len(reqs)
+
+        obs_buf, mask_buf = self._get_combat_batch_buffers(input_dim, action_dim)
+        obs_batch = obs_buf[:n]
+        mask_batch = mask_buf[:n]
+        obs_batch.fill(0.0)
+        mask_batch.fill(True)  # All actions "valid" — we only use the value head
+
+        for i, req in enumerate(reqs):
+            obs = req.get("obs")
+            _copy_obs_into(obs_batch[i], obs, input_dim)
+
+        try:
+            _logits_batch, values_batch = backend.forward_batch(obs_batch, mask_batch)
+        except Exception as exc:
+            logger.error("InferenceServer: combat forward_batch failed: %s", exc, exc_info=True)
+            with self._stats_lock:
+                self._stats["errors"] += n
+            for req in reqs:
+                self._send_error(req, f"combat forward_batch error: {exc}")
+            return
+
+        version = backend.version
+        for i, req in enumerate(reqs):
+            resp = {
+                "kind": "result",
+                "req_id": req["req_id"],
+                "ok": True,
+                "route": "combat",
+                "version": version,
+                "logits": None,
+                "value": float(values_batch[i]),
+                "error": None,
+            }
+            self._send_response(req["worker_slot"], resp)
 
     def _send_response(self, worker_slot: int, resp: dict) -> None:
         """Deliver a response to a worker's response queue."""

@@ -160,6 +160,35 @@ def _collect_system_stats() -> Dict[str, Any]:
     except Exception:
         pass
 
+    # Apple Silicon GPU utilization via IOKit (works for Metal/MLX compute)
+    try:
+        import subprocess
+        ioreg_out = subprocess.check_output(
+            ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
+            timeout=2, text=True, stderr=subprocess.DEVNULL,
+        )
+        for line in ioreg_out.splitlines():
+            if "Device Utilization %" in line:
+                # Format: "Device Utilization %"=52
+                val = line.split("=")[-1].strip().rstrip("}")
+                gpu_util_pct = float(val)
+                break
+    except Exception:
+        pass
+
+    # Read training status.json if overnight runner is active
+    training_status = {}
+    for status_path in ("logs/weekend-run/status.json", "logs/training/status.json"):
+        try:
+            import json as _json
+            from pathlib import Path
+            sp = Path(status_path)
+            if sp.exists() and (time.time() - sp.stat().st_mtime < 120):
+                training_status = _json.loads(sp.read_text())
+                break
+        except Exception:
+            pass
+
     return {
         "cpu_pct": round(cpu_pct, 1),
         "per_cpu": per_cpu,
@@ -171,9 +200,11 @@ def _collect_system_stats() -> Dict[str, Any]:
         "swap_total_gb": swap_total_gb,
         "gpu_available": _GPU_INFO["available"],
         "gpu_name": _GPU_INFO["name"],
+        "gpu_util_pct": round(gpu_util_pct, 1),
         "gpu_mem_used_gb": gpu_mem_used_gb,
         "gpu_mem_allocated_gb": gpu_mem_allocated_gb,
         "processes": proc_breakdown,
+        "training_status": training_status,
     }
 
 _STRATEGY_NAMES = {
@@ -671,7 +702,46 @@ class GameServer:
                         worker_count = len(self._training.processes)
                     except Exception:
                         worker_count = self._training.num_agents if self._training else 0
-                msg = json.dumps({
+                # Read live worker status files for grid display
+                import json as _json
+                from pathlib import Path
+                worker_agents = []
+                try:
+                    worker_dir = Path("logs/weekend-run/workers")
+                    if worker_dir.exists():
+                        for wf in worker_dir.glob("*.json"):
+                            try:
+                                data = _json.loads(wf.read_text())
+                                worker_agents.append({
+                                    "id": data.get("id", 0),
+                                    "name": data.get("name", wf.stem),
+                                    "phase": data.get("phase", "?"),
+                                    "floor": data.get("floor", 0),
+                                    "hp": data.get("hp", 0),
+                                    "max_hp": data.get("max_hp", 80),
+                                    "seed": data.get("seed", ""),
+                                    "status": "playing",
+                                    "enemy": data.get("enemy", ""),
+                                    "episode": 0,
+                                    "wins": 0,
+                                })
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+                # Read recent episodes for dashboard
+                recent_episodes = []
+                for ep_path_str in ("logs/weekend-run/recent_episodes.json", "logs/training/recent_episodes.json"):
+                    try:
+                        ep_path = Path(ep_path_str)
+                        if ep_path.exists() and (time.time() - ep_path.stat().st_mtime < 120):
+                            recent_episodes = _json.loads(ep_path.read_text())
+                            break
+                    except Exception:
+                        pass
+
+                result = {
                     "type": MessageType.SYSTEM_STATS.value,
                     "cpu_pct": stats["cpu_pct"],
                     "per_cpu": stats.get("per_cpu", []),
@@ -684,12 +754,16 @@ class GameServer:
                     "workers": worker_count,
                     "gpu_available": stats["gpu_available"],
                     "gpu_name": stats.get("gpu_name", "N/A"),
+                    "gpu_util_pct": stats.get("gpu_util_pct", 0),
                     "gpu_mem_used_gb": stats.get("gpu_mem_used_gb", 0),
                     "gpu_mem_allocated_gb": stats.get("gpu_mem_allocated_gb", 0),
                     "processes": stats.get("processes", {}),
+                    "training_status": stats.get("training_status", {}),
                     "paused": self._training.paused if self._training else False,
                     "timestamp": round(time.time(), 1),
-                })
+                    "recent_episodes": recent_episodes,
+                }
+                msg = json.dumps(result)
                 dead = set()
                 for ws in self._connections:
                     try:
@@ -697,6 +771,18 @@ class GameServer:
                     except websockets.ConnectionClosed:
                         dead.add(ws)
                 self._connections -= dead
+
+                # Send grid_update separately if we have worker data
+                if worker_agents:
+                    grid_msg = json.dumps({
+                        "type": "grid_update",
+                        "agents": worker_agents,
+                    })
+                    for ws in self._connections:
+                        try:
+                            await ws.send(grid_msg)
+                        except websockets.ConnectionClosed:
+                            pass
             except Exception as exc:
                 logger.debug("system_stats broadcast error: %s", exc)
 

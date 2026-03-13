@@ -54,6 +54,7 @@ const initialState: FullState = {
     floorHistory: [],
     lossHistory: [],
     winHistory: [],
+    trainStepMarkers: [],
     paused: false,
     deathStats: { byFloor: {}, byEnemy: {}, floorEnemyPairs: [], totalDeaths: 0 },
   },
@@ -115,8 +116,21 @@ function reducer(state: FullState, action: Action): FullState {
       }};
       return { ...state, training: { ...t, runStates } };
     }
-    case 'system_stats':
-      return { ...state, training: { ...t, systemStats: action.stats } };
+    case 'system_stats': {
+      // Detect training step increments and record markers
+      const newSteps = (action.stats.training_status?.train_steps as number | undefined) ?? 0;
+      const prevSteps = (t.systemStats?.training_status?.train_steps as number | undefined) ?? 0;
+      let trainStepMarkers = t.trainStepMarkers;
+      if (newSteps > prevSteps && t.floorHistory.length > 0) {
+        // Record a marker for each new step at the current floorHistory length
+        const newMarkers: { index: number; step: number }[] = [];
+        for (let s = prevSteps + 1; s <= newSteps; s++) {
+          newMarkers.push({ index: t.floorHistory.length - 1, step: s });
+        }
+        trainStepMarkers = [...trainStepMarkers, ...newMarkers].slice(-100);
+      }
+      return { ...state, training: { ...t, systemStats: action.stats, trainStepMarkers } };
+    }
     case 'metrics_history':
       return {
         ...state,
@@ -125,6 +139,7 @@ function reducer(state: FullState, action: Action): FullState {
           floorHistory: action.floor_history.slice(-MAX_HISTORY),
           lossHistory: action.loss_history.slice(-MAX_HISTORY),
           winHistory: action.win_history.slice(-MAX_HISTORY),
+          trainStepMarkers: [],  // Reset markers when history is replaced wholesale
         },
       };
     case 'toggle_focus': {
@@ -244,6 +259,16 @@ export function useTrainingState() {
               break;
             case 'system_stats':
               dispatch({ type: 'system_stats', stats: msg });
+              // Inject recent episodes from overnight trainer (if available and not yet seen)
+              if (msg.recent_episodes && Array.isArray(msg.recent_episodes)) {
+                const lastSeen = (window as any).__lastEpisodeNum ?? 0;
+                for (const ep of msg.recent_episodes) {
+                  if (ep.episode && ep.episode > lastSeen) {
+                    dispatch({ type: 'agent_episode', episode: ep });
+                    (window as any).__lastEpisodeNum = ep.episode;
+                  }
+                }
+              }
               break;
             case 'metrics_history':
               dispatch({ type: 'metrics_history', floor_history: msg.floor_history, loss_history: msg.loss_history, win_history: msg.win_history });

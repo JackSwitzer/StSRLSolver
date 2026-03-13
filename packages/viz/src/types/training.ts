@@ -165,9 +165,11 @@ export interface SystemStatsMsg {
   workers: number;
   gpu_available?: boolean;
   gpu_name?: string;
+  gpu_util_pct?: number;
   gpu_mem_used_gb?: number;
   gpu_mem_allocated_gb?: number;
   processes?: Record<string, ProcessCategory>;
+  training_status?: Record<string, any>;
   paused?: boolean;
 }
 
@@ -237,6 +239,7 @@ export interface TrainingState {
   floorHistory: number[];
   lossHistory: number[];
   winHistory: number[];
+  trainStepMarkers: { index: number; step: number }[];  // floorHistory index where each training step completed
   paused: boolean;
   deathStats: DeathStats;
 }

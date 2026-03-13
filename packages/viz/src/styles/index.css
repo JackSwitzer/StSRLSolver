@@ -386,6 +386,11 @@ button {
   50% { opacity: 1.0; }
 }
 
+@keyframes phase-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1.0; }
+}
+
 /* ---- Deck View Overlay ---- */
 
 .deck-view-overlay {

@@ -184,10 +184,10 @@ export function TrainingMetricsView({ stats, systemStats, floorHistory, lossHist
                 <UsageBar pct={sys.ram_pct} color={sys.ram_pct > 85 ? 'bg-red-500' : sys.ram_pct > 70 ? 'bg-yellow-500' : 'bg-blue-500'} />
               </div>
               <div>
-                <Stat label="GPU" value={sys.gpu_available ? (sys.gpu_name ?? 'Available') : 'N/A'}
-                      sub={sys.gpu_mem_used_gb ? `${sys.gpu_mem_used_gb} GB used` : undefined} />
-                {sys.gpu_mem_used_gb != null && sys.gpu_mem_used_gb > 0 && (
-                  <UsageBar pct={(sys.gpu_mem_used_gb / Math.max(sys.ram_total_gb * 0.75, 1)) * 100} color="bg-purple-500" />
+                <Stat label="GPU" value={sys.gpu_util_pct ? `${sys.gpu_util_pct.toFixed(0)}% util` : (sys.gpu_available ? 'idle' : 'N/A')}
+                      sub={sys.gpu_name ?? undefined} />
+                {sys.gpu_util_pct != null && sys.gpu_util_pct > 0 && (
+                  <UsageBar pct={sys.gpu_util_pct} color="bg-purple-500" />
                 )}
               </div>
               <div>

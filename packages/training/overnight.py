@@ -24,6 +24,7 @@ Phase 2B changes (centralized inference server):
 
 from __future__ import annotations
 
+import gc
 import json
 import logging
 import multiprocessing as mp
@@ -39,65 +40,20 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 DEFAULT_SWEEP_CONFIGS = [
-    # --- Pure on-policy: bigger batches for 7M+ model, 50ms TurnSolver ---
-    {"name": "pure_low_lr_b512", "epsilon_mode": "none",
-     "lr": 3e-5, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 512, "entropy_coeff": 0.03, "temperature": 0.8,
-     "turn_solver_ms": 50.0},
-    {"name": "pure_med_b1024", "epsilon_mode": "none",
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 50.0},
-    {"name": "pure_high_b2048", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 2048, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 50.0},
-    {"name": "pure_restarts_b1024", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 1024, "entropy_coeff": 0.08, "temperature": 1.0,
-     "turn_solver_ms": 50.0},
-
-    # --- Importance-weighted epsilon-greedy (off-policy correction) ---
-    {"name": "iw_low_lr_b1024", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.7, "epsilon_end": 0.2, "epsilon_decay": 40000,
-     "lr": 5e-5, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 1024, "entropy_coeff": 0.02, "temperature": 0.8,
-     "turn_solver_ms": 50.0},
-    {"name": "iw_med_b512", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.8, "epsilon_end": 0.3, "epsilon_decay": 50000,
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 50.0},
-    {"name": "iw_high_b1024", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.5, "epsilon_end": 0.2, "epsilon_decay": 30000,
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 1024, "entropy_coeff": 0.03, "temperature": 0.7,
-     "turn_solver_ms": 50.0},
-    {"name": "iw_restarts_b2048", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.6, "epsilon_end": 0.25, "epsilon_decay": 40000,
-     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 2048, "entropy_coeff": 0.08, "temperature": 1.0,
-     "turn_solver_ms": 50.0},
-
-    # --- Turbo configs (higher TurnSolver budget, larger batch) ---
-    {"name": "turbo_fast_b1024", "epsilon_mode": "none",
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 1024, "entropy_coeff": 0.03, "temperature": 0.8,
-     "turn_solver_ms": 25.0},
-    {"name": "turbo_deep_b1024", "epsilon_mode": "none",
-     "lr": 3e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 1024, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 100.0},
-    {"name": "turbo_deep_b2048", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.6, "epsilon_end": 0.2, "epsilon_decay": 40000,
-     "lr": 1e-4, "lr_schedule": "cosine", "lr_T_max": 40000,
-     "batch_size": 2048, "entropy_coeff": 0.05, "temperature": 1.0,
-     "turn_solver_ms": 100.0},
-    {"name": "turbo_max_b2048", "epsilon_mode": "none",
-     "lr": 5e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 5000,
-     "batch_size": 2048, "entropy_coeff": 0.08, "temperature": 1.0,
-     "turn_solver_ms": 100.0},
+    # Single focused config — no weight forking, all budget goes to learning.
+    # Importance-weighted epsilon-greedy mixes heuristic expertise with learned policy.
+    {"name": "focused_iw_b1024", "epsilon_mode": "importance_weighted",
+     "epsilon_start": 0.7, "epsilon_end": 0.15, "epsilon_decay": 80000,
+     "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
+     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 0.9,
+     "turn_solver_ms": 30.0},
 ]
+
+# Best trajectory replay: keep top N trajectories by floor for experience replay.
+# Replayed at REPLAY_MIX_RATIO fraction of each training batch.
+REPLAY_BUFFER_SIZE = 500       # Max trajectories to keep
+REPLAY_MIN_FLOOR = 8           # Only replay runs that reached at least this floor
+REPLAY_MIX_RATIO = 0.25        # 25% of each batch is replayed best trajectories
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
 ASCENSION_BREAKPOINTS = [
@@ -107,6 +63,77 @@ ASCENSION_BREAKPOINTS = [
     (33, 0.10, 7),   # Reaching Act 2 boss at 10% -> A7
     (33, 0.25, 10),  # 25% WR past Act 2 -> A10
 ]
+
+
+# ---------------------------------------------------------------------------
+# Trajectory replay buffer — keeps best runs for experience replay
+# ---------------------------------------------------------------------------
+
+class TrajectoryReplayBuffer:
+    """Priority buffer that keeps the highest-floor trajectories for replay.
+
+    Transitions from top runs are mixed into training batches so the model
+    learns from its best experiences, not just its latest (often worse) ones.
+    """
+
+    def __init__(self, max_trajectories: int = REPLAY_BUFFER_SIZE,
+                 min_floor: int = REPLAY_MIN_FLOOR):
+        self.max_trajectories = max_trajectories
+        self.min_floor = min_floor
+        self._buffer: List[Dict[str, Any]] = []  # [{floor, transitions}]
+        self._total_transitions = 0
+
+    def maybe_add(self, floor: int, transitions: List[Dict[str, Any]], won: bool) -> bool:
+        """Add trajectory if it meets quality threshold. Returns True if added."""
+        if floor < self.min_floor and not won:
+            return False
+        if not transitions:
+            return False
+
+        entry = {"floor": floor, "won": won, "transitions": transitions}
+
+        if len(self._buffer) < self.max_trajectories:
+            self._buffer.append(entry)
+            self._total_transitions += len(transitions)
+            return True
+
+        # Replace worst trajectory if this one is better
+        worst_idx = min(range(len(self._buffer)),
+                        key=lambda i: (self._buffer[i]["won"], self._buffer[i]["floor"]))
+        worst = self._buffer[worst_idx]
+        if (won, floor) > (worst["won"], worst["floor"]):
+            self._total_transitions -= len(worst["transitions"])
+            self._buffer[worst_idx] = entry
+            self._total_transitions += len(transitions)
+            return True
+        return False
+
+    def sample_transitions(self, n: int) -> List[Dict[str, Any]]:
+        """Sample n transitions from the buffer, weighted toward higher-floor runs."""
+        if not self._buffer or self._total_transitions == 0:
+            return []
+
+        # Weight by floor^2 so better runs are sampled much more
+        weights = np.array([(e["floor"] ** 2) for e in self._buffer], dtype=np.float64)
+        weights /= weights.sum()
+
+        result = []
+        for _ in range(n):
+            traj_idx = int(np.random.choice(len(self._buffer), p=weights))
+            traj = self._buffer[traj_idx]["transitions"]
+            t_idx = int(np.random.randint(len(traj)))
+            result.append(traj[t_idx])
+        return result
+
+    @property
+    def size(self) -> int:
+        return len(self._buffer)
+
+    @property
+    def best_floor(self) -> int:
+        if not self._buffer:
+            return 0
+        return max(e["floor"] for e in self._buffer)
 
 
 # ---------------------------------------------------------------------------
@@ -142,10 +169,41 @@ def compute_potential(run_state) -> float:
 
 
 # Event rewards scaled by HP efficiency
+# Per-combat HP loss penalty (per HP lost — moderate to avoid dominating rewards)
+DAMAGE_TAKEN_PENALTY = -0.03
+# Potion use without meaningful gain penalty
+POTION_WASTE_PENALTY = -0.15
+
+# Potion usage rewards — encourage smart potion use on hard fights
+POTION_USE_ELITE_REWARD = 0.50   # Potion used during elite fight
+POTION_USE_BOSS_REWARD = 0.50    # Potion used during boss fight
+POTION_SAVE_HP_REWARD = 0.02     # Per HP saved by using potion defensively
+# Bonus for killing elite/boss where potion was used
+POTION_KILL_SAME_TURN = 1.0      # Lethal turn with potion
+POTION_KILL_SAME_FIGHT = 0.50    # Won fight where potion was used
+# Potion value penalty — using a potion costs its inherent value
+POTION_USE_VALUE_PENALTY = -0.30  # Moderate cost to discourage waste
+
 EVENT_REWARDS = {
     "combat_win": 0.05,
-    "elite_win": 0.15,
-    "boss_win": 0.40,
+    "elite_win": 0.30,
+    "boss_win": 0.80,
+}
+
+# Floor milestone rewards — triggered once per game when reaching key floors
+# Act 1: elite ~floor 6-7, campfire before boss ~floor 15, boss floor 16
+# Negative reward for dying (scaled by how early the death is)
+FLOOR_MILESTONES = {
+    6: 0.10,    # Survived early floors, first elite territory
+    10: 0.15,   # Mid-act 1
+    15: 0.25,   # Final campfire before Act 1 boss
+    16: 0.50,   # Reached Act 1 boss
+    17: 1.00,   # Beat Act 1 boss (entered Act 2)
+    25: 0.30,   # Mid-act 2
+    33: 0.50,   # Reached Act 2 boss
+    34: 1.00,   # Beat Act 2 boss (entered Act 3)
+    50: 0.50,   # Reached Act 3 boss
+    51: 1.50,   # Beat Act 3 boss
 }
 
 # Stall detection: if avg floor doesn't improve over this many games, reset entropy
@@ -155,11 +213,35 @@ STALL_IMPROVEMENT_THRESHOLD = 0.5  # Must improve avg floor by at least this muc
 # Stance transition reward shaping (initialized, learnable via hot-reload)
 # Calm (blue) = safe energy, Wrath (red) = damage but risky, Divinity (purple) = burst
 STANCE_CHANGE_REWARDS = {
-    "Calm": 0.1,       # Blue — energy generation, defensive
-    "Wrath": 0.2,      # Red — damage mode, rewarded more than passive
-    "Divinity": 0.3,   # Purple — burst damage, highest reward
+    "Calm": 0.30,      # Blue — energy generation, safe turns
+    "Wrath": 1.50,     # Red — main offensive tool, highest reward
+    "Divinity": 0.20,  # Purple — burst damage (lower for now, Prostrate spam)
     "Neutral": 0.0,    # No reward for going neutral
 }
+
+# Card pick rewards — bonus for picking key Watcher cards (especially Act 1)
+# These are on top of PBRS deck quality changes
+CARD_PICK_REWARDS: Dict[str, float] = {
+    # Tier 1 — build-defining Watcher cards
+    "Rushdown": 0.30,    "Rushdown+": 0.30,
+    "Tantrum": 0.25,     "Tantrum+": 0.25,
+    "MentalFortress": 0.25, "MentalFortress+": 0.25,
+    "TalkToTheHand": 0.20, "TalkToTheHand+": 0.20,
+    # Tier 2 — strong support
+    "InnerPeace": 0.15,  "InnerPeace+": 0.15,
+    "Ragnarok": 0.15,    "Ragnarok+": 0.15,
+    "CutThroughFate": 0.10, "CutThroughFate+": 0.10,
+    "WheelKick": 0.10,   "WheelKick+": 0.10,
+    "Conclude": 0.10,    "Conclude+": 0.10,
+    "EmptyFist": 0.10,   "EmptyFist+": 0.10,
+    # Negative — bad picks that bloat the deck
+    "Prostrate": -0.10,  "Prostrate+": -0.10,
+    "Pray": -0.05,       "Pray+": -0.05,
+    "Crescendo": -0.05,  "Crescendo+": -0.05,
+}
+
+# Card removal reward (shop remove, events, etc.)
+SHOP_REMOVE_REWARD = 0.40  # Higher than elite win — deck thinning is critical
 
 
 # ---------------------------------------------------------------------------
@@ -473,6 +555,7 @@ def _worker_init(request_q, response_qs, slot_q):
     response queue to listen on. If slot acquisition fails, the worker
     runs without an InferenceClient (falls back to heuristic planner).
     """
+    global _worker_name
     from packages.training.inference_server import InferenceClient
     try:
         slot_id = slot_q.get(timeout=10)
@@ -480,9 +563,22 @@ def _worker_init(request_q, response_qs, slot_q):
         # No slot available — worker runs without inference server.
         # This is safer than defaulting to slot 0 (which would collide).
         logger.warning("Worker failed to acquire slot from slot_q — running heuristic-only")
+        _worker_name = "Heuristic"
         return
     InferenceClient.setup_worker(request_q, response_qs[slot_id], slot_id)
+    _worker_name = _WORKER_NAMES[slot_id % len(_WORKER_NAMES)]
 
+
+# Worker name — set per-process in _worker_init
+_worker_name = "Unknown"
+
+# Worker names — mapped by slot_id for dashboard display
+_WORKER_NAMES = [
+    "Watcher", "Ironclad", "Silent", "Defect",
+    "Neow", "Lagavulin", "Hexaghost", "Champ",
+    "Collector", "Automaton", "Donu", "Deca",
+    "Awakened", "Heart", "Spiker", "Reptomancer",
+]
 
 # ---------------------------------------------------------------------------
 # Worker function — runs in subprocess via mp.Pool
@@ -538,6 +634,29 @@ def _play_one_game(
 
     client = get_client()
 
+    # Worker status file for live dashboard grid
+    import os
+    _worker_id = os.getpid()
+    _wname = globals().get("_worker_name", f"W{_worker_id}")
+    _status_dir = Path("logs/weekend-run/workers")
+    _status_dir.mkdir(parents=True, exist_ok=True)
+    _status_file = _status_dir / f"{_wname}.json"
+    _last_status_floor = -1
+
+    def _write_worker_status(floor, phase_str, hp, max_hp, seed_str, in_combat=False, enemy=""):
+        nonlocal _last_status_floor
+        if floor == _last_status_floor and not in_combat:
+            return  # Only update on floor change or combat events
+        _last_status_floor = floor
+        try:
+            _status_file.write_text(json.dumps({
+                "name": _wname, "id": _worker_id, "seed": seed_str, "floor": floor,
+                "phase": phase_str, "hp": hp, "max_hp": max_hp,
+                "enemy": enemy, "ts": round(time.monotonic(), 1),
+            }))
+        except Exception:
+            pass
+
     try:
         runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
     except Exception:
@@ -549,6 +668,7 @@ def _play_one_game(
     t0 = time.monotonic()
     step = 0
     prev_floor = 0
+    reached_milestones: set = set()
     prev_potential = compute_potential(runner.run_state)
     decisions = 0
     transitions: List[Dict[str, Any]] = []
@@ -565,6 +685,7 @@ def _play_one_game(
     combat_turns = 0
     combat_start_time = 0.0
     combat_potions_used = 0
+    event_reward_potion_use = 0.0
     combat_stance_changes = 0
     prev_stance = "Neutral"
     # Per-turn card tracking
@@ -583,6 +704,13 @@ def _play_one_game(
         rs = runner.run_state
         current_floor = getattr(rs, "floor", 0)
 
+        # Update worker status on floor change
+        if current_floor != _last_status_floor:
+            _write_worker_status(
+                current_floor, phase.name if hasattr(phase, 'name') else str(phase),
+                getattr(rs, "current_hp", 0), getattr(rs, "max_hp", 80), seed,
+            )
+
         if phase == GamePhase.COMBAT:
             if not was_in_combat:
                 # Combat just started — reset solver cache, record baseline
@@ -592,6 +720,7 @@ def _play_one_game(
                 combat_turns = 0
                 combat_start_time = time.monotonic()
                 combat_potions_used = 0
+                event_reward_potion_use = 0.0
                 combat_stance_changes = 0
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
@@ -608,6 +737,12 @@ def _play_one_game(
                     turn_cards.append(card_id)
                 elif atype == "use_potion":
                     combat_potions_used += 1
+                    # Reward potion use during elite/boss fights
+                    _rt = combat_room_type.lower() if isinstance(combat_room_type, str) else "monster"
+                    if _rt in ("elite", "e"):
+                        event_reward_potion_use += POTION_USE_ELITE_REWARD
+                    elif _rt in ("boss", "b"):
+                        event_reward_potion_use += POTION_USE_BOSS_REWARD
                     turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
                 elif atype == "end_turn":
                     combat_turns += 1
@@ -783,11 +918,51 @@ def _play_one_game(
                     hp_pct = new_rs.current_hp / max(new_rs.max_hp, 1)
                     event_reward *= (0.5 + 0.5 * hp_pct)
 
-                # Card removal reward (deck thinning is almost always good)
+                    # Penalize HP lost in combat (encourages blocking/stance management)
+                    hp_lost = max(0, combat_start_hp - getattr(new_rs, "current_hp", 0))
+                    event_reward += DAMAGE_TAKEN_PENALTY * hp_lost
+
+                    # Penalize wasteful potion use (used potion but still lost lots of HP)
+                    if combat_potions_used > 0 and hp_pct < 0.5:
+                        event_reward += POTION_WASTE_PENALTY * combat_potions_used
+
+                    # Reward potion use in elite/boss fights that were won
+                    if combat_potions_used > 0 and rt in ("elite", "e", "boss", "b"):
+                        event_reward += POTION_KILL_SAME_FIGHT
+                        # Add accumulated per-potion-use rewards
+                        event_reward += event_reward_potion_use
+
+                # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
                 if new_deck_size < prev_deck_size:
-                    event_reward += 0.20 * (prev_deck_size - new_deck_size)
+                    event_reward += SHOP_REMOVE_REWARD * (prev_deck_size - new_deck_size)
+
+                # Card pick reward for key Watcher cards (added to deck)
+                elif new_deck_size > prev_deck_size:
+                    new_deck = list(getattr(new_rs, "deck", []))
+                    if new_deck:
+                        picked = new_deck[-1]  # Most recently added CardInstance
+                        card_id = getattr(picked, "id", str(picked))
+                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
+                        if pick_reward > 0:
+                            act_mult = 1.5 if current_floor <= 17 else 1.0
+                            event_reward += pick_reward * act_mult
+
                 prev_deck_size = new_deck_size
+
+                # Stance change reward (during combat)
+                new_combat = getattr(runner, "current_combat", None)
+                if new_combat is not None:
+                    new_stance = getattr(new_combat.state, "stance", "Neutral")
+                    if new_stance != prev_stance and new_stance in STANCE_CHANGE_REWARDS:
+                        event_reward += STANCE_CHANGE_REWARDS[new_stance]
+
+                # Floor milestone rewards (one-time per game)
+                new_floor = getattr(new_rs, "floor", 0)
+                for milestone_floor, milestone_reward in FLOOR_MILESTONES.items():
+                    if new_floor >= milestone_floor and milestone_floor not in reached_milestones:
+                        event_reward += milestone_reward
+                        reached_milestones.add(milestone_floor)
 
                 reward = pbrs_reward + event_reward
                 prev_potential = new_potential
@@ -847,10 +1022,12 @@ def _play_one_game(
     if transitions:
         if truly_terminal:
             if won:
-                transitions[-1]["reward"] += 1.0
+                transitions[-1]["reward"] += 2.0
             else:
                 progress = final_floor / 55.0
-                transitions[-1]["reward"] += -0.5 * (1 - progress)
+                # Stronger death penalty, especially for early deaths
+                # Floor 1 death: -1.0, floor 16 death: -0.71, floor 50 death: -0.09
+                transitions[-1]["reward"] += -1.0 * (1 - progress)
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE
         # bootstraps from value estimate instead of zero
@@ -878,6 +1055,12 @@ def _play_one_game(
         death_enemies = getattr(runner, "last_death_enemies", [])
         if death_enemies:
             death_enemy = ", ".join(death_enemies)
+    except Exception:
+        pass
+
+    # Clear worker status file (game done)
+    try:
+        _status_file.unlink(missing_ok=True)
     except Exception:
         pass
 
@@ -962,6 +1145,12 @@ class OvernightRunner:
         # Current sweep config (set by _run_config for epsilon forwarding)
         self._current_sweep_config: Dict[str, Any] = {}
 
+        # Recent episodes for dashboard broadcast
+        self._recent_episodes: Deque[Dict[str, Any]] = deque(maxlen=100)
+
+        # Last training metrics for dashboard visibility
+        self._last_train_metrics: Dict[str, float] = {}
+
         # Inference server + persistent pool (created in run())
         self._server = None
         self._executor: Optional[Any] = None
@@ -1020,7 +1209,7 @@ class OvernightRunner:
         status_path.write_text(json.dumps(status, indent=2))
 
     def _record_game(self, result: Dict[str, Any]) -> None:
-        """Record a game result."""
+        """Record a game result and write recent_episodes.json for dashboard."""
         self.total_games += 1
         if result["won"]:
             self.total_wins += 1
@@ -1028,6 +1217,275 @@ class OvernightRunner:
         self.recent_wins.append(result["won"])
         if result.get("construction_failure"):
             self._construction_failures += 1
+
+        # Append to recent episodes buffer for dashboard visibility
+        ep = {
+            "type": "agent_episode",
+            "agent_id": 0,
+            "seed": result.get("seed", ""),
+            "won": result.get("won", False),
+            "floors_reached": result.get("floor", 0),
+            "hp_remaining": result.get("hp", 0),
+            "total_steps": result.get("decisions", 0),
+            "duration": result.get("duration_s", 0),
+            "episode": self.total_games,
+            "death_floor": result.get("floor", 0) if not result.get("won") else None,
+            "death_enemy": result.get("death_enemy"),
+            "combats": result.get("combats", []),
+            "deck_changes": result.get("deck_changes", []),
+        }
+        self._recent_episodes.append(ep)
+        # Write every 10 games to avoid I/O spam
+        if self.total_games % 10 == 0:
+            try:
+                ep_path = self.run_dir / "recent_episodes.json"
+                ep_path.write_text(json.dumps(list(self._recent_episodes), default=str))
+            except Exception:
+                pass
+
+    def _save_best_trajectory(self, result: Dict[str, Any]) -> None:
+        """Save transitions from top runs to disk for future warm-starts."""
+        floor = result.get("floor", 0)
+        transitions = result.get("transitions", [])
+        if floor < 8 or not transitions:
+            return
+
+        traj_dir = self.run_dir / "best_trajectories"
+        traj_dir.mkdir(exist_ok=True)
+
+        # Keep max 200 trajectory files — replace worst if full
+        existing = sorted(traj_dir.glob("traj_F*.npz"), key=lambda p: p.stat().st_mtime)
+        if len(existing) >= 200:
+            # Parse floor from filename, remove lowest
+            floors = []
+            for p in existing:
+                try:
+                    f = int(p.stem.split("_F")[1].split("_")[0])
+                    floors.append((f, p))
+                except (IndexError, ValueError):
+                    floors.append((0, p))
+            floors.sort(key=lambda x: x[0])
+            if floors[0][0] < floor:
+                floors[0][1].unlink()
+            else:
+                return  # This trajectory isn't better than worst saved
+
+        # Serialize transitions as numpy arrays
+        obs = np.array([t["obs"] for t in transitions], dtype=np.float32)
+        masks = np.array([t["action_mask"] for t in transitions], dtype=np.bool_)
+        actions = np.array([t["action"] for t in transitions], dtype=np.int32)
+        rewards = np.array([t["reward"] for t in transitions], dtype=np.float32)
+        dones = np.array([t["done"] for t in transitions], dtype=np.bool_)
+        values = np.array([t["value"] for t in transitions], dtype=np.float32)
+        log_probs = np.array([t["log_prob"] for t in transitions], dtype=np.float32)
+        final_floors = np.array([t["final_floor"] for t in transitions], dtype=np.float32)
+        cleared_act1 = np.array([t["cleared_act1"] for t in transitions], dtype=np.float32)
+
+        fname = f"traj_F{floor:02d}_{result['seed']}.npz"
+        np.savez_compressed(
+            traj_dir / fname,
+            obs=obs, masks=masks, actions=actions, rewards=rewards,
+            dones=dones, values=values, log_probs=log_probs,
+            final_floors=final_floors, cleared_act1=cleared_act1,
+            floor=np.array([floor]),
+        )
+
+    def _pretrain_from_trajectories(self, trainer, model) -> int:
+        """Load saved best trajectories and pretrain for a few epochs. Returns steps taken."""
+        traj_dir = self.run_dir / "best_trajectories"
+        if not traj_dir.exists():
+            return 0
+
+        traj_files = sorted(traj_dir.glob("traj_F*.npz"),
+                            key=lambda p: p.stem, reverse=True)
+        if not traj_files:
+            return 0
+
+        logger.info("Pretraining from %d saved trajectories...", len(traj_files))
+
+        # Load all trajectories into trainer buffer
+        total_transitions = 0
+        for tf in traj_files:
+            try:
+                data = np.load(tf)
+                n = len(data["obs"])
+                ep_id = hash(tf.stem) % (2**31)
+                for i in range(n):
+                    trainer.add_transition(
+                        obs=data["obs"][i],
+                        action_mask=data["masks"][i],
+                        action=int(data["actions"][i]),
+                        reward=float(data["rewards"][i]),
+                        done=bool(data["dones"][i]),
+                        value=float(data["values"][i]),
+                        log_prob=float(data["log_probs"][i]),
+                        episode_id=ep_id,
+                    )
+                    buf_t = trainer.buffer[-1]
+                    buf_t.final_floor = float(data["final_floors"][i])
+                    buf_t.cleared_act1 = float(data["cleared_act1"][i])
+                total_transitions += n
+            except Exception as e:
+                logger.warning("Failed to load trajectory %s: %s", tf.name, e)
+
+        if total_transitions == 0:
+            return 0
+
+        # Run several training epochs on this data
+        pretrain_steps = 0
+        for epoch in range(3):
+            if len(trainer.buffer) >= trainer.batch_size:
+                metrics = trainer.train_batch()
+                pretrain_steps += 1
+                logger.info("Pretrain epoch %d: loss=%.4f, %d transitions",
+                            epoch, metrics.get("total_loss", 0), total_transitions)
+                # Sync weights to inference server
+                if self._server is not None:
+                    self._server.sync_strategic_from_pytorch(
+                        model, version=trainer.train_steps
+                    )
+
+        logger.info("Pretrained %d steps on %d transitions from %d trajectories",
+                    pretrain_steps, total_transitions, len(traj_files))
+        return pretrain_steps
+
+    def _deep_distillation(self, trainer, model, replay_buffer) -> int:
+        """Deep distillation: load ALL trajectories + replay buffer and train intensively.
+
+        Unlike _pretrain_from_trajectories (behavioral cloning warmup, 3 steps),
+        this runs 50 full PPO train_batch() calls with 8 epochs each for a
+        one-time deep bootstrap before the main collect/train loop begins.
+
+        Returns number of training steps completed.
+        """
+        from packages.training.strategic_trainer import StrategicTransition
+
+        traj_dir = self.run_dir / "best_trajectories"
+        total_loaded = 0
+        files_loaded = 0
+        files_failed = 0
+
+        # 1) Load ALL .npz trajectory files
+        if traj_dir.exists():
+            traj_files = sorted(traj_dir.glob("traj_F*.npz"),
+                                key=lambda p: p.stem, reverse=True)
+            logger.info("Deep distillation: loading %d trajectory files...", len(traj_files))
+
+            for tf in traj_files:
+                try:
+                    data = np.load(tf)
+                    n = len(data["obs"])
+                    ep_id = hash(tf.stem) % (2**31)
+                    for i in range(n):
+                        st = StrategicTransition(
+                            obs=data["obs"][i],
+                            action_mask=data["masks"][i],
+                            action=int(data["actions"][i]),
+                            reward=float(data["rewards"][i]),
+                            done=bool(data["dones"][i]),
+                            value=float(data["values"][i]),
+                            log_prob=float(data["log_probs"][i]),
+                            episode_id=ep_id,
+                            final_floor=float(data["final_floors"][i]),
+                            cleared_act1=float(data["cleared_act1"][i]),
+                        )
+                        trainer.buffer.append(st)
+                    total_loaded += n
+                    files_loaded += 1
+                except Exception as e:
+                    logger.warning("Deep distill: failed to load %s: %s", tf.name, e)
+                    files_failed += 1
+
+        # 2) Load all replay buffer transitions
+        replay_loaded = 0
+        if replay_buffer.size > 0:
+            replay_transitions = replay_buffer.sample_transitions(
+                n=replay_buffer._total_transitions,  # sample everything
+            )
+            for t in replay_transitions:
+                try:
+                    st = StrategicTransition(
+                        obs=t["obs"], action_mask=t["action_mask"],
+                        action=t["action"], reward=t["reward"],
+                        done=t["done"], value=t["value"],
+                        log_prob=t["log_prob"],
+                        episode_id=t.get("episode_id", 0),
+                        final_floor=t.get("final_floor", 0),
+                        cleared_act1=t.get("cleared_act1", 0),
+                        cleared_act2=t.get("cleared_act2", 0),
+                        cleared_act3=t.get("cleared_act3", 0),
+                    )
+                    trainer.buffer.append(st)
+                    replay_loaded += 1
+                except (KeyError, TypeError) as e:
+                    logger.debug("Deep distill: skip replay transition: %s", e)
+                    continue
+
+        if total_loaded + replay_loaded == 0:
+            logger.info("Deep distillation: no data to distill from, skipping")
+            return 0
+
+        logger.info(
+            "Deep distillation: %d transitions from %d files (%d failed) + %d replay. "
+            "Buffer size: %d. Starting 50-step intensive training...",
+            total_loaded, files_loaded, files_failed, replay_loaded, len(trainer.buffer),
+        )
+
+        # 3) Run 50 train_batch() calls with 8 PPO epochs each
+        DISTILL_STEPS = 50
+        DISTILL_EPOCHS = 8
+        orig_epochs = trainer.ppo_epochs
+        trainer.ppo_epochs = DISTILL_EPOCHS
+        distill_count = 0
+        distill_t0 = time.monotonic()
+
+        for step in range(DISTILL_STEPS):
+            if len(trainer.buffer) < trainer.batch_size // 2:
+                logger.warning("Deep distillation: buffer too small (%d < %d), stopping at step %d",
+                               len(trainer.buffer), trainer.batch_size // 2, step)
+                break
+
+            try:
+                metrics = trainer.train_batch()
+                distill_count += 1
+            except Exception as e:
+                logger.warning("Deep distillation: train_batch failed at step %d: %s", step, e)
+                break
+
+            if (step + 1) % 5 == 0 or step == 0:
+                elapsed = time.monotonic() - distill_t0
+                logger.info(
+                    "  Distill step %d/%d: loss=%.4f, policy=%.4f, value=%.4f, "
+                    "entropy=%.4f, buffer=%d [%.1fs elapsed]",
+                    step + 1, DISTILL_STEPS,
+                    metrics.get("total_loss", 0),
+                    metrics.get("policy_loss", 0),
+                    metrics.get("value_loss", 0),
+                    metrics.get("entropy", 0),
+                    len(trainer.buffer),
+                    elapsed,
+                )
+
+        trainer.ppo_epochs = orig_epochs
+
+        # 4) Sync weights to inference server
+        if self._server is not None and distill_count > 0:
+            self._server.sync_strategic_from_pytorch(
+                model, version=trainer.train_steps
+            )
+
+        # Clear buffer after distillation — main loop will collect fresh data
+        trainer.buffer.clear()
+
+        distill_duration = time.monotonic() - distill_t0
+        logger.info(
+            "Deep distillation complete: %d steps in %.1fs (%.1f steps/sec). "
+            "Total train_steps now: %d",
+            distill_count, distill_duration,
+            distill_count / max(distill_duration, 0.01),
+            trainer.train_steps,
+        )
+        return distill_count
 
     def _log_episode(self, result: Dict[str, Any]) -> None:
         """Append one episode to episodes.jsonl."""
@@ -1074,11 +1532,21 @@ class OvernightRunner:
         encoder = RunStateEncoder()
 
         # Initialize model (optionally resume from checkpoint)
+        _warm_checkpoint = None  # Will hold optimizer/scheduler state if available
         if self.resume_path:
             try:
                 model = StrategicNet.load(self.resume_path, device=device)
                 model.train()
-                logger.info("Resumed model from %s", self.resume_path)
+                # Try to load warm-restart state (optimizer, scheduler, etc.)
+                ckpt = torch.load(self.resume_path, map_location=device, weights_only=False)
+                if "optimizer_state_dict" in ckpt:
+                    _warm_checkpoint = ckpt
+                    logger.info("Warm resume from %s (train_steps=%d, games=%d)",
+                                self.resume_path,
+                                ckpt.get("train_steps", 0),
+                                ckpt.get("total_games", 0))
+                else:
+                    logger.info("Cold resume from %s (model weights only)", self.resume_path)
             except Exception as e:
                 logger.warning("Failed to resume from %s: %s — starting fresh", self.resume_path, e)
                 model = StrategicNet(
@@ -1107,14 +1575,10 @@ class OvernightRunner:
         self._server.start()
         logger.info("InferenceServer started (workers=%d)", self.workers)
 
-        # Persistent worker pool using server's queues (spawn context for Metal safety)
-        ctx = mp.get_context("spawn")
-        self._executor = ctx.Pool(
-            processes=self.workers,
-            initializer=_worker_init,
-            initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
-        )
-        logger.info("Worker pool started (%d processes)", self.workers)
+        # Worker pool is created AFTER distillation to enforce strict GPU phase
+        # separation: distillation (PPO training) must complete before any
+        # workers spawn that would compete for GPU via inference requests.
+        # Pool creation happens inside _run_config() after distillation.
 
         # --- Signal handlers ---
         def _handle_shutdown(signum, frame):
@@ -1130,6 +1594,7 @@ class OvernightRunner:
                     import json as _json
                     cfg = _json.loads(reload_path.read_text())
                     logger.info("Hot-reload from %s: %s", reload_path, cfg)
+                    # --- Training hyperparams ---
                     if "entropy_coeff" in cfg:
                         trainer.entropy_coeff = cfg["entropy_coeff"]
                         logger.info("  entropy_coeff -> %s", cfg["entropy_coeff"])
@@ -1140,9 +1605,78 @@ class OvernightRunner:
                         for pg in trainer.optimizer.param_groups:
                             pg["lr"] = cfg["lr"]
                         logger.info("  lr -> %s", cfg["lr"])
+                    if "clip_epsilon" in cfg:
+                        trainer.clip_epsilon = cfg["clip_epsilon"]
+                        logger.info("  clip_epsilon -> %s", cfg["clip_epsilon"])
+                    if "batch_size" in cfg:
+                        trainer.batch_size = cfg["batch_size"]
+                        logger.info("  batch_size -> %s", cfg["batch_size"])
+
+                    # --- Reward shaping ---
                     if "stance_rewards" in cfg:
                         STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
                         logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
+                    if "event_rewards" in cfg:
+                        EVENT_REWARDS.update(cfg["event_rewards"])
+                        logger.info("  event_rewards -> %s", EVENT_REWARDS)
+                    if "floor_milestones" in cfg:
+                        # Accept {floor_str: reward} and convert keys to int
+                        FLOOR_MILESTONES.update({int(k): v for k, v in cfg["floor_milestones"].items()})
+                        logger.info("  floor_milestones -> %s", FLOOR_MILESTONES)
+                    if "card_pick_rewards" in cfg:
+                        CARD_PICK_REWARDS.update(cfg["card_pick_rewards"])
+                        logger.info("  card_pick_rewards -> %s", CARD_PICK_REWARDS)
+                    if "shop_remove_reward" in cfg:
+                        global SHOP_REMOVE_REWARD
+                        SHOP_REMOVE_REWARD = cfg["shop_remove_reward"]
+                        logger.info("  shop_remove_reward -> %s", SHOP_REMOVE_REWARD)
+
+                    # --- Replay buffer ---
+                    if "replay_mix_ratio" in cfg:
+                        global REPLAY_MIX_RATIO
+                        REPLAY_MIX_RATIO = cfg["replay_mix_ratio"]
+                        logger.info("  replay_mix_ratio -> %s", REPLAY_MIX_RATIO)
+                    if "replay_min_floor" in cfg and hasattr(self, '_replay_buffer'):
+                        self._replay_buffer.min_floor = cfg["replay_min_floor"]
+                        logger.info("  replay_min_floor -> %s", cfg["replay_min_floor"])
+
+                    # --- Damage/potion penalties ---
+                    if "damage_penalty" in cfg:
+                        global DAMAGE_TAKEN_PENALTY
+                        DAMAGE_TAKEN_PENALTY = cfg["damage_penalty"]
+                        logger.info("  damage_penalty -> %s", DAMAGE_TAKEN_PENALTY)
+                    if "potion_waste_penalty" in cfg:
+                        global POTION_WASTE_PENALTY
+                        POTION_WASTE_PENALTY = cfg["potion_waste_penalty"]
+                        logger.info("  potion_waste_penalty -> %s", POTION_WASTE_PENALTY)
+                    if "potion_use_elite_reward" in cfg:
+                        global POTION_USE_ELITE_REWARD
+                        POTION_USE_ELITE_REWARD = cfg["potion_use_elite_reward"]
+                        logger.info("  potion_use_elite_reward -> %s", POTION_USE_ELITE_REWARD)
+                    if "potion_use_boss_reward" in cfg:
+                        global POTION_USE_BOSS_REWARD
+                        POTION_USE_BOSS_REWARD = cfg["potion_use_boss_reward"]
+                        logger.info("  potion_use_boss_reward -> %s", POTION_USE_BOSS_REWARD)
+                    if "potion_kill_same_turn" in cfg:
+                        global POTION_KILL_SAME_TURN
+                        POTION_KILL_SAME_TURN = cfg["potion_kill_same_turn"]
+                        logger.info("  potion_kill_same_turn -> %s", POTION_KILL_SAME_TURN)
+                    if "potion_kill_same_fight" in cfg:
+                        global POTION_KILL_SAME_FIGHT
+                        POTION_KILL_SAME_FIGHT = cfg["potion_kill_same_fight"]
+                        logger.info("  potion_kill_same_fight -> %s", POTION_KILL_SAME_FIGHT)
+
+                    # --- Epsilon schedule ---
+                    if "epsilon_start" in cfg:
+                        self._current_sweep_config["epsilon_start"] = cfg["epsilon_start"]
+                        logger.info("  epsilon_start -> %s", cfg["epsilon_start"])
+                    if "epsilon_end" in cfg:
+                        self._current_sweep_config["epsilon_end"] = cfg["epsilon_end"]
+                        logger.info("  epsilon_end -> %s", cfg["epsilon_end"])
+                    if "epsilon_decay" in cfg:
+                        self._current_sweep_config["epsilon_decay"] = cfg["epsilon_decay"]
+                        logger.info("  epsilon_decay -> %s", cfg["epsilon_decay"])
+
                     reload_path.unlink()
                 except Exception as e:
                     logger.error("Hot-reload failed: %s", e)
@@ -1165,19 +1699,17 @@ class OvernightRunner:
 
         config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
 
-        # Save base weights before sweep — each config forks from this checkpoint
-        import copy
-        _sweep_base_state = copy.deepcopy(model.state_dict())
+        # Replay buffer for best trajectory distillation
+        replay_buffer = TrajectoryReplayBuffer(
+            max_trajectories=REPLAY_BUFFER_SIZE,
+            min_floor=REPLAY_MIN_FLOOR,
+        )
+        self._replay_buffer = replay_buffer
 
-        def _run_config(sweep_idx: int, sweep_config: Dict, n_games: int, fork_weights: bool = True) -> Dict[str, Any]:
+        def _run_config(sweep_idx: int, sweep_config: Dict, n_games: int, fork_weights: bool = False) -> Dict[str, Any]:
             """Run a config for n_games, return metrics."""
-            nonlocal best_avg_floor
-            # Fork: restore base weights so each config starts from same point
-            if fork_weights:
-                model.load_state_dict(copy.deepcopy(_sweep_base_state))
-                if self._server is not None:
-                    self._server.sync_strategic_from_pytorch(model, version=0)
-                logger.info("Forked weights for config %d", sweep_idx)
+            nonlocal best_avg_floor, _warm_checkpoint
+            # No weight forking — learning accumulates across configs
             self._current_sweep_idx = sweep_idx
             self._current_sweep_config = sweep_config
             lr = sweep_config.get("lr", 1e-4)
@@ -1196,6 +1728,37 @@ class OvernightRunner:
                 lr_T_0=sweep_config.get("lr_T_0", 5000),
             )
 
+            # Warm restart: restore optimizer + scheduler state from checkpoint
+            if _warm_checkpoint is not None:
+                try:
+                    trainer.optimizer.load_state_dict(_warm_checkpoint["optimizer_state_dict"])
+                    trainer.scheduler.load_state_dict(_warm_checkpoint["scheduler_state_dict"])
+                    trainer.train_steps = _warm_checkpoint.get("train_steps", 0)
+                    if "entropy_coeff" in _warm_checkpoint:
+                        trainer.entropy_coeff = _warm_checkpoint["entropy_coeff"]
+                    logger.info("Warm restart: optimizer restored (train_steps=%d, entropy=%.4f)",
+                                trainer.train_steps, trainer.entropy_coeff)
+                except Exception as e:
+                    logger.warning("Could not restore optimizer state: %s — using fresh optimizer", e)
+                _warm_checkpoint = None  # Only restore once
+
+            # Pretrain from saved best trajectories (behavioral cloning warmup)
+            self._pretrain_from_trajectories(trainer, model)
+
+            # Deep distillation: intensive PPO training on all saved data (one-time bootstrap)
+            self._deep_distillation(trainer, model, replay_buffer)
+
+            # Create worker pool AFTER distillation — strict GPU phase separation.
+            # Workers use InferenceServer for GPU, which would compete with PPO training.
+            if self._executor is None:
+                ctx = mp.get_context("spawn")
+                self._executor = ctx.Pool(
+                    processes=self.workers,
+                    initializer=_worker_init,
+                    initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
+                )
+                logger.info("Worker pool started (%d processes) — distillation complete", self.workers)
+
             config_name = sweep_config.get("name", f"config_{sweep_idx}")
             sweep_games = 0
             sweep_start = time.monotonic()
@@ -1209,88 +1772,177 @@ class OvernightRunner:
                 batch_size, temp, ts_ms,
             )
 
-            # Pipelined loop: submit next batch BEFORE training on current data.
-            # Workers play on slightly stale weights (MLX) while MPS trains.
-            # This overlaps GPU training with CPU game simulation.
-            pending_seeds: Optional[List[str]] = None
-            pending_async: Optional[List[Any]] = None
+            # Phased loop: COLLECT games → TRAIN on best data → repeat.
+            # Workers pause during training so GPU is fully available for PPO.
+            # This gives cleaner weight updates and room for deep MCTS.
+            COLLECT_GAMES = 100   # Games per collect phase
+            TRAIN_EPOCHS = 8     # PPO epochs during train phase
+            TRAIN_STEPS_PER_PHASE = 10  # Train batch calls per phase
             games_per_min = 0.0
 
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
-                batch_t0 = time.monotonic()
+                # ── COLLECT PHASE ──────────────────────────────
+                # Run games, accumulate transitions in buffer
+                collect_t0 = time.monotonic()
+                collect_games = 0
+                phase_results: List[Dict[str, Any]] = []
 
-                if pending_async is None:
-                    # First iteration: submit and collect sequentially
-                    seeds, async_results = self._submit_batch(seed_pool)
-                    batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
-                else:
-                    # Overlap: train on buffer while previous batch's games finish
-                    train_metrics = None
-                    if len(trainer.buffer) >= trainer.batch_size:
-                        train_metrics = trainer.train_batch()
-                        # Sync weights so NEXT batch uses updated model
-                        if self._server is not None:
-                            self._server.sync_strategic_from_pytorch(
-                                model, version=trainer.train_steps
-                            )
-
-                    # Now collect the pending batch results
-                    batch_results = self._collect_batch(
-                        pending_seeds, pending_async, seed_pool, trainer,
-                    )
-
-                    # Process training metrics (from training done during collection)
-                    if train_metrics is not None:
-                        self._process_train_metrics(
-                            train_metrics, trainer, config_name, sweep_floors,
-                            games_per_min, best_avg_floor,
-                        )
-                        if trainer.maybe_checkpoint(
-                            sum(self.recent_floors) / max(len(self.recent_floors), 1)
-                        ):
-                            best_avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
-                            logger.info("New best avg floor: %.1f", best_avg_floor)
-                        if self.total_games % 5000 < self.games_per_batch:
-                            self._check_ascension_bump()
-
-                batch_duration = time.monotonic() - batch_t0
-
-                for result in batch_results:
-                    self._record_game(result)
-                    self._log_episode(result)
-                    sweep_games += 1
-                    sweep_floors.append(result["floor"])
-
-                games_per_min = len(batch_results) / max(batch_duration / 60.0, 0.01)
-
-                # Submit NEXT batch immediately (non-blocking) so workers start playing
-                # while we handle bookkeeping
-                if sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
-                    pending_seeds, pending_async = self._submit_batch(seed_pool)
-                else:
-                    pending_seeds, pending_async = None, None
-
+                logger.info("=== COLLECT phase: gathering %d games ===", COLLECT_GAMES)
                 self.write_status({
-                    "sweep_config": sweep_config,
-                    "sweep_phase": "adaptive",
-                    "config_name": config_name,
-                    "sweep_games": sweep_games,
+                    "sweep_config": sweep_config, "sweep_phase": "collecting",
+                    "config_name": config_name, "sweep_games": sweep_games,
                     "train_steps": trainer.train_steps,
                     "buffer_size": len(trainer.buffer),
                     "games_per_min": round(games_per_min, 1),
-                    "entropy_coeff": trainer.entropy_coeff,
+                    "total_loss": self._last_train_metrics.get("total_loss"),
+                    "policy_loss": self._last_train_metrics.get("policy_loss"),
+                    "value_loss": self._last_train_metrics.get("value_loss"),
+                    "entropy": self._last_train_metrics.get("entropy"),
                 })
 
-            # Drain any remaining pending batch
-            if pending_async is not None:
-                batch_results = self._collect_batch(
-                    pending_seeds, pending_async, seed_pool, trainer,
+                while collect_games < COLLECT_GAMES and not self._shutdown_requested:
+                    seeds, async_results = self._submit_batch(seed_pool)
+                    batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
+                    for result in batch_results:
+                        self._record_game(result)
+                        self._log_episode(result)
+                        self._save_best_trajectory(result)
+                        phase_results.append(result)
+                        sweep_games += 1
+                        sweep_floors.append(result["floor"])
+                        collect_games += 1
+
+                collect_duration = time.monotonic() - collect_t0
+                games_per_min = collect_games / max(collect_duration / 60.0, 0.01)
+                avg_floor_phase = sum(r["floor"] for r in phase_results) / max(len(phase_results), 1)
+                logger.info(
+                    "  Collected %d games in %.0fs (%.0f g/min), avg floor %.1f, buffer %d",
+                    collect_games, collect_duration, games_per_min, avg_floor_phase, len(trainer.buffer),
                 )
-                for result in batch_results:
-                    self._record_game(result)
-                    self._log_episode(result)
-                    sweep_games += 1
-                    sweep_floors.append(result["floor"])
+
+                if self._shutdown_requested:
+                    break
+
+                # ── TRAIN PHASE ────────────────────────────────
+                # Pause workers (no new batches), train intensively on accumulated data
+                train_t0 = time.monotonic()
+                train_steps_before = trainer.train_steps
+                train_count = 0
+
+                # Also mix in best trajectories from replay buffer
+                if replay_buffer.size > 0:
+                    from packages.training.strategic_trainer import StrategicTransition
+                    raw_transitions = replay_buffer.sample_transitions(
+                        n=min(trainer.batch_size, 512),
+                    )
+                    mixed_count = 0
+                    for t in raw_transitions:
+                        try:
+                            st = StrategicTransition(
+                                obs=t["obs"], action_mask=t["action_mask"],
+                                action=t["action"], reward=t["reward"],
+                                done=t["done"], value=t["value"],
+                                log_prob=t["log_prob"],
+                                episode_id=t.get("episode_id", 0),
+                                final_floor=t.get("final_floor", 0),
+                                cleared_act1=t.get("cleared_act1", 0),
+                                cleared_act2=t.get("cleared_act2", 0),
+                                cleared_act3=t.get("cleared_act3", 0),
+                            )
+                            trainer.buffer.append(st)
+                            mixed_count += 1
+                        except (KeyError, TypeError):
+                            continue
+                    if mixed_count > 0:
+                        logger.info("  Mixed in %d replay transitions (best floor %d)",
+                                    mixed_count, replay_buffer.best_floor)
+
+                # Save original epochs, temporarily increase for deeper training
+                orig_epochs = trainer.ppo_epochs
+                trainer.ppo_epochs = TRAIN_EPOCHS
+
+                logger.info("=== TRAIN phase: %d steps, %d epochs, buffer %d ===",
+                            TRAIN_STEPS_PER_PHASE, TRAIN_EPOCHS, len(trainer.buffer))
+                self.write_status({
+                    "sweep_config": sweep_config, "sweep_phase": "training",
+                    "config_name": config_name, "sweep_games": sweep_games,
+                    "train_steps": trainer.train_steps,
+                    "buffer_size": len(trainer.buffer),
+                    "games_per_min": round(games_per_min, 1),
+                    "total_loss": self._last_train_metrics.get("total_loss"),
+                    "policy_loss": self._last_train_metrics.get("policy_loss"),
+                    "value_loss": self._last_train_metrics.get("value_loss"),
+                    "entropy": self._last_train_metrics.get("entropy"),
+                })
+
+                for _ in range(TRAIN_STEPS_PER_PHASE):
+                    if len(trainer.buffer) < trainer.batch_size // 2:
+                        break  # Not enough data
+                    train_metrics = trainer.train_batch()
+                    train_count += 1
+                    self._process_train_metrics(
+                        train_metrics, trainer, config_name, sweep_floors,
+                        games_per_min, best_avg_floor,
+                    )
+
+                # Restore original epochs
+                trainer.ppo_epochs = orig_epochs
+
+                # Clear buffer after train phase — data has been consumed
+                trainer.buffer.clear()
+
+                # Sync weights to inference server
+                if self._server is not None and train_count > 0:
+                    self._server.sync_strategic_from_pytorch(
+                        model, version=trainer.train_steps
+                    )
+
+                train_duration = time.monotonic() - train_t0
+                steps_done = trainer.train_steps - train_steps_before
+                logger.info(
+                    "  Trained %d steps in %.1fs (%.1f steps/sec), loss %.4f",
+                    steps_done, train_duration,
+                    steps_done / max(train_duration, 0.01),
+                    self._last_train_metrics.get("total_loss", 0),
+                )
+
+                # Checkpoint management
+                current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+                if trainer.maybe_checkpoint(current_avg):
+                    best_avg_floor = current_avg
+                    logger.info("New best avg floor: %.1f", best_avg_floor)
+                if self.total_games % 5000 < COLLECT_GAMES:
+                    self._check_ascension_bump()
+
+                # Periodic warm checkpoint
+                if self.total_games % 2000 < COLLECT_GAMES:
+                    _ckpt_extra = {
+                        "optimizer_state_dict": trainer.optimizer.state_dict(),
+                        "scheduler_state_dict": trainer.scheduler.state_dict(),
+                        "train_steps": trainer.train_steps,
+                        "total_games": self.total_games,
+                        "entropy_coeff": trainer.entropy_coeff,
+                    }
+                    model.save(self.run_dir / "periodic_checkpoint.pt", extra=_ckpt_extra)
+                    model.save(self.run_dir / "shutdown_checkpoint.pt", extra=_ckpt_extra)
+
+                self.write_status({
+                    "sweep_config": sweep_config, "sweep_phase": "adaptive",
+                    "config_name": config_name, "sweep_games": sweep_games,
+                    "train_steps": trainer.train_steps,
+                    "buffer_size": len(trainer.buffer),
+                    "replay_buffer": replay_buffer.size,
+                    "replay_best_floor": replay_buffer.best_floor,
+                    "games_per_min": round(games_per_min, 1),
+                    "entropy_coeff": trainer.entropy_coeff,
+                    "total_loss": self._last_train_metrics.get("total_loss"),
+                    "policy_loss": self._last_train_metrics.get("policy_loss"),
+                    "value_loss": self._last_train_metrics.get("value_loss"),
+                    "entropy": self._last_train_metrics.get("entropy"),
+                })
+
+                # GC between phases
+                gc.collect()
 
             # Final training pass on remaining buffer
             if len(trainer.buffer) >= trainer.batch_size:
@@ -1323,49 +1975,31 @@ class OvernightRunner:
             result = _run_config(idx, cfg, phase1_games_per)
             config_scores[idx] = result
 
-        # Update base weights from phase 1 best for phase 2 forking
-        if config_scores:
-            best_phase1 = max(config_scores.items(), key=lambda x: x[1]["avg_floor"])[0]
-            # Load the best config's trained state as new base
-            # (model currently holds last config's state; re-run best briefly if needed)
-            _sweep_base_state = copy.deepcopy(model.state_dict())
-
-        # Phase 2: Keep top 3 by avg_floor
+        # With single config, Phase 2+3 just continue training on the same config.
+        # No weight forking — learning accumulates continuously.
         if not self._shutdown_requested and config_scores:
-            sorted_configs = sorted(config_scores.items(),
-                                    key=lambda x: x[1]["avg_floor"], reverse=True)
-            top3 = sorted_configs[:3]
-            top_names = ", ".join(
-                f"{self.sweep_configs[idx].get('name', '?')} ({info['avg_floor']:.1f})"
-                for idx, info in top3
-            )
-            logger.info("=== Phase 2: Top 3 configs: %s ===", top_names)
-
-            for idx, _ in top3:
-                if self._shutdown_requested:
-                    break
-                result = _run_config(idx, self.sweep_configs[idx], phase2_games_per)
-                config_scores[idx] = result
-
-        # Phase 3: All-in on best
-        if not self._shutdown_requested and config_scores:
-            sorted_configs = sorted(config_scores.items(),
-                                    key=lambda x: x[1]["avg_floor"], reverse=True)
-            best_idx = sorted_configs[0][0]
-            best_cfg = self.sweep_configs[best_idx]
             remaining = self.max_games - self.total_games
-            logger.info("=== Phase 3: All-in on '%s' (%.1f avg floor, %d games remaining) ===",
-                         best_cfg.get("name", "?"), sorted_configs[0][1]["avg_floor"], remaining)
-
             if remaining > 0:
+                best_idx = 0
+                best_cfg = self.sweep_configs[best_idx]
+                logger.info("=== Continuing training (%d games remaining, replay=%d/%d) ===",
+                             remaining, replay_buffer.size, replay_buffer.best_floor)
                 _run_config(best_idx, best_cfg, remaining, fork_weights=False)
 
         # Save checkpoint and clean up
+        # Build warm-restart state (optimizer + scheduler + training metadata)
+        _warm_state = {
+            "optimizer_state_dict": trainer.optimizer.state_dict(),
+            "scheduler_state_dict": trainer.scheduler.state_dict(),
+            "train_steps": trainer.train_steps,
+            "total_games": self.total_games,
+            "entropy_coeff": trainer.entropy_coeff,
+        }
         if self._shutdown_requested:
-            logger.info("Saving checkpoint before shutdown...")
-            model.save(self.run_dir / "shutdown_checkpoint.pt")
+            logger.info("Saving warm checkpoint before shutdown...")
+            model.save(self.run_dir / "shutdown_checkpoint.pt", extra=_warm_state)
             logger.info("Checkpoint saved to %s", self.run_dir / "shutdown_checkpoint.pt")
-        model.save(self.run_dir / "final_strategic.pt")
+        model.save(self.run_dir / "final_strategic.pt", extra=_warm_state)
         self._write_summary()
 
         # Cleanup inference server and worker pool
@@ -1415,6 +2049,11 @@ class OvernightRunner:
         best_avg_floor: float,
     ) -> None:
         """Handle post-training bookkeeping: entropy decay, stall detection, logging."""
+        # Store last metrics for dashboard visibility via status.json
+        self._last_train_metrics = {
+            k: v for k, v in metrics.items()
+            if isinstance(v, (int, float))
+        }
         sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
         if sweep_avg > 7.0:
             trainer.decay_entropy(min_coeff=0.02, decay=0.999)
@@ -1520,6 +2159,36 @@ class OvernightRunner:
 
             seed_pool.record_result(seed, {"won": result["won"], "floor": result["floor"]})
             results.append(result)
+
+            # Add to replay buffer if good enough
+            if hasattr(self, "_replay_buffer") and result.get("transitions"):
+                self._replay_buffer.maybe_add(
+                    result["floor"], result["transitions"], result["won"]
+                )
+
+        # Mix in replay transitions (25% of batch size)
+        if hasattr(self, "_replay_buffer") and self._replay_buffer.size > 0:
+            n_replay = max(1, int(len(results) * REPLAY_MIX_RATIO))
+            replay_transitions = self._replay_buffer.sample_transitions(n_replay * 8)  # ~8 transitions per game
+            if replay_transitions:
+                self._episode_counter += 1
+                replay_ep_id = self._episode_counter
+                for t in replay_transitions:
+                    trainer.add_transition(
+                        obs=t["obs"],
+                        action_mask=t["action_mask"],
+                        action=t["action"],
+                        reward=t["reward"],
+                        done=t["done"],
+                        value=t["value"],
+                        log_prob=t["log_prob"],
+                        episode_id=replay_ep_id,
+                    )
+                    buf_t = trainer.buffer[-1]
+                    buf_t.final_floor = t["final_floor"]
+                    buf_t.cleared_act1 = t["cleared_act1"]
+                    buf_t.cleared_act2 = t["cleared_act2"]
+                    buf_t.cleared_act3 = t["cleared_act3"]
 
         if timed_out and self._executor is not None:
             self._recreate_pool()
