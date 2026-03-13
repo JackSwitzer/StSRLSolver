@@ -75,43 +75,105 @@ except Exception:
 
 
 def _collect_system_stats() -> Dict[str, Any]:
-    """Collect CPU%, RAM, and GPU info.  <1 ms typical with psutil."""
+    """Collect CPU%, RAM, GPU, and per-process breakdown.  ~5ms with psutil."""
     if _HAS_PSUTIL:
         cpu_pct = psutil.cpu_percent(interval=None)
+        per_cpu = psutil.cpu_percent(interval=None, percpu=True)
         mem = psutil.virtual_memory()
-        ram_used_gb = round(mem.used / (1024 ** 3), 1)
+        ram_used_gb = round(mem.used / (1024 ** 3), 2)
         ram_total_gb = round(mem.total / (1024 ** 3), 1)
         ram_pct = round(mem.percent, 1)
-    else:
-        # Fallback: use os.sysconf (macOS / Linux)
+        swap = psutil.swap_memory()
+        swap_used_gb = round(swap.used / (1024 ** 3), 2)
+        swap_total_gb = round(swap.total / (1024 ** 3), 1)
+
+        # Per-process breakdown: group by category
+        categories: Dict[str, Dict[str, float]] = {}
         try:
-            page_size = os.sysconf("SC_PAGE_SIZE")
-            total_pages = os.sysconf("SC_PHYS_PAGES")
-            ram_total_gb = round(page_size * total_pages / (1024 ** 3), 1)
-            vm_out = subprocess.check_output(["vm_stat"], timeout=1).decode()
-            free_pages = 0
-            inactive_pages = 0
-            for line in vm_out.splitlines():
-                if line.startswith("Pages free:"):
-                    free_pages = int(line.split(":")[1].strip().rstrip("."))
-                elif line.startswith("Pages inactive:"):
-                    inactive_pages = int(line.split(":")[1].strip().rstrip("."))
-            used_pages = total_pages - free_pages - inactive_pages
-            ram_used_gb = round(page_size * used_pages / (1024 ** 3), 1)
-            ram_pct = round(ram_used_gb / ram_total_gb * 100, 1) if ram_total_gb else 0.0
+            for proc in psutil.process_iter(["pid", "name", "cmdline", "cpu_percent", "memory_info"]):
+                try:
+                    info = proc.info
+                    name = info.get("name", "")
+                    cmdline = " ".join(info.get("cmdline") or [])
+                    cpu = info.get("cpu_percent", 0) or 0
+                    rss = (info.get("memory_info") or type("", (), {"rss": 0})).rss / (1024 ** 3)
+
+                    # Categorize
+                    if "overnight" in cmdline or "training" in cmdline:
+                        cat = "RL Training"
+                    elif "codex" in cmdline.lower() or "codex" in name.lower():
+                        cat = "Codex (GPT 5.4)"
+                    elif "claude" in cmdline.lower() or "claude" in name.lower():
+                        cat = "Claude Code"
+                    elif "node" in name.lower() or "bun" in name.lower() or "vite" in cmdline:
+                        cat = "Node/Vite"
+                    elif "cargo" in cmdline or "rustc" in name.lower() or "maturin" in cmdline:
+                        cat = "Rust Build"
+                    elif "python" in name.lower() or "uv" in name.lower():
+                        cat = "Python"
+                    elif "mds" in name or "spotlight" in name.lower() or "kernel_task" in name:
+                        cat = "macOS System"
+                    elif cpu > 1.0 or rss > 0.05:
+                        cat = "Other"
+                    else:
+                        continue  # Skip idle tiny processes
+
+                    if cat not in categories:
+                        categories[cat] = {"cpu": 0.0, "ram_gb": 0.0, "count": 0}
+                    categories[cat]["cpu"] += cpu
+                    categories[cat]["ram_gb"] += rss
+                    categories[cat]["count"] += 1
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
         except Exception:
-            ram_total_gb = 0.0
-            ram_used_gb = 0.0
-            ram_pct = 0.0
-        cpu_pct = 0.0  # can't reliably get CPU without psutil
+            pass
+
+        # Round category values
+        proc_breakdown = {
+            cat: {
+                "cpu": round(vals["cpu"], 1),
+                "ram_gb": round(vals["ram_gb"], 2),
+                "count": int(vals["count"]),
+            }
+            for cat, vals in sorted(categories.items(), key=lambda x: -x[1]["cpu"])
+        }
+    else:
+        cpu_pct = 0.0
+        per_cpu = []
+        ram_used_gb = 0.0
+        ram_total_gb = 0.0
+        ram_pct = 0.0
+        swap_used_gb = 0.0
+        swap_total_gb = 0.0
+        proc_breakdown = {}
+
+    # GPU memory (Apple Silicon unified memory — check via Metal/torch)
+    gpu_mem_used_gb = 0.0
+    gpu_mem_allocated_gb = 0.0
+    gpu_util_pct = 0.0
+    try:
+        import torch
+        if torch.backends.mps.is_available():
+            gpu_mem_allocated_gb = round(torch.mps.current_allocated_memory() / (1024 ** 3), 2)
+            # MPS driver memory (includes caches)
+            gpu_mem_used_gb = round(torch.mps.driver_allocated_memory() / (1024 ** 3), 2)
+    except Exception:
+        pass
 
     return {
         "cpu_pct": round(cpu_pct, 1),
+        "per_cpu": per_cpu,
+        "cpu_cores": len(per_cpu),
         "ram_pct": ram_pct,
         "ram_used_gb": ram_used_gb,
         "ram_total_gb": ram_total_gb,
+        "swap_used_gb": swap_used_gb,
+        "swap_total_gb": swap_total_gb,
         "gpu_available": _GPU_INFO["available"],
         "gpu_name": _GPU_INFO["name"],
+        "gpu_mem_used_gb": gpu_mem_used_gb,
+        "gpu_mem_allocated_gb": gpu_mem_allocated_gb,
+        "processes": proc_breakdown,
     }
 
 _STRATEGY_NAMES = {
@@ -602,15 +664,20 @@ class GameServer:
                         worker_count = self._training.num_agents if self._training else 0
                 msg = json.dumps({
                     "type": MessageType.SYSTEM_STATS.value,
-                    # Fields matching frontend SystemStatsMsg interface
                     "cpu_pct": stats["cpu_pct"],
+                    "per_cpu": stats.get("per_cpu", []),
+                    "cpu_cores": stats.get("cpu_cores", 0),
                     "ram_pct": stats["ram_pct"],
                     "ram_used_gb": stats["ram_used_gb"],
                     "ram_total_gb": stats["ram_total_gb"],
+                    "swap_used_gb": stats.get("swap_used_gb", 0),
+                    "swap_total_gb": stats.get("swap_total_gb", 0),
                     "workers": worker_count,
-                    # Extra fields (frontend ignores, but useful for debugging)
                     "gpu_available": stats["gpu_available"],
-                    "gpu_name": stats["gpu_name"],
+                    "gpu_name": stats.get("gpu_name", "N/A"),
+                    "gpu_mem_used_gb": stats.get("gpu_mem_used_gb", 0),
+                    "gpu_mem_allocated_gb": stats.get("gpu_mem_allocated_gb", 0),
+                    "processes": stats.get("processes", {}),
                     "paused": self._training.paused if self._training else False,
                     "timestamp": round(time.time(), 1),
                 })

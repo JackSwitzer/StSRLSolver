@@ -146,13 +146,29 @@ export interface PlannerResultMsg {
   elapsed_ms?: number;
 }
 
+export interface ProcessCategory {
+  cpu: number;
+  ram_gb: number;
+  count: number;
+}
+
 export interface SystemStatsMsg {
   type: 'system_stats';
   cpu_pct: number;
+  per_cpu?: number[];
+  cpu_cores?: number;
   ram_pct: number;
   ram_used_gb: number;
   ram_total_gb: number;
+  swap_used_gb?: number;
+  swap_total_gb?: number;
   workers: number;
+  gpu_available?: boolean;
+  gpu_name?: string;
+  gpu_mem_used_gb?: number;
+  gpu_mem_allocated_gb?: number;
+  processes?: Record<string, ProcessCategory>;
+  paused?: boolean;
 }
 
 export interface MetricsHistoryMsg {
