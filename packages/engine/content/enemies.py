@@ -1725,6 +1725,24 @@ class SlimeBoss(Enemy):
         """Check if should split (HP <= 50%)."""
         return self.state.current_hp <= self.state.max_hp // 2
 
+    def check_split(self, current_hp: int) -> bool:
+        """Check if the boss should split. Used by CombatEngine._check_split."""
+        if getattr(self, '_split_triggered', False):
+            return False
+        if current_hp <= self.state.max_hp // 2:
+            self._split_triggered = True
+            move = MoveInfo(self.SPLIT, "Split", Intent.UNKNOWN)
+            self.set_move(move)
+            return True
+        return False
+
+    def get_split_spawn_info(self) -> list:
+        """SlimeBoss splits into one SpikeSlime_L and one AcidSlime_L."""
+        return [
+            {"enemy_class": "SpikeSlime_L", "count": 1, "ascension": self.ascension},
+            {"enemy_class": "AcidSlime_L", "count": 1, "ascension": self.ascension},
+        ]
+
 
 class TheGuardian(Enemy):
     """

@@ -559,7 +559,23 @@ class CombatEngine:
         self.phase = CombatPhase.ENEMY_TURN
 
         for enemy in self.state.enemies:
-            if enemy.hp <= 0 or enemy.is_escaping:
+            if enemy.is_escaping:
+                continue
+
+            # Darkling revive: half_dead enemies revive on their turn
+            if enemy.half_dead and enemy.hp <= 0:
+                revive_hp = max(1, enemy.max_hp // 2)
+                enemy.hp = revive_hp
+                enemy.half_dead = False
+                # Clear debuffs on revive (Java parity)
+                for debuff in ["Weakened", "Vulnerable", "Frail", "Poison"]:
+                    enemy.statuses.pop(debuff, None)
+                self.log.log(self.state.turn, "darkling_revive",
+                            enemy=enemy.id, hp=revive_hp)
+                # Revived enemy skips attacking this turn (REINCARNATE is a buff move)
+                continue
+
+            if enemy.hp <= 0:
                 continue
 
             # Block decays at start of each enemy's turn (per-enemy)
@@ -570,7 +586,7 @@ class CombatEngine:
             if metallicize > 0:
                 enemy.block += metallicize
 
-            # Enemy poison tick
+            # Enemy poison tick (HP_LOSS in Java — ignores block, no attack triggers)
             enemy_poison = enemy.statuses.get("Poison", 0)
             if enemy_poison > 0:
                 enemy.hp -= enemy_poison
@@ -583,7 +599,10 @@ class CombatEngine:
                     enemy.statuses["Poison"] = enemy_poison
                 if enemy.hp <= 0:
                     enemy.hp = 0
-                    self._on_enemy_death(enemy)
+                    # Check split before death (poisoned Slime Boss must still split)
+                    split_happened = self._check_split(enemy)
+                    if not split_happened:
+                        self._on_enemy_death(enemy)
                     continue
 
             # Apply Ritual strength gain at start of enemy turn
@@ -861,11 +880,29 @@ class CombatEngine:
                     if e.hp > 0:
                         e.statuses["Plated Armor"] = e.statuses.get("Plated Armor", 0) + plated_amount
 
-            # Spawning enemies (Reptomancer, Collector)
+            # GremlinLeader Encourage: Strength to ALL allies + Block to minions
+            if "strength_all" in effects:
+                str_amount = effects["strength_all"]
+                for e in self.state.enemies:
+                    if e.hp > 0:
+                        e.statuses["Strength"] = e.statuses.get("Strength", 0) + str_amount
+                self.log.log(self.state.turn, "gremlin_leader_encourage_str",
+                           enemy=enemy.id, amount=str_amount)
+            if "block_minions" in effects:
+                block_amount = effects["block_minions"]
+                for e in self.state.enemies:
+                    if e.hp > 0 and e is not enemy:
+                        e.block += block_amount
+                self.log.log(self.state.turn, "gremlin_leader_encourage_block",
+                           enemy=enemy.id, amount=block_amount)
+
+            # Spawning enemies (Reptomancer, Collector, GremlinLeader)
             if "spawn_daggers" in effects:
                 self._handle_reptomancer_spawn(enemy, effects["spawn_daggers"])
             if "spawn_torchheads" in effects:
                 self._handle_collector_spawn(enemy, effects["spawn_torchheads"])
+            if "summon_gremlins" in effects:
+                self._handle_gremlin_leader_summon(enemy, effects["summon_gremlins"])
 
             # BronzeOrb Stasis: steal a card from player's draw/discard pile
             if effects.get("stasis"):
@@ -899,12 +936,20 @@ class CombatEngine:
                     real_enemy.state.current_hp = enemy.hp
                     real_enemy.state.move_history = list(enemy.move_history)
                     real_enemy.state.first_turn = enemy.first_turn
+                    # Sync half_dead for Darkling AI (get_move checks self.half_dead)
+                    if hasattr(real_enemy, 'half_dead'):
+                        real_enemy.half_dead = enemy.half_dead
                     # Pass player HP for moves that scale with it (e.g. Hexaghost Divider)
                     real_enemy.state.player_hp = self.state.player.hp
                     # Pass number of living allies for AI that cares
                     real_enemy.state.num_allies = sum(
                         1 for e2 in self.state.enemies if e2.hp > 0 and e2 is not enemy
                     )
+                    # Sync GremlinLeader's minion count for AI decisions
+                    if hasattr(real_enemy, 'num_gremlins_alive'):
+                        real_enemy.num_gremlins_alive = sum(
+                            1 for e2 in self.state.enemies if e2.hp > 0 and e2 is not enemy
+                        )
                     # Pass player constricted state for SpireGrowth AI
                     real_enemy.state.player_constricted = (
                         self.state.player.statuses.get("Constricted", 0) > 0
@@ -934,7 +979,11 @@ class CombatEngine:
     def _check_combat_end(self) -> bool:
         """Check if combat should end. Returns True if ended."""
         # All enemies dead or escaped?
-        all_dead = all(e.hp <= 0 or e.is_escaping for e in self.state.enemies)
+        # half_dead enemies (Darkling with Regrow) are NOT truly dead yet
+        all_dead = all(
+            (e.hp <= 0 and not e.half_dead) or e.is_escaping
+            for e in self.state.enemies
+        )
         if all_dead:
             self._end_combat(player_won=True)
             return True
@@ -1020,12 +1069,21 @@ class CombatEngine:
         if self.phase != CombatPhase.PLAYER_TURN or self.state.combat_over:
             return []
 
+        # Safety: if all enemies are dead but combat_over wasn't set (e.g. split
+        # edge case), force combat end now instead of looping EndTurn forever.
+        # Exclude half_dead enemies (Darkling) — they will revive on their turn.
+        if self.state.enemies and all(
+            e.hp <= 0 and not e.half_dead for e in self.state.enemies
+        ):
+            self._end_combat(player_won=True)
+            return []
+
         # If scry selection is pending, only return scry discard options
         if self.state.pending_scry_selection and self.state.pending_scry_cards:
             return self.state._get_scry_actions()
 
         actions: List[Action] = []
-        living_enemies = [i for i, e in enumerate(self.state.enemies) if e.hp > 0]
+        living_enemies = [i for i, e in enumerate(self.state.enemies) if e.is_alive()]
 
         # Card plays
         for hand_idx, card_id in enumerate(self.state.hand):
@@ -1482,6 +1540,9 @@ class CombatEngine:
                             "target": enemy.id,
                             "amount": actual_damage
                         })
+                        # Stop hitting dead enemies (prevents double _on_enemy_death)
+                        if enemy.hp <= 0:
+                            break
         elif target_index >= 0 and target_index < len(self.state.enemies):
             enemy = self.state.enemies[target_index]
             if enemy.hp > 0:
@@ -1584,9 +1645,36 @@ class CombatEngine:
         blocked = min(enemy.block, damage)
         hp_damage = damage - blocked
         enemy.block -= blocked
+
+        # onAttackedToChangeDamage on enemy (Buffer, Invincible damage cap)
+        # Java: AbstractMonster.damage() fires this after block subtraction
+        replaced_damage = execute_power_triggers(
+            "onAttackedToChangeDamage",
+            self.state,
+            enemy,
+            {"value": hp_damage, "damage_type": "NORMAL"},
+        )
+        if replaced_damage is not None:
+            hp_damage = max(0, int(replaced_damage))
+
         enemy.hp -= hp_damage
 
         self.state.total_damage_dealt += hp_damage
+
+        # wasHPLost on enemy powers (Plated Armor decrement, etc.)
+        # Java: AbstractMonster.damage() fires this after HP subtraction
+        if hp_damage > 0:
+            execute_power_triggers(
+                "wasHPLost",
+                self.state,
+                enemy,
+                {
+                    "damage": hp_damage,
+                    "unblocked": True,
+                    "is_self_damage": False,
+                    "damage_type": "NORMAL",
+                },
+            )
 
         # Hand Drill: fire onBlockBroken when enemy's block drops to 0
         # (Java: AbstractCreature.brokeBlock — fires whenever block reaches 0)
@@ -1597,14 +1685,14 @@ class CombatEngine:
         # Java: CurlUpPower.onAttacked — triggers only when damage > 0 AND
         # damage < currentHealth (non-lethal hit). HP already decremented here,
         # so non-lethal condition is enemy.hp > 0.
-        curl_up = enemy.statuses.get("Curl Up", 0)
+        curl_up = enemy.statuses.get("CurlUp", 0)
         if curl_up > 0 and hp_damage > 0 and enemy.hp > 0:
             enemy.block += curl_up
-            del enemy.statuses["Curl Up"]
+            del enemy.statuses["CurlUp"]
             self.log.log(self.state.turn, "curl_up", enemy=enemy.id, block=curl_up)
 
         # Sharp Hide (Guardian): damage player per hit
-        sharp_hide = enemy.statuses.get("Sharp Hide", 0)
+        sharp_hide = enemy.statuses.get("SharpHide", 0)
         if sharp_hide > 0:
             sh_blocked = min(self.state.player.block, sharp_hide)
             sh_hp = sharp_hide - sh_blocked
@@ -1621,48 +1709,61 @@ class CombatEngine:
             self._check_guardian_mode_shift(enemy, hp_damage)
 
         # Check split threshold (large slimes split at 50% HP)
-        if hp_damage > 0 and enemy.hp > 0:
-            self._check_split(enemy)
+        # Note: must check even when enemy.hp == 0 — a single hit can drop
+        # a splitting enemy past the threshold AND to lethal.  _check_split
+        # guards internally via max_hp // 2 and check_split().
+        split_happened = False
+        if hp_damage > 0:
+            split_happened = self._check_split(enemy)
 
         # Awakened One rebirth check (phase 1 -> phase 2)
-        if enemy.hp <= 0:
+        if enemy.hp <= 0 and not split_happened:
             if self._check_awakened_one_rebirth(enemy):
                 # Rebirth successful, enemy is back to life
                 return hp_damage
 
-        # Death trigger
-        if enemy.hp <= 0:
+        # Death trigger (skip if split already handled death)
+        if enemy.hp <= 0 and not split_happened:
             self._on_enemy_death(enemy)
 
         return hp_damage
 
-    def _check_split(self, enemy: EnemyCombatState):
-        """Check if an enemy should split (large slimes at 50% HP)."""
+    def _check_split(self, enemy: EnemyCombatState) -> bool:
+        """Check if an enemy should split (large slimes at 50% HP).
+
+        Returns True if split occurred (caller should skip separate death handling).
+        """
         if enemy.hp > enemy.max_hp // 2:
-            return
+            return False
 
         # Find the real Enemy object
         real_enemy = self._get_real_enemy(enemy)
         if real_enemy is None:
-            return
+            return False
 
         if not hasattr(real_enemy, 'check_split'):
-            return
+            return False
 
         spawn_info = real_enemy.check_split(enemy.hp)
         if not spawn_info:
-            return
+            return False
         if isinstance(spawn_info, bool):
             if not hasattr(real_enemy, "get_split_spawn_info"):
-                return
+                return False
             spawn_info = real_enemy.get_split_spawn_info()
         if isinstance(spawn_info, dict) and "ascension" not in spawn_info:
             if hasattr(real_enemy, "ascension"):
                 spawn_info["ascension"] = real_enemy.ascension
 
-        # Kill the parent
+        # Kill the parent — Java uses halfDead (no death triggers fire).
+        # Sync live combat HP so children inherit correct HP values.
+        real_enemy.state.current_hp = enemy.hp
         enemy.hp = 0
         self._spawn_enemies(spawn_info)
+
+        # If no valid children were spawned, combat may be over
+        self._check_combat_end()
+        return True
 
     def _spawn_enemies(self, spawn_info):
         """Spawn new enemies from split/summon."""
@@ -1796,13 +1897,38 @@ class CombatEngine:
 
     def _on_enemy_death(self, enemy: EnemyCombatState):
         """Handle enemy death triggers."""
+        # Darkling half_dead mechanic (Regrow power):
+        # When a Darkling dies, check if ALL regrow enemies are dead.
+        # If not, this one enters half_dead state instead of truly dying.
+        # If ALL are dead simultaneously, they all truly die.
+        if enemy.statuses.get("regrow", 0) > 0:
+            # Check if all regrow enemies are now dead (hp <= 0)
+            all_regrow_dead = all(
+                e.hp <= 0
+                for e in self.state.enemies
+                if e.statuses.get("regrow", 0) > 0
+            )
+            if all_regrow_dead:
+                # All Darklings dead simultaneously — they all truly die.
+                # Clear half_dead on any that were waiting to revive.
+                for e in self.state.enemies:
+                    if e.statuses.get("regrow", 0) > 0 and e.half_dead:
+                        e.half_dead = False
+                        self.log.log(self.state.turn, "darkling_true_death", enemy=e.id)
+                # Fall through to normal death for this enemy
+            else:
+                # Not all dead — enter half_dead state, skip death triggers
+                enemy.half_dead = True
+                self.log.log(self.state.turn, "darkling_half_dead", enemy=enemy.id)
+                return
+
         execute_power_triggers("onDeath", self.state, enemy, {"dying_enemy": enemy})
 
         # Relic onMonsterDeath triggers (Gremlin Horn, The Specimen)
         execute_relic_triggers("onMonsterDeath", self.state, {"enemy": enemy})
 
         # Spore Cloud (FungiBeast): apply Vulnerable to player
-        spore_cloud = enemy.statuses.get("Spore Cloud", 0)
+        spore_cloud = enemy.statuses.get("SporeCloud", 0)
         if spore_cloud > 0:
             self.state.player.statuses["Vulnerable"] = (
                 self.state.player.statuses.get("Vulnerable", 0) + spore_cloud
@@ -1825,6 +1951,22 @@ class CombatEngine:
         real_enemy = self._get_real_enemy(enemy)
         if real_enemy and hasattr(real_enemy, 'on_death'):
             real_enemy.on_death()
+
+        # Summoner death kills all minions (Java parity)
+        # Reptomancer -> SnakeDaggers, TheCollector -> TorchHeads
+        _SUMMONER_MINIONS = {
+            "Reptomancer": "Dagger",
+            "TheCollector": "TorchHead",
+        }
+        minion_id = _SUMMONER_MINIONS.get(enemy.id)
+        if minion_id:
+            for other in self.state.enemies:
+                if other.id == minion_id and other.hp > 0:
+                    other.hp = 0
+                    self.log.log(self.state.turn, "death_trigger",
+                                enemy=other.id, effect="summoner_died",
+                                summoner=enemy.id)
+                    self._on_enemy_death(other)
 
     def _get_real_enemy(self, enemy: EnemyCombatState) -> Optional[Enemy]:
         """Get the real Enemy object for an EnemyCombatState, if available."""
@@ -2494,15 +2636,13 @@ class CombatEngine:
         # Track damage and check for mode shift
         real_enemy.take_damage(damage_taken)
 
-        # After shift to defensive, increment threshold by 10
+        # Log mode shift if it happened (threshold increment already
+        # handled inside switch_to_defensive)
         is_offensive_now = getattr(real_enemy, 'offensive_mode', True)
         if was_offensive and not is_offensive_now:
-            # Just shifted to defensive, increment threshold by 10
-            if hasattr(real_enemy, 'mode_shift_damage'):
-                real_enemy.mode_shift_damage += 10
-                self.log.log(self.state.turn, "guardian_threshold_increase",
-                           old_threshold=old_threshold,
-                           new_threshold=real_enemy.mode_shift_damage)
+            self.log.log(self.state.turn, "guardian_threshold_increase",
+                       old_threshold=old_threshold,
+                       new_threshold=getattr(real_enemy, 'mode_shift_damage', old_threshold))
 
     def _handle_reptomancer_spawn(self, enemy: EnemyCombatState, num_daggers: int):
         """Handle Reptomancer dagger spawning."""
@@ -2561,6 +2701,72 @@ class CombatEngine:
             self._roll_enemy_move(torchhead)
 
         self.log.log(self.state.turn, "collector_spawn", torchheads=num_torchheads)
+
+    def _handle_gremlin_leader_summon(self, enemy: EnemyCombatState, num_gremlins: int):
+        """Handle GremlinLeader Rally summon mechanic.
+
+        In Java, Rally summons gremlins from a pool of 5 types into empty
+        minion slots. The encounter starts with up to 4 minion slots (index 1-4,
+        with GremlinLeader at index 0). Rally fills empty (dead) slots, up to
+        num_gremlins new minions.
+        """
+        real_leader = self._get_real_enemy(enemy)
+        ascension = getattr(real_leader, 'ascension', 0) if real_leader else 0
+
+        # Count existing living minions (all enemies except the leader)
+        living_minions = sum(
+            1 for e in self.state.enemies
+            if e.hp > 0 and e is not enemy
+        )
+        # Max 4 minion slots total — only spawn into empty slots
+        max_minions = 4
+        slots_available = max(0, max_minions - living_minions)
+        to_spawn = min(num_gremlins, slots_available)
+
+        if to_spawn <= 0:
+            return
+
+        gremlin_pool = ["GremlinFat", "GremlinThief", "GremlinTsundere",
+                        "GremlinWarrior", "GremlinWizard"]
+
+        spawned = 0
+        for _ in range(to_spawn):
+            # Pick a random gremlin type using ai_rng (matches Java)
+            gremlin_id = gremlin_pool[self.ai_rng.random(len(gremlin_pool) - 1)]
+            try:
+                real_gremlin = create_enemy_object(
+                    gremlin_id, self.ai_rng, ascension=ascension
+                )
+            except Exception:
+                continue
+
+            new_enemy = EnemyCombatState(
+                hp=real_gremlin.state.current_hp,
+                max_hp=real_gremlin.state.max_hp,
+                block=0,
+                statuses=dict(real_gremlin.state.powers),
+                id=real_gremlin.ID,
+                name=real_gremlin.NAME,
+                enemy_type=str(real_gremlin.TYPE.value) if hasattr(real_gremlin.TYPE, "value") else str(real_gremlin.TYPE),
+                move_history=list(real_gremlin.state.move_history),
+                first_turn=True,
+            )
+            self.state.enemies.append(new_enemy)
+            if self.enemy_objects and len(self.enemy_objects) == len(self.state.enemies) - 1:
+                self.enemy_objects.append(real_gremlin)
+            self._roll_enemy_move(new_enemy)
+            spawned += 1
+
+        # Update the leader's gremlin count for future AI decisions
+        if real_leader and hasattr(real_leader, 'update_gremlin_count'):
+            new_count = sum(
+                1 for e in self.state.enemies
+                if e.hp > 0 and e is not enemy
+            )
+            real_leader.update_gremlin_count(new_count)
+
+        self.log.log(self.state.turn, "gremlin_leader_summon",
+                    enemy=enemy.id, spawned=spawned)
 
     # =========================================================================
     # State Observation

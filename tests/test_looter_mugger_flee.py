@@ -11,8 +11,9 @@ Java sources:
 
 import pytest
 from packages.engine.content.enemies import (
-    Looter, Mugger, MoveInfo, Intent,
+    JawWorm, Looter, Mugger, MoveInfo, Intent,
 )
+from packages.engine.combat_engine import create_combat_from_enemies
 from packages.engine.state.rng import Random
 
 
@@ -476,3 +477,32 @@ class TestEscapeCombatIntegration:
         mugger = engine.state.enemies[0]
         assert mugger.is_escaping, "Mugger should be marked as escaping"
         assert mugger.hp > 0, "Mugger should still have HP (escaped, not dead)"
+
+    def test_escaped_enemy_is_not_targetable_in_mixed_encounter(self):
+        """Escaped thieves should be removed from living-enemy targeting."""
+        looter = Looter(make_rng(42), 0, make_rng(42))
+        jaw_worm = JawWorm(make_rng(7), 0, make_rng(7))
+        engine = create_combat_from_enemies(
+            [looter, jaw_worm],
+            player_hp=999,
+            player_max_hp=999,
+            deck=["Strike_P"] * 12,
+        )
+
+        engine.start_combat()
+
+        turns = 0
+        while not engine.state.enemies[0].is_escaping and turns < 10:
+            engine.end_turn()
+            turns += 1
+
+        assert engine.state.enemies[0].is_escaping, "Looter should have escaped"
+        assert [enemy.name for enemy in engine.state.get_living_enemies()] == ["Jaw Worm"]
+        assert [enemy.name for enemy in engine.state.living_enemies()] == ["Jaw Worm"]
+
+        targeted_actions = [
+            action for action in engine.get_legal_actions()
+            if hasattr(action, "target_idx") and action.target_idx >= 0
+        ]
+        assert targeted_actions, "Expected targetable actions after the escape turn"
+        assert {action.target_idx for action in targeted_actions} == {1}
