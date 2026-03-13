@@ -1580,12 +1580,18 @@ class CombatEngine:
             damage = int(damage * VULN_MULT)
 
         # Apply block
+        had_block = enemy.block > 0
         blocked = min(enemy.block, damage)
         hp_damage = damage - blocked
         enemy.block -= blocked
         enemy.hp -= hp_damage
 
         self.state.total_damage_dealt += hp_damage
+
+        # Hand Drill: fire onBlockBroken when enemy's block drops to 0
+        # (Java: AbstractCreature.brokeBlock — fires whenever block reaches 0)
+        if had_block and enemy.block == 0:
+            execute_relic_triggers("onBlockBroken", self.state, {"target": enemy})
 
         # Curl Up: gain block when first attacked (one-time trigger)
         # Java: CurlUpPower.onAttacked — triggers only when damage > 0 AND

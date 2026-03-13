@@ -982,21 +982,61 @@ class RunState:
     # ----- RESOURCE MANAGEMENT -----
 
     def add_gold(self, amount: int):
-        """Add gold (affected by Ectoplasm and Golden Idol)."""
+        """Add gold, dispatching through onGainGold relic triggers.
+
+        Fires onGainGold handlers from the relic registry (Golden Idol, Bloody Idol).
+        Ectoplasm blocks all gold gain.
+        """
         if self.has_relic("Ectoplasm"):
             if amount > 0:
                 self.gold_blocked += amount
             return  # Can't gain gold
 
-        # Golden Idol increases gold gain by 25%
-        if self.has_relic("Golden Idol") and amount > 0:
-            amount = int(amount * 1.25)
+        if amount > 0:
+            amount = self._fire_on_gain_gold(amount)
 
         self.gold += amount
 
-        # Bloody Idol heals on gold gain
-        if self.has_relic("Bloody Idol") and amount > 0:
-            self.heal(5)
+    def _fire_on_gain_gold(self, amount: int) -> int:
+        """Dispatch onGainGold relic triggers (out-of-combat, RunState-level).
+
+        Modifier relics (Golden Idol) adjust the amount; side-effect relics
+        (Bloody Idol) fire after the modifier pass.  Returns final amount.
+        """
+        from ..registry import RELIC_REGISTRY
+
+        # get_handlers returns List[Tuple[relic_id, handler_fn]], sorted by priority
+        handlers = RELIC_REGISTRY.get_handlers("onGainGold")
+        for relic_id, handler_fn in handlers:
+            if not self.has_relic(relic_id):
+                continue
+
+            # Build a minimal trigger_data dict the handlers expect
+            trigger_data = {"amount": amount}
+
+            # Construct a thin adapter so handler can call ctx.heal_player
+            class _GoldCtx:
+                """Lightweight stand-in for RelicContext (out-of-combat)."""
+                def __init__(ctx_self, run_state, relic, tdata):
+                    ctx_self.state = run_state
+                    ctx_self.relic_id = relic
+                    ctx_self.trigger_data = tdata
+                    ctx_self.card = None
+                    ctx_self.damage = 0
+                    ctx_self.hp_lost = 0
+                    ctx_self.target = None
+
+                def heal_player(ctx_self, hp: int) -> int:
+                    return ctx_self.state.heal(hp)
+
+            ctx = _GoldCtx(self, relic_id, trigger_data)
+            result = handler_fn(ctx)
+
+            # Modifier handlers (Golden Idol) return the adjusted amount
+            if result is not None:
+                amount = int(result)
+
+        return amount
 
     def lose_gold(self, amount: int) -> int:
         """
