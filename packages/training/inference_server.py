@@ -325,6 +325,8 @@ class InferenceServer:
         self._strategic_backend: Optional[MLXStrategicBackend | TorchStrategicBackend] = None
         self._strategic_obs_buffer: Optional[np.ndarray] = None
         self._strategic_mask_buffer: Optional[np.ndarray] = None
+        self._combat_obs_buffer: Optional[np.ndarray] = None
+        self._combat_mask_buffer: Optional[np.ndarray] = None
 
         # Stats
         self._stats_lock = threading.Lock()
@@ -519,7 +521,7 @@ class InferenceServer:
             self._forward_strategic(strategic_reqs)
 
         if combat_reqs:
-            self._forward_combat_placeholder(combat_reqs)
+            self._forward_combat(combat_reqs)
 
         for req in unknown_reqs:
             self._send_error(req, f"unknown route: {req.get('route')!r}")
@@ -560,6 +562,22 @@ class InferenceServer:
             self._strategic_mask_buffer = np.empty(mask_shape, dtype=np.bool_)
 
         return self._strategic_obs_buffer, self._strategic_mask_buffer
+
+    def _get_combat_batch_buffers(
+        self,
+        input_dim: int,
+        action_dim: int,
+    ) -> tuple:
+        """Return reusable numpy buffers for combat route."""
+        obs_shape = (self.max_batch_size, input_dim)
+        if self._combat_obs_buffer is None or self._combat_obs_buffer.shape != obs_shape:
+            self._combat_obs_buffer = np.empty(obs_shape, dtype=np.float32)
+
+        mask_shape = (self.max_batch_size, action_dim)
+        if self._combat_mask_buffer is None or self._combat_mask_buffer.shape != mask_shape:
+            self._combat_mask_buffer = np.empty(mask_shape, dtype=np.bool_)
+
+        return self._combat_obs_buffer, self._combat_mask_buffer
 
     def _forward_strategic(self, reqs: list) -> None:
         """Build batch tensor, forward pass, scatter responses."""
@@ -614,10 +632,62 @@ class InferenceServer:
             }
             self._send_response(req["worker_slot"], resp)
 
-    def _forward_combat_placeholder(self, reqs: list) -> None:
-        """Placeholder: combat net not yet implemented."""
-        for req in reqs:
-            self._send_error(req, "combat backend not yet implemented")
+    def _forward_combat(self, reqs: list) -> None:
+        """Combat value evaluation using the strategic model's value head.
+
+        Reuses the same backend as strategic inference. Combat observations
+        are encoded by combat_state_encoder and fed through the full network,
+        but only the value output is returned (policy logits are meaningless
+        for combat-level actions).
+
+        The action mask is set to all-True since we only care about the value
+        head output, not the policy head.
+        """
+        if self._strategic_backend is None:
+            for req in reqs:
+                self._send_error(req, "combat backend not available (strategic model not synced)")
+            return
+
+        backend = self._strategic_backend
+        action_dim = backend.action_dim
+        input_dim = backend._net.input_dim if hasattr(backend._net, "input_dim") else 260
+
+        n = len(reqs)
+
+        # Build batch buffers (reuse combat-specific buffers)
+        obs_buf, mask_buf = self._get_combat_batch_buffers(input_dim, action_dim)
+        obs_batch = obs_buf[:n]
+        mask_batch = mask_buf[:n]
+        obs_batch.fill(0.0)
+        mask_batch.fill(True)  # All actions "valid" -- we only use the value head
+
+        for i, req in enumerate(reqs):
+            obs = req.get("obs")
+            _copy_obs_into(obs_batch[i], obs, input_dim)
+
+        try:
+            _logits_batch, values_batch = backend.forward_batch(obs_batch, mask_batch)
+        except Exception as exc:
+            logger.error("InferenceServer: combat forward_batch failed: %s", exc, exc_info=True)
+            with self._stats_lock:
+                self._stats["errors"] += n
+            for req in reqs:
+                self._send_error(req, f"combat forward_batch error: {exc}")
+            return
+
+        version = backend.version
+        for i, req in enumerate(reqs):
+            resp = {
+                "kind": "result",
+                "req_id": req["req_id"],
+                "ok": True,
+                "route": "combat",
+                "version": version,
+                "logits": None,  # Not meaningful for combat eval
+                "value": float(values_batch[i]),
+                "error": None,
+            }
+            self._send_response(req["worker_slot"], resp)
 
     def _send_response(self, worker_slot: int, resp: dict) -> None:
         """Deliver a response to a worker's response queue."""
