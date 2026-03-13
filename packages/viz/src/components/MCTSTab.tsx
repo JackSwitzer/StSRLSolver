@@ -40,6 +40,9 @@ const PlannerStats = ({ planner }: { planner: PlannerResultMsg }) => {
         <StatBlock label="Turns to Kill" value={String(planner.turns_to_kill)} color="#ffb700" />
         <StatBlock label="Exp HP Loss" value={planner.expected_hp_loss.toFixed(1)} color="#ff4444" />
         <StatBlock label="Confidence" value={`${(planner.confidence * 100).toFixed(0)}%`} color={confidenceColor} />
+        {planner.policy_version !== undefined && (
+          <StatBlock label="Policy" value={`v${planner.policy_version}`} color="#8b949e" />
+        )}
         {planner.elapsed_ms !== undefined && (
           <StatBlock label="Time" value={`${planner.elapsed_ms.toFixed(0)}ms`} color="#8b949e" />
         )}

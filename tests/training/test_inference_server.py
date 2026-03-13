@@ -1,6 +1,41 @@
 import numpy as np
 
-from packages.training.inference_server import InferenceServer, _copy_obs_into
+from packages.training.inference_server import (
+    InferenceServer,
+    StrategicModelConfig,
+    build_strategic_weight_sync,
+    _copy_obs_into,
+)
+
+
+class FakeTensor:
+    def __init__(self, value):
+        self.value = value
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def clone(self):
+        return FakeTensor(self.value)
+
+
+class FakeModel:
+    input_dim = 260
+    hidden_dim = 768
+    action_dim = 256
+    num_blocks = 4
+
+    def __init__(self):
+        self._state = {
+            "layer.weight": FakeTensor(1),
+            "layer.bias": FakeTensor(2),
+        }
+
+    def state_dict(self):
+        return self._state
 
 
 def test_copy_obs_into_pads_and_truncates():
@@ -106,3 +141,30 @@ def test_forward_strategic_reuses_buffers_and_shapes_requests():
     )
     assert first_call["obs_ptr"] == second_call["obs_ptr"]
     assert first_call["mask_ptr"] == second_call["mask_ptr"]
+
+
+def test_build_strategic_weight_sync_clones_state_and_config():
+    model = FakeModel()
+
+    update = build_strategic_weight_sync(model, version=7)
+
+    assert update.version == 7
+    assert update.config == StrategicModelConfig(
+        input_dim=260,
+        hidden_dim=768,
+        action_dim=256,
+        num_blocks=4,
+    )
+    assert update.state_dict.keys() == model.state_dict().keys()
+    assert update.state_dict["layer.weight"] is not model.state_dict()["layer.weight"]
+
+
+def test_enqueue_strategic_weights_updates_version_stats():
+    server = InferenceServer(n_workers=1, max_batch_size=4, use_mlx=False)
+    update = build_strategic_weight_sync(FakeModel(), version=9)
+
+    server.enqueue_strategic_weights(update)
+
+    stats = server.get_stats()
+    assert stats["enqueued_version"] == 9
+    assert stats["applied_version"] == 0

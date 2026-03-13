@@ -192,6 +192,12 @@ export const MCTSViz = ({ result }: MCTSVizProps) => {
           <span style={styles.headerLabel}>Actions</span>
           <span style={styles.headerValue}>{result.actions.length}</span>
         </div>
+        {result.policy_version !== undefined && (
+          <div style={styles.headerStat}>
+            <span style={styles.headerLabel}>Policy</span>
+            <span style={styles.headerValue}>v{result.policy_version}</span>
+          </div>
+        )}
       </div>
 
       {/* Column headers */}

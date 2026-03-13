@@ -53,6 +53,7 @@ class MessageType(str, Enum):
     GRID_UPDATE = "grid_update"
     AGENT_STEP = "agent_step"
     MCTS_RESULT = "mcts_result"
+    PLANNER_RESULT = "planner_result"
     AGENT_EPISODE = "agent_episode"
     TRAINING_STATS = "training_stats"
     SYSTEM_STATS = "system_stats"
@@ -162,3 +163,54 @@ def make_conquerer_complete(result: Dict[str, Any]) -> Dict[str, Any]:
         "type": MessageType.CONQUERER_COMPLETE.value,
         **result,
     }
+
+
+def make_mcts_result(
+    agent_id: int,
+    sims: int,
+    elapsed_ms: float,
+    root_value: float,
+    actions: List[Dict[str, Any]],
+    policy_version: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Build an MCTS root-summary payload for the dashboard."""
+    msg: Dict[str, Any] = {
+        "type": MessageType.MCTS_RESULT.value,
+        "agent_id": agent_id,
+        "sims": sims,
+        "elapsed_ms": round(elapsed_ms, 1),
+        "root_value": root_value,
+        "actions": actions,
+    }
+    if policy_version is not None:
+        msg["policy_version"] = policy_version
+    return msg
+
+
+def make_planner_result(
+    agent_id: int,
+    lines_considered: int,
+    strategy: str,
+    turns_to_kill: int,
+    expected_hp_loss: float,
+    confidence: float,
+    cards_played: List[str],
+    elapsed_ms: Optional[float] = None,
+    policy_version: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Build a planner_result payload used by the combat detail view."""
+    msg: Dict[str, Any] = {
+        "type": MessageType.PLANNER_RESULT.value,
+        "agent_id": agent_id,
+        "lines_considered": lines_considered,
+        "strategy": strategy,
+        "turns_to_kill": turns_to_kill,
+        "expected_hp_loss": expected_hp_loss,
+        "confidence": confidence,
+        "cards_played": cards_played,
+    }
+    if elapsed_ms is not None:
+        msg["elapsed_ms"] = round(elapsed_ms, 1)
+    if policy_version is not None:
+        msg["policy_version"] = policy_version
+    return msg

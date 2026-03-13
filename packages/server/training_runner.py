@@ -24,6 +24,8 @@ from collections import Counter, deque
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Set
 
+from .protocol import make_mcts_result, make_planner_result
+
 logger = logging.getLogger(__name__)
 
 AGENT_NAMES = [
@@ -329,6 +331,7 @@ def _agent_worker(
 
     # --- Load combat model + GumbelMCTS for neural-guided search ---
     combat_model = None
+    combat_model_version: Optional[int] = None
     gumbel_mcts = None
     encoder = None
     action_space = None
@@ -363,6 +366,9 @@ def _agent_worker(
             if model_path and _Path(model_path).exists():
                 checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
                 combat_model.load_state_dict(checkpoint["model_state_dict"])
+                combat_model_version = int(
+                    checkpoint.get("train_steps", checkpoint.get("version", 0))
+                )
             combat_model.eval()
 
             encoder = ObservationEncoder()
@@ -502,6 +508,20 @@ def _agent_worker(
                                 combat_turns += 1
                                 mcts_used = True
 
+                                mcts_payload = gumbel_mcts.export_last_root_stats(selected_action=best_action)
+                                if mcts_payload:
+                                    _put_safe(
+                                        event_queue,
+                                        make_mcts_result(
+                                            agent_id=agent_id,
+                                            sims=mcts_payload["sims"],
+                                            elapsed_ms=elapsed_ms,
+                                            root_value=mcts_payload["root_value"],
+                                            actions=mcts_payload["actions"],
+                                            policy_version=combat_model_version,
+                                        ),
+                                    )
+
                                 # Record turn snapshot for meta-learner
                                 state = engine.state
                                 player_hp = state.player.hp
@@ -528,17 +548,17 @@ def _agent_worker(
                                 step += 1
 
                                 # Build planner data for viewer
-                                planner_data = {
-                                    "type": "planner_result",
-                                    "agent_id": agent_id,
-                                    "elapsed_ms": round(elapsed_ms, 1),
-                                    "lines_considered": sims,
-                                    "strategy": "mcts",
-                                    "turns_to_kill": 0,
-                                    "expected_hp_loss": 0,
-                                    "confidence": 0.0,
-                                    "cards": [str(best_action)],
-                                }
+                                planner_data = make_planner_result(
+                                    agent_id=agent_id,
+                                    elapsed_ms=elapsed_ms,
+                                    lines_considered=sims,
+                                    strategy="mcts",
+                                    turns_to_kill=0,
+                                    expected_hp_loss=0,
+                                    confidence=0.0,
+                                    cards_played=[str(best_action)],
+                                    policy_version=combat_model_version,
+                                )
                                 _put_safe(event_queue, planner_data)
 
                                 # Heartbeat
@@ -612,17 +632,16 @@ def _agent_worker(
 
                             # Build planner data for viewer
                             if plan.expected_outcome:
-                                planner_data = {
-                                    "type": "planner_result",
-                                    "agent_id": agent_id,
-                                    "elapsed_ms": round(elapsed_ms, 1),
-                                    "lines_considered": plan.lines_considered,
-                                    "strategy": plan.strategy,
-                                    "turns_to_kill": plan.turns_to_kill,
-                                    "expected_hp_loss": plan.expected_hp_loss,
-                                    "confidence": round(plan.confidence, 2),
-                                    "cards": [c[0] for c in plan.card_sequence],
-                                }
+                                planner_data = make_planner_result(
+                                    agent_id=agent_id,
+                                    elapsed_ms=elapsed_ms,
+                                    lines_considered=plan.lines_considered,
+                                    strategy=str(plan.strategy),
+                                    turns_to_kill=plan.turns_to_kill,
+                                    expected_hp_loss=plan.expected_hp_loss,
+                                    confidence=round(plan.confidence, 2),
+                                    cards_played=[c[0] for c in plan.card_sequence],
+                                )
 
                             if planner_data:
                                 _put_safe(event_queue, planner_data)

@@ -27,6 +27,7 @@ Usage (main process):
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import queue
 import threading
@@ -46,6 +47,55 @@ logger = logging.getLogger(__name__)
 
 # Module-level client installed by workers via InferenceClient.setup_worker()
 _CLIENT: Optional["InferenceClient"] = None
+
+
+@dataclass(frozen=True)
+class StrategicModelConfig:
+    """Serializable config describing the strategic policy architecture."""
+
+    input_dim: int
+    hidden_dim: int
+    action_dim: int
+    num_blocks: int
+
+    @classmethod
+    def from_model(cls, model: "StrategicNet") -> "StrategicModelConfig":  # noqa: F821
+        return cls(
+            input_dim=model.input_dim,
+            hidden_dim=model.hidden_dim,
+            action_dim=model.action_dim,
+            num_blocks=model.num_blocks,
+        )
+
+    def to_dict(self) -> Dict[str, int]:
+        return {
+            "input_dim": self.input_dim,
+            "hidden_dim": self.hidden_dim,
+            "action_dim": self.action_dim,
+            "num_blocks": self.num_blocks,
+        }
+
+
+@dataclass(frozen=True)
+class StrategicWeightSync:
+    """Versioned weight update for the centralized inference server."""
+
+    version: int
+    config: StrategicModelConfig
+    state_dict: Dict[str, object]
+
+
+def build_strategic_weight_sync(
+    model: "StrategicNet",  # noqa: F821
+    version: int,
+) -> StrategicWeightSync:
+    """Create a versioned, CPU-cloned weight payload from a PyTorch model."""
+    state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    return StrategicWeightSync(
+        version=version,
+        config=StrategicModelConfig.from_model(model),
+        state_dict=state_dict,
+    )
 
 
 def _copy_obs_into(row: np.ndarray, obs: object, input_dim: int) -> None:
@@ -290,6 +340,8 @@ class InferenceServer:
             "combat_requests": 0,
             "errors": 0,
             "version": 0,
+            "enqueued_version": 0,
+            "applied_version": 0,
         }
         _ROLLING = 1000  # window size for rolling stats
         self._ROLLING = _ROLLING
@@ -328,24 +380,19 @@ class InferenceServer:
         model: "StrategicNet",  # noqa: F821
         version: int,
     ) -> None:
+        """Build and enqueue an updated strategic model snapshot."""
+        self.enqueue_strategic_weights(build_strategic_weight_sync(model, version))
+
+    def enqueue_strategic_weights(self, update: StrategicWeightSync) -> None:
         """Push updated strategic weights to the server. Non-blocking.
 
         Called from main thread after PPO train_batch(). The server applies
         the sync at the top of its next loop iteration.
-
-        Args:
-            model: trained StrategicNet (on any device)
-            version: monotonic integer identifying this checkpoint
         """
-        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-        config = {
-            "input_dim": model.input_dim,
-            "hidden_dim": model.hidden_dim,
-            "action_dim": model.action_dim,
-            "num_blocks": model.num_blocks,
-        }
-        self._control_q.put(("sync_strategic", version, config, state_dict))
-        logger.debug("InferenceServer: enqueued strategic sync version=%d", version)
+        self._control_q.put(("sync_strategic", update))
+        with self._stats_lock:
+            self._stats["enqueued_version"] = update.version
+        logger.debug("InferenceServer: enqueued strategic sync version=%d", update.version)
 
     def get_stats(self) -> dict:
         """Return a snapshot of server stats. Thread-safe."""
@@ -408,22 +455,23 @@ class InferenceServer:
 
             kind = msg[0]
             if kind == "sync_strategic":
-                _, version, config, state_dict = msg
-                self._do_sync_strategic(version, config, state_dict)
+                _, update = msg
+                self._do_sync_strategic(update)
             else:
                 logger.warning("InferenceServer: unknown control message kind=%r", kind)
 
     def _do_sync_strategic(
         self,
-        version: int,
-        config: dict,
-        state_dict: dict,
+        update: StrategicWeightSync,
     ) -> None:
         """Build a new backend from state_dict and swap it in.
 
         Keeps the old backend alive until the new one is ready so we never
         serve stale or uninitialized weights.
         """
+        version = update.version
+        config = update.config.to_dict()
+        state_dict = update.state_dict
         try:
             if self.use_mlx:
                 new_backend = MLXStrategicBackend.from_state_dict(state_dict, config, version)
@@ -433,6 +481,7 @@ class InferenceServer:
             self._strategic_backend = new_backend
             with self._stats_lock:
                 self._stats["version"] = version
+                self._stats["applied_version"] = version
 
             logger.info(
                 "InferenceServer: strategic backend synced version=%d (action_dim=%d)",

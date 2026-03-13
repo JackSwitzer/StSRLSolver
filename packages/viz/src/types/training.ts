@@ -126,6 +126,7 @@ export interface MCTSResultMsg {
   elapsed_ms: number;
   root_value: number;
   actions: MCTSAction[];
+  policy_version?: number;
 }
 
 export interface AgentCombatMsg {
@@ -144,6 +145,7 @@ export interface PlannerResultMsg {
   confidence: number;
   cards_played: string[];
   elapsed_ms?: number;
+  policy_version?: number;
 }
 
 export interface SystemStatsMsg {

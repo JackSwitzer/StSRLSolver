@@ -1267,6 +1267,7 @@ class OvernightRunner:
                     "buffer_size": len(trainer.buffer),
                     "games_per_min": round(games_per_min, 1),
                     "entropy_coeff": trainer.entropy_coeff,
+                    "inference_server": self._server.get_stats() if self._server is not None else None,
                 })
 
             sweep_elapsed = time.monotonic() - sweep_start

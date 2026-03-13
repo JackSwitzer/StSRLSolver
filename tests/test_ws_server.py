@@ -24,6 +24,8 @@ from packages.server.protocol import (
     make_step,
     make_game_over,
     make_error,
+    make_mcts_result,
+    make_planner_result,
 )
 from packages.server.ws_server import GameServer
 
@@ -113,6 +115,37 @@ class TestProtocol:
         assert msg["type"] == "error"
         assert "request_type" not in msg
 
+    def test_make_mcts_result(self):
+        msg = make_mcts_result(
+            agent_id=2,
+            sims=32,
+            elapsed_ms=8.4,
+            root_value=0.61,
+            actions=[
+                {"id": "PlayCard(Strike)", "visits": 18, "pct": 56.2, "q": 0.74, "selected": True},
+            ],
+            policy_version=12,
+        )
+        assert msg["type"] == "mcts_result"
+        assert msg["policy_version"] == 12
+        assert msg["actions"][0]["selected"] is True
+
+    def test_make_planner_result(self):
+        msg = make_planner_result(
+            agent_id=3,
+            lines_considered=64,
+            strategy="mcts",
+            turns_to_kill=2,
+            expected_hp_loss=4.5,
+            confidence=0.81,
+            cards_played=["Eruption", "Strike_P"],
+            elapsed_ms=12.3,
+            policy_version=7,
+        )
+        assert msg["type"] == "planner_result"
+        assert msg["cards_played"] == ["Eruption", "Strike_P"]
+        assert msg["policy_version"] == 7
+
     def test_all_messages_json_serializable(self):
         """Every constructor must produce JSON-serializable output."""
         messages = [
@@ -123,6 +156,8 @@ class TestProtocol:
             make_step(1, {}, {}),
             make_game_over(False, {}),
             make_error("err"),
+            make_mcts_result(0, 8, 1.2, 0.4, []),
+            make_planner_result(0, 8, "mcts", 1, 0.0, 0.9, []),
         ]
         for msg in messages:
             json.dumps(msg)  # must not raise
