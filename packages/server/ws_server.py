@@ -262,13 +262,17 @@ class GameServer:
         logger.info("Client connected: %s", conn_id)
 
         # Send metrics history immediately on connect
-        if self._training and self._training.metrics_history:
+        if self._training and (self._training.metrics_history or self._training.episode_log):
             history = list(self._training.metrics_history)
+            episode_log = [
+                ep for ep in list(self._training.episode_log)
+                if ep.get("floor", ep.get("floors_reached", 0)) > 0
+            ]
             await websocket.send(json.dumps({
                 "type": MessageType.METRICS_HISTORY.value,
-                "floor_history": [h.get("floor", 0) for h in history],
+                "floor_history": [ep.get("floor", ep.get("floors_reached", 0)) for ep in episode_log],
                 "loss_history": [h.get("loss", 0) for h in history],
-                "win_history": [h.get("win_rate", 0) for h in history],
+                "win_history": [1 if ep.get("won") else 0 for ep in episode_log],
             }))
 
         try:
@@ -642,6 +646,10 @@ class GameServer:
 
     def _handle_training_focus(self, data: Dict[str, Any], conn_id: int) -> Optional[Dict[str, Any]]:
         """Toggle focus on a specific agent (add/remove from focused set)."""
+        if self._training and data.get("clear"):
+            self._training.clear_focus(conn_id)
+            return None
+
         agent_id = data.get("agent_id")
         if self._training and agent_id is not None:
             # Toggle: if already focused, remove; otherwise add
@@ -721,7 +729,7 @@ class GameServer:
                                     "max_hp": data.get("max_hp", 80),
                                     "seed": data.get("seed", ""),
                                     "status": "playing",
-                                    "enemy": data.get("enemy", ""),
+                                    "enemy_name": data.get("enemy_name", data.get("enemy", "")),
                                     "episode": 0,
                                     "wins": 0,
                                 })

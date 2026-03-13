@@ -534,23 +534,29 @@ export const StatsOverviewPanel = ({
 
   // ---- Computed: Training info from systemStats ----
   const training = useMemo(() => {
-    const ts = systemStats?.training_status;
-    if (!ts || Object.keys(ts).length === 0) return null;
+    const ts = systemStats?.training_status ?? {};
+    const liveTrainingActive = Boolean(stats?.run_id) && (
+      (((stats as TrainingStatsMsg & { worker_count?: number }).worker_count) ?? 0) > 0
+      || (systemStats?.workers ?? 0) > 0
+      || (stats?.total_episodes ?? 0) > 0
+    );
+    if (Object.keys(ts).length === 0 && !liveTrainingActive) return null;
     return {
-      trainSteps: ts.train_steps as number | undefined,
+      trainSteps: (ts.train_steps as number | undefined) ?? stats?.train_steps,
       totalLoss: ts.total_loss as number | undefined,
       policyLoss: ts.policy_loss as number | undefined,
       valueLoss: ts.value_loss as number | undefined,
-      gpm: ts.games_per_min as number | undefined,
-      totalGames: ts.total_games as number | undefined,
-      avgFloor: ts.avg_floor_100 as number | undefined,
-      elapsedH: ts.elapsed_hours as number | undefined,
+      gpm: (ts.games_per_min as number | undefined) ?? stats?.eps_per_min,
+      totalGames: (ts.total_games as number | undefined) ?? stats?.total_episodes,
+      avgFloor: (ts.avg_floor_100 as number | undefined) ?? stats?.avg_floor,
+      elapsedH: (ts.elapsed_hours as number | undefined) ?? (stats?.uptime != null ? stats.uptime / 3600 : undefined),
       sweepPhase: ts.sweep_phase as string | undefined,
       bufferSize: ts.buffer_size as number | undefined,
       entropyCoeff: ts.entropy_coeff as number | undefined,
-      configName: ts.config_name as string | undefined,
+      configName: (ts.config_name as string | undefined) ?? stats?.run_id,
+      liveTrainingActive,
     };
-  }, [systemStats]);
+  }, [stats, systemStats]);
 
   // ---- Computed: Loss trend ----
   const lossTrend = useMemo(() => {
@@ -562,6 +568,9 @@ export const StatsOverviewPanel = ({
       color: loss < 0.3 ? '#00ff41' : loss < 0.5 ? '#ffb700' : '#ff4444',
     };
   }, [training]);
+
+  const hasTrainingStatus = Boolean(systemStats?.training_status && Object.keys(systemStats.training_status).length > 0);
+  const trainingActive = Boolean(training) && ((training?.liveTrainingActive ?? false) || hasTrainingStatus);
 
   return (
     <div style={{
@@ -592,7 +601,7 @@ export const StatsOverviewPanel = ({
           display: 'inline-flex',
           alignItems: 'center',
           gap: '4px',
-          color: training ? '#00ff41' : '#8b949e',
+          color: trainingActive ? '#00ff41' : '#8b949e',
           fontWeight: 600,
           fontSize: '9px',
           textTransform: 'uppercase',
@@ -602,11 +611,11 @@ export const StatsOverviewPanel = ({
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            background: training ? '#00ff41' : '#3d444d',
+            background: trainingActive ? '#00ff41' : '#3d444d',
             display: 'inline-block',
-            boxShadow: training ? '0 0 4px #00ff41' : 'none',
+            boxShadow: trainingActive ? '0 0 4px #00ff41' : 'none',
           }} />
-          {training ? 'Training' : 'Idle'}
+          {trainingActive ? 'Training' : 'Idle'}
         </span>
 
         {/* Phase badge */}

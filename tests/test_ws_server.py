@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 import socket
+from collections import deque
+from types import SimpleNamespace
 
 import pytest
 import websockets
@@ -126,6 +128,49 @@ class TestProtocol:
         ]
         for msg in messages:
             json.dumps(msg)  # must not raise
+
+
+def test_connect_sends_episode_based_metrics_history():
+    async def _test(url):
+        async with websockets.connect(url) as ws:
+            resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+            assert resp["type"] == "metrics_history"
+            assert resp["floor_history"] == [12, 26]
+            assert resp["win_history"] == [0, 1]
+            assert resp["loss_history"] == [0.8, 0.6]
+
+    async def _run():
+        port = _find_free_port()
+        server = GameServer(host="localhost", port=port)
+        server._training = SimpleNamespace(
+            metrics_history=deque([
+                {"floor": 8.5, "loss": 0.8, "win_rate": 0.25},
+                {"floor": 11.3, "loss": 0.6, "win_rate": 0.5},
+            ], maxlen=1000),
+            episode_log=deque([
+                {"floor": 0, "won": False},
+                {"floor": 12, "won": False},
+                {"floors_reached": 26, "won": True},
+            ], maxlen=200),
+        )
+        ws_server = await websockets.serve(server.handler, server.host, server.port)
+        try:
+            await _test(f"ws://localhost:{port}")
+        finally:
+            ws_server.close()
+            await ws_server.wait_closed()
+
+    asyncio.run(_run())
+
+
+def test_training_focus_clear_clears_server_focus():
+    cleared: list[int] = []
+    server = GameServer(auto_train=False)
+    server._training = SimpleNamespace(clear_focus=lambda conn_id: cleared.append(conn_id))
+
+    server._handle_training_focus({"clear": True}, conn_id=42)
+
+    assert cleared == [42]
 
 
 # ---------------------------------------------------------------------------

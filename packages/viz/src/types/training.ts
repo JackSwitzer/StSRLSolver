@@ -89,6 +89,7 @@ export interface DecisionSummary {
 
 export interface AgentEpisodeMsg {
   type: 'agent_episode';
+  run_id?: string;
   agent_id: number;
   seed: string;
   won: boolean;
@@ -196,7 +197,8 @@ export interface TrainingStartMsg {
 
 export interface TrainingFocusMsg {
   type: 'training_focus';
-  agent_id: number;
+  agent_id?: number;
+  clear?: boolean;
 }
 
 export interface CommandMsg {
