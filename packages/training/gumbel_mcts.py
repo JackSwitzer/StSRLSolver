@@ -14,10 +14,31 @@ Reference: "Policy Improvement by Planning with Gumbel" (Danihelka et al., 2022)
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+
+
+@dataclass(frozen=True)
+class RootActionStats:
+    """Summary statistics for a root action from the last search."""
+
+    action: Any
+    visits: int
+    probability: float
+    q_value: float
+    prior: float
+
+
+@dataclass(frozen=True)
+class SearchSummary:
+    """Root-level summary from the most recent Gumbel search."""
+
+    num_simulations: int
+    root_value: float
+    actions: Tuple[RootActionStats, ...]
 
 
 class GumbelMCTS:
@@ -48,6 +69,7 @@ class GumbelMCTS:
         self.c_visit = c_visit
         self.c_scale = c_scale
         self.max_candidates = max_candidates
+        self.last_search_summary: Optional[SearchSummary] = None
 
     def search(self, engine: Any) -> Dict[Any, float]:
         """Run Gumbel MuZero search from current combat state.
@@ -62,8 +84,22 @@ class GumbelMCTS:
         legal_actions = root_state.get_legal_actions()
 
         if not legal_actions:
+            self.last_search_summary = None
             return {}
         if len(legal_actions) == 1:
+            self.last_search_summary = SearchSummary(
+                num_simulations=1,
+                root_value=1.0,
+                actions=(
+                    RootActionStats(
+                        action=legal_actions[0],
+                        visits=1,
+                        probability=1.0,
+                        q_value=1.0,
+                        prior=1.0,
+                    ),
+                ),
+            )
             return {legal_actions[0]: 1.0}
 
         # Get prior policy and root value
@@ -159,13 +195,29 @@ class GumbelMCTS:
         # Build visit distribution
         total_visits = sum(visit_counts.values())
         if total_visits == 0:
-            return {a: 1.0 / len(legal_actions) for a in legal_actions}
+            probs = {a: 1.0 / len(legal_actions) for a in legal_actions}
+        else:
+            probs = {
+                action: count / total_visits
+                for action, count in visit_counts.items()
+                if count > 0
+            }
 
-        return {
-            action: count / total_visits
-            for action, count in visit_counts.items()
-            if count > 0
-        }
+        self.last_search_summary = SearchSummary(
+            num_simulations=self.num_simulations,
+            root_value=float(root_value),
+            actions=tuple(
+                RootActionStats(
+                    action=action,
+                    visits=visit_counts.get(action, 0),
+                    probability=float(probs.get(action, 0.0)),
+                    q_value=float(q_values.get(action, 0.0)),
+                    prior=float(priors.get(action, 0.0)),
+                )
+                for action in sorted(probs, key=probs.get, reverse=True)
+            ),
+        )
+        return probs
 
     def select_action(
         self,
@@ -239,3 +291,23 @@ class GumbelMCTS:
         enemy_progress = 1.0 - (total_enemy_hp / max(total_enemy_max, 1))
 
         return max(0.0, min(1.0, 0.35 * hp_ratio + 0.30 * enemy_progress + 0.15))
+
+    def export_last_root_stats(self, selected_action: Any = None) -> Optional[Dict[str, Any]]:
+        """Return the most recent root summary as a JSON-friendly payload."""
+        if self.last_search_summary is None:
+            return None
+
+        return {
+            "sims": self.last_search_summary.num_simulations,
+            "root_value": self.last_search_summary.root_value,
+            "actions": [
+                {
+                    "id": str(action.action),
+                    "visits": action.visits,
+                    "pct": round(action.probability * 100, 1),
+                    "q": round(action.q_value, 4),
+                    "selected": action.action == selected_action,
+                }
+                for action in self.last_search_summary.actions
+            ],
+        }

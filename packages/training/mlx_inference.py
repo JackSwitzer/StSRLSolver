@@ -38,6 +38,16 @@ def check_mlx():
         raise RuntimeError("MLX not available. Install with: uv add mlx")
 
 
+def _as_float32_array(values: np.ndarray) -> np.ndarray:
+    """Return a contiguous float32 array without copying when possible."""
+    return np.ascontiguousarray(np.asarray(values, dtype=np.float32))
+
+
+def _as_bool_array(values: np.ndarray) -> np.ndarray:
+    """Return a contiguous bool array without copying when possible."""
+    return np.ascontiguousarray(np.asarray(values, dtype=np.bool_))
+
+
 class MLXResidualBlock:
     """Residual block: Linear + LayerNorm + ReLU with skip connection."""
 

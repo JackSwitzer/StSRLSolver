@@ -26,6 +26,10 @@ extension-module = ["pyo3/extension-module"]
 name = "combat_bench"
 harness = false
 
+[[bench]]
+name = "real_world_bench"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"

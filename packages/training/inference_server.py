@@ -27,6 +27,7 @@ Usage (main process):
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import queue
 import threading
@@ -46,6 +47,66 @@ logger = logging.getLogger(__name__)
 
 # Module-level client installed by workers via InferenceClient.setup_worker()
 _CLIENT: Optional["InferenceClient"] = None
+
+
+@dataclass(frozen=True)
+class StrategicModelConfig:
+    """Serializable config describing the strategic policy architecture."""
+
+    input_dim: int
+    hidden_dim: int
+    action_dim: int
+    num_blocks: int
+
+    @classmethod
+    def from_model(cls, model: "StrategicNet") -> "StrategicModelConfig":  # noqa: F821
+        return cls(
+            input_dim=model.input_dim,
+            hidden_dim=model.hidden_dim,
+            action_dim=model.action_dim,
+            num_blocks=model.num_blocks,
+        )
+
+    def to_dict(self) -> Dict[str, int]:
+        return {
+            "input_dim": self.input_dim,
+            "hidden_dim": self.hidden_dim,
+            "action_dim": self.action_dim,
+            "num_blocks": self.num_blocks,
+        }
+
+
+@dataclass(frozen=True)
+class StrategicWeightSync:
+    """Versioned weight update for the centralized inference server."""
+
+    version: int
+    config: StrategicModelConfig
+    state_dict: Dict[str, object]
+
+
+def build_strategic_weight_sync(
+    model: "StrategicNet",  # noqa: F821
+    version: int,
+) -> StrategicWeightSync:
+    """Create a versioned, CPU-cloned weight payload from a PyTorch model."""
+    state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    return StrategicWeightSync(
+        version=version,
+        config=StrategicModelConfig.from_model(model),
+        state_dict=state_dict,
+    )
+
+
+def _copy_obs_into(row: np.ndarray, obs: object, input_dim: int) -> None:
+    """Copy an observation into a preallocated row with pad/truncate semantics."""
+    if obs is None:
+        return
+
+    obs_arr = np.asarray(obs, dtype=np.float32).reshape(-1)
+    length = min(obs_arr.shape[0], input_dim)
+    if length:
+        row[:length] = obs_arr[:length]
 
 # ──────────────────────────────────────────────────────────────
 # Backend implementations
@@ -262,6 +323,8 @@ class InferenceServer:
 
         # Backend state (guarded by server thread only after start)
         self._strategic_backend: Optional[MLXStrategicBackend | TorchStrategicBackend] = None
+        self._strategic_obs_buffer: Optional[np.ndarray] = None
+        self._strategic_mask_buffer: Optional[np.ndarray] = None
 
         # Stats
         self._stats_lock = threading.Lock()
@@ -275,6 +338,8 @@ class InferenceServer:
             "combat_requests": 0,
             "errors": 0,
             "version": 0,
+            "enqueued_version": 0,
+            "applied_version": 0,
         }
         _ROLLING = 1000  # window size for rolling stats
         self._ROLLING = _ROLLING
@@ -331,6 +396,14 @@ class InferenceServer:
         }
         self._control_q.put(("sync_strategic", version, config, state_dict))
         logger.debug("InferenceServer: enqueued strategic sync version=%d", version)
+
+    def enqueue_strategic_weights(self, update: StrategicWeightSync) -> None:
+        """Push updated strategic weights using a StrategicWeightSync payload. Non-blocking."""
+        config = update.config.to_dict()
+        self._control_q.put(("sync_strategic", update.version, config, update.state_dict))
+        with self._stats_lock:
+            self._stats["enqueued_version"] = update.version
+        logger.debug("InferenceServer: enqueued strategic sync version=%d", update.version)
 
     def get_stats(self) -> dict:
         """Return a snapshot of server stats. Thread-safe."""
@@ -472,6 +545,22 @@ class InferenceServer:
             if len(s["forward_ms"]) > self._ROLLING:
                 s["forward_ms"] = s["forward_ms"][-self._ROLLING :]
 
+    def _get_strategic_batch_buffers(
+        self,
+        input_dim: int,
+        action_dim: int,
+    ) -> tuple:
+        """Return reusable numpy buffers sized for the current backend."""
+        obs_shape = (self.max_batch_size, input_dim)
+        if self._strategic_obs_buffer is None or self._strategic_obs_buffer.shape != obs_shape:
+            self._strategic_obs_buffer = np.empty(obs_shape, dtype=np.float32)
+
+        mask_shape = (self.max_batch_size, action_dim)
+        if self._strategic_mask_buffer is None or self._strategic_mask_buffer.shape != mask_shape:
+            self._strategic_mask_buffer = np.empty(mask_shape, dtype=np.bool_)
+
+        return self._strategic_obs_buffer, self._strategic_mask_buffer
+
     def _forward_strategic(self, reqs: list) -> None:
         """Build batch tensor, forward pass, scatter responses."""
         if self._strategic_backend is None:
@@ -484,20 +573,15 @@ class InferenceServer:
         input_dim = backend._net.input_dim if hasattr(backend._net, "input_dim") else 260
 
         n = len(reqs)
-        obs_batch = np.zeros((n, input_dim), dtype=np.float32)
-        mask_batch = np.zeros((n, action_dim), dtype=bool)
+        obs_buffer, mask_buffer = self._get_strategic_batch_buffers(input_dim, action_dim)
+        obs_batch = obs_buffer[:n]
+        mask_batch = mask_buffer[:n]
+        obs_batch.fill(0.0)
+        mask_batch.fill(False)
 
         for i, req in enumerate(reqs):
             obs = req.get("obs")
-            if obs is None or len(obs) != input_dim:
-                # Zero-pad or truncate gracefully
-                obs_arr = np.zeros(input_dim, dtype=np.float32)
-                if obs is not None:
-                    length = min(len(obs), input_dim)
-                    obs_arr[:length] = obs[:length]
-                obs_batch[i] = obs_arr
-            else:
-                obs_batch[i] = obs.astype(np.float32)
+            _copy_obs_into(obs_batch[i], obs, input_dim)
 
             n_actions = req.get("n_actions")
             if n_actions is not None and n_actions > 0:
