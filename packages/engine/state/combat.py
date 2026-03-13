@@ -139,6 +139,7 @@ class EnemyCombatState(EntityState):
     move_history: List[int] = field(default_factory=list)  # History of move IDs for AI patterns
     first_turn: bool = True  # Whether this is the enemy's first turn
     is_escaping: bool = False  # True when enemy is fleeing combat (Looter, Mugger, Gremlins)
+    half_dead: bool = False  # True when enemy has Regrow and is waiting to revive (Darkling)
 
     def copy(self) -> EnemyCombatState:
         """Create a shallow copy with copied dicts."""
@@ -158,6 +159,7 @@ class EnemyCombatState(EntityState):
             move_history=self.move_history.copy(),
             first_turn=self.first_turn,
             is_escaping=self.is_escaping,
+            half_dead=self.half_dead,
         )
 
     @property
@@ -178,6 +180,11 @@ class EnemyCombatState(EntityState):
     def is_alive(self) -> bool:
         """Check if enemy is alive and not escaping."""
         return self.hp > 0 and not self.is_escaping
+
+    @property
+    def is_truly_dead(self) -> bool:
+        """Check if enemy is dead and not half_dead (waiting to revive)."""
+        return self.hp <= 0 and not self.half_dead
 
 
 # =============================================================================
@@ -320,8 +327,8 @@ class CombatState:
         )
 
     def is_victory(self) -> bool:
-        """Check if all enemies are dead."""
-        return all(e.is_dead for e in self.enemies)
+        """Check if all enemies are dead (half_dead enemies are not truly dead)."""
+        return all(e.is_dead and not e.half_dead for e in self.enemies)
 
     def is_defeat(self) -> bool:
         """Check if player is dead."""
@@ -336,8 +343,8 @@ class CombatState:
         return [e for e in self.enemies if not e.is_dead]
 
     def all_enemies_dead(self) -> bool:
-        """Check if all enemies are dead."""
-        return all(e.is_dead for e in self.enemies)
+        """Check if all enemies are dead (half_dead enemies are not truly dead)."""
+        return all(e.is_dead and not e.half_dead for e in self.enemies)
 
     # -------------------------------------------------------------------------
     # Action Generation
