@@ -6,6 +6,7 @@ import type {
   PlannerResultMsg,
   AgentInfo,
   SystemStatsMsg,
+  TrainingStatsMsg,
 } from '../types/training';
 
 const MAX_EPISODES = 200;
@@ -15,7 +16,7 @@ type Action =
   | { type: 'connected' }
   | { type: 'disconnected' }
   | { type: 'grid_update'; agents: AgentInfo[] }
-  | { type: 'training_stats'; stats: any }
+  | { type: 'training_stats'; stats: TrainingStatsMsg }
   | { type: 'agent_episode'; episode: AgentEpisodeMsg }
   | { type: 'mcts_result'; result: MCTSResultMsg }
   | { type: 'planner_result'; result: PlannerResultMsg }
@@ -61,6 +62,32 @@ const initialState: FullState = {
   connected: false,
 };
 
+function episodeKey(episode: AgentEpisodeMsg): string {
+  return [
+    episode.run_id ?? '',
+    episode.agent_id,
+    episode.episode,
+    episode.seed,
+    episode.floors_reached,
+    episode.won ? 1 : 0,
+  ].join(':');
+}
+
+function mergeEpisodes(
+  episodes: AgentEpisodeMsg[],
+  incoming: AgentEpisodeMsg,
+): AgentEpisodeMsg[] {
+  const seen = new Set<string>();
+  return [incoming, ...episodes].filter((episode) => {
+    const key = episodeKey(episode);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  }).slice(0, MAX_EPISODES);
+}
+
 function reducer(state: FullState, action: Action): FullState {
   const t = state.training;
   switch (action.type) {
@@ -73,7 +100,7 @@ function reducer(state: FullState, action: Action): FullState {
     case 'training_stats':
       return { ...state, training: { ...t, stats: action.stats } };
     case 'agent_episode': {
-      const episodes = [action.episode, ...t.episodes].slice(0, MAX_EPISODES);
+      const episodes = mergeEpisodes(t.episodes, action.episode);
       // Accumulate local history from episodes (skip floor 0 — construction failures)
       const floorReached = action.episode.floors_reached;
       const floorHistory = floorReached > 0
@@ -198,6 +225,10 @@ export function useTrainingState() {
   const [fullState, dispatch] = useReducer(reducer, initialState);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSeenEpisodeRef = useRef<{ episode: number; runId: string | null }>({
+    episode: 0,
+    runId: null,
+  });
 
   useEffect(() => {
     let unmounted = false;
@@ -261,11 +292,26 @@ export function useTrainingState() {
               dispatch({ type: 'system_stats', stats: msg });
               // Inject recent episodes from overnight trainer (if available and not yet seen)
               if (msg.recent_episodes && Array.isArray(msg.recent_episodes)) {
-                const lastSeen = (window as any).__lastEpisodeNum ?? 0;
-                for (const ep of msg.recent_episodes) {
-                  if (ep.episode && ep.episode > lastSeen) {
+                const recentEpisodes = [...msg.recent_episodes]
+                  .filter((ep): ep is AgentEpisodeMsg => typeof ep?.episode === 'number')
+                  .sort((a, b) => a.episode - b.episode);
+                const runId = typeof msg.training_status?.run_id === 'string'
+                  ? msg.training_status.run_id
+                  : recentEpisodes.find((ep) => typeof ep.run_id === 'string')?.run_id ?? null;
+                const highestEpisode = recentEpisodes.reduce(
+                  (max, ep) => Math.max(max, ep.episode),
+                  0,
+                );
+                if (
+                  (runId && lastSeenEpisodeRef.current.runId !== runId)
+                  || (highestEpisode > 0 && highestEpisode < lastSeenEpisodeRef.current.episode)
+                ) {
+                  lastSeenEpisodeRef.current = { episode: 0, runId };
+                }
+                for (const ep of recentEpisodes) {
+                  if (ep.episode > lastSeenEpisodeRef.current.episode) {
                     dispatch({ type: 'agent_episode', episode: ep });
-                    (window as any).__lastEpisodeNum = ep.episode;
+                    lastSeenEpisodeRef.current = { episode: ep.episode, runId };
                   }
                 }
               }
@@ -307,7 +353,8 @@ export function useTrainingState() {
 
   const clearFocus = useCallback(() => {
     dispatch({ type: 'clear_focus' });
-  }, []);
+    sendMsg({ type: 'training_focus', clear: true });
+  }, [sendMsg]);
 
   const selectAgent = useCallback((index: number) => {
     dispatch({ type: 'select_agent', index });

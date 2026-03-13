@@ -74,16 +74,17 @@ const SectionHeader = ({ children, right }: { children: React.ReactNode; right?:
   </div>
 );
 
-const HBar = ({ label, value, maxValue, color, labelWidth = 50 }: {
+const HBar = ({ label, value, maxValue, color, labelWidth = 50, pctLabel }: {
   label: string;
   value: number;
   maxValue: number;
   color: string;
   labelWidth?: number;
+  pctLabel?: string;
 }) => {
   const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', height: '14px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', height: '16px' }}>
       <span style={{
         width: `${labelWidth}px`,
         textAlign: 'right',
@@ -95,7 +96,7 @@ const HBar = ({ label, value, maxValue, color, labelWidth = 50 }: {
       }}>
         {label}
       </span>
-      <div style={{ flex: 1, background: '#21262d', height: '8px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ flex: 1, background: '#21262d', height: '10px', position: 'relative', overflow: 'hidden' }}>
         <div style={{
           width: `${pct}%`,
           height: '100%',
@@ -105,8 +106,8 @@ const HBar = ({ label, value, maxValue, color, labelWidth = 50 }: {
           minWidth: value > 0 ? '2px' : '0',
         }} />
       </div>
-      <span style={{ width: '24px', textAlign: 'right', color: '#c9d1d9', flexShrink: 0 }}>
-        {value}
+      <span style={{ width: pctLabel ? '46px' : '28px', textAlign: 'right', color: '#c9d1d9', flexShrink: 0, fontSize: '9px' }}>
+        {pctLabel ?? value}
       </span>
     </div>
   );
@@ -147,6 +148,111 @@ const EmptyState = ({ text }: { text: string }) => (
   </div>
 );
 
+/** Big stat card with prominent number */
+const BigStat = ({ label, value, sub, color = '#c9d1d9', small }: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+  small?: boolean;
+}) => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: small ? '6px 8px' : '8px 10px',
+    background: '#161b22',
+    border: '1px solid #21262d',
+    gap: '2px',
+    minWidth: 0,
+    flex: 1,
+  }}>
+    <span style={{
+      fontSize: '8px',
+      color: '#8b949e',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      whiteSpace: 'nowrap',
+    }}>{label}</span>
+    <span style={{
+      fontSize: small ? '16px' : '20px',
+      fontWeight: 700,
+      color,
+      fontFamily: "'JetBrains Mono', monospace",
+      lineHeight: 1.1,
+    }}>{value}</span>
+    {sub && <span style={{ fontSize: '8px', color: '#8b949e', whiteSpace: 'nowrap' }}>{sub}</span>}
+  </div>
+);
+
+/** Floor sparkline with Y-axis labels, larger size */
+const FloorChart = ({ data, markers, current, peak }: {
+  data: number[];
+  markers: SparklineMarker[];
+  current: number;
+  peak: number;
+}) => {
+  if (data.length < 2) return <EmptyState text="Need 2+ episodes for trend" />;
+  const minVal = Math.min(...data);
+  const maxVal = Math.max(...data);
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Axis labels */}
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: '28px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        padding: '14px 0 14px 0',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}>
+        <span style={{ fontSize: '8px', color: '#8b949e', fontFamily: 'monospace' }}>
+          {maxVal.toFixed(0)}
+        </span>
+        <span style={{ fontSize: '8px', color: '#8b949e', fontFamily: 'monospace' }}>
+          {((maxVal + minVal) / 2).toFixed(0)}
+        </span>
+        <span style={{ fontSize: '8px', color: '#8b949e', fontFamily: 'monospace' }}>
+          {minVal.toFixed(0)}
+        </span>
+      </div>
+      <div style={{ marginLeft: '30px' }}>
+        <Sparkline
+          data={data}
+          width={320}
+          height={130}
+          color="#ffb700"
+          fill={true}
+          markers={markers}
+        />
+      </div>
+      {/* Callout */}
+      <div style={{
+        position: 'absolute',
+        top: '4px',
+        right: '4px',
+        background: 'rgba(13,17,23,0.9)',
+        border: '1px solid #30363d',
+        padding: '3px 8px',
+        fontSize: '10px',
+        fontFamily: "'JetBrains Mono', monospace",
+        zIndex: 2,
+      }}>
+        <span style={{ color: '#ffb700', fontWeight: 700 }}>{current.toFixed(1)}</span>
+        <span style={{ color: '#3d444d', margin: '0 4px' }}>|</span>
+        <span style={{ color: '#8b949e', fontSize: '9px' }}>peak </span>
+        <span style={{ color: '#c9d1d9' }}>{peak.toFixed(1)}</span>
+      </div>
+    </div>
+  );
+};
+
 // ---- Main Component ----
 
 export const StatsOverviewPanel = ({
@@ -177,51 +283,45 @@ export const StatsOverviewPanel = ({
     return episodes.filter(ep => ep.floors_reached >= floorRange[0] && ep.floors_reached <= floorRange[1]);
   }, [episodes, scope, floorRange]);
 
-  // ---- Computed: Agent Leaderboard ----
-  const leaderboard = useMemo(() => {
-    return [...agents]
-      .map((a) => {
-        const aa = a as any;
-        return {
-          ...a,
-          hpRatio: a.max_hp > 0 ? a.hp / a.max_hp : 0,
-          maxFloor: a.floor,
-          deckSize: aa.deck_size ?? null,
-          relicCount: aa.relic_count ?? null,
-          potionCount: aa.potion_count ?? null,
-          potionMax: aa.potion_max ?? null,
-          gold: aa.gold ?? null,
-          stance: aa.stance ?? 'Neutral',
-        };
-      })
-      .sort((a, b) => {
-        if (b.maxFloor !== a.maxFloor) return b.maxFloor - a.maxFloor;
-        return b.hpRatio - a.hpRatio;
-      });
-  }, [agents]);
+  // ---- Computed: Rolling Avg Floor (last 50) ----
+  const rollingAvgFloor = useMemo(() => {
+    if (floorHistory.length === 0) return { data: [], current: 0, peak: 0 };
+    const windowSize = 50;
+    const data: number[] = [];
+    let peak = 0;
+    for (let i = 0; i < floorHistory.length; i++) {
+      const start = Math.max(0, i - windowSize + 1);
+      const window = floorHistory.slice(start, i + 1);
+      const avg = window.reduce((s, v) => s + v, 0) / window.length;
+      data.push(avg);
+      if (avg > peak) peak = avg;
+    }
+    const current = data.length > 0 ? data[data.length - 1] : 0;
+    return { data, current, peak };
+  }, [floorHistory]);
 
-  // ---- Computed: Floor Distribution ----
-  const floorDist = useMemo(() => {
-    const counts: Record<number, number> = {};
-    let maxCount = 0;
-    let highestFloor = 0;
-    for (const ep of filteredEpisodes) {
-      const f = ep.floors_reached;
-      if (f <= 0) continue; // Skip construction failures
-      counts[f] = (counts[f] || 0) + 1;
-      if (counts[f] > maxCount) maxCount = counts[f];
-      if (f > highestFloor) highestFloor = f;
+  // ---- Computed: F16+ Rate (rolling) ----
+  const f16Rate = useMemo(() => {
+    if (floorHistory.length === 0) return { data: [], current: 0 };
+    const windowSize = 100;
+    const data: number[] = [];
+    for (let i = 0; i < floorHistory.length; i++) {
+      const start = Math.max(0, i - windowSize + 1);
+      const window = floorHistory.slice(start, i + 1);
+      const rate = window.filter(f => f >= 16).length / window.length;
+      data.push(rate * 100);
     }
-    const minFloor = scope === 'overview' || scope === 'rewards' ? 1 : floorRange[0];
-    const maxFloorCap = scope === 'overview' || scope === 'rewards' ? Math.max(highestFloor, 20) : floorRange[1];
-    const entries: { floor: number; count: number }[] = [];
-    for (let f = minFloor; f <= Math.max(highestFloor, maxFloorCap); f++) {
-      if (counts[f]) {
-        entries.push({ floor: f, count: counts[f] });
-      }
-    }
-    return { entries, maxCount, highestFloor };
-  }, [filteredEpisodes, scope, floorRange]);
+    const current = data.length > 0 ? data[data.length - 1] : 0;
+    return { data, current };
+  }, [floorHistory]);
+
+  // ---- Computed: Training Step Markers for Sparklines ----
+  const sparklineMarkers: SparklineMarker[] = useMemo(() => {
+    return trainStepMarkers.map((m) => ({
+      index: m.index,
+      label: `T${m.step}`,
+    }));
+  }, [trainStepMarkers]);
 
   // ---- Computed: Rolling Win Rate ----
   const rollingWinRate = useMemo(() => {
@@ -238,28 +338,56 @@ export const StatsOverviewPanel = ({
     return { data, current };
   }, [winHistory]);
 
-  // ---- Computed: Rolling Avg Floor (last 50) ----
-  const rollingAvgFloor = useMemo(() => {
-    if (floorHistory.length === 0) return { data: [], current: 0 };
-    const windowSize = 50;
-    const data: number[] = [];
-    for (let i = 0; i < floorHistory.length; i++) {
-      const start = Math.max(0, i - windowSize + 1);
-      const window = floorHistory.slice(start, i + 1);
-      const avg = window.reduce((s, v) => s + v, 0) / window.length;
-      data.push(avg);
+  // ---- Computed: Floor Bucket Distribution ----
+  const floorBuckets = useMemo(() => {
+    const buckets: { label: string; range: [number, number]; count: number; color: string }[] = [
+      { label: '1-5', range: [1, 5], count: 0, color: '#ff4444' },
+      { label: '6-10', range: [6, 10], count: 0, color: '#ff6b35' },
+      { label: '11-15', range: [11, 15], count: 0, color: '#ffb700' },
+      { label: '16', range: [16, 16], count: 0, color: '#c9d1d9' },
+      { label: '17-25', range: [17, 25], count: 0, color: '#4488ff' },
+      { label: '26-34', range: [26, 34], count: 0, color: '#a78bfa' },
+      { label: '35+', range: [35, 999], count: 0, color: '#00ff41' },
+    ];
+    for (const ep of filteredEpisodes) {
+      const f = ep.floors_reached;
+      if (f <= 0) continue;
+      for (const b of buckets) {
+        if (f >= b.range[0] && f <= b.range[1]) {
+          b.count++;
+          break;
+        }
+      }
     }
-    const current = data.length > 0 ? data[data.length - 1] : 0;
-    return { data, current };
-  }, [floorHistory]);
+    const maxCount = Math.max(...buckets.map(b => b.count), 1);
+    // Filter out empty high buckets to save space
+    let lastNonZero = buckets.length - 1;
+    while (lastNonZero > 3 && buckets[lastNonZero].count === 0) lastNonZero--;
+    return { buckets: buckets.slice(0, lastNonZero + 1), maxCount };
+  }, [filteredEpisodes]);
 
-  // ---- Computed: Training Step Markers for Sparklines ----
-  const sparklineMarkers: SparklineMarker[] = useMemo(() => {
-    return trainStepMarkers.map((m) => ({
-      index: m.index,
-      label: `T${m.step}`,
-    }));
-  }, [trainStepMarkers]);
+  // ---- Computed: Per-floor distribution (for detailed view) ----
+  const floorDist = useMemo(() => {
+    const counts: Record<number, number> = {};
+    let maxCount = 0;
+    let highestFloor = 0;
+    for (const ep of filteredEpisodes) {
+      const f = ep.floors_reached;
+      if (f <= 0) continue;
+      counts[f] = (counts[f] || 0) + 1;
+      if (counts[f] > maxCount) maxCount = counts[f];
+      if (f > highestFloor) highestFloor = f;
+    }
+    const minFloor = scope === 'overview' || scope === 'rewards' ? 1 : floorRange[0];
+    const maxFloorCap = scope === 'overview' || scope === 'rewards' ? Math.max(highestFloor, 20) : floorRange[1];
+    const entries: { floor: number; count: number }[] = [];
+    for (let f = minFloor; f <= Math.max(highestFloor, maxFloorCap); f++) {
+      if (counts[f]) {
+        entries.push({ floor: f, count: counts[f] });
+      }
+    }
+    return { entries, maxCount, highestFloor };
+  }, [filteredEpisodes, scope, floorRange]);
 
   // ---- Computed: Avg HP Lost Per Combat ----
   const avgHpLost = useMemo(() => {
@@ -274,7 +402,7 @@ export const StatsOverviewPanel = ({
       }
     }
     if (combatCount === 0) return null;
-    return totalLost / combatCount;
+    return { avg: totalLost / combatCount, combatCount };
   }, [filteredEpisodes]);
 
   // ---- Computed: HP Lost Trend (per-episode avg) ----
@@ -316,6 +444,29 @@ export const StatsOverviewPanel = ({
     return { entries, maxCount, deadliestFloor };
   }, [deathStats.byFloor]);
 
+  // ---- Computed: Stance Distribution ----
+  const stanceDist = useMemo(() => {
+    const totals: Record<string, number> = {};
+    let combatCount = 0;
+    for (const ep of filteredEpisodes) {
+      if (ep.combats) {
+        for (const c of ep.combats) {
+          combatCount++;
+          if (c.stances) {
+            for (const [stance, count] of Object.entries(c.stances)) {
+              totals[stance] = (totals[stance] || 0) + (count as number);
+            }
+          }
+        }
+      }
+    }
+    const entries = Object.entries(totals)
+      .map(([stance, count]) => ({ stance, count }))
+      .sort((a, b) => b.count - a.count);
+    const total = entries.reduce((s, e) => s + e.count, 0);
+    return { entries, total, combatCount };
+  }, [filteredEpisodes]);
+
   // ---- Computed: Popular Card Picks ----
   const popularCards = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -340,35 +491,11 @@ export const StatsOverviewPanel = ({
     return { entries, maxCount };
   }, [filteredEpisodes]);
 
-  // ---- Computed: Stance Distribution ----
-  const stanceDist = useMemo(() => {
-    const totals: Record<string, number> = {};
-    let combatCount = 0;
-    for (const ep of filteredEpisodes) {
-      if (ep.combats) {
-        for (const c of ep.combats) {
-          combatCount++;
-          if (c.stances) {
-            for (const [stance, count] of Object.entries(c.stances)) {
-              totals[stance] = (totals[stance] || 0) + (count as number);
-            }
-          }
-        }
-      }
-    }
-    const entries = Object.entries(totals)
-      .map(([stance, count]) => ({ stance, count }))
-      .sort((a, b) => b.count - a.count);
-    const total = entries.reduce((s, e) => s + e.count, 0);
-    return { entries, total, combatCount };
-  }, [filteredEpisodes]);
-
   // ---- Computed: Top Runners (best individual game runs) ----
   const topRunners = useMemo(() => {
     if (filteredEpisodes.length === 0) return [];
     return [...filteredEpisodes]
       .sort((a, b) => {
-        // Wins first, then by floors_reached descending
         if (a.won !== b.won) return a.won ? -1 : 1;
         return b.floors_reached - a.floors_reached;
       })
@@ -387,7 +514,6 @@ export const StatsOverviewPanel = ({
 
   // ---- Computed: Summary Stats ----
   const summaryStats = useMemo(() => {
-    // When scoped to an act, always compute from filtered data (server stats are global)
     const isScoped = scope !== 'overview' && scope !== 'rewards';
     const totalEp = isScoped ? filteredEpisodes.length : (stats?.total_episodes ?? filteredEpisodes.length);
     const winCount = isScoped
@@ -406,6 +532,46 @@ export const StatsOverviewPanel = ({
     return { totalEp, winCount, avgFloor, maxFloor };
   }, [stats, filteredEpisodes, agents, scope]);
 
+  // ---- Computed: Training info from systemStats ----
+  const training = useMemo(() => {
+    const ts = systemStats?.training_status ?? {};
+    const liveTrainingActive = Boolean(stats?.run_id) && (
+      (((stats as TrainingStatsMsg & { worker_count?: number }).worker_count) ?? 0) > 0
+      || (systemStats?.workers ?? 0) > 0
+      || (stats?.total_episodes ?? 0) > 0
+    );
+    if (Object.keys(ts).length === 0 && !liveTrainingActive) return null;
+    return {
+      trainSteps: (ts.train_steps as number | undefined) ?? stats?.train_steps,
+      totalLoss: ts.total_loss as number | undefined,
+      policyLoss: ts.policy_loss as number | undefined,
+      valueLoss: ts.value_loss as number | undefined,
+      gpm: (ts.games_per_min as number | undefined) ?? stats?.eps_per_min,
+      totalGames: (ts.total_games as number | undefined) ?? stats?.total_episodes,
+      avgFloor: (ts.avg_floor_100 as number | undefined) ?? stats?.avg_floor,
+      elapsedH: (ts.elapsed_hours as number | undefined) ?? (stats?.uptime != null ? stats.uptime / 3600 : undefined),
+      sweepPhase: ts.sweep_phase as string | undefined,
+      bufferSize: ts.buffer_size as number | undefined,
+      entropyCoeff: ts.entropy_coeff as number | undefined,
+      configName: (ts.config_name as string | undefined) ?? stats?.run_id,
+      liveTrainingActive,
+    };
+  }, [stats, systemStats]);
+
+  // ---- Computed: Loss trend ----
+  const lossTrend = useMemo(() => {
+    if (!training?.totalLoss) return null;
+    // Just report the current value with color
+    const loss = training.totalLoss;
+    return {
+      value: loss,
+      color: loss < 0.3 ? '#00ff41' : loss < 0.5 ? '#ffb700' : '#ff4444',
+    };
+  }, [training]);
+
+  const hasTrainingStatus = Boolean(systemStats?.training_status && Object.keys(systemStats.training_status).length > 0);
+  const trainingActive = Boolean(training) && ((training?.liveTrainingActive ?? false) || hasTrainingStatus);
+
   return (
     <div style={{
       display: 'flex',
@@ -418,120 +584,99 @@ export const StatsOverviewPanel = ({
       color: '#c9d1d9',
     }}>
 
-      {/* Training status banner */}
-      {systemStats?.training_status && Object.keys(systemStats.training_status).length > 0 && (() => {
-        const ts = systemStats.training_status!;
-        const trainSteps = ts.train_steps as number | undefined;
-        const totalLoss = ts.total_loss as number | undefined;
-        const gpm = ts.games_per_min as number | undefined;
-        const totalGames = ts.total_games as number | undefined;
-        const avgFloor = ts.avg_floor_100 as number | undefined;
-        const elapsedH = ts.elapsed_hours as number | undefined;
-        const sweepPhase = ts.sweep_phase as string | undefined;
-        const bufferSize = ts.buffer_size as number | undefined;
-        const isActive = trainSteps != null && trainSteps > 0;
-        const isTraining = sweepPhase === 'training';
-        const isCollecting = sweepPhase === 'collecting';
-        const lossColor = totalLoss != null
-          ? totalLoss < 0.3 ? '#00ff41' : totalLoss < 0.5 ? '#ffb700' : '#ff4444'
-          : '#ff8c00';
-        return (
-          <div style={{
-            display: 'flex',
+      {/* ====== SESSION STATS BAR ====== */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        padding: '5px 10px',
+        borderBottom: '1px solid #21262d',
+        background: '#161b22',
+        flexShrink: 0,
+        fontSize: '10px',
+        flexWrap: 'wrap',
+      }}>
+        {/* Status indicator */}
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          color: trainingActive ? '#00ff41' : '#8b949e',
+          fontWeight: 600,
+          fontSize: '9px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: trainingActive ? '#00ff41' : '#3d444d',
+            display: 'inline-block',
+            boxShadow: trainingActive ? '0 0 4px #00ff41' : 'none',
+          }} />
+          {trainingActive ? 'Training' : 'Idle'}
+        </span>
+
+        {/* Phase badge */}
+        {training?.sweepPhase && (
+          <span style={{
+            display: 'inline-flex',
             alignItems: 'center',
-            gap: '16px',
-            padding: '4px 8px',
-            borderBottom: '1px solid #21262d',
-            background: isActive ? 'rgba(0,255,65,0.04)' : '#161b22',
-            flexShrink: 0,
-            fontSize: '10px',
-            fontFamily: "'JetBrains Mono', monospace",
-            flexWrap: 'wrap',
+            gap: '4px',
+            padding: '1px 6px',
+            fontSize: '8px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            borderRadius: '3px',
+            background: training.sweepPhase === 'collecting' ? 'rgba(0,255,65,0.12)' : 'rgba(255,183,0,0.12)',
+            color: training.sweepPhase === 'collecting' ? '#00ff41' : '#ffb700',
+            border: `1px solid ${training.sweepPhase === 'collecting' ? 'rgba(0,255,65,0.25)' : 'rgba(255,183,0,0.25)'}`,
           }}>
             <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              color: isActive ? '#00ff41' : '#8b949e',
-              fontWeight: 600,
-              fontSize: '9px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}>
-              <span style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: isActive ? '#00ff41' : '#3d444d',
-                display: 'inline-block',
-                boxShadow: isActive ? '0 0 4px #00ff41' : 'none',
-              }} />
-              {isActive ? 'Training' : 'Idle'}
-            </span>
-            {/* Phase badge */}
-            {sweepPhase && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '1px 6px',
-                fontSize: '8px',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                borderRadius: '3px',
-                background: isCollecting ? 'rgba(0,255,65,0.12)' : 'rgba(255,183,0,0.12)',
-                color: isCollecting ? '#00ff41' : '#ffb700',
-                border: `1px solid ${isCollecting ? 'rgba(0,255,65,0.25)' : 'rgba(255,183,0,0.25)'}`,
-                animation: isTraining ? 'phase-pulse 2s ease-in-out infinite' : 'none',
-              }}>
-                <span style={{
-                  width: '5px',
-                  height: '5px',
-                  borderRadius: '50%',
-                  background: isCollecting ? '#00ff41' : '#ffb700',
-                  display: 'inline-block',
-                }} />
-                {sweepPhase}
-              </span>
-            )}
-            {/* Training details: buffer + loss during training phase */}
-            {isTraining && bufferSize != null && (
-              <span style={{ color: '#8b949e', fontSize: '9px' }}>
-                Training on <span style={{ color: '#c9d1d9', fontWeight: 600 }}>{bufferSize.toLocaleString()}</span> transitions
-              </span>
-            )}
-            {trainSteps != null && (
-              <span style={{ color: '#8b949e' }}>
-                Steps: <span style={{ color: '#c9d1d9' }}>{trainSteps.toLocaleString()}</span>
-              </span>
-            )}
-            {totalLoss != null && (
-              <span style={{ color: '#8b949e' }}>
-                Loss: <span style={{ color: lossColor, fontWeight: 600 }}>{totalLoss.toFixed(4)}</span>
-              </span>
-            )}
-            {gpm != null && (
-              <span style={{ color: '#8b949e' }}>
-                <span style={{ color: '#c9d1d9' }}>{gpm.toFixed(0)}</span> g/min
-              </span>
-            )}
-            {avgFloor != null && (
-              <span style={{ color: '#8b949e' }}>
-                Avg F: <span style={{ color: '#ffb700' }}>{avgFloor.toFixed(1)}</span>
-              </span>
-            )}
-            {totalGames != null && (
-              <span style={{ color: '#8b949e' }}>
-                <span style={{ color: '#c9d1d9' }}>{totalGames.toLocaleString()}</span> games
-              </span>
-            )}
-            {elapsedH != null && (
-              <span style={{ color: '#3d444d' }}>{elapsedH.toFixed(1)}h</span>
-            )}
-          </div>
-        );
-      })()}
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              background: training.sweepPhase === 'collecting' ? '#00ff41' : '#ffb700',
+              display: 'inline-block',
+            }} />
+            {training.sweepPhase}
+          </span>
+        )}
+
+        {/* Inline session metrics */}
+        {training?.totalGames != null && (
+          <span style={{ color: '#8b949e' }}>
+            <span style={{ color: '#c9d1d9', fontWeight: 600 }}>{training.totalGames.toLocaleString()}</span> games
+          </span>
+        )}
+        {training?.gpm != null && (
+          <span style={{ color: '#8b949e' }}>
+            <span style={{ color: '#c9d1d9' }}>{training.gpm.toFixed(0)}</span> g/min
+          </span>
+        )}
+        {training?.elapsedH != null && (
+          <span style={{ color: '#8b949e' }}>
+            <span style={{ color: '#c9d1d9' }}>{training.elapsedH.toFixed(1)}</span>h elapsed
+          </span>
+        )}
+        {lossTrend && (
+          <span style={{ color: '#8b949e' }}>
+            Loss: <span style={{ color: lossTrend.color, fontWeight: 600 }}>{lossTrend.value.toFixed(4)}</span>
+          </span>
+        )}
+        {training?.entropyCoeff != null && (
+          <span style={{ color: '#8b949e' }}>
+            Ent: <span style={{ color: '#c9d1d9' }}>{training.entropyCoeff.toFixed(3)}</span>
+          </span>
+        )}
+        {training?.configName && (
+          <span style={{ color: '#a78bfa', fontSize: '9px', marginLeft: 'auto' }}>
+            {training.configName}
+          </span>
+        )}
+      </div>
 
       {/* Scope selector */}
       <div style={{
@@ -601,14 +746,15 @@ export const StatsOverviewPanel = ({
               {([
                 ['F6 (Early)', '+0.10'],
                 ['F10 (Mid A1)', '+0.15'],
-                ['F15 (Pre-Boss)', '+0.25'],
-                ['F16 (A1 Boss)', '+0.50'],
+                ['F15 (Pre-Boss)', '+0.20'],
+                ['F16 (A1 Boss)', '+0.25'],
                 ['F17 (Beat A1)', '+1.00'],
-                ['F25 (Mid A2)', '+0.30'],
-                ['F33 (A2 Boss)', '+0.50'],
-                ['F34 (Beat A2)', '+1.00'],
-                ['F50 (A3 Boss)', '+0.50'],
-                ['F51 (Beat A3)', '+1.50'],
+                ['F25 (Mid A2)', '+0.50'],
+                ['F33 (A2 Boss)', '+1.00'],
+                ['F34 (Beat A2)', '+2.00'],
+                ['F50 (A3 Boss)', '+2.00'],
+                ['F51 (Beat A3)', '+3.00'],
+                ['F55 (Heart)', '+5.00'],
               ] as const).map(([label, val]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', padding: '2px 0' }}>
                   <span style={{ color: '#8b949e' }}>{label}</span>
@@ -630,7 +776,6 @@ export const StatsOverviewPanel = ({
                   <span style={{ color: '#00ff41' }}>{val}</span>
                 </div>
               ))}
-
               <div style={{ fontSize: '10px', color: '#ffb700', marginBottom: '6px', marginTop: '12px', fontWeight: 600 }}>Key Card Picks</div>
               {([
                 ['Rushdown', '+0.30'],
@@ -661,6 +806,111 @@ export const StatsOverviewPanel = ({
         </div>
       ) : (
       <>
+      {/* ====== HERO STATS ROW ====== */}
+      <div style={{
+        display: 'flex',
+        gap: '4px',
+        padding: '6px 8px',
+        borderBottom: '1px solid #21262d',
+        background: '#0d1117',
+        flexShrink: 0,
+      }}>
+        <BigStat
+          label="Avg Floor"
+          value={summaryStats.avgFloor > 0 ? summaryStats.avgFloor.toFixed(1) : '---'}
+          color="#ffb700"
+          sub={`peak ${summaryStats.maxFloor}`}
+        />
+        <BigStat
+          label="F16+ Rate"
+          value={f16Rate.current > 0 ? `${f16Rate.current.toFixed(1)}%` : '0%'}
+          color={f16Rate.current > 10 ? '#00ff41' : f16Rate.current > 0 ? '#ffb700' : '#3d444d'}
+          sub={`of ${floorHistory.length} games`}
+        />
+        <BigStat
+          label="Train Steps"
+          value={training?.trainSteps?.toLocaleString() ?? '---'}
+          color="#a78bfa"
+          sub={training?.bufferSize ? `buf ${training.bufferSize.toLocaleString()}` : undefined}
+        />
+        <BigStat
+          label="Games"
+          value={summaryStats.totalEp > 0 ? summaryStats.totalEp.toLocaleString() : '---'}
+          color="#c9d1d9"
+          sub={`${summaryStats.winCount} wins`}
+        />
+        <BigStat
+          label="G/min"
+          value={training?.gpm?.toFixed(0) ?? (stats?.eps_per_min?.toFixed(0) ?? '---')}
+          color="#c9d1d9"
+          sub={stats?.uptime != null ? fmtDuration(stats.uptime) : undefined}
+        />
+        {lossTrend && (
+          <BigStat
+            label="Loss"
+            value={lossTrend.value.toFixed(4)}
+            color={lossTrend.color}
+            sub={training?.policyLoss != null ? `p:${training.policyLoss.toFixed(3)} v:${training.valueLoss?.toFixed(3) ?? '-'}` : undefined}
+          />
+        )}
+      </div>
+
+      {/* ====== TRAINING PROGRESS BAR ====== */}
+      {training?.trainSteps != null && (
+        <div style={{
+          padding: '3px 10px',
+          borderBottom: '1px solid #21262d',
+          background: '#0d1117',
+          flexShrink: 0,
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '9px',
+          }}>
+            <span style={{ color: '#8b949e', whiteSpace: 'nowrap' }}>Step {training.trainSteps.toLocaleString()}</span>
+            <div style={{
+              flex: 1,
+              height: '6px',
+              background: '#21262d',
+              overflow: 'hidden',
+              position: 'relative',
+            }}>
+              {/* Animated progress bar - pulses when training */}
+              <div style={{
+                width: `${Math.min(100, (training.trainSteps / Math.max(training.trainSteps, 1000)) * 100)}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #a78bfa, #7c3aed)',
+                transition: 'width 0.5s ease',
+              }} />
+              {training.sweepPhase === 'training' && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.3) 50%, transparent 100%)',
+                  animation: 'shimmer 2s ease-in-out infinite',
+                }} />
+              )}
+            </div>
+            {training.sweepPhase && (
+              <span style={{
+                color: training.sweepPhase === 'collecting' ? '#00ff41' : '#ffb700',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                fontSize: '8px',
+                textTransform: 'uppercase',
+              }}>
+                {training.sweepPhase}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ====== WORKER GRID ====== */}
       {agents.length > 0 && (
         <div style={{
@@ -673,6 +923,7 @@ export const StatsOverviewPanel = ({
         </div>
       )}
 
+      {/* ====== MAIN 3-COLUMN LAYOUT ====== */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr 1fr',
@@ -681,285 +932,66 @@ export const StatsOverviewPanel = ({
         overflow: 'hidden',
       }}>
 
-      {/* ====== COLUMN 1: Agent Rankings + System ====== */}
+      {/* ====== COLUMN 1: Floor Trend + Distribution ====== */}
       <div style={{
         borderRight: '1px solid #21262d',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
-
-        {/* Agent Leaderboard */}
-        <div style={{ flex: 1, padding: '8px', overflow: 'auto', borderBottom: '1px solid #21262d' }}>
+        {/* Avg Floor Trend - LARGE chart */}
+        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
           <SectionHeader
-            right={<span style={{ color: '#00ff41' }}>{summaryStats.totalEp} ep</span>}
+            right={
+              <span style={{ color: '#ffb700', fontSize: '11px', fontWeight: 700 }}>
+                Avg: {rollingAvgFloor.current.toFixed(1)}
+              </span>
+            }
           >
-            Agent Leaderboard
+            Avg Floor (rolling 50)
           </SectionHeader>
+          <FloorChart
+            data={rollingAvgFloor.data}
+            markers={sparklineMarkers}
+            current={rollingAvgFloor.current}
+            peak={rollingAvgFloor.peak}
+          />
 
-          {/* Summary row */}
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            marginBottom: '6px',
-            fontSize: '9px',
-            color: '#8b949e',
-          }}>
-            <span>W: <span style={{ color: '#00ff41' }}>{summaryStats.winCount}</span></span>
-            <span>Avg: <span style={{ color: '#c9d1d9' }}>{summaryStats.avgFloor.toFixed(1)}</span></span>
-            <span>Max: <span style={{ color: '#ffb700' }}>{summaryStats.maxFloor}</span></span>
-            {stats?.eps_per_min != null && (
-              <span>Rate: <span style={{ color: '#c9d1d9' }}>{stats.eps_per_min.toFixed(1)}/m</span></span>
-            )}
-          </div>
-
-          {/* Table header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '16px 1fr 24px 42px 24px 24px 24px 28px 36px',
-            gap: '2px',
-            fontSize: '8px',
-            color: '#3d444d',
-            textTransform: 'uppercase',
-            letterSpacing: '0.3px',
-            marginBottom: '2px',
-            paddingBottom: '2px',
-            borderBottom: '1px solid #161b22',
-          }}>
-            <span>#</span>
-            <span>Name</span>
-            <span style={{ textAlign: 'right' }}>Flr</span>
-            <span style={{ textAlign: 'right' }}>HP</span>
-            <span style={{ textAlign: 'right' }}>Dk</span>
-            <span style={{ textAlign: 'right' }}>Rel</span>
-            <span style={{ textAlign: 'right' }}>Pot</span>
-            <span style={{ textAlign: 'right' }}>Gold</span>
-            <span style={{ textAlign: 'center' }}>Stance</span>
-          </div>
-
-          {/* Agent rows */}
-          {leaderboard.map((a, i) => {
-            const rank = i + 1;
-            const isFirst = rank === 1;
-            const isDead = a.hp <= 0 || a.status === 'dead';
-            return (
-              <div
-                key={a.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '16px 1fr 24px 42px 24px 24px 24px 28px 36px',
-                  gap: '2px',
-                  fontSize: '10px',
-                  height: '16px',
-                  alignItems: 'center',
-                  opacity: isDead ? 0.4 : 1,
-                  background: isFirst ? 'rgba(0,255,65,0.05)' : 'transparent',
-                }}
-              >
-                <span style={{ color: isFirst ? '#00ff41' : '#3d444d', fontWeight: isFirst ? 700 : 400 }}>
-                  {rank}
-                </span>
-                <span style={{
-                  color: isFirst ? '#00ff41' : '#c9d1d9',
-                  fontWeight: isFirst ? 600 : 400,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {a.name}
-                </span>
-                <span style={{ textAlign: 'right', color: floorColor(a.floor, 55) }}>
-                  {Math.floor(a.floor)}
-                </span>
-                <span style={{ textAlign: 'right' }}>
-                  <span style={{ color: hpColor(a.hpRatio) }}>{a.hp}</span>
-                  <span style={{ color: '#3d444d' }}>/{a.max_hp}</span>
-                </span>
-                <span style={{ textAlign: 'right', color: '#4488ff' }}>
-                  {a.deckSize ?? '-'}
-                </span>
-                <span style={{ textAlign: 'right', color: '#ffb700' }}>
-                  {a.relicCount ?? '-'}
-                </span>
-                <span style={{ textAlign: 'right', color: '#ff44ff' }}>
-                  {a.potionCount ?? '-'}
-                </span>
-                <span style={{ textAlign: 'right', color: '#ffb700' }}>
-                  {a.gold ?? '-'}
-                </span>
-                <span style={{ textAlign: 'center', color: STANCE_COLORS[a.stance] ?? '#8b949e', fontSize: '8px' }}>
-                  {a.stance === 'Neutral' ? '-' : a.stance?.slice(0, 3)}
-                </span>
-              </div>
-            );
-          })}
-
-          {agents.length === 0 && <EmptyState text="No agents running" />}
-        </div>
-
-        {/* System Resources */}
-        <div style={{ padding: '8px', flexShrink: 0 }}>
-          <SectionHeader
-            right={stats?.uptime != null ? (
-              <span style={{ color: '#3d444d' }}>{fmtDuration(stats.uptime)}</span>
-            ) : undefined}
-          >
-            System
-          </SectionHeader>
-
-          {systemStats ? (
-            <>
-              <ResourceBar label="CPU" value={systemStats.cpu_pct} color="#4488ff" />
-              <ResourceBar
-                label="RAM"
-                value={systemStats.ram_used_gb}
-                max={systemStats.ram_total_gb}
-                unit="GB"
-                color="#ffb700"
-              />
-              <ResourceBar
-                label={`GPU (Metal) ${systemStats.gpu_util_pct ? systemStats.gpu_util_pct.toFixed(0) + '%' : ''}`}
-                value={systemStats.gpu_util_pct ?? 0}
-                max={100}
-                unit="%"
-                color={systemStats.gpu_util_pct && systemStats.gpu_util_pct > 30 ? '#a78bfa' : '#8b949e'}
-              />
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '9px',
-                color: '#8b949e',
-                marginTop: '4px',
-              }}>
-                <span>Workers: <span style={{ color: '#c9d1d9' }}>{systemStats.workers}</span></span>
-                <span>MCTS: <span style={{ color: '#c9d1d9' }}>
-                  {stats?.mcts_avg_ms != null ? `${stats.mcts_avg_ms.toFixed(0)}ms` : '-'}
-                </span></span>
-              </div>
-
-              {/* Overnight Training Status */}
-              {systemStats.training_status && Object.keys(systemStats.training_status).length > 0 && (() => {
-                const ts = systemStats.training_status!;
-                const totalGames = ts.total_games as number | undefined;
-                const totalWins = ts.total_wins as number | undefined;
-                const avgFloor100 = ts.avg_floor_100 as number | undefined;
-                const gamesPerMin = ts.games_per_min as number | undefined;
-                const trainSteps = ts.train_steps as number | undefined;
-                const replayBuffer = ts.replay_buffer as number | undefined;
-                const replayBestFloor = ts.replay_best_floor as number | undefined;
-                const configName = ts.config_name as string | undefined;
-                const entropyCoeff = ts.entropy_coeff as number | undefined;
-                const totalLoss = ts.total_loss as number | undefined;
-                const policyLoss = ts.policy_loss as number | undefined;
-                const valueLoss = ts.value_loss as number | undefined;
-                const elapsedHours = ts.elapsed_hours as number | undefined;
-                const winRate = totalGames && totalWins ? ((totalWins / totalGames) * 100) : 0;
-                return (
-                  <div style={{ marginTop: '8px', borderTop: '1px solid #21262d', paddingTop: '8px' }}>
-                    <SectionHeader
-                      right={configName ? (
-                        <span style={{ color: '#a78bfa', fontSize: '8px' }}>{configName}</span>
-                      ) : undefined}
-                    >
-                      Overnight Training
-                    </SectionHeader>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: '9px' }}>
-                      {totalGames != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Games</span>
-                          <span style={{ color: '#c9d1d9' }}>
-                            {totalGames.toLocaleString()}
-                            {winRate > 0 && (
-                              <span style={{ color: '#00ff41', marginLeft: '4px' }}>
-                                ({winRate.toFixed(1)}%)
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      {avgFloor100 != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Avg Floor</span>
-                          <span style={{ color: '#ffb700', fontWeight: 600 }}>{avgFloor100.toFixed(1)}</span>
-                        </div>
-                      )}
-                      {gamesPerMin != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>g/min</span>
-                          <span style={{ color: '#c9d1d9' }}>{gamesPerMin.toFixed(0)}</span>
-                        </div>
-                      )}
-                      {trainSteps != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Train Steps</span>
-                          <span style={{ color: '#c9d1d9' }}>{trainSteps.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {replayBuffer != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Replay</span>
-                          <span style={{ color: '#c9d1d9' }}>
-                            {replayBuffer.toLocaleString()}
-                            {replayBestFloor != null && (
-                              <span style={{ color: '#ffb700', marginLeft: '4px' }}>
-                                (best F{replayBestFloor})
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      {entropyCoeff != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Entropy</span>
-                          <span style={{ color: '#c9d1d9' }}>{entropyCoeff.toFixed(3)}</span>
-                        </div>
-                      )}
-                      {totalLoss != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>Loss</span>
-                          <span style={{ color: '#ff8c00' }}>{totalLoss.toFixed(4)}</span>
-                        </div>
-                      )}
-                      {policyLoss != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>P.Loss</span>
-                          <span style={{ color: '#c9d1d9' }}>{policyLoss.toFixed(4)}</span>
-                        </div>
-                      )}
-                      {valueLoss != null && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#8b949e' }}>V.Loss</span>
-                          <span style={{ color: '#c9d1d9' }}>{valueLoss.toFixed(4)}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {elapsedHours != null && (
-                      <div style={{ fontSize: '8px', color: '#3d444d', marginTop: '4px', textAlign: 'right' }}>
-                        Running {elapsedHours.toFixed(1)}h
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </>
-          ) : (
-            <EmptyState text="Waiting for system stats..." />
+          {/* Win rate inline if non-zero */}
+          {rollingWinRate.current > 0 && (
+            <div style={{ marginTop: '4px', fontSize: '9px', color: '#8b949e' }}>
+              Win Rate (rolling 20): <span style={{ color: '#00ff41' }}>{(rollingWinRate.current * 100).toFixed(1)}%</span>
+            </div>
           )}
         </div>
-      </div>
 
-      {/* ====== COLUMN 2: Charts ====== */}
-      <div style={{
-        borderRight: '1px solid #21262d',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+        {/* F16+ Rate sparkline */}
+        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
+          <SectionHeader
+            right={
+              <span style={{ color: f16Rate.current > 0 ? '#00ff41' : '#3d444d', fontSize: '11px', fontWeight: 700 }}>
+                {f16Rate.current.toFixed(1)}%
+              </span>
+            }
+          >
+            F16+ Rate (rolling 100)
+          </SectionHeader>
+          {f16Rate.data.length > 1 ? (
+            <Sparkline
+              data={f16Rate.data}
+              width={320}
+              height={50}
+              color="#00ff41"
+              fill={true}
+              markers={sparklineMarkers}
+            />
+          ) : (
+            <EmptyState text="Need 2+ episodes" />
+          )}
+        </div>
 
-        {/* Floor Distribution */}
-        <div style={{ flex: 1, padding: '8px', overflow: 'auto', borderBottom: '1px solid #21262d' }}>
+        {/* Floor Distribution Buckets */}
+        <div style={{ flex: 1, padding: '8px', overflow: 'auto' }}>
           <SectionHeader
             right={filteredEpisodes.length > 0 ? (
               <span style={{ color: '#3d444d' }}>{filteredEpisodes.length} runs</span>
@@ -968,89 +1000,81 @@ export const StatsOverviewPanel = ({
             Floor Distribution
           </SectionHeader>
 
-          {/* Floor trend sparkline */}
-          {floorHistory.length > 1 && (
-            <div style={{ marginBottom: '6px' }}>
-              <Sparkline
-                data={floorHistory}
-                width={280}
-                height={28}
-                color="#ffb700"
-                fill={true}
-                label="Avg Floor Trend"
-                markers={sparklineMarkers}
-              />
-            </div>
-          )}
-
-          {floorDist.entries.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {floorDist.entries.map(({ floor, count }) => (
-                <HBar
-                  key={floor}
-                  label={`F${floor}`}
-                  value={count}
-                  maxValue={floorDist.maxCount}
-                  color={floorColor(floor, floorDist.highestFloor)}
-                  labelWidth={28}
-                />
-              ))}
+          {floorBuckets.buckets.some(b => b.count > 0) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {floorBuckets.buckets.map(({ label, count, color }) => {
+                const totalRuns = filteredEpisodes.length;
+                const pctStr = totalRuns > 0 ? `${((count / totalRuns) * 100).toFixed(0)}%` : '0%';
+                return (
+                  <HBar
+                    key={label}
+                    label={`F${label}`}
+                    value={count}
+                    maxValue={floorBuckets.maxCount}
+                    color={color}
+                    labelWidth={40}
+                    pctLabel={`${count} (${pctStr})`}
+                  />
+                );
+              })}
             </div>
           ) : (
             <EmptyState text="No episode data yet" />
           )}
-        </div>
 
-        {/* Rolling Avg Floor (more useful than WR when WR is 0) */}
-        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
-          <SectionHeader
-            right={
-              <span style={{ color: '#ffb700', fontSize: '11px', fontWeight: 700 }}>
-                {rollingAvgFloor.current.toFixed(1)}
-              </span>
-            }
-          >
-            Avg Floor (rolling 50)
-          </SectionHeader>
-
-          {rollingAvgFloor.data.length > 1 ? (
-            <Sparkline
-              data={rollingAvgFloor.data}
-              width={280}
-              height={36}
-              color="#ffb700"
-              fill={true}
-              label="Floor"
-              markers={sparklineMarkers}
-            />
-          ) : (
-            <EmptyState text="Need 2+ episodes for trend" />
-          )}
-
-          {/* Show win rate below when it's non-zero */}
-          {rollingWinRate.current > 0 && (
-            <div style={{ marginTop: '4px', fontSize: '9px', color: '#8b949e' }}>
-              Win Rate (rolling 20): <span style={{ color: '#00ff41' }}>{(rollingWinRate.current * 100).toFixed(1)}%</span>
+          {/* Compact per-floor bars for top floors */}
+          {floorDist.entries.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ fontSize: '8px', color: '#3d444d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Per-floor detail
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                {floorDist.entries.map(({ floor, count }) => (
+                  <HBar
+                    key={floor}
+                    label={`F${floor}`}
+                    value={count}
+                    maxValue={floorDist.maxCount}
+                    color={floorColor(floor, floorDist.highestFloor)}
+                    labelWidth={28}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Damage Per Fight */}
-        <div style={{ padding: '8px', flexShrink: 0 }}>
-          <SectionHeader>Avg HP Lost / Combat</SectionHeader>
+      {/* ====== COLUMN 2: Combat + Stance ====== */}
+      <div style={{
+        borderRight: '1px solid #21262d',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+
+        {/* Avg HP Lost / Combat */}
+        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
+          <SectionHeader
+            right={avgHpLost ? (
+              <span style={{ color: '#3d444d' }}>{avgHpLost.combatCount} combats</span>
+            ) : undefined}
+          >
+            Avg HP Lost / Combat
+          </SectionHeader>
 
           {avgHpLost !== null ? (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: '#ff4444' }}>
-                {avgHpLost.toFixed(1)}
+              <span style={{ fontSize: '22px', fontWeight: 700, color: '#ff4444' }}>
+                {avgHpLost.avg.toFixed(1)}
               </span>
               <span style={{ fontSize: '10px', color: '#8b949e' }}>HP</span>
               {hpLostTrend && (
                 <span style={{
-                  fontSize: '12px',
+                  fontSize: '14px',
                   color: hpLostTrend === 'down' ? '#00ff41' : hpLostTrend === 'up' ? '#ff4444' : '#8b949e',
                 }}>
-                  {hpLostTrend === 'down' ? '\u2193' : hpLostTrend === 'up' ? '\u2191' : '\u2192'}
+                  {hpLostTrend === 'down' ? '\u2193 improving' : hpLostTrend === 'up' ? '\u2191 worsening' : '\u2192 stable'}
                 </span>
               )}
             </div>
@@ -1060,7 +1084,7 @@ export const StatsOverviewPanel = ({
         </div>
 
         {/* Stance Distribution */}
-        <div style={{ padding: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
           <SectionHeader
             right={stanceDist.combatCount > 0 ? (
               <span style={{ color: '#3d444d' }}>{stanceDist.combatCount} combats</span>
@@ -1072,7 +1096,7 @@ export const StatsOverviewPanel = ({
           {stanceDist.entries.length > 0 ? (
             <>
               {/* Proportion bar */}
-              <div style={{ display: 'flex', height: '10px', overflow: 'hidden', marginBottom: '4px', background: '#21262d' }}>
+              <div style={{ display: 'flex', height: '14px', overflow: 'hidden', marginBottom: '6px', background: '#21262d' }}>
                 {stanceDist.entries.map(({ stance, count }) => (
                   <div
                     key={stance}
@@ -1081,33 +1105,57 @@ export const StatsOverviewPanel = ({
                       height: '100%',
                       background: STANCE_COLORS[stance] ?? '#8b949e',
                       opacity: 0.8,
+                      position: 'relative',
                     }}
+                    title={`${stance}: ${stanceDist.total > 0 ? ((count / stanceDist.total) * 100).toFixed(1) : 0}%`}
                   />
                 ))}
               </div>
-              {/* Legend */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '9px' }}>
+              {/* Legend with counts */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '10px' }}>
                 {stanceDist.entries.map(({ stance, count }) => (
-                  <span key={stance} style={{ color: STANCE_COLORS[stance] ?? '#8b949e' }}>
-                    {stance} {stanceDist.total > 0 ? `${((count / stanceDist.total) * 100).toFixed(0)}%` : '0%'}
-                  </span>
+                  <div key={stance} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      background: STANCE_COLORS[stance] ?? '#8b949e',
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ color: STANCE_COLORS[stance] ?? '#8b949e', fontWeight: 600 }}>
+                      {stance}
+                    </span>
+                    <span style={{ color: '#8b949e' }}>
+                      {stanceDist.total > 0 ? `${((count / stanceDist.total) * 100).toFixed(0)}%` : '0%'}
+                    </span>
+                    <span style={{ color: '#3d444d', fontSize: '9px' }}>
+                      ({count})
+                    </span>
+                  </div>
                 ))}
               </div>
+              {/* Stance ratios insight */}
+              {(() => {
+                const wrathEntry = stanceDist.entries.find(e => e.stance === 'Wrath');
+                const calmEntry = stanceDist.entries.find(e => e.stance === 'Calm');
+                if (!wrathEntry || !calmEntry || calmEntry.count === 0) return null;
+                const ratio = wrathEntry.count / calmEntry.count;
+                return (
+                  <div style={{ fontSize: '9px', color: '#8b949e', marginTop: '4px' }}>
+                    Wrath/Calm ratio: <span style={{ color: ratio > 1.5 ? '#ff4444' : ratio > 0.8 ? '#ffb700' : '#4488ff', fontWeight: 600 }}>
+                      {ratio.toFixed(2)}
+                    </span>
+                    {ratio > 2 && <span style={{ color: '#ff4444', marginLeft: '6px' }}>(aggressive)</span>}
+                    {ratio < 0.5 && <span style={{ color: '#4488ff', marginLeft: '6px' }}>(defensive)</span>}
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <EmptyState text="No stance data yet" />
           )}
         </div>
-      </div>
 
-      {/* ====== COLUMN 3: Analytics ====== */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-
-        {/* Death Analysis: Top Killers */}
+        {/* Top Killers */}
         <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
           <SectionHeader
             right={deathStats.totalDeaths > 0 ? (
@@ -1119,16 +1167,20 @@ export const StatsOverviewPanel = ({
 
           {topKillers.entries.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {topKillers.entries.map(({ enemy, count }) => (
-                <HBar
-                  key={enemy}
-                  label={enemy.length > 12 ? enemy.slice(0, 11) + '\u2026' : enemy}
-                  value={count}
-                  maxValue={topKillers.maxCount}
-                  color="#ff4444"
-                  labelWidth={80}
-                />
-              ))}
+              {topKillers.entries.map(({ enemy, count }) => {
+                const totalDeaths = deathStats.totalDeaths || 1;
+                return (
+                  <HBar
+                    key={enemy}
+                    label={enemy.length > 12 ? enemy.slice(0, 11) + '\u2026' : enemy}
+                    value={count}
+                    maxValue={topKillers.maxCount}
+                    color="#ff4444"
+                    labelWidth={80}
+                    pctLabel={`${count} (${((count / totalDeaths) * 100).toFixed(0)}%)`}
+                  />
+                );
+              })}
             </div>
           ) : (
             <EmptyState text="No deaths recorded" />
@@ -1136,7 +1188,7 @@ export const StatsOverviewPanel = ({
         </div>
 
         {/* Death Floor Heatmap */}
-        <div style={{ flex: 1, padding: '8px', overflow: 'auto', borderBottom: '1px solid #21262d' }}>
+        <div style={{ flex: 1, padding: '8px', overflow: 'auto' }}>
           <SectionHeader
             right={deathFloors.deadliestFloor ? (
               <span style={{ color: '#ff4444' }}>
@@ -1202,6 +1254,14 @@ export const StatsOverviewPanel = ({
             <EmptyState text="No deaths recorded" />
           )}
         </div>
+      </div>
+
+      {/* ====== COLUMN 3: Best Runs + Cards + System ====== */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
 
         {/* Best Runs Leaderboard */}
         <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
@@ -1229,10 +1289,8 @@ export const StatsOverviewPanel = ({
                       padding: '2px 4px',
                       background: r.rank === 1 ? 'rgba(255,183,0,0.06)' : 'transparent',
                       borderLeft: `2px solid ${floorClr}`,
-                      fontFamily: "'JetBrains Mono', monospace",
                     }}
                   >
-                    {/* Floor - big number */}
                     <span style={{
                       fontSize: '14px',
                       fontWeight: 700,
@@ -1244,7 +1302,6 @@ export const StatsOverviewPanel = ({
                     }}>
                       {r.floor}
                     </span>
-                    {/* Details column */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: '9px',
@@ -1274,7 +1331,7 @@ export const StatsOverviewPanel = ({
         </div>
 
         {/* Popular Card Picks */}
-        <div style={{ padding: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '8px', borderBottom: '1px solid #21262d', flexShrink: 0 }}>
           <SectionHeader>Popular Card Picks</SectionHeader>
 
           {popularCards ? (
@@ -1337,10 +1394,63 @@ export const StatsOverviewPanel = ({
             <EmptyState text="Collecting deck data..." />
           )}
         </div>
+
+        {/* System Resources */}
+        <div style={{ padding: '8px', flexShrink: 0 }}>
+          <SectionHeader
+            right={stats?.uptime != null ? (
+              <span style={{ color: '#3d444d' }}>{fmtDuration(stats.uptime)}</span>
+            ) : undefined}
+          >
+            System
+          </SectionHeader>
+
+          {systemStats ? (
+            <>
+              <ResourceBar label="CPU" value={systemStats.cpu_pct} color="#4488ff" />
+              <ResourceBar
+                label="RAM"
+                value={systemStats.ram_used_gb}
+                max={systemStats.ram_total_gb}
+                unit="GB"
+                color="#ffb700"
+              />
+              <ResourceBar
+                label={`GPU (Metal) ${systemStats.gpu_util_pct ? systemStats.gpu_util_pct.toFixed(0) + '%' : ''}`}
+                value={systemStats.gpu_util_pct ?? 0}
+                max={100}
+                unit="%"
+                color={systemStats.gpu_util_pct && systemStats.gpu_util_pct > 30 ? '#a78bfa' : '#8b949e'}
+              />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '9px',
+                color: '#8b949e',
+                marginTop: '4px',
+              }}>
+                <span>Workers: <span style={{ color: '#c9d1d9' }}>{systemStats.workers}</span></span>
+                <span>MCTS: <span style={{ color: '#c9d1d9' }}>
+                  {stats?.mcts_avg_ms != null ? `${stats.mcts_avg_ms.toFixed(0)}ms` : '-'}
+                </span></span>
+              </div>
+            </>
+          ) : (
+            <EmptyState text="Waiting for system stats..." />
+          )}
+        </div>
       </div>
       </div>
       </>
       )}
+
+      {/* Shimmer animation for training progress bar */}
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
     </div>
   );
 };
