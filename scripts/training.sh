@@ -407,10 +407,10 @@ case "${1:-status}" in
     weekend) shift; cmd_weekend "$@" ;;
     restart) shift; cmd_quick_restart "$@" ;;
     archive) shift; cmd_archive "$@" ;;
-    fresh)   shift; cmd_archive "${1:-fresh}" && cmd_weekend "${@:2}" ;;
+    fresh)   shift; cmd_archive fresh && cmd_weekend "$@" ;;
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|restart|archive|fresh|update} [options]"
         echo ""
         echo "Commands:"
         echo "  start      Start training (default 10K games)"
