@@ -29,7 +29,8 @@ type Action =
   | { type: 'select_agent'; index: number }
   | { type: 'next_focused' }
   | { type: 'prev_focused' }
-  | { type: 'set_paused'; paused: boolean };
+  | { type: 'set_paused'; paused: boolean }
+  | { type: 'command_ack'; action: string; paused?: boolean };
 
 interface FullState {
   training: TrainingState;
@@ -160,6 +161,13 @@ function reducer(state: FullState, action: Action): FullState {
     }
     case 'set_paused':
       return { ...state, training: { ...t, paused: action.paused } };
+    case 'command_ack': {
+      // Sync paused state from server acknowledgement
+      if (action.paused !== undefined) {
+        return { ...state, training: { ...t, paused: action.paused } };
+      }
+      return state;
+    }
     default:
       return state;
   }
@@ -234,6 +242,9 @@ export function useTrainingState() {
             case 'metrics_history':
               dispatch({ type: 'metrics_history', floor_history: msg.floor_history, loss_history: msg.loss_history, win_history: msg.win_history });
               break;
+            case 'command_ack':
+              dispatch({ type: 'command_ack', action: msg.action, paused: msg.paused });
+              break;
           }
         } catch { /* ignore parse errors */ }
       };
@@ -275,17 +286,21 @@ export function useTrainingState() {
   const prevFocused = useCallback(() => dispatch({ type: 'prev_focused' }), []);
 
   const stopTraining = useCallback(() => {
-    sendMsg({ type: 'training_stop' });
+    sendMsg({ type: 'command', action: 'pause' });
     dispatch({ type: 'set_paused', paused: true });
   }, [sendMsg]);
 
   const resumeTraining = useCallback(() => {
-    sendMsg({ type: 'training_resume', config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' } });
+    sendMsg({ type: 'command', action: 'resume' });
     dispatch({ type: 'set_paused', paused: false });
   }, [sendMsg]);
 
-  const sendControl = useCallback((config: { num_agents?: number; mcts_sims?: number; ascension?: number }) => {
-    sendMsg({ type: 'training_config', config });
+  const sendCommand = useCallback((action: string, params?: Record<string, unknown>) => {
+    sendMsg({ type: 'command', action, params });
+  }, [sendMsg]);
+
+  const sendControl = useCallback((params: Record<string, unknown>) => {
+    sendMsg({ type: 'command', action: 'set_config', params });
   }, [sendMsg]);
 
   return {
@@ -298,6 +313,7 @@ export function useTrainingState() {
     prevFocused,
     stopTraining,
     resumeTraining,
+    sendCommand,
     sendControl,
     sendMsg,
   };

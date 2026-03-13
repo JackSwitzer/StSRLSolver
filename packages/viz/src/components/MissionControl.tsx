@@ -63,7 +63,7 @@ const ViewTab = ({ label, shortcut, active, onClick }: {
 export const MissionControl = () => {
   const {
     state, connected, toggleFocus, clearFocus, selectAgent,
-    nextFocused, prevFocused, stopTraining, resumeTraining, sendControl, sendMsg,
+    nextFocused, prevFocused, stopTraining, resumeTraining, sendCommand, sendControl, sendMsg,
   } = useTrainingState();
 
   const [showControl, setShowControl] = useState(false);
@@ -501,9 +501,12 @@ export const MissionControl = () => {
             onClose={() => setShowControl(false)}
             onStart={handleStart}
             onPause={stopTraining}
-            onStop={stopTraining}
+            onResume={resumeTraining}
+            onStop={() => sendCommand('stop')}
             isRunning={isRunning}
+            isPaused={state.paused}
             sendControl={sendControl}
+            systemStats={systemStats}
           />
         </>
       )}
