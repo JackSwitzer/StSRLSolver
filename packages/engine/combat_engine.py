@@ -1083,7 +1083,7 @@ class CombatEngine:
             return self.state._get_scry_actions()
 
         actions: List[Action] = []
-        living_enemies = [i for i, e in enumerate(self.state.enemies) if e.hp > 0]
+        living_enemies = [i for i, e in enumerate(self.state.enemies) if e.is_alive()]
 
         # Card plays
         for hand_idx, card_id in enumerate(self.state.hand):
@@ -1685,14 +1685,14 @@ class CombatEngine:
         # Java: CurlUpPower.onAttacked — triggers only when damage > 0 AND
         # damage < currentHealth (non-lethal hit). HP already decremented here,
         # so non-lethal condition is enemy.hp > 0.
-        curl_up = enemy.statuses.get("Curl Up", 0)
+        curl_up = enemy.statuses.get("CurlUp", 0)
         if curl_up > 0 and hp_damage > 0 and enemy.hp > 0:
             enemy.block += curl_up
-            del enemy.statuses["Curl Up"]
+            del enemy.statuses["CurlUp"]
             self.log.log(self.state.turn, "curl_up", enemy=enemy.id, block=curl_up)
 
         # Sharp Hide (Guardian): damage player per hit
-        sharp_hide = enemy.statuses.get("Sharp Hide", 0)
+        sharp_hide = enemy.statuses.get("SharpHide", 0)
         if sharp_hide > 0:
             sh_blocked = min(self.state.player.block, sharp_hide)
             sh_hp = sharp_hide - sh_blocked
@@ -1928,7 +1928,7 @@ class CombatEngine:
         execute_relic_triggers("onMonsterDeath", self.state, {"enemy": enemy})
 
         # Spore Cloud (FungiBeast): apply Vulnerable to player
-        spore_cloud = enemy.statuses.get("Spore Cloud", 0)
+        spore_cloud = enemy.statuses.get("SporeCloud", 0)
         if spore_cloud > 0:
             self.state.player.statuses["Vulnerable"] = (
                 self.state.player.statuses.get("Vulnerable", 0) + spore_cloud

@@ -13,6 +13,20 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Union
 
 
+def _canonicalize_statuses(statuses: Dict[str, int]) -> Dict[str, int]:
+    """Normalize power ids so combat lookups match enemy factory state."""
+    if not statuses:
+        return {}
+
+    from ..content.powers import resolve_power_id
+
+    canonical: Dict[str, int] = {}
+    for power_id, amount in statuses.items():
+        resolved = resolve_power_id(power_id) if isinstance(power_id, str) else power_id
+        canonical[resolved] = canonical.get(resolved, 0) + amount
+    return canonical
+
+
 # =============================================================================
 # Action Types
 # =============================================================================
@@ -65,6 +79,9 @@ class EntityState:
     block: int = 0
     # All statuses as simple dict - no objects
     statuses: Dict[str, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.statuses = _canonicalize_statuses(self.statuses)
 
     # -------------------------------------------------------------------------
     # Convenience accessors for common statuses
@@ -328,7 +345,7 @@ class CombatState:
 
     def is_victory(self) -> bool:
         """Check if all enemies are dead (half_dead enemies are not truly dead)."""
-        return all(e.is_dead and not e.half_dead for e in self.enemies)
+        return all((not e.is_alive()) and not e.half_dead for e in self.enemies)
 
     def is_defeat(self) -> bool:
         """Check if player is dead."""
@@ -340,11 +357,11 @@ class CombatState:
 
     def get_living_enemies(self) -> List[EnemyCombatState]:
         """Get list of living enemies (alias for living_enemies)."""
-        return [e for e in self.enemies if not e.is_dead]
+        return [e for e in self.enemies if e.is_alive()]
 
     def all_enemies_dead(self) -> bool:
         """Check if all enemies are dead (half_dead enemies are not truly dead)."""
-        return all(e.is_dead and not e.half_dead for e in self.enemies)
+        return all((not e.is_alive()) and not e.half_dead for e in self.enemies)
 
     # -------------------------------------------------------------------------
     # Action Generation
@@ -371,7 +388,7 @@ class CombatState:
             return self._get_scry_actions()
 
         # Get living enemy indices
-        living_enemies = [i for i, e in enumerate(self.enemies) if not e.is_dead]
+        living_enemies = [i for i, e in enumerate(self.enemies) if e.is_alive()]
 
         # Card plays
         for hand_idx, card_id in enumerate(self.hand):
@@ -468,12 +485,12 @@ class CombatState:
 
     def living_enemies(self) -> List[EnemyCombatState]:
         """Get list of living enemies."""
-        return [e for e in self.enemies if not e.is_dead]
+        return [e for e in self.enemies if e.is_alive()]
 
     def total_incoming_damage(self) -> int:
         """Calculate total damage from all enemy attacks this turn."""
         return sum(
-            e.total_incoming_damage for e in self.enemies if not e.is_dead and e.is_attacking
+            e.total_incoming_damage for e in self.enemies if e.is_alive() and e.is_attacking
         )
 
     def cards_in_deck(self) -> int:

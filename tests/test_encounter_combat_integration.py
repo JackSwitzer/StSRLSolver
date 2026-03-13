@@ -987,6 +987,21 @@ class TestReactiveDamageCurlUp:
         # Block should have been consumed by the second Strike's damage
         assert "Curl Up" not in engine.state.enemies[0].statuses
 
+    def test_real_louse_factory_canonicalizes_curl_up(self):
+        enemy = LouseNormal(Random(11), ascension=0, hp_rng=Random(11))
+        engine = create_combat_from_enemies(
+            [enemy],
+            player_hp=80,
+            player_max_hp=80,
+            deck=["Strike_P"] * 10,
+        )
+
+        engine.start_combat()
+        engine.play_card(0, 0)
+
+        assert engine.state.enemies[0].block == enemy.state.powers["curl_up"]
+        assert "Curl Up" not in engine.state.enemies[0].statuses
+
 
 class TestReactiveDamageSharpHide:
     """Verify Sharp Hide damages player per hit received."""
@@ -1033,6 +1048,21 @@ class TestDeathTriggerSporeCloud:
         engine.start_combat()
         assert engine.state.player.statuses.get("Vulnerable", 0) == 0
         engine.play_card(0, 0)
+        assert engine.state.player.statuses.get("Vulnerable", 0) == 2
+
+    def test_real_fungi_beast_factory_applies_spore_cloud(self):
+        enemy = FungiBeast(Random(19), ascension=0, hp_rng=Random(19))
+        engine = create_combat_from_enemies(
+            [enemy],
+            player_hp=80,
+            player_max_hp=80,
+            deck=["Strike_P"] * 10,
+        )
+
+        engine.start_combat()
+        engine.state.enemies[0].hp = 1
+        engine.play_card(0, 0)
+
         assert engine.state.player.statuses.get("Vulnerable", 0) == 2
 
 
@@ -1159,6 +1189,20 @@ class TestEnemyMetallicize:
         engine.end_turn()
         # Block reset to 0, +4 metallicize, +10 from move = 14
         assert engine.state.enemies[0].block >= 14
+
+    def test_real_lagavulin_factory_keeps_sleep_metallicize(self):
+        enemy = Lagavulin(Random(23), ascension=0, hp_rng=Random(23))
+        engine = create_combat_from_enemies(
+            [enemy],
+            player_hp=80,
+            player_max_hp=80,
+            deck=["Strike_P"] * 10,
+        )
+
+        engine.start_combat()
+        engine.end_turn()
+
+        assert engine.state.enemies[0].block >= 8
 
 
 class TestPlayerStatePassing:
