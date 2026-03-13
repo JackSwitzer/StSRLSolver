@@ -389,7 +389,7 @@ class InferenceServer:
             model: trained StrategicNet (on any device)
             version: monotonic integer identifying this checkpoint
         """
-        state_dict = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         config = {
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,

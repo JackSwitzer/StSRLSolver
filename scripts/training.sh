@@ -312,8 +312,19 @@ cmd_resume() {
         exit 1
     fi
 
+    local checkpoints=()
     local latest_checkpoint
-    latest_checkpoint=$(ls -t logs/overnight/*/checkpoint_*.pt 2>/dev/null | head -1)
+
+    shopt -s nullglob
+    checkpoints=(logs/overnight/*/shutdown_checkpoint.pt logs/overnight/*/periodic_checkpoint.pt)
+    shopt -u nullglob
+
+    if [ ${#checkpoints[@]} -gt 0 ]; then
+        latest_checkpoint=$(ls -t "${checkpoints[@]}" | head -1)
+    else
+        latest_checkpoint=""
+    fi
+
     if [ -z "$latest_checkpoint" ]; then
         echo "No checkpoint found. Use 'start' instead."
         exit 1

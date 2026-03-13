@@ -961,7 +961,7 @@ def _play_one_game(
                         picked = new_deck[-1]  # Most recently added CardInstance
                         card_id = getattr(picked, "id", str(picked))
                         pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward > 0:
+                        if pick_reward != 0:
                             act_mult = 1.5 if current_floor <= 17 else 1.0
                             event_reward += pick_reward * act_mult
 

@@ -171,6 +171,18 @@ def test_enqueue_strategic_weights_updates_version_stats():
     assert stats["applied_version"] == 0
 
 
+def test_sync_strategic_from_pytorch_clones_before_enqueue():
+    server = InferenceServer(n_workers=1, max_batch_size=4, use_mlx=False)
+    model = FakeModel()
+
+    server.sync_strategic_from_pytorch(model, version=5)
+
+    kind, version, _config, state_dict = server._control_q.get(timeout=1.0)
+    assert kind == "sync_strategic"
+    assert version == 5
+    assert state_dict["layer.weight"] is not model.state_dict()["layer.weight"]
+
+
 def test_setup_worker_uses_five_second_default_timeout():
     client = InferenceClient.setup_worker(request_q=None, response_q=None, slot_id=3)
 
