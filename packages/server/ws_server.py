@@ -232,9 +232,12 @@ class GameServer:
 
         # Send metrics history immediately on connect
         if self._training and self._training.metrics_history:
+            history = list(self._training.metrics_history)
             await websocket.send(json.dumps({
                 "type": MessageType.METRICS_HISTORY.value,
-                "data": list(self._training.metrics_history),
+                "floor_history": [h.get("floor", 0) for h in history],
+                "loss_history": [h.get("loss", 0) for h in history],
+                "win_history": [h.get("win_rate", 0) for h in history],
             }))
 
         try:
@@ -291,6 +294,12 @@ class GameServer:
             return await self._handle_training_start(data, websocket, conn_id)
         elif msg_type == MessageType.TRAINING_FOCUS.value:
             return self._handle_training_focus(data, conn_id)
+        elif msg_type == MessageType.TRAINING_CONFIG.value:
+            # Alias: route to COMMAND/set_config for backwards compat
+            config = data.get("config", data)
+            return await self._handle_command(
+                {"action": "set_config", "params": config}, websocket, conn_id,
+            )
         elif msg_type == MessageType.COMMAND.value:
             return await self._handle_command(data, websocket, conn_id)
         else:

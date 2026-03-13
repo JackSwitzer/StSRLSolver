@@ -38,6 +38,7 @@ class MessageType(str, Enum):
     TRAINING_STOP = "training_stop"
     TRAINING_RESUME = "training_resume"
     TRAINING_FOCUS = "training_focus"
+    TRAINING_CONFIG = "training_config"
     COMMAND = "command"
 
     # Server -> Client
@@ -57,6 +58,7 @@ class MessageType(str, Enum):
     TRAINING_STATS = "training_stats"
     SYSTEM_STATS = "system_stats"
     METRICS_HISTORY = "metrics_history"
+    PLANNER_RESULT = "planner_result"
 
 
 # ---------------------------------------------------------------------------
@@ -161,4 +163,45 @@ def make_conquerer_complete(result: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "type": MessageType.CONQUERER_COMPLETE.value,
         **result,
+    }
+
+
+def make_metrics_history(
+    floor_history: List[Any],
+    loss_history: List[Any],
+    win_history: List[Any],
+) -> Dict[str, Any]:
+    """Build a metrics_history response with separated history arrays."""
+    return {
+        "type": MessageType.METRICS_HISTORY.value,
+        "floor_history": floor_history,
+        "loss_history": loss_history,
+        "win_history": win_history,
+    }
+
+
+def make_mcts_result(
+    agent_id: Any,
+    sims: int,
+    elapsed_ms: float,
+    root_value: float,
+    actions: List[Any],
+) -> Dict[str, Any]:
+    """Build an mcts_result response."""
+    return {
+        "type": MessageType.MCTS_RESULT.value,
+        "agent_id": agent_id,
+        "sims": sims,
+        "elapsed_ms": elapsed_ms,
+        "root_value": root_value,
+        "actions": actions,
+    }
+
+
+def make_planner_result(agent_id: Any, **kwargs: Any) -> Dict[str, Any]:
+    """Build a planner_result response."""
+    return {
+        "type": MessageType.PLANNER_RESULT.value,
+        "agent_id": agent_id,
+        **kwargs,
     }

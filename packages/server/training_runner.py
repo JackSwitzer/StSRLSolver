@@ -1302,11 +1302,50 @@ class TrainingCoordinator:
             logger.info("Removed %d workers (total: %d)", current - new_count, new_count)
 
     def set_config(self, params: Dict[str, Any]) -> None:
-        """Apply runtime config changes."""
+        """Apply runtime config changes.
+
+        Handles both in-process config (sims, workers) and hot-reload params
+        (entropy_coeff, lr, temperature, turn_solver_ms) that get written to
+        reload.json and signalled to the overnight training process via SIGUSR1.
+        """
+        import signal
+        import subprocess as _sp
+
         if "sims" in params:
             self.config["mcts_sims"] = params["sims"]
         if "workers" in params:
             self.set_workers(params["workers"])
+
+        # Hot-reload params forwarded to the overnight training process
+        _HOT_RELOAD_KEYS = ("entropy_coeff", "lr", "temperature", "turn_solver_ms")
+        reload_params: Dict[str, Any] = {}
+        for key in _HOT_RELOAD_KEYS:
+            if key in params:
+                reload_params[key] = params[key]
+
+        if reload_params:
+            run_dir = self.run_dir if self.run_dir else Path("logs/weekend-run")
+            reload_path = run_dir / "reload.json"
+            try:
+                reload_path.parent.mkdir(parents=True, exist_ok=True)
+                reload_path.write_text(json.dumps(reload_params))
+                logger.info("Wrote hot-reload params to %s: %s", reload_path, reload_params)
+            except Exception as exc:
+                logger.warning("Failed to write reload.json: %s", exc)
+
+            # Signal overnight process to pick up the new config
+            try:
+                result = _sp.run(
+                    ["pgrep", "-f", "overnight"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                for pid_str in result.stdout.strip().split("\n"):
+                    pid_str = pid_str.strip()
+                    if pid_str:
+                        os.kill(int(pid_str), signal.SIGUSR1)
+                        logger.info("Sent SIGUSR1 to overnight pid %s", pid_str)
+            except Exception as exc:
+                logger.debug("Could not signal overnight process: %s", exc)
 
     def _checkpoint_path(self) -> Path:
         """Checkpoint goes into the current run directory."""
@@ -1629,6 +1668,8 @@ class TrainingCoordinator:
                 "throughput": round(throughput_gph, 1),
             })
 
+        mf = max(self.recent_floors) if self.recent_floors else 0
+
         return {
             "type": "training_stats",
             "run_id": self.run_id,
@@ -1636,6 +1677,7 @@ class TrainingCoordinator:
             "win_count": self.total_wins,
             "win_rate": round(wr, 3),
             "avg_floor": round(af, 1),
+            "max_floor": mf,
             "mcts_avg_ms": round(ma, 1),
             "eps_per_min": round(epm, 2),
             "uptime": round(uptime, 0),
