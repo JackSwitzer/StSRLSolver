@@ -329,21 +329,41 @@ export const MissionControl = () => {
         </div>
 
         {/* Key metrics */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
-          <StatBlock label="Agents" value={String(agents.length || numAgents)} />
-          <StatBlock
-            label="G/hr"
-            value={epsPerMin > 0 ? String(Math.round(epsPerMin * 60)) : '---'}
-            color="#c9d1d9"
-          />
-          <StatBlock label="Floor" value={avgFloor > 0 ? avgFloor.toFixed(1) : '---'} />
-          <StatBlock label="MCTS" value={mctsMs > 0 ? `${mctsMs.toFixed(0)}ms` : '---'} />
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+          <StatBlock label="Floor" value={avgFloor > 0 ? avgFloor.toFixed(1) : '---'} color="#00ff41" />
           <StatBlock
             label="Best"
             value={stats?.max_floor ? String(stats.max_floor) : '---'}
             color={stats?.max_floor && stats.max_floor >= 17 ? '#00ff41' : '#ffb700'}
           />
-          <StatBlock label="Eps" value={totalEpisodes > 0 ? totalEpisodes.toLocaleString() : '---'} />
+          <StatBlock
+            label="G/min"
+            value={epsPerMin > 0 ? epsPerMin.toFixed(0) : '---'}
+          />
+          <StatBlock label="Episodes" value={totalEpisodes > 0 ? totalEpisodes.toLocaleString() : '---'} sub={(stats as any)?.unique_seeds ? `${(stats as any).unique_seeds} seeds` : undefined} />
+          <StatBlock label="Solver" value={mctsMs > 0 ? `${mctsMs.toFixed(0)}ms` : '---'} />
+          <StatBlock label="Workers" value={String((stats as any)?.worker_count ?? (agents.length || numAgents))} />
+          {systemStats && (
+            <>
+              <StatBlock
+                label="CPU"
+                value={`${systemStats.cpu_pct.toFixed(0)}%`}
+                color={systemStats.cpu_pct > 80 ? '#ff4444' : systemStats.cpu_pct > 50 ? '#ffb700' : '#8b949e'}
+              />
+              <StatBlock
+                label="RAM"
+                value={`${systemStats.ram_used_gb}/${systemStats.ram_total_gb}G`}
+                color={systemStats.ram_pct > 85 ? '#ff4444' : '#8b949e'}
+              />
+              {systemStats.gpu_available && (
+                <StatBlock
+                  label="GPU"
+                  value={systemStats.gpu_mem_used_gb ? `${systemStats.gpu_mem_used_gb}G` : 'idle'}
+                  color={systemStats.gpu_mem_used_gb && systemStats.gpu_mem_used_gb > 0 ? '#a78bfa' : '#8b949e'}
+                />
+              )}
+            </>
+          )}
         </div>
 
         {/* Play/pause + Control */}

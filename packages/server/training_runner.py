@@ -1095,6 +1095,9 @@ class TrainingCoordinator:
         self.metrics_history: Deque[Dict] = deque(maxlen=1000)
         self._last_episode_count_for_metrics = 0
 
+        # Unique seed tracking
+        self.unique_seeds: set = set()
+
         # Latest MCTS result per agent
         self.latest_mcts: Dict[int, Dict] = {}
 
@@ -1571,6 +1574,9 @@ class TrainingCoordinator:
                 a["status"] = "restarting"
 
             self.total_episodes += 1
+            seed = event.get("seed", "")
+            if seed:
+                self.unique_seeds.add(seed)
             if event.get("won"):
                 self.total_wins += 1
             self.recent_results.append(event.get("won", False))
@@ -1678,6 +1684,7 @@ class TrainingCoordinator:
             "win_rate": round(wr, 3),
             "avg_floor": round(af, 1),
             "max_floor": mf,
+            "unique_seeds": len(self.unique_seeds),
             "mcts_avg_ms": round(ma, 1),
             "eps_per_min": round(epm, 2),
             "uptime": round(uptime, 0),

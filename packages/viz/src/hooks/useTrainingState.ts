@@ -76,10 +76,11 @@ function reducer(state: FullState, action: Action): FullState {
       // Accumulate local history from episodes
       const floorHistory = [...t.floorHistory, action.episode.floors_reached].slice(-MAX_HISTORY);
       const winHistory = [...t.winHistory, action.episode.won ? 1 : 0].slice(-MAX_HISTORY);
-      // Track death stats
+      // Track death stats (skip floor 0 — those are construction failures, not real deaths)
       let deathStats = t.deathStats;
-      if (!action.episode.won) {
-        const df = action.episode.death_floor ?? action.episode.floors_reached;
+      const rawDeathFloor = action.episode.death_floor ?? action.episode.floors_reached;
+      if (!action.episode.won && rawDeathFloor > 0) {
+        const df = rawDeathFloor;
         const de = action.episode.death_enemy ?? 'Unknown';
         const byFloor = { ...deathStats.byFloor };
         byFloor[df] = (byFloor[df] ?? 0) + 1;

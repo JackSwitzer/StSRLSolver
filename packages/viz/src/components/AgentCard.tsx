@@ -99,7 +99,7 @@ export const AgentCard = ({ agent, index, selected, focused, onSelect, onToggleF
 
       {/* Row 2: floor + HP numbers */}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-        <span style={{ color: '#8b949e' }}>F{Math.floor(agent.floor)}</span>
+        <span style={{ color: '#8b949e' }}>{agent.floor > 0 ? `F${Math.floor(agent.floor)}` : '---'}</span>
         <span style={{ color: hp, fontFamily: 'monospace' }}>{agent.hp}/{agent.max_hp}</span>
       </div>
 
