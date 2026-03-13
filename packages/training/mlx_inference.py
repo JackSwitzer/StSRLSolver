@@ -136,8 +136,8 @@ class MLXStrategicNet:
         if action_mask is not None:
             logits = mx.where(action_mask, logits, mx.array(-1e8))
 
-        # Value (tanh)
-        value = mx.tanh(self.value_2(mx.maximum(self.value_1(h), 0))).squeeze(-1)
+        # Value (no tanh — rewards can exceed [-1, 1])
+        value = self.value_2(mx.maximum(self.value_1(h), 0)).squeeze(-1)
 
         # Floor
         floor_pred = self.floor_2(mx.maximum(self.floor_1(h), 0)).squeeze(-1)
@@ -322,8 +322,6 @@ def _collect_weights(net: MLXStrategicNet) -> dict:
     _add("value_2", net.value_2)
     _add("floor_1", net.floor_1)
     _add("floor_2", net.floor_2)
-    _add("cost_1", net.cost_1)
-    _add("cost_2", net.cost_2)
     _add("act_1", net.act_1)
     _add("act_2", net.act_2)
 
@@ -351,8 +349,6 @@ def _apply_weights(net: MLXStrategicNet, data: dict):
     _set("value_2", net.value_2)
     _set("floor_1", net.floor_1)
     _set("floor_2", net.floor_2)
-    _set("cost_1", net.cost_1)
-    _set("cost_2", net.cost_2)
     _set("act_1", net.act_1)
     _set("act_2", net.act_2)
 
