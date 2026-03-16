@@ -1,5 +1,11 @@
 # Events Parity Report: Java vs Python
 
+> Update 2026-03-16:
+> This report is primarily handler-level. It should not be read as proof that
+> runtime event parity is complete in `GameRunner`. See
+> `docs/audits/2026-03-16-runtime-vs-handler-parity.md` and
+> `docs/audits/2026-03-16-full-audit-gap-inventory.md`.
+
 **Date:** 2026-03-03
 **Auditor:** Claude Opus 4.6 (1M context)
 **Java Source:** `decompiled/java-src/com/megacrit/cardcrawl/events/`

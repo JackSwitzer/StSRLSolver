@@ -1,5 +1,12 @@
 # Game State Audit (Compressed)
 
+> Update 2026-03-16:
+> This document describes engine-internal state coverage. It should not be read
+> as a claim that training, replay, or dashboard artifacts persist the same
+> state with replay-grade fidelity. See
+> `docs/audits/2026-03-16-logging-replay-schema.md` and
+> `docs/audits/2026-03-16-full-audit-gap-inventory.md`.
+
 This document is a concise audit of game-state coverage: what is implemented, what is tracked, and what still needs work.
 
 ## Current State Coverage

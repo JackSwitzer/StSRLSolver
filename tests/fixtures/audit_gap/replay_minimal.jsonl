@@ -1,0 +1,5 @@
+{"type":"run_start","data":{"seed":"TEST123","ascension":0},"timestamp":1}
+{"type":"dungeon_init","data":{"player_state":{"hp":72,"max_hp":72,"gold":99},"deck":[{"id":"Strike_P","upgraded":false},{"id":"Defend_P","upgraded":false},{"id":"Eruption","upgraded":false},{"id":"Vigilance","upgraded":false}],"relics":[{"id":"PureWater"}],"potions":[{"id":"Ancient Potion"}]},"timestamp":2}
+{"type":"map_node_chosen","data":{"floor":1,"x":0,"y":1,"node_type":"M","player_state":{"hp":68,"max_hp":72,"gold":114}},"timestamp":3}
+{"type":"battle_start","data":{"floor":1,"monsters":[{"name":"Jaw Worm"}]},"timestamp":4}
+{"type":"card_obtained","data":{"floor":1,"source":"combat_reward","card":{"id":"EmptyFist","upgraded":false}},"timestamp":5}

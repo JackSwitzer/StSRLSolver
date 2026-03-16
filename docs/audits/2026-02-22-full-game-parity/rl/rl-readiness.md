@@ -2,6 +2,18 @@
 
 Last updated: 2026-02-24
 
+> Update 2026-03-16:
+> The canonical engine API is stronger than the current training integrations.
+> RL readiness is blocked by:
+> - semantic candidate blindness in strategic inference
+> - `256` strategic action-cap truncation
+> - non-canonical / lossy training artifacts
+> - reward/replay behavior that is not aligned with the EV framing
+> - runtime parity gaps that leak directly into non-combat training
+>
+> See `docs/audits/2026-03-16-full-audit-gap-inventory.md` and
+> `docs/audits/2026-03-16-rl-contract-matrix.md`.
+
 ## Current status snapshot
 - [x] Canonical repo lock + consolidation manifest in place.
 - [x] Reward/event/relic action-surface critical fixes integrated.

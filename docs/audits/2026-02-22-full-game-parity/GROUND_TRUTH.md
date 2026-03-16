@@ -1,5 +1,11 @@
 # Ground Truth: Java Parity + Agent Contract
 
+> Update 2026-03-16:
+> Inventory closure and handler coverage are no longer enough to claim runtime
+> parity or RL-readiness. See
+> `docs/audits/2026-03-16-full-audit-gap-inventory.md` for the currently known
+> blockers.
+
 Last updated: 2026-02-24
 Working branch: `codex/parity-d0-d2-foundation`
 
@@ -67,4 +73,11 @@ Working branch: `codex/parity-d0-d2-foundation`
 1. Card behavior parity closure (inventory now closed; behavior deltas remain).
 2. Power behavior/order parity closure beyond dispatch inventory closure.
 3. RNG normalization migration in parity-critical runtime modules.
-4. RL readiness gates (`RL-ACT-*`, `RL-OBS-*`, dashboard/search layers) and final audit sign-off.
+4. Runtime-loop parity closure:
+   - event combat handoff
+   - question-room resolution
+   - burning-elite wiring
+   - campfire action-surface fidelity
+   - replay beyond floor 0
+5. RL readiness gates (`RL-ACT-*`, `RL-OBS-*`, dashboard/search layers) and final audit sign-off.
+6. Artifact-schema unification for run/episode/replay persistence.

@@ -523,6 +523,31 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "combat: marks test as combat-related")
     config.addinivalue_line("markers", "cards: marks test as card-related")
     config.addinivalue_line("markers", "parity: marks test as parity verification")
+    config.addinivalue_line(
+        "markers",
+        "audit_gap: findings-only gap tests excluded from normal runs",
+    )
+
+
+def _audit_gap_requested(config) -> bool:
+    """Return True when the caller explicitly asked for audit-gap coverage."""
+    if os.environ.get("PYTEST_INCLUDE_AUDIT_GAP") == "1":
+        return True
+
+    markexpr = getattr(config.option, "markexpr", "") or ""
+    if "audit_gap" in markexpr:
+        return True
+
+    args = getattr(config.invocation_params, "args", ()) or ()
+    return any("audit_gap" in str(arg) for arg in args)
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Keep audit-gap tests out of normal collection unless explicitly requested."""
+    path_str = str(collection_path)
+    if "/tests/audit_gap/" in path_str or path_str.endswith("/tests/audit_gap"):
+        return not _audit_gap_requested(config)
+    return False
 
 
 # =============================================================================

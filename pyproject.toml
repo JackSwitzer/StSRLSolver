@@ -84,6 +84,7 @@ markers = [
     "combat: marks test as combat-related",
     "cards: marks test as card-related",
     "java: marks test as Java verification test",
+    "audit_gap: marks findings-only gap tests that are excluded from normal runs",
 ]
 # Default options
 addopts = [

@@ -1,5 +1,11 @@
 # Remaining Work -- Verified Gap List (2026-03-11)
 
+> Update 2026-03-16:
+> This document is still useful for handler-level implementation inventory, but
+> it does not capture newly verified `GameRunner` runtime gaps, artifact-schema
+> gaps, or RL-contract blockers. See
+> `docs/audits/2026-03-16-full-audit-gap-inventory.md`.
+
 **Methodology:** Every item from final-gap-checklist.md and java-*-summary.md was cross-referenced against the CURRENT Python source code. Items are classified as:
 - **MISSING**: Confirmed absent from Python engine, verified as real Java gameplay mechanic
 - **GHOST**: Listed as missing in old audit docs but already implemented in current code
