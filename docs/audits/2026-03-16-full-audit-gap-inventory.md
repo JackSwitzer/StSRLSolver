@@ -86,6 +86,9 @@ docs, tests, and runtime behavior disagree.
   - potion identity/slot/target/outcome
   - path option sets
   - non-empty `event_id`
+- `training.sh archive` copies `episodes.jsonl` into `logs/runs/run_*`, but
+  leaves the original `logs/weekend-run/episodes.jsonl` behind, so a nominally
+  fresh weekend run can append new data into old episode history.
 
 ### `LOG-003` Training Status Tooling Does Not Match Protocol
 
@@ -144,6 +147,45 @@ Future implementation work should treat the following as required, not optional:
 - path options and chosen node
 - timestamps for run, floor, decision, and combat events
 
+## Recommended Follow-Up PR Stack
+
+1. Runtime parity PR
+   - Fix `RUNTIME-001` through `RUNTIME-004` in `GameRunner`
+   - Keep the current `audit_gap` runtime tests and convert them to passing
+     regression coverage as fixes land
+2. Replay and artifact schema PR
+   - Fix `LOG-001` and `LOG-002`
+   - Introduce one canonical run/episode artifact schema with `run_id`,
+     config snapshot, git SHA, resume lineage, phase/decision/combat traces,
+     reward payloads, and semantic action IDs
+   - Make `training.sh archive` and `fresh` preserve run evidence without
+     leaking old `episodes.jsonl` data into new runs
+3. RL contract PR
+   - Fix `RL-001` and `RL-002`
+   - Move strategic training to semantic candidate actions instead of
+     slot-only indices
+   - Remove the hard `256` cap or replace it with an action-representation
+     scheme that can cover large follow-up surfaces
+4. RL objective and replay hygiene PR
+   - Fix `RL-003`
+   - Rework reward shaping and best-run replay so they match the stated
+     EV-focused training objective and PPO assumptions
+5. Docs and tooling closeout PR
+   - Remove temporary caveats once the runtime and artifact fixes are real
+   - Replace review-only `audit_gap` failures with normal regression tests
+   - Update status dashboards and scripts so they reflect the canonical
+     protocol and run-index format
+
+## Review Workflow
+
+- Read this file first for priority and scope.
+- Run baseline sanity checks:
+  - `uv run pytest tests/test_audit_gameloop.py -q`
+  - `uv run pytest tests/test_agent_api.py -q -k 'ActionMaskContract or ObservationProfileLock'`
+- Run the review-only audit lane:
+  - `uv run pytest -m audit_gap tests/audit_gap -q`
+- Treat each failure as a tracked finding, not as an accidental CI regression.
+
 ## Gap-Test Mapping
 
 - `RUNTIME-001` -> `test_gap_runtime_001_*`, `test_gap_runtime_002_*`
@@ -151,7 +193,7 @@ Future implementation work should treat the following as required, not optional:
 - `RUNTIME-003` -> `test_gap_runtime_004_*`
 - `RUNTIME-004` -> `test_gap_runtime_005_*`
 - `LOG-001` -> `test_gap_log_001_*`
-- `LOG-002` -> `test_gap_log_002_*`
+- `LOG-002` -> `test_gap_log_002_*`, `test_gap_log_004_*`, `test_gap_log_005_*`, `test_gap_log_006_*`
 - `LOG-003` -> `test_gap_log_003_*`
 - `RL-001` -> `test_gap_rl_001_*`
 - `RL-002` -> `test_gap_rl_002_*`
