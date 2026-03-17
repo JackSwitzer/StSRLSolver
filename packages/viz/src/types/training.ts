@@ -5,10 +5,10 @@ export type ScreenMode = 'grid' | 'combat' | 'map' | 'mcts' | 'stats' | 'feed' |
 export const SCREEN_MODES: ScreenMode[] = ['grid', 'combat', 'map', 'mcts', 'stats', 'feed', 'stats_view', 'training_view'];
 
 export const AGENT_NAMES = [
-  'Oracle', 'Gambler', 'Wanderer', 'Wildcard',
-  'Sentinel', 'Guardian', 'Tactician', 'Drifter',
-  'Spectre', 'Pilgrim', 'Vanguard', 'Mystic',
-  'Reaper', 'Nomad', 'Arbiter', 'Seeker',
+  'Vanquisher', 'Zenith', 'Eclipse', 'Tempest',
+  'Sovereign', 'Phantom', 'Apex', 'Crucible',
+  'Meridian', 'Obsidian', 'Catalyst', 'Archon',
+  'Prism', 'Bastion', 'Nova', 'Harbinger',
 ] as const;
 
 export type AgentName = (typeof AGENT_NAMES)[number];
@@ -71,6 +71,7 @@ export interface TrainingStatsMsg {
 export interface CombatSummary {
   floor: number;
   enemy: string;
+  encounter_name?: string;
   turns: number;
   hp_lost: number;
   damage_dealt: number;
@@ -109,6 +110,10 @@ export interface AgentEpisodeMsg {
   death_enemy?: string;
   deck_size?: number;
   relic_count?: number;
+  max_hp?: number;
+  relics_final?: string[];
+  events?: Array<{ floor: number; event_id: string }>;
+  path_choices?: Array<{ floor: number; options: string[]; chosen?: number }>;
 }
 
 export interface MCTSAction {

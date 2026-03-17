@@ -1208,6 +1208,7 @@ class CombatEngine:
         # (Java fires p.onPlayCard, r.onPlayCard, stance.onPlayCard before card.use)
         play_card_data = {"card": card}
         execute_relic_triggers("onPlayCard", self.state, play_card_data)
+        execute_power_triggers("onPlayCard", self.state, self.state.player, play_card_data)
         for enemy in self.state.enemies:
             if not enemy.is_dead:
                 execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)
@@ -2066,6 +2067,7 @@ class CombatEngine:
             # Fire onPlayCard triggers (card is not in hand for autoplay)
             play_card_data = {"card": card}
             execute_relic_triggers("onPlayCard", self.state, play_card_data)
+            execute_power_triggers("onPlayCard", self.state, self.state.player, play_card_data)
             for enemy in self.state.enemies:
                 if not enemy.is_dead:
                     execute_power_triggers("onPlayCard", self.state, enemy, play_card_data)

@@ -664,6 +664,8 @@ ENCOUNTER_TABLE: Dict[str, Any] = {
     # Act 4
     "Spire Shield and Spire Spear": lambda ai, a, hp: [_make(SpireShield, ai, a, hp), _make(SpireSpear, ai, a, hp)],
     "Corrupt Heart":    lambda ai, a, hp: [_make(CorruptHeart, ai, a, hp)],
+    # Event encounters
+    "Masked Bandits":   lambda ai, a, hp: [_make(BanditPointy, ai, a, hp), _make(BanditBear, ai, a, hp), _make(BanditLeader, ai, a, hp)],
 }
 
 

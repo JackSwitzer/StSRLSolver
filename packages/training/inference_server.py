@@ -585,6 +585,8 @@ class InferenceServer:
 
             n_actions = req.get("n_actions")
             if n_actions is not None and n_actions > 0:
+                if n_actions > action_dim:
+                    logger.warning("Action space truncation: %d > %d", n_actions, action_dim)
                 mask_batch[i, : min(n_actions, action_dim)] = True
             else:
                 # All valid — should not happen in practice but safe fallback
