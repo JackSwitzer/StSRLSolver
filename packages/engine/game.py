@@ -2747,10 +2747,11 @@ class GameRunner:
             if self.run_state.current_hp < self.run_state.max_hp:
                 actions.append(RestAction(action_type="rest"))
 
-        # Upgrade (if have upgradeable cards)
-        upgradeable = self.run_state.get_upgradeable_cards()
-        for idx, card in upgradeable:
-            actions.append(RestAction(action_type="upgrade", card_index=idx))
+        # Upgrade (if have upgradeable cards) — blocked by Fusion Hammer
+        if not self.run_state.has_relic("Fusion Hammer"):
+            upgradeable = self.run_state.get_upgradeable_cards()
+            for idx, card in upgradeable:
+                actions.append(RestAction(action_type="upgrade", card_index=idx))
 
         # Dig (if have Shovel relic)
         if self.run_state.has_relic("Shovel"):
@@ -3117,8 +3118,17 @@ class GameRunner:
         # Handle combat trigger
         if result.combat_triggered:
             self._log(f"  Combat triggered: {result.combat_encounter}")
-            # Would enter combat here with the specified encounter
-            self._enter_combat(is_elite=False, is_boss=False)
+            # Mark event as COMBAT_PENDING so _end_combat can return to event
+            if self.current_event_state:
+                self.current_event_state.phase = EventPhase.COMBAT_PENDING
+            is_elite = result.combat_encounter in (
+                "ColosseumNobs", "SentryAndBoss",
+            )
+            self._enter_combat(
+                is_elite=is_elite,
+                is_boss=False,
+                override_encounter=result.combat_encounter,
+            )
             return True, {
                 "choice": action.choice_index,
                 "choice_name": result.choice_name,
@@ -3618,10 +3628,22 @@ class GameRunner:
         if room_type == RoomType.MONSTER:
             self._enter_combat(is_elite=False, is_boss=False)
         elif room_type == RoomType.ELITE:
+            # Track burning elite for emerald key reward
+            if getattr(node, "has_emerald_key", False):
+                self.is_burning_elite = True
+                self._log("Burning elite encountered — Emerald Key available!")
+            else:
+                self.is_burning_elite = False
             self._enter_combat(is_elite=True, is_boss=False)
         elif room_type == RoomType.BOSS:
             self._enter_combat(is_elite=False, is_boss=True)
         elif room_type == RoomType.EVENT:
+            # Java question-room resolution: Tiny Chest converts ? to treasure
+            from .handlers.rooms import TreasureHandler
+            if TreasureHandler.on_enter_question_room(self.run_state):
+                self._log("Tiny Chest converted ? room to treasure!")
+                self._enter_treasure()
+                return
             self._enter_event()
         elif room_type == RoomType.SHOP:
             self._enter_shop()
@@ -3630,7 +3652,12 @@ class GameRunner:
         elif room_type == RoomType.TREASURE:
             self._enter_treasure()
 
-    def _enter_combat(self, is_elite: bool = False, is_boss: bool = False):
+    def _enter_combat(
+        self,
+        is_elite: bool = False,
+        is_boss: bool = False,
+        override_encounter: Optional[str] = None,
+    ):
         """Enter a combat encounter using real Enemy AI objects."""
         combat_type = "BOSS" if is_boss else ("ELITE" if is_elite else "MONSTER")
         self._log(f"Combat started ({combat_type})")
@@ -3648,7 +3675,11 @@ class GameRunner:
         ]
         potions.extend("" for _ in range(max(0, 3 - len(potions))))
 
-        if is_boss:
+        if override_encounter:
+            # Event-triggered combat — use the event-specified encounter
+            encounter_name = override_encounter
+            self._log(f"  Event encounter override: {encounter_name}")
+        elif is_boss:
             encounter_name = self._boss_name or "Slime Boss"
         elif is_elite:
             if self._elite_index < len(self._elite_list):
@@ -3764,6 +3795,29 @@ class GameRunner:
                 self._log(f"  Damage dealt: {combat_result.damage_dealt}, Damage taken: {combat_result.damage_taken}")
             else:
                 self._log(f"Combat victory! HP: {self.run_state.current_hp}/{self.run_state.max_hp}")
+
+            # Event-triggered combat: return to event for post-combat resolution
+            if (
+                self.current_event_state is not None
+                and self.current_event_state.phase == EventPhase.COMBAT_PENDING
+            ):
+                self.current_event_state.phase = EventPhase.COMBAT_WON
+                self._log(f"  Event combat won — returning to event: {self.current_event_state.event_id}")
+                self.phase = GamePhase.EVENT
+                # Apply any pending event rewards
+                if hasattr(self.current_event_state, 'pending_rewards') and self.current_event_state.pending_rewards:
+                    pr = self.current_event_state.pending_rewards
+                    if pr.get("gold"):
+                        self.run_state.gold += pr["gold"]
+                        self._log(f"  Event reward: +{pr['gold']} gold")
+                    if pr.get("relic"):
+                        self.run_state.add_relic(pr["relic"])
+                        self._log(f"  Event reward: +{pr['relic']}")
+                    self.current_event_state.pending_rewards = {}
+                # Trigger post-combat relics even for event fights
+                if combat_result is None:
+                    self._trigger_post_combat_relics()
+                return
 
             # Generate rewards using RewardHandler
             if self.current_room_type == "boss":

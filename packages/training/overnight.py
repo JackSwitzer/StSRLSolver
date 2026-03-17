@@ -693,6 +693,43 @@ def _play_one_game(
     turn_cards: List[str] = []  # Cards played this turn
     turns_log: List[Dict[str, Any]] = []  # Per-turn log for current combat
 
+    # Event and path tracking for episode logging
+    events_visited: List[Dict[str, Any]] = []  # {floor, event_id}
+    path_choices_log: List[Dict[str, Any]] = []  # {floor, chosen, options}
+
+    # Helper: record combat summary when transitioning out of combat.
+    # Captures enemy names from combat state before it's cleared.
+    def _finish_combat_summary():
+        nonlocal was_in_combat
+        if not was_in_combat:
+            return
+        was_in_combat = False
+        # Include final turn's cards if any
+        if turn_cards:
+            turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
+        # Capture encounter name from combat enemies before state is cleared
+        _enc_name = ""
+        _combat_ref = getattr(runner, "current_combat", None)
+        if _combat_ref is not None:
+            try:
+                _enemy_ids = [getattr(e, "id", getattr(e, "name", "?"))
+                              for e in _combat_ref.state.enemies]
+                _enc_name = ", ".join(_enemy_ids)
+            except Exception:
+                pass
+        combats.append({
+            "floor": current_floor,
+            "room_type": combat_room_type,
+            "encounter_name": _enc_name,
+            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+            "cards_played": combat_cards_played,
+            "turns": combat_turns,
+            "potions_used": combat_potions_used,
+            "stance_changes": combat_stance_changes,
+            "turns_detail": turns_log[:],
+            "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
+        })
+
     while not runner.game_over and step < 5000:
         try:
             actions = runner.get_available_actions()
@@ -763,25 +800,16 @@ def _play_one_game(
                     combat_stance_changes += 1
                     accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
                     prev_stance = cur_stance
+            # Detect phase change FROM combat after action execution.
+            # This catches boss/elite fights that end mid-action (e.g., lethal blow
+            # transitions directly to COMBAT_REWARDS without a separate loop iteration).
+            phase_after = runner.phase
+            if was_in_combat and phase_after != GamePhase.COMBAT:
+                _finish_combat_summary()
         elif len(actions) == 1:
-            # Check for combat-end event rewards
+            # Check for combat-end transition
             if was_in_combat and phase != GamePhase.COMBAT:
-                was_in_combat = False
-                # Record combat summary
-                # Include final turn's cards if any
-                if turn_cards:
-                    turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
-                combats.append({
-                    "floor": current_floor,
-                    "room_type": combat_room_type,
-                    "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
-                    "cards_played": combat_cards_played,
-                    "turns": combat_turns,
-                    "potions_used": combat_potions_used,
-                    "stance_changes": combat_stance_changes,
-                    "turns_detail": turns_log[:],
-                    "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
-                })
+                _finish_combat_summary()
             runner.take_action(actions[0])
         else:
             # Strategic decision point
@@ -790,22 +818,31 @@ def _play_one_game(
             # Check if combat just ended (for event rewards)
             combat_just_ended = was_in_combat and phase != GamePhase.COMBAT
             if combat_just_ended:
-                was_in_combat = False
-                # Record combat summary
-                # Include final turn's cards if any
-                if turn_cards:
-                    turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
-                combats.append({
-                    "floor": current_floor,
-                    "room_type": combat_room_type,
-                    "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
-                    "cards_played": combat_cards_played,
-                    "turns": combat_turns,
-                    "potions_used": combat_potions_used,
-                    "stance_changes": combat_stance_changes,
-                    "turns_detail": turns_log[:],
-                    "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
-                })
+                _finish_combat_summary()
+
+            # Track event encounters
+            if phase == GamePhase.EVENT:
+                _evt_state = getattr(runner, "current_event_state", None)
+                _evt_id = getattr(_evt_state, "event_id", None) if _evt_state else None
+                if _evt_id:
+                    events_visited.append({"floor": current_floor, "event_id": _evt_id})
+
+            # Track path choices (what options were available and what was chosen)
+            if phase == GamePhase.MAP_NAVIGATION:
+                try:
+                    _avail_paths = runner.run_state.get_available_paths()
+                    _path_options = [
+                        {"x": n.x, "y": n.y,
+                         "room_type": n.room_type.name if n.room_type else None}
+                        for n in _avail_paths
+                    ]
+                    if _path_options:
+                        path_choices_log.append({
+                            "floor": current_floor,
+                            "options": _path_options,
+                        })
+                except Exception:
+                    pass
 
             n_actions = len(actions)
 
@@ -826,7 +863,7 @@ def _play_one_game(
             run_obs = encoder.encode(rs, phase_type=phase_type)
 
             # ACTION_DIM constant — must match StrategicNet.action_dim
-            _ACTION_DIM = 256
+            _ACTION_DIM = 512
             mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
             mask[:n_actions] = True
 
@@ -906,6 +943,13 @@ def _play_one_game(
                 # --- PBRS reward ---
                 # Take action first, then compute Phi(s') - gamma * Phi(s)
                 runner.take_action(actions[action_idx])
+
+                # Record which path was chosen (after action so index is valid)
+                if phase == GamePhase.MAP_NAVIGATION and path_choices_log:
+                    _last_pc = path_choices_log[-1]
+                    if _last_pc.get("floor") == current_floor and "chosen" not in _last_pc:
+                        _last_pc["chosen"] = action_idx
+
                 new_rs = runner.run_state
                 new_potential = compute_potential(new_rs)
 
@@ -1012,7 +1056,13 @@ def _play_one_game(
                     idx = planner.plan_event_choice(runner, actions)
                 else:
                     idx = 0
-                runner.take_action(actions[min(idx, n_actions - 1)])
+                _chosen_idx = min(idx, n_actions - 1)
+                runner.take_action(actions[_chosen_idx])
+                # Record path choice for heuristic path
+                if phase == GamePhase.MAP_NAVIGATION and path_choices_log:
+                    _last_pc = path_choices_log[-1]
+                    if _last_pc.get("floor") == current_floor and "chosen" not in _last_pc:
+                        _last_pc["chosen"] = _chosen_idx
                 prev_potential = compute_potential(runner.run_state)
 
         step += 1
@@ -1020,19 +1070,7 @@ def _play_one_game(
 
     # Record final combat if we died in combat (loop exits before phase changes)
     if was_in_combat:
-        if turn_cards:
-            turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
-        combats.append({
-            "floor": current_floor,
-            "room_type": combat_room_type,
-            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
-            "cards_played": combat_cards_played,
-            "turns": combat_turns,
-            "potions_used": combat_potions_used,
-            "stance_changes": combat_stance_changes,
-            "turns_detail": turns_log[:],
-            "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
-        })
+        _finish_combat_summary()
 
     # Game ended
     duration = time.monotonic() - t0
@@ -1088,6 +1126,15 @@ def _play_one_game(
     except Exception:
         pass
 
+    # Capture relics for episode logging
+    relics_final = []
+    try:
+        relics_final = [
+            getattr(r, "id", str(r)) for r in getattr(rs, "relics", [])
+        ]
+    except Exception:
+        pass
+
     # Clear worker status file (game done)
     try:
         _status_file.unlink(missing_ok=True)
@@ -1099,13 +1146,17 @@ def _play_one_game(
         "won": won,
         "floor": final_floor,
         "hp": final_hp,
+        "max_hp": getattr(rs, "max_hp", 0),
         "decisions": decisions,
         "duration_s": round(duration, 2),
         "transitions": transitions,
         "deck_final": deck_final,
+        "relics_final": relics_final,
         "death_enemy": death_enemy,
         "room_type": getattr(runner, "current_room_type", ""),
         "combats": combats,
+        "events": events_visited,
+        "path_choices": path_choices_log,
     }
 
 
@@ -1256,12 +1307,14 @@ class OvernightRunner:
             "won": result.get("won", False),
             "floors_reached": result.get("floor", 0),
             "hp_remaining": result.get("hp", 0),
+            "max_hp": result.get("max_hp", 0),
             "total_steps": result.get("decisions", 0),
             "duration": result.get("duration_s", 0),
             "episode": self.total_games,
             "death_floor": result.get("floor", 0) if not result.get("won") else None,
             "death_enemy": result.get("death_enemy"),
             "combats": result.get("combats", []),
+            "events": result.get("events", []),
             "deck_changes": result.get("deck_changes", []),
         }
         self._recent_episodes.append(ep)
@@ -1531,6 +1584,7 @@ class OvernightRunner:
             "floor": result["floor"],
             "won": result["won"],
             "hp": result["hp"],
+            "max_hp": result.get("max_hp", 0),
             "decisions": result["decisions"],
             "duration_s": result["duration_s"],
             "num_transitions": len(transitions),
@@ -1538,9 +1592,12 @@ class OvernightRunner:
             "pbrs_reward": round(total_pbrs, 4),
             "event_reward": round(total_event, 4),
             "deck_final": result.get("deck_final", []),
+            "relics_final": result.get("relics_final", []),
             "death_enemy": result.get("death_enemy", ""),
             "death_room": result.get("room_type", ""),
             "combats": result.get("combats", []),
+            "events": result.get("events", []),
+            "path_choices": result.get("path_choices", []),
             "construction_failure": result.get("construction_failure", False),
         }
         with open(self._episodes_path, "a") as f:
@@ -2107,17 +2164,31 @@ class OvernightRunner:
             current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
             improvement = current_avg - self._stall_checkpoint_floor
             if improvement < STALL_IMPROVEMENT_THRESHOLD:
+                # Stalled: additive entropy increase (works even at cap)
                 old_ent = trainer.entropy_coeff
-                trainer.entropy_coeff = min(0.10, max(0.05, old_ent * 2.0))
+                trainer.entropy_coeff = min(0.20, trainer.entropy_coeff + 0.02)
                 logger.warning(
                     "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
-                    "(improvement %.1f < %.1f). Entropy reset: %.4f -> %.4f",
+                    "(improvement %.1f < %.1f). Entropy bump: %.4f -> %.4f",
                     self._stall_checkpoint_floor, current_avg,
                     games_since_checkpoint, improvement,
                     STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
                 )
-            self._stall_checkpoint_floor = current_avg
-            self._stall_checkpoint_games = self.total_games
+                # Reset checkpoint so new entropy has time to take effect
+                self._stall_checkpoint_floor = current_avg
+                self._stall_checkpoint_games = self.total_games
+            else:
+                # Improving: decay entropy back toward baseline
+                if trainer.entropy_coeff > 0.05:
+                    old_ent = trainer.entropy_coeff
+                    trainer.entropy_coeff = max(0.05, trainer.entropy_coeff - 0.005)
+                    logger.info(
+                        "Floor improving (%.1f -> %.1f): entropy decay %.4f -> %.4f",
+                        self._stall_checkpoint_floor, current_avg,
+                        old_ent, trainer.entropy_coeff,
+                    )
+                self._stall_checkpoint_floor = current_avg
+                self._stall_checkpoint_games = self.total_games
 
         avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
         wr = sum(self.recent_wins) / max(len(self.recent_wins), 1)
