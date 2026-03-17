@@ -409,9 +409,10 @@ case "${1:-status}" in
     archive) shift; cmd_archive "$@" ;;
     fresh)   shift; cmd_archive "${1:-fresh}" && cmd_weekend "${@:2}" ;;
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
-    prune)   shift; uv run python scripts/prune_data.py "$@" ;;
+    hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
+    prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update|prune} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update|hotfix|prune} [options]"
         echo ""
         echo "Commands:"
         echo "  start      Start training (default 10K games)"
@@ -423,6 +424,7 @@ case "${1:-status}" in
         echo "  archive    Archive current run to logs/runs/run_TIMESTAMP/ (optional label arg)"
         echo "  fresh      Archive + start fresh (cold start with distillation from trajectories)"
         echo "  update     Pull latest code + restart (git pull → restart)"
+        echo "  hotfix     Live parameter tuning via SIGUSR1 + reload.json"
         echo "  prune      Prune episodes.jsonl + consolidate top runs (safe while running)"
         echo ""
         echo "Options for start/weekend:"
