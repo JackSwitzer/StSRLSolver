@@ -10,9 +10,10 @@ Provides:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
-from .mcts import CombatMCTS
+if TYPE_CHECKING:
+    from .mcts import CombatMCTS
 
 
 # =============================================================================
@@ -406,6 +407,8 @@ class StSAgent:
             combat_predictor: Optional combat outcome predictor for planner.
             temperature: Action selection temperature (0 = greedy).
         """
+        from .mcts import CombatMCTS  # lazy import — mcts.py is dead code
+
         self.combat_mcts = CombatMCTS(
             policy_fn=policy_fn,
             num_simulations=combat_sims,

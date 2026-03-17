@@ -11,13 +11,10 @@ version = "0.1.0"
 description = "Slay the Spire RL Agent"
 requires-python = ">=3.10"
 dependencies = [
-    "flask>=3.1.2",
-    "google-genai>=1.59.0",
     "gymnasium>=0.29.0",
     "numpy>=1.24.0",
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
-    "dearpygui>=2.1.1",
     "websockets>=14.0",
     "torch>=2.10.0",
     "psutil>=7.2.2",
@@ -46,9 +43,6 @@ data = [
     "beautifulsoup4>=4.12.0",
     "aiohttp>=3.9.0",
 ]
-
-[project.scripts]
-sts-launcher = "tools.launcher:main"
 
 [dependency-groups]
 dev = [

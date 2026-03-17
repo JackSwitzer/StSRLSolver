@@ -215,15 +215,6 @@ wheels = [
 ]
 
 [[package]]
-name = "blinker"
-version = "1.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/21/28/9b3f50ce0e048515135495f198351908d99540d69bfdc8c1d15b73dc55ce/blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf", size = 22460, upload-time = "2024-11-08T17:25:47.436Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc", size = 8458, upload-time = "2024-11-08T17:25:46.184Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2026.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -481,33 +472,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dearpygui"
-version = "2.1.1"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/09/c23ce6671e2339f4170620b5626bc80070611f6b8f1c6c000dfa1936062f/dearpygui-2.1.1-cp310-cp310-macosx_10_6_x86_64.whl", hash = "sha256:4cb99ac64125c4b454eb79c52c37c92e64d8dcd1646d14bb23e061930124f090", size = 2101049, upload-time = "2025-11-14T14:47:37.127Z" },
-    { url = "https://files.pythonhosted.org/packages/63/cc/e99f0d8a9ae3f85febd3dc29c68c38af714c7ab232469beee2ca8f5ee1f1/dearpygui-2.1.1-cp310-cp310-macosx_13_0_arm64.whl", hash = "sha256:fa3b3f2617d01b3de93bc4632129d5155d34aba708c72df05af1eaf0369a6394", size = 1895437, upload-time = "2025-11-14T14:47:46Z" },
-    { url = "https://files.pythonhosted.org/packages/96/48/245cb4b280d8b146dfb0cfe57a93cbd52ff5fea1ae634b676c46281d1596/dearpygui-2.1.1-cp310-cp310-manylinux1_x86_64.whl", hash = "sha256:886e3b4f91f9e75de0aa1fd5a51ea1cd862f047fbb1edd5bdcbec3d29c66f5cb", size = 2640351, upload-time = "2025-11-14T14:47:52.055Z" },
-    { url = "https://files.pythonhosted.org/packages/ad/ba/169f29ceec2a404e66577a0ed408785a7cf2e75748205f80d24c48dc5ad5/dearpygui-2.1.1-cp310-cp310-win_amd64.whl", hash = "sha256:5bf454047f7dc7c77c98721fd98aaaf276fa82f954699c95dfe80916a7060136", size = 1808682, upload-time = "2025-11-14T14:47:23.635Z" },
-    { url = "https://files.pythonhosted.org/packages/57/b5/d5bae262633d05f82aeeb3f84ae6240fe3f2955ab6fb4509ebf8048a0b9e/dearpygui-2.1.1-cp311-cp311-macosx_10_6_x86_64.whl", hash = "sha256:8a7c8608b365f4b380b7326679023595fecd04b78c514f2cfd349b0a1108bd0e", size = 2100934, upload-time = "2025-11-14T14:47:38.172Z" },
-    { url = "https://files.pythonhosted.org/packages/93/86/75fa9a0f0a7b4b62810cc6f1e8ebaea3df0a825c0adf27d2024aaac2d178/dearpygui-2.1.1-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:ee87153fdd494ccead8c2345553acd7a9ee61c031e3223f4160aa560709248a3", size = 1895473, upload-time = "2025-11-14T14:47:47.064Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/7a/e109e06f8f4379d41a4e672c49aba42e7fcf0eec88056fa06185f4e52c98/dearpygui-2.1.1-cp311-cp311-manylinux1_x86_64.whl", hash = "sha256:964fbb3735017b919efa58104b2d7e9b84a168ff5c1031ae0652d5bc0a48bf5b", size = 2640408, upload-time = "2025-11-14T14:47:53.124Z" },
-    { url = "https://files.pythonhosted.org/packages/f3/b5/2ec29d9b47c30ecee96c6f6a0cf229f2898ce3e133a1a0e5b0cd5db82e6b/dearpygui-2.1.1-cp311-cp311-win_amd64.whl", hash = "sha256:6141184ff59fa4b8df1b81b077cb8cc2b2ef9c0ff92e69c6063062b6d251f426", size = 1808736, upload-time = "2025-11-14T14:47:26.46Z" },
-    { url = "https://files.pythonhosted.org/packages/79/41/2146e8d03d28b5a66d5282beb26ffd9ab68a729a29d31e2fe91809271bf5/dearpygui-2.1.1-cp312-cp312-macosx_10_6_x86_64.whl", hash = "sha256:238aea7b4be7376f564dae8edd563b280ec1483a03786022969938507691e017", size = 2101529, upload-time = "2025-11-14T14:47:39.646Z" },
-    { url = "https://files.pythonhosted.org/packages/b0/c5/fcc37ef834fe225241aa4f18d77aaa2903134f283077978d65a901c624c6/dearpygui-2.1.1-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:c27ca6ecd4913555b717f3bb341c0b6a27d6c9fdc9932f0b3c31ae2ef893ae35", size = 1895555, upload-time = "2025-11-14T14:47:48.149Z" },
-    { url = "https://files.pythonhosted.org/packages/74/66/19f454ba02d5f03a847cc1dfee4a849cd2307d97add5ba26fecdca318adb/dearpygui-2.1.1-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:8c071e9c165d89217bdcdaf769c6069252fcaee50bf369489add524107932273", size = 2641509, upload-time = "2025-11-14T14:47:54.581Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/58/d01538556103d544a5a5b4cbcb00646ff92d8a97f0a6283a56bede4307c8/dearpygui-2.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:9f2291313d2035f8a4108e13f60d8c1a0e7c19af7554a7739a3fd15b3d5af8f7", size = 1808971, upload-time = "2025-11-14T14:47:28.15Z" },
-    { url = "https://files.pythonhosted.org/packages/68/3d/69e1204f84e7153b52483c48f28bbc5d6a3996dca5de1a1d5e4904059b6b/dearpygui-2.1.1-cp313-cp313-macosx_10_6_x86_64.whl", hash = "sha256:5bab324eb6d61213e74a1937b501eff8ca713e7478d5bd6465b6456921194ca0", size = 2101382, upload-time = "2025-11-14T14:47:40.666Z" },
-    { url = "https://files.pythonhosted.org/packages/3c/79/f28074174bd4ea2193213fcc099fa576568129ad805fc51a066f8502dedc/dearpygui-2.1.1-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:958a794ed9c622842c70d80548fa943162f8b9f56c27f9a9a32eff5beef10945", size = 1895619, upload-time = "2025-11-14T14:47:49.231Z" },
-    { url = "https://files.pythonhosted.org/packages/0c/46/afdbc98c35b1bb6bcac815489955c1a891dc44c5b6a00ac859cc11bd0ff5/dearpygui-2.1.1-cp313-cp313-manylinux1_x86_64.whl", hash = "sha256:ce692d9531d797cf31c85439e774d27fa67c5918e21e7e18d64987d1cb65ff2c", size = 2641406, upload-time = "2025-11-14T14:47:56.269Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/3a/5a71ab350e580cf88e1669f2d27bdc698df7bcda665edc459a9fe217234d/dearpygui-2.1.1-cp313-cp313-win_amd64.whl", hash = "sha256:0901c6ba9c717599df9469576184ca851de6cde242b2d9f9ab10bc35a7219656", size = 1808916, upload-time = "2025-11-14T14:47:30.363Z" },
-    { url = "https://files.pythonhosted.org/packages/2c/bd/d41500cae7d4b204f4474df1953a1735a7be232711fa33692fe176a88824/dearpygui-2.1.1-cp314-cp314-macosx_10_6_x86_64.whl", hash = "sha256:6d8f807ea0c75d64407926db442255b609c6883dfcc85559acfd8f66569f7d61", size = 2101737, upload-time = "2025-11-14T14:47:41.67Z" },
-    { url = "https://files.pythonhosted.org/packages/97/52/00cd59bf2cca1f76dff39370fd47dffe0cd116639e9a957bbf7dbedea369/dearpygui-2.1.1-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:16cba0c621914c28abc056940143900677d964c60fe2432aeb45c4054cb84adc", size = 1895685, upload-time = "2025-11-14T14:47:50.303Z" },
-    { url = "https://files.pythonhosted.org/packages/62/f8/305f9edc94601924f399d8381509763b3398300b012389ff4d1ebcdbdb9b/dearpygui-2.1.1-cp314-cp314-manylinux1_x86_64.whl", hash = "sha256:8a71dfb779772cd36b56858c15e333fb2487fb19a9319d796896cb0cd0efcd2c", size = 2641463, upload-time = "2025-11-14T14:47:57.792Z" },
-    { url = "https://files.pythonhosted.org/packages/25/d5/1780c1165c435afe4b35aa664ae48881101bdb32476efeae5588d520bcb2/dearpygui-2.1.1-cp314-cp314-win_amd64.whl", hash = "sha256:7c719adbc382f688c84c576e8d752cfe861b41b9d83ed1fd065e20944c11afbf", size = 1866074, upload-time = "2025-11-14T14:47:31.897Z" },
-]
-
-[[package]]
 name = "defusedxml"
 version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -568,23 +532,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1d/65/ce7f1b70157833bf3cb851b556a37d4547ceafc158aa9b34b36782f23696/filelock-3.20.3.tar.gz", hash = "sha256:18c57ee915c7ec61cff0ecf7f0f869936c7c30191bb0cf406f1341778d0834e1", size = 19485, upload-time = "2026-01-09T17:55:05.421Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b5/36/7fb70f04bf00bc646cd5bb45aa9eddb15e19437a28b8fb2b4a5249fac770/filelock-3.20.3-py3-none-any.whl", hash = "sha256:4b0dda527ee31078689fc205ec4f1c1bf7d56cf88b6dc9426c4f230e46c2dce1", size = 16701, upload-time = "2026-01-09T17:55:04.334Z" },
-]
-
-[[package]]
-name = "flask"
-version = "3.1.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "blinker" },
-    { name = "click" },
-    { name = "itsdangerous" },
-    { name = "jinja2" },
-    { name = "markupsafe" },
-    { name = "werkzeug" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/dc/6d/cfe3c0fcc5e477df242b98bfe186a4c34357b4847e87ecaef04507332dab/flask-3.1.2.tar.gz", hash = "sha256:bf656c15c80190ed628ad08cdfd3aaa35beb087855e2f494910aa3774cc4fd87", size = 720160, upload-time = "2025-08-19T21:03:21.205Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/f9/7f9263c5695f4bd0023734af91bedb2ff8209e8de6ead162f35d8dc762fd/flask-3.1.2-py3-none-any.whl", hash = "sha256:ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c", size = 103308, upload-time = "2025-08-19T21:03:19.499Z" },
 ]
 
 [[package]]
@@ -831,11 +778,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/db/18/79e9008530b79527e0d5f79e7eef08d3b179b7f851cfd3a2f27822fbdfa9/google_auth-2.47.0-py3-none-any.whl", hash = "sha256:c516d68336bfde7cf0da26aab674a36fedcf04b37ac4edd59c597178760c3498", size = 234867, upload-time = "2026-01-06T21:55:28.6Z" },
 ]
 
-[package.optional-dependencies]
-requests = [
-    { name = "requests" },
-]
-
 [[package]]
 name = "google-auth-httplib2"
 version = "0.3.0"
@@ -847,27 +789,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d5/ad/c1f2b1175096a8d04cf202ad5ea6065f108d26be6fc7215876bde4a7981d/google_auth_httplib2-0.3.0.tar.gz", hash = "sha256:177898a0175252480d5ed916aeea183c2df87c1f9c26705d74ae6b951c268b0b", size = 11134, upload-time = "2025-12-15T22:13:51.825Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/99/d5/3c97526c8796d3caf5f4b3bed2b05e8a7102326f00a334e7a438237f3b22/google_auth_httplib2-0.3.0-py3-none-any.whl", hash = "sha256:426167e5df066e3f5a0fc7ea18768c08e7296046594ce4c8c409c2457dd1f776", size = 9529, upload-time = "2025-12-15T22:13:51.048Z" },
-]
-
-[[package]]
-name = "google-genai"
-version = "1.59.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "google-auth", extra = ["requests"] },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "sniffio" },
-    { name = "tenacity" },
-    { name = "typing-extensions" },
-    { name = "websockets" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/40/34/c03bcbc759d67ac3d96077838cdc1eac85417de6ea3b65b313fe53043eee/google_genai-1.59.0.tar.gz", hash = "sha256:0b7a2dc24582850ae57294209d8dfc2c4f5fcfde0a3f11d81dc5aca75fb619e2", size = 487374, upload-time = "2026-01-15T20:29:46.619Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/53/6d00692fe50d73409b3406ae90c71bc4499c8ae7fac377ba16e283da917c/google_genai-1.59.0-py3-none-any.whl", hash = "sha256:59fc01a225d074fe9d1e626c3433da292f33249dadce4deb34edea698305a6df", size = 719099, upload-time = "2026-01-15T20:29:44.604Z" },
 ]
 
 [[package]]
@@ -1057,15 +978,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
-]
-
-[[package]]
-name = "itsdangerous"
-version = "2.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/9c/cb/8ac0172223afbccb63986cc25049b154ecfb5e85932587206f42317be31d/itsdangerous-2.2.0.tar.gz", hash = "sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173", size = 54410, upload-time = "2024-04-16T21:28:15.614Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef", size = 16234, upload-time = "2024-04-16T21:28:14.499Z" },
 ]
 
 [[package]]
@@ -2370,10 +2282,7 @@ name = "stsrl"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "dearpygui" },
     { name = "fastapi" },
-    { name = "flask" },
-    { name = "google-genai" },
     { name = "gymnasium" },
     { name = "mlx" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2418,11 +2327,8 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'data'", specifier = ">=3.9.0" },
     { name = "beautifulsoup4", marker = "extra == 'data'", specifier = ">=4.12.0" },
     { name = "beautifulsoup4", marker = "extra == 'vod'", specifier = ">=4.12.0" },
-    { name = "dearpygui", specifier = ">=2.1.1" },
     { name = "fastapi", specifier = ">=0.109.0" },
-    { name = "flask", specifier = ">=3.1.2" },
     { name = "gdown", marker = "extra == 'data'", specifier = ">=5.0.0" },
-    { name = "google-genai", specifier = ">=1.59.0" },
     { name = "google-generativeai", marker = "extra == 'vod'", specifier = ">=0.3.0" },
     { name = "gymnasium", specifier = ">=0.29.0" },
     { name = "httpx", marker = "extra == 'vod'", specifier = ">=0.25.0" },
@@ -2460,15 +2366,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921, upload-time = "2025-04-27T18:05:01.611Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353, upload-time = "2025-04-27T18:04:59.103Z" },
-]
-
-[[package]]
-name = "tenacity"
-version = "9.1.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
 ]
 
 [[package]]
@@ -2734,18 +2631,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/fb/c492d6daa5ec067c2988ac80c61359ace5c4c674c532985ac5a123436cec/websockets-15.0.1-pp310-pypy310_pp73-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b359ed09954d7c18bbc1680f380c7301f92c60bf924171629c5db97febb12f04", size = 174155, upload-time = "2025-03-05T20:03:25.321Z" },
     { url = "https://files.pythonhosted.org/packages/68/a1/dcb68430b1d00b698ae7a7e0194433bce4f07ded185f0ee5fb21e2a2e91e/websockets-15.0.1-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:cad21560da69f4ce7658ca2cb83138fb4cf695a2ba3e475e0559e05991aa8122", size = 176884, upload-time = "2025-03-05T20:03:27.934Z" },
     { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
-]
-
-[[package]]
-name = "werkzeug"
-version = "3.1.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "markupsafe" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/70/1469ef1d3542ae7c2c7b72bd5e3a4e6ee69d7978fa8a3af05a38eca5becf/werkzeug-3.1.5.tar.gz", hash = "sha256:6a548b0e88955dd07ccb25539d7d0cc97417ee9e179677d22c7041c8f078ce67", size = 864754, upload-time = "2026-01-08T17:49:23.247Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/e4/8d97cca767bcc1be76d16fb76951608305561c6e056811587f36cb1316a8/werkzeug-3.1.5-py3-none-any.whl", hash = "sha256:5111e36e91086ece91f93268bb39b4a35c1e6f1feac762c9c822ded0a4e322dc", size = 225025, upload-time = "2026-01-08T17:49:21.859Z" },
 ]
 
 [[package]]
