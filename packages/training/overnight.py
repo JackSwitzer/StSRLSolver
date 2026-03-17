@@ -168,81 +168,97 @@ def compute_potential(run_state) -> float:
     return 0.45 * floor_pct + 0.30 * hp_pct + 0.15 * deck_quality + 0.10 * relic_bonus
 
 
-# Event rewards scaled by HP efficiency
-# Per-combat HP loss penalty (per HP lost — moderate to avoid dominating rewards)
-DAMAGE_TAKEN_PENALTY = -0.03
-# Potion use without meaningful gain penalty
-POTION_WASTE_PENALTY = -0.15
+# ---------------------------------------------------------------------------
+# REWARD_WEIGHTS — unified, hot-reloadable reward configuration
+# ---------------------------------------------------------------------------
+# Philosophy: strip heuristic shaping, let game outcomes drive learning.
+# PBRS potential function + game events (win/loss/milestones) are the primary signals.
+# Stance and card pick rewards REMOVED — they were dominating the reward signal
+# (Wrath 1.50 was stronger than beating a boss at 0.80) and teaching the model
+# to chase heuristic signals instead of learning from outcomes.
 
-# Potion usage rewards — encourage smart potion use on hard fights
-POTION_USE_ELITE_REWARD = 0.50   # Potion used during elite fight
-POTION_USE_BOSS_REWARD = 0.50    # Potion used during boss fight
-POTION_SAVE_HP_REWARD = 0.02     # Per HP saved by using potion defensively
-# Bonus for killing elite/boss where potion was used
-POTION_KILL_SAME_TURN = 1.0      # Lethal turn with potion
-POTION_KILL_SAME_FIGHT = 0.50    # Won fight where potion was used
-# Potion value penalty — using a potion costs its inherent value
-POTION_USE_VALUE_PENALTY = -0.30  # Moderate cost to discourage waste
+REWARD_WEIGHTS: Dict[str, Any] = {
+    # Per-HP damage penalty (was -0.03, reduced 6x — was 30x stronger than boss win)
+    "damage_per_hp": -0.005,
 
-EVENT_REWARDS = {
+    # Combat win rewards
     "combat_win": 0.05,
     "elite_win": 0.30,
     "boss_win": 0.80,
+
+    # Floor milestones (one-time per game)
+    "floor_milestones": {
+        6: 0.10,     # First elite territory
+        10: 0.15,    # Mid-act 1
+        15: 0.20,    # Final campfire before Act 1 boss
+        16: 0.25,    # Reached Act 1 boss
+        17: 1.00,    # Beat Act 1 boss
+        25: 0.50,    # Mid-act 2
+        33: 1.00,    # Reached Act 2 boss
+        34: 2.00,    # Beat Act 2 boss
+        50: 2.00,    # Reached Act 3 boss
+        51: 3.00,    # Beat Act 3 boss
+        55: 5.00,    # Beat the Heart (win)
+    },
+
+    # F16 HP bonus: reward arriving at boss floor healthy
+    "f16_hp_bonus_base": 0.50,
+    "f16_hp_bonus_per_hp": 0.02,
+
+    # Deck management
+    "shop_remove": 0.40,
+
+    # Upgrade rewards (separate from card picks — upgrades don't change deck size)
+    "upgrade_rewards": {
+        "Eruption": 0.30,    "Eruption+": 0.0,   # 2→1 cost is huge
+        "Vigilance": 0.10,   "Vigilance+": 0.0,
+        "Defend_P": -1.50,   "Defend_P+": 0.0,    # Bad upgrade target
+        "Strike_P": -0.50,   "Strike_P+": 0.0,    # Wasted upgrade
+    },
+
+    # Potions
+    "potion_use_elite": 0.50,
+    "potion_use_boss": 0.50,
+    "potion_kill_same_fight": 0.50,
+    "potion_waste_penalty": -0.15,
+    "potion_hoard_penalty": -0.30,
+
+    # Terminal rewards
+    "win_reward": 10.0,
+    "death_penalty_scale": -1.0,  # Multiplied by (1 - progress)
 }
 
-# Floor milestone rewards — triggered once per game when reaching key floors
-# Act 1: elite ~floor 6-7, campfire before boss ~floor 15, boss floor 16
-# Negative reward for dying (scaled by how early the death is)
-FLOOR_MILESTONES = {
-    6: 0.10,    # Survived early floors, first elite territory
-    10: 0.15,   # Mid-act 1
-    15: 0.20,   # Final campfire before Act 1 boss
-    16: 0.25,   # Reached Act 1 boss
-    17: 1.00,   # Beat Act 1 boss (entered Act 2)
-    25: 0.50,   # Mid-act 2
-    33: 1.00,   # Reached Act 2 boss
-    34: 2.00,   # Beat Act 2 boss (entered Act 3)
-    50: 2.00,   # Reached Act 3 boss
-    51: 3.00,   # Beat Act 3 boss
-    55: 5.00,   # Beat the Heart (win)
+# Convenience accessors for backwards compat with hot-reload and worker code
+DAMAGE_TAKEN_PENALTY = REWARD_WEIGHTS["damage_per_hp"]
+POTION_WASTE_PENALTY = REWARD_WEIGHTS["potion_waste_penalty"]
+POTION_USE_ELITE_REWARD = REWARD_WEIGHTS["potion_use_elite"]
+POTION_USE_BOSS_REWARD = REWARD_WEIGHTS["potion_use_boss"]
+POTION_KILL_SAME_FIGHT = REWARD_WEIGHTS["potion_kill_same_fight"]
+SHOP_REMOVE_REWARD = REWARD_WEIGHTS["shop_remove"]
+
+# Legacy dicts kept for hot-reload compat — values wired from REWARD_WEIGHTS
+EVENT_REWARDS = {
+    "combat_win": REWARD_WEIGHTS["combat_win"],
+    "elite_win": REWARD_WEIGHTS["elite_win"],
+    "boss_win": REWARD_WEIGHTS["boss_win"],
 }
+FLOOR_MILESTONES = dict(REWARD_WEIGHTS["floor_milestones"])
 
 # Stall detection: if avg floor doesn't improve over this many games, reset entropy
 STALL_DETECTION_WINDOW = 2000
-STALL_IMPROVEMENT_THRESHOLD = 0.5  # Must improve avg floor by at least this much
+STALL_IMPROVEMENT_THRESHOLD = 0.5
 
-# Stance transition reward shaping (initialized, learnable via hot-reload)
-# Calm (blue) = safe energy, Wrath (red) = damage but risky, Divinity (purple) = burst
-STANCE_CHANGE_REWARDS = {
-    "Calm": 0.30,      # Blue — energy generation, safe turns
-    "Wrath": 1.50,     # Red — main offensive tool, highest reward
-    "Divinity": 0.20,  # Purple — burst damage (lower for now, Prostrate spam)
-    "Neutral": 0.0,    # No reward for going neutral
-}
+# REMOVED: Stance rewards were dominating all other signals (Wrath 1.50 was
+# the single strongest reward in the system). Model should learn when stances
+# are valuable from game outcomes, not from heuristic bonuses.
+STANCE_CHANGE_REWARDS: Dict[str, float] = {}  # Zeroed — kept for hot-reload compat
 
-# Card pick rewards — bonus for picking key Watcher cards (especially Act 1)
-# These are on top of PBRS deck quality changes
-CARD_PICK_REWARDS: Dict[str, float] = {
-    # Tier 1 — build-defining Watcher cards
-    "Rushdown": 0.30,    "Rushdown+": 0.30,
-    "Tantrum": 0.25,     "Tantrum+": 0.25,
-    "MentalFortress": 0.25, "MentalFortress+": 0.25,
-    "TalkToTheHand": 0.20, "TalkToTheHand+": 0.20,
-    # Tier 2 — strong support
-    "InnerPeace": 0.15,  "InnerPeace+": 0.15,
-    "Ragnarok": 0.15,    "Ragnarok+": 0.15,
-    "CutThroughFate": 0.10, "CutThroughFate+": 0.10,
-    "WheelKick": 0.10,   "WheelKick+": 0.10,
-    "Conclude": 0.10,    "Conclude+": 0.10,
-    "EmptyFist": 0.10,   "EmptyFist+": 0.10,
-    # Negative — bad picks that bloat the deck
-    "Prostrate": -0.10,  "Prostrate+": -0.10,
-    "Pray": -0.05,       "Pray+": -0.05,
-    "Crescendo": -0.05,  "Crescendo+": -0.05,
-}
+# REMOVED: Card pick rewards had no deck context (Rushdown is great in a stance
+# deck, bad in a pressure points deck). PBRS + game outcomes are enough.
+CARD_PICK_REWARDS: Dict[str, float] = {}  # Zeroed — kept for hot-reload compat
 
-# Card removal reward (shop remove, events, etc.)
-SHOP_REMOVE_REWARD = 0.40  # Higher than elite win — deck thinning is critical
+# Upgrade rewards (new — separate from card picks, checked when deck size unchanged)
+UPGRADE_REWARDS: Dict[str, float] = dict(REWARD_WEIGHTS.get("upgrade_rewards", {}))
 
 
 # ---------------------------------------------------------------------------
@@ -630,7 +646,14 @@ def _play_one_game(
     combat_planner = CombatPlanner(top_k=3, lookahead_turns=1)  # Fast config for training
     # Scale node budget proportionally with time budget (100 nodes per ms)
     _node_budget = max(1000, int(turn_solver_ms * 100))
-    turn_solver = TurnSolverAdapter(time_budget_ms=turn_solver_ms, node_budget=_node_budget)
+    turn_solver = TurnSolverAdapter(
+        time_budget_ms=turn_solver_ms,
+        node_budget=_node_budget,
+        # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
+        multi_turn_depth=3,
+        multi_turn_k=4,
+        multi_turn_budget_ms=5000.0,
+    )
 
     client = get_client()
 
@@ -692,6 +715,9 @@ def _play_one_game(
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
     turns_log: List[Dict[str, Any]] = []  # Per-turn log for current combat
+    # Solver telemetry per combat
+    combat_solver_ms = 0.0  # Total solver time this combat
+    combat_solver_calls = 0  # Number of solver calls this combat
 
     # Event and path tracking for episode logging
     events_visited: List[Dict[str, Any]] = []  # {floor, event_id}
@@ -728,6 +754,8 @@ def _play_one_game(
             "stance_changes": combat_stance_changes,
             "turns_detail": turns_log[:],
             "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
+            "solver_ms": round(combat_solver_ms),
+            "solver_calls": combat_solver_calls,
         })
 
     while not runner.game_over and step < 5000:
@@ -764,10 +792,15 @@ def _play_one_game(
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
+                combat_solver_ms = 0.0
+                combat_solver_calls = 0
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
             # Track card plays, potion uses, stance changes
+            _solve_t0 = time.monotonic()
             action = _pick_combat_action(actions, runner, combat_planner, turn_solver)
+            combat_solver_ms += (time.monotonic() - _solve_t0) * 1000
+            combat_solver_calls += 1
             if hasattr(action, "action_type"):
                 atype = getattr(action, "action_type", "")
                 if atype == "play_card":
@@ -859,8 +892,10 @@ def _play_one_game(
             }
             phase_type = _PHASE_MAP.get(phase, "other")
 
-            # Encode state with phase context (always needed for obs recording)
-            run_obs = encoder.encode(rs, phase_type=phase_type)
+            # Encode state with phase context + boss/room info
+            _boss = getattr(runner, "_boss_name", "")
+            _room = getattr(runner, "current_room_type", "")
+            run_obs = encoder.encode(rs, phase_type=phase_type, boss_name=_boss, room_type=_room)
 
             # ACTION_DIM constant — must match StrategicNet.action_dim
             _ACTION_DIM = 512
@@ -971,7 +1006,7 @@ def _play_one_game(
                     hp_pct = new_rs.current_hp / max(new_rs.max_hp, 1)
                     event_reward *= (0.5 + 0.5 * hp_pct)
 
-                    # Penalize HP lost in combat (encourages blocking/stance management)
+                    # Penalize HP lost in combat (reduced: was dominating rewards)
                     hp_lost = max(0, combat_start_hp - getattr(new_rs, "current_hp", 0))
                     event_reward += DAMAGE_TAKEN_PENALTY * hp_lost
 
@@ -982,43 +1017,59 @@ def _play_one_game(
                     # Reward potion use in elite/boss fights that were won
                     if combat_potions_used > 0 and rt in ("elite", "e", "boss", "b"):
                         event_reward += POTION_KILL_SAME_FIGHT
-                        # Add accumulated per-potion-use rewards
                         event_reward += event_reward_potion_use
 
-                    # Penalize dying without using potions in hard fights
-                    # (checked at game end, but signal proximity matters here too)
+                    # Penalize hoarding potions in tough fights when low HP
                     if hp_pct < 0.3 and combat_potions_used == 0 and rt in ("elite", "e", "boss", "b"):
                         _potions = getattr(new_rs, "potions", [])
                         _has_potions = any(p is not None for p in _potions) if _potions else False
                         if _has_potions:
-                            event_reward -= 0.30  # Penalty for hoarding potions in tough fights
+                            event_reward += REWARD_WEIGHTS.get("potion_hoard_penalty", -0.30)
 
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
                 if new_deck_size < prev_deck_size:
                     event_reward += SHOP_REMOVE_REWARD * (prev_deck_size - new_deck_size)
 
-                # Card pick reward for key Watcher cards (added to deck)
-                elif new_deck_size > prev_deck_size:
+                # Upgrade detection (deck size unchanged, card upgraded)
+                elif new_deck_size == prev_deck_size and UPGRADE_REWARDS:
+                    # Check if an upgrade just happened (rest site or smith event)
+                    if phase_type == "rest":
+                        new_deck = list(getattr(new_rs, "deck", []))
+                        for card in new_deck:
+                            cid = getattr(card, "id", str(card))
+                            if getattr(card, "upgraded", False) and cid in UPGRADE_REWARDS:
+                                event_reward += UPGRADE_REWARDS[cid]
+                                break
+
+                # Card pick rewards (kept for hot-reload compat, zeroed by default)
+                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
                     new_deck = list(getattr(new_rs, "deck", []))
                     if new_deck:
-                        picked = new_deck[-1]  # Most recently added CardInstance
+                        picked = new_deck[-1]
                         card_id = getattr(picked, "id", str(picked))
                         pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward > 0:
+                        if pick_reward != 0:
                             act_mult = 1.5 if current_floor <= 17 else 1.0
                             event_reward += pick_reward * act_mult
 
                 prev_deck_size = new_deck_size
 
-                # Stance change rewards accumulated during combat
-                if combat_just_ended and combat_stance_changes > 0:
+                # Stance rewards (zeroed by default — kept for hot-reload compat)
+                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
                     event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)
                 for milestone_floor, milestone_reward in FLOOR_MILESTONES.items():
                     if new_floor >= milestone_floor and milestone_floor not in reached_milestones:
+                        # F16 HP bonus: reward arriving at boss floor healthy
+                        if milestone_floor == 16:
+                            _cur_hp = getattr(new_rs, "current_hp", 0)
+                            milestone_reward = (
+                                REWARD_WEIGHTS.get("f16_hp_bonus_base", 0.50)
+                                + REWARD_WEIGHTS.get("f16_hp_bonus_per_hp", 0.02) * _cur_hp
+                            )
                         event_reward += milestone_reward
                         reached_milestones.add(milestone_floor)
 
@@ -1090,12 +1141,11 @@ def _play_one_game(
     if transitions:
         if truly_terminal:
             if won:
-                transitions[-1]["reward"] += 10.0
+                transitions[-1]["reward"] += REWARD_WEIGHTS.get("win_reward", 10.0)
             else:
                 progress = final_floor / 55.0
-                # Stronger death penalty, especially for early deaths
-                # Floor 1 death: -1.0, floor 16 death: -0.71, floor 50 death: -0.09
-                transitions[-1]["reward"] += -1.0 * (1 - progress)
+                death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
+                transitions[-1]["reward"] += death_scale * (1 - progress)
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE
         # bootstraps from value estimate instead of zero
@@ -1141,6 +1191,10 @@ def _play_one_game(
     except Exception:
         pass
 
+    # Aggregate solver stats from combats
+    total_solver_ms = sum(c.get("solver_ms", 0) for c in combats)
+    total_solver_calls = sum(c.get("solver_calls", 0) for c in combats)
+
     return {
         "seed": seed,
         "won": won,
@@ -1149,6 +1203,8 @@ def _play_one_game(
         "max_hp": getattr(rs, "max_hp", 0),
         "decisions": decisions,
         "duration_s": round(duration, 2),
+        "solver_ms": round(total_solver_ms),
+        "solver_calls": total_solver_calls,
         "transitions": transitions,
         "deck_final": deck_final,
         "relics_final": relics_final,
@@ -1711,7 +1767,25 @@ class OvernightRunner:
                         _t.batch_size = cfg["batch_size"]
                         logger.info("  batch_size -> %s", cfg["batch_size"])
 
-                    # --- Reward shaping ---
+                    # --- Reward weights (unified system) ---
+                    if "reward_weights" in cfg:
+                        REWARD_WEIGHTS.update(cfg["reward_weights"])
+                        # Sync convenience accessors
+                        global DAMAGE_TAKEN_PENALTY, SHOP_REMOVE_REWARD
+                        DAMAGE_TAKEN_PENALTY = REWARD_WEIGHTS.get("damage_per_hp", -0.005)
+                        SHOP_REMOVE_REWARD = REWARD_WEIGHTS.get("shop_remove", 0.40)
+                        EVENT_REWARDS.update({
+                            "combat_win": REWARD_WEIGHTS.get("combat_win", 0.05),
+                            "elite_win": REWARD_WEIGHTS.get("elite_win", 0.30),
+                            "boss_win": REWARD_WEIGHTS.get("boss_win", 0.80),
+                        })
+                        if "floor_milestones" in REWARD_WEIGHTS:
+                            FLOOR_MILESTONES.update(
+                                {int(k): v for k, v in REWARD_WEIGHTS["floor_milestones"].items()}
+                            )
+                        logger.info("  reward_weights -> updated")
+
+                    # --- Legacy reward shaping (backwards compat) ---
                     if "stance_rewards" in cfg:
                         STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
                         logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
@@ -1719,14 +1793,15 @@ class OvernightRunner:
                         EVENT_REWARDS.update(cfg["event_rewards"])
                         logger.info("  event_rewards -> %s", EVENT_REWARDS)
                     if "floor_milestones" in cfg:
-                        # Accept {floor_str: reward} and convert keys to int
                         FLOOR_MILESTONES.update({int(k): v for k, v in cfg["floor_milestones"].items()})
                         logger.info("  floor_milestones -> %s", FLOOR_MILESTONES)
                     if "card_pick_rewards" in cfg:
                         CARD_PICK_REWARDS.update(cfg["card_pick_rewards"])
                         logger.info("  card_pick_rewards -> %s", CARD_PICK_REWARDS)
+                    if "upgrade_rewards" in cfg:
+                        UPGRADE_REWARDS.update(cfg["upgrade_rewards"])
+                        logger.info("  upgrade_rewards -> %s", UPGRADE_REWARDS)
                     if "shop_remove_reward" in cfg:
-                        global SHOP_REMOVE_REWARD
                         SHOP_REMOVE_REWARD = cfg["shop_remove_reward"]
                         logger.info("  shop_remove_reward -> %s", SHOP_REMOVE_REWARD)
 
@@ -1741,7 +1816,6 @@ class OvernightRunner:
 
                     # --- Damage/potion penalties ---
                     if "damage_penalty" in cfg:
-                        global DAMAGE_TAKEN_PENALTY
                         DAMAGE_TAKEN_PENALTY = cfg["damage_penalty"]
                         logger.info("  damage_penalty -> %s", DAMAGE_TAKEN_PENALTY)
                     if "potion_waste_penalty" in cfg:
@@ -1756,10 +1830,6 @@ class OvernightRunner:
                         global POTION_USE_BOSS_REWARD
                         POTION_USE_BOSS_REWARD = cfg["potion_use_boss_reward"]
                         logger.info("  potion_use_boss_reward -> %s", POTION_USE_BOSS_REWARD)
-                    if "potion_kill_same_turn" in cfg:
-                        global POTION_KILL_SAME_TURN
-                        POTION_KILL_SAME_TURN = cfg["potion_kill_same_turn"]
-                        logger.info("  potion_kill_same_turn -> %s", POTION_KILL_SAME_TURN)
                     if "potion_kill_same_fight" in cfg:
                         global POTION_KILL_SAME_FIGHT
                         POTION_KILL_SAME_FIGHT = cfg["potion_kill_same_fight"]
@@ -2057,6 +2127,9 @@ class OvernightRunner:
                     "policy_loss": self._last_train_metrics.get("policy_loss"),
                     "value_loss": self._last_train_metrics.get("value_loss"),
                     "entropy": self._last_train_metrics.get("entropy"),
+                    "floor_pred_loss": self._last_train_metrics.get("floor_pred_loss"),
+                    "act_pred_loss": self._last_train_metrics.get("act_pred_loss"),
+                    "clip_fraction": self._last_train_metrics.get("clip_fraction"),
                 })
 
                 # GC between phases
@@ -2179,9 +2252,9 @@ class OvernightRunner:
             current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
             improvement = current_avg - self._stall_checkpoint_floor
             if improvement < STALL_IMPROVEMENT_THRESHOLD:
-                # Stalled: additive entropy increase (works even at cap)
+                # Stalled: additive entropy increase (capped at 0.10 to prevent drift)
                 old_ent = trainer.entropy_coeff
-                trainer.entropy_coeff = min(0.20, trainer.entropy_coeff + 0.02)
+                trainer.entropy_coeff = min(0.10, trainer.entropy_coeff + 0.02)
                 logger.warning(
                     "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
                     "(improvement %.1f < %.1f). Entropy bump: %.4f -> %.4f",

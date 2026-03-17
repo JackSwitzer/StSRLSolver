@@ -170,7 +170,7 @@ def _get_relic_index(relic_id: str) -> int:
 #   3  recent combat HP losses
 #   6  decision phase type (one-hot)
 # ---
-# 260  total
+# 260  total (dims 248-259 encode boss/elite info in previously zero-padded space)
 
 _CARD_EFFECT_DIM = 18
 _MAX_POTION_SLOTS = 5
@@ -179,6 +179,14 @@ _N_RELICS = 181
 _MAP_ROWS = 3
 _MAP_COLS = 7
 _PHASE_DIM = 6  # path, card_pick, rest, shop, event, other
+
+# Boss ID mapping for compact encoding (10 bosses → single normalized scalar)
+_BOSS_ID_MAP = {
+    "The Guardian": 0, "Hexaghost": 1, "Slime Boss": 2,      # Act 1
+    "Automaton": 3, "Collector": 4, "Champ": 5,               # Act 2
+    "Awakened One": 6, "Time Eater": 7, "Donu and Deca": 8,   # Act 3
+    "Corrupt Heart": 9,                                        # Act 4
+}
 
 # Phase type mapping for the 6-dim one-hot
 PHASE_TYPE_MAP = {
@@ -212,13 +220,23 @@ class RunStateEncoder:
         self._relic_catalog = _get_relic_catalog()
         self._n_relics = len(self._relic_catalog)
 
-    def encode(self, run_state, phase_type: str = "other") -> np.ndarray:
+    def encode(
+        self,
+        run_state,
+        phase_type: str = "other",
+        boss_name: str = "",
+        room_type: str = "",
+    ) -> np.ndarray:
         """Encode run state into a fixed-size float32 vector.
 
         Args:
             run_state: The run state object.
             phase_type: Decision type — one of "path", "card_pick", "rest",
                         "shop", "event", "other". Used for 6-dim one-hot.
+            boss_name: Current act's boss name (e.g. "Hexaghost"). Used for
+                       boss ID encoding in progress dims.
+            room_type: Current room type string (e.g. "boss", "elite").
+                       Encodes is_boss/is_elite flags.
         """
         features = np.zeros(self.RUN_DIM, dtype=np.float32)
         off = 0
@@ -343,18 +361,21 @@ class RunStateEncoder:
                         features[base:base + _MAP_COLS] /= row_sum
         off += _MAP_ROWS * _MAP_COLS
 
-        # --- Progress features (4 dims) ---
+        # --- Progress features + boss context (4 dims) ---
         features[off] = getattr(run_state, "combats_won", 0) / 20.0
         features[off + 1] = getattr(run_state, "elites_killed", 0) / 5.0
         features[off + 2] = getattr(run_state, "bosses_killed", 0) / 3.0
-        features[off + 3] = getattr(run_state, "perfect_floors", 0) / 10.0
+        # Boss identity for current act (replaces perfect_floors — low signal)
+        boss_id = _BOSS_ID_MAP.get(boss_name, -1)
+        features[off + 3] = (boss_id + 1) / 11.0 if boss_id >= 0 else 0.0
         off += 4
 
-        # --- Recent combat HP losses (3 dims) ---
-        # Approximate from current state: HP deficit signals
-        features[off] = 1.0 - (run_state.current_hp / max_hp)  # current HP deficit
-        features[off + 1] = float(run_state.current_hp < max_hp * 0.5)  # below 50%
-        features[off + 2] = float(run_state.current_hp < max_hp * 0.25)  # danger zone
+        # --- HP deficit + floor type flags (3 dims) ---
+        features[off] = 1.0 - (run_state.current_hp / max_hp)  # HP deficit
+        # is_boss / is_elite flags (replace redundant binary HP thresholds)
+        rt_lower = room_type.lower() if room_type else ""
+        features[off + 1] = 1.0 if "boss" in rt_lower else 0.0
+        features[off + 2] = 1.0 if rt_lower in ("elite", "e") else 0.0
         off += 3
 
         # --- Decision phase type (6 dims one-hot) ---
