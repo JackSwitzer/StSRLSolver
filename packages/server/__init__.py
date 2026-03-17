@@ -8,7 +8,6 @@ Usage:
 __version__ = "0.1.0"
 
 from .ws_server import GameServer
-from .game_session import GameSession
 from .protocol import (
     MessageType,
     make_game_created,
