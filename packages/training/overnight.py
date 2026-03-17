@@ -27,30 +27,21 @@ from .episode_log import log_episode
 from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
     CARD_PICK_REWARDS,
-    DAMAGE_TAKEN_PENALTY,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
-    POTION_KILL_SAME_FIGHT,
-    POTION_USE_BOSS_REWARD,
-    POTION_USE_ELITE_REWARD,
-    POTION_WASTE_PENALTY,
     REPLAY_BUFFER_SIZE,
     REPLAY_MIN_FLOOR,
     REPLAY_MIX_RATIO,
     REWARD_WEIGHTS,
-    SHOP_REMOVE_REWARD,
     STALL_DETECTION_WINDOW,
     STALL_IMPROVEMENT_THRESHOLD,
     STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
-from .worker import _play_one_game, _worker_init
+from .worker import _ACTION_DIM, _play_one_game, _worker_init
 
 logger = logging.getLogger(__name__)
-
-# ACTION_DIM constant — must match StrategicNet.action_dim
-_ACTION_DIM = 512
 
 
 # ---------------------------------------------------------------------------

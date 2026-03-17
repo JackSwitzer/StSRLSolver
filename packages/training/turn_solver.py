@@ -1085,9 +1085,8 @@ class TurnSolverAdapter:
     Wraps TurnSolver and bridges between the GameRunner's CombatAction format
     and the engine-level Action format used by TurnSolver.
 
-    When an InferenceClient is available, uses GumbelMCTS with GPU-backed
-    value evaluation for elite/boss fights. Falls back to the DFS/beam
-    TurnSolver for normal fights or when the inference server is unavailable.
+    Uses multi-turn solver for boss/elite fights (plans 3+ turns ahead),
+    single-turn DFS/beam solver for normal fights.
 
     Usage:
         adapter = TurnSolverAdapter()
@@ -1098,8 +1097,6 @@ class TurnSolverAdapter:
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
-        mcts_simulations: int = 8,
-        use_mcts_for: Optional[Tuple[str, ...]] = None,
         multi_turn_depth: int = 3,
         multi_turn_k: int = 4,
         multi_turn_budget_ms: float = 5000.0,
@@ -1108,10 +1105,6 @@ class TurnSolverAdapter:
             time_budget_ms=time_budget_ms,
             node_budget=node_budget,
         )
-        self._mcts_simulations = mcts_simulations
-        self._use_mcts_for = use_mcts_for or ("elite", "boss")
-        self._mcts_by_budget: Dict[int, Any] = {}  # sim_budget -> GumbelMCTS
-        self._mcts_policy_fn: Optional[Any] = None
         # Multi-turn solver for boss/elite fights
         self._multi_turn = MultiTurnSolver(
             inner_solver=TurnSolver(time_budget_ms=100, node_budget=5000),
@@ -1132,39 +1125,11 @@ class TurnSolverAdapter:
         self._cached_turn = -1
         self._cached_combat_id = -1
 
-    def _get_mcts(self, num_sims: int) -> Optional[Any]:
-        """Lazily initialize GumbelMCTS with GPU-backed policy_fn if available."""
-        if num_sims in self._mcts_by_budget:
-            return self._mcts_by_budget[num_sims]
-
-        try:
-            from packages.training.inference_server import get_client
-            from packages.training.gumbel_mcts import GumbelMCTS
-            from packages.training.combat_state_encoder import make_mcts_policy_fn
-
-            client = get_client()
-            if client is None:
-                return None
-
-            if self._mcts_policy_fn is None:
-                self._mcts_policy_fn = make_mcts_policy_fn(client)
-
-            mcts = GumbelMCTS(
-                policy_fn=self._mcts_policy_fn,
-                num_simulations=num_sims,
-                max_candidates=min(16, num_sims),
-            )
-            self._mcts_by_budget[num_sims] = mcts
-            return mcts
-        except Exception:
-            return None
-
     def pick_action(self, actions: list, runner, room_type: str = "monster"):
-        """Pick best combat action.
+        """Pick best combat action using DFS/beam TurnSolver.
 
-        For room types in use_mcts_for (default: elite, boss), attempts
-        GumbelMCTS with GPU-backed value evaluation. Falls back to
-        DFS/beam TurnSolver if MCTS is unavailable or fails.
+        For boss/elite fights, uses multi-turn solver (plans 3+ turns ahead).
+        Falls back to single-turn DFS/beam solver for normal fights.
 
         Args:
             actions: List of CombatAction objects (from GameRunner.get_available_actions)
@@ -1239,37 +1204,7 @@ class TurnSolverAdapter:
                 self._cached_plan_index = 1
                 return combat_action
 
-        # DFS failed or returned no plan — try GumbelMCTS as fallback
-        if room_type in self._use_mcts_for:
-            num_sims = self._mcts_simulations if room_type in ("elite", "boss") else max(4, self._mcts_simulations // 4)
-            mcts_result = self._try_mcts(engine, actions, state, num_sims)
-            if mcts_result is not None:
-                return mcts_result
-
-        return None  # Fall through to CombatPlanner/heuristic
-
-    def _try_mcts(self, engine: Any, actions: list, state: Any, num_sims: int = 16) -> Optional[Any]:
-        """Try to use GumbelMCTS for action selection."""
-        mcts = self._get_mcts(num_sims)
-        if mcts is None:
-            return None
-
-        try:
-            t0 = time.perf_counter()
-            visit_probs = mcts.search(engine)
-            elapsed_ms = (time.perf_counter() - t0) * 1000
-            if not visit_probs:
-                logger.debug("MCTS: no visit probs after %.1fms", elapsed_ms)
-                return None
-
-            best_engine_action = mcts.select_action(visit_probs, temperature=0.0)
-            combat_action = self._match_engine_to_combat(best_engine_action, actions, state)
-            if combat_action is not None:
-                logger.debug("MCTS: selected action in %.1fms (%d candidates)", elapsed_ms, len(visit_probs))
-            return combat_action
-        except Exception as e:
-            logger.debug("MCTS: failed with %s", e)
-            return None
+        return None  # Fall through to first legal action
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.

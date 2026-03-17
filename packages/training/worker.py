@@ -18,21 +18,18 @@ import numpy as np
 
 from .reward_config import (
     CARD_PICK_REWARDS,
-    DAMAGE_TAKEN_PENALTY,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
-    POTION_KILL_SAME_FIGHT,
-    POTION_USE_BOSS_REWARD,
-    POTION_USE_ELITE_REWARD,
-    POTION_WASTE_PENALTY,
     REWARD_WEIGHTS,
-    SHOP_REMOVE_REWARD,
     STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
     compute_potential,
 )
 
 logger = logging.getLogger(__name__)
+
+# ACTION_DIM constant — must match StrategicNet.action_dim
+_ACTION_DIM = 512
 
 # ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool
@@ -304,9 +301,9 @@ def _play_one_game(
                     # Reward potion use during elite/boss fights
                     _rt = combat_room_type.lower() if isinstance(combat_room_type, str) else "monster"
                     if _rt in ("elite", "e"):
-                        event_reward_potion_use += POTION_USE_ELITE_REWARD
+                        event_reward_potion_use += REWARD_WEIGHTS["potion_use_elite"]
                     elif _rt in ("boss", "b"):
-                        event_reward_potion_use += POTION_USE_BOSS_REWARD
+                        event_reward_potion_use += REWARD_WEIGHTS["potion_use_boss"]
                     turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
                 elif atype == "end_turn":
                     combat_turns += 1
@@ -383,8 +380,6 @@ def _play_one_game(
             _room = getattr(runner, "current_room_type", "")
             run_obs = encoder.encode(rs, phase_type=phase_type, boss_name=_boss, room_type=_room)
 
-            # ACTION_DIM constant — must match StrategicNet.action_dim
-            _ACTION_DIM = 512
             mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
             mask[:n_actions] = True
 
@@ -455,15 +450,15 @@ def _play_one_game(
 
                     # Penalize HP lost in combat (reduced: was dominating rewards)
                     hp_lost = max(0, combat_start_hp - getattr(new_rs, "current_hp", 0))
-                    event_reward += DAMAGE_TAKEN_PENALTY * hp_lost
+                    event_reward += REWARD_WEIGHTS["damage_per_hp"] * hp_lost
 
                     # Penalize wasteful potion use (used potion but still lost lots of HP)
                     if combat_potions_used > 0 and hp_pct < 0.5:
-                        event_reward += POTION_WASTE_PENALTY * combat_potions_used
+                        event_reward += REWARD_WEIGHTS["potion_waste_penalty"] * combat_potions_used
 
                     # Reward potion use in elite/boss fights that were won
                     if combat_potions_used > 0 and rt in ("elite", "e", "boss", "b"):
-                        event_reward += POTION_KILL_SAME_FIGHT
+                        event_reward += REWARD_WEIGHTS["potion_kill_same_fight"]
                         event_reward += event_reward_potion_use
 
                     # Penalize hoarding potions in tough fights when low HP
@@ -476,7 +471,7 @@ def _play_one_game(
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
                 if new_deck_size < prev_deck_size:
-                    event_reward += SHOP_REMOVE_REWARD * (prev_deck_size - new_deck_size)
+                    event_reward += REWARD_WEIGHTS["shop_remove"] * (prev_deck_size - new_deck_size)
 
                 # Upgrade detection (deck size unchanged, card upgraded)
                 elif new_deck_size == prev_deck_size and UPGRADE_REWARDS:
