@@ -9,7 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = (
     REPO_ROOT
-    / "docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.json"
+    / "docs/archive/audits-2026-02-22-full-game-parity/traceability/power-manifest.json"
 )
 
 

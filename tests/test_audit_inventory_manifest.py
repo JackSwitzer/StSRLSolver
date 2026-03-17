@@ -83,7 +83,7 @@ def test_parse_java_events_excludes_spire_heart(tmp_path: Path) -> None:
 def test_generated_parity_diff_has_no_missing_cards_events_or_potions() -> None:
     parity_path = (
         REPO_ROOT
-        / "docs/audits/2026-02-22-full-game-parity/traceability/parity-diff.json"
+        / "docs/archive/audits-2026-02-22-full-game-parity/traceability/parity-diff.json"
     )
     payload = json.loads(parity_path.read_text(encoding="utf-8"))
 
@@ -95,7 +95,7 @@ def test_generated_parity_diff_has_no_missing_cards_events_or_potions() -> None:
 def test_generated_power_hook_coverage_has_no_undispatched_registry_hooks() -> None:
     hooks_path = (
         REPO_ROOT
-        / "docs/audits/2026-02-22-full-game-parity/traceability/power-hook-coverage.json"
+        / "docs/archive/audits-2026-02-22-full-game-parity/traceability/power-hook-coverage.json"
     )
     payload = json.loads(hooks_path.read_text(encoding="utf-8"))
     assert payload["registered_not_dispatched"] == []
