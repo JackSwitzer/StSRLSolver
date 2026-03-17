@@ -1316,6 +1316,8 @@ class OvernightRunner:
             "combats": result.get("combats", []),
             "events": result.get("events", []),
             "deck_changes": result.get("deck_changes", []),
+            "relics_final": result.get("relics_final", []),
+            "path_choices": result.get("path_choices", []),
         }
         self._recent_episodes.append(ep)
         # Write every 10 games to avoid I/O spam
