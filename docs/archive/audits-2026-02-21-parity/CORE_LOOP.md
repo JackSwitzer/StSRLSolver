@@ -23,7 +23,7 @@ This runbook defines the reusable loop for closing Java parity and agent-action 
 
 5. **Tracker update fifth**
 - update `CORE_TODO.md` checkboxes
-- update `docs/audits/2026-02-21-parity/testing/test-baseline.md` if test totals changed
+- update `docs/archive/audits-2026-02-21-parity/testing/test-baseline.md` if test totals changed
 
 ## Parallel lane model (for delegated/subagent work)
 - Lane A: action-surface/state-machine features (`packages/engine/game.py`, selection contexts)

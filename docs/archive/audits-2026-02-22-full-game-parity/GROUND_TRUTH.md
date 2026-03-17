@@ -14,10 +14,10 @@ Working branch: `codex/parity-d0-d2-foundation`
 - Canonical Python repo:
   - `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 - Script-generated parity artifacts:
-  - `docs/audits/2026-02-22-full-game-parity/traceability/java-inventory.json`
-  - `docs/audits/2026-02-22-full-game-parity/traceability/python-inventory.json`
-  - `docs/audits/2026-02-22-full-game-parity/traceability/parity-diff.json`
-  - `docs/audits/2026-02-22-full-game-parity/traceability/power-hook-coverage.json`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/java-inventory.json`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/python-inventory.json`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/parity-diff.json`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/power-hook-coverage.json`
 
 ## Inventory and mapping snapshot (generated)
 
@@ -49,16 +49,16 @@ Working branch: `codex/parity-d0-d2-foundation`
 - Environment API remains primitive-action only.
 - Selection-required mechanics are explicit two-step flows via `select_cards` / `select_stance`.
 - Invalid actions are hard-rejected and expected to be mask-pruned by caller.
-- Full spec: `docs/audits/2026-02-22-full-game-parity/action-layer/ACTION_SPACE_SPEC.md`.
+- Full spec: `docs/archive/audits-2026-02-22-full-game-parity/action-layer/ACTION_SPACE_SPEC.md`.
 
 ## Consolidation state
 - Canonical repo lock file: `REPO_CANONICAL.md`.
 - Training-wrapper migration manifest:
-  - `docs/audits/2026-02-22-full-game-parity/traceability/repo-consolidation-manifest.md`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/repo-consolidation-manifest.md`
 - Curated training utilities migrated into:
   - `packages/training/`
 - Desktop one-folder realignment verified:
-  - `docs/audits/2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`
+  - `docs/archive/audits-2026-02-22-full-game-parity/traceability/desktop-realignment-2026-02-23.md`
 - Combat runtime unification completed for duplicated implementation removal:
   - `handlers/combat.py` is compatibility shim + helper surface only
   - `CombatEngine` is runtime owner

@@ -2,13 +2,13 @@
 
 Last updated: 2026-02-24
 Status: spec-lock complete
-Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 ## Objective
 Remove remaining direct Python `random.*` usage from parity-critical runtime paths and enforce Java-style owned RNG streams.
 
 ## Source of truth
-- RNG stream ownership: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/rng/JAVA_RNG_STREAM_SPEC.md`
+- RNG stream ownership: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/rng/JAVA_RNG_STREAM_SPEC.md`
 - RNG implementation: `/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine/state/rng.py`
 - Runtime modules in scope:
   - `/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine/registry/relics.py`

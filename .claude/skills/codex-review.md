@@ -16,8 +16,7 @@ Invoke with: `/codex-review <topic or file path>`
   --sandbox read-only \
   "$(cat /tmp/gpt54-prompt.txt)"
 ```
-3. **Or use the script**: `./scripts/gpt54-review.sh /tmp/gpt54-prompt.txt /tmp/gpt54-result.md high`
-4. **Parse and present**: Summarize findings with actionable items
+3. **Parse and present**: Summarize findings with actionable items
 
 ## Auth
 - Codex CLI at `/Applications/Codex.app/Contents/Resources/codex` -- has its own login/auth
@@ -50,11 +49,6 @@ Key flags:
 - `--sandbox read-only` -- filesystem access (read-only for safety)
 - The prompt is the final positional argument (string)
 
-## Scripts
-- `scripts/gpt54-review.sh <prompt_file> [output_file] [effort]` -- ad-hoc reviews
-- `scripts/nightly-audit.sh [run-dir]` -- automated training audit + email notification
-- `scripts/audit-setup.sh install|uninstall|status|run-now` -- manage launchd schedule (9pm daily)
-
 ## Effort Levels
 
 | Level | Flag | Use Case | Approx Tokens |
@@ -80,9 +74,7 @@ Provide: (a) critical bugs, (b) performance wins, (c) dead code, (d) ranked impr
 
 ## Nightly Audit
 
-The nightly audit (`scripts/nightly-audit.sh`) runs three Codex reviews:
+Run three Codex reviews manually via the CLI:
 1. **Training status** (high effort) -- progress, health, recommendations
 2. **Code quality sweep** (extra-high effort) -- recently changed files, bugs, dead code
 3. **Combat performance** (high effort) -- floor distribution, death analysis, bottlenecks
-
-Results written to `{run-dir}/audits/YYYY-MM-DD-HHMM-audit.md` and emailed via Mail.app.

@@ -1,7 +1,7 @@
 # Ultra-Granular Work Units: Cards (Watcher)
 
 ## Current parity source
-- Non-Defect manifest row source: `docs/audits/2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`purple` section)
+- Non-Defect manifest row source: `docs/archive/audits-2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`purple` section)
 - Phase target: close Watcher rows from `approximate` to Java-audited `exact`
 
 ## Inventory closure slice (`CRD-INV-002`)

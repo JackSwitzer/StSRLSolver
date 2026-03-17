@@ -53,9 +53,9 @@ This index is the canonical entry point for all remaining parity and RL work.
 4. Update all trackers: `TODO.md`, `CORE_TODO.md`, `UNIT_CHUNKS.md`.
 
 ## Fast links
-- Card spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
-- Power spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
-- RNG spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
-- RL spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
-- Unit chunks: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/traceability/UNIT_CHUNKS.md`
-- Core TODO: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/CORE_TODO.md`
+- Card spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
+- Power spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
+- RNG spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
+- RL spec: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
+- Unit chunks: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/traceability/UNIT_CHUNKS.md`
+- Core TODO: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/CORE_TODO.md`

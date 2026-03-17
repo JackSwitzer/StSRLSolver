@@ -50,5 +50,5 @@ This is the canonical parity campaign for Java-exact behavior and model-facing a
 
 ## Legacy suite status
 - Legacy audit retained for history only:
-  - `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-21-parity`
+  - `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-21-parity`
 - New work must be tracked in this 2026-02-22 suite.

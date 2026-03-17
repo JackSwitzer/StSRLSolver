@@ -15,8 +15,8 @@
   - note: inventory closure is by canonical mapping, not strict 1:1 entry count (some Java classes intentionally resolve through canonical aliases).
 
 ## Manifest + generation
-- Manifest JSON: `docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.json`
-- Manifest summary: `docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.md`
+- Manifest JSON: `docs/archive/audits-2026-02-22-full-game-parity/traceability/power-manifest.json`
+- Manifest summary: `docs/archive/audits-2026-02-22-full-game-parity/traceability/power-manifest.md`
 - Generator: `scripts/generate_power_manifest.py`
 
 ## Implemented in this closure pass

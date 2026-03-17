@@ -162,7 +162,7 @@ Known TODOs and pass stubs (non-exhaustive):
 ## Work Units (Small-Model Tasks)
 
 Active work units are listed in: [docs/work_units/ACTIVE.md](docs/work_units/ACTIVE.md).
-Legacy non‑granular work units have been archived in `docs/work_units/archive/`.
+Legacy non-granular work units were archived and subsequently removed.
 
 Ultra-granular checklists (per-category):
 - Action spec (model-facing): [docs/work_units/granular-actions.md](docs/work_units/granular-actions.md)

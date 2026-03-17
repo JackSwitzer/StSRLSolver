@@ -19,5 +19,5 @@
 - Cross-domain parity dependencies remain in powers/orbs/cards tracks, not in core reward action plumbing.
 
 ## Source of truth
-- Domain audit: `docs/audits/2026-02-22-full-game-parity/domains/rewards.md`
-- Campaign baseline and next steps: `docs/audits/2026-02-22-full-game-parity/GROUND_TRUTH.md`
+- Domain audit: `docs/archive/audits-2026-02-22-full-game-parity/domains/rewards.md`
+- Campaign baseline and next steps: `docs/archive/audits-2026-02-22-full-game-parity/GROUND_TRUTH.md`

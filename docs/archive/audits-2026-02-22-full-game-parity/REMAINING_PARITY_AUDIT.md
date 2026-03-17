@@ -8,7 +8,7 @@ Baseline branch: `codex/parity-d0-d2-foundation`
 - Result: `4722 passed, 0 skipped, 0 failed`
 
 ## Script-generated inventory/mapping snapshot
-Source artifact: `docs/audits/2026-02-22-full-game-parity/traceability/parity-diff.json`
+Source artifact: `docs/archive/audits-2026-02-22-full-game-parity/traceability/parity-diff.json`
 
 | Domain | Java | Python | Exact | Alias | Missing | Status summary |
 |---|---:|---:|---:|---:|---:|---|
@@ -19,7 +19,7 @@ Source artifact: `docs/audits/2026-02-22-full-game-parity/traceability/parity-di
 | potions | 42 | 42 | 28 | 14 | 0 | inventory parity closed with fallback class-source extraction |
 
 ## Power dispatch parity snapshot
-Source artifact: `docs/audits/2026-02-22-full-game-parity/traceability/power-hook-coverage.json`
+Source artifact: `docs/archive/audits-2026-02-22-full-game-parity/traceability/power-hook-coverage.json`
 
 - Registry hooks: `25`
 - Runtime-dispatched hooks: `25`

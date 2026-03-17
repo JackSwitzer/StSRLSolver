@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-24
 Status: spec-lock complete
-Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 ## Objective
 Close remaining power parity after inventory and hook-dispatch inventory closure. Focus is hook ordering and per-power behavior semantics.

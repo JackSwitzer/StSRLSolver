@@ -82,11 +82,11 @@ Remaining work index: [`specs/REMAINING_WORK_INDEX.md`](./specs/REMAINING_WORK_I
 ## Confirmed high-impact open gaps
 
 Spec references for remaining work:
-- `docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
-- `docs/audits/2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
-- `docs/audits/2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
-- `docs/audits/2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
-- `docs/audits/2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
+- `docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+- `docs/archive/audits-2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
+- `docs/archive/audits-2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
+- `docs/archive/audits-2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
+- `docs/archive/audits-2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
 
 - [ ] Card inventory mapping is closed; behavior/timing parity remains open across class domains.
 - [ ] Power dispatch inventory is closed; hook ordering and behavior parity remains open.

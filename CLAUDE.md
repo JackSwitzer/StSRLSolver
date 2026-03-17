@@ -21,6 +21,8 @@ packages/training/   # RL training pipeline
   seed_pool.py       # Seed management
   mlx_inference.py   # MLX model port
   episode_log.py     # JSONL logging
+  combat_calculator.py # Damage/block prediction (407 lines)
+  conquerer.py       # SeedConquerer multi-path evaluation (443 lines)
   gym_env.py         # Gymnasium wrapper (future use)
 packages/server/     # WebSocket server for dashboard
 packages/viz/        # React 19 + Vite dashboard
@@ -33,7 +35,7 @@ scripts/             # Shell scripts for training, services, app
   hotfix.sh          # Live parameter tuning (SIGUSR1 + reload.json)
   app.sh             # Native macOS app builder
   play.sh            # Manual game player
-  utils/             # Python utilities (prune, enrich, generators)
+  utils/             # Python utilities (prune, generators)
 docs/                # Architecture, vault (ground truth), work units
 ```
 

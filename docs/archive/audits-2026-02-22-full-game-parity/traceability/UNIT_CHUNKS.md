@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-24
 Canonical repo: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
-Spec index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+Spec index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 This file is the canonical unit-level execution map for remaining parity work.
 Each row is one feature-sized commit target.

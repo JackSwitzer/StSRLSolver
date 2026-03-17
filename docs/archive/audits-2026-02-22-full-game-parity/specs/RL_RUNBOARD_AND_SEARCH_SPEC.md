@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-24
 Status: spec-lock complete
-Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+Parent index: `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
 
 ## Objective
 Define RL-facing closure work after parity-critical cards, powers, and RNG are stable.
@@ -94,5 +94,5 @@ Acceptance:
 
 ## Done definition
 1. `RL-ACT-001`, `RL-OBS-001`, `RL-DASH-001`, and `RL-SEARCH-001` are `completed`.
-2. RL readiness checklist in `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/audits/2026-02-22-full-game-parity/rl/rl-readiness.md` is green.
+2. RL readiness checklist in `/Users/jackswitzer/Desktop/SlayTheSpireRL/docs/archive/audits-2026-02-22-full-game-parity/rl/rl-readiness.md` is green.
 3. Runtime API remains backward-compatible.

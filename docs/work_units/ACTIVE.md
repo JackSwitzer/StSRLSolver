@@ -1,7 +1,7 @@
 # Active Work Units (Canonical)
 
 This file lists the **active** work-unit specs to use for implementation. Older,
-non-granular work units are archived in `docs/work_units/archive/`.
+non-granular work units were archived and subsequently removed.
 
 ## Cross-cutting (always active)
 - `granular-actions.md`
@@ -23,10 +23,3 @@ non-granular work units are archived in `docs/work_units/archive/`.
 - `granular-events.md`
 - `granular-rewards.md`
 
-## Archived (legacy summaries)
-- `archive/cards-*.md`
-- `archive/potions.md`
-- `archive/powers.md`
-- `archive/relics.md`
-- `archive/events.md`
-- `archive/rewards.md`

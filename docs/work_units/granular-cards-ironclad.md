@@ -1,7 +1,7 @@
 # Ultra-Granular Work Units: Cards (Ironclad)
 
 ## Current parity source
-- Non-Defect manifest row source: `docs/audits/2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`red` section)
+- Non-Defect manifest row source: `docs/archive/audits-2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`red` section)
 - Phase target: close Ironclad rows from `approximate` to Java-audited `exact`
 
 ## Model-facing actions (no UI)
