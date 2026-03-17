@@ -81,6 +81,42 @@ from .state.combat import EntityState
 
 
 # =============================================================================
+# Event encounter name → ENCOUNTER_TABLE key mapping
+# =============================================================================
+
+_EVENT_ENCOUNTER_MAP: Dict[str, str] = {
+    "FungusBeast": "2 Fungi Beasts",
+    "ColosseumSlavers": "Slavers",
+    "TwoNobs": "Gremlin Nob",
+    "ThreeBandits": "Masked Bandits",
+    "TwoOrbWalkers": "Orb Walker",
+}
+
+_EVENT_ELITE_ENCOUNTERS: set = {
+    "Slavers", "Gremlin Nob", "Lagavulin", "3 Sentries",
+}
+
+_EVENT_BOSS_ENCOUNTERS: set = set()
+
+
+def _resolve_event_encounter(encounter_name: str, runner: 'GameRunner') -> str:
+    """Resolve an event encounter name to an ENCOUNTER_TABLE key."""
+    if encounter_name in ENCOUNTER_TABLE:
+        return encounter_name
+    if encounter_name == "Act1Boss":
+        from .generation.encounters import EXORDIUM_BOSSES
+        boss_options = list(EXORDIUM_BOSSES)
+        idx = runner.misc_rng.random(len(boss_options) - 1)
+        boss = boss_options[idx]
+        _EVENT_BOSS_ENCOUNTERS.add(boss)
+        return boss
+    if encounter_name in _EVENT_ENCOUNTER_MAP:
+        return _EVENT_ENCOUNTER_MAP[encounter_name]
+    logger.warning("Unknown event encounter: %r, using as-is", encounter_name)
+    return encounter_name
+
+
+# =============================================================================
 # RunState → CombatState adapter for out-of-combat relic trigger dispatch
 # =============================================================================
 
@@ -3117,23 +3153,26 @@ class GameRunner:
 
         # Handle combat trigger
         if result.combat_triggered:
-            self._log(f"  Combat triggered: {result.combat_encounter}")
+            encounter = result.combat_encounter
+            event_id = self.current_event_state.event_id if self.current_event_state else "?"
+            self._log(f"  Combat triggered by event '{event_id}': {encounter}")
             # Mark event as COMBAT_PENDING so _end_combat can return to event
             if self.current_event_state:
                 self.current_event_state.phase = EventPhase.COMBAT_PENDING
-            is_elite = result.combat_encounter in (
-                "ColosseumNobs", "SentryAndBoss",
-            )
+            # Resolve to ENCOUNTER_TABLE key and determine combat type
+            encounter_key = _resolve_event_encounter(encounter, self)
+            is_elite = encounter_key in _EVENT_ELITE_ENCOUNTERS
+            is_boss = encounter_key in _EVENT_BOSS_ENCOUNTERS
             self._enter_combat(
                 is_elite=is_elite,
-                is_boss=False,
-                override_encounter=result.combat_encounter,
+                is_boss=is_boss,
+                override_encounter=encounter_key,
             )
             return True, {
                 "choice": action.choice_index,
                 "choice_name": result.choice_name,
                 "combat_triggered": True,
-                "combat_encounter": result.combat_encounter,
+                "combat_encounter": encounter,
             }
 
         # Handle card selection requirement via heuristic auto-select.
@@ -3804,16 +3843,7 @@ class GameRunner:
                 self.current_event_state.phase = EventPhase.COMBAT_WON
                 self._log(f"  Event combat won — returning to event: {self.current_event_state.event_id}")
                 self.phase = GamePhase.EVENT
-                # Apply any pending event rewards
-                if hasattr(self.current_event_state, 'pending_rewards') and self.current_event_state.pending_rewards:
-                    pr = self.current_event_state.pending_rewards
-                    if pr.get("gold"):
-                        self.run_state.gold += pr["gold"]
-                        self._log(f"  Event reward: +{pr['gold']} gold")
-                    if pr.get("relic"):
-                        self.run_state.add_relic(pr["relic"])
-                        self._log(f"  Event reward: +{pr['relic']}")
-                    self.current_event_state.pending_rewards = {}
+                self._apply_event_pending_rewards()
                 # Trigger post-combat relics even for event fights
                 if combat_result is None:
                     self._trigger_post_combat_relics()
@@ -3876,6 +3906,31 @@ class GameRunner:
             self._log(f"Combat defeat - GAME OVER")
 
         self._sync_rng_counters()
+
+    def _apply_event_pending_rewards(self):
+        """Apply pending rewards from event state after event combat victory."""
+        if self.current_event_state is None:
+            return
+        rewards = getattr(self.current_event_state, 'pending_rewards', None)
+        if not rewards:
+            return
+        event_id = self.current_event_state.event_id
+        self._log(f"  Applying event pending rewards (event: {event_id}): {rewards}")
+        if "gold" in rewards:
+            self.run_state.add_gold(rewards["gold"])
+            self._log(f"  Event reward: +{rewards['gold']} gold")
+        if "relic" in rewards:
+            relic_spec = rewards["relic"]
+            if relic_spec in ("RareRelic", "UncommonRelic", "CommonRelic"):
+                tier = relic_spec.replace("Relic", "").lower()
+                relic_id = self.event_handler._get_random_relic(
+                    self.run_state, self.relic_rng, tier
+                )
+            else:
+                relic_id = relic_spec
+            self.run_state.add_relic(relic_id)
+            self._log(f"  Event reward: +Relic {relic_id}")
+        self.current_event_state.pending_rewards.clear()
 
     def _trigger_post_combat_relics(self):
         """Trigger between-floor relic effects after combat victory."""
