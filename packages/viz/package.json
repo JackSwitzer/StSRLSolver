@@ -7,12 +7,6 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "render": "open http://localhost:5174/?scene=conquerer&view=grid",
-    "render:combat": "open http://localhost:5174/?scene=combat",
-    "render:map": "open http://localhost:5174/?scene=map",
-    "render:conquerer": "open http://localhost:5174/?scene=conquerer&view=grid",
-    "render:list": "open http://localhost:5174/?scene=conquerer&view=scroll",
-    "render:detail": "open http://localhost:5174/?scene=conquerer&view=single",
     "app": "open http://localhost:5174"
   },
   "dependencies": {

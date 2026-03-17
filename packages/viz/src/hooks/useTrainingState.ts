@@ -201,6 +201,7 @@ export function useTrainingState() {
 
   useEffect(() => {
     let unmounted = false;
+    let reconnectAttempts = 0;
 
     function connect() {
       if (unmounted) return;
@@ -210,18 +211,19 @@ export function useTrainingState() {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        reconnectAttempts = 0;
         dispatch({ type: 'connected' });
-        ws.send(JSON.stringify({
-          type: 'training_start',
-          config: { num_agents: 8, mcts_sims: 32, ascension: 0, seed: 'Test123' },
-        }));
+        // Subscribe to updates only — do NOT start training on connect
+        ws.send(JSON.stringify({ type: 'subscribe' }));
       };
 
       ws.onclose = () => {
         dispatch({ type: 'disconnected' });
         wsRef.current = null;
+        // Reconnect with exponential backoff, max 30s
         if (!unmounted) {
-          reconnectTimerRef.current = setTimeout(connect, 2000);
+          const delay = Math.min(30000, 2000 * Math.pow(2, reconnectAttempts++));
+          reconnectTimerRef.current = setTimeout(connect, delay);
         }
       };
 
