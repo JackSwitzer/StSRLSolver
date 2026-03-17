@@ -45,9 +45,7 @@ def _get_combat_engine(seed: str = "TEST1", ascension: int = 0) -> CombatEngine:
 
 
 def _get_boss_engine(max_seeds: int = 500):
-    """Search for a seed that reaches a boss fight via heuristic play."""
-    from packages.training.planner import StrategicPlanner
-    planner = StrategicPlanner()
+    """Search for a seed that reaches a boss fight via first-legal-action play."""
     ts = TurnSolverAdapter(time_budget_ms=30, node_budget=3000)
 
     for i in range(max_seeds):
@@ -67,22 +65,8 @@ def _get_boss_engine(max_seeds: int = 500):
                 if action is None:
                     action = actions[0]
                 runner.take_action(action)
-            elif len(actions) == 1:
-                runner.take_action(actions[0])
             else:
-                if phase == GamePhase.MAP_NAVIGATION:
-                    idx = planner.plan_path_choice(runner, actions)
-                elif phase == GamePhase.REST:
-                    idx = planner.plan_rest_site(runner, actions)
-                elif phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS):
-                    idx = planner.plan_card_pick(runner, actions)
-                elif phase == GamePhase.SHOP:
-                    idx = planner.plan_shop_action(runner, actions)
-                elif phase == GamePhase.EVENT:
-                    idx = planner.plan_event_choice(runner, actions)
-                else:
-                    idx = 0
-                runner.take_action(actions[min(idx, len(actions) - 1)])
+                runner.take_action(actions[0])
             step += 1
     return None, None
 

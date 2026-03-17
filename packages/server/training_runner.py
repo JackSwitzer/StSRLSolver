@@ -314,17 +314,27 @@ def _agent_worker(
     as fallback, and StrategicPlanner for non-combat decisions.
     """
     from packages.engine.game import GameRunner, GamePhase, CombatAction
-    from packages.training.planner import StrategicPlanner
-    from packages.training.combat_planner import CombatPlanner
     from packages.training.meta_learner import CombatMetaLearner, CombatLog
+
+    # NOTE: StrategicPlanner and CombatPlanner were removed in the
+    # architecture-consolidation cleanup. This server runner needs
+    # migration to use the new training pipeline (follow-up PR).
+    try:
+        from packages.training.planner import StrategicPlanner
+    except ImportError:
+        StrategicPlanner = None
+    try:
+        from packages.training.combat_planner import CombatPlanner
+    except ImportError:
+        CombatPlanner = None
 
     ascension = config.get("ascension", 20)
     character = config.get("character", "Watcher")
     initial_seed = config.get("initial_seed", "Test123")
     plays_per_seed = config.get("plays_per_seed", 3)
 
-    planner = StrategicPlanner()
-    combat_planner = CombatPlanner(top_k=5, lookahead_turns=2)
+    planner = StrategicPlanner() if StrategicPlanner else None
+    combat_planner = CombatPlanner(top_k=5, lookahead_turns=2) if CombatPlanner else None
     meta_learner = CombatMetaLearner()
 
     # --- Load combat model + GumbelMCTS for neural-guided search ---

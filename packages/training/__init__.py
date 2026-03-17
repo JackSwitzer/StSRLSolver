@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Training-side utilities migrated from the legacy StSRLSolver wrapper."""
 
 from .combat_calculator import CombatCalculator, CombatFeatures, Enemy, PlayerState, Stance
@@ -26,3 +27,6 @@ __all__ = [
     "StsEnv",
     "StsVecEnv",
 ]
+=======
+"""Training package for Slay the Spire RL pipeline."""
+>>>>>>> bb3e9f9 (refactor: decompose overnight.py into 6 modules, remove heuristic combat)
