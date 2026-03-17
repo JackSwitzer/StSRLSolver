@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = REPO_ROOT / "scripts/generate_parity_manifests.py"
+SCRIPT_PATH = REPO_ROOT / "scripts/utils/generate_parity_manifests.py"
 
 
 spec = importlib.util.spec_from_file_location("generate_parity_manifests", SCRIPT_PATH)

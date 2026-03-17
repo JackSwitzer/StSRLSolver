@@ -15,7 +15,7 @@ import socket
 import pytest
 import websockets
 
-from packages.server.game_session import GameSession
+from packages.server.ws_server import GameSession
 from packages.server.protocol import (
     make_game_created,
     make_actions,
