@@ -1,25 +1,11 @@
-"""
-Overnight training runner with scheduling and hyperparameter sweep.
+"""Overnight training runner with scheduling and hyperparameter sweep.
 
-Manages long-running training sessions with:
-- Time-based headless/visual mode switching
-- Hyperparameter sweep scheduling
-- Status file writing for monitoring
-- Integration with StrategicTrainer + combat self-play
-- Multiprocessing for parallel game execution (Phase 2A)
-- Centralized GPU inference server (Phase 2B)
-
-Phase 2A changes (2026-03-12):
-- ProcessPoolExecutor for parallel game execution (8 workers -> 15+ games/min)
-- PBRS (Potential-Based Reward Shaping) for dense rewards
-- episodes.jsonl logging per game
-- --batch-size CLI arg for PPO mini-batch size
-- Temperature-based exploration during training
-
-Phase 2B changes (centralized inference server):
-- Workers are torch-free; all forward passes batched in main process via InferenceServer
-- Persistent mp.Pool (no executor teardown per batch)
-- Weight sync after each PPO update via server.sync_strategic_from_pytorch()
+Orchestrates the training loop:
+- Multiprocessing worker pool for parallel game execution
+- Centralized GPU inference server for batched forward passes
+- Phased collect/train loop with experience replay
+- Hot-reloadable configuration via signal handler
+- Checkpoint management with warm restart support
 """
 
 from __future__ import annotations
@@ -37,1183 +23,25 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .episode_log import log_episode
+from .replay_buffer import TrajectoryReplayBuffer
+from .reward_config import (
+    CARD_PICK_REWARDS,
+    EVENT_REWARDS,
+    FLOOR_MILESTONES,
+    REPLAY_BUFFER_SIZE,
+    REPLAY_MIN_FLOOR,
+    REPLAY_MIX_RATIO,
+    REWARD_WEIGHTS,
+    STALL_DETECTION_WINDOW,
+    STALL_IMPROVEMENT_THRESHOLD,
+    STANCE_CHANGE_REWARDS,
+    UPGRADE_REWARDS,
+)
+from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
+from .worker import _ACTION_DIM, _play_one_game, _worker_init
+
 logger = logging.getLogger(__name__)
-
-DEFAULT_SWEEP_CONFIGS = [
-    # Single focused config — no weight forking, all budget goes to learning.
-    # Importance-weighted epsilon-greedy mixes heuristic expertise with learned policy.
-    {"name": "focused_iw_b1024", "epsilon_mode": "importance_weighted",
-     "epsilon_start": 0.7, "epsilon_end": 0.15, "epsilon_decay": 80000,
-     "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
-     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 0.9,
-     "turn_solver_ms": 30.0},
-]
-
-# Best trajectory replay: keep top N trajectories by floor for experience replay.
-# Replayed at REPLAY_MIX_RATIO fraction of each training batch.
-REPLAY_BUFFER_SIZE = 75        # Top ~15% of runs (keeps only the best)
-REPLAY_MIN_FLOOR = 12          # Only replay runs that got deep into Act 1
-REPLAY_MIX_RATIO = 0.25        # 25% of each batch is replayed best trajectories
-
-# Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
-ASCENSION_BREAKPOINTS = [
-    (17, 0.05, 1),   # Clearing Act 1 somewhat reliably -> A1
-    (17, 0.15, 3),   # 15% WR -> A3
-    (17, 0.30, 5),   # 30% WR -> A5
-    (33, 0.10, 7),   # Reaching Act 2 boss at 10% -> A7
-    (33, 0.25, 10),  # 25% WR past Act 2 -> A10
-]
-
-
-# ---------------------------------------------------------------------------
-# Trajectory replay buffer — keeps best runs for experience replay
-# ---------------------------------------------------------------------------
-
-class TrajectoryReplayBuffer:
-    """Priority buffer that keeps the highest-floor trajectories for replay.
-
-    Transitions from top runs are mixed into training batches so the model
-    learns from its best experiences, not just its latest (often worse) ones.
-    """
-
-    def __init__(self, max_trajectories: int = REPLAY_BUFFER_SIZE,
-                 min_floor: int = REPLAY_MIN_FLOOR):
-        self.max_trajectories = max_trajectories
-        self.min_floor = min_floor
-        self._buffer: List[Dict[str, Any]] = []  # [{floor, transitions}]
-        self._total_transitions = 0
-
-    def maybe_add(self, floor: int, transitions: List[Dict[str, Any]], won: bool) -> bool:
-        """Add trajectory if it meets quality threshold. Returns True if added."""
-        if floor < self.min_floor and not won:
-            return False
-        if not transitions:
-            return False
-
-        entry = {"floor": floor, "won": won, "transitions": transitions}
-
-        if len(self._buffer) < self.max_trajectories:
-            self._buffer.append(entry)
-            self._total_transitions += len(transitions)
-            return True
-
-        # Replace worst trajectory if this one is better
-        worst_idx = min(range(len(self._buffer)),
-                        key=lambda i: (self._buffer[i]["won"], self._buffer[i]["floor"]))
-        worst = self._buffer[worst_idx]
-        if (won, floor) > (worst["won"], worst["floor"]):
-            self._total_transitions -= len(worst["transitions"])
-            self._buffer[worst_idx] = entry
-            self._total_transitions += len(transitions)
-            return True
-        return False
-
-    def sample_transitions(self, n: int) -> List[Dict[str, Any]]:
-        """Sample n transitions from the buffer, weighted toward higher-floor runs."""
-        if not self._buffer or self._total_transitions == 0:
-            return []
-
-        # Weight by floor^2 so better runs are sampled much more
-        weights = np.array([(e["floor"] ** 2) for e in self._buffer], dtype=np.float64)
-        weights /= weights.sum()
-
-        result = []
-        for _ in range(n):
-            traj_idx = int(np.random.choice(len(self._buffer), p=weights))
-            traj = self._buffer[traj_idx]["transitions"]
-            t_idx = int(np.random.randint(len(traj)))
-            result.append(traj[t_idx])
-        return result
-
-    @property
-    def size(self) -> int:
-        return len(self._buffer)
-
-    @property
-    def best_floor(self) -> int:
-        if not self._buffer:
-            return 0
-        return max(e["floor"] for e in self._buffer)
-
-
-# ---------------------------------------------------------------------------
-# PBRS potential function
-# ---------------------------------------------------------------------------
-
-def compute_potential(run_state) -> float:
-    """Compute the potential Phi(s) for PBRS.
-
-    Components:
-    - floor_pct: progress through the run (floor / 55)
-    - hp_pct: current health percentage
-    - deck_quality: heuristic for deck composition quality
-
-    Returns a scalar potential value.
-    """
-    hp_pct = run_state.current_hp / max(run_state.max_hp, 1)
-    floor_pct = getattr(run_state, "floor", 0) / 55.0
-    deck_size = len(getattr(run_state, "deck", []))
-    # Ideal deck is 12-25 cards; penalize bloat
-    if 12 <= deck_size <= 25:
-        deck_quality = 1.0
-    elif deck_size < 12:
-        deck_quality = 0.8
-    else:
-        deck_quality = max(0.5, 1.0 - (deck_size - 25) * 0.02)
-
-    # Relic count bonus (relics are always positive)
-    relic_count = len(getattr(run_state, "relics", []))
-    relic_bonus = min(relic_count * 0.02, 0.15)
-
-    return 0.45 * floor_pct + 0.30 * hp_pct + 0.15 * deck_quality + 0.10 * relic_bonus
-
-
-# ---------------------------------------------------------------------------
-# REWARD_WEIGHTS — unified, hot-reloadable reward configuration
-# ---------------------------------------------------------------------------
-# Philosophy: strip heuristic shaping, let game outcomes drive learning.
-# PBRS potential function + game events (win/loss/milestones) are the primary signals.
-# Stance and card pick rewards REMOVED — they were dominating the reward signal
-# (Wrath 1.50 was stronger than beating a boss at 0.80) and teaching the model
-# to chase heuristic signals instead of learning from outcomes.
-
-REWARD_WEIGHTS: Dict[str, Any] = {
-    # Per-HP damage penalty (was -0.03, reduced 6x — was 30x stronger than boss win)
-    "damage_per_hp": -0.005,
-
-    # Combat win rewards
-    "combat_win": 0.05,
-    "elite_win": 0.30,
-    "boss_win": 0.80,
-
-    # Floor milestones (one-time per game)
-    "floor_milestones": {
-        6: 0.10,     # First elite territory
-        10: 0.15,    # Mid-act 1
-        15: 0.20,    # Final campfire before Act 1 boss
-        16: 0.25,    # Reached Act 1 boss
-        17: 1.00,    # Beat Act 1 boss
-        25: 0.50,    # Mid-act 2
-        33: 1.00,    # Reached Act 2 boss
-        34: 2.00,    # Beat Act 2 boss
-        50: 2.00,    # Reached Act 3 boss
-        51: 3.00,    # Beat Act 3 boss
-        55: 5.00,    # Beat the Heart (win)
-    },
-
-    # F16 HP bonus: reward arriving at boss floor healthy
-    "f16_hp_bonus_base": 0.50,
-    "f16_hp_bonus_per_hp": 0.02,
-
-    # Deck management
-    "shop_remove": 0.40,
-
-    # Upgrade rewards (separate from card picks — upgrades don't change deck size)
-    "upgrade_rewards": {
-        "Eruption": 0.30,    "Eruption+": 0.0,   # 2→1 cost is huge
-        "Vigilance": 0.10,   "Vigilance+": 0.0,
-        "Defend_P": -1.50,   "Defend_P+": 0.0,    # Bad upgrade target
-        "Strike_P": -0.50,   "Strike_P+": 0.0,    # Wasted upgrade
-    },
-
-    # Potions
-    "potion_use_elite": 0.50,
-    "potion_use_boss": 0.50,
-    "potion_kill_same_fight": 0.50,
-    "potion_waste_penalty": -0.15,
-    "potion_hoard_penalty": -0.30,
-
-    # Terminal rewards
-    "win_reward": 10.0,
-    "death_penalty_scale": -1.0,  # Multiplied by (1 - progress)
-}
-
-# Convenience accessors for backwards compat with hot-reload and worker code
-DAMAGE_TAKEN_PENALTY = REWARD_WEIGHTS["damage_per_hp"]
-POTION_WASTE_PENALTY = REWARD_WEIGHTS["potion_waste_penalty"]
-POTION_USE_ELITE_REWARD = REWARD_WEIGHTS["potion_use_elite"]
-POTION_USE_BOSS_REWARD = REWARD_WEIGHTS["potion_use_boss"]
-POTION_KILL_SAME_FIGHT = REWARD_WEIGHTS["potion_kill_same_fight"]
-SHOP_REMOVE_REWARD = REWARD_WEIGHTS["shop_remove"]
-
-# Legacy dicts kept for hot-reload compat — values wired from REWARD_WEIGHTS
-EVENT_REWARDS = {
-    "combat_win": REWARD_WEIGHTS["combat_win"],
-    "elite_win": REWARD_WEIGHTS["elite_win"],
-    "boss_win": REWARD_WEIGHTS["boss_win"],
-}
-FLOOR_MILESTONES = dict(REWARD_WEIGHTS["floor_milestones"])
-
-# Stall detection: if avg floor doesn't improve over this many games, reset entropy
-STALL_DETECTION_WINDOW = 2000
-STALL_IMPROVEMENT_THRESHOLD = 0.5
-
-# REMOVED: Stance rewards were dominating all other signals (Wrath 1.50 was
-# the single strongest reward in the system). Model should learn when stances
-# are valuable from game outcomes, not from heuristic bonuses.
-STANCE_CHANGE_REWARDS: Dict[str, float] = {}  # Zeroed — kept for hot-reload compat
-
-# REMOVED: Card pick rewards had no deck context (Rushdown is great in a stance
-# deck, bad in a pressure points deck). PBRS + game outcomes are enough.
-CARD_PICK_REWARDS: Dict[str, float] = {}  # Zeroed — kept for hot-reload compat
-
-# Upgrade rewards (new — separate from card picks, checked when deck size unchanged)
-UPGRADE_REWARDS: Dict[str, float] = dict(REWARD_WEIGHTS.get("upgrade_rewards", {}))
-
-
-# ---------------------------------------------------------------------------
-# Lightweight combat heuristic (no simulation, ~0ms per call)
-# ---------------------------------------------------------------------------
-
-# Card data: {card_id: (cost, base_dmg, base_block, is_attack)} for scoring
-# Only needs core Watcher cards — unknown cards get defaults
-_CARD_STATS = {
-    "Strike_P": (1, 6, 0, True), "Strike_P+": (1, 9, 0, True),
-    "Defend_P": (1, 0, 5, False), "Defend_P+": (1, 0, 8, False),
-    "Eruption": (2, 9, 0, True), "Eruption+": (1, 9, 0, True),
-    "Vigilance": (2, 0, 8, False), "Vigilance+": (2, 0, 12, False),
-    "BowlingBash": (1, 7, 0, True), "BowlingBash+": (1, 10, 0, True),
-    "CrushJoints": (1, 8, 0, True), "CrushJoints+": (1, 10, 0, True),
-    "CutThroughFate": (1, 7, 0, True), "CutThroughFate+": (1, 9, 0, True),
-    "EmptyBody": (1, 0, 7, False), "EmptyBody+": (1, 0, 11, False),
-    "EmptyFist": (1, 9, 0, True), "EmptyFist+": (1, 14, 0, True),
-    "Flurry": (0, 4, 0, True), "Flurry+": (0, 6, 0, True),
-    "FlyingSleeves": (1, 4, 0, True), "FlyingSleeves+": (1, 6, 0, True),
-    "FollowUp": (1, 7, 0, True), "FollowUp+": (1, 11, 0, True),
-    "Halt": (0, 0, 3, False), "Halt+": (0, 0, 4, False),
-    "Prostrate": (0, 0, 4, False), "Prostrate+": (0, 0, 4, False),
-    "Tantrum": (1, 3, 0, True), "Tantrum+": (1, 3, 0, True),
-    "InnerPeace": (1, 0, 0, False), "InnerPeace+": (1, 0, 0, False),
-    "Crescendo": (1, 0, 0, False), "Crescendo+": (0, 0, 0, False),
-    "Tranquility": (1, 0, 0, False), "Tranquility+": (0, 0, 0, False),
-    "WheelKick": (2, 15, 0, True), "WheelKick+": (2, 20, 0, True),
-    "Conclude": (1, 12, 0, True), "Conclude+": (1, 16, 0, True),
-    "Ragnarok": (3, 5, 0, True), "Ragnarok+": (3, 5, 0, True),
-    "SashWhip": (1, 8, 0, True), "SashWhip+": (1, 11, 0, True),
-    "JustLucky": (0, 3, 0, True), "JustLucky+": (0, 4, 0, True),
-    "TalkToTheHand": (1, 5, 0, True), "TalkToTheHand+": (1, 7, 0, True),
-    "Wallop": (2, 9, 9, True), "Wallop+": (2, 12, 12, True),
-    "Miracle": (0, 0, 0, False), "Miracle+": (0, 0, 0, False),
-    "Smite": (1, 12, 0, True), "Smite+": (1, 16, 0, True),
-    "Protect": (2, 0, 12, False), "Protect+": (2, 0, 16, False),
-    "Worship": (2, 0, 0, False), "Worship+": (2, 0, 0, False),
-    "PressurePoints": (1, 0, 0, False), "PressurePoints+": (1, 0, 0, False),
-    # Status/Curse
-    "Slimed": (1, 0, 0, False), "Wound": (-2, 0, 0, False),
-    "Daze": (-2, 0, 0, False), "Burn": (-2, 0, 0, False),
-    "AscendersBane": (-2, 0, 0, False),
-}
-
-# Stance-changing cards
-_WRATH_CARDS = {"Eruption", "Eruption+", "Tantrum", "Tantrum+", "Crescendo", "Crescendo+"}
-_CALM_CARDS = {"Vigilance", "Vigilance+", "InnerPeace", "InnerPeace+", "Tranquility", "Tranquility+"}
-_EXIT_STANCE_CARDS = {"EmptyBody", "EmptyBody+", "EmptyFist", "EmptyFist+"}
-
-
-# TODO: Move _turn_plan_cache into TurnSolverAdapter instance (currently global, leaks across games)
-# Per-turn plan cache for CombatPlanner (reset per combat turn)
-_turn_plan_cache: Dict[str, Any] = {}  # {seed: (turn_num, card_queue, cards_played)}
-
-
-def _try_combat_planner(actions, runner, combat_planner, state):
-    """Try CombatPlanner for boss/elite. Returns action or None to fall back to heuristic.
-
-    Re-plans every turn (not cached across turns). Handles infinite turns by
-    switching to finish-fast mode after 50 cards in one turn.
-    """
-    from packages.training.combat_planner import CombatPlanner, TurnPlan
-
-    seed = getattr(runner, "seed", "?")
-    turn_num = getattr(state, "turn", 0)
-    cache_key = seed
-
-    # Check if we have a cached plan for this turn
-    cached = _turn_plan_cache.get(cache_key)
-    if cached is not None:
-        cached_turn, card_queue, cards_played = cached
-        if cached_turn == turn_num and card_queue:
-            # Infinite loop detection: >50 cards in one turn = finish-fast mode
-            if cards_played > 50:
-                _turn_plan_cache.pop(cache_key, None)
-                return None  # Fall back to heuristic (which prioritizes damage)
-
-            # Try to match next planned card to available actions
-            next_card_id, next_target = card_queue[0]
-            for a in actions:
-                if a.action_type == "play_card":
-                    if a.card_idx < len(state.hand):
-                        hand_card = str(state.hand[a.card_idx])
-                        if hand_card == next_card_id:
-                            target_match = (next_target is None or a.target_idx == next_target)
-                            if target_match:
-                                card_queue.pop(0)
-                                _turn_plan_cache[cache_key] = (turn_num, card_queue, cards_played + 1)
-                                return a
-
-            # Planned card not in hand anymore (drawn new cards, etc.) — re-plan
-            _turn_plan_cache.pop(cache_key, None)
-        elif cached_turn != turn_num:
-            # New turn — clear old plan
-            _turn_plan_cache.pop(cache_key, None)
-
-    # Plan this turn from scratch
-    try:
-        engine = runner.current_combat
-        if engine is None:
-            return None
-        plan = combat_planner.plan_turn(engine)
-        if plan and plan.card_sequence:
-            card_queue = list(plan.card_sequence)
-            next_card_id, next_target = card_queue[0]
-
-            # Match first card to available actions
-            for a in actions:
-                if a.action_type == "play_card":
-                    if a.card_idx < len(state.hand):
-                        hand_card = str(state.hand[a.card_idx])
-                        if hand_card == next_card_id:
-                            target_match = (next_target is None or a.target_idx == next_target)
-                            if target_match:
-                                card_queue.pop(0)
-                                _turn_plan_cache[cache_key] = (turn_num, card_queue, 1)
-                                return a
-
-            # No match found for first card — fall back to heuristic
-            return None
-    except Exception:
-        return None
-
-    return None
-
-
-def _pick_combat_action(actions, runner, combat_planner=None, turn_solver_adapter=None):
-    """Score combat actions and pick the best one.
-
-    Priority: TurnSolver (all fights) > CombatPlanner (boss/elite) > heuristic.
-    """
-    if len(actions) <= 1:
-        return actions[0]
-
-    combat = runner.current_combat
-    if combat is None:
-        return actions[0]
-
-    state = combat.state
-    player = state.player
-    enemies = state.enemies
-    room_type = getattr(runner, "current_room_type", "monster")
-
-    # TurnSolver: works for all fight types
-    if turn_solver_adapter is not None:
-        try:
-            result = turn_solver_adapter.pick_action(actions, runner, room_type)
-            if result is not None:
-                return result
-        except Exception:
-            pass  # Fall through to heuristic
-
-    # CombatPlanner fallback for boss/elite
-    if combat_planner is not None and room_type in ("boss", "elite"):
-        planned = _try_combat_planner(actions, runner, combat_planner, state)
-        if planned is not None:
-            return planned
-
-    # Compute incoming damage
-    incoming = 0
-    for e in enemies:
-        if e.hp > 0 and getattr(e, "move_damage", 0) > 0:
-            incoming += e.move_damage * getattr(e, "move_hits", 1)
-
-    stance = getattr(state, "stance", "Neutral")
-    in_wrath = stance == "Wrath"
-    in_calm = stance == "Calm"
-    live_enemies = [e for e in enemies if e.hp > 0]
-    n_live_enemies = len(live_enemies)
-    total_enemy_hp = sum(e.hp for e in live_enemies)
-    strength = player.statuses.get("Strength", 0)
-    dexterity = player.statuses.get("Dexterity", 0)
-    room_type = getattr(runner, "current_room_type", "monster")
-    is_boss_or_elite = room_type in ("boss", "elite")
-    player_hp = player.hp
-    player_max_hp = getattr(player, "max_hp", player_hp)
-
-    best_action = actions[0]
-    best_score = -1000.0
-
-    for a in actions:
-        score = 0.0
-
-        if a.action_type == "end_turn":
-            score = -1.0 if state.energy > 0 else 5.0
-
-        elif a.action_type == "play_card":
-            if a.card_idx < 0 or a.card_idx >= len(state.hand):
-                continue
-            card_id = str(state.hand[a.card_idx])
-            cost, base_dmg, base_block, is_attack = _CARD_STATS.get(
-                card_id, (1, 6 if "Strike" in card_id else 0, 5 if "Defend" in card_id else 0, "Strike" in card_id)
-            )
-
-            # Damage scoring
-            if base_dmg > 0:
-                dmg = base_dmg + strength
-                if in_wrath:
-                    dmg = int(dmg * 2)
-                # Vulnerable: 1.5x damage
-                if 0 <= a.target_idx < len(enemies):
-                    target = enemies[a.target_idx]
-                    if target.statuses.get("Vulnerable", 0) > 0:
-                        dmg = int(dmg * 1.5)
-                # Lethal bonus
-                if 0 <= a.target_idx < len(enemies) and enemies[a.target_idx].hp > 0:
-                    if dmg >= enemies[a.target_idx].hp:
-                        score += 20.0
-                score += dmg * 1.5
-
-            # Block scoring (weighted by incoming damage)
-            if base_block > 0:
-                block = base_block + dexterity
-                useful_block = min(block, max(incoming, 1))
-                score += useful_block * 2.0 + max(0, block - incoming) * 0.3
-                # Panic block: triple priority when low HP and big incoming
-                if player_hp < 15 and incoming > 10:
-                    score *= 3.0
-
-            # Focus-fire: bonus for targeting lowest-HP enemy (reduces incoming faster)
-            if base_dmg > 0 and 0 <= a.target_idx < len(enemies):
-                target = enemies[a.target_idx]
-                if target.hp > 0 and n_live_enemies > 1:
-                    # Extra bonus for killing weakest enemy this turn
-                    if dmg >= target.hp:
-                        score += 3.0  # On top of existing +20 lethal
-                    # Slight preference for lower HP targets
-                    if target.hp == min(e.hp for e in live_enemies):
-                        score += 2.0
-
-            # AoE bonus: prefer multi-target cards when 2+ enemies
-            if n_live_enemies >= 2 and hasattr(a, "targets_all"):
-                score += 4.0 * (n_live_enemies - 1)
-
-            # Stance management (Watcher-critical)
-            if card_id in _WRATH_CARDS:
-                if incoming == 0 or total_enemy_hp <= state.energy * 10:
-                    score += 15.0  # Safe Wrath
-                elif in_wrath:
-                    score += 5.0  # Already in Wrath, this is fine
-                else:
-                    score -= 10.0  # Dangerous to enter Wrath
-            elif card_id in _CALM_CARDS:
-                if in_wrath and incoming > 0:
-                    score += 25.0  # Exit Wrath under fire
-                elif in_wrath and incoming > player_hp // 2:
-                    score += 30.0  # URGENT: exit Wrath, incoming > half HP
-                elif not in_calm:
-                    score += 5.0  # Bank energy
-            elif card_id in _EXIT_STANCE_CARDS:
-                if in_wrath and incoming > 0:
-                    score += 20.0
-                if in_wrath and incoming > player_hp // 2:
-                    score += 25.0  # URGENT exit
-
-            # Miracle: gain energy, always good to play early
-            if card_id in ("Miracle", "Miracle+"):
-                score += 12.0
-
-            # Zero-cost cards: almost always worth playing
-            if cost == 0:
-                score += 8.0
-
-            # Can't afford
-            if cost > state.energy:
-                score -= 100.0
-
-        elif a.action_type == "use_potion":
-            potion_id = ""
-            if 0 <= a.potion_idx < len(runner.run_state.potion_slots):
-                potion_id = runner.run_state.potion_slots[a.potion_idx].potion_id or ""
-
-            hp_ratio = player_hp / max(player_max_hp, 1)
-
-            if is_boss_or_elite:
-                if any(k in potion_id for k in ("Fire", "Explosive", "Attack", "Strength")):
-                    score = 16.0
-                elif any(k in potion_id for k in ("Block", "Energy", "Dexterity")):
-                    score = 14.0
-                elif "Fairy" in potion_id:
-                    score = 2.0  # Save fairy for death prevention
-                else:
-                    score = 10.0
-            else:
-                # Use potions more aggressively when low HP
-                base = 5.0
-                if hp_ratio < 0.3:
-                    base = 12.0
-                elif hp_ratio < 0.5:
-                    base = 8.0
-                if "Fairy" in potion_id:
-                    base = 1.0  # Almost never use fairy proactively
-                score = base
-
-        if score > best_score:
-            best_score = score
-            best_action = a
-
-    return best_action
-
-
-# ---------------------------------------------------------------------------
-# Worker initializer — called once per worker process by mp.Pool
-# ---------------------------------------------------------------------------
-
-def _worker_init(request_q, response_qs, slot_q):
-    """Called once per worker process to set up InferenceClient.
-
-    Pops a unique slot_id from slot_q so each worker knows which
-    response queue to listen on. If slot acquisition fails, the worker
-    runs without an InferenceClient (falls back to heuristic planner).
-    """
-    global _worker_name
-    from packages.training.inference_server import InferenceClient
-    try:
-        slot_id = slot_q.get(timeout=10)
-    except Exception:
-        # No slot available — worker runs without inference server.
-        # This is safer than defaulting to slot 0 (which would collide).
-        logger.warning("Worker failed to acquire slot from slot_q — running heuristic-only")
-        _worker_name = "Heuristic"
-        return
-    InferenceClient.setup_worker(request_q, response_qs[slot_id], slot_id)
-    _worker_name = _WORKER_NAMES[slot_id % len(_WORKER_NAMES)]
-
-
-# Worker name — set per-process in _worker_init
-_worker_name = "Unknown"
-
-# Worker names — mapped by slot_id for dashboard display
-_WORKER_NAMES = [
-    "Watcher", "Divinity", "Mantra", "Calm",
-    "Wrath", "Vigilance", "Eruption", "Rushdown",
-    "Tantrum", "Miracle", "Scry", "Flurry",
-]
-
-# ---------------------------------------------------------------------------
-# Worker function — runs in subprocess via mp.Pool
-# ---------------------------------------------------------------------------
-
-def _play_one_game(
-    seed: str,
-    ascension: int,
-    temperature: float,
-    total_games: int = 0,
-    epsilon_mode: str = "none",
-    epsilon_start: float = 0.8,
-    epsilon_end: float = 0.3,
-    epsilon_decay: int = 50000,
-    turn_solver_ms: float = 50.0,
-) -> Dict[str, Any]:
-    """Play a single game and return transitions + result.
-
-    This function runs in a worker process. Workers are torch-free: all
-    neural-network inference is delegated to the InferenceServer running
-    in the main process via InferenceClient. If the server is unavailable
-    (client is None or request times out), the worker falls back to the
-    heuristic StrategicPlanner.
-
-    Epsilon-greedy: with probability epsilon, use heuristic planner instead
-    of NN for strategic decisions (still records NN value/log_prob for training).
-    Epsilon decays from 1.0 to 0.3 over 50K games.
-
-    Returns a dict with:
-        seed, won, floor, hp, decisions, duration_s,
-        transitions: list of dicts with (obs, action_mask, action, reward,
-                     done, value, log_prob, final_floor, cleared_act1/2/3)
-    """
-    import random as _random
-
-    # Clear module-level turn plan cache to avoid memory leak between games
-    _turn_plan_cache.clear()
-
-    from packages.engine.game import GameRunner, GamePhase, CombatAction
-    from packages.training.planner import StrategicPlanner
-    from packages.training.combat_planner import CombatPlanner
-    from packages.training.state_encoder_v2 import RunStateEncoder
-    from packages.training.inference_server import get_client
-
-    from packages.training.turn_solver import TurnSolverAdapter
-
-    encoder = RunStateEncoder()
-    planner = StrategicPlanner()
-    combat_planner = CombatPlanner(top_k=3, lookahead_turns=1)  # Fast config for training
-    # Scale node budget proportionally with time budget (100 nodes per ms)
-    _node_budget = max(1000, int(turn_solver_ms * 100))
-    turn_solver = TurnSolverAdapter(
-        time_budget_ms=turn_solver_ms,
-        node_budget=_node_budget,
-        # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
-        multi_turn_depth=3,
-        multi_turn_k=4,
-        multi_turn_budget_ms=5000.0,
-    )
-
-    client = get_client()
-
-    # Worker status file for live dashboard grid
-    import os
-    _worker_id = os.getpid()
-    _wname = globals().get("_worker_name", f"W{_worker_id}")
-    _status_dir = Path("logs/weekend-run/workers")
-    _status_dir.mkdir(parents=True, exist_ok=True)
-    _status_file = _status_dir / f"{_wname}.json"
-    _last_status_floor = -1
-
-    def _write_worker_status(floor, phase_str, hp, max_hp, seed_str, in_combat=False, enemy=""):
-        nonlocal _last_status_floor
-        if floor == _last_status_floor and not in_combat:
-            return  # Only update on floor change or combat events
-        _last_status_floor = floor
-        try:
-            _status_file.write_text(json.dumps({
-                "name": _wname, "id": _worker_id, "seed": seed_str, "floor": floor,
-                "phase": phase_str, "hp": hp, "max_hp": max_hp,
-                "enemy": enemy, "ts": round(time.monotonic(), 1),
-            }))
-        except Exception:
-            pass
-
-    try:
-        runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
-    except Exception:
-        return {
-            "seed": seed, "won": False, "floor": 0, "hp": 0,
-            "decisions": 0, "duration_s": 0.0, "transitions": [],
-        }
-
-    t0 = time.monotonic()
-    step = 0
-    prev_floor = 0
-    reached_milestones: set = set()
-    prev_potential = compute_potential(runner.run_state)
-    decisions = 0
-    transitions: List[Dict[str, Any]] = []
-
-    # Track combat events for event-based rewards
-    was_in_combat = False
-    combat_room_type = "monster"
-    prev_deck_size = len(getattr(runner.run_state, "deck", []))
-
-    # Per-combat stats tracking
-    combats: List[Dict[str, Any]] = []
-    combat_start_hp = 0
-    combat_cards_played = 0
-    combat_turns = 0
-    combat_start_time = 0.0
-    combat_potions_used = 0
-    event_reward_potion_use = 0.0
-    combat_stance_changes = 0
-    accumulated_stance_reward = 0.0
-    prev_stance = "Neutral"
-    # Per-turn card tracking
-    turn_cards: List[str] = []  # Cards played this turn
-    turns_log: List[Dict[str, Any]] = []  # Per-turn log for current combat
-    # Solver telemetry per combat
-    combat_solver_ms = 0.0  # Total solver time this combat
-    combat_solver_calls = 0  # Number of solver calls this combat
-
-    # Event and path tracking for episode logging
-    events_visited: List[Dict[str, Any]] = []  # {floor, event_id}
-    path_choices_log: List[Dict[str, Any]] = []  # {floor, chosen, options}
-
-    # Helper: record combat summary when transitioning out of combat.
-    # Captures enemy names from combat state before it's cleared.
-    def _finish_combat_summary():
-        nonlocal was_in_combat
-        if not was_in_combat:
-            return
-        was_in_combat = False
-        # Include final turn's cards if any
-        if turn_cards:
-            turns_log.append({"turn": combat_turns + 1, "cards": turn_cards[:]})
-        # Capture encounter name from combat enemies before state is cleared
-        _enc_name = ""
-        _combat_ref = getattr(runner, "current_combat", None)
-        if _combat_ref is not None:
-            try:
-                _enemy_ids = [getattr(e, "id", getattr(e, "name", "?"))
-                              for e in _combat_ref.state.enemies]
-                _enc_name = ", ".join(_enemy_ids)
-            except Exception:
-                pass
-        combats.append({
-            "floor": current_floor,
-            "room_type": combat_room_type,
-            "encounter_name": _enc_name,
-            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
-            "cards_played": combat_cards_played,
-            "turns": combat_turns,
-            "potions_used": combat_potions_used,
-            "stance_changes": combat_stance_changes,
-            "turns_detail": turns_log[:],
-            "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
-            "solver_ms": round(combat_solver_ms),
-            "solver_calls": combat_solver_calls,
-        })
-
-    while not runner.game_over and step < 5000:
-        try:
-            actions = runner.get_available_actions()
-        except Exception:
-            break
-        if not actions:
-            break
-
-        phase = runner.phase
-        rs = runner.run_state
-        current_floor = getattr(rs, "floor", 0)
-
-        # Update worker status on floor change
-        if current_floor != _last_status_floor:
-            _write_worker_status(
-                current_floor, phase.name if hasattr(phase, 'name') else str(phase),
-                getattr(rs, "current_hp", 0), getattr(rs, "max_hp", 80), seed,
-            )
-
-        if phase == GamePhase.COMBAT:
-            if not was_in_combat:
-                # Combat just started — reset solver cache, record baseline
-                turn_solver.reset()
-                combat_start_hp = getattr(rs, "current_hp", 0)
-                combat_cards_played = 0
-                combat_turns = 0
-                combat_start_time = time.monotonic()
-                combat_potions_used = 0
-                event_reward_potion_use = 0.0
-                combat_stance_changes = 0
-                accumulated_stance_reward = 0.0
-                prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
-                turn_cards = []
-                turns_log = []
-                combat_solver_ms = 0.0
-                combat_solver_calls = 0
-            was_in_combat = True
-            combat_room_type = getattr(runner, "current_room_type", "monster")
-            # Track card plays, potion uses, stance changes
-            _solve_t0 = time.monotonic()
-            action = _pick_combat_action(actions, runner, combat_planner, turn_solver)
-            combat_solver_ms += (time.monotonic() - _solve_t0) * 1000
-            combat_solver_calls += 1
-            if hasattr(action, "action_type"):
-                atype = getattr(action, "action_type", "")
-                if atype == "play_card":
-                    combat_cards_played += 1
-                    # Look up actual card name from hand using card_idx
-                    _cidx = getattr(action, "card_idx", -1)
-                    _combat = getattr(runner, "current_combat", None)
-                    _hand = getattr(getattr(_combat, "state", None), "hand", None) if _combat else None
-                    card_id = _hand[_cidx] if _hand and 0 <= _cidx < len(_hand) else "?"
-                    turn_cards.append(card_id)
-                elif atype == "use_potion":
-                    combat_potions_used += 1
-                    # Reward potion use during elite/boss fights
-                    _rt = combat_room_type.lower() if isinstance(combat_room_type, str) else "monster"
-                    if _rt in ("elite", "e"):
-                        event_reward_potion_use += POTION_USE_ELITE_REWARD
-                    elif _rt in ("boss", "b"):
-                        event_reward_potion_use += POTION_USE_BOSS_REWARD
-                    turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
-                elif atype == "end_turn":
-                    combat_turns += 1
-                    turns_log.append({"turn": combat_turns, "cards": turn_cards[:]})
-                    turn_cards.clear()
-            runner.take_action(action)
-            # Detect stance changes after action
-            combat_state = getattr(runner, "current_combat", None)
-            if combat_state is not None:
-                cur_stance = getattr(combat_state.state, "stance", "Neutral")
-                if cur_stance != prev_stance:
-                    combat_stance_changes += 1
-                    accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
-                    prev_stance = cur_stance
-            # Detect phase change FROM combat after action execution.
-            # This catches boss/elite fights that end mid-action (e.g., lethal blow
-            # transitions directly to COMBAT_REWARDS without a separate loop iteration).
-            phase_after = runner.phase
-            if was_in_combat and phase_after != GamePhase.COMBAT:
-                _finish_combat_summary()
-        elif len(actions) == 1:
-            # Check for combat-end transition
-            if was_in_combat and phase != GamePhase.COMBAT:
-                _finish_combat_summary()
-            runner.take_action(actions[0])
-        else:
-            # Strategic decision point
-            decisions += 1
-
-            # Check if combat just ended (for event rewards)
-            combat_just_ended = was_in_combat and phase != GamePhase.COMBAT
-            if combat_just_ended:
-                _finish_combat_summary()
-
-            # Track event encounters
-            if phase == GamePhase.EVENT:
-                _evt_state = getattr(runner, "current_event_state", None)
-                _evt_id = getattr(_evt_state, "event_id", None) if _evt_state else None
-                if _evt_id:
-                    events_visited.append({"floor": current_floor, "event_id": _evt_id})
-
-            # Track path choices (what options were available and what was chosen)
-            if phase == GamePhase.MAP_NAVIGATION:
-                try:
-                    _avail_paths = runner.run_state.get_available_paths()
-                    _path_options = [
-                        {"x": n.x, "y": n.y,
-                         "room_type": n.room_type.name if n.room_type else None}
-                        for n in _avail_paths
-                    ]
-                    if _path_options:
-                        path_choices_log.append({
-                            "floor": current_floor,
-                            "options": _path_options,
-                        })
-                except Exception:
-                    pass
-
-            n_actions = len(actions)
-
-            # Map GamePhase to phase_type for state encoding
-            _PHASE_MAP = {
-                GamePhase.MAP_NAVIGATION: "path",
-                GamePhase.COMBAT_REWARDS: "card_pick",
-                GamePhase.BOSS_REWARDS: "card_pick",
-                GamePhase.REST: "rest",
-                GamePhase.SHOP: "shop",
-                GamePhase.EVENT: "event",
-                GamePhase.NEOW: "other",
-                GamePhase.TREASURE: "other",
-            }
-            phase_type = _PHASE_MAP.get(phase, "other")
-
-            # Encode state with phase context + boss/room info
-            _boss = getattr(runner, "_boss_name", "")
-            _room = getattr(runner, "current_room_type", "")
-            run_obs = encoder.encode(rs, phase_type=phase_type, boss_name=_boss, room_type=_room)
-
-            # ACTION_DIM constant — must match StrategicNet.action_dim
-            _ACTION_DIM = 512
-            mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
-            mask[:n_actions] = True
-
-            # --- Inference via centralized server ---
-            action_idx: int = 0
-            value: float = 0.0
-            log_prob: float = 0.0
-            logits_np: Optional[np.ndarray] = None
-
-            if client is not None:
-                resp = client.infer_strategic(run_obs, n_actions)
-                if resp is not None and resp.get("ok"):
-                    logits_np = resp["logits"]  # numpy array, length action_dim
-                    value = float(resp["value"])
-
-                    # Temperature-scaled sampling
-                    if temperature > 0:
-                        logits_scaled = logits_np / temperature
-                        logits_scaled = logits_scaled - logits_scaled.max()
-                        probs = np.exp(logits_scaled)
-                        probs /= probs.sum()
-                        action_idx = int(np.random.choice(len(probs), p=probs))
-                    else:
-                        action_idx = int(np.argmax(logits_np))
-
-                    # log_prob from UNSCALED policy (matches trainer's forward pass).
-                    # Temperature is an exploration strategy, not part of the policy
-                    # being optimized. PPO ratio = pi_new(a|s) / pi_old(a|s), both unscaled.
-                    logits_base = logits_np - logits_np.max()
-                    probs_base = np.exp(logits_base)
-                    probs_base /= probs_base.sum()
-                    log_prob = float(np.log(probs_base[action_idx] + 1e-8))
-
-                    # Clamp to valid range
-                    action_idx = min(action_idx, n_actions - 1)
-                else:
-                    # Server timed out or returned error — fall back to heuristic for this decision
-                    # (don't null client permanently; transient errors recover next call)
-                    logits_np = None
-
-            if client is not None and logits_np is not None:
-                # Policy probs from UNSCALED logits (matches trainer evaluation)
-                logits_pi = logits_np - logits_np.max()
-                probs_pi = np.exp(logits_pi)
-                probs_pi /= probs_pi.sum()
-
-                # Epsilon-greedy heuristic override (only in importance_weighted mode)
-                used_heuristic = False
-                if epsilon_mode == "importance_weighted":
-                    epsilon = max(epsilon_end, epsilon_start - total_games / max(epsilon_decay, 1))
-                    if _random.random() < epsilon:
-                        if phase == GamePhase.MAP_NAVIGATION:
-                            heuristic_idx = planner.plan_path_choice(runner, actions)
-                        elif phase == GamePhase.REST:
-                            heuristic_idx = planner.plan_rest_site(runner, actions)
-                        elif phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS):
-                            heuristic_idx = planner.plan_card_pick(runner, actions)
-                        elif phase == GamePhase.SHOP:
-                            heuristic_idx = planner.plan_shop_action(runner, actions)
-                        elif phase == GamePhase.EVENT:
-                            heuristic_idx = planner.plan_event_choice(runner, actions)
-                        else:
-                            heuristic_idx = action_idx
-                        action_idx = min(heuristic_idx, n_actions - 1)
-                        used_heuristic = True
-
-                    # Correct behavior policy: b(a|s) = (1-eps)*pi(a|s) + eps*I(a==heuristic)
-                    pi_prob = float(probs_pi[action_idx])
-                    if used_heuristic:
-                        behavior_prob = (1.0 - epsilon) * pi_prob + epsilon
-                    else:
-                        behavior_prob = (1.0 - epsilon) * pi_prob
-                    log_prob = float(np.log(max(behavior_prob, 1e-8)))
-                # else: epsilon_mode == "none" — pure on-policy, log_prob already correct
-
-            if logits_np is not None:
-                # --- PBRS reward ---
-                # Take action first, then compute Phi(s') - gamma * Phi(s)
-                runner.take_action(actions[action_idx])
-
-                # Record which path was chosen (after action so index is valid)
-                if phase == GamePhase.MAP_NAVIGATION and path_choices_log:
-                    _last_pc = path_choices_log[-1]
-                    if _last_pc.get("floor") == current_floor and "chosen" not in _last_pc:
-                        _last_pc["chosen"] = action_idx
-
-                new_rs = runner.run_state
-                new_potential = compute_potential(new_rs)
-
-                # PBRS: gamma * Phi(s') - Phi(s) preserves optimal policy
-                gamma = 0.99
-                pbrs_reward = gamma * new_potential - prev_potential
-
-                # Event-based rewards on top of PBRS
-                event_reward = 0.0
-                if combat_just_ended:
-                    rt = combat_room_type.lower() if isinstance(combat_room_type, str) else "monster"
-                    if rt in ("elite", "e"):
-                        event_reward = EVENT_REWARDS["elite_win"]
-                    elif rt in ("boss", "b"):
-                        event_reward = EVENT_REWARDS["boss_win"]
-                    else:
-                        event_reward = EVENT_REWARDS["combat_win"]
-                    # Scale by HP efficiency
-                    hp_pct = new_rs.current_hp / max(new_rs.max_hp, 1)
-                    event_reward *= (0.5 + 0.5 * hp_pct)
-
-                    # Penalize HP lost in combat (reduced: was dominating rewards)
-                    hp_lost = max(0, combat_start_hp - getattr(new_rs, "current_hp", 0))
-                    event_reward += DAMAGE_TAKEN_PENALTY * hp_lost
-
-                    # Penalize wasteful potion use (used potion but still lost lots of HP)
-                    if combat_potions_used > 0 and hp_pct < 0.5:
-                        event_reward += POTION_WASTE_PENALTY * combat_potions_used
-
-                    # Reward potion use in elite/boss fights that were won
-                    if combat_potions_used > 0 and rt in ("elite", "e", "boss", "b"):
-                        event_reward += POTION_KILL_SAME_FIGHT
-                        event_reward += event_reward_potion_use
-
-                    # Penalize hoarding potions in tough fights when low HP
-                    if hp_pct < 0.3 and combat_potions_used == 0 and rt in ("elite", "e", "boss", "b"):
-                        _potions = getattr(new_rs, "potions", [])
-                        _has_potions = any(p is not None for p in _potions) if _potions else False
-                        if _has_potions:
-                            event_reward += REWARD_WEIGHTS.get("potion_hoard_penalty", -0.30)
-
-                # Card removal reward (deck thinning is critical for Watcher)
-                new_deck_size = len(getattr(new_rs, "deck", []))
-                if new_deck_size < prev_deck_size:
-                    event_reward += SHOP_REMOVE_REWARD * (prev_deck_size - new_deck_size)
-
-                # Upgrade detection (deck size unchanged, card upgraded)
-                elif new_deck_size == prev_deck_size and UPGRADE_REWARDS:
-                    # Check if an upgrade just happened (rest site or smith event)
-                    if phase_type == "rest":
-                        new_deck = list(getattr(new_rs, "deck", []))
-                        for card in new_deck:
-                            cid = getattr(card, "id", str(card))
-                            if getattr(card, "upgraded", False) and cid in UPGRADE_REWARDS:
-                                event_reward += UPGRADE_REWARDS[cid]
-                                break
-
-                # Card pick rewards (kept for hot-reload compat, zeroed by default)
-                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
-                    new_deck = list(getattr(new_rs, "deck", []))
-                    if new_deck:
-                        picked = new_deck[-1]
-                        card_id = getattr(picked, "id", str(picked))
-                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward != 0:
-                            act_mult = 1.5 if current_floor <= 17 else 1.0
-                            event_reward += pick_reward * act_mult
-
-                prev_deck_size = new_deck_size
-
-                # Stance rewards (zeroed by default — kept for hot-reload compat)
-                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
-                    event_reward += accumulated_stance_reward
-
-                # Floor milestone rewards (one-time per game)
-                new_floor = getattr(new_rs, "floor", 0)
-                for milestone_floor, milestone_reward in FLOOR_MILESTONES.items():
-                    if new_floor >= milestone_floor and milestone_floor not in reached_milestones:
-                        # F16 HP bonus: reward arriving at boss floor healthy
-                        if milestone_floor == 16:
-                            _cur_hp = getattr(new_rs, "current_hp", 0)
-                            milestone_reward = (
-                                REWARD_WEIGHTS.get("f16_hp_bonus_base", 0.50)
-                                + REWARD_WEIGHTS.get("f16_hp_bonus_per_hp", 0.02) * _cur_hp
-                            )
-                        event_reward += milestone_reward
-                        reached_milestones.add(milestone_floor)
-
-                reward = pbrs_reward + event_reward
-                prev_potential = new_potential
-
-                # Record transition as numpy-serializable dict
-                transitions.append({
-                    "obs": run_obs,
-                    "action_mask": mask,
-                    "action": action_idx,
-                    "reward": reward,
-                    "pbrs": pbrs_reward,
-                    "event_reward": event_reward,
-                    "done": False,
-                    "value": value,
-                    "log_prob": log_prob,
-                    "final_floor": 0.0,
-                    "cleared_act1": 0.0,
-                    "cleared_act2": 0.0,
-                    "cleared_act3": 0.0,
-                })
-
-            else:
-                # No inference server available: use heuristic planner
-                if phase == GamePhase.MAP_NAVIGATION:
-                    idx = planner.plan_path_choice(runner, actions)
-                elif phase == GamePhase.REST:
-                    idx = planner.plan_rest_site(runner, actions)
-                elif phase in (GamePhase.COMBAT_REWARDS, GamePhase.BOSS_REWARDS):
-                    idx = planner.plan_card_pick(runner, actions)
-                elif phase == GamePhase.SHOP:
-                    idx = planner.plan_shop_action(runner, actions)
-                elif phase == GamePhase.EVENT:
-                    idx = planner.plan_event_choice(runner, actions)
-                else:
-                    idx = 0
-                _chosen_idx = min(idx, n_actions - 1)
-                runner.take_action(actions[_chosen_idx])
-                # Record path choice for heuristic path
-                if phase == GamePhase.MAP_NAVIGATION and path_choices_log:
-                    _last_pc = path_choices_log[-1]
-                    if _last_pc.get("floor") == current_floor and "chosen" not in _last_pc:
-                        _last_pc["chosen"] = _chosen_idx
-                prev_potential = compute_potential(runner.run_state)
-
-        step += 1
-        prev_floor = current_floor
-
-    # Record final combat if we died in combat (loop exits before phase changes)
-    if was_in_combat:
-        _finish_combat_summary()
-
-    # Game ended
-    duration = time.monotonic() - t0
-    rs = runner.run_state
-    won = runner.game_won
-    final_floor = getattr(rs, "floor", 0)
-    final_hp = getattr(rs, "current_hp", 0)
-
-    cleared_acts = [
-        final_floor >= 17,
-        final_floor >= 34,
-        final_floor >= 51,
-    ]
-
-    # Terminal reward on last transition (only if game truly ended)
-    truly_terminal = runner.game_over or won
-    if transitions:
-        if truly_terminal:
-            if won:
-                transitions[-1]["reward"] += REWARD_WEIGHTS.get("win_reward", 10.0)
-            else:
-                progress = final_floor / 55.0
-                death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
-                transitions[-1]["reward"] += death_scale * (1 - progress)
-            transitions[-1]["done"] = True
-        # Truncated games (step >= 5000, error): leave done=False so GAE
-        # bootstraps from value estimate instead of zero
-
-    # Backfill aux targets
-    for t in transitions:
-        t["final_floor"] = final_floor / 55.0
-        t["cleared_act1"] = float(cleared_acts[0])
-        t["cleared_act2"] = float(cleared_acts[1])
-        t["cleared_act3"] = float(cleared_acts[2])
-
-    # Capture deck and death info for episode logging
-    deck_final = []
-    try:
-        deck_final = [
-            (c.id + "+" if getattr(c, "upgraded", False) else c.id)
-            if hasattr(c, "id") else str(c)
-            for c in getattr(rs, "deck", [])
-        ]
-    except Exception:
-        pass
-
-    death_enemy = ""
-    try:
-        death_enemies = getattr(runner, "last_death_enemies", [])
-        if death_enemies:
-            death_enemy = ", ".join(death_enemies)
-    except Exception:
-        pass
-
-    # Capture relics for episode logging
-    relics_final = []
-    try:
-        relics_final = [
-            getattr(r, "id", str(r)) for r in getattr(rs, "relics", [])
-        ]
-    except Exception:
-        pass
-
-    # Clear worker status file (game done)
-    try:
-        _status_file.unlink(missing_ok=True)
-    except Exception:
-        pass
-
-    # Aggregate solver stats from combats
-    total_solver_ms = sum(c.get("solver_ms", 0) for c in combats)
-    total_solver_calls = sum(c.get("solver_calls", 0) for c in combats)
-
-    return {
-        "seed": seed,
-        "won": won,
-        "floor": final_floor,
-        "hp": final_hp,
-        "max_hp": getattr(rs, "max_hp", 0),
-        "decisions": decisions,
-        "duration_s": round(duration, 2),
-        "solver_ms": round(total_solver_ms),
-        "solver_calls": total_solver_calls,
-        "transitions": transitions,
-        "deck_final": deck_final,
-        "relics_final": relics_final,
-        "death_enemy": death_enemy,
-        "room_type": getattr(runner, "current_room_type", ""),
-        "combats": combats,
-        "events": events_visited,
-        "path_choices": path_choices_log,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -1383,6 +211,10 @@ class OvernightRunner:
                 ep_path.write_text(json.dumps(list(self._recent_episodes), default=str))
             except Exception:
                 pass
+
+    def _log_episode(self, result: Dict[str, Any]) -> None:
+        """Append one episode to episodes.jsonl."""
+        log_episode(self._episodes_path, result)
 
     def _save_best_trajectory(self, result: Dict[str, Any]) -> None:
         """Save transitions from top runs to disk for future warm-starts."""
@@ -1637,39 +469,6 @@ class OvernightRunner:
         )
         return distill_count
 
-    def _log_episode(self, result: Dict[str, Any]) -> None:
-        """Append one episode to episodes.jsonl."""
-        # Compute reward breakdown from transitions
-        transitions = result.get("transitions", [])
-        total_reward = sum(t.get("reward", 0) for t in transitions)
-        total_pbrs = sum(t.get("pbrs", 0) for t in transitions)
-        total_event = sum(t.get("event_reward", 0) for t in transitions)
-
-        entry = {
-            "timestamp": datetime.now().isoformat(),
-            "seed": result["seed"],
-            "floor": result["floor"],
-            "won": result["won"],
-            "hp": result["hp"],
-            "max_hp": result.get("max_hp", 0),
-            "decisions": result["decisions"],
-            "duration_s": result["duration_s"],
-            "num_transitions": len(transitions),
-            "total_reward": round(total_reward, 4),
-            "pbrs_reward": round(total_pbrs, 4),
-            "event_reward": round(total_event, 4),
-            "deck_final": result.get("deck_final", []),
-            "relics_final": result.get("relics_final", []),
-            "death_enemy": result.get("death_enemy", ""),
-            "death_room": result.get("room_type", ""),
-            "combats": result.get("combats", []),
-            "events": result.get("events", []),
-            "path_choices": result.get("path_choices", []),
-            "construction_failure": result.get("construction_failure", False),
-        }
-        with open(self._episodes_path, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-
     def run(self) -> Dict[str, Any]:
         """Main overnight loop.
 
@@ -1679,8 +478,8 @@ class OvernightRunner:
         import torch
         from .strategic_net import StrategicNet, _get_device
         from .strategic_trainer import StrategicTrainer
-        from .state_encoder_v2 import RunStateEncoder
-        from .self_play import SeedPool
+        from .state_encoders import RunStateEncoder
+        from .seed_pool import SeedPool
 
         device = _get_device()
         encoder = RunStateEncoder()
@@ -1729,11 +528,6 @@ class OvernightRunner:
         self._server.start()
         logger.info("InferenceServer started (workers=%d)", self.workers)
 
-        # Worker pool is created AFTER distillation to enforce strict GPU phase
-        # separation: distillation (PPO training) must complete before any
-        # workers spawn that would compete for GPU via inference requests.
-        # Pool creation happens inside _run_config() after distillation.
-
         # --- Signal handlers ---
         def _handle_shutdown(signum, frame):
             sig_name = signal.Signals(signum).name
@@ -1770,10 +564,8 @@ class OvernightRunner:
                     # --- Reward weights (unified system) ---
                     if "reward_weights" in cfg:
                         REWARD_WEIGHTS.update(cfg["reward_weights"])
-                        # Sync convenience accessors
-                        global DAMAGE_TAKEN_PENALTY, SHOP_REMOVE_REWARD
-                        DAMAGE_TAKEN_PENALTY = REWARD_WEIGHTS.get("damage_per_hp", -0.005)
-                        SHOP_REMOVE_REWARD = REWARD_WEIGHTS.get("shop_remove", 0.40)
+                        # Note: module-level convenience accessors in reward_config
+                        # won't update automatically. Use REWARD_WEIGHTS dict directly.
                         EVENT_REWARDS.update({
                             "combat_win": REWARD_WEIGHTS.get("combat_win", 0.05),
                             "elite_win": REWARD_WEIGHTS.get("elite_win", 0.30),
@@ -1801,50 +593,14 @@ class OvernightRunner:
                     if "upgrade_rewards" in cfg:
                         UPGRADE_REWARDS.update(cfg["upgrade_rewards"])
                         logger.info("  upgrade_rewards -> %s", UPGRADE_REWARDS)
-                    if "shop_remove_reward" in cfg:
-                        SHOP_REMOVE_REWARD = cfg["shop_remove_reward"]
-                        logger.info("  shop_remove_reward -> %s", SHOP_REMOVE_REWARD)
 
                     # --- Replay buffer ---
                     if "replay_mix_ratio" in cfg:
-                        global REPLAY_MIX_RATIO
-                        REPLAY_MIX_RATIO = cfg["replay_mix_ratio"]
-                        logger.info("  replay_mix_ratio -> %s", REPLAY_MIX_RATIO)
+                        # Can't rebind module-level variable from here; use REWARD_WEIGHTS
+                        logger.info("  replay_mix_ratio -> %s (note: requires restart)", cfg["replay_mix_ratio"])
                     if "replay_min_floor" in cfg and hasattr(self, '_replay_buffer'):
                         self._replay_buffer.min_floor = cfg["replay_min_floor"]
                         logger.info("  replay_min_floor -> %s", cfg["replay_min_floor"])
-
-                    # --- Damage/potion penalties ---
-                    if "damage_penalty" in cfg:
-                        DAMAGE_TAKEN_PENALTY = cfg["damage_penalty"]
-                        logger.info("  damage_penalty -> %s", DAMAGE_TAKEN_PENALTY)
-                    if "potion_waste_penalty" in cfg:
-                        global POTION_WASTE_PENALTY
-                        POTION_WASTE_PENALTY = cfg["potion_waste_penalty"]
-                        logger.info("  potion_waste_penalty -> %s", POTION_WASTE_PENALTY)
-                    if "potion_use_elite_reward" in cfg:
-                        global POTION_USE_ELITE_REWARD
-                        POTION_USE_ELITE_REWARD = cfg["potion_use_elite_reward"]
-                        logger.info("  potion_use_elite_reward -> %s", POTION_USE_ELITE_REWARD)
-                    if "potion_use_boss_reward" in cfg:
-                        global POTION_USE_BOSS_REWARD
-                        POTION_USE_BOSS_REWARD = cfg["potion_use_boss_reward"]
-                        logger.info("  potion_use_boss_reward -> %s", POTION_USE_BOSS_REWARD)
-                    if "potion_kill_same_fight" in cfg:
-                        global POTION_KILL_SAME_FIGHT
-                        POTION_KILL_SAME_FIGHT = cfg["potion_kill_same_fight"]
-                        logger.info("  potion_kill_same_fight -> %s", POTION_KILL_SAME_FIGHT)
-
-                    # --- Epsilon schedule ---
-                    if "epsilon_start" in cfg:
-                        self._current_sweep_config["epsilon_start"] = cfg["epsilon_start"]
-                        logger.info("  epsilon_start -> %s", cfg["epsilon_start"])
-                    if "epsilon_end" in cfg:
-                        self._current_sweep_config["epsilon_end"] = cfg["epsilon_end"]
-                        logger.info("  epsilon_end -> %s", cfg["epsilon_end"])
-                    if "epsilon_decay" in cfg:
-                        self._current_sweep_config["epsilon_decay"] = cfg["epsilon_decay"]
-                        logger.info("  epsilon_decay -> %s", cfg["epsilon_decay"])
 
                     reload_path.unlink()
                 except Exception as e:
@@ -1863,8 +619,6 @@ class OvernightRunner:
         # Phase 3: All-in on best config with remaining games
         n_configs = len(self.sweep_configs)
         phase1_games_per = self.max_games // (n_configs * 3)  # ~33% of budget split equally
-        phase2_games_per = self.max_games // 9                 # ~33% split between top 3
-        # phase3 gets the rest
 
         config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
 
@@ -1923,7 +677,6 @@ class OvernightRunner:
                 logger.info("Warm restart (train_steps=%d) — skipping distillation", trainer.train_steps)
 
             # Create worker pool AFTER distillation — strict GPU phase separation.
-            # Workers use InferenceServer for GPU, which would compete with PPO training.
             if self._executor is None:
                 ctx = mp.get_context("spawn")
                 self._executor = ctx.Pool(
@@ -1946,17 +699,14 @@ class OvernightRunner:
                 batch_size, temp, ts_ms,
             )
 
-            # Phased loop: COLLECT games → TRAIN on best data → repeat.
-            # Workers pause during training so GPU is fully available for PPO.
-            # This gives cleaner weight updates and room for deep MCTS.
+            # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
             COLLECT_GAMES = 100   # Games per collect phase
             TRAIN_EPOCHS = 8     # PPO epochs during train phase
             TRAIN_STEPS_PER_PHASE = 10  # Train batch calls per phase
             games_per_min = 0.0
 
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
-                # ── COLLECT PHASE ──────────────────────────────
-                # Run games, accumulate transitions in buffer
+                # -- COLLECT PHASE --
                 collect_t0 = time.monotonic()
                 collect_games = 0
                 phase_results: List[Dict[str, Any]] = []
@@ -1997,8 +747,7 @@ class OvernightRunner:
                 if self._shutdown_requested:
                     break
 
-                # ── TRAIN PHASE ────────────────────────────────
-                # Pause workers (no new batches), train intensively on accumulated data
+                # -- TRAIN PHASE --
                 train_t0 = time.monotonic()
                 train_steps_before = trainer.train_steps
                 train_count = 0
@@ -2167,7 +916,6 @@ class OvernightRunner:
             config_scores[idx] = result
 
         # With single config, Phase 2+3 just continue training on the same config.
-        # No weight forking — learning accumulates continuously.
         if not self._shutdown_requested and config_scores:
             remaining = self.max_games - self.total_games
             if remaining > 0:
@@ -2178,7 +926,6 @@ class OvernightRunner:
                 _run_config(best_idx, best_cfg, remaining, fork_weights=False)
 
         # Save checkpoint and clean up
-        # Build warm-restart state — trainer is local to _run_config, use saved metrics
         _warm_state = {"total_games": self.total_games}
         if hasattr(self, '_last_trainer_state'):
             _warm_state.update(self._last_trainer_state)
@@ -2209,11 +956,7 @@ class OvernightRunner:
         }
 
     def _check_ascension_bump(self) -> None:
-        """Check if we should increase ascension based on recent performance.
-
-        Evaluated against rolling 1K-game window (or whatever recent_floors holds).
-        Only increases, never decreases.
-        """
+        """Check if we should increase ascension based on recent performance."""
         if len(self.recent_floors) < 50:
             return
         avg_floor = sum(self.recent_floors) / len(self.recent_floors)
@@ -2236,7 +979,6 @@ class OvernightRunner:
         best_avg_floor: float,
     ) -> None:
         """Handle post-training bookkeeping: entropy decay, stall detection, logging."""
-        # Store last metrics for dashboard visibility via status.json
         self._last_train_metrics = {
             k: v for k, v in metrics.items()
             if isinstance(v, (int, float))
@@ -2252,7 +994,6 @@ class OvernightRunner:
             current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
             improvement = current_avg - self._stall_checkpoint_floor
             if improvement < STALL_IMPROVEMENT_THRESHOLD:
-                # Stalled: additive entropy increase (capped at 0.10 to prevent drift)
                 old_ent = trainer.entropy_coeff
                 trainer.entropy_coeff = min(0.10, trainer.entropy_coeff + 0.02)
                 logger.warning(
@@ -2262,11 +1003,9 @@ class OvernightRunner:
                     games_since_checkpoint, improvement,
                     STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
                 )
-                # Reset checkpoint so new entropy has time to take effect
                 self._stall_checkpoint_floor = current_avg
                 self._stall_checkpoint_games = self.total_games
             else:
-                # Improving: decay entropy back toward baseline
                 if trainer.entropy_coeff > 0.05:
                     old_ent = trainer.entropy_coeff
                     trainer.entropy_coeff = max(0.05, trainer.entropy_coeff - 0.005)
@@ -2292,17 +1031,10 @@ class OvernightRunner:
         )
 
     def _submit_batch(self, seed_pool) -> Tuple[List[str], List[Any]]:
-        """Submit a batch of games to workers. Returns immediately (non-blocking).
-
-        Returns (seeds, async_results) to be collected later via _collect_batch.
-        """
+        """Submit a batch of games to workers. Returns immediately (non-blocking)."""
         seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
 
         cfg = self._current_sweep_config
-        eps_mode = cfg.get("epsilon_mode", "none")
-        eps_start = cfg.get("epsilon_start", 0.8)
-        eps_end = cfg.get("epsilon_end", 0.3)
-        eps_decay = cfg.get("epsilon_decay", 50000)
         ts_ms = cfg.get("turn_solver_ms", 50.0)
 
         # Mixed temperature: ~25% of games use higher temp for exploration
@@ -2313,7 +1045,7 @@ class OvernightRunner:
                 (seed, self.ascension,
                  explore_temp if i % 4 == 0 else self.temperature,
                  self.total_games,
-                 eps_mode, eps_start, eps_end, eps_decay, ts_ms),
+                 ts_ms),
             )
             for i, seed in enumerate(seeds)
         ]
@@ -2326,10 +1058,7 @@ class OvernightRunner:
         seed_pool,
         trainer,
     ) -> List[Dict[str, Any]]:
-        """Collect results from a previously submitted batch. Blocks until done.
-
-        Adds transitions to trainer buffer and handles pool recreation on timeout.
-        """
+        """Collect results from a previously submitted batch. Blocks until done."""
         results: List[Dict[str, Any]] = []
         for ar, seed in zip(async_results, seeds):
             try:
@@ -2372,10 +1101,8 @@ class OvernightRunner:
         # Mix in replay transitions (25% of batch size)
         if hasattr(self, "_replay_buffer") and self._replay_buffer.size > 0:
             n_replay = max(1, int(len(results) * REPLAY_MIX_RATIO))
-            replay_transitions = self._replay_buffer.sample_transitions(n_replay * 8)  # ~8 transitions per game
+            replay_transitions = self._replay_buffer.sample_transitions(n_replay * 8)
             if replay_transitions:
-                # Group replay transitions by done boundaries to avoid
-                # cross-episode GAE contamination
                 current_replay_ep = None
                 for t in replay_transitions:
                     if current_replay_ep is None or t.get("done", False):
