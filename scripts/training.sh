@@ -409,8 +409,9 @@ case "${1:-status}" in
     archive) shift; cmd_archive "$@" ;;
     fresh)   shift; cmd_archive "${1:-fresh}" && cmd_weekend "${@:2}" ;;
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
+    prune)   shift; uv run python scripts/prune_data.py "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update|prune} [options]"
         echo ""
         echo "Commands:"
         echo "  start      Start training (default 10K games)"
@@ -422,6 +423,7 @@ case "${1:-status}" in
         echo "  archive    Archive current run to logs/runs/run_TIMESTAMP/ (optional label arg)"
         echo "  fresh      Archive + start fresh (cold start with distillation from trajectories)"
         echo "  update     Pull latest code + restart (git pull → restart)"
+        echo "  prune      Prune episodes.jsonl + consolidate top runs (safe while running)"
         echo ""
         echo "Options for start/weekend:"
         echo "  --games N      Total games to play"
@@ -429,6 +431,13 @@ case "${1:-status}" in
         echo "  --batch N      Batch size for PPO (default: 256)"
         echo "  --asc N        Ascension level (default: 0)"
         echo "  --headless     No dashboard output (start only)"
+        echo ""
+        echo "Options for prune:"
+        echo "  --dry-run          Preview without modifying files"
+        echo "  --keep N           Keep last N episodes (default: 10000)"
+        echo "  --top N            Top N episodes in top_episodes.json (default: 500)"
+        echo "  --skip-compress    Skip episode archiving"
+        echo "  --skip-top         Skip top episode consolidation"
         exit 1
         ;;
 esac

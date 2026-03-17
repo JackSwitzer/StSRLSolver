@@ -340,7 +340,10 @@ class TurnSolver:
         # Penalize unspent energy with playable cards (unless Ice Cream relic present)
         unspent = state.energy
         if unspent > 0:
-            has_ice_cream = any(r.relic_id == "IceCream" for r in getattr(state, 'relics', []))
+            has_ice_cream = any(
+                (getattr(r, 'relic_id', None) or getattr(r, 'id', None) or str(r)) == "IceCream"
+                for r in getattr(state, 'relics', [])
+            )
             if not has_ice_cream:
                 # Count playable cards (cost <= unspent energy)
                 costs = state.card_costs
@@ -843,6 +846,236 @@ class TurnSolver:
 
 
 # ---------------------------------------------------------------------------
+# MultiTurnSolver: multi-turn lookahead for boss/elite fights
+# ---------------------------------------------------------------------------
+
+class MultiTurnSolver:
+    """Multi-turn lookahead search for boss and elite fights.
+
+    Instead of optimizing individual card plays, this solver:
+    1. Uses TurnSolver to find top-K turn plans at each depth
+    2. Simulates full turns (play cards → end turn → enemy response)
+    3. Recurses for depth D turns ahead
+    4. Returns the first-turn plan that leads to the best D-turn outcome
+
+    With K=3 plans and D=3 depth, explores 27 leaf states — feasible in <5s.
+    """
+
+    def __init__(
+        self,
+        inner_solver: Optional[TurnSolver] = None,
+        max_depth: int = 3,
+        top_k: int = 3,
+        time_budget_ms: float = 5000.0,
+    ):
+        self._solver = inner_solver or TurnSolver(time_budget_ms=100, node_budget=5000)
+        self.max_depth = max_depth
+        self.top_k = top_k
+        self.time_budget_ms = time_budget_ms
+
+    def solve(self, engine: CombatEngine) -> Optional[List[Action]]:
+        """Find the best turn plan considering multi-turn outcomes.
+
+        Returns the list of actions for the CURRENT turn only.
+        """
+        if engine.phase != CombatPhase.PLAYER_TURN or engine.state.combat_over:
+            return None
+
+        deadline = time.monotonic() + self.time_budget_ms / 1000.0
+        best_score = _SCORE_DEATH - 1
+        best_plan: Optional[List[Action]] = None
+
+        # Get top-K turn plans for current state
+        candidates = self._get_turn_candidates(engine, deadline)
+        if not candidates:
+            return None
+
+        for plan, _ in candidates:
+            if time.monotonic() > deadline:
+                break
+            # Simulate this turn plan and evaluate recursively
+            score = self._evaluate_plan(engine, plan, depth=1, deadline=deadline)
+            if score > best_score:
+                best_score = score
+                best_plan = plan
+
+        return best_plan
+
+    def _get_turn_candidates(
+        self, engine: CombatEngine, deadline: float
+    ) -> List[Tuple[List[Action], float]]:
+        """Get top-K diverse turn plans from the inner TurnSolver.
+
+        Runs the solver multiple times with different search parameters
+        to find diverse candidate plans.
+        """
+        candidates: List[Tuple[List[Action], float]] = []
+        seen_scores: set = set()
+
+        # Run solver with decreasing budgets to find diverse plans
+        for budget_ms, budget_nodes in [(100, 5000), (50, 2000), (30, 1000)]:
+            if time.monotonic() > deadline or len(candidates) >= self.top_k:
+                break
+
+            solver = TurnSolver(time_budget_ms=budget_ms, node_budget=budget_nodes)
+            plan = solver.solve_turn(engine, room_type="boss")
+            if plan:
+                # Score this plan
+                score = self._score_plan(engine, plan)
+                # Deduplicate by score (close enough = same plan)
+                score_key = round(score, 1)
+                if score_key not in seen_scores:
+                    seen_scores.add(score_key)
+                    candidates.append((plan, score))
+
+        # Also try: aggressive (Wrath-first), defensive (block-first), end-turn-early
+        for variant_plan in self._generate_variant_plans(engine, deadline):
+            if len(candidates) >= self.top_k:
+                break
+            score = self._score_plan(engine, variant_plan)
+            score_key = round(score, 1)
+            if score_key not in seen_scores:
+                seen_scores.add(score_key)
+                candidates.append((variant_plan, score))
+
+        candidates.sort(key=lambda x: -x[1])
+        return candidates[:self.top_k]
+
+    def _generate_variant_plans(
+        self, engine: CombatEngine, deadline: float
+    ) -> List[List[Action]]:
+        """Generate variant plans: aggressive, defensive, conservative."""
+        variants: List[List[Action]] = []
+        state = engine.state
+
+        # Variant 1: End turn immediately (sometimes correct for stance management)
+        variants.append([EndTurn()])
+
+        # Variant 2: Play only block cards then end turn
+        block_plan: List[Action] = []
+        sim = engine.copy()
+        for _ in range(10):  # max 10 cards
+            if time.monotonic() > deadline:
+                break
+            actions = sim.get_legal_actions()
+            block_actions = [
+                a for a in actions
+                if isinstance(a, PlayCard) and self._is_block_action(a, sim)
+            ]
+            if not block_actions:
+                break
+            action = block_actions[0]
+            block_plan.append(action)
+            sim.execute_action(action)
+        if block_plan:
+            block_plan.append(EndTurn())
+            variants.append(block_plan)
+
+        return variants
+
+    def _is_block_action(self, action: Action, engine: CombatEngine) -> bool:
+        """Check if a PlayCard action generates block."""
+        if not isinstance(action, PlayCard):
+            return False
+        hand = engine.state.hand
+        if 0 <= action.card_idx < len(hand):
+            card_id = hand[action.card_idx]
+            base_id = card_id.rstrip("+")
+            card_def = ALL_CARDS.get(base_id)
+            if card_def and card_def.base_block > 0:
+                return True
+        return False
+
+    def _score_plan(self, engine: CombatEngine, plan: List[Action]) -> float:
+        """Score a turn plan by simulating it and enemy response."""
+        sim = engine.copy()
+        for action in plan:
+            try:
+                sim.execute_action(action)
+            except Exception:
+                return _SCORE_DEATH
+            if sim.state.combat_over:
+                break
+
+        return self._solver._score_terminal(sim, engine)
+
+    def _evaluate_plan(
+        self,
+        engine: CombatEngine,
+        plan: List[Action],
+        depth: int,
+        deadline: float,
+    ) -> float:
+        """Recursively evaluate a turn plan to the given depth.
+
+        Simulates: execute plan → enemy turn → next player turn → recurse.
+        """
+        if time.monotonic() > deadline:
+            return self._score_plan(engine, plan)
+
+        # Execute the plan
+        sim = engine.copy()
+        for action in plan:
+            try:
+                sim.execute_action(action)
+            except Exception:
+                return _SCORE_DEATH
+            if sim.state.combat_over:
+                break
+
+        # If combat is over, return terminal value
+        if sim.state.combat_over or sim.is_combat_over():
+            if sim.is_victory():
+                hp = sim.state.player.hp
+                return _SCORE_LETHAL + hp * 200
+            return _SCORE_DEATH
+
+        # Simulate enemy turn (the plan should end with EndTurn)
+        if sim.phase == CombatPhase.PLAYER_TURN:
+            # Plan didn't include EndTurn — add it
+            try:
+                sim.execute_action(EndTurn())
+            except Exception:
+                pass
+
+        # Run until player's next turn or combat ends
+        ticks = 0
+        while sim.phase == CombatPhase.ENEMY_TURN and not sim.is_combat_over() and ticks < 100:
+            try:
+                sim.tick()
+            except Exception:
+                break
+            ticks += 1
+
+        if sim.state.combat_over or sim.is_combat_over():
+            if sim.is_victory():
+                return _SCORE_LETHAL + sim.state.player.hp * 200
+            return _SCORE_DEATH + sim.state.player.hp
+
+        if sim.state.player.hp <= 0:
+            return _SCORE_DEATH
+
+        # At max depth, evaluate with single-turn score
+        if depth >= self.max_depth:
+            return self._solver._score_terminal(sim, engine)
+
+        # Recurse: find best plan for next turn
+        next_candidates = self._get_turn_candidates(sim, deadline)
+        if not next_candidates:
+            return self._solver._score_terminal(sim, engine)
+
+        best_next = _SCORE_DEATH - 1
+        for next_plan, _ in next_candidates:
+            if time.monotonic() > deadline:
+                break
+            score = self._evaluate_plan(sim, next_plan, depth + 1, deadline)
+            if score > best_next:
+                best_next = score
+
+        return best_next
+
+
+# ---------------------------------------------------------------------------
 # TurnSolverAdapter: drop-in bridge for overnight.py
 # ---------------------------------------------------------------------------
 
@@ -867,6 +1100,9 @@ class TurnSolverAdapter:
         node_budget: int = 1000,
         mcts_simulations: int = 8,
         use_mcts_for: Optional[Tuple[str, ...]] = None,
+        multi_turn_depth: int = 3,
+        multi_turn_k: int = 4,
+        multi_turn_budget_ms: float = 5000.0,
     ):
         self._solver = TurnSolver(
             time_budget_ms=time_budget_ms,
@@ -876,6 +1112,13 @@ class TurnSolverAdapter:
         self._use_mcts_for = use_mcts_for or ("elite", "boss")
         self._mcts_by_budget: Dict[int, Any] = {}  # sim_budget -> GumbelMCTS
         self._mcts_policy_fn: Optional[Any] = None
+        # Multi-turn solver for boss/elite fights
+        self._multi_turn = MultiTurnSolver(
+            inner_solver=TurnSolver(time_budget_ms=100, node_budget=5000),
+            max_depth=multi_turn_depth,
+            top_k=multi_turn_k,
+            time_budget_ms=multi_turn_budget_ms,
+        )
 
         self._cached_plan: Optional[List[Action]] = None
         self._cached_plan_index: int = 0
@@ -963,7 +1206,23 @@ class TurnSolverAdapter:
             # Cache invalid — replan
             self._cached_plan = None
 
-        # DFS/beam TurnSolver first (fast, strong heuristic)
+        # For boss/elite: try multi-turn solver first (plans 3+ turns ahead)
+        if room_type in ("boss", "b", "elite", "e"):
+            try:
+                plan = self._multi_turn.solve(engine)
+            except Exception:
+                plan = None
+            if plan and len(plan) > 0:
+                self._cached_plan = plan
+                self._cached_plan_index = 0
+                self._cached_turn = current_turn
+                engine_action = plan[0]
+                combat_action = self._match_engine_to_combat(engine_action, actions, state)
+                if combat_action is not None:
+                    self._cached_plan_index = 1
+                    return combat_action
+
+        # DFS/beam TurnSolver (fast single-turn heuristic)
         try:
             plan = self._solver.solve_turn(engine, room_type)
         except Exception:

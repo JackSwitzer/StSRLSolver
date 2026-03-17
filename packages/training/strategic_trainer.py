@@ -252,6 +252,8 @@ class StrategicTrainer:
             "value_loss": 0.0,
             "entropy": 0.0,
             "aux_loss": 0.0,
+            "floor_pred_loss": 0.0,
+            "act_pred_loss": 0.0,
             "total_loss": 0.0,
             "clip_fraction": 0.0,
         }
@@ -326,6 +328,8 @@ class StrategicTrainer:
                 total_metrics["value_loss"] += value_loss.item()
                 total_metrics["entropy"] += entropy.item()
                 total_metrics["aux_loss"] += aux_loss.item()
+                total_metrics["floor_pred_loss"] += floor_loss.item()
+                total_metrics["act_pred_loss"] += act_loss.item()
                 total_metrics["total_loss"] += loss.item()
                 total_metrics["clip_fraction"] += clip_frac
 
@@ -343,6 +347,7 @@ class StrategicTrainer:
         total_metrics["entropy_coeff"] = self.entropy_coeff
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
+        total_metrics["floor_pred_loss"] = total_metrics.get("aux_loss", 0.0)  # for dashboard
 
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
