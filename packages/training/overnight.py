@@ -1394,9 +1394,14 @@ class OvernightRunner:
                 n = len(data["obs"])
                 ep_id = hash(tf.stem) % (2**31)
                 for i in range(n):
+                    mask_i = data["masks"][i]
+                    # Pad mask if trajectory was saved with smaller action_dim
+                    if mask_i.shape[0] < _ACTION_DIM:
+                        mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                                        constant_values=False)
                     trainer.add_transition(
                         obs=data["obs"][i],
-                        action_mask=data["masks"][i],
+                        action_mask=mask_i,
                         action=int(data["actions"][i]),
                         reward=float(data["rewards"][i]),
                         done=bool(data["dones"][i]),
@@ -1460,9 +1465,13 @@ class OvernightRunner:
                     n = len(data["obs"])
                     ep_id = hash(tf.stem) % (2**31)
                     for i in range(n):
+                        mask_i = data["masks"][i]
+                        if mask_i.shape[0] < _ACTION_DIM:
+                            mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                                            constant_values=False)
                         st = StrategicTransition(
                             obs=data["obs"][i],
-                            action_mask=data["masks"][i],
+                            action_mask=mask_i,
                             action=int(data["actions"][i]),
                             reward=float(data["rewards"][i]),
                             done=bool(data["dones"][i]),
@@ -1939,9 +1948,13 @@ class OvernightRunner:
                             n_t = len(data["obs"])
                             ep_id = hash(tf.stem) % (2**31)
                             for i in range(n_t):
+                                mask_i = data["masks"][i]
+                                if mask_i.shape[0] < _ACTION_DIM:
+                                    mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                                                    constant_values=False)
                                 st = StrategicTransition(
                                     obs=data["obs"][i],
-                                    action_mask=data["masks"][i],
+                                    action_mask=mask_i,
                                     action=int(data["actions"][i]),
                                     reward=float(data["rewards"][i]),
                                     done=bool(data["dones"][i]),
