@@ -34,15 +34,17 @@ stop_app() {
 }
 
 launch_app() {
-    open "$APP_DIR/.build/debug/$APP_NAME"
+    "$APP_DIR/.build/debug/$APP_NAME" &
+    local pid=$!
+    echo "$pid" > "$PID_FILE"
     sleep 0.5
-    local pid=$(pgrep -n "$APP_NAME" 2>/dev/null || echo "")
-    if [ -n "$pid" ]; then
-        echo "$pid" > "$PID_FILE"
-        echo "  Running (PID $pid)"
-    else
-        echo "  Launched (PID unknown)"
-    fi
+    # Bring to front on main monitor via AppleScript
+    osascript -e "
+        tell application \"System Events\"
+            set frontmost of (first process whose unix id is $pid) to true
+        end tell
+    " 2>/dev/null || true
+    echo "  Running (PID $pid)"
 }
 
 case "${1:-}" in

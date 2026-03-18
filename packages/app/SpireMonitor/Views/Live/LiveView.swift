@@ -20,15 +20,16 @@ struct LiveView: View {
     // Mode-aware data sources
     private var activeEpisodes: [Episode] {
         if statsMode == .allTime {
-            // Merge both sources, deduplicate by seed
+            // Full data: merge recent + top, deduplicate by seed
             var seen = Set<String>()
             var merged: [Episode] = []
-            for ep in store.topEpisodes + store.recentEpisodes {
+            for ep in store.recentEpisodes + store.topEpisodes {
                 if seen.insert(ep.seed).inserted { merged.append(ep) }
             }
             return merged
         }
-        return store.recentEpisodes.isEmpty ? store.topEpisodes : store.recentEpisodes
+        // Last 100: ONLY current run's recent episodes
+        return store.recentEpisodes
     }
 
     private var floorCurveData: [Double] {
