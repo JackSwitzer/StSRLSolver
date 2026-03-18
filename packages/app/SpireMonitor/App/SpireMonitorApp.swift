@@ -5,13 +5,17 @@ struct SpireMonitorApp: App {
     @State private var appState = AppState()
 
     var body: some Scene {
-        WindowGroup {
+        Window("Spire Monitor", id: "main") {
             ContentView()
                 .environment(appState)
                 .onAppear { appState.startPolling() }
                 .onDisappear { appState.stopPolling() }
+                .frame(minWidth: 1000, minHeight: 600)
         }
         .defaultSize(width: 1400, height: 900)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
 
         Settings {
             SettingsView(config: appState.config)

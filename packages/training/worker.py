@@ -231,11 +231,14 @@ def _play_one_game(
                 _enc_name = ", ".join(_enemy_ids)
             except Exception:
                 pass
+        # Use runner.run_state directly (not captured `rs` which may be stale).
+        # On death the engine now syncs HP to 0, but guard with min(_, 0) anyway.
+        _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
         combats.append({
             "floor": current_floor,
             "room_type": combat_room_type,
             "encounter_name": _enc_name,
-            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+            "hp_lost": max(0, combat_start_hp - _post_hp),
             "cards_played": combat_cards_played,
             "turns": combat_turns,
             "potions_used": combat_potions_used,

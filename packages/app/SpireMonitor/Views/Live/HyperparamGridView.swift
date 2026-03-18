@@ -11,15 +11,25 @@ struct HyperparamGridView: View {
             LazyVGrid(columns: columns, spacing: 8) {
                 paramCell("Config", value: status?.configName ?? "-")
                 paramCell("Phase", value: status?.sweepPhase ?? "-")
-                paramCell("Entropy", value: Fmt.decimal(status?.entropy ?? 0, places: 4))
-                paramCell("Ent Coeff", value: Fmt.decimal(status?.entropyCoeff ?? 0, places: 4))
-                paramCell("Buffer", value: Fmt.count(status?.bufferSize ?? 0))
-                paramCell("Steps", value: Fmt.count(status?.trainSteps ?? 0))
-                paramCell("Clip Frac", value: Fmt.decimal(status?.clipFraction ?? 0, places: 3))
-                paramCell("Peak Floor", value: "\(status?.peakFloor ?? 0)")
-                paramCell("Games", value: Fmt.count(status?.totalGames ?? 0))
+                paramCell("Entropy", value: fmtOpt(status?.entropy, places: 3))
+                paramCell("Ent Coeff", value: fmtOpt(status?.entropyCoeff, places: 4))
+                paramCell("Buffer", value: fmtOptInt(status?.bufferSize))
+                paramCell("Steps", value: fmtOptInt(status?.trainSteps))
+                paramCell("Loss", value: fmtOpt(status?.totalLoss, places: 4))
+                paramCell("Peak Floor", value: fmtOptInt(status?.peakFloor ?? status?.replayBestFloor))
+                paramCell("Games", value: fmtOptInt(status?.totalGames))
             }
         }
+    }
+
+    private func fmtOpt(_ val: Double?, places: Int) -> String {
+        guard let v = val else { return "-" }
+        return Fmt.decimal(v, places: places)
+    }
+
+    private func fmtOptInt(_ val: Int?) -> String {
+        guard let v = val else { return "-" }
+        return Fmt.count(v)
     }
 
     private func paramCell(_ label: String, value: String) -> some View {
@@ -30,7 +40,7 @@ struct HyperparamGridView: View {
             Text(value)
                 .font(.stsBody)
                 .fontWeight(.medium)
-                .foregroundStyle(Color.stsText)
+                .foregroundStyle(value == "-" ? Color.stsTextMuted : Color.stsText)
                 .lineLimit(1)
         }
         .padding(6)

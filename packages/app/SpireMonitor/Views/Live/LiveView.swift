@@ -2,7 +2,7 @@ import SwiftUI
 
 enum StatsMode: String, CaseIterable {
     case last100 = "Last 100"
-    case allTime = "All Time"
+    case allTime = "Full Data"
 }
 
 struct LiveView: View {
@@ -11,68 +11,80 @@ struct LiveView: View {
 
     private var store: DataStore { appState.store }
 
+    private var floorCurveData: [Double] {
+        if statsMode == .last100 {
+            return Array(store.floorCurve.suffix(100))
+        }
+        return store.floorCurve
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Status bar + rolling average toggle
-            HStack {
+            // Status bar
+            HStack(spacing: 8) {
                 StatusBarView(status: store.status, isLive: store.isLive,
                               peakFloor: store.peakFloor, mode: statsMode)
-                Spacer()
-                Picker("", selection: $statsMode) {
-                    ForEach(StatsMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
+
+                Button(action: {
+                    statsMode = statsMode == .last100 ? .allTime : .last100
+                }) {
+                    Text(statsMode.rawValue)
+                        .font(.stsBody)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.stsAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color.stsAccent.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 180)
+                .buttonStyle(.plain)
+                .help("Toggle between Last 100 games and Full Data")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
 
             // Main content: left charts / right tables
             HSplitView {
-                // LEFT: Charts stack
+                // LEFT: Charts
                 ScrollView {
-                    VStack(spacing: 12) {
-                        FloorCurveChart(data: store.floorCurve)
-                            .frame(minHeight: 180)
+                    VStack(spacing: 10) {
+                        FloorCurveChart(data: floorCurveData)
+                            .frame(minHeight: 160)
                             .sectionCard()
 
                         LossChartsView(history: store.lossHistory)
-                            .frame(minHeight: 180)
+                            .frame(minHeight: 160)
                             .sectionCard()
 
                         HyperparamGridView(status: store.status)
-                            .sectionCard()
-                    }
-                    .padding(12)
-                }
-                .frame(minWidth: 400)
-
-                // RIGHT: Tables + Workers
-                ScrollView {
-                    VStack(spacing: 12) {
-                        TopRunsTable(episodes: Array(store.topRunsSorted.prefix(10)))
-                            .sectionCard()
-
-                        if !store.workers.isEmpty {
-                            WorkerGridView(workers: store.workers)
-                                .sectionCard()
-                        }
-
-                        DeathAnalysisChart(deaths: Array(store.deathStats.prefix(8)))
-                            .frame(minHeight: 160)
                             .sectionCard()
 
                         PerformancePanelView(performance: store.performanceByRoom)
                             .sectionCard()
                     }
-                    .padding(12)
+                    .padding(10)
                 }
-                .frame(minWidth: 350)
+                .frame(minWidth: 380)
+
+                // RIGHT: Tables + Workers + Deaths + Performance in compact layout
+                ScrollView {
+                    VStack(spacing: 10) {
+                        TopRunsTable(episodes: Array(store.topRunsSorted.prefix(10)))
+                            .sectionCard()
+
+                        WorkerGridView(workers: store.workers)
+                            .sectionCard()
+
+                        DeathAnalysisChart(deaths: Array(store.deathStats.prefix(8)))
+                            .frame(minHeight: 140)
+                            .sectionCard()
+                    }
+                    .padding(10)
+                }
+                .frame(minWidth: 320)
             }
 
-            // Bottom: System stats bar
+            // Bottom: System stats (always visible, pinned)
             Divider().background(Color.stsBorder)
             SystemStatsBar(current: store.systemStats, history: store.systemHistory)
         }

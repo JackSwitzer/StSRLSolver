@@ -67,14 +67,15 @@ final class DataStore {
     }
 
     func appendLoss(from status: TrainingStatus) {
+        guard let total = status.totalLoss else { return }
         let point = LossPoint(
             step: status.trainSteps ?? lossHistory.count,
-            total: status.totalLoss ?? 0,
+            total: total,
             policy: status.policyLoss ?? 0,
             value: status.valueLoss ?? 0
         )
-        // Avoid duplicate steps
-        if lossHistory.last?.step != point.step {
+        // Append if value changed or enough time passed (new poll)
+        if lossHistory.last?.total != point.total || lossHistory.last?.step != point.step {
             lossHistory.append(point)
             if lossHistory.count > 500 { lossHistory.removeFirst() }
         }

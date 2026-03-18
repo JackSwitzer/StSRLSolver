@@ -6,39 +6,39 @@ struct DeathAnalysisChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Top Killers")
+            SectionHeader(title: "Deaths")
 
             if deaths.isEmpty {
                 Text("No death data yet")
                     .font(.stsBody)
                     .foregroundStyle(Color.stsTextMuted)
-                    .frame(maxWidth: .infinity, minHeight: 150)
+                    .frame(maxWidth: .infinity, minHeight: 100)
             } else {
-                Chart {
-                    ForEach(Array(deaths.enumerated()), id: \.offset) { index, item in
-                        BarMark(
-                            x: .value("Deaths", item.count),
-                            y: .value("Enemy", item.enemy)
-                        )
-                        .foregroundStyle(index == 0 ? Color.stsRed : Color.stsAccent.opacity(0.7))
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks { value in
-                        AxisValueLabel()
-                            .font(.stsLabel)
+                // Simple list format: enemy name + count
+                ForEach(Array(deaths.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 8) {
+                        Text(item.enemy)
+                            .font(.stsBody)
+                            .foregroundStyle(index == 0 ? Color.stsRed : Color.stsText)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        // Bar
+                        GeometryReader { geo in
+                            let maxCount = Double(deaths.first?.count ?? 1)
+                            let width = geo.size.width * (Double(item.count) / maxCount)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(index == 0 ? Color.stsRed.opacity(0.6) : Color.stsAccent.opacity(0.4))
+                                .frame(width: max(width, 2))
+                        }
+                        .frame(width: 80, height: 8)
+
+                        Text("\(item.count)")
+                            .font(.stsValue)
                             .foregroundStyle(Color.stsTextDim)
+                            .frame(width: 30, alignment: .trailing)
                     }
-                }
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel()
-                            .font(.stsLabel)
-                            .foregroundStyle(Color.stsTextDim)
-                    }
-                }
-                .chartPlotStyle { plotArea in
-                    plotArea.background(Color.stsBg.opacity(0.5))
                 }
             }
         }
