@@ -14,12 +14,14 @@ final class AppConfig {
             self.logsPath = savedURL
             self.archivedRunsPath = savedURL.deletingLastPathComponent().appending(path: "runs")
         } else if let (logs, runs) = Self.loadConfigFile() {
-            self.logsPath = logs
+            // Auto-discover most recent active run
+            self.logsPath = Self.findActiveRun(near: logs) ?? logs
             self.archivedRunsPath = runs
         } else {
             let fallback = FileManager.default.homeDirectoryForCurrentUser
                 .appending(path: "Desktop/SlayTheSpireRL")
-            self.logsPath = fallback.appending(path: "logs/weekend-run")
+            let defaultLogs = fallback.appending(path: "logs/weekend-run")
+            self.logsPath = Self.findActiveRun(near: defaultLogs) ?? defaultLogs
             self.archivedRunsPath = fallback.appending(path: "logs/runs")
         }
     }
@@ -64,6 +66,42 @@ final class AppConfig {
             let logs = projectRoot.appending(path: config.logsPath)
             let runs = projectRoot.appending(path: config.archivedRunsPath)
             return (logs, runs)
+        }
+        return nil
+    }
+
+    /// Scan sibling directories for the most recently modified status.json
+    private static func findActiveRun(near defaultPath: URL) -> URL? {
+        let logsParent = defaultPath.deletingLastPathComponent() // e.g. logs/
+        let fm = FileManager.default
+
+        var candidates: [(url: URL, mtime: Date)] = []
+
+        // Check the default path itself
+        let defaultStatus = defaultPath.appending(path: "status.json")
+        if let attrs = try? fm.attributesOfItem(atPath: defaultStatus.path()),
+           let mtime = attrs[.modificationDate] as? Date {
+            candidates.append((defaultPath, mtime))
+        }
+
+        // Scan logs/training/run_*/ and logs/runs/run_*/
+        for subdir in ["training", "runs"] {
+            let scanDir = logsParent.appending(path: subdir)
+            guard let contents = try? fm.contentsOfDirectory(at: scanDir, includingPropertiesForKeys: nil) else { continue }
+            for dir in contents where dir.hasDirectoryPath {
+                let statusFile = dir.appending(path: "status.json")
+                if let attrs = try? fm.attributesOfItem(atPath: statusFile.path()),
+                   let mtime = attrs[.modificationDate] as? Date {
+                    candidates.append((dir, mtime))
+                }
+            }
+        }
+
+        // Return the most recently modified
+        guard let best = candidates.max(by: { $0.mtime < $1.mtime }) else { return nil }
+        // Only use it if it's fresher than 5 minutes
+        if best.mtime.timeIntervalSinceNow > -300 {
+            return best.url
         }
         return nil
     }

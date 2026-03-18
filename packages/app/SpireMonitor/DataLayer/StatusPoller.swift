@@ -33,12 +33,14 @@ actor StatusPoller {
     private func poll() async {
         let logsURL = config.logsPath
 
-        // Read status.json
-        if let data = try? Data(contentsOf: logsURL.appending(path: "status.json")),
+        // Read status.json -- check file mtime to detect stale data
+        let statusURL = logsURL.appending(path: "status.json")
+        if let data = try? Data(contentsOf: statusURL),
            let status = try? JSONDecoder().decode(TrainingStatus.self, from: data) {
+            let mtime = (try? FileManager.default.attributesOfItem(atPath: statusURL.path())[.modificationDate] as? Date) ?? .distantPast
             await MainActor.run {
                 store.status = status
-                store.lastStatusUpdate = Date()
+                store.lastStatusUpdate = mtime
                 store.appendLoss(from: status)
             }
         }
