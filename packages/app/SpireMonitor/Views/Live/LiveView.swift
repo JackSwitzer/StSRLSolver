@@ -5,17 +5,34 @@ enum StatsMode: String, CaseIterable {
     case allTime = "Full Data"
 }
 
+enum FloorCurveMode: String {
+    case average = "Avg"
+    case max = "Max"
+}
+
 struct LiveView: View {
     @Environment(AppState.self) private var appState
     @State private var statsMode: StatsMode = .last100
+    @State private var floorCurveMode: FloorCurveMode = .average
 
     private var store: DataStore { appState.store }
 
     private var floorCurveData: [Double] {
-        if statsMode == .last100 {
-            return Array(store.floorCurve.suffix(100))
+        let source: [Double]
+        if floorCurveMode == .max {
+            // Per-episode max floors from episodes
+            source = store.topRunsSorted.map { Double($0.effectiveFloor) }
+        } else {
+            source = store.floorCurve
         }
-        return store.floorCurve
+        if statsMode == .last100 {
+            return Array(source.suffix(100))
+        }
+        return source
+    }
+
+    private var floorCurveTitle: String {
+        "Floor Curve (\(floorCurveMode.rawValue))"
     }
 
     var body: some View {
@@ -48,7 +65,7 @@ struct LiveView: View {
                 // LEFT: Charts
                 ScrollView {
                     VStack(spacing: 10) {
-                        FloorCurveChart(data: floorCurveData)
+                        FloorCurveChart(data: floorCurveData, title: floorCurveTitle)
                             .frame(minHeight: 160)
                             .sectionCard()
 
@@ -84,9 +101,46 @@ struct LiveView: View {
                 .frame(minWidth: 320)
             }
 
-            // Bottom: System stats (always visible, pinned)
+            // Bottom: keybinds + system stats
             Divider().background(Color.stsBorder)
-            SystemStatsBar(current: store.systemStats, history: store.systemHistory)
+            HStack(spacing: 0) {
+                // Keybinds legend
+                HStack(spacing: 16) {
+                    keybind("M", action: "Floor \(floorCurveMode == .average ? "Max" : "Avg")")
+                    keybind("R", action: "Refresh")
+                    keybind("S", action: "Toggle Stats")
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+
+                Divider().frame(height: 30).background(Color.stsBorderDim)
+
+                SystemStatsBar(current: store.systemStats, history: store.systemHistory)
+            }
+            .background(Color.stsCard)
+        }
+        .onKeyPress("m") {
+            floorCurveMode = floorCurveMode == .average ? .max : .average
+            return .handled
+        }
+        .onKeyPress("s") {
+            statsMode = statsMode == .last100 ? .allTime : .last100
+            return .handled
+        }
+    }
+
+    private func keybind(_ key: String, action: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.stsText)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color.stsBorderDim)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+            Text(action)
+                .font(.stsLabel)
+                .foregroundStyle(Color.stsTextDim)
         }
     }
 }

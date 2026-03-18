@@ -3,10 +3,11 @@ import Charts
 
 struct FloorCurveChart: View {
     let data: [Double]
+    var title: String = "Floor Curve"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Floor Curve")
+            SectionHeader(title: title)
 
             if data.isEmpty {
                 Text("No floor data yet")
