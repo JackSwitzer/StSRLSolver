@@ -99,6 +99,7 @@ class OvernightRunner:
         self.total_wins = 0
         self.recent_floors: Deque[int] = deque(maxlen=100)
         self.recent_wins: Deque[bool] = deque(maxlen=100)
+        self.peak_floor = 0
         self.sweep_results: List[Dict[str, Any]] = []
         self._episode_counter = 0  # Unique ID per game for GAE episode separation
 
@@ -164,6 +165,7 @@ class OvernightRunner:
             "win_rate_100": round(sum(self.recent_wins) / max(len(self.recent_wins), 1) * 100, 1),
             "avg_floor_100": round(sum(self.recent_floors) / max(len(self.recent_floors), 1), 1),
             "games_per_min": round(games_per_min, 1),
+            "peak_floor": self.peak_floor,
             "current_sweep": self._current_sweep_idx,
             "total_sweeps": len(self.sweep_configs),
             "headless": self.should_be_headless(),
@@ -180,6 +182,7 @@ class OvernightRunner:
             self.total_wins += 1
         self.recent_floors.append(result["floor"])
         self.recent_wins.append(result["won"])
+        self.peak_floor = max(self.peak_floor, result["floor"])
         if result.get("construction_failure"):
             self._construction_failures += 1
 
