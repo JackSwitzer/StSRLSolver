@@ -17,22 +17,61 @@ struct LiveView: View {
 
     private var store: DataStore { appState.store }
 
+    // Mode-aware data sources
+    private var activeEpisodes: [Episode] {
+        if statsMode == .allTime {
+            // Merge both sources, deduplicate by seed
+            var seen = Set<String>()
+            var merged: [Episode] = []
+            for ep in store.topEpisodes + store.recentEpisodes {
+                if seen.insert(ep.seed).inserted { merged.append(ep) }
+            }
+            return merged
+        }
+        return store.recentEpisodes.isEmpty ? store.topEpisodes : store.recentEpisodes
+    }
+
     private var floorCurveData: [Double] {
         let source: [Double]
         if floorCurveMode == .max {
-            // Per-episode max floors from episodes
-            source = store.topRunsSorted.map { Double($0.effectiveFloor) }
+            source = activeEpisodes.map { Double($0.effectiveFloor) }
         } else {
             source = store.floorCurve
         }
-        if statsMode == .last100 {
-            return Array(source.suffix(100))
-        }
+        if statsMode == .last100 { return Array(source.suffix(100)) }
         return source
     }
 
-    private var floorCurveTitle: String {
-        "Floor Curve (\(floorCurveMode.rawValue))"
+    private var deathData: [(enemy: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for ep in activeEpisodes where !ep.won {
+            counts[ep.deathEnemy ?? "Unknown", default: 0] += 1
+        }
+        return counts.sorted { $0.value > $1.value }.map { (enemy: $0.key, count: $0.value) }
+    }
+
+    private var topRuns: [Episode] {
+        activeEpisodes.sorted { $0.effectiveFloor > $1.effectiveFloor }
+    }
+
+    private var performanceData: [RoomCategory: RoomPerformance] {
+        var grouped: [RoomCategory: [Combat]] = [:]
+        for ep in activeEpisodes {
+            for combat in ep.combats ?? [] {
+                grouped[combat.roomCategory, default: []].append(combat)
+            }
+        }
+        var result: [RoomCategory: RoomPerformance] = [:]
+        for (cat, combats) in grouped {
+            let turns = combats.compactMap(\.turns)
+            let hpLost = combats.compactMap(\.hpLost)
+            let avgT = turns.isEmpty ? 0 : Double(turns.reduce(0, +)) / Double(turns.count)
+            let avgHP = hpLost.isEmpty ? 0 : Double(hpLost.reduce(0, +)) / Double(hpLost.count)
+            let potR = combats.isEmpty ? 0 :
+                Double(combats.filter { ($0.potionsUsed ?? 0) > 0 }.count) / Double(combats.count)
+            result[cat] = RoomPerformance(count: combats.count, avgTurns: avgT, avgHpLost: avgHP, potionRate: potR)
+        }
+        return result
     }
 
     var body: some View {
@@ -42,9 +81,7 @@ struct LiveView: View {
                 StatusBarView(status: store.status, isLive: store.isLive,
                               peakFloor: store.peakFloor, mode: statsMode)
 
-                Button(action: {
-                    statsMode = statsMode == .last100 ? .allTime : .last100
-                }) {
+                Button(action: toggleStats) {
                     Text(statsMode.rawValue)
                         .font(.stsBody)
                         .fontWeight(.medium)
@@ -55,7 +92,6 @@ struct LiveView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
-                .help("Toggle between Last 100 games and Full Data")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -65,7 +101,8 @@ struct LiveView: View {
                 // LEFT: Charts
                 ScrollView {
                     VStack(spacing: 10) {
-                        FloorCurveChart(data: floorCurveData, title: floorCurveTitle)
+                        FloorCurveChart(data: floorCurveData,
+                                        title: "Floor Curve (\(floorCurveMode.rawValue))")
                             .frame(minHeight: 160)
                             .sectionCard()
 
@@ -76,23 +113,23 @@ struct LiveView: View {
                         HyperparamGridView(status: store.status)
                             .sectionCard()
 
-                        PerformancePanelView(performance: store.performanceByRoom)
+                        PerformancePanelView(performance: performanceData)
                             .sectionCard()
                     }
                     .padding(10)
                 }
                 .frame(minWidth: 380)
 
-                // RIGHT: Tables + Workers + Deaths + Performance in compact layout
+                // RIGHT: Tables + Workers + Deaths
                 ScrollView {
                     VStack(spacing: 10) {
-                        TopRunsTable(episodes: Array(store.topRunsSorted.prefix(10)))
+                        TopRunsTable(episodes: Array(topRuns.prefix(10)))
                             .sectionCard()
 
                         WorkerGridView(workers: store.workers)
                             .sectionCard()
 
-                        DeathAnalysisChart(deaths: Array(store.deathStats.prefix(8)))
+                        DeathAnalysisChart(deaths: Array(deathData.prefix(5)))
                             .frame(minHeight: 140)
                             .sectionCard()
                     }
@@ -104,11 +141,9 @@ struct LiveView: View {
             // Bottom: keybinds + system stats
             Divider().background(Color.stsBorder)
             HStack(spacing: 0) {
-                // Keybinds legend
                 HStack(spacing: 16) {
                     keybind("M", action: "Floor \(floorCurveMode == .average ? "Max" : "Avg")")
-                    keybind("R", action: "Refresh")
-                    keybind("S", action: "Toggle Stats")
+                    keybind("F", action: statsMode == .last100 ? "Full Data" : "Last 100")
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -119,14 +154,18 @@ struct LiveView: View {
             }
             .background(Color.stsCard)
         }
-        .onKeyPress("m") {
-            floorCurveMode = floorCurveMode == .average ? .max : .average
-            return .handled
-        }
-        .onKeyPress("s") {
-            statsMode = statsMode == .last100 ? .allTime : .last100
-            return .handled
-        }
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress("m", action: { toggleFloorMode(); return .handled })
+        .onKeyPress("f", action: { toggleStats(); return .handled })
+    }
+
+    private func toggleFloorMode() {
+        floorCurveMode = floorCurveMode == .average ? .max : .average
+    }
+
+    private func toggleStats() {
+        statsMode = statsMode == .last100 ? .allTime : .last100
     }
 
     private func keybind(_ key: String, action: String) -> some View {
