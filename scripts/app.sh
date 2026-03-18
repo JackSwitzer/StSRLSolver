@@ -1,76 +1,83 @@
 #!/bin/bash
-# Launch the native macOS dashboard app (WKWebView → Vite dev server).
-# Services (WS + Vite) are started before the app opens.
+# Spire Monitor — build, run, and hot-reload the native macOS app.
 #
 # Usage:
-#   ./scripts/app.sh          # Start services + launch app (dev)
-#   ./scripts/app.sh --build  # Build release .app bundle
-#   ./scripts/app.sh --stop   # Stop all services
-#   ./scripts/app.sh --status # Check service status
+#   ./scripts/app.sh              # Clean build + run (or reload if already running)
+#   ./scripts/app.sh --build      # Build release only
+#   ./scripts/app.sh --stop       # Kill running instance
+#   ./scripts/app.sh --status     # Check if running
 
 set -e
 cd "$(dirname "$0")/.."
 
-PROJECT_DIR="packages/viz/macos/STSTraining"
-SCHEME="STSTraining"
-BUILD_DIR="$PROJECT_DIR/build"
+APP_DIR="packages/app"
+APP_NAME="SpireMonitor"
+PID_FILE=".run/spire-monitor.pid"
+
+mkdir -p .run
+
+is_running() {
+    [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+stop_app() {
+    if is_running; then
+        local pid=$(cat "$PID_FILE")
+        kill "$pid" 2>/dev/null || true
+        sleep 0.3
+        kill -9 "$pid" 2>/dev/null || true
+        rm -f "$PID_FILE"
+        echo "  Stopped (PID $pid)"
+    fi
+    # Also kill any orphaned instances
+    pkill -9 -f ".build/.*/$APP_NAME" 2>/dev/null || true
+}
+
+launch_app() {
+    "$APP_DIR/.build/debug/$APP_NAME" &
+    local pid=$!
+    echo "$pid" > "$PID_FILE"
+    sleep 0.5
+    # Bring to front on main monitor via AppleScript
+    osascript -e "
+        tell application \"System Events\"
+            set frontmost of (first process whose unix id is $pid) to true
+        end tell
+    " 2>/dev/null || true
+    echo "  Running (PID $pid)"
+}
 
 case "${1:-}" in
-    --stop)
-        ./scripts/services.sh stop
+    --build)
+        echo "Building $APP_NAME (release)..."
+        cd "$APP_DIR"
+        swift build -c release 2>&1 | tail -5
+        echo "Built: $APP_DIR/.build/release/$APP_NAME"
         exit 0
         ;;
-    --build)
-        echo "Building release app..."
-        xcodebuild -project "$PROJECT_DIR/STSTraining.xcodeproj" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -derivedDataPath "$BUILD_DIR" \
-            build 2>&1 | tail -5
-        APP_PATH="$BUILD_DIR/Build/Products/Release/STSTraining.app"
-        echo ""
-        echo "Built: $APP_PATH"
-        echo "Run:   open \"$APP_PATH\""
+    --stop)
+        stop_app
         exit 0
         ;;
     --status)
-        ./scripts/services.sh status
+        if is_running; then
+            echo "$APP_NAME: running (PID $(cat "$PID_FILE"))"
+        else
+            echo "$APP_NAME: not running"
+            rm -f "$PID_FILE"
+        fi
         exit 0
         ;;
 esac
 
-# Clean shutdown on exit
-trap './scripts/services.sh stop 2>/dev/null' EXIT INT TERM
+# Default: stop -> clean build -> launch
+stop_app
 
-echo "Launching STS Training Dashboard..."
-echo ""
+echo "Building $APP_NAME..."
+cd "$APP_DIR"
+# Touch a source file to force recompile (SPM caching workaround)
+touch SpireMonitor/App/SpireMonitorApp.swift
+swift build 2>&1 | tail -3
+cd ../..
 
-# Start WS server + Vite dev server
-./scripts/services.sh start
-
-# Wait for Vite to be ready
-echo "Waiting for Vite dev server..."
-for i in $(seq 1 30); do
-    if curl -s -o /dev/null http://localhost:5174 2>/dev/null; then
-        echo "Vite ready."
-        break
-    fi
-    sleep 0.5
-done
-
-# Build and run debug app
-echo "Building native app..."
-xcodebuild -project "$PROJECT_DIR/STSTraining.xcodeproj" \
-    -scheme "$SCHEME" \
-    -configuration Debug \
-    -derivedDataPath "$BUILD_DIR" \
-    build 2>&1 | tail -3
-
-APP_PATH="$BUILD_DIR/Build/Products/Debug/STSTraining.app"
-echo "Opening $APP_PATH"
-open "$APP_PATH"
-
-# Keep script alive so trap fires on Ctrl-C
-echo ""
-echo "Press Ctrl-C to stop services and quit."
-wait 2>/dev/null || cat
+launch_app

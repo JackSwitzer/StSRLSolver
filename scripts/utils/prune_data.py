@@ -5,7 +5,7 @@ Usage:
     uv run python scripts/prune_data.py --dry-run      # Preview only
     uv run python scripts/prune_data.py --keep 20000   # Keep last 20K episodes
     uv run python scripts/prune_data.py --top 1000     # Keep top 1000 by floor
-    uv run python scripts/prune_data.py --run-dir logs/weekend-run  # Explicit dir
+    uv run python scripts/prune_data.py --run-dir logs/active  # Explicit dir
 
 Safety:
     - Reads episodes.jsonl with append-only semantics (snapshot line count, read that many)
@@ -27,8 +27,8 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_RUN_DIR = PROJECT_ROOT / "logs" / "weekend-run"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DEFAULT_RUN_DIR = PROJECT_ROOT / "logs" / "active"
 ARCHIVE_DIR = PROJECT_ROOT / "logs" / "archive"
 
 

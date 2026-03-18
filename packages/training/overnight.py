@@ -69,7 +69,7 @@ class OvernightRunner:
         self.headless_after_min = config.get("headless_after_min", 30)
         self.visual_at = config.get("visual_at", "07:30")
         self.sweep_configs = config.get("sweep_configs", DEFAULT_SWEEP_CONFIGS)
-        self.run_dir = Path(config.get("run_dir", "logs/overnight"))
+        self.run_dir = Path(config.get("run_dir", "logs/active"))
         self.max_games = config.get("max_games", 50000)
         self.games_per_batch = config.get("games_per_batch", 16)
         self.workers = config.get("workers", 8)
@@ -99,6 +99,7 @@ class OvernightRunner:
         self.total_wins = 0
         self.recent_floors: Deque[int] = deque(maxlen=100)
         self.recent_wins: Deque[bool] = deque(maxlen=100)
+        self.peak_floor = 0
         self.sweep_results: List[Dict[str, Any]] = []
         self._episode_counter = 0  # Unique ID per game for GAE episode separation
 
@@ -106,6 +107,7 @@ class OvernightRunner:
         self._stall_checkpoint_floor = 0.0
         self._stall_checkpoint_games = 0
         self._construction_failures = 0
+        self._gpu_cache: Tuple[float, Optional[int]] = (0.0, None)
 
         # Current sweep config (set by _run_config for epsilon forwarding)
         self._current_sweep_config: Dict[str, Any] = {}
@@ -152,10 +154,36 @@ class OvernightRunner:
         self._current_sweep_idx += 1
         return self._current_sweep_idx < len(self.sweep_configs)
 
+    @staticmethod
+    def _read_gpu_percent() -> Optional[int]:
+        """Read GPU utilization from ioreg (Apple Silicon)."""
+        import subprocess
+        import re
+        out = subprocess.check_output(
+            ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
+            text=True, timeout=2,
+        )
+        for line in out.splitlines():
+            if "Device Utilization" in line:
+                m = re.search(r'"Device Utilization %".*?=\s*(\d+)', line)
+                if m:
+                    return int(m.group(1))
+        return None
+
     def write_status(self, stats: Dict[str, Any]) -> None:
         """Write status.json for monitoring."""
         elapsed = time.monotonic() - self._start_time
         games_per_min = self.total_games / max(elapsed / 60.0, 0.01)
+
+        # Read GPU utilization (cached, refresh every 10s)
+        now = time.monotonic()
+        if now - self._gpu_cache[0] > 10.0:
+            try:
+                self._gpu_cache = (now, self._read_gpu_percent())
+            except Exception:
+                self._gpu_cache = (now, None)
+        gpu_pct = self._gpu_cache[1]
+
         status = {
             "timestamp": datetime.now().isoformat(),
             "elapsed_hours": round(elapsed / 3600, 2),
@@ -164,10 +192,12 @@ class OvernightRunner:
             "win_rate_100": round(sum(self.recent_wins) / max(len(self.recent_wins), 1) * 100, 1),
             "avg_floor_100": round(sum(self.recent_floors) / max(len(self.recent_floors), 1), 1),
             "games_per_min": round(games_per_min, 1),
+            "peak_floor": self.peak_floor,
             "current_sweep": self._current_sweep_idx,
             "total_sweeps": len(self.sweep_configs),
             "headless": self.should_be_headless(),
             "construction_failures": self._construction_failures,
+            "gpu_percent": gpu_pct,
             **stats,
         }
         status_path = self.run_dir / "status.json"
@@ -180,6 +210,7 @@ class OvernightRunner:
             self.total_wins += 1
         self.recent_floors.append(result["floor"])
         self.recent_wins.append(result["won"])
+        self.peak_floor = max(self.peak_floor, result["floor"])
         if result.get("construction_failure"):
             self._construction_failures += 1
 
@@ -209,6 +240,12 @@ class OvernightRunner:
             try:
                 ep_path = self.run_dir / "recent_episodes.json"
                 ep_path.write_text(json.dumps(list(self._recent_episodes), default=str))
+            except Exception:
+                pass
+            # Auto-write floor_curve.json for dashboard
+            try:
+                curve_path = self.run_dir / "floor_curve.json"
+                curve_path.write_text(json.dumps(list(self.recent_floors)))
             except Exception:
                 pass
 
@@ -1181,7 +1218,7 @@ def main():
     parser.add_argument("--batch", type=int, default=16, help="Games per batch")
     parser.add_argument("--batch-size", type=int, default=256, help="PPO mini-batch size")
     parser.add_argument("--ascension", type=int, default=0, help="Ascension level")
-    parser.add_argument("--run-dir", type=str, default="logs/overnight", help="Output directory")
+    parser.add_argument("--run-dir", type=str, default="logs/active", help="Output directory")
     parser.add_argument("--headless-after", type=int, default=30, help="Go headless after N minutes")
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")

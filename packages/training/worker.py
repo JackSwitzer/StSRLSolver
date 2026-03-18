@@ -40,9 +40,8 @@ _worker_name = "Unknown"
 
 # Worker names — mapped by slot_id for dashboard display
 _WORKER_NAMES = [
-    "Watcher", "Divinity", "Mantra", "Calm",
-    "Wrath", "Vigilance", "Eruption", "Rushdown",
-    "Tantrum", "Miracle", "Scry", "Flurry",
+    "Vengeance", "Fury", "Zen", "Vigilante", "Serenity", "Tempest",
+    "Oracle", "Ascendant", "Sentinel", "Harmony", "Specter", "Eclipse",
 ]
 
 
@@ -150,7 +149,7 @@ def _play_one_game(
     import os
     _worker_id = os.getpid()
     _wname = globals().get("_worker_name", f"W{_worker_id}")
-    _status_dir = Path("logs/weekend-run/workers")
+    _status_dir = Path("logs/active/workers")
     _status_dir.mkdir(parents=True, exist_ok=True)
     _status_file = _status_dir / f"{_wname}.json"
     _last_status_floor = -1
@@ -232,11 +231,14 @@ def _play_one_game(
                 _enc_name = ", ".join(_enemy_ids)
             except Exception:
                 pass
+        # Use runner.run_state directly (not captured `rs` which may be stale).
+        # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
+        _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
         combats.append({
             "floor": current_floor,
             "room_type": combat_room_type,
             "encounter_name": _enc_name,
-            "hp_lost": max(0, combat_start_hp - getattr(rs, "current_hp", 0)),
+            "hp_lost": max(0, combat_start_hp - _post_hp),
             "cards_played": combat_cards_played,
             "turns": combat_turns,
             "potions_used": combat_potions_used,
@@ -311,7 +313,7 @@ def _play_one_game(
                     turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
                 elif atype == "end_turn":
                     combat_turns += 1
-                    # Log hand state + energy at turn end for diagnostics
+                    # Log hand state, energy, player/enemy state at turn end
                     _combat_ref = getattr(runner, "current_combat", None)
                     _turn_info = {"turn": combat_turns, "cards": turn_cards[:]}
                     if _combat_ref:
@@ -319,6 +321,18 @@ def _play_one_game(
                         _hand_ids = list(_st.hand) if hasattr(_st, "hand") else []
                         _turn_info["hand_at_end"] = _hand_ids[:10]
                         _turn_info["energy_left"] = getattr(_st, "energy", 0)
+                        # Player state for replay
+                        _turn_info["player_hp"] = getattr(_st, "hp", 0)
+                        _turn_info["player_block"] = getattr(_st, "block", 0)
+                        _turn_info["stance"] = getattr(_st, "stance", "Neutral")
+                        # Enemy state for replay
+                        _enemies = getattr(_st, "enemies", [])
+                        _turn_info["enemies"] = [
+                            {"name": getattr(e, "name", "?"), "hp": getattr(e, "hp", 0),
+                             "max_hp": getattr(e, "max_hp", 0), "block": getattr(e, "block", 0),
+                             "intent": getattr(e, "intent", {}).get("type", "?") if isinstance(getattr(e, "intent", None), dict) else str(getattr(e, "intent", "?"))}
+                            for e in _enemies if getattr(e, "hp", 0) > 0
+                        ]
                         # Count playable cards (cost <= energy)
                         _costs = getattr(_st, "card_costs", {})
                         _energy = getattr(_st, "energy", 0)

@@ -2991,6 +2991,8 @@ class GameRunner:
                 self.run_state.current_hp = self.current_combat.state.player.hp
                 self._end_combat(victory=True, combat_result=combat_result)
             else:
+                # Sync player HP from combat on defeat (player is dead)
+                self.run_state.current_hp = self.current_combat.state.player.hp
                 self._end_combat(victory=False)
             return True, result
 
