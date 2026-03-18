@@ -9,7 +9,7 @@ DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
     # Pure on-policy: model makes decisions, log_prob from unscaled policy.
     {"name": "focused_b1024",
      "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
-     "batch_size": 512, "entropy_coeff": 0.05, "temperature": 0.9,
+     "batch_size": 512, "entropy_coeff": 0.02, "temperature": 0.9,
      "turn_solver_ms": 30.0},
 ]
 

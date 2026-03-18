@@ -188,6 +188,10 @@ _BOSS_ID_MAP = {
     "Corrupt Heart": 9,                                        # Act 4
 }
 
+# Room type map for path action encoding
+_PATH_RT_MAP = {"monster": 4, "elite": 5, "rest": 6,
+                "shop": 7, "event": 8, "treasure": 9, "boss": 10}
+
 # Phase type mapping for the 6-dim one-hot
 PHASE_TYPE_MAP = {
     "path": 0,
@@ -214,7 +218,11 @@ class RunStateEncoder:
 
     _BASE_DIM = 6 + 3 + 16 + _N_RELICS + (_MAX_POTION_SLOTS * _POTION_FUNC_DIM) + (_MAP_ROWS * _MAP_COLS) + 4 + 3
     # = 6 + 3 + 16 + 181 + 20 + 21 + 4 + 3 = 254
-    RUN_DIM = _BASE_DIM + _PHASE_DIM  # 254 + 6 = 260
+    _STATE_DIM = _BASE_DIM + _PHASE_DIM  # 254 + 6 = 260
+    _ACTION_SLOTS = 10  # Max actions to encode
+    _ACTION_FEAT_DIM = 22  # Features per action slot
+    _ACTION_DIM = _ACTION_SLOTS * _ACTION_FEAT_DIM  # 10 * 22 = 220
+    RUN_DIM = _STATE_DIM + _ACTION_DIM  # 260 + 220 = 480
 
     def __init__(self):
         self._relic_catalog = _get_relic_catalog()
@@ -226,6 +234,8 @@ class RunStateEncoder:
         phase_type: str = "other",
         boss_name: str = "",
         room_type: str = "",
+        actions=None,
+        runner=None,
     ) -> np.ndarray:
         """Encode run state into a fixed-size float32 vector.
 
@@ -383,7 +393,107 @@ class RunStateEncoder:
         features[off + phase_idx] = 1.0
         off += _PHASE_DIM
 
+        # --- Action encoding (10 slots x 22 dims = 220 dims) ---
+        if actions and runner:
+            self._encode_actions(features, off, actions, runner, phase_type)
+        off += self._ACTION_DIM
+
         return features
+
+    def _encode_actions(
+        self,
+        features: np.ndarray,
+        off: int,
+        actions: list,
+        runner,
+        phase_type: str,
+    ) -> None:
+        """Encode available actions into the feature vector in-place.
+
+        Each action slot gets 22 dims:
+          [0]     action type one-hot: card_pick
+          [1]     action type one-hot: path
+          [2]     action type one-hot: rest
+          [3]     action type one-hot: shop/event/other
+          [4-21]  18-dim card effect vector (for card picks/shop cards)
+                  OR room type encoding (for paths)
+                  OR option features (for rest/shop/event)
+        """
+        from packages.engine.game import GamePhase
+
+        n = min(len(actions), self._ACTION_SLOTS)
+
+        for i in range(n):
+            base = off + i * self._ACTION_FEAT_DIM
+            action = actions[i]
+            atype = getattr(action, "action_type", "")
+
+            if phase_type == "card_pick":
+                # Card reward: get offered card from runner.current_rewards
+                features[base] = 1.0  # is_card_pick
+                try:
+                    choice_idx = getattr(action, "choice_index", -1)
+                    reward_type = getattr(action, "reward_type", "")
+                    if reward_type == "card" and runner is not None:
+                        cr = getattr(runner, "current_rewards", None)
+                        if cr and hasattr(cr, "card_rewards") and cr.card_rewards:
+                            # choice_index maps directly to card index in first reward
+                            cards = cr.card_rewards[0].cards
+                            if 0 <= choice_idx < len(cards):
+                                card_obj = cards[choice_idx]
+                                card_id = getattr(card_obj, "id", None)
+                                if card_id:
+                                    ev = _get_card_effect(card_id)
+                                    features[base + 4:base + 4 + 18] = ev
+                    elif reward_type == "skip_card":
+                        features[base + 3] = 1.0  # skip marker
+                except Exception:
+                    pass  # Graceful fallback to zeros
+
+            elif phase_type == "path":
+                # Path navigation: encode room type of destination
+                features[base + 1] = 1.0  # is_path
+                node_idx = getattr(action, "node_index", -1)
+                try:
+                    rs = runner.run_state
+                    paths = rs.get_available_paths()
+                    if 0 <= node_idx < len(paths):
+                        node = paths[node_idx]
+                        rt = getattr(node, "room_type", None)
+                        if rt:
+                            rt_name = rt.name if hasattr(rt, "name") else str(rt)
+                            rt_lower = rt_name.lower()
+                            for name, idx in _PATH_RT_MAP.items():
+                                if name in rt_lower:
+                                    features[base + idx] = 1.0
+                                    break
+                except Exception:
+                    pass
+
+            elif phase_type == "rest":
+                # Rest site: encode option type
+                features[base + 2] = 1.0  # is_rest
+                rest_type = getattr(action, "action_type", "")
+                if "rest" in rest_type or "sleep" in rest_type:
+                    features[base + 4] = 1.0  # heal option
+                elif "smith" in rest_type or "upgrade" in rest_type:
+                    features[base + 5] = 1.0  # upgrade option
+                elif "lift" in rest_type:
+                    features[base + 6] = 1.0  # strength option
+                elif "dig" in rest_type:
+                    features[base + 7] = 1.0  # relic option
+                elif "toke" in rest_type or "remove" in rest_type:
+                    features[base + 8] = 1.0  # remove option
+
+            elif phase_type in ("shop", "event", "other"):
+                features[base + 3] = 1.0  # is_other
+                # Encode action index normalized
+                features[base + 4] = (i + 1) / max(n, 1)
+
+            else:
+                # Skip action (always available)
+                if atype == "skip" or "skip" in str(action).lower():
+                    features[base + 3] = 0.5  # skip marker
 
 
 # ---------------------------------------------------------------------------
