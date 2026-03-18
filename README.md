@@ -1,130 +1,71 @@
 # Slay the Spire RL
 
-Reinforcement learning bot for Slay the Spire targeting **Watcher A20 with >96% winrate**.
+Reinforcement learning agent for Slay the Spire — targeting **Watcher Ascension 20 with >96% winrate**.
+
+## Architecture
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| **Engine** | `packages/engine/` | Pure Python game engine, 100% Java parity (RNG, damage, enemies, maps, shops, cards, relics, events) |
+| **Engine (Rust)** | `packages/engine-rs/` | Rust CombatEngine + PyO3 bindings (scaffold, 63 tests) |
+| **Training** | `packages/training/` | PPO + GAE pipeline with action-encoded observations, MLX inference, multi-turn combat solver |
+| **Dashboard** | `packages/viz/` | React 19 + Vite live dashboard with floor curves, episode analysis |
+| **Native App** | `packages/viz/macos/` | Swift/WKWebView macOS wrapper |
+| **Server** | `packages/server/` | WebSocket bridge for dashboard |
+| **Parity** | `packages/parity/` | Seed catalog + parity verification |
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install
 uv sync
 
-# Run parity tests (compare Python predictions vs game)
-uv run pytest tests/test_parity.py
-
-# Run the full test suite
+# Run tests (6100+ tests)
 uv run pytest tests/ -q
+
+# Rust engine tests
+export PATH="$HOME/.cargo/bin:$PATH" PYO3_PYTHON=.venv/bin/python3
+cargo test --lib --manifest-path packages/engine-rs/Cargo.toml
+
+# Start training
+./scripts/training.sh start
+
+# Dashboard (WebSocket + Vite)
+./scripts/services.sh start    # localhost:5174
+
+# Native macOS app
+./scripts/app.sh build && ./scripts/app.sh run
 ```
 
-## Project Structure
+## Engine API
 
-```
-packages/engine/    # Python game engine (source of truth)
-  state/            # RNG system, game state tracking
-  content/          # Cards, relics, potions, enemies, powers, stances
-  generation/       # Map, encounters, shops, treasures, rewards
-  calc/             # Damage/block calculations, CombatSimulator
-  game.py           # GameRunner for full run simulation
+```python
+from packages.engine import GameRunner, GamePhase
 
-packages/parity/    # Seed catalog + parity verification tools
-tests/              # pytest suite (4100+ tests)
-docs/               # Architecture docs + vault mechanics
-scripts/            # Utility scripts
+runner = GameRunner(seed="SEED", ascension=20)
+while not runner.game_over:
+    actions = runner.get_available_action_dicts()
+    runner.take_action_dict(actions[0])
 ```
 
-## Key Features
+## Training
 
-### RNG Parity
-100% parity with Java game for:
-- **Encounters**: All monster spawns across all acts
-- **Bosses**: Boss selection and ordering
-- **Elites**: Elite encounter selection
-- **Map Generation**: Full act map recreation
-- **Shops**: Shop inventory prediction
-- **Card Rewards**: Card pool and selection
-- **Potions**: Drop chance and selection
-- **Relics**: Pool shuffling and tier rolls
-
-### Save File Integration
-- Decrypts and parses STS save files
-- Live monitoring for state changes
-- Supports all character classes
-
-### Predictions
-- Boss relic offerings
-- Upcoming encounters per floor
-- Card reward pools
-- Shop inventory
-- Treasure chest contents
-
-### GameRunner
-Full run simulation supporting:
-- Neow options and rewards
-- Path selection
-- Combat simulation
-- Event resolution
-- Shop interactions
-- Rest site decisions
+- **Model**: StrategicNet (3M params, hidden=768, 4 transformer blocks)
+- **Pipeline**: COLLECT 100 games -> TRAIN PPO epochs -> SYNC -> repeat
+- **Inference**: Centralized MLX batch server (M4 Mac Mini, 10 cores)
+- **Observations**: 260-dim state + 512-dim action encoding (available actions mask)
+- **Combat**: TurnSolver (30ms) with multi-turn lookahead
+- **Rewards**: Floor milestones, combat outcomes, HP preservation, PBRS shaping (hot-reloadable)
 
 ## Status
 
-### Working
-- RNG system (XorShift128, all 13 streams)
-- Map generation (Acts 1-4)
-- Encounter prediction (all acts)
-- Boss/elite selection
-- Shop inventory generation
-- Card reward prediction
-- Potion drop calculation
-- Relic pool management
-- Save file decryption
-- Web dashboard with live updates
-
-### WIP
-- Combat simulator (basic framework done, AI behaviors incomplete)
-- Full enemy AI implementation
-- Event resolution logic
-- RL training pipeline
-- Card effect implementation
-
-### Documentation
-- [Implementation Spec](docs/IMPLEMENTATION_SPEC.md) - What is implemented vs missing for a full Python clone
-
-## Architecture Notes
-
-### RNG Streams (13 total)
-**Persistent** (survive entire run):
-- cardRng, monsterRng, eventRng, relicRng, treasureRng, potionRng, merchantRng
-
-**Per-Floor** (reset with seed+floorNum):
-- monsterHpRng, aiRng, shuffleRng, cardRandomRng, miscRng
-
-**Special**:
-- mapRng (reseeded per act)
-
-### Key Discovery: Act Transition Snapping
-cardRng counter snaps at act transitions:
-- 1-249 -> 250
-- 251-499 -> 500
-- 501-749 -> 750
-
-## Development
-
-```bash
-# Run tests
-uv run pytest tests/
-
-# Watch game state changes
-./scripts/dev/watch.sh
-
-# Read current save
-./scripts/dev/save.sh
-
-# Launch game with mods
-./scripts/dev/launch_sts.sh
-```
+- **Engine parity**: 100% across all core mechanics (13 RNG streams, 66 enemies, 51 events, 168 powers, 172 relics)
+- **Tests**: 6100+ passing (pytest) + 63 Rust
+- **Training**: Active — PPO with action encoding, mixed exploit/explore temperature
+- **Best trajectories**: Floor 16 (200 saved), iterating toward Act 2+
 
 ## References
 
-- [StSRLSolver](https://github.com/JackSwitzer/StSRLSolver) - Existing RL solver
-- [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod) - Bot communication protocol
-- [bottled_ai](https://github.com/xaved88/bottled_ai) - 52% Watcher A0 baseline
+- [bottled_ai](https://github.com/xaved88/bottled_ai) — 52% Watcher A0 baseline
+- [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod) — Bot communication protocol
+- [StSRLSolver](https://github.com/JackSwitzer/StSRLSolver) — Prior RL solver attempt
