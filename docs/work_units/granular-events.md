@@ -10,7 +10,7 @@
 
 ## Notes
 - This file contains legacy checklist items from earlier audits.
-- For active priority and completion state, use `docs/archive/audits-2026-02-22-full-game-parity/domains/events.md` and `TODO.md`.
+- For active priority and completion state, use `TODO.md`. Archived audit docs on `archive/pre-cleanup-2026-03` branch.
 
 ## Model-facing actions (no UI)
 - [ ] Expose event choices as explicit `event_choice` actions with required params. (action: event_choice{choice_index})

@@ -1,7 +1,7 @@
 # Ultra-Granular Work Units: Cards (Silent)
 
 ## Current parity source
-- Non-Defect manifest row source: `docs/archive/audits-2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md` (`green` section)
+- Non-Defect manifest row source: see `archive/pre-cleanup-2026-03` branch
 - Phase target: close Silent rows from `approximate` to Java-audited `exact`
 
 ## Model-facing actions (no UI)

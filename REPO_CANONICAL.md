@@ -12,8 +12,7 @@ This repository is the canonical implementation base for Slay the Spire parity a
    - `packages/engine/`
 3. Canonical parity tracker/docs:
    - `TODO.md`
-   - `docs/archive/audits-2026-02-22-full-game-parity/CORE_TODO.md`
-   - `docs/archive/audits-2026-02-22-full-game-parity/traceability/`
+   - Archived audit docs: see `archive/pre-cleanup-2026-03` branch
 
 ## Branch and merge policy
 - `main` remains the only protected integration branch.

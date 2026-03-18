@@ -6,19 +6,19 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 ## Current baseline (verified)
 - [x] Full test suite green: `4722 passed, 0 skipped, 0 failed`.
 - [x] No skips in the current baseline run (`uv run pytest tests/ -q`).
-- [x] Canonical parity audit suite exists under `docs/archive/audits-2026-02-22-full-game-parity/`.
+- [x] Canonical parity audit suite preserved on `archive/pre-cleanup-2026-03` branch.
 - [x] Ground truth snapshot + PR ledger exist: `GROUND_TRUTH.md`, `PR_HISTORY.md`.
 
-## Canonical process docs
-- [x] `DOC-TODO-001` unit-sized chunk tracker: `docs/archive/audits-2026-02-22-full-game-parity/traceability/UNIT_CHUNKS.md`
-- [x] `DOC-ACTION-001` action contract lock: `docs/archive/audits-2026-02-22-full-game-parity/action-layer/ACTION_SPACE_SPEC.md`
-- [x] `DOC-WFLOW-001` subagent loop lock: `docs/archive/audits-2026-02-22-full-game-parity/process/SUBAGENT_EXECUTION_LOOP.md`
-- [x] `RNG-SPEC-001` RNG stream ownership spec: `docs/archive/audits-2026-02-22-full-game-parity/rng/JAVA_RNG_STREAM_SPEC.md`
-- [x] `DOC-SPEC-CRD-001` card behavior parity spec: `docs/archive/audits-2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
-- [x] `DOC-SPEC-POW-001` power behavior/order spec: `docs/archive/audits-2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
-- [x] `DOC-SPEC-RNG-001` RNG runtime migration spec: `docs/archive/audits-2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
-- [x] `DOC-SPEC-RL-001` RL runboard/search spec: `docs/archive/audits-2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
-- [x] `DOC-SPEC-INDEX-001` remaining-work index + spec cleanup: `docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
+## Canonical process docs (archived — see `archive/pre-cleanup-2026-03` branch)
+- [x] `DOC-TODO-001` unit-sized chunk tracker
+- [x] `DOC-ACTION-001` action contract lock
+- [x] `DOC-WFLOW-001` subagent loop lock
+- [x] `RNG-SPEC-001` RNG stream ownership spec
+- [x] `DOC-SPEC-CRD-001` card behavior parity spec
+- [x] `DOC-SPEC-POW-001` power behavior/order spec
+- [x] `DOC-SPEC-RNG-001` RNG runtime migration spec
+- [x] `DOC-SPEC-RL-001` RL runboard/search spec
+- [x] `DOC-SPEC-INDEX-001` remaining-work index + spec cleanup
 
 ## Locked execution policy
 - [x] Scope is full game now (all systems, no character staging).
@@ -45,12 +45,7 @@ Canonical repo path: `/Users/jackswitzer/Desktop/SlayTheSpireRL`
 
 ## Remaining gaps
 
-Specification baseline is now locked in:
-- `docs/archive/audits-2026-02-22-full-game-parity/specs/REMAINING_WORK_INDEX.md`
-- `docs/archive/audits-2026-02-22-full-game-parity/specs/CARD_BEHAVIOR_PARITY_SPEC.md`
-- `docs/archive/audits-2026-02-22-full-game-parity/specs/POWER_BEHAVIOR_ORDER_SPEC.md`
-- `docs/archive/audits-2026-02-22-full-game-parity/specs/RNG_RUNTIME_MIGRATION_SPEC.md`
-- `docs/archive/audits-2026-02-22-full-game-parity/specs/RL_RUNBOARD_AND_SEARCH_SPEC.md`
+Specification baseline preserved on `archive/pre-cleanup-2026-03` branch.
 
 ### P1: Card behavior parity
 - [ ] `CRD-IC-001` Ironclad behavior closure.

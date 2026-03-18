@@ -7,7 +7,7 @@
 Use explicit signatures on each item (see `granular-actions.md`).
 
 ## 2026-02-23 POW closure status
-- [x] `POW-001` deterministic Java-vs-Python per-class manifest generated (`docs/archive/audits-2026-02-22-full-game-parity/traceability/power-manifest.json`).
+- [x] `POW-001` deterministic Java-vs-Python per-class manifest generated (see `archive/pre-cleanup-2026-03` branch).
 - [x] `POW-001` inventory mapping closed: 149 Java classes map to Python (`exact=134`, `alias=15`, `missing=0`).
 - [x] Canonicalization layer added (`normalize_power_id`, expanded alias map, inventory auto-merge from `power_inventory_autogen.py`).
 - [x] Runtime dispatch coverage added for high-priority gaps: `atStartOfTurnPostDraw`, `onCardDraw`, `onApplyPower`, `onScry`, `onAttackedToChangeDamage`.
