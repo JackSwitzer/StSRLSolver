@@ -1,0 +1,5 @@
+{
+  "project_root": ".",
+  "logs_path": "logs/weekend-run",
+  "archived_runs_path": "logs/runs"
+}
