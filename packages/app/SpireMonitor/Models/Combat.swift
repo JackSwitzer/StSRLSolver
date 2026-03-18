@@ -35,14 +35,22 @@ struct Combat: Codable {
 }
 
 struct TurnDetail: Codable {
-    let cardsPlayed: [String]?
-    let damage: Int?
-    let block: Int?
+    let cards: [String]?
+    let turn: Int?
+    let handAtEnd: [String]?
+    let energyLeft: Int?
+    let playerHp: Int?
+    let playerBlock: Int?
     let stance: String?
+    let playableUnplayed: Int?
 
     enum CodingKeys: String, CodingKey {
-        case cardsPlayed = "cards_played"
-        case damage, block, stance
+        case cards, turn, stance
+        case handAtEnd = "hand_at_end"
+        case energyLeft = "energy_left"
+        case playerHp = "player_hp"
+        case playerBlock = "player_block"
+        case playableUnplayed = "playable_unplayed"
     }
 }
 

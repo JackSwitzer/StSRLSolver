@@ -254,6 +254,13 @@ cmd_weekend() {
         esac
     done
 
+    # Check for checkpoint BEFORE creating new run dir (symlink moves)
+    local resume_flag=""
+    if [ -L "$ACTIVE_LINK" ] && [ -f "$ACTIVE_LINK/shutdown_checkpoint.pt" ]; then
+        resume_flag="--resume $(cd "$ACTIVE_LINK" && pwd)/shutdown_checkpoint.pt"
+        echo "  Will resume from shutdown checkpoint"
+    fi
+
     local run_dir
     run_dir=$(create_run_dir "weekend")
     local run_log="$run_dir/nohup.log"
@@ -267,15 +274,6 @@ cmd_weekend() {
     caffeinate -dims &
     echo $! > "$PID_DIR/caffeinate.pid"
     echo "  caffeinate: PID $!"
-
-    # Launch training headless with dedicated run-dir
-    # Uses larger model (7M params) and bigger inference batches
-    # Check for shutdown checkpoint to auto-resume
-    local resume_flag=""
-    if [ -f "$ACTIVE_LINK/shutdown_checkpoint.pt" ]; then
-        resume_flag="--resume $ACTIVE_LINK/shutdown_checkpoint.pt"
-        echo "  Resuming from shutdown checkpoint"
-    fi
 
     nohup uv run python -m packages.training.overnight \
         --games "$games" \
@@ -426,7 +424,7 @@ case "${1:-status}" in
         echo ""
         echo "Options for start/weekend:"
         echo "  --games N      Total games to play"
-        echo "  --workers N    Parallel workers (default: 24)"
+        echo "  --workers N    Parallel workers (default: 8, weekend: 12)"
         echo "  --batch N      Batch size for PPO (default: 256)"
         echo "  --asc N        Ascension level (default: 0)"
         echo "  --headless     No dashboard output (start only)"

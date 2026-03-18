@@ -50,10 +50,8 @@ final class AppState {
     func loadEpisodes() async {
         let recent = await EpisodeLoader.loadRecent(from: config.logsPath)
         let top = await EpisodeLoader.loadTop(from: config.logsPath)
-        await MainActor.run {
-            store.recentEpisodes = recent
-            store.topEpisodes = top
-        }
+        store.recentEpisodes = recent
+        store.topEpisodes = top
     }
 
     func refresh() {

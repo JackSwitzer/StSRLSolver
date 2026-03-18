@@ -19,6 +19,7 @@ struct SystemStatsBar: View {
             miniGauge("RAM", value: current?.memoryUsedGB ?? 0,
                        unit: String(format: "/%.0fGB", current?.memoryTotalGB ?? 24),
                        data: history.map(\.memoryUsedGB), color: .stsGreen,
+                       maxValue: current?.memoryTotalGB ?? 24,
                        formatter: { String(format: "%.1f", $0) })
         }
         .padding(.horizontal, 14)
@@ -28,6 +29,7 @@ struct SystemStatsBar: View {
 
     private func miniGauge(_ label: String, value: Double, unit: String,
                            data: [Double], color: Color,
+                           maxValue: Double = 100,
                            formatter: ((Double) -> String)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -62,7 +64,7 @@ struct SystemStatsBar: View {
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2).fill(Color.stsBorderDim)
                         RoundedRectangle(cornerRadius: 2).fill(color)
-                            .frame(width: geo.size.width * min(value / 100, 1.0))
+                            .frame(width: geo.size.width * min(value / maxValue, 1.0))
                     }
                 }
                 .frame(height: 4)

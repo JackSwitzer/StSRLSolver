@@ -232,7 +232,7 @@ def _play_one_game(
             except Exception:
                 pass
         # Use runner.run_state directly (not captured `rs` which may be stale).
-        # On death the engine now syncs HP to 0, but guard with min(_, 0) anyway.
+        # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
         _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
         combats.append({
             "floor": current_floor,

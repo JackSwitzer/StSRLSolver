@@ -65,9 +65,3 @@ struct RoomPerformance {
     let avgHpLost: Double
     let potionRate: Double
 }
-
-private extension Array where Element == Int {
-    var average: Double {
-        isEmpty ? 0 : Double(reduce(0, +)) / Double(count)
-    }
-}

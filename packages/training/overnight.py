@@ -153,27 +153,38 @@ class OvernightRunner:
         self._current_sweep_idx += 1
         return self._current_sweep_idx < len(self.sweep_configs)
 
+    # GPU utilization cache (ioreg is expensive, refresh every 10s)
+    _gpu_cache: Tuple[float, Optional[int]] = (0.0, None)
+
+    @staticmethod
+    def _read_gpu_percent() -> Optional[int]:
+        """Read GPU utilization from ioreg (Apple Silicon)."""
+        import subprocess
+        import re
+        out = subprocess.check_output(
+            ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
+            text=True, timeout=2,
+        )
+        for line in out.splitlines():
+            if "Device Utilization" in line:
+                m = re.search(r'"Device Utilization %".*?=\s*(\d+)', line)
+                if m:
+                    return int(m.group(1))
+        return None
+
     def write_status(self, stats: Dict[str, Any]) -> None:
         """Write status.json for monitoring."""
         elapsed = time.monotonic() - self._start_time
         games_per_min = self.total_games / max(elapsed / 60.0, 0.01)
 
-        # Read GPU utilization for dashboard
-        gpu_pct = None
-        try:
-            import subprocess, re
-            out = subprocess.check_output(
-                ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
-                text=True, timeout=2,
-            )
-            for line in out.splitlines():
-                if "PerformanceStatistics" in line or "Device Utilization" in line:
-                    m = re.search(r'"Device Utilization %".*?=\s*(\d+)', line)
-                    if m:
-                        gpu_pct = int(m.group(1))
-                        break
-        except Exception:
-            pass
+        # Read GPU utilization (cached, refresh every 10s)
+        now = time.monotonic()
+        if now - self._gpu_cache[0] > 10.0:
+            try:
+                self._gpu_cache = (now, self._read_gpu_percent())
+            except Exception:
+                self._gpu_cache = (now, None)
+        gpu_pct = self._gpu_cache[1]
 
         status = {
             "timestamp": datetime.now().isoformat(),

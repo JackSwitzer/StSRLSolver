@@ -25,7 +25,7 @@ actor StatusPoller {
     }
 
     private func pollLoop() async {
-        while isRunning {
+        while isRunning && !Task.isCancelled {
             await poll()
             try? await Task.sleep(for: .seconds(2.5))
         }
