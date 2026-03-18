@@ -16,6 +16,10 @@ struct TrainingStatus: Codable {
     let sweepPhase: String?
     let configName: String?
     let bufferSize: Int?
+    let peakFloor: Int?
+    let replayBestFloor: Int?
+    let entropyCoeff: Double?
+    let clipFraction: Double?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -33,5 +37,9 @@ struct TrainingStatus: Codable {
         case sweepPhase = "sweep_phase"
         case configName = "config_name"
         case bufferSize = "buffer_size"
+        case peakFloor = "peak_floor"
+        case replayBestFloor = "replay_best_floor"
+        case entropyCoeff = "entropy_coeff"
+        case clipFraction = "clip_fraction"
     }
 }

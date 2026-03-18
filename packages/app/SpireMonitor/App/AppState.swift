@@ -26,17 +26,24 @@ final class AppState {
     let config = AppConfig()
     let store = DataStore()
     var poller: StatusPoller?
+    var sysMonitor: SystemMonitor?
 
     func startPolling() {
         let p = StatusPoller(config: config, store: store)
         poller = p
         Task { await p.start() }
+
+        let m = SystemMonitor(store: store)
+        sysMonitor = m
+        Task { await m.start() }
+
         Task { await loadEpisodes() }
     }
 
     func stopPolling() {
         Task {
             await poller?.stop()
+            await sysMonitor?.stop()
         }
     }
 

@@ -39,6 +39,7 @@ actor StatusPoller {
             await MainActor.run {
                 store.status = status
                 store.lastStatusUpdate = Date()
+                store.appendLoss(from: status)
             }
         }
 
