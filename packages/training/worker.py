@@ -70,9 +70,10 @@ def _worker_init(request_q, response_qs, slot_q):
 # ---------------------------------------------------------------------------
 
 def _pick_combat_action(actions, runner, turn_solver_adapter=None):
-    """Pick a combat action. TurnSolver first, then first legal action.
+    """Pick a combat action. TurnSolver first, then prefer card plays over EndTurn.
 
-    No heuristic scoring, no CombatPlanner fallback.
+    Safety net: if solver returns EndTurn but playable cards exist, prefer a card.
+    This prevents the 5.9% zero-card-played bug where the solver ends turn immediately.
     """
     if len(actions) <= 1:
         return actions[0]
@@ -88,11 +89,24 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
         try:
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
+                # Safety: if solver says EndTurn but cards are playable, prefer a card
+                if (hasattr(result, 'action_type') and
+                    getattr(result, 'action_type', '') == 'end_turn'):
+                    card_actions = [a for a in actions
+                                   if hasattr(a, 'action_type') and
+                                   getattr(a, 'action_type', '') == 'play_card']
+                    if card_actions:
+                        logger.debug("Solver chose EndTurn with %d playable cards — overriding",
+                                     len(card_actions))
+                        return card_actions[0]
                 return result
         except Exception:
             pass  # Fall through to default
 
-    # Default: first legal action
+    # Fallback: prefer playing a card over ending turn
+    for a in actions:
+        if hasattr(a, 'action_type') and getattr(a, 'action_type', '') == 'play_card':
+            return a
     return actions[0]
 
 
@@ -307,7 +321,20 @@ def _play_one_game(
                     turn_cards.append(f"potion:{getattr(action, 'potion_idx', '?')}")
                 elif atype == "end_turn":
                     combat_turns += 1
-                    turns_log.append({"turn": combat_turns, "cards": turn_cards[:]})
+                    # Log hand state + energy at turn end for diagnostics
+                    _combat_ref = getattr(runner, "current_combat", None)
+                    _turn_info = {"turn": combat_turns, "cards": turn_cards[:]}
+                    if _combat_ref:
+                        _st = _combat_ref.state
+                        _hand_ids = list(_st.hand) if hasattr(_st, "hand") else []
+                        _turn_info["hand_at_end"] = _hand_ids[:10]
+                        _turn_info["energy_left"] = getattr(_st, "energy", 0)
+                        # Count playable cards (cost <= energy)
+                        _costs = getattr(_st, "card_costs", {})
+                        _energy = getattr(_st, "energy", 0)
+                        _playable = sum(1 for c in _hand_ids if _costs.get(c, 1) <= _energy)
+                        _turn_info["playable_unplayed"] = _playable
+                    turns_log.append(_turn_info)
                     turn_cards.clear()
             runner.take_action(action)
             # Detect stance changes after action
@@ -375,10 +402,13 @@ def _play_one_game(
             }
             phase_type = _PHASE_MAP.get(phase, "other")
 
-            # Encode state with phase context + boss/room info
+            # Encode state with phase context + boss/room info + available actions
             _boss = getattr(runner, "_boss_name", "")
             _room = getattr(runner, "current_room_type", "")
-            run_obs = encoder.encode(rs, phase_type=phase_type, boss_name=_boss, room_type=_room)
+            run_obs = encoder.encode(
+                rs, phase_type=phase_type, boss_name=_boss, room_type=_room,
+                actions=actions, runner=runner,
+            )
 
             mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
             mask[:n_actions] = True

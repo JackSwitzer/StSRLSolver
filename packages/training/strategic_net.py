@@ -63,7 +63,7 @@ class StrategicNet(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 260,
+        input_dim: int = 480,
         hidden_dim: int = 768,
         action_dim: int = 512,
         num_blocks: int = 4,

@@ -17,27 +17,28 @@ from typing import Any, Dict
 # ---------------------------------------------------------------------------
 
 REWARD_WEIGHTS: Dict[str, Any] = {
-    # Per-HP damage penalty (was -0.03, reduced 6x — was 30x stronger than boss win)
-    "damage_per_hp": -0.005,
+    # HP damage penalty REMOVED — was actively punishing survival
+    # (F16 runs had WORSE reward than F6 runs due to accumulated damage)
+    "damage_per_hp": 0.0,
 
-    # Combat win rewards
-    "combat_win": 0.05,
-    "elite_win": 0.30,
-    "boss_win": 0.80,
+    # Combat win rewards (boosted — these are the primary progress signal)
+    "combat_win": 0.10,
+    "elite_win": 0.50,
+    "boss_win": 2.00,
 
-    # Floor milestones (one-time per game)
+    # Floor milestones — 5-10x boost to create strong gradient toward deeper runs
     "floor_milestones": {
-        6: 0.10,     # First elite territory
-        10: 0.15,    # Mid-act 1
-        15: 0.20,    # Final campfire before Act 1 boss
-        16: 0.25,    # Reached Act 1 boss
-        17: 1.00,    # Beat Act 1 boss
-        25: 0.50,    # Mid-act 2
-        33: 1.00,    # Reached Act 2 boss
-        34: 2.00,    # Beat Act 2 boss
-        50: 2.00,    # Reached Act 3 boss
-        51: 3.00,    # Beat Act 3 boss
-        55: 5.00,    # Beat the Heart (win)
+        6: 0.50,     # First elite territory (was 0.10)
+        10: 1.00,    # Mid-act 1 (was 0.15)
+        15: 2.00,    # Final campfire (was 0.20)
+        16: 3.00,    # Reached Act 1 boss (was 0.25)
+        17: 5.00,    # Beat Act 1 boss (was 1.00)
+        25: 3.00,    # Mid-act 2 (was 0.50)
+        33: 5.00,    # Reached Act 2 boss (was 1.00)
+        34: 8.00,    # Beat Act 2 boss (was 2.00)
+        50: 8.00,    # Reached Act 3 boss (was 2.00)
+        51: 12.00,   # Beat Act 3 boss (was 3.00)
+        55: 15.00,   # Beat the Heart (was 5.00)
     },
 
     # F16 HP bonus: reward arriving at boss floor healthy
@@ -83,9 +84,9 @@ EVENT_REWARDS = {
 }
 FLOOR_MILESTONES = dict(REWARD_WEIGHTS["floor_milestones"])
 
-# Stall detection: if avg floor doesn't improve over this many games, reset entropy
-STALL_DETECTION_WINDOW = 2000
-STALL_IMPROVEMENT_THRESHOLD = 0.5
+# Stall detection: effectively disabled (was firing on noise, pushing entropy to cap)
+STALL_DETECTION_WINDOW = 50000
+STALL_IMPROVEMENT_THRESHOLD = 0.0
 
 # REMOVED: Stance rewards were dominating all other signals (Wrath 1.50 was
 # the single strongest reward in the system). Model should learn when stances
