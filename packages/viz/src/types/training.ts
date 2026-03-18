@@ -72,11 +72,13 @@ export interface CombatSummary {
   floor: number;
   enemy: string;
   encounter_name?: string;
+  room_type?: string;
   turns: number;
   hp_lost: number;
   damage_dealt: number;
   used_potion: boolean;
   stances?: Record<string, number>;
+  turns_detail?: Array<{ turn: number; cards: string[] }>;
 }
 
 export interface DecisionSummary {
@@ -114,6 +116,8 @@ export interface AgentEpisodeMsg {
   relics_final?: string[];
   events?: Array<{ floor: number; event_id: string }>;
   path_choices?: Array<{ floor: number; options: string[]; chosen?: number }>;
+  floor_log?: Array<{ floor: number; type: string; event_id?: string }>;
+  neow_choice?: string;
 }
 
 export interface MCTSAction {
