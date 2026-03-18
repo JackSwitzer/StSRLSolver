@@ -36,8 +36,8 @@ create_run_dir() {
     [ -n "$label" ] && name="${name}_${label}"
     local dir="logs/runs/${name}"
     mkdir -p "$dir"
-    # Update symlink atomically
-    ln -sfn "$dir" "$ACTIVE_LINK"
+    # Symlink target must be relative to the symlink's parent dir (logs/)
+    ln -sfn "runs/${name}" "$ACTIVE_LINK"
     echo "$dir"
 }
 
@@ -333,9 +333,9 @@ cmd_archive() {
         return 1
     fi
 
-    # Resolve the symlink target
+    # Resolve the symlink to an absolute path
     local run_dir
-    run_dir=$(readlink "$ACTIVE_LINK")
+    run_dir=$(cd "$(dirname "$ACTIVE_LINK")" && cd "$(readlink "$ACTIVE_LINK")" && pwd)
 
     if [ ! -d "$run_dir" ]; then
         echo "Active run directory does not exist: $run_dir"

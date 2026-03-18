@@ -19,7 +19,7 @@ final class AppConfig {
         } else {
             let fallback = FileManager.default.homeDirectoryForCurrentUser
                 .appending(path: "Desktop/SlayTheSpireRL")
-            self.logsPath = fallback.appending(path: "logs/weekend-run")
+            self.logsPath = fallback.appending(path: "logs/active")
             self.archivedRunsPath = fallback.appending(path: "logs/runs")
         }
     }
