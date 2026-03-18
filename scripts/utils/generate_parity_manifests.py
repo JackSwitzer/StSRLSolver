@@ -569,7 +569,7 @@ def main() -> int:
     parser.add_argument(
         "--traceability-dir",
         type=Path,
-        default=repo_root / "docs/audits/2026-02-22-full-game-parity/traceability",
+        default=repo_root / "docs/traceability",
         help="Output directory for inventory manifests",
     )
     args = parser.parse_args()

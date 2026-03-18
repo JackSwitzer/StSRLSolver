@@ -28,7 +28,6 @@ from typing import Any, Dict, Optional, Set
 import websockets
 from websockets.asyncio.server import ServerConnection
 
-from .game_session import GameSession
 from .protocol import (
     MessageType,
     make_game_created,
@@ -43,6 +42,54 @@ from .protocol import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Game session (inlined from deleted game_session.py)
+# ---------------------------------------------------------------------------
+
+class GameSession:
+    """Manages a single game session backed by a GameRunner."""
+
+    def __init__(
+        self,
+        seed: str = "TEST",
+        ascension: int = 20,
+        character: str = "Watcher",
+        session_id: str | None = None,
+    ):
+        import uuid
+        from packages.engine.game import GameRunner
+
+        self.session_id = session_id or uuid.uuid4().hex[:12]
+        self.runner = GameRunner(
+            seed=seed,
+            ascension=ascension,
+            character=character,
+            verbose=False,
+        )
+        self.step_count: int = 0
+        self.action_history: list[dict[str, Any]] = []
+
+    def get_observation(self, profile: str = "human") -> dict[str, Any]:
+        return self.runner.get_observation(profile=profile)
+
+    def get_actions(self) -> list[dict[str, Any]]:
+        return self.runner.get_available_action_dicts()
+
+    def take_action(self, action_dict: dict[str, Any]) -> dict[str, Any]:
+        result = self.runner.take_action_dict(action_dict)
+        self.step_count += 1
+        self.action_history.append(action_dict)
+        return result
+
+    @property
+    def game_over(self) -> bool:
+        return self.runner.game_over
+
+    @property
+    def game_won(self) -> bool:
+        return self.runner.game_won
 
 
 # ---------------------------------------------------------------------------
@@ -238,11 +285,6 @@ class GameServer:
         self._connections: Set[ServerConnection] = set()
         # Track auto-play cancellation per connection
         self._auto_play_tasks: Dict[int, asyncio.Task] = {}
-        # Training coordinator (shared across connections)
-        self._training: Optional["TrainingCoordinator"] = None
-        self._training_poll_task: Optional[asyncio.Task] = None
-        # Per-connection training WS forwarder tasks
-        self._training_forwarders: Dict[int, asyncio.Task] = {}
         # Background system stats broadcast task
         self._system_stats_task: Optional[asyncio.Task] = None
 
@@ -260,16 +302,6 @@ class GameServer:
         conn_id = id(websocket)
         self._connections.add(websocket)
         logger.info("Client connected: %s", conn_id)
-
-        # Send metrics history immediately on connect
-        if self._training and self._training.metrics_history:
-            history = list(self._training.metrics_history)
-            await websocket.send(json.dumps({
-                "type": MessageType.METRICS_HISTORY.value,
-                "floor_history": [h.get("floor", 0) for h in history],
-                "loss_history": [h.get("loss", 0) for h in history],
-                "win_history": [h.get("win_rate", 0) for h in history],
-            }))
 
         try:
             async for raw_message in websocket:
@@ -592,99 +624,32 @@ class GameServer:
     async def _handle_training_start(
         self, data: Dict[str, Any], websocket: ServerConnection, conn_id: int,
     ) -> Optional[Dict[str, Any]]:
-        """Start training with agents."""
-        from .training_runner import TrainingCoordinator
-
-        config = data.get("config", {})
-        num_agents = config.get("num_agents", 4)
-        mcts_sims = config.get("mcts_sims", 64)
-        ascension = config.get("ascension", 20)
-        seed = config.get("seed", "Test123")
-
-        if self._training is None:
-            self._training = TrainingCoordinator(
-                num_agents=num_agents,
-                mcts_sims=mcts_sims,
-                ascension=ascension,
-                initial_seed=seed,
-            )
-            await self._training.start()
-            self._training_poll_task = asyncio.create_task(self._training.poll_events())
-            logger.info("Training started: %d agents, %d sims, seed=%s", num_agents, mcts_sims, seed)
-
-        # Subscribe this connection
-        q = self._training.subscribe(conn_id)
-
-        # Start forwarder task to push events from queue to websocket
-        async def _forward():
-            while True:
-                try:
-                    msg = await q.get()
-                    await websocket.send(json.dumps(msg))
-                except (websockets.ConnectionClosed, asyncio.CancelledError):
-                    break
-                except Exception:
-                    continue
-
-        task = asyncio.create_task(_forward())
-        self._training_forwarders[conn_id] = task
-
-        return {"type": "training_started", "num_agents": num_agents}
+        """Training is managed externally via scripts/training.sh."""
+        return make_error(
+            "Training is managed by overnight.py. Use ./scripts/training.sh start",
+            "training_start",
+        )
 
     async def _handle_training_stop(
         self, data: Dict[str, Any], websocket: ServerConnection, conn_id: int,
     ) -> Optional[Dict[str, Any]]:
-        """Pause training (preserves coordinator state)."""
-        if self._training:
-            self._training.pause()
-            logger.info("Training paused")
-        return {"type": "training_paused"}
+        """Training is managed externally via scripts/training.sh."""
+        return make_error(
+            "Training is managed by overnight.py. Use ./scripts/training.sh stop",
+            "training_stop",
+        )
 
     def _handle_training_focus(self, data: Dict[str, Any], conn_id: int) -> Optional[Dict[str, Any]]:
-        """Toggle focus on a specific agent (add/remove from focused set)."""
-        agent_id = data.get("agent_id")
-        if self._training and agent_id is not None:
-            # Toggle: if already focused, remove; otherwise add
-            focused = self._training._focused.get(conn_id)
-            if focused and agent_id in focused:
-                self._training.remove_focus(conn_id, agent_id)
-            else:
-                self._training.set_focus(conn_id, agent_id)
+        """Focus tracking not available (training managed externally)."""
         return None
 
     async def _handle_command(
         self, data: Dict[str, Any], websocket: ServerConnection, conn_id: int,
     ) -> Optional[Dict[str, Any]]:
-        """Handle control commands: pause, resume, stop, set_config."""
+        """Handle control commands. Training is managed externally via overnight.py."""
         action = data.get("action")
-        if action == "pause":
-            if self._training:
-                self._training.pause()
-            return {"type": "command_ack", "action": "pause", "paused": True}
-
-        elif action == "resume":
-            if self._training:
-                self._training.resume()
-            return {"type": "command_ack", "action": "resume", "paused": False}
-
-        elif action == "stop":
-            if self._training:
-                await self._training.stop()
-                if self._training_poll_task:
-                    self._training_poll_task.cancel()
-                self._training = None
-            return {"type": "command_ack", "action": "stop"}
-
-        elif action == "start":
-            # Start training via command (for monitor-only mode)
-            return await self._handle_training_start(data, websocket, conn_id)
-
-        elif action == "set_config":
-            params = data.get("params", {})
-            if self._training:
-                self._training.set_config(params)
-            return {"type": "command_ack", "action": "set_config", "params": params}
-
+        if action in ("pause", "resume", "stop", "start", "set_config"):
+            return {"type": "command_ack", "action": action, "note": "Training managed by overnight.py"}
         else:
             return make_error(f"Unknown command action: {action}", "command")
 
@@ -697,11 +662,6 @@ class GameServer:
             try:
                 stats = _collect_system_stats()
                 worker_count = 0
-                if self._training:
-                    try:
-                        worker_count = len(self._training.processes)
-                    except Exception:
-                        worker_count = self._training.num_agents if self._training else 0
                 # Read live worker status files for grid display
                 import json as _json
                 from pathlib import Path
@@ -759,7 +719,7 @@ class GameServer:
                     "gpu_mem_allocated_gb": stats.get("gpu_mem_allocated_gb", 0),
                     "processes": stats.get("processes", {}),
                     "training_status": stats.get("training_status", {}),
-                    "paused": self._training.paused if self._training else False,
+                    "paused": False,
                     "timestamp": round(time.time(), 1),
                     "recent_episodes": recent_episodes,
                 }
@@ -794,12 +754,6 @@ class GameServer:
         task = self._auto_play_tasks.pop(conn_id, None)
         if task and not task.done():
             task.cancel()
-        # Also clean up training forwarder
-        fwd = self._training_forwarders.pop(conn_id, None)
-        if fwd and not fwd.done():
-            fwd.cancel()
-        if self._training:
-            self._training.unsubscribe(conn_id)
 
 
 # ---------------------------------------------------------------------------

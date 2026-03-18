@@ -1,7 +1,7 @@
 # Ultra-Granular Work Units: Cards (Shared Colorless/Curse/Status)
 
 ## Current parity source
-- Manifest source: `docs/audits/2026-02-22-full-game-parity/domains/cards-manifest-non-defect.md`
+- Manifest source: see `archive/pre-cleanup-2026-03` branch
 - Gap row: `GAP-CRD-INV-001`
 
 ## Feature slice: `CRD-SH-001`

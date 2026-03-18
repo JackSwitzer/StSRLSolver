@@ -273,13 +273,13 @@ def main() -> int:
     parser.add_argument(
         "--manifest-json",
         type=Path,
-        default=repo_root / "docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.json",
+        default=repo_root / "docs/traceability/power-manifest.json",
         help="Output JSON manifest path",
     )
     parser.add_argument(
         "--manifest-md",
         type=Path,
-        default=repo_root / "docs/audits/2026-02-22-full-game-parity/traceability/power-manifest.md",
+        default=repo_root / "docs/traceability/power-manifest.md",
         help="Output markdown summary path",
     )
     args = parser.parse_args()

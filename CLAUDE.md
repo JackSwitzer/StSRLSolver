@@ -6,21 +6,42 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 ## Project Structure (Monorepo)
 ```
 packages/engine/     # Pure Python game engine (source of truth)
-packages/engine-rs/  # Rust CombatEngine + PyO3 bindings (scaffold, 63 tests)
-packages/training/   # RL training: overnight.py, strategic_trainer.py, mlx_inference.py
-packages/server/     # WebSocket server + training_runner.py
-packages/parity/     # Seed catalog + parity verification tools
-packages/viz/        # React 19 + Vite dashboard (Tauri native app)
-tests/               # 6060 tests (pytest)
-mod/                 # Java EVTracker mod
-scripts/             # services.sh, training.sh, app.sh
-docs/vault/          # Game mechanics ground truth
-docs/                # ARCHITECTURE.md
+packages/engine-rs/  # Rust CombatEngine + PyO3 bindings
+packages/training/   # RL training pipeline
+  overnight.py       # Training orchestrator (COLLECT -> TRAIN -> SYNC)
+  worker.py          # Game worker loop (_play_one_game)
+  reward_config.py   # REWARD_WEIGHTS, PBRS, hot-reload
+  strategic_net.py   # StrategicNet (PyTorch, 3M params)
+  strategic_trainer.py # PPO + GAE trainer
+  inference_server.py # Centralized MLX/Torch batch inference
+  state_encoders.py  # RunStateEncoder + CombatStateEncoder
+  turn_solver.py     # TurnSolver + MultiTurnSolver
+  replay_buffer.py   # Trajectory replay
+  sweep_config.py    # Sweep templates, ascension breakpoints
+  seed_pool.py       # Seed management
+  mlx_inference.py   # MLX model port
+  episode_log.py     # JSONL logging
+  combat_calculator.py # Damage/block prediction (407 lines)
+  conquerer.py       # SeedConquerer multi-path evaluation (443 lines)
+  gym_env.py         # Gymnasium wrapper (future use)
+packages/server/     # WebSocket server for dashboard
+packages/viz/        # React 19 + Vite dashboard
+packages/viz/macos/  # Native Swift/WKWebView macOS app
+packages/parity/     # Seed catalog + parity verification
+tests/               # 5965+ tests (pytest)
+scripts/             # Shell scripts for training, services, app
+  training.sh        # Main training manager
+  services.sh        # WS + Vite process manager
+  hotfix.sh          # Live parameter tuning (SIGUSR1 + reload.json)
+  app.sh             # Native macOS app builder
+  play.sh            # Manual game player
+  utils/             # Python utilities (prune, generators)
+docs/                # Architecture, vault (ground truth), work units
 ```
 
 ## Testing
 ```bash
-uv run pytest tests/ -q              # Run all 6060 tests
+uv run pytest tests/ -q              # Run all tests
 uv run pytest tests/test_parity.py   # Parity verification
 uv run pytest tests/ --cov=packages/engine  # Coverage (~76%)
 export PATH="$HOME/.cargo/bin:$PATH" PYO3_PYTHON=.venv/bin/python3
@@ -32,16 +53,16 @@ cargo test --lib --manifest-path packages/engine-rs/Cargo.toml  # 63 Rust tests
 ### Core Mechanics (100% Parity)
 | Domain | Status | Notes |
 |--------|--------|-------|
-| **RNG System** | ✅ 100% | All 13 streams verified, production ready |
-| **Damage Calculation** | ✅ 100% | Vuln 1.5x, Weak 0.75x, floor operations exact |
-| **Block Calculation** | ✅ 100% | Dex before Frail, floor operations exact |
-| **Stances** | ✅ 100% | Wrath/Calm/Divinity/Neutral verified |
-| **Enemies** | ✅ 100% | All 66 enemies verified |
-| **Map Generation** | ✅ 100% | Java quirks included |
-| **Shop** | ✅ 100% | Prices and pools match |
-| **Card Rewards** | ✅ 100% | HashMap order + pity timer |
-| **Card Data** | ✅ 100% | All characters verified |
-| **Potions (Data)** | ✅ 100% | All 42 potions correct |
+| **RNG System** | 100% | All 13 streams verified, production ready |
+| **Damage Calculation** | 100% | Vuln 1.5x, Weak 0.75x, floor operations exact |
+| **Block Calculation** | 100% | Dex before Frail, floor operations exact |
+| **Stances** | 100% | Wrath/Calm/Divinity/Neutral verified |
+| **Enemies** | 100% | All 66 enemies verified |
+| **Map Generation** | 100% | Java quirks included |
+| **Shop** | 100% | Prices and pools match |
+| **Card Rewards** | 100% | HashMap order + pity timer |
+| **Card Data** | 100% | All characters verified |
+| **Potions (Data)** | 100% | All 42 potions correct |
 
 ### Implementation Coverage (Updated 2026-03-11)
 - **Power triggers**: 168 registered (136 unique power IDs). ~10 non-Watcher powers still missing (ExplosivePower, StasisPower, ConservePower, etc.).
@@ -79,8 +100,7 @@ while not runner.game_over:
 - **archive/vod-extraction**: VOD/training pipeline
 - **archive/comparison-tools**: Verification scripts
 - **archive/old-master**: Original StSRLSolver repo
-- **archive/codex-2026-03**, **archive/work-2026-03**, **archive/feat-2026-03**, **archive/misc-2026-03**: Archived dev branches
-- External archives: `~/Desktop/sts-archive/` (decompiled/, logs/, java deps)
+- External archives: `~/Desktop/sts-archive/` (decompiled/, logs/, java deps, server-legacy/)
 
 ## Workflow
 
@@ -187,6 +207,7 @@ Ground truth for game mechanics:
 - `docs/vault/rl-methodology-survey.md` - Existing approaches
 - `docs/vault/direct-launch.md` - Running without Steam
 - `docs/vault/stsrlsolver-analysis.md` - Existing project structure
+- `docs/vault/rng-system-analysis.md` - Complete 13-stream RNG analysis
 
 ## Engine Registry Pattern
 
@@ -260,7 +281,7 @@ Tier 2: InnerPeace, CutThroughFate, WheelKick, Conclude
 - Nirvana power: Gain block once per scry ACTION (not per card)
 - Agent decides which cards to discard via `SelectScryDiscard` action
 
-## RNG Prediction System (✅ Verified 100% Java Parity)
+## RNG Prediction System (Verified 100% Java Parity)
 
 ### Documentation
 - `docs/vault/rng-system-analysis.md` - Complete 13-stream analysis
@@ -287,9 +308,9 @@ cards = predict_card_reward(state)
 
 **1. Act Transition cardRng Snapping:**
 ```
-counter 1-249   → snaps to 250
-counter 251-499 → snaps to 500
-counter 501-749 → snaps to 750
+counter 1-249   -> snaps to 250
+counter 251-499 -> snaps to 500
+counter 501-749 -> snaps to 750
 ```
 
 **2. cardRng Consumption by Room Type:**
@@ -329,3 +350,30 @@ monsterHpRng, aiRng, shuffleRng, cardRandomRng, miscRng
 **Special:**
 - mapRng: Reseeded per act (seed + actNum * multiplier)
 - NeowEvent.rng: Separate stream for Neow options
+
+## Training Pipeline
+
+### Architecture (COLLECT -> TRAIN -> SYNC)
+- overnight.py orchestrates the loop
+- worker.py plays games using inference_server.py for batched model calls
+- strategic_trainer.py runs PPO + GAE updates
+- reward_config.py defines all rewards (hot-reloadable via SIGUSR1)
+
+### REWARD_WEIGHTS System (v11)
+All rewards live in `packages/training/reward_config.py`:
+- `damage_per_hp`: -0.005/HP (was -0.03, reduced 6x)
+- `combat_win/elite_win/boss_win`: 0.05/0.30/0.80
+- `floor_milestones`: F6-F55 progression bonuses (F17=1.0, F34=2.0, F51=3.0, F55=5.0)
+- `f16_hp_bonus`: 0.50 + 0.02 * current_hp (arriving healthy at boss)
+- `upgrade_rewards`: Eruption +0.30, Defend_P -1.50, Strike_P -0.50
+- `potion_*`: elite/boss use +0.50, kill same fight +0.50, hoard -0.30
+- `win_reward`: 10.0, `death_penalty_scale`: -1.0 * (1 - progress)
+- PBRS potential: floor_pct, hp_pct, deck_quality, relic_bonus
+- Stance/card pick rewards: REMOVED (zeroed, was dominating)
+- gamma=0.99, entropy_coeff=0.05 (cap 0.10)
+
+### Key Parameters
+- StrategicNet: 3M params, hidden=768, blocks=4, input_dim=260, action_dim=512
+- 12 workers on M4 Mac Mini (10 cores, 24GB RAM)
+- Mixed temperature: 75% exploit (0.9), 25% explore (1.35)
+- Distillation on cold start from best_trajectories/ (200 F16 .npz files)

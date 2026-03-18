@@ -1,3 +1,5 @@
+> **Historical**: This was the v1 design doc. See packages/training/overnight.py for the actual implementation.
+
 # Watcher RL Training Plan (5 Days, Mac mini M4 24GB)
 
 This is a **doc-only** plan to bootstrap Watcher training using a MCTS‑distillation pipeline that fits on a Mac mini M4 (24GB). It assumes Watcher-only runs (no Prismatic Shard) and uses the current engine API.
