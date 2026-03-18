@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.slaytherl.viewer",
   "build": {
-    "frontendDist": "../packages/viz/dist",
+    "frontendDist": "../viz/dist",
     "devUrl": "http://localhost:5174",
-    "beforeBuildCommand": "cd ../packages/viz && bun run build"
+    "beforeBuildCommand": "cd ../viz && bun run build"
   },
   "app": {
     "withGlobalTauri": false,
