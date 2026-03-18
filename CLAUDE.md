@@ -28,15 +28,16 @@ packages/server/     # WebSocket server for dashboard
 packages/viz/        # React 19 + Vite dashboard
 packages/viz/macos/  # Native Swift/WKWebView macOS app
 packages/parity/     # Seed catalog + parity verification
-tests/               # 5965+ tests (pytest)
+packages/tauri/      # Tauri desktop app (Rust, wraps viz)
+tests/               # 6100+ tests (pytest)
 scripts/             # Shell scripts for training, services, app
   training.sh        # Main training manager
   services.sh        # WS + Vite process manager
   hotfix.sh          # Live parameter tuning (SIGUSR1 + reload.json)
   app.sh             # Native macOS app builder
   play.sh            # Manual game player
-  utils/             # Python utilities (prune, generators)
-docs/                # Architecture, vault (ground truth), work units
+  utils/             # Python utilities (prune, generators, enrichment)
+docs/                # TODO, vault (ground truth), work units, research
 ```
 
 ## Testing
@@ -71,7 +72,7 @@ cargo test --lib --manifest-path packages/engine-rs/Cargo.toml  # 63 Rust tests
 - **Potions (effects)**: Core effects implemented; discovery/selection partial.
 - **Rewards**: JSON action layer fully implemented.
 
-### Remaining Gaps (~10 items, all LOW/MEDIUM, see `docs/audits/remaining-work-scoped.md`)
+### Remaining Gaps (~10 items, all LOW/MEDIUM, see `docs/remaining-work-scoped.md`)
 | Category | Count | Priority | Description |
 |----------|-------|----------|-------------|
 | DrawPower passive | 1 | MEDIUM | Verify draw modification works end-to-end |
@@ -79,7 +80,7 @@ cargo test --lib --manifest-path packages/engine-rs/Cargo.toml  # 63 Rust tests
 | Non-Watcher powers | ~7 | LOW | Defect/Silent-only powers (ExplosivePower, StasisPower, etc.) |
 | Relic edge cases | 2-3 | LOW | N'loth's Mask, Prismatic Shard card rewards |
 
-See test files, `docs/ARCHITECTURE.md`, and `docs/audits/remaining-work-scoped.md` for details.
+See test files and `docs/remaining-work-scoped.md` for details.
 
 ## Engine API (for RL integration)
 ```python
@@ -204,9 +205,9 @@ cd "/Users/jackswitzer/Library/Application Support/Steam/steamapps/common/SlayTh
 Ground truth for game mechanics:
 - `docs/vault/damage-mechanics.md` - Full damage/block formulas
 - `docs/vault/modding-infrastructure.md` - Patching, hooks, build
-- `docs/vault/rl-methodology-survey.md` - Existing approaches
+- `docs/research/rl-methodology-survey.md` - Existing approaches
 - `docs/vault/direct-launch.md` - Running without Steam
-- `docs/vault/stsrlsolver-analysis.md` - Existing project structure
+- `docs/research/stsrlsolver-analysis.md` - Existing project structure
 - `docs/vault/rng-system-analysis.md` - Complete 13-stream RNG analysis
 
 ## Engine Registry Pattern
