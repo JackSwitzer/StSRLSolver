@@ -89,21 +89,11 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
         try:
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
-                # Safety: if solver says EndTurn but cards are playable, prefer a card
-                if (hasattr(result, 'action_type') and
-                    getattr(result, 'action_type', '') == 'end_turn'):
-                    card_actions = [a for a in actions
-                                   if hasattr(a, 'action_type') and
-                                   getattr(a, 'action_type', '') == 'play_card']
-                    if card_actions:
-                        logger.debug("Solver chose EndTurn with %d playable cards — overriding",
-                                     len(card_actions))
-                        return card_actions[0]
-                return result
+                return result  # Trust the solver's decision (including EndTurn)
         except Exception:
             pass  # Fall through to default
 
-    # Fallback: prefer playing a card over ending turn
+    # Fallback (solver returned None): prefer playing a card over ending turn
     for a in actions:
         if hasattr(a, 'action_type') and getattr(a, 'action_type', '') == 'play_card':
             return a

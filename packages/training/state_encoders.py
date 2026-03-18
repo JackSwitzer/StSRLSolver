@@ -188,6 +188,10 @@ _BOSS_ID_MAP = {
     "Corrupt Heart": 9,                                        # Act 4
 }
 
+# Room type map for path action encoding
+_PATH_RT_MAP = {"monster": 4, "elite": 5, "rest": 6,
+                "shop": 7, "event": 8, "treasure": 9, "boss": 10}
+
 # Phase type mapping for the 6-dim one-hot
 PHASE_TYPE_MAP = {
     "path": 0,
@@ -425,15 +429,26 @@ class RunStateEncoder:
             atype = getattr(action, "action_type", "")
 
             if phase_type == "card_pick":
-                # Card reward: encode the offered card's effect vector
+                # Card reward: get offered card from runner.current_rewards
                 features[base] = 1.0  # is_card_pick
-                card_id = getattr(action, "card_id", None)
-                if card_id is None:
-                    # Try to get card_id from action attributes
-                    card_id = getattr(action, "id", None)
-                if card_id and isinstance(card_id, str):
-                    ev = _get_card_effect(card_id)
-                    features[base + 4:base + 4 + 18] = ev
+                try:
+                    choice_idx = getattr(action, "choice_index", -1)
+                    reward_type = getattr(action, "reward_type", "")
+                    if reward_type == "card" and runner is not None:
+                        cr = getattr(runner, "current_rewards", None)
+                        if cr and hasattr(cr, "card_rewards") and cr.card_rewards:
+                            # choice_index maps directly to card index in first reward
+                            cards = cr.card_rewards[0].cards
+                            if 0 <= choice_idx < len(cards):
+                                card_obj = cards[choice_idx]
+                                card_id = getattr(card_obj, "id", None)
+                                if card_id:
+                                    ev = _get_card_effect(card_id)
+                                    features[base + 4:base + 4 + 18] = ev
+                    elif reward_type == "skip_card":
+                        features[base + 3] = 1.0  # skip marker
+                except Exception:
+                    pass  # Graceful fallback to zeros
 
             elif phase_type == "path":
                 # Path navigation: encode room type of destination
@@ -448,9 +463,7 @@ class RunStateEncoder:
                         if rt:
                             rt_name = rt.name if hasattr(rt, "name") else str(rt)
                             rt_lower = rt_name.lower()
-                            _RT_MAP = {"monster": 4, "elite": 5, "rest": 6,
-                                       "shop": 7, "event": 8, "treasure": 9, "boss": 10}
-                            for name, idx in _RT_MAP.items():
+                            for name, idx in _PATH_RT_MAP.items():
                                 if name in rt_lower:
                                     features[base + idx] = 1.0
                                     break
