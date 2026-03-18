@@ -149,7 +149,7 @@ def _play_one_game(
     import os
     _worker_id = os.getpid()
     _wname = globals().get("_worker_name", f"W{_worker_id}")
-    _status_dir = Path("logs/weekend-run/workers")
+    _status_dir = Path("logs/active/workers")
     _status_dir.mkdir(parents=True, exist_ok=True)
     _status_file = _status_dir / f"{_wname}.json"
     _last_status_floor = -1

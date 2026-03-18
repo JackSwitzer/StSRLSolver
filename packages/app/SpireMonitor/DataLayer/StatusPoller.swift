@@ -32,8 +32,7 @@ actor StatusPoller {
     }
 
     private func poll() async {
-        // Always use the latest timestamped run directory
-        let logsURL = Self.latestRunDir(config: config)
+        let logsURL = config.logsPath
 
         // Read status.json -- check file mtime to detect stale data
         let statusURL = logsURL.appending(path: "status.json")
@@ -66,11 +65,6 @@ actor StatusPoller {
             }
         }
 
-        // Keep config in sync
-        if logsURL != config.logsPath {
-            await MainActor.run { config.logsPath = logsURL }
-        }
-
         // Scan workers/*.json
         let workersDir = logsURL.appending(path: "workers")
         if let files = try? FileManager.default.contentsOfDirectory(at: workersDir, includingPropertiesForKeys: nil) {
@@ -86,38 +80,5 @@ actor StatusPoller {
                 store.workers = sorted
             }
         }
-    }
-
-    /// Find the latest run directory by scanning known locations.
-    /// Picks the most recent directory that has a status.json.
-    private static func latestRunDir(config: AppConfig) -> URL {
-        let fm = FileManager.default
-        let logsBase = config.logsPath.deletingLastPathComponent()
-
-        // Candidate directories: logs/overnight, logs/weekend-run, logs/runs/run_*, logs/training/run_*
-        var best: (url: URL, mtime: Date)?
-
-        for dir in ["overnight", "weekend-run"] {
-            let candidate = logsBase.appending(path: dir)
-            let statusFile = candidate.appending(path: "status.json")
-            if let attrs = try? fm.attributesOfItem(atPath: statusFile.path()),
-               let mtime = attrs[.modificationDate] as? Date {
-                if best == nil || mtime > best!.mtime { best = (candidate, mtime) }
-            }
-        }
-
-        for subdir in ["runs", "training"] {
-            let scanDir = logsBase.appending(path: subdir)
-            guard let contents = try? fm.contentsOfDirectory(at: scanDir, includingPropertiesForKeys: nil) else { continue }
-            for dir in contents where dir.lastPathComponent.hasPrefix("run_") {
-                let statusFile = dir.appending(path: "status.json")
-                if let attrs = try? fm.attributesOfItem(atPath: statusFile.path()),
-                   let mtime = attrs[.modificationDate] as? Date {
-                    if best == nil || mtime > best!.mtime { best = (dir, mtime) }
-                }
-            }
-        }
-
-        return best?.url ?? config.logsPath
     }
 }

@@ -7,6 +7,10 @@ actor SystemMonitor {
     private let store: DataStore
     private var isRunning = false
     private var monitorTask: Task<Void, Never>?
+    // Previous CPU ticks for delta calculation
+    private var prevUserTicks: UInt64 = 0
+    private var prevSystemTicks: UInt64 = 0
+    private var prevIdleTicks: UInt64 = 0
 
     init(store: DataStore) {
         self.store = store
@@ -26,7 +30,7 @@ actor SystemMonitor {
 
     private func pollLoop() async {
         while isRunning && !Task.isCancelled {
-            let stats = collectStats()
+            let stats = await collectStats()
             await MainActor.run {
                 store.systemStats = stats
                 store.systemHistory.append(stats)
@@ -38,10 +42,10 @@ actor SystemMonitor {
         }
     }
 
-    private nonisolated func collectStats() -> SystemStats {
+    private func collectStats() async -> SystemStats {
         let cpu = getCPUUsage()
         let (usedGB, totalGB) = getMemory()
-        let gpu = getGPUUsage()
+        let gpu = await MainActor.run { store.status?.gpuPercent }
         return SystemStats(
             timestamp: Date(),
             cpuPercent: cpu,
@@ -51,7 +55,7 @@ actor SystemMonitor {
         )
     }
 
-    private nonisolated func getCPUUsage() -> Double {
+    private func getCPUUsage() -> Double {
         var loadInfo = host_cpu_load_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
         let result = withUnsafeMutablePointer(to: &loadInfo) {
@@ -60,11 +64,22 @@ actor SystemMonitor {
             }
         }
         guard result == KERN_SUCCESS else { return 0 }
-        let user = Double(loadInfo.cpu_ticks.0)
-        let system = Double(loadInfo.cpu_ticks.1)
-        let idle = Double(loadInfo.cpu_ticks.2)
-        let total = user + system + idle
-        return total > 0 ? ((user + system) / total) * 100 : 0
+        let user = UInt64(loadInfo.cpu_ticks.0)
+        let system = UInt64(loadInfo.cpu_ticks.1)
+        let idle = UInt64(loadInfo.cpu_ticks.2)
+
+        let dUser = user - prevUserTicks
+        let dSystem = system - prevSystemTicks
+        let dIdle = idle - prevIdleTicks
+        let dTotal = dUser + dSystem + dIdle
+
+        prevUserTicks = user
+        prevSystemTicks = system
+        prevIdleTicks = idle
+
+        // First poll: no delta yet, return 0
+        guard dTotal > 0 else { return 0 }
+        return Double(dUser + dSystem) / Double(dTotal) * 100
     }
 
     private nonisolated func getMemory() -> (used: Double, total: Double) {
@@ -87,9 +102,6 @@ actor SystemMonitor {
         return (usedGB, totalGB)
     }
 
-    private nonisolated func getGPUUsage() -> Double? {
-        // GPU utilization requires IOKit -- simplified to nil for now
-        // Full implementation would use IOServiceGetMatchingService for Apple GPU
-        nil
-    }
+    // GPU utilization is reported by the Python training pipeline in status.json
+    // and read from store.status.gpuPercent in collectStats()
 }

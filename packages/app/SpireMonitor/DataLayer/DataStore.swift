@@ -20,50 +20,10 @@ final class DataStore {
         return Date().timeIntervalSince(last) < 10
     }
 
-    // MARK: - Computed stats
-
-    var topRunsSorted: [Episode] {
-        let source = recentEpisodes.isEmpty ? topEpisodes : recentEpisodes
-        return source.sorted { $0.effectiveFloor > $1.effectiveFloor }
-    }
-
-    var deathStats: [(enemy: String, count: Int)] {
-        let source = recentEpisodes.isEmpty ? topEpisodes : recentEpisodes
-        var counts: [String: Int] = [:]
-        for ep in source where !ep.won {
-            let enemy = ep.deathEnemy ?? "Unknown"
-            counts[enemy, default: 0] += 1
-        }
-        return counts.sorted { $0.value > $1.value }.map { (enemy: $0.key, count: $0.value) }
-    }
-
-    var performanceByRoom: [RoomCategory: RoomPerformance] {
-        let source = recentEpisodes.isEmpty ? topEpisodes : recentEpisodes
-        var grouped: [RoomCategory: [Combat]] = [:]
-        for ep in source {
-            for combat in ep.combats ?? [] {
-                grouped[combat.roomCategory, default: []].append(combat)
-            }
-        }
-        var result: [RoomCategory: RoomPerformance] = [:]
-        for (cat, combats) in grouped {
-            let avgTurns = combats.compactMap(\.turns).average
-            let avgHpLost = combats.compactMap(\.hpLost).average
-            let potionRate = combats.count > 0
-                ? Double(combats.filter { ($0.potionsUsed ?? 0) > 0 }.count) / Double(combats.count)
-                : 0
-            result[cat] = RoomPerformance(
-                count: combats.count,
-                avgTurns: avgTurns,
-                avgHpLost: avgHpLost,
-                potionRate: potionRate
-            )
-        }
-        return result
-    }
-
     var peakFloor: Int {
-        status?.peakFloor ?? status?.replayBestFloor ?? topRunsSorted.first?.effectiveFloor ?? 0
+        let topFloor = (recentEpisodes + topEpisodes)
+            .max(by: { $0.effectiveFloor < $1.effectiveFloor })?.effectiveFloor ?? 0
+        return status?.peakFloor ?? status?.replayBestFloor ?? topFloor
     }
 
     func appendLoss(from status: TrainingStatus) {

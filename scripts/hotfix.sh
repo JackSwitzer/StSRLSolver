@@ -16,7 +16,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-RUN_DIR="${HOTFIX_RUN_DIR:-logs/weekend-run}"
+RUN_DIR="${HOTFIX_RUN_DIR:-logs/active}"
 RELOAD_FILE="$RUN_DIR/reload.json"
 
 send_reload() {

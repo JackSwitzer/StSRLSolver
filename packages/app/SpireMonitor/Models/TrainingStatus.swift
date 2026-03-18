@@ -20,6 +20,7 @@ struct TrainingStatus: Codable {
     let replayBestFloor: Int?
     let entropyCoeff: Double?
     let clipFraction: Double?
+    let gpuPercent: Double?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -41,5 +42,6 @@ struct TrainingStatus: Codable {
         case replayBestFloor = "replay_best_floor"
         case entropyCoeff = "entropy_coeff"
         case clipFraction = "clip_fraction"
+        case gpuPercent = "gpu_percent"
     }
 }

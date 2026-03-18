@@ -3,26 +3,43 @@
 #
 # Usage:
 #   ./scripts/training.sh start [--games N] [--workers N] [--batch N] [--asc N] [--headless]
-#   ./scripts/training.sh stop          # Graceful shutdown (SIGTERM → wait → SIGKILL)
-#   ./scripts/training.sh status        # Read status.json + tail log
+#   ./scripts/training.sh stop          # Graceful shutdown (SIGTERM -> wait -> SIGKILL)
+#   ./scripts/training.sh status        # Read logs/active/status.json + tail log
 #   ./scripts/training.sh resume        # Resume from latest checkpoint
+#
+# Run directory convention:
+#   - Each run creates logs/runs/run_YYYYMMDD_HHMMSS[_label]/
+#   - logs/active is a symlink to the current run directory
+#   - All tools read from logs/active/ (single source of truth)
 #
 # Process management:
 #   - caffeinate -dims prevents Mac sleep during training
 #   - Process group tracking (kills entire pgroup on stop)
-#   - SIGTERM → 10s wait → SIGKILL
+#   - SIGTERM -> 10s wait -> SIGKILL
 #   - PID file at .run/training.pid
 
 set -e
 cd "$(dirname "$0")/.."
 
 PID_DIR=".run"
-LOG_DIR="logs/training"
-STATUS_FILE="$LOG_DIR/status.json"
+ACTIVE_LINK="logs/active"
 
-mkdir -p "$PID_DIR" "$LOG_DIR"
+mkdir -p "$PID_DIR" "logs/runs"
 
-# ── Helpers ─────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------
+
+create_run_dir() {
+    local label="${1:-}"
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local name="run_${timestamp}"
+    [ -n "$label" ] && name="${name}_${label}"
+    local dir="logs/runs/${name}"
+    mkdir -p "$dir"
+    # Update symlink atomically
+    ln -sfn "$dir" "$ACTIVE_LINK"
+    echo "$dir"
+}
 
 training_alive() {
     [ -f "$PID_DIR/training.pid" ] && kill -0 "$(cat "$PID_DIR/training.pid")" 2>/dev/null
@@ -93,7 +110,7 @@ stop_training() {
     echo "Training stopped."
 }
 
-# ── Commands ────────────────────────────────────────────
+# -- Commands ------------------------------------------------------
 
 cmd_start() {
     if training_alive; then
@@ -117,12 +134,13 @@ cmd_start() {
         esac
     done
 
-    local timestamp
-    timestamp=$(date +%Y%m%d_%H%M%S)
-    local run_log="$LOG_DIR/run_${timestamp}.log"
+    local run_dir
+    run_dir=$(create_run_dir)
+    local run_log="$run_dir/nohup.log"
 
     echo "Starting training..."
     echo "  Games: $games | Workers: $workers | Batch: $batch | Ascension: $asc"
+    echo "  Run dir: $run_dir"
     echo "  Log: $run_log"
 
     # Start caffeinate to prevent sleep
@@ -136,6 +154,7 @@ cmd_start() {
         --workers "$workers" \
         --batch-size "$batch" \
         --ascension "$asc" \
+        --run-dir "$run_dir" \
         $headless \
         $resume \
         > "$run_log" 2>&1 &
@@ -180,17 +199,9 @@ cmd_status() {
 
     echo ""
 
-    # Find the most recent status.json (check weekend-run and training dirs)
-    local status_file=""
-    for sf in "logs/weekend-run/status.json" "$STATUS_FILE"; do
-        if [ -f "$sf" ]; then
-            if [ -z "$status_file" ] || [ "$sf" -nt "$status_file" ]; then
-                status_file="$sf"
-            fi
-        fi
-    done
-
-    if [ -n "$status_file" ]; then
+    # Read status from active run
+    local status_file="$ACTIVE_LINK/status.json"
+    if [ -f "$status_file" ]; then
         echo "--- Latest Status ($status_file) ---"
         python3 -c "
 import json, sys
@@ -211,26 +222,13 @@ print(f'Config:      {s.get(\"config_name\", \"?\")}')
 
     echo ""
 
-    # Tail latest log (check weekend nohup.log and training run logs)
-    local latest_log=""
-    local weekend_log="logs/weekend-run/nohup.log"
-    local training_log
-    training_log=$(ls -t "$LOG_DIR"/run_*.log 2>/dev/null | head -1)
-
-    if [ -f "$weekend_log" ] && [ -f "$training_log" ]; then
-        # Use whichever was modified more recently
-        if [ "$weekend_log" -nt "$training_log" ]; then
-            latest_log="$weekend_log"
-        else
-            latest_log="$training_log"
-        fi
-    elif [ -f "$weekend_log" ]; then
-        latest_log="$weekend_log"
-    elif [ -n "$training_log" ]; then
-        latest_log="$training_log"
+    # Tail log from active run, fallback to latest archived run
+    local latest_log="$ACTIVE_LINK/nohup.log"
+    if [ ! -f "$latest_log" ]; then
+        latest_log=$(ls -t logs/runs/run_*/nohup.log 2>/dev/null | head -1)
     fi
 
-    if [ -n "$latest_log" ]; then
+    if [ -n "$latest_log" ] && [ -f "$latest_log" ]; then
         echo "--- Last 10 log lines ($latest_log) ---"
         tail -10 "$latest_log"
     fi
@@ -256,12 +254,9 @@ cmd_weekend() {
         esac
     done
 
-    local timestamp
-    timestamp=$(date +%Y%m%d_%H%M%S)
-    local run_dir="logs/weekend-run"
+    local run_dir
+    run_dir=$(create_run_dir "weekend")
     local run_log="$run_dir/nohup.log"
-
-    mkdir -p "$run_dir"
 
     echo "Starting weekend training run..."
     echo "  Games: $games | Workers: $workers | Batch: $batch | Ascension: $asc"
@@ -277,8 +272,8 @@ cmd_weekend() {
     # Uses larger model (7M params) and bigger inference batches
     # Check for shutdown checkpoint to auto-resume
     local resume_flag=""
-    if [ -f "$run_dir/shutdown_checkpoint.pt" ]; then
-        resume_flag="--resume $run_dir/shutdown_checkpoint.pt"
+    if [ -f "$ACTIVE_LINK/shutdown_checkpoint.pt" ]; then
+        resume_flag="--resume $ACTIVE_LINK/shutdown_checkpoint.pt"
         echo "  Resuming from shutdown checkpoint"
     fi
 
@@ -312,8 +307,14 @@ cmd_resume() {
         exit 1
     fi
 
-    local latest_checkpoint
-    latest_checkpoint=$(ls -t logs/overnight/*/checkpoint_*.pt 2>/dev/null | head -1)
+    # Look in active run first, then scan archived runs
+    local latest_checkpoint=""
+    if [ -L "$ACTIVE_LINK" ]; then
+        latest_checkpoint=$(ls -t "$ACTIVE_LINK"/checkpoint_*.pt "$ACTIVE_LINK"/shutdown_checkpoint.pt 2>/dev/null | head -1)
+    fi
+    if [ -z "$latest_checkpoint" ]; then
+        latest_checkpoint=$(ls -t logs/runs/*/checkpoint_*.pt logs/runs/*/shutdown_checkpoint.pt 2>/dev/null | head -1)
+    fi
     if [ -z "$latest_checkpoint" ]; then
         echo "No checkpoint found. Use 'start' instead."
         exit 1
@@ -324,17 +325,20 @@ cmd_resume() {
 }
 
 cmd_archive() {
-    # Archive the current weekend-run to a timestamped directory
-    local run_dir="logs/weekend-run"
+    # Archive the current active run
     local label="${1:-}"
-    local timestamp
-    timestamp=$(date +%Y%m%d_%H%M)
-    local archive_name="run_${timestamp}"
-    [ -n "$label" ] && archive_name="${archive_name}_${label}"
-    local archive_dir="logs/runs/${archive_name}"
+
+    if [ ! -L "$ACTIVE_LINK" ]; then
+        echo "No active run to archive (logs/active symlink not found)."
+        return 1
+    fi
+
+    # Resolve the symlink target
+    local run_dir
+    run_dir=$(readlink "$ACTIVE_LINK")
 
     if [ ! -d "$run_dir" ]; then
-        echo "No weekend-run directory to archive."
+        echo "Active run directory does not exist: $run_dir"
         return 1
     fi
 
@@ -344,60 +348,49 @@ cmd_archive() {
         stop_training
     fi
 
-    mkdir -p "$archive_dir"
-
-    # Move checkpoints and model files
-    for f in shutdown_checkpoint.pt periodic_checkpoint.pt final_strategic.pt; do
-        [ -f "$run_dir/$f" ] && mv "$run_dir/$f" "$archive_dir/"
-    done
-
-    # Copy (not move) status, episodes, summary, logs
-    for f in status.json recent_episodes.json summary.json episodes.jsonl; do
-        [ -f "$run_dir/$f" ] && cp "$run_dir/$f" "$archive_dir/"
-    done
-
-    # Archive all logs
-    for f in "$run_dir"/nohup*.log; do
-        [ -f "$f" ] && mv "$f" "$archive_dir/"
-    done
-
-    # Copy best trajectories if they exist (keep originals for next distillation)
-    if [ -d "$run_dir/best_trajectories" ]; then
-        local traj_count
-        traj_count=$(ls "$run_dir/best_trajectories/"*.npz 2>/dev/null | wc -l | tr -d ' ')
-        echo "  Trajectories: $traj_count files (kept in place for next distillation)"
+    # If a label was provided, rename the run dir to include it
+    if [ -n "$label" ]; then
+        local base_name
+        base_name=$(basename "$run_dir")
+        # Only append label if not already in the name
+        if [[ "$base_name" != *"_${label}" ]]; then
+            local new_dir
+            new_dir="$(dirname "$run_dir")/${base_name}_${label}"
+            mv "$run_dir" "$new_dir"
+            run_dir="$new_dir"
+        fi
     fi
 
-    # Clean stale data for fresh start
-    rm -f "$run_dir/status.json" "$run_dir/recent_episodes.json" "$run_dir/summary.json"
+    echo "Archived: $run_dir"
+    ls -lh "$run_dir/" 2>/dev/null | tail -20
 
-    echo "Archived to: $archive_dir"
-    ls -lh "$archive_dir/" 2>/dev/null | tail -20
+    # Remove the active symlink
+    rm -f "$ACTIVE_LINK"
     echo ""
-    echo "Ready for fresh start: ./scripts/training.sh weekend"
+    echo "Active symlink removed. Ready for fresh start."
 }
 
 cmd_quick_restart() {
-    echo "Quick restart: stop → save → restart with code changes..."
+    echo "Quick restart: stop -> save -> restart with code changes..."
     local was_running=false
     if training_alive; then
         was_running=true
         stop_training
     fi
 
-    # Rename old log
-    if [ -f "logs/weekend-run/nohup.log" ]; then
+    # Rename old log in the active run dir
+    if [ -f "$ACTIVE_LINK/nohup.log" ]; then
         local n=1
-        while [ -f "logs/weekend-run/nohup_prev${n}.log" ]; do n=$((n+1)); done
-        mv "logs/weekend-run/nohup.log" "logs/weekend-run/nohup_prev${n}.log"
-        echo "  Old log → nohup_prev${n}.log"
+        while [ -f "$ACTIVE_LINK/nohup_prev${n}.log" ]; do n=$((n+1)); done
+        mv "$ACTIVE_LINK/nohup.log" "$ACTIVE_LINK/nohup_prev${n}.log"
+        echo "  Old log -> nohup_prev${n}.log"
     fi
 
     echo "  Restarting weekend mode (auto-resumes from checkpoint)..."
     cmd_weekend "$@"
 }
 
-# ── Main ────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------
 
 case "${1:-status}" in
     start)   shift; cmd_start "$@" ;;
@@ -415,17 +408,21 @@ case "${1:-status}" in
         echo "Usage: $0 {start|stop|status|resume|weekend|restart|update|hotfix|prune} [options]"
         echo ""
         echo "Commands:"
-        echo "  start      Start training (default 10K games)"
-        echo "  stop       Graceful shutdown (SIGTERM → 30s → SIGKILL)"
-        echo "  status     Read status.json + tail log"
-        echo "  resume     Resume from latest checkpoint"
+        echo "  start      Start training (default 10K games, creates logs/runs/run_TIMESTAMP/)"
+        echo "  stop       Graceful shutdown (SIGTERM -> 30s -> SIGKILL)"
+        echo "  status     Read logs/active/status.json + tail log"
+        echo "  resume     Resume from checkpoint in logs/active/ or logs/runs/*/"
         echo "  weekend    Long-running headless mode (default 500K games)"
         echo "  restart    Quick restart: stop, save checkpoint, resume with code changes"
-        echo "  archive    Archive current run to logs/runs/run_TIMESTAMP/ (optional label arg)"
+        echo "  archive    Archive current active run (optional label arg), remove symlink"
         echo "  fresh      Archive + start fresh (cold start with distillation from trajectories)"
-        echo "  update     Pull latest code + restart (git pull → restart)"
+        echo "  update     Pull latest code + restart (git pull -> restart)"
         echo "  hotfix     Live parameter tuning via SIGUSR1 + reload.json"
         echo "  prune      Prune episodes.jsonl + consolidate top runs (safe while running)"
+        echo ""
+        echo "Run directory convention:"
+        echo "  logs/runs/run_TIMESTAMP[_label]/  -- each run gets a timestamped directory"
+        echo "  logs/active                       -- symlink to current run (single source of truth)"
         echo ""
         echo "Options for start/weekend:"
         echo "  --games N      Total games to play"

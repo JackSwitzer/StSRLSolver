@@ -15,64 +15,23 @@ struct LiveView: View {
     @State private var statsMode: StatsMode = .last100
     @State private var floorCurveMode: FloorCurveMode = .average
 
-    private var store: DataStore { appState.store }
+    // Cached computed data -- refreshed when episodes change
+    @State private var cachedEpisodes: [Episode] = []
+    @State private var cachedDeaths: [(enemy: String, count: Int)] = []
+    @State private var cachedTopRuns: [Episode] = []
+    @State private var cachedPerformance: [RoomCategory: RoomPerformance] = [:]
 
-    // Mode-aware data sources
-    private var activeEpisodes: [Episode] {
-        if statsMode == .allTime {
-            // Full data: merge recent + top, deduplicate by seed
-            var seen = Set<String>()
-            var merged: [Episode] = []
-            for ep in store.recentEpisodes + store.topEpisodes {
-                if seen.insert(ep.seed).inserted { merged.append(ep) }
-            }
-            return merged
-        }
-        // Last 100: ONLY current run's recent episodes
-        return store.recentEpisodes
-    }
+    private var store: DataStore { appState.store }
 
     private var floorCurveData: [Double] {
         let source: [Double]
         if floorCurveMode == .max {
-            source = activeEpisodes.map { Double($0.effectiveFloor) }
+            source = cachedEpisodes.map { Double($0.effectiveFloor) }
         } else {
             source = store.floorCurve
         }
         if statsMode == .last100 { return Array(source.suffix(100)) }
         return source
-    }
-
-    private var deathData: [(enemy: String, count: Int)] {
-        var counts: [String: Int] = [:]
-        for ep in activeEpisodes where !ep.won {
-            counts[ep.deathEnemy ?? "Unknown", default: 0] += 1
-        }
-        return counts.sorted { $0.value > $1.value }.map { (enemy: $0.key, count: $0.value) }
-    }
-
-    private var topRuns: [Episode] {
-        activeEpisodes.sorted { $0.effectiveFloor > $1.effectiveFloor }
-    }
-
-    private var performanceData: [RoomCategory: RoomPerformance] {
-        var grouped: [RoomCategory: [Combat]] = [:]
-        for ep in activeEpisodes {
-            for combat in ep.combats ?? [] {
-                grouped[combat.roomCategory, default: []].append(combat)
-            }
-        }
-        var result: [RoomCategory: RoomPerformance] = [:]
-        for (cat, combats) in grouped {
-            let turns = combats.compactMap(\.turns)
-            let hpLost = combats.compactMap(\.hpLost)
-            let avgT = turns.isEmpty ? 0 : Double(turns.reduce(0, +)) / Double(turns.count)
-            let avgHP = hpLost.isEmpty ? 0 : Double(hpLost.reduce(0, +)) / Double(hpLost.count)
-            let potR = combats.isEmpty ? 0 :
-                Double(combats.filter { ($0.potionsUsed ?? 0) > 0 }.count) / Double(combats.count)
-            result[cat] = RoomPerformance(count: combats.count, avgTurns: avgT, avgHpLost: avgHP, potionRate: potR)
-        }
-        return result
     }
 
     var body: some View {
@@ -114,7 +73,7 @@ struct LiveView: View {
                         HyperparamGridView(status: store.status)
                             .sectionCard()
 
-                        PerformancePanelView(performance: performanceData)
+                        PerformancePanelView(performance: cachedPerformance)
                             .sectionCard()
                     }
                     .padding(10)
@@ -124,13 +83,13 @@ struct LiveView: View {
                 // RIGHT: Tables + Workers + Deaths
                 ScrollView {
                     VStack(spacing: 10) {
-                        TopRunsTable(episodes: Array(topRuns.prefix(10)))
+                        TopRunsTable(episodes: Array(cachedTopRuns.prefix(10)))
                             .sectionCard()
 
                         WorkerGridView(workers: store.workers)
                             .sectionCard()
 
-                        DeathAnalysisChart(deaths: Array(deathData.prefix(5)))
+                        DeathAnalysisChart(deaths: Array(cachedDeaths.prefix(5)))
                             .frame(minHeight: 140)
                             .sectionCard()
                     }
@@ -159,6 +118,10 @@ struct LiveView: View {
         .focusEffectDisabled()
         .onKeyPress("m", action: { toggleFloorMode(); return .handled })
         .onKeyPress("f", action: { toggleStats(); return .handled })
+        .onAppear { refreshCaches() }
+        .onChange(of: store.recentEpisodes.count) { refreshCaches() }
+        .onChange(of: store.topEpisodes.count) { refreshCaches() }
+        .onChange(of: statsMode) { refreshCaches() }
     }
 
     private func toggleFloorMode() {
@@ -167,6 +130,51 @@ struct LiveView: View {
 
     private func toggleStats() {
         statsMode = statsMode == .last100 ? .allTime : .last100
+    }
+
+    private func refreshCaches() {
+        // Build active episodes based on mode
+        let episodes: [Episode]
+        if statsMode == .allTime {
+            var seen = Set<String>()
+            var merged: [Episode] = []
+            for ep in store.recentEpisodes + store.topEpisodes {
+                if seen.insert(ep.seed).inserted { merged.append(ep) }
+            }
+            episodes = merged
+        } else {
+            episodes = store.recentEpisodes
+        }
+        cachedEpisodes = episodes
+
+        // Top runs
+        cachedTopRuns = episodes.sorted { $0.effectiveFloor > $1.effectiveFloor }
+
+        // Death stats
+        var counts: [String: Int] = [:]
+        for ep in episodes where !ep.won {
+            counts[ep.deathEnemy ?? "Unknown", default: 0] += 1
+        }
+        cachedDeaths = counts.sorted { $0.value > $1.value }.map { (enemy: $0.key, count: $0.value) }
+
+        // Performance by room
+        var grouped: [RoomCategory: [Combat]] = [:]
+        for ep in episodes {
+            for combat in ep.combats ?? [] {
+                grouped[combat.roomCategory, default: []].append(combat)
+            }
+        }
+        var perf: [RoomCategory: RoomPerformance] = [:]
+        for (cat, combats) in grouped {
+            let turns = combats.compactMap(\.turns)
+            let hpLost = combats.compactMap(\.hpLost)
+            let avgT = turns.isEmpty ? 0 : Double(turns.reduce(0, +)) / Double(turns.count)
+            let avgHP = hpLost.isEmpty ? 0 : Double(hpLost.reduce(0, +)) / Double(hpLost.count)
+            let potR = combats.isEmpty ? 0 :
+                Double(combats.filter { ($0.potionsUsed ?? 0) > 0 }.count) / Double(combats.count)
+            perf[cat] = RoomPerformance(count: combats.count, avgTurns: avgT, avgHpLost: avgHP, potionRate: potR)
+        }
+        cachedPerformance = perf
     }
 
     private func keybind(_ key: String, action: String) -> some View {

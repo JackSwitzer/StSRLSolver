@@ -20,23 +20,23 @@ struct LossChartsView: View {
                             x: .value("Step", pt.step),
                             y: .value("Loss", pt.total)
                         )
-                        .foregroundStyle(Color.stsRed)
+                        .foregroundStyle(by: .value("Series", "Total"))
                         .interpolationMethod(.catmullRom)
                     }
                     ForEach(history) { pt in
                         LineMark(
                             x: .value("Step", pt.step),
-                            y: .value("Policy", pt.policy)
+                            y: .value("Loss", pt.policy)
                         )
-                        .foregroundStyle(Color.stsBlue)
+                        .foregroundStyle(by: .value("Series", "Policy"))
                         .interpolationMethod(.catmullRom)
                     }
                     ForEach(history) { pt in
                         LineMark(
                             x: .value("Step", pt.step),
-                            y: .value("Value", pt.value)
+                            y: .value("Loss", pt.value)
                         )
-                        .foregroundStyle(Color.stsGold)
+                        .foregroundStyle(by: .value("Series", "Value"))
                         .interpolationMethod(.catmullRom)
                     }
                 }
@@ -58,14 +58,6 @@ struct LossChartsView: View {
                 }
                 .chartPlotStyle { plotArea in
                     plotArea.background(Color.stsBg.opacity(0.5))
-                }
-                .chartOverlay { proxy in
-                    GeometryReader { geo in
-                        Rectangle().fill(.clear).contentShape(Rectangle())
-                            .onContinuousHover { phase in
-                                // Tooltip handled by SwiftUI chart overlay
-                            }
-                    }
                 }
 
                 // Legend

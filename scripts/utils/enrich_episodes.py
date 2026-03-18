@@ -5,7 +5,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-INPUT_PATH = Path(__file__).resolve().parent.parent / "logs" / "weekend-run" / "top_episodes.json"
+INPUT_PATH = Path(__file__).resolve().parent.parent / "logs" / "active" / "top_episodes.json"
 
 # -- Card classification tables --
 
