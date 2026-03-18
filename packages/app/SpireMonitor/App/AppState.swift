@@ -18,7 +18,7 @@ enum AppView: String, CaseIterable, Identifiable {
     }
 }
 
-@Observable
+@MainActor @Observable
 final class AppState {
     var selectedView: AppView = .live
     var selectedEpisode: Episode?

@@ -1,7 +1,6 @@
 import Foundation
 
-struct Combat: Codable, Identifiable {
-    var id: String { "\(floor)_\(encounterName ?? roomType ?? "unknown")" }
+struct Combat: Codable {
 
     let floor: Int
     let roomType: String?

@@ -1,7 +1,7 @@
 import Foundation
 
 struct Episode: Codable, Identifiable {
-    var id: String { "\(seed)_\(episode ?? 0)" }
+    let id = UUID()
 
     let seed: String
     let won: Bool

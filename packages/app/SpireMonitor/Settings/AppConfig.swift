@@ -26,6 +26,7 @@ final class AppConfig {
 
     func setLogsPath(_ url: URL) {
         logsPath = url
+        archivedRunsPath = url.deletingLastPathComponent().appending(path: "runs")
         UserDefaults.standard.set(url.path(), forKey: Self.logsPathKey)
     }
 

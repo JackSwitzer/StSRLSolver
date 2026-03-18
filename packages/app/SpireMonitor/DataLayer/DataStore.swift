@@ -1,6 +1,6 @@
 import Foundation
 
-@Observable
+@MainActor @Observable
 final class DataStore {
     var status: TrainingStatus?
     var recentEpisodes: [Episode] = []

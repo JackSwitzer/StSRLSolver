@@ -1,0 +1,159 @@
+{
+  "": {
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/master.swiftdeps"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/App/AppState.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppState.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppState.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppState~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppState.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppState.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/App/SpireMonitorApp.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SpireMonitorApp.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SpireMonitorApp.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SpireMonitorApp~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SpireMonitorApp.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SpireMonitorApp.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/DataLayer/DataStore.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DataStore.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DataStore.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DataStore~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DataStore.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DataStore.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/DataLayer/EpisodeLoader.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/EpisodeLoader.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/EpisodeLoader.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/EpisodeLoader~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/EpisodeLoader.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/EpisodeLoader.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/DataLayer/StatusPoller.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusPoller.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusPoller.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusPoller~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusPoller.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusPoller.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Models/Combat.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Combat.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Combat.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Combat~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Combat.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Combat.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Models/Episode.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Episode.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Episode.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Episode~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Episode.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Episode.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Models/TrainingStatus.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TrainingStatus.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TrainingStatus.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TrainingStatus~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TrainingStatus.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TrainingStatus.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Models/WorkerStatus.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerStatus.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerStatus.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerStatus~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerStatus.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerStatus.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Settings/AppConfig.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppConfig.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppConfig.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppConfig~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppConfig.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/AppConfig.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Settings/SettingsView.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SettingsView.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SettingsView.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SettingsView~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SettingsView.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/SettingsView.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Theme/Colors.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Colors.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Colors.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Colors~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Colors.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Colors.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Theme/Styles.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Styles.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Styles.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Styles~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Styles.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Styles.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Theme/Typography.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Typography.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Typography.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Typography~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Typography.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Typography.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Utilities/Formatters.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Formatters.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Formatters.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Formatters~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Formatters.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/Formatters.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/DeathAnalysisChart.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DeathAnalysisChart.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DeathAnalysisChart.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DeathAnalysisChart~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DeathAnalysisChart.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/DeathAnalysisChart.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/FloorCurveChart.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/FloorCurveChart.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/FloorCurveChart.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/FloorCurveChart~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/FloorCurveChart.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/FloorCurveChart.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/LiveView.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/LiveView.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/LiveView.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/LiveView~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/LiveView.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/LiveView.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/PerformancePanelView.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/PerformancePanelView.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/PerformancePanelView.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/PerformancePanelView~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/PerformancePanelView.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/PerformancePanelView.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/StatusBarView.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusBarView.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusBarView.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusBarView~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusBarView.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/StatusBarView.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/TopRunsTable.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TopRunsTable.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TopRunsTable.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TopRunsTable~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TopRunsTable.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/TopRunsTable.dia"
+  },
+  "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/SpireMonitor/Views/Live/WorkerGridView.swift": {
+    "dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerGridView.d",
+    "object": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerGridView.swift.o",
+    "swiftmodule": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerGridView~partial.swiftmodule",
+    "swift-dependencies": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerGridView.swiftdeps",
+    "diagnostics": "/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/app/.build/arm64-apple-macosx/debug/SpireMonitor.build/WorkerGridView.dia"
+  }
+}
