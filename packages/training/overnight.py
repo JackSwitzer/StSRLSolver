@@ -701,7 +701,7 @@ class OvernightRunner:
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
             COLLECT_GAMES = 100   # Games per collect phase
-            TRAIN_EPOCHS = 8     # PPO epochs during train phase
+            TRAIN_EPOCHS = 4     # PPO epochs (was 8, caused overfitting on small buffer)
             TRAIN_STEPS_PER_PHASE = 10  # Train batch calls per phase
             games_per_min = 0.0
 
