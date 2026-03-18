@@ -21,9 +21,9 @@ final class DataStore {
     }
 
     var peakFloor: Int {
-        let topFloor = (recentEpisodes + topEpisodes)
+        if let peak = status?.peakFloor ?? status?.replayBestFloor { return peak }
+        return (recentEpisodes + topEpisodes)
             .max(by: { $0.effectiveFloor < $1.effectiveFloor })?.effectiveFloor ?? 0
-        return status?.peakFloor ?? status?.replayBestFloor ?? topFloor
     }
 
     func appendLoss(from status: TrainingStatus) {

@@ -203,7 +203,7 @@ cmd_status() {
     local status_file="$ACTIVE_LINK/status.json"
     if [ -f "$status_file" ]; then
         echo "--- Latest Status ($status_file) ---"
-        python3 -c "
+        uv run python -c "
 import json, sys
 with open('$status_file') as f:
     s = json.load(f)

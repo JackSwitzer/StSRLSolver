@@ -7,11 +7,7 @@ struct StatusBarView: View {
     let mode: StatsMode
 
     private var avgFloor: String {
-        if mode == .allTime, let s = status, let total = s.totalGames, total > 0 {
-            // Approximate from recent_floors when all-time isn't available
-            return Fmt.decimal(s.avgFloor100 ?? 0, places: 1)
-        }
-        return Fmt.decimal(status?.avgFloor100 ?? 0, places: 1)
+        Fmt.decimal(status?.avgFloor100 ?? 0, places: 1)
     }
 
     private var winRate: String {

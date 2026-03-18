@@ -107,6 +107,7 @@ class OvernightRunner:
         self._stall_checkpoint_floor = 0.0
         self._stall_checkpoint_games = 0
         self._construction_failures = 0
+        self._gpu_cache: Tuple[float, Optional[int]] = (0.0, None)
 
         # Current sweep config (set by _run_config for epsilon forwarding)
         self._current_sweep_config: Dict[str, Any] = {}
@@ -152,9 +153,6 @@ class OvernightRunner:
         """Advance to next sweep config. Returns False if sweep is done."""
         self._current_sweep_idx += 1
         return self._current_sweep_idx < len(self.sweep_configs)
-
-    # GPU utilization cache (ioreg is expensive, refresh every 10s)
-    _gpu_cache: Tuple[float, Optional[int]] = (0.0, None)
 
     @staticmethod
     def _read_gpu_percent() -> Optional[int]:

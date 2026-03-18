@@ -27,7 +27,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_RUN_DIR = PROJECT_ROOT / "logs" / "active"
 ARCHIVE_DIR = PROJECT_ROOT / "logs" / "archive"
 
