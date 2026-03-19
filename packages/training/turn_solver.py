@@ -67,6 +67,9 @@ _STANCE_CARDS: Dict[str, str] = {
 # Early cutoff: skip nodes this far below the current best
 _EARLY_CUTOFF_GAP = 200.0
 
+# Solver budgets are passed per-call from worker.py (which reads from training_config).
+# No hardcoded budgets here — solver uses self.default_time_budget_ms and self.default_node_budget.
+
 # LRU cache size for turn-level plan caching
 _PLAN_CACHE_SIZE = 512
 
@@ -138,6 +141,7 @@ class TurnSolver:
         if engine.phase != CombatPhase.PLAYER_TURN or engine.state.combat_over:
             return None
 
+        # Budget comes from worker (via training_config.SOLVER_BUDGETS, scaled by enemy HP)
         time_ms = self.default_time_budget_ms
         node_limit = self.default_node_budget
 
@@ -1066,11 +1070,11 @@ class MultiTurnSolver:
 
 
 # ---------------------------------------------------------------------------
-# TurnSolverAdapter: drop-in bridge for overnight.py
+# TurnSolverAdapter: drop-in bridge for training_runner.py
 # ---------------------------------------------------------------------------
 
 class TurnSolverAdapter:
-    """Drop-in replacement for _pick_combat_action() in overnight.py.
+    """Drop-in replacement for _pick_combat_action() in training_runner.py.
 
     Wraps TurnSolver and bridges between the GameRunner's CombatAction format
     and the engine-level Action format used by TurnSolver.

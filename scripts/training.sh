@@ -96,7 +96,7 @@ stop_training() {
 
     # Clean up any orphaned worker processes from this project
     local orphans
-    orphans=$(pgrep -f "packages.training.overnight\|multiprocessing.spawn.*spawn_main" 2>/dev/null | grep -v "^$$" || true)
+    orphans=$(pgrep -f "packages.training.training_runner\|multiprocessing.spawn.*spawn_main" 2>/dev/null | grep -v "^$$" || true)
     if [ -n "$orphans" ]; then
         echo "  Cleaning up $(echo "$orphans" | wc -l | tr -d ' ') orphaned workers..."
         echo "$orphans" | xargs kill 2>/dev/null || true
@@ -149,7 +149,7 @@ cmd_start() {
     echo "  caffeinate: PID $!"
 
     # Start training (macOS doesn't have setsid, use nohup instead)
-    nohup uv run python -m packages.training.overnight \
+    nohup uv run python -m packages.training.training_runner \
         --games "$games" \
         --workers "$workers" \
         --batch-size "$batch" \
@@ -275,7 +275,7 @@ cmd_weekend() {
     echo $! > "$PID_DIR/caffeinate.pid"
     echo "  caffeinate: PID $!"
 
-    nohup uv run python -m packages.training.overnight \
+    nohup uv run python -m packages.training.training_runner \
         --games "$games" \
         --workers "$workers" \
         --batch 24 \

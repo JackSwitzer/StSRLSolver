@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from .training_config import ENTROPY_COEFF, LR_BASE, LR_SCHEDULE, LR_T_0, TEMPERATURE
+
 DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
-    # Single focused config — no weight forking, all budget goes to learning.
+    # Single focused config -- no weight forking, all budget goes to learning.
     # Pure on-policy: model makes decisions, log_prob from unscaled policy.
     {"name": "focused_b1024",
-     "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
-     "batch_size": 512, "entropy_coeff": 0.02, "temperature": 0.9,
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 512, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
      "turn_solver_ms": 30.0},
 ]
 

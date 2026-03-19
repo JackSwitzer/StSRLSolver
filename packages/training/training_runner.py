@@ -1,4 +1,4 @@
-"""Overnight training runner with scheduling and hyperparameter sweep.
+"""Training runner with scheduling and hyperparameter sweep.
 
 Orchestrates the training loop:
 - Multiprocessing worker pool for parallel game execution
@@ -28,15 +28,27 @@ from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
     EVENT_REWARDS,
     FLOOR_MILESTONES,
-    REPLAY_BUFFER_SIZE,
-    REPLAY_MIN_FLOOR,
-    REPLAY_MIX_RATIO,
     REWARD_WEIGHTS,
-    STALL_DETECTION_WINDOW,
-    STALL_IMPROVEMENT_THRESHOLD,
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
+from .training_config import (
+    MODEL_HIDDEN_DIM,
+    MODEL_NUM_BLOCKS,
+    REPLAY_BUFFER_SIZE,
+    REPLAY_MIN_FLOOR,
+    REPLAY_MIX_RATIO,
+    STALL_DETECTION_WINDOW,
+    STALL_IMPROVEMENT_THRESHOLD,
+    TEMPERATURE,
+    TRAIN_BATCH_SIZE,
+    TRAIN_COLLECT_GAMES,
+    TRAIN_GAMES_PER_BATCH,
+    TRAIN_MAX_BATCH_INFERENCE,
+    TRAIN_PPO_EPOCHS,
+    TRAIN_STEPS_PER_PHASE,
+    TRAIN_WORKERS,
+)
 from .worker import _ACTION_DIM, _play_one_game, _worker_init
 
 logger = logging.getLogger(__name__)
@@ -69,16 +81,16 @@ class OvernightRunner:
         self.sweep_configs = config.get("sweep_configs", DEFAULT_SWEEP_CONFIGS)
         self.run_dir = Path(config.get("run_dir", "logs/active"))
         self.max_games = config.get("max_games", 50000)
-        self.games_per_batch = config.get("games_per_batch", 16)
-        self.workers = config.get("workers", 10)
+        self.games_per_batch = config.get("games_per_batch", TRAIN_GAMES_PER_BATCH)
+        self.workers = config.get("workers", TRAIN_WORKERS)
         self.ascension = config.get("ascension", 0)
         self.eval_every = config.get("eval_every", 500)
-        self.ppo_batch_size = config.get("ppo_batch_size", 256)
-        self.temperature = config.get("temperature", 1.0)
+        self.ppo_batch_size = config.get("ppo_batch_size", TRAIN_BATCH_SIZE)
+        self.temperature = config.get("temperature", TEMPERATURE)
         self.resume_path = config.get("resume_path", None)
-        self.hidden_dim = config.get("hidden_dim", 768)
-        self.num_blocks = config.get("num_blocks", 4)
-        self.max_batch_size = config.get("max_batch_size", 16)
+        self.hidden_dim = config.get("hidden_dim", MODEL_HIDDEN_DIM)
+        self.num_blocks = config.get("num_blocks", MODEL_NUM_BLOCKS)
+        self.max_batch_size = config.get("max_batch_size", TRAIN_MAX_BATCH_INFERENCE)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -548,9 +560,6 @@ class OvernightRunner:
                 hidden_dim=self.hidden_dim,
                 num_blocks=self.num_blocks,
             ).to(device)
-        assert model.input_dim == encoder.RUN_DIM, (
-            f"Model input_dim={model.input_dim} != encoder RUN_DIM={encoder.RUN_DIM}"
-        )
         logger.info(
             "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
             model.param_count(), model.hidden_dim, model.num_blocks, device,
@@ -615,7 +624,7 @@ class OvernightRunner:
                             )
                         logger.info("  reward_weights -> updated")
 
-                    # --- Legacy reward shaping (backwards compat) ---
+                    # --- Direct dict hot-reload ---
                     if "event_rewards" in cfg:
                         EVENT_REWARDS.update(cfg["event_rewards"])
                         logger.info("  event_rewards -> %s", EVENT_REWARDS)
@@ -732,9 +741,10 @@ class OvernightRunner:
             )
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
-            COLLECT_GAMES = 100   # Games per collect phase
-            TRAIN_EPOCHS = 4     # PPO epochs (was 8, caused overfitting on small buffer)
-            TRAIN_STEPS_PER_PHASE = 10  # Train batch calls per phase
+            # Constants sourced from training_config.py
+            COLLECT_GAMES = TRAIN_COLLECT_GAMES
+            TRAIN_EPOCHS = TRAIN_PPO_EPOCHS
+            _TRAIN_STEPS = TRAIN_STEPS_PER_PHASE
             games_per_min = 0.0
 
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
@@ -784,12 +794,53 @@ class OvernightRunner:
                 train_steps_before = trainer.train_steps
                 train_count = 0
 
+                # Mix in top trajectory files — always remember the best runs
+                from packages.training.strategic_trainer import StrategicTransition
+                traj_dir = self.run_dir / "best_trajectories"
+                if traj_dir.exists():
+                    traj_files = sorted(
+                        traj_dir.glob("traj_F*.npz"),
+                        key=lambda p: p.stem, reverse=True,
+                    )
+                    # Take top 10 trajectories (highest floor, most recent)
+                    top_trajs = traj_files[:10]
+                    mixed_count = 0
+                    for tf in top_trajs:
+                        try:
+                            data = np.load(tf)
+                            n_t = len(data["obs"])
+                            ep_id = hash(tf.stem) % (2**31)
+                            for i in range(n_t):
+                                mask_i = data["masks"][i]
+                                if mask_i.shape[0] < _ACTION_DIM:
+                                    mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                                                    constant_values=False)
+                                st = StrategicTransition(
+                                    obs=data["obs"][i],
+                                    action_mask=mask_i,
+                                    action=int(data["actions"][i]),
+                                    reward=float(data["rewards"][i]),
+                                    done=bool(data["dones"][i]),
+                                    value=float(data["values"][i]),
+                                    log_prob=float(data["log_probs"][i]),
+                                    episode_id=ep_id,
+                                    final_floor=float(data["final_floors"][i]),
+                                    cleared_act1=float(data["cleared_act1"][i]),
+                                )
+                                trainer.buffer.append(st)
+                                mixed_count += 1
+                        except Exception:
+                            continue
+                    if mixed_count > 0:
+                        logger.info("  Distilled %d transitions from top %d trajectories",
+                                    mixed_count, len(top_trajs))
+
                 # Save original epochs, temporarily increase for deeper training
                 orig_epochs = trainer.ppo_epochs
                 trainer.ppo_epochs = TRAIN_EPOCHS
 
                 logger.info("=== TRAIN phase: %d steps, %d epochs, buffer %d ===",
-                            TRAIN_STEPS_PER_PHASE, TRAIN_EPOCHS, len(trainer.buffer))
+                            _TRAIN_STEPS, TRAIN_EPOCHS, len(trainer.buffer))
                 self.write_status({
                     "sweep_config": sweep_config, "sweep_phase": "training",
                     "config_name": config_name, "sweep_games": sweep_games,
@@ -802,7 +853,7 @@ class OvernightRunner:
                     "entropy": self._last_train_metrics.get("entropy"),
                 })
 
-                for _ in range(TRAIN_STEPS_PER_PHASE):
+                for _ in range(_TRAIN_STEPS):
                     if len(trainer.buffer) < trainer.batch_size // 2:
                         break  # Not enough data
                     train_metrics = trainer.train_batch()
@@ -906,25 +957,15 @@ class OvernightRunner:
             result = _run_config(idx, cfg, phase1_games_per)
             config_scores[idx] = result
 
-        # Phase 2+3: ranked allocation across configs based on avg_floor
+        # With single config, Phase 2+3 just continue training on the same config.
         if not self._shutdown_requested and config_scores:
-            if len(config_scores) > 1:
-                ranked = sorted(config_scores.items(), key=lambda x: x[1].get("avg_floor", 0), reverse=True)
-                for rank, (idx, result) in enumerate(ranked):
-                    logger.info("  Rank %d: '%s' — avg floor %.1f", rank+1, self.sweep_configs[idx].get("name"), result.get("avg_floor", 0))
-                best_idx = ranked[0][0]
-                remaining = self.max_games - self.total_games
-                allocations = [0.50, 0.33, 0.17]
-                for rank, ((idx, _), pct) in enumerate(zip(ranked, allocations)):
-                    if self._shutdown_requested: break
-                    alloc = int(remaining * pct)
-                    if alloc <= 0: continue
-                    _run_config(idx, self.sweep_configs[idx], alloc)
-            else:
+            remaining = self.max_games - self.total_games
+            if remaining > 0:
                 best_idx = 0
-                remaining = self.max_games - self.total_games
-                if remaining > 0:
-                    _run_config(best_idx, self.sweep_configs[best_idx], remaining)
+                best_cfg = self.sweep_configs[best_idx]
+                logger.info("=== Continuing training (%d games remaining, replay=%d/%d) ===",
+                             remaining, replay_buffer.size, replay_buffer.best_floor)
+                _run_config(best_idx, best_cfg, remaining, fork_weights=False)
 
         # Save checkpoint and clean up
         _warm_state = {"total_games": self.total_games}
@@ -1165,19 +1206,19 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="Overnight training runner")
-    parser.add_argument("--workers", type=int, default=10, help="Number of parallel workers")
+    parser.add_argument("--workers", type=int, default=TRAIN_WORKERS, help="Number of parallel workers")
     parser.add_argument("--games", type=int, default=50000, help="Maximum total games")
-    parser.add_argument("--batch", type=int, default=16, help="Games per batch")
-    parser.add_argument("--batch-size", type=int, default=256, help="PPO mini-batch size")
+    parser.add_argument("--batch", type=int, default=TRAIN_GAMES_PER_BATCH, help="Games per batch")
+    parser.add_argument("--batch-size", type=int, default=TRAIN_BATCH_SIZE, help="PPO mini-batch size")
     parser.add_argument("--ascension", type=int, default=0, help="Ascension level")
     parser.add_argument("--run-dir", type=str, default="logs/active", help="Output directory")
     parser.add_argument("--headless-after", type=int, default=30, help="Go headless after N minutes")
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
+    parser.add_argument("--temperature", type=float, default=TEMPERATURE, help="Exploration temperature (0=greedy)")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
-    parser.add_argument("--hidden-dim", type=int, default=768, help="Model hidden dimension (768=3M)")
-    parser.add_argument("--num-blocks", type=int, default=4, help="Number of residual blocks")
-    parser.add_argument("--max-batch-size", type=int, default=16, help="Max inference batch size")
+    parser.add_argument("--hidden-dim", type=int, default=MODEL_HIDDEN_DIM, help="Model hidden dimension")
+    parser.add_argument("--num-blocks", type=int, default=MODEL_NUM_BLOCKS, help="Number of residual blocks")
+    parser.add_argument("--max-batch-size", type=int, default=TRAIN_MAX_BATCH_INFERENCE, help="Max inference batch size")
     args = parser.parse_args()
 
     runner = OvernightRunner({

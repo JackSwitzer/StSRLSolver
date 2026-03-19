@@ -20,15 +20,15 @@ from .reward_config import (
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
-    SOLVER_BUDGETS,
     UPGRADE_REWARDS,
     compute_potential,
 )
+from .training_config import MODEL_ACTION_DIM
 
 logger = logging.getLogger(__name__)
 
-# ACTION_DIM constant — must match StrategicNet.action_dim
-_ACTION_DIM = 512
+# ACTION_DIM constant — sourced from training_config, must match StrategicNet.action_dim
+_ACTION_DIM = MODEL_ACTION_DIM
 
 # ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool
@@ -131,11 +131,11 @@ def _play_one_game(
     from packages.training.turn_solver import TurnSolverAdapter
 
     encoder = RunStateEncoder()
-    # Default solver budgets (overridden per-combat based on room type + enemy HP)
-    _default_base_ms, _default_nodes, _ = SOLVER_BUDGETS.get("monster", (50.0, 5_000, 300_000))
+    # Scale node budget proportionally with time budget (100 nodes per ms)
+    _node_budget = max(1000, int(turn_solver_ms * 100))
     turn_solver = TurnSolverAdapter(
-        time_budget_ms=_default_base_ms,
-        node_budget=_default_nodes,
+        time_budget_ms=turn_solver_ms,
+        node_budget=_node_budget,
         # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
         multi_turn_depth=3,
         multi_turn_k=4,
@@ -277,25 +277,11 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
-                prev_stance = "Neutral"
+                prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
                 combat_solver_ms = 0.0
                 combat_solver_calls = 0
-                # Dynamic solver budget based on room type + enemy HP
-                _rt = getattr(runner, "current_room_type", "monster")
-                _rt_key = "boss" if _rt in ("boss", "b") else "elite" if _rt in ("elite", "e") else "monster"
-                _base_ms, _base_nodes, _cap_ms = SOLVER_BUDGETS.get(_rt_key, (50.0, 5_000, 300_000))
-                _total_enemy_hp = 0
-                _combat_ref = getattr(runner, "current_combat", None)
-                if _combat_ref is not None:
-                    for _e in getattr(_combat_ref.state, "enemies", []):
-                        _total_enemy_hp += getattr(_e, "hp", 0)
-                _hp_scale = max(1.0, _total_enemy_hp / 100.0)
-                _scaled_ms = min(_base_ms * _hp_scale, _cap_ms)
-                _scaled_nodes = int(_base_nodes * _hp_scale)
-                turn_solver._solver.default_time_budget_ms = _scaled_ms
-                turn_solver._solver.default_node_budget = _scaled_nodes
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
             # Track card plays, potion uses, stance changes
@@ -352,7 +338,7 @@ def _play_one_game(
                     turns_log.append(_turn_info)
                     turn_cards.clear()
             runner.take_action(action)
-            # Detect stance changes after action (count only, no reward)
+            # Detect stance changes after action
             combat_state = getattr(runner, "current_combat", None)
             if combat_state is not None:
                 cur_stance = getattr(combat_state.state, "stance", "Neutral")
@@ -403,11 +389,6 @@ def _play_one_game(
 
             n_actions = len(actions)
 
-            # Guard against action space overflow
-            if n_actions > _ACTION_DIM:
-                logger.warning("Action overflow: %d > %d, truncating", n_actions, _ACTION_DIM)
-                n_actions = _ACTION_DIM
-
             # Map GamePhase to phase_type for state encoding
             _PHASE_MAP = {
                 GamePhase.MAP_NAVIGATION: "path",
@@ -444,24 +425,24 @@ def _play_one_game(
                     logits_np = resp["logits"]  # numpy array, length action_dim
                     value = float(resp["value"])
 
-                    # Mask logits to valid actions only (prevents sampling invalid indices)
-                    logits_valid = logits_np[:n_actions]
-
                     # Temperature-scaled sampling
                     if temperature > 0:
-                        logits_scaled = logits_valid / temperature
+                        logits_scaled = logits_np / temperature
                         logits_scaled = logits_scaled - logits_scaled.max()
                         probs = np.exp(logits_scaled)
                         probs /= probs.sum()
-                        action_idx = int(np.random.choice(n_actions, p=probs))
+                        action_idx = int(np.random.choice(len(probs), p=probs))
                     else:
-                        action_idx = int(np.argmax(logits_valid))
+                        action_idx = int(np.argmax(logits_np))
 
                     # log_prob from UNSCALED policy (matches trainer's forward pass).
-                    logits_base = logits_valid - logits_valid.max()
+                    logits_base = logits_np - logits_np.max()
                     probs_base = np.exp(logits_base)
                     probs_base /= probs_base.sum()
                     log_prob = float(np.log(probs_base[action_idx] + 1e-8))
+
+                    # Clamp to valid range
+                    action_idx = min(action_idx, n_actions - 1)
                 else:
                     logits_np = None
 

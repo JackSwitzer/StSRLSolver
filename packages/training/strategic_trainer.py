@@ -48,18 +48,6 @@ class StrategicTransition:
     cleared_act3: float = 0.0
 
 
-# Reward constants for strategic decisions
-STRATEGIC_REWARDS = {
-    "floor_cleared": 0.01,
-    "normal_kill": 0.05,
-    "elite_kill": 0.15,
-    "boss_kill": 0.40,
-    "game_win": 1.0,
-    "game_loss_base": -0.3,
-    "hp_efficiency_scale": 0.05,
-}
-
-
 class StrategicTrainer:
     """PPO trainer for the strategic model.
 
