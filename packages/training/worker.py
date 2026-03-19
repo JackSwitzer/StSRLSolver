@@ -197,6 +197,7 @@ def _play_one_game(
     from packages.training.state_encoders import RunStateEncoder
     from packages.training.inference_server import get_client
     from packages.training.turn_solver import TurnSolverAdapter
+    from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
 
     encoder = RunStateEncoder()
     # Scale node budget proportionally with time budget (100 nodes per ms)
@@ -365,8 +366,7 @@ def _play_one_game(
 
             # MCTS combat: use neural value head for evaluation
             if mcts_engine is not None:
-                from packages.training.training_config import COMBAT_MCTS_BUDGETS
-                budget = COMBAT_MCTS_BUDGETS.get(combat_room_type, 20)
+                budget = _combat_mcts_budgets.get(combat_room_type, 20)
                 try:
                     idx, _ = mcts_engine.search(
                         runner, actions, "combat",

@@ -1181,9 +1181,10 @@ class OvernightRunner:
         results: List[Dict[str, Any]] = []
         for ar, seed in zip(async_results, seeds):
             try:
-                result = ar.get(timeout=120)
+                # MCTS deep search: boss fights can take 10+ min, full game up to 1h
+                result = ar.get(timeout=3600)
             except Exception as e:
-                logger.warning("Game %s failed: %s", seed, e)
+                logger.warning("Game %s failed (%s): %s", seed, type(e).__name__, e)
                 result = {
                     "seed": seed, "won": False, "floor": 0, "hp": 0,
                     "decisions": 0, "duration_s": 0.0, "transitions": [],

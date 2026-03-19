@@ -34,23 +34,12 @@ DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
      "turn_solver_ms": 100.0, "mcts_enabled": True},
 ]
 
-# Weekend sweep: BC warmup baseline + MCTS combat with 200/500 sims
+# Weekend sweep: single MCTS 500 config — all-in on deep search for 90h
 WEEKEND_SWEEP_CONFIGS: List[Dict[str, Any]] = [
-    # Baseline: BC warmup, pure TurnSolver combat (no MCTS)
-    {"name": "bc_warmup_pure_search",
+    {"name": "mcts_500_alphazero",
      "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
      "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
-     "turn_solver_ms": 100.0, "mcts_enabled": False, "max_hours": 20},
-    # MCTS combat + 200 sims for card picks
-    {"name": "mcts_200_sims",
-     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
-     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
-     "turn_solver_ms": 100.0, "mcts_enabled": True, "mcts_card_sims": 200, "max_hours": 35},
-    # MCTS combat + 500 sims for card picks (deeper search)
-    {"name": "mcts_500_sims",
-     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
-     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
-     "turn_solver_ms": 100.0, "mcts_enabled": True, "mcts_card_sims": 500, "max_hours": 35},
+     "turn_solver_ms": 100.0, "mcts_enabled": True, "mcts_card_sims": 500},
 ]
 
 # Overnight ablation: full 5-config sweep on 8 fixed seeds, 18M model + Wrath fix
