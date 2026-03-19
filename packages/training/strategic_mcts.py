@@ -78,6 +78,7 @@ class StrategicMCTS:
         actions: list,
         phase_type: str,
         budget: Optional[int] = None,
+        combat_only: bool = False,
     ) -> tuple:
         """Run MCTS and return (best_action_idx, visit_count_policy).
 
@@ -86,6 +87,7 @@ class StrategicMCTS:
             actions: List of available actions
             phase_type: Decision type for budget lookup
             budget: Override simulation count (default from MCTS_BUDGETS)
+            combat_only: If True, rollouts stop when combat ends
 
         Returns:
             (action_idx, policy) where policy is normalized visit counts
@@ -114,7 +116,7 @@ class StrategicMCTS:
             try:
                 game_copy = runner.copy()
                 game_copy.take_action(actions[action_idx])
-                value = self._rollout_and_evaluate(game_copy, phase_type)
+                value = self._rollout_and_evaluate(game_copy, phase_type, combat_only=combat_only)
             except Exception as e:
                 logger.warning("MCTS sim %d failed: %s", sim, e)
                 value = 0.0
@@ -145,12 +147,15 @@ class StrategicMCTS:
 
         return best_idx, policy
 
-    def _rollout_and_evaluate(self, runner: 'GameRunner', phase_type: str) -> float:
+    def _rollout_and_evaluate(self, runner: 'GameRunner', phase_type: str, combat_only: bool = False) -> float:
         """Play forward from current state and return value estimate.
 
         Strategy:
         1. If value head available: play a few steps, then evaluate with NN
         2. Otherwise: play to completion (or MAX_ROLLOUT_STEPS) with heuristic
+
+        When combat_only=True, rollout stops when combat ends (phase changes
+        from COMBAT), preventing combat MCTS from simulating entire rest-of-game.
         """
         from packages.engine.game import GamePhase
 
@@ -167,6 +172,10 @@ class StrategicMCTS:
                 break
 
             phase = runner.phase
+
+            # Combat-only mode: stop when combat ends
+            if combat_only and phase != GamePhase.COMBAT:
+                break
 
             if phase == GamePhase.COMBAT:
                 # In combat: just take first action (fast rollout)

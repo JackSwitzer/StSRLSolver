@@ -371,6 +371,15 @@ cmd_archive() {
     echo "Active symlink removed. Ready for fresh start."
 }
 
+cmd_archive_old() {
+    mkdir -p logs/archive/pre_weekend_runs
+    local count=0
+    for d in logs/runs/run_2026031[78]_*; do
+        [ -d "$d" ] && mv "$d" logs/archive/pre_weekend_runs/ && count=$((count + 1))
+    done
+    echo "Archived $count old run directories"
+}
+
 cmd_quick_restart() {
     echo "Quick restart: stop -> save -> restart with code changes..."
     local was_running=false
@@ -400,8 +409,9 @@ case "${1:-status}" in
     resume)  shift; cmd_resume "$@" ;;
     weekend) shift; cmd_weekend "$@" ;;
     restart) shift; cmd_quick_restart "$@" ;;
-    archive) shift; cmd_archive "$@" ;;
-    fresh)   shift; cmd_archive "${1:-fresh}" && cmd_weekend "${@:2}" ;;
+    archive)     shift; cmd_archive "$@" ;;
+    archive-old) cmd_archive_old ;;
+    fresh)       shift; cmd_archive "${1:-fresh}" && cmd_weekend "${@:2}" ;;
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
     prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;

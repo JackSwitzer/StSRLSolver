@@ -47,24 +47,24 @@ TEMPERATURE = 0.9
 # Solver Budgets (per room type: base_ms, base_nodes, cap_ms)
 # ---------------------------------------------------------------------------
 SOLVER_BUDGETS: Dict[str, tuple] = {
-    "monster": (50.0, 5_000, 300_000),      # 5 min cap
-    "elite":   (200.0, 20_000, 600_000),    # 10 min cap
-    "boss":    (500.0, 50_000, 1_200_000),  # 20 min cap
+    "monster": (50.0, 5_000, 300_000),       # 5 min cap
+    "elite":   (500.0, 50_000, 600_000),     # 10 min cap
+    "boss":    (10_000.0, 200_000, 600_000), # 10s base for bosses
 }
 SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
 
 # Solver scoring weights — keep minimal, let model learn strategy
 SOLVER_SCORING: Dict[str, float] = {
-    "hp_lost_weight": -3.0,         # Per HP lost after enemy turn
-    "enemy_kill_bonus": 30.0,       # Per enemy killed this turn
-    "remaining_hp_weight": -10.0,   # Normalized remaining enemy HP penalty
-    "turns_to_kill_weight": -5.0,   # Per estimated turn to kill
-    "calm_bonus": 8.0,              # Ending turn in Calm (energy bank)
-    "wrath_incoming_scale": 1.0,    # Wrath penalty = incoming * this (capped at wrath_cap)
-    "wrath_cap": 15.0,              # Max Wrath penalty
-    "unspent_energy_weight": -3.0,  # Per unspent energy with playable cards
-    "unspent_playable_weight": -2.0,  # Per playable card left in hand
-    "unspent_idle_weight": -1.0,    # Per unspent energy with no playable cards
+    "hp_lost_weight": -1.0,         # Per HP lost after enemy turn
+    "enemy_kill_bonus": 10.0,       # Per enemy killed this turn
+    "remaining_hp_weight": -1.0,    # Normalized remaining enemy HP penalty
+    "turns_to_kill_weight": -1.0,   # Per estimated turn to kill
+    "calm_bonus": 0.0,              # No stance preference (let search decide)
+    "wrath_incoming_scale": 0.0,    # No Wrath penalty (let search decide)
+    "wrath_cap": 0.0,               # No Wrath cap
+    "unspent_energy_weight": -1.0,  # Per unspent energy with playable cards
+    "unspent_playable_weight": -0.5,  # Per playable card left in hand
+    "unspent_idle_weight": 0.0,     # No penalty for idle energy
 }
 
 # ---------------------------------------------------------------------------
@@ -138,6 +138,14 @@ PBRS_WEIGHTS: Dict[str, float] = {
 # ---------------------------------------------------------------------------
 # MCTS
 # ---------------------------------------------------------------------------
+# Combat MCTS budgets (sims per action, by room type)
+COMBAT_MCTS_BUDGETS: Dict[str, int] = {
+    "monster": 20,    # ~100ms per action, fast
+    "elite": 100,     # ~700ms per action, thorough
+    "boss": 500,      # ~3.5s per action → 5-10 min total per boss fight
+}
+
+# Strategic MCTS budgets (sims per decision, by phase type)
 MCTS_BUDGETS: Dict[str, int] = {
     "card_pick": 200,
     "path": 50,

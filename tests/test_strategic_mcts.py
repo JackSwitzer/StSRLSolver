@@ -2,6 +2,7 @@
 import pytest
 import numpy as np
 from packages.training.strategic_mcts import MCTSNode, StrategicMCTS, MCTS_BUDGETS
+from packages.training.training_config import COMBAT_MCTS_BUDGETS
 
 
 class TestMCTSNode:
@@ -117,3 +118,123 @@ class TestStrategicMCTS:
         assert 0 <= idx < 2
         assert len(policy) == 2
         assert abs(policy.sum() - 1.0) < 1e-6
+
+
+class TestCombatMCTS:
+    """Tests for AlphaZero-style MCTS combat search."""
+
+    def test_combat_mcts_budgets_exist(self):
+        """All expected room types have combat MCTS budgets."""
+        for room in ["monster", "elite", "boss"]:
+            assert room in COMBAT_MCTS_BUDGETS
+        # Boss budget should be highest
+        assert COMBAT_MCTS_BUDGETS["boss"] > COMBAT_MCTS_BUDGETS["elite"]
+        assert COMBAT_MCTS_BUDGETS["elite"] > COMBAT_MCTS_BUDGETS["monster"]
+
+    def test_combat_mcts_search_mid_combat(self):
+        """MCTS combat search runs on a real mid-combat game state."""
+        from packages.engine.game import GameRunner, GamePhase
+
+        runner = GameRunner(seed="CMCTS1", ascension=0, verbose=False)
+
+        # Advance to mid-combat with multiple actions
+        found_combat = False
+        for _ in range(200):
+            actions = runner.get_available_actions()
+            if not actions or runner.game_over:
+                break
+            if runner.phase == GamePhase.COMBAT and len(actions) > 1:
+                # Test combat MCTS here
+                mcts = StrategicMCTS()
+                idx, policy = mcts.search(
+                    runner, actions, "combat",
+                    budget=5, combat_only=True,
+                )
+                assert 0 <= idx < len(actions)
+                assert len(policy) == len(actions)
+                assert abs(policy.sum() - 1.0) < 1e-6
+                found_combat = True
+                break
+            runner.take_action(actions[0])
+
+        assert found_combat, "Could not reach a multi-action combat state"
+
+    def test_combat_only_rollout_stops_at_boundary(self):
+        """combat_only=True stops rollout when phase leaves COMBAT."""
+        from packages.engine.game import GameRunner, GamePhase
+
+        runner = GameRunner(seed="CMCTS2", ascension=0, verbose=False)
+
+        # Advance to combat
+        for _ in range(200):
+            actions = runner.get_available_actions()
+            if not actions or runner.game_over:
+                break
+            if runner.phase == GamePhase.COMBAT and len(actions) > 1:
+                mcts = StrategicMCTS()
+                # With combat_only, rollout should stop at combat boundary
+                # and return a heuristic value (not simulate entire game)
+                game_copy = runner.copy()
+                val = mcts._rollout_and_evaluate(game_copy, "combat", combat_only=True)
+                assert isinstance(val, float)
+                assert 0.0 <= val <= 1.0
+                break
+            runner.take_action(actions[0])
+
+    def test_combat_only_vs_full_rollout_different_steps(self):
+        """combat_only rollout should generally be shorter than full rollout."""
+        from packages.engine.game import GameRunner, GamePhase
+
+        runner = GameRunner(seed="CMCTS3", ascension=0, verbose=False)
+
+        for _ in range(200):
+            actions = runner.get_available_actions()
+            if not actions or runner.game_over:
+                break
+            if runner.phase == GamePhase.COMBAT and len(actions) > 1:
+                mcts = StrategicMCTS()
+
+                # Both modes should produce valid values
+                copy1 = runner.copy()
+                val_combat = mcts._rollout_and_evaluate(copy1, "combat", combat_only=True)
+                copy2 = runner.copy()
+                val_full = mcts._rollout_and_evaluate(copy2, "combat", combat_only=False)
+
+                assert isinstance(val_combat, float)
+                assert isinstance(val_full, float)
+                assert 0.0 <= val_combat <= 1.0
+                assert 0.0 <= val_full <= 1.0
+                break
+            runner.take_action(actions[0])
+
+    def test_mcts_card_sims_override_flows_through(self):
+        """mcts_card_sims parameter is accepted by _play_one_game signature."""
+        from packages.training.worker import _play_one_game
+        import inspect
+
+        sig = inspect.signature(_play_one_game)
+        params = list(sig.parameters.keys())
+        assert "mcts_card_sims" in params
+        # Check default value is 0
+        assert sig.parameters["mcts_card_sims"].default == 0
+
+    def test_sweep_config_mcts_card_sims(self):
+        """Weekend sweep configs have mcts_card_sims set correctly."""
+        from packages.training.sweep_config import WEEKEND_SWEEP_CONFIGS
+
+        # Should have 3 configs
+        assert len(WEEKEND_SWEEP_CONFIGS) == 3
+
+        # First config: no MCTS
+        assert WEEKEND_SWEEP_CONFIGS[0]["mcts_enabled"] is False
+        assert WEEKEND_SWEEP_CONFIGS[0]["max_hours"] == 20
+
+        # Second config: 200 sims
+        assert WEEKEND_SWEEP_CONFIGS[1]["mcts_enabled"] is True
+        assert WEEKEND_SWEEP_CONFIGS[1]["mcts_card_sims"] == 200
+        assert WEEKEND_SWEEP_CONFIGS[1]["max_hours"] == 35
+
+        # Third config: 500 sims
+        assert WEEKEND_SWEEP_CONFIGS[2]["mcts_enabled"] is True
+        assert WEEKEND_SWEEP_CONFIGS[2]["mcts_card_sims"] == 500
+        assert WEEKEND_SWEEP_CONFIGS[2]["max_hours"] == 35

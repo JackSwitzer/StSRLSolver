@@ -767,8 +767,12 @@ class OvernightRunner:
             ts_ms = sweep_config.get("turn_solver_ms", 50.0)
 
             # Time limit per config (prevents single config from monopolizing)
+            # Per-config max_hours overrides global max_hours_per_config
             config_start_time = time.monotonic()
-            if self.max_hours_per_config is not None:
+            _per_config_hours = sweep_config.get("max_hours", None)
+            if _per_config_hours is not None:
+                max_seconds = _per_config_hours * 3600
+            elif self.max_hours_per_config is not None:
                 max_seconds = self.max_hours_per_config * 3600
             else:
                 n_cfgs = max(len(self.sweep_configs), 1)
@@ -1147,6 +1151,7 @@ class OvernightRunner:
         ts_ms = cfg.get("turn_solver_ms", 50.0)
         _strategic = cfg.get("strategic_search", False)
         _mcts = cfg.get("mcts_enabled", False)
+        _mcts_card_sims = cfg.get("mcts_card_sims", 0)
 
         # Mixed temperature: ~25% of games use higher temp for exploration
         explore_temp = self.temperature * EXPLORE_TEMP_MULTIPLIER
@@ -1158,7 +1163,8 @@ class OvernightRunner:
                  self.total_games,
                  ts_ms,
                  _strategic,
-                 _mcts),
+                 _mcts,
+                 _mcts_card_sims),
             )
             for i, seed in enumerate(seeds)
         ]

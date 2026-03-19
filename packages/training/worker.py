@@ -175,6 +175,7 @@ def _play_one_game(
     turn_solver_ms: float = 50.0,
     strategic_search: bool = False,
     mcts_enabled: bool = False,
+    mcts_card_sims: int = 0,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
@@ -361,7 +362,22 @@ def _play_one_game(
             combat_room_type = getattr(runner, "current_room_type", "monster")
             # Track card plays, potion uses, stance changes
             _solve_t0 = time.monotonic()
-            action = _pick_combat_action(actions, runner, turn_solver)
+
+            # MCTS combat: use neural value head for evaluation
+            if mcts_engine is not None:
+                from packages.training.training_config import COMBAT_MCTS_BUDGETS
+                budget = COMBAT_MCTS_BUDGETS.get(combat_room_type, 20)
+                try:
+                    idx, _ = mcts_engine.search(
+                        runner, actions, "combat",
+                        budget=budget, combat_only=True,
+                    )
+                    action = actions[idx]
+                except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                    logger.warning("Combat MCTS failed, falling back to TurnSolver: %s", e)
+                    action = _pick_combat_action(actions, runner, turn_solver)
+            else:
+                action = _pick_combat_action(actions, runner, turn_solver)
             combat_solver_ms += (time.monotonic() - _solve_t0) * 1000
             combat_solver_calls += 1
             if hasattr(action, "action_type"):
@@ -522,8 +538,14 @@ def _play_one_game(
                     # MCTS strategic search: full tree search override
                     if mcts_engine is not None and n_actions > 1:
                         try:
+                            # Budget override for card picks (mcts_card_sims)
+                            budget_override = mcts_card_sims if (mcts_card_sims > 0 and phase_type == "card_pick") else None
+                            # Early-game boost: floors 1-10 get 1.5x budget
+                            if budget_override and current_floor <= 10:
+                                budget_override = int(budget_override * 1.5)
                             _, mcts_policy = mcts_engine.search(
                                 runner, actions, phase_type,
+                                budget=budget_override,
                             )
                             # Blend 80% MCTS / 20% model policy for training signal
                             model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())

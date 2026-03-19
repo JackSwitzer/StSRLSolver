@@ -577,7 +577,11 @@ class TestScoring:
         assert score <= -100_000, f"Death score should be <= -100000, got {score}"
 
     def test_calm_stance_bonus(self):
-        """Ending in Calm should give a small bonus (energy banked)."""
+        """With pure search scoring (calm_bonus=0), Calm and Neutral score equally.
+
+        Previously calm_bonus=8.0 gave Calm a bonus, but the MCTS architecture
+        change moves to pure search scoring where stance preference is learned.
+        """
         solver = TurnSolver()
         engine = _make_combat(enemy_hp=100, enemy_damage=0)
         original = engine
@@ -593,6 +597,7 @@ class TestScoring:
         score_neutral = solver._score_terminal(sim_neutral, original)
         score_calm = solver._score_terminal(sim_calm, original)
 
-        assert score_calm > score_neutral, (
-            f"Calm score ({score_calm}) should be > Neutral ({score_neutral})"
+        # With calm_bonus=0, both stances score equally (pure search)
+        assert score_calm >= score_neutral, (
+            f"Calm score ({score_calm}) should be >= Neutral ({score_neutral})"
         )
