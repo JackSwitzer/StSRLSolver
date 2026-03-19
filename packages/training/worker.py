@@ -23,7 +23,7 @@ from .reward_config import (
     UPGRADE_REWARDS,
     compute_potential,
 )
-from .training_config import MODEL_ACTION_DIM
+from .training_config import MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO
 
 logger = logging.getLogger(__name__)
 
@@ -490,7 +490,7 @@ def _play_one_game(
                             # Blend 80% MCTS / 20% model policy for training signal
                             model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
                             model_probs /= model_probs.sum()
-                            blended = 0.8 * mcts_policy + 0.2 * model_probs
+                            blended = MCTS_BLEND_RATIO * mcts_policy + (1 - MCTS_BLEND_RATIO) * model_probs
                             blended /= blended.sum()
                             action_idx = int(np.random.choice(n_actions, p=blended))
                             # Recompute log_prob for the MCTS-chosen action
@@ -506,7 +506,7 @@ def _play_one_game(
                             # Blend 70% search / 30% model policy
                             model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
                             model_probs /= model_probs.sum()
-                            blended = 0.7 * search_policy + 0.3 * model_probs
+                            blended = STRATEGIC_BLEND_RATIO * search_policy + (1 - STRATEGIC_BLEND_RATIO) * model_probs
                             blended /= blended.sum()
                             action_idx = int(np.random.choice(n_actions, p=blended))
                             log_prob = float(np.log(probs_base[action_idx] + 1e-8))
@@ -528,7 +528,8 @@ def _play_one_game(
                 new_potential = compute_potential(new_rs)
 
                 # PBRS: gamma * Phi(s') - Phi(s) preserves optimal policy
-                gamma = 0.99
+                from packages.training.training_config import PBRS_GAMMA
+                gamma = PBRS_GAMMA
                 pbrs_reward = gamma * new_potential - prev_potential
 
                 # Event-based rewards on top of PBRS
@@ -654,7 +655,7 @@ def _play_one_game(
             if won:
                 transitions[-1]["reward"] += REWARD_WEIGHTS.get("win_reward", 10.0)
             else:
-                progress = final_floor / 55.0
+                progress = final_floor / REWARD_WEIGHTS.get("death_floor_cutoff", 55)
                 death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
                 transitions[-1]["reward"] += death_scale * (1 - progress)
             transitions[-1]["done"] = True

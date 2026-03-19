@@ -315,21 +315,24 @@ class TurnSolver:
         dmg_this_turn = orig_ehp - now_ehp
         est_turns = now_ehp / max(dmg_this_turn, 1) if dmg_this_turn > 0 else 10
 
-        # Score: all terms are in comparable units (HP-equivalent)
+        # Score: all weights from training_config.SOLVER_SCORING
+        from .training_config import SOLVER_SCORING as W
         score = (
-            -6.0 * actual_hp_lost
-            + 60.0 * enemies_killed
-            - 1.5 * now_ehp / max(orig_ehp, 1) * 10  # normalized remaining HP
-            - 12.0 * min(est_turns, 10)
+            W["hp_lost_weight"] * actual_hp_lost
+            + W["enemy_kill_bonus"] * enemies_killed
+            + W["remaining_hp_weight"] * now_ehp / max(orig_ehp, 1)
+            + W["turns_to_kill_weight"] * min(est_turns, 10)
         )
 
-        # Stance: ending in Calm banks energy; ending in Wrath is dangerous
+        # Stance: Wrath doubles damage dealt AND taken.
+        # Penalty scales with incoming damage, not a flat number.
+        incoming = TurnSolver._estimate_incoming(state)
         if state.stance == "Calm":
-            score += 25.0
+            score += W["calm_bonus"]
         elif state.stance == "Wrath" and now_living > 0:
-            score -= 60.0
+            score -= min(incoming * W["wrath_incoming_scale"], W["wrath_cap"])
 
-        # Penalize unspent energy with playable cards (unless Ice Cream relic present)
+        # Penalize unspent energy with playable cards (unless Ice Cream relic)
         unspent = state.energy
         if unspent > 0:
             has_ice_cream = any(
@@ -337,14 +340,13 @@ class TurnSolver:
                 for r in getattr(state, 'relics', [])
             )
             if not has_ice_cream:
-                # Count playable cards (cost <= unspent energy)
                 costs = state.card_costs
                 playable = sum(1 for card_id in state.hand
                                if costs.get(card_id, 1) <= unspent)
                 if playable > 0:
-                    score -= 8.0 * unspent + 5.0 * playable
+                    score += W["unspent_energy_weight"] * unspent + W["unspent_playable_weight"] * playable
                 else:
-                    score -= 3.0 * unspent
+                    score += W["unspent_idle_weight"] * unspent
 
         return score
 

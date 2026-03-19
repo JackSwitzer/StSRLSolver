@@ -23,21 +23,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Budget per decision type
-MCTS_BUDGETS: Dict[str, int] = {
-    "card_pick": 200,
-    "path": 50,
-    "rest": 20,
-    "shop": 20,
-    "event": 30,
-    "other": 10,
-}
+from .training_config import MCTS_BUDGETS, MCTS_UCB_C
 
 # Maximum rollout steps (prevent infinite loops)
 MAX_ROLLOUT_STEPS = 100
 
-# UCB exploration constant
-UCB_C = 1.414
+# Re-export for tests
+UCB_C = MCTS_UCB_C
 
 
 @dataclass

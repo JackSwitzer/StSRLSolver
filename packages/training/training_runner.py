@@ -32,6 +32,7 @@ from .reward_config import (
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS
+from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
 from .training_config import (
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
@@ -1128,12 +1129,12 @@ class OvernightRunner:
         _mcts = cfg.get("mcts_enabled", False)
 
         # Mixed temperature: ~25% of games use higher temp for exploration
-        explore_temp = self.temperature * 1.5
+        explore_temp = self.temperature * EXPLORE_TEMP_MULTIPLIER
         async_results = [
             self._executor.apply_async(
                 _play_one_game,
                 (seed, self.ascension,
-                 explore_temp if i % 4 == 0 else self.temperature,
+                 explore_temp if i % EXPLORE_GAME_RATIO == 0 else self.temperature,
                  self.total_games,
                  ts_ms,
                  _strategic,

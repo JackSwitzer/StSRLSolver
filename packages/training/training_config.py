@@ -52,6 +52,20 @@ SOLVER_BUDGETS: Dict[str, tuple] = {
 }
 SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
 
+# Solver scoring weights — keep minimal, let model learn strategy
+SOLVER_SCORING: Dict[str, float] = {
+    "hp_lost_weight": -3.0,         # Per HP lost after enemy turn
+    "enemy_kill_bonus": 30.0,       # Per enemy killed this turn
+    "remaining_hp_weight": -10.0,   # Normalized remaining enemy HP penalty
+    "turns_to_kill_weight": -5.0,   # Per estimated turn to kill
+    "calm_bonus": 8.0,              # Ending turn in Calm (energy bank)
+    "wrath_incoming_scale": 1.0,    # Wrath penalty = incoming * this (capped at wrath_cap)
+    "wrath_cap": 15.0,              # Max Wrath penalty
+    "unspent_energy_weight": -3.0,  # Per unspent energy with playable cards
+    "unspent_playable_weight": -2.0,  # Per playable card left in hand
+    "unspent_idle_weight": -1.0,    # Per unspent energy with no playable cards
+}
+
 # ---------------------------------------------------------------------------
 # Rewards
 # ---------------------------------------------------------------------------
@@ -113,6 +127,33 @@ REWARD_WEIGHTS: Dict[str, Any] = {
 # PBRS
 # ---------------------------------------------------------------------------
 PBRS_GAMMA = 0.99
+PBRS_WEIGHTS: Dict[str, float] = {
+    "floor": 1.5,
+    "hp": 0.30,
+    "deck_quality": 0.15,
+    "relic": 0.10,
+}
+
+# ---------------------------------------------------------------------------
+# MCTS
+# ---------------------------------------------------------------------------
+MCTS_BUDGETS: Dict[str, int] = {
+    "card_pick": 200,
+    "path": 50,
+    "rest": 20,
+    "shop": 20,
+    "event": 30,
+    "other": 10,
+}
+MCTS_UCB_C = 1.414
+MCTS_BLEND_RATIO = 0.8       # MCTS weight (1 - this = model weight)
+STRATEGIC_BLEND_RATIO = 0.7  # Strategic search weight
+
+# ---------------------------------------------------------------------------
+# Exploration
+# ---------------------------------------------------------------------------
+EXPLORE_TEMP_MULTIPLIER = 1.5  # Exploration temp = base temp * this
+EXPLORE_GAME_RATIO = 4         # Every Nth game uses explore temp
 
 # ---------------------------------------------------------------------------
 # Replay
