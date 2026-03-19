@@ -229,6 +229,21 @@ pub struct CombatState {
 
     // Relics (just IDs for checking effects)
     pub relics: Vec<String>,
+
+    // Card effect tracking
+    /// Type of the last card played this turn (for Follow-Up, Sash Whip, etc.)
+    pub last_card_type: Option<crate::cards::CardType>,
+    /// Total mantra gained this combat (for Brilliance)
+    pub total_mantra_gained: i32,
+    /// Wreath of Flame bonus: extra damage on next attack
+    pub wreath_of_flame_bonus: i32,
+    /// Blasphemy: player dies at start of next turn
+    pub die_next_turn: bool,
+    /// Powers applied this combat (id -> amount)
+    /// Used for Mental Fortress, Rushdown, Like Water, etc.
+    pub powers_applied: std::collections::HashMap<String, i32>,
+    /// Deva Form energy stacking counter
+    pub deva_form_energy: i32,
 }
 
 impl CombatState {
@@ -261,6 +276,12 @@ impl CombatState {
             total_damage_taken: 0,
             total_cards_played: 0,
             relics: Vec::new(),
+            last_card_type: None,
+            total_mantra_gained: 0,
+            wreath_of_flame_bonus: 0,
+            die_next_turn: false,
+            powers_applied: HashMap::new(),
+            deva_form_energy: 0,
         }
     }
 
