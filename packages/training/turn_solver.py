@@ -67,14 +67,6 @@ _STANCE_CARDS: Dict[str, str] = {
 # Early cutoff: skip nodes this far below the current best
 _EARLY_CUTOFF_GAP = 200.0
 
-# Node budgets per room type — (time_ms, node_limit)
-# Balanced for 16-worker throughput on M4 Mac Mini
-_BUDGETS: Dict[str, Tuple[float, int]] = {
-    "monster": (10.0, 500),
-    "elite": (100.0, 5_000),
-    "boss": (200.0, 10_000),
-}
-
 # LRU cache size for turn-level plan caching
 _PLAN_CACHE_SIZE = 512
 
@@ -146,10 +138,8 @@ class TurnSolver:
         if engine.phase != CombatPhase.PLAYER_TURN or engine.state.combat_over:
             return None
 
-        time_ms, node_limit = _BUDGETS.get(room_type, _BUDGETS["monster"])
-        # Override with instance defaults if they're more generous
-        time_ms = max(time_ms, self.default_time_budget_ms)
-        node_limit = max(node_limit, self.default_node_budget)
+        time_ms = self.default_time_budget_ms
+        node_limit = self.default_node_budget
 
         actions = engine.get_legal_actions()
         if not actions:
