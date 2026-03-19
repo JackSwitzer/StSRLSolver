@@ -8,9 +8,10 @@ Build a mod/bot that wins Slay the Spire (Watcher only, A20, >96% winrate) using
 packages/engine/     # Pure Python game engine (source of truth)
 packages/engine-rs/  # Rust CombatEngine + PyO3 bindings
 packages/training/   # RL training pipeline
-  overnight.py       # Training orchestrator (COLLECT -> TRAIN -> SYNC)
+  training_config.py # Single source of truth for all tuneable parameters
+  training_runner.py # Training orchestrator (COLLECT -> TRAIN -> SYNC)
   worker.py          # Game worker loop (_play_one_game)
-  reward_config.py   # REWARD_WEIGHTS, PBRS, hot-reload
+  reward_config.py   # REWARD_WEIGHTS re-export, PBRS, hot-reload
   strategic_net.py   # StrategicNet (PyTorch, 3M params)
   strategic_trainer.py # PPO + GAE trainer
   inference_server.py # Centralized MLX/Torch batch inference
@@ -18,10 +19,9 @@ packages/training/   # RL training pipeline
   turn_solver.py     # TurnSolver + MultiTurnSolver
   replay_buffer.py   # Trajectory replay
   sweep_config.py    # Sweep templates, ascension breakpoints
-  seed_pool.py       # Seed management
+  seed_pool.py       # Seed management + MERL_SEEDS
   mlx_inference.py   # MLX model port
   episode_log.py     # JSONL logging
-  combat_calculator.py # Damage/block prediction (407 lines)
   conquerer.py       # SeedConquerer multi-path evaluation (443 lines)
   gym_env.py         # Gymnasium wrapper (future use)
 packages/server/     # WebSocket server for dashboard
@@ -355,7 +355,7 @@ monsterHpRng, aiRng, shuffleRng, cardRandomRng, miscRng
 ## Training Pipeline
 
 ### Architecture (COLLECT -> TRAIN -> SYNC)
-- overnight.py orchestrates the loop
+- training_runner.py orchestrates the loop
 - worker.py plays games using inference_server.py for batched model calls
 - strategic_trainer.py runs PPO + GAE updates
 - reward_config.py defines all rewards (hot-reloadable via SIGUSR1)

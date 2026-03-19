@@ -30,9 +30,9 @@ Identify and fix bottlenecks in the COLLECT phase. Only 1-3 of 8 workers are typ
 ## Profiling Commands
 ```bash
 # Python profiling
-uv run python -m cProfile -o collect_profile.prof -m packages.training.overnight --games 100
+uv run python -m cProfile -o collect_profile.prof -m packages.training.training_runner --games 100
 # Metal GPU trace
-METAL_CAPTURE_ENABLED=1 uv run python -m packages.training.overnight --games 10
+METAL_CAPTURE_ENABLED=1 uv run python -m packages.training.training_runner --games 10
 # Memory
 uv run python -m memory_profiler packages/training/worker.py
 ```

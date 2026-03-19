@@ -17,19 +17,18 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
-    STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
     compute_potential,
 )
+from .training_config import MODEL_ACTION_DIM
 
 logger = logging.getLogger(__name__)
 
-# ACTION_DIM constant — must match StrategicNet.action_dim
-_ACTION_DIM = 512
+# ACTION_DIM constant — sourced from training_config, must match StrategicNet.action_dim
+_ACTION_DIM = MODEL_ACTION_DIM
 
 # ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool
@@ -198,7 +197,6 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
-    accumulated_stance_reward = 0.0
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -279,7 +277,6 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
-                accumulated_stance_reward = 0.0
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
@@ -347,7 +344,6 @@ def _play_one_game(
                 cur_stance = getattr(combat_state.state, "stance", "Neutral")
                 if cur_stance != prev_stance:
                     combat_stance_changes += 1
-                    accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
                     prev_stance = cur_stance
             # Detect phase change FROM combat after action execution.
             phase_after = runner.phase
@@ -518,22 +514,7 @@ def _play_one_game(
                                 event_reward += UPGRADE_REWARDS[cid]
                                 break
 
-                # Card pick rewards (kept for hot-reload compat, zeroed by default)
-                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
-                    new_deck = list(getattr(new_rs, "deck", []))
-                    if new_deck:
-                        picked = new_deck[-1]
-                        card_id = getattr(picked, "id", str(picked))
-                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward != 0:
-                            act_mult = 1.5 if current_floor <= 17 else 1.0
-                            event_reward += pick_reward * act_mult
-
                 prev_deck_size = new_deck_size
-
-                # Stance rewards (zeroed by default — kept for hot-reload compat)
-                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
-                    event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)
