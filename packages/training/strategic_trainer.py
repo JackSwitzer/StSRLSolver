@@ -17,6 +17,7 @@ Phase 2A fixes (2026-03-12):
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +27,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+logger = logging.getLogger(__name__)
 
 from .strategic_net import StrategicNet, _get_device
 
@@ -46,18 +49,6 @@ class StrategicTransition:
     cleared_act1: float = 0.0
     cleared_act2: float = 0.0
     cleared_act3: float = 0.0
-
-
-# Reward constants for strategic decisions
-STRATEGIC_REWARDS = {
-    "floor_cleared": 0.01,
-    "normal_kill": 0.05,
-    "elite_kill": 0.15,
-    "boss_kill": 0.40,
-    "game_win": 1.0,
-    "game_loss_base": -0.3,
-    "hp_efficiency_scale": 0.05,
-}
 
 
 class StrategicTrainer:
@@ -347,7 +338,6 @@ class StrategicTrainer:
         total_metrics["entropy_coeff"] = self.entropy_coeff
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
-        total_metrics["floor_pred_loss"] = total_metrics.get("aux_loss", 0.0)  # for dashboard
 
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
@@ -369,9 +359,199 @@ class StrategicTrainer:
             return True
         return False
 
+    def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 5000) -> Dict[str, float]:
+        """Behavioral cloning: supervised learning on expert trajectories."""
+        from .training_config import MODEL_ACTION_DIM
+        device = next(self.model.parameters()).device
+        _ACTION_DIM = MODEL_ACTION_DIM
+
+        traj_files = sorted(trajectory_dir.glob("traj_F*.npz"), key=lambda p: p.stem, reverse=True)
+        if not traj_files:
+            logger.info("BC pretrain: no trajectory files found")
+            return {"bc_loss": 0, "bc_accuracy": 0}
+
+        obs_list, mask_list, action_list, floor_list = [], [], [], []
+        loaded = 0
+        for tf in traj_files:
+            if loaded >= max_transitions: break
+            try:
+                data = np.load(tf)
+                n = len(data["obs"])
+                for i in range(n):
+                    if loaded >= max_transitions: break
+                    obs_list.append(data["obs"][i])
+                    mask_i = data["masks"][i]
+                    if mask_i.shape[0] < _ACTION_DIM:
+                        mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]))
+                    mask_list.append(mask_i)
+                    action_list.append(int(data["actions"][i]))
+                    floor_list.append(float(data["final_floors"][i]))
+                    loaded += 1
+            except Exception as e:
+                logger.warning("BC: failed to load %s: %s", tf.name, e)
+                continue
+
+        if loaded == 0:
+            return {"bc_loss": 0, "bc_accuracy": 0}
+
+        logger.info("BC pretrain: %d transitions from %d files", loaded, len(traj_files))
+
+        obs_t = torch.from_numpy(np.stack(obs_list)).float().to(device)
+        mask_t = torch.from_numpy(np.stack(mask_list)).bool().to(device)
+        action_t = torch.tensor(action_list, dtype=torch.long).to(device)
+        floor_t = torch.tensor(floor_list, dtype=torch.float32).to(device)
+
+        self.model.train()
+        total_loss, total_correct, total_samples = 0.0, 0, 0
+
+        for epoch in range(epochs):
+            indices = torch.randperm(loaded)
+            for start in range(0, loaded, self.batch_size):
+                end = min(start + self.batch_size, loaded)
+                idx = indices[start:end]
+                out = self.model(obs_t[idx], mask_t[idx])
+                log_probs = F.log_softmax(out["policy_logits"], dim=-1)
+                bc_loss = F.nll_loss(log_probs, action_t[idx])
+                bc_value_loss = F.mse_loss(out["value"], floor_t[idx])
+                loss = bc_loss + 0.5 * bc_value_loss
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+
+                with torch.no_grad():
+                    total_correct += (out["policy_logits"].argmax(dim=-1) == action_t[idx]).sum().item()
+                    total_samples += len(idx)
+                    total_loss += loss.item()
+
+            logger.info("BC epoch %d/%d: loss=%.4f, acc=%.1f%%", epoch+1, epochs,
+                        total_loss / max(total_samples // self.batch_size, 1),
+                        total_correct / max(total_samples, 1) * 100)
+
+        return {"bc_loss": total_loss / max(total_samples // self.batch_size, 1),
+                "bc_accuracy": total_correct / max(total_samples, 1) * 100,
+                "bc_transitions": loaded}
+
     def decay_entropy(self, min_coeff: float = 0.01, decay: float = 0.999):
         """Anneal entropy coefficient.
 
         Starts at 0.05 (set in __init__), decays to min_coeff=0.01.
         """
         self.entropy_coeff = max(min_coeff, self.entropy_coeff * decay)
+
+    def calibrate_value_head(
+        self,
+        learned_rewards_path: str = "data/learned_rewards.json",
+        trajectory_dir: Optional[Path] = None,
+        epochs: int = 5,
+        max_samples: int = 3000,
+    ) -> Dict[str, float]:
+        """Calibrate value head using trajectory data as value targets.
+
+        Loads card lift ratios from learned_rewards_path and trajectory
+        observations. Trains the value head (only) to predict floor progress,
+        giving it meaningful gradients before PPO training begins.
+
+        Args:
+            learned_rewards_path: Path to JSON with card lift ratios
+            trajectory_dir: Directory with trajectory .npz files
+            epochs: Training epochs for calibration
+            max_samples: Maximum number of calibration samples
+
+        Returns:
+            Dict with calibration metrics (loss, samples, etc.)
+        """
+        import json
+
+        device = next(self.model.parameters()).device
+
+        # Load card lift ratios (optional — used for logging only)
+        card_lift_entries = 0
+        try:
+            with open(learned_rewards_path) as f:
+                lift_data = json.load(f)
+            for card, data in lift_data.items():
+                if isinstance(data, (int, float)) or (isinstance(data, dict) and "lift_ratio" in data):
+                    card_lift_entries += 1
+        except FileNotFoundError:
+            logger.info("calibrate_value_head: %s not found, continuing with trajectory data", learned_rewards_path)
+        except json.JSONDecodeError as e:
+            logger.warning("calibrate_value_head: invalid JSON in %s: %s", learned_rewards_path, e)
+
+        # Load trajectory observations
+        from .training_config import MODEL_ACTION_DIM
+        obs_list, value_targets = [], []
+        loaded = 0
+
+        if trajectory_dir is not None:
+            traj_files = sorted(trajectory_dir.glob("traj_F*.npz"), key=lambda p: p.stem, reverse=True)
+            for tf in traj_files:
+                if loaded >= max_samples:
+                    break
+                try:
+                    data = np.load(tf)
+                    for i in range(len(data["obs"])):
+                        if loaded >= max_samples:
+                            break
+                        obs_list.append(data["obs"][i])
+                        floor_val = float(data["final_floors"][i]) if "final_floors" in data else 0.5
+                        value_targets.append(floor_val)
+                        loaded += 1
+                except Exception as e:
+                    logger.warning("calibrate_value_head: failed to load %s: %s", tf.name, e)
+                    continue
+
+        if loaded == 0:
+            logger.info("calibrate_value_head: no trajectory data available")
+            return {"calibration_loss": 0, "calibration_samples": 0}
+
+        logger.info("calibrate_value_head: %d samples, %d card lift entries", loaded, card_lift_entries)
+
+        obs_t = torch.from_numpy(np.stack(obs_list)).float().to(device)
+        target_t = torch.tensor(value_targets, dtype=torch.float32).to(device)
+
+        # Only train value head, freeze policy
+        for name, param in self.model.named_parameters():
+            if "value" not in name and "shared" not in name:
+                param.requires_grad_(False)
+
+        self.model.train()
+        total_loss = 0.0
+        num_batches = 0
+
+        # Create dummy masks (all True for first action)
+        mask_t = torch.zeros(loaded, MODEL_ACTION_DIM, dtype=torch.bool, device=device)
+        mask_t[:, 0] = True
+
+        for epoch in range(epochs):
+            indices = torch.randperm(loaded)
+            for start in range(0, loaded, self.batch_size):
+                end = min(start + self.batch_size, loaded)
+                idx = indices[start:end]
+
+                out = self.model(obs_t[idx], mask_t[idx])
+                value_pred = out["value"]
+                loss = F.mse_loss(value_pred, target_t[idx])
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+
+                total_loss += loss.item()
+                num_batches += 1
+
+        # Unfreeze all parameters
+        for param in self.model.parameters():
+            param.requires_grad_(True)
+
+        avg_loss = total_loss / max(num_batches, 1)
+        logger.info("calibrate_value_head: %d epochs, avg_loss=%.4f", epochs, avg_loss)
+
+        return {
+            "calibration_loss": avg_loss,
+            "calibration_samples": loaded,
+            "calibration_epochs": epochs,
+            "card_lift_entries": card_lift_entries,
+        }

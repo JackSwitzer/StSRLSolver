@@ -17,19 +17,45 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
-    STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
     compute_potential,
 )
+from .training_config import MODEL_ACTION_DIM
 
 logger = logging.getLogger(__name__)
 
-# ACTION_DIM constant — must match StrategicNet.action_dim
-_ACTION_DIM = 512
+# ACTION_DIM constant — sourced from training_config, must match StrategicNet.action_dim
+_ACTION_DIM = MODEL_ACTION_DIM
+
+# ---------------------------------------------------------------------------
+# Strategic search — value-head per-option evaluation
+# ---------------------------------------------------------------------------
+
+def _strategic_search(actions, runner, encoder, client, phase_type, n_actions):
+    """Evaluate each option via value head, return best + search policy."""
+    if client is None or n_actions <= 1:
+        return None
+    option_values = []
+    for i in range(n_actions):
+        obs = encoder.encode(runner.run_state, phase_type=phase_type,
+            boss_name=getattr(runner, "_boss_name", ""),
+            room_type=getattr(runner, "current_room_type", ""),
+            actions=actions, runner=runner)
+        resp = client.infer_strategic(obs, 1)
+        if resp and resp.get("ok"):
+            option_values.append(float(resp["value"]))
+        else:
+            return None
+    vals = np.array(option_values)
+    vals = vals - vals.max()
+    search_policy = np.exp(vals * 2.0)
+    search_policy /= search_policy.sum()
+    best_idx = int(np.argmax(option_values))
+    return best_idx, search_policy
+
 
 # ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool
@@ -89,8 +115,8 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
                 return result  # Trust the solver's decision (including EndTurn)
-        except Exception:
-            pass  # Fall through to default
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_pick_combat_action: TurnSolver failed: %s", e)
 
     # Fallback (solver returned None): prefer playing a card over ending turn
     for a in actions:
@@ -109,6 +135,8 @@ def _play_one_game(
     temperature: float,
     total_games: int = 0,
     turn_solver_ms: float = 50.0,
+    strategic_search: bool = False,
+    mcts_enabled: bool = False,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
@@ -145,6 +173,12 @@ def _play_one_game(
 
     client = get_client()
 
+    # MCTS engine for strategic decisions (created once, reused per game)
+    mcts_engine = None
+    if mcts_enabled:
+        from packages.training.strategic_mcts import StrategicMCTS
+        mcts_engine = StrategicMCTS(encoder=encoder, client=client)
+
     # Worker status file for live dashboard grid
     import os
     _worker_id = os.getpid()
@@ -170,7 +204,8 @@ def _play_one_game(
 
     try:
         runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
-    except Exception:
+    except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+        logger.warning("_play_one_game: GameRunner init failed for seed=%s: %s", seed, e)
         return {
             "seed": seed, "won": False, "floor": 0, "hp": 0,
             "decisions": 0, "duration_s": 0.0, "transitions": [],
@@ -198,7 +233,6 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
-    accumulated_stance_reward = 0.0
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -252,7 +286,8 @@ def _play_one_game(
     while not runner.game_over and step < 5000:
         try:
             actions = runner.get_available_actions()
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_play_one_game: get_available_actions failed at floor=%d: %s", prev_floor, e)
             break
         if not actions:
             break
@@ -279,7 +314,6 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
-                accumulated_stance_reward = 0.0
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
@@ -347,7 +381,6 @@ def _play_one_game(
                 cur_stance = getattr(combat_state.state, "stance", "Neutral")
                 if cur_stance != prev_stance:
                     combat_stance_changes += 1
-                    accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
                     prev_stance = cur_stance
             # Detect phase change FROM combat after action execution.
             phase_after = runner.phase
@@ -447,6 +480,36 @@ def _play_one_game(
 
                     # Clamp to valid range
                     action_idx = min(action_idx, n_actions - 1)
+
+                    # MCTS strategic search: full tree search override
+                    if mcts_engine is not None and n_actions > 1:
+                        try:
+                            _, mcts_policy = mcts_engine.search(
+                                runner, actions, phase_type,
+                            )
+                            # Blend 80% MCTS / 20% model policy for training signal
+                            model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
+                            model_probs /= model_probs.sum()
+                            blended = 0.8 * mcts_policy + 0.2 * model_probs
+                            blended /= blended.sum()
+                            action_idx = int(np.random.choice(n_actions, p=blended))
+                            # Recompute log_prob for the MCTS-chosen action
+                            log_prob = float(np.log(probs_base[action_idx] + 1e-8))
+                        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                            logger.warning("MCTS search failed, using model policy: %s", e)
+
+                    # Strategic search: value-head per-option evaluation
+                    elif strategic_search and n_actions > 1 and client is not None:
+                        search_result = _strategic_search(actions, runner, encoder, client, phase_type, n_actions)
+                        if search_result is not None:
+                            _, search_policy = search_result
+                            # Blend 70% search / 30% model policy
+                            model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
+                            model_probs /= model_probs.sum()
+                            blended = 0.7 * search_policy + 0.3 * model_probs
+                            blended /= blended.sum()
+                            action_idx = int(np.random.choice(n_actions, p=blended))
+                            log_prob = float(np.log(probs_base[action_idx] + 1e-8))
                 else:
                     logits_np = None
 
@@ -518,22 +581,7 @@ def _play_one_game(
                                 event_reward += UPGRADE_REWARDS[cid]
                                 break
 
-                # Card pick rewards (kept for hot-reload compat, zeroed by default)
-                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
-                    new_deck = list(getattr(new_rs, "deck", []))
-                    if new_deck:
-                        picked = new_deck[-1]
-                        card_id = getattr(picked, "id", str(picked))
-                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward != 0:
-                            act_mult = 1.5 if current_floor <= 17 else 1.0
-                            event_reward += pick_reward * act_mult
-
                 prev_deck_size = new_deck_size
-
-                # Stance rewards (zeroed by default — kept for hot-reload compat)
-                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
-                    event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)

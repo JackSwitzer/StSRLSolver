@@ -540,6 +540,72 @@ class GameRunner:
             "card_random": self.card_random_rng.counter,
         })
 
+    def copy(self) -> 'GameRunner':
+        """Create a deep copy for MCTS simulation.
+
+        Copies all game state including RNG streams so simulated
+        games diverge correctly from the copy point.
+        """
+        clone = GameRunner.__new__(GameRunner)
+
+        # Scalars (shallow)
+        clone.verbose = False  # Always silent for MCTS sims
+        clone.skip_neow = self.skip_neow
+        clone.seed_string = self.seed_string
+        clone.seed = self.seed
+        clone.game_over = self.game_over
+        clone.game_won = self.game_won
+        clone.game_lost = self.game_lost
+        clone.phase = self.phase
+        clone.current_room_type = self.current_room_type
+        clone.is_burning_elite = self.is_burning_elite
+        clone._boss_fight_pending_boss_rewards = self._boss_fight_pending_boss_rewards
+        clone._boss_name = self._boss_name
+        clone._monster_index = self._monster_index
+        clone._elite_index = self._elite_index
+
+        # Deep copies
+        clone.run_state = copy.deepcopy(self.run_state)
+        clone.current_combat = copy.deepcopy(self.current_combat) if self.current_combat is not None else None
+        clone.decision_log = []  # Skip for MCTS
+        clone.last_death_enemies = []
+        clone.pending_rewards = copy.deepcopy(self.pending_rewards)
+        clone.current_rewards = copy.deepcopy(self.current_rewards) if self.current_rewards is not None else None
+        clone.pending_selection = copy.deepcopy(self.pending_selection) if self.pending_selection is not None else None
+        clone._pending_relic_selection_indices = list(self._pending_relic_selection_indices) if self._pending_relic_selection_indices is not None else None
+        clone._pending_event_selection_indices = list(self._pending_event_selection_indices) if self._pending_event_selection_indices is not None else None
+        clone.current_event = copy.deepcopy(self.current_event) if self.current_event is not None else None
+        clone.current_event_state = copy.deepcopy(self.current_event_state) if self.current_event_state is not None else None
+        clone.current_shop = copy.deepcopy(self.current_shop) if self.current_shop is not None else None
+        clone.neow_blessings = copy.deepcopy(self.neow_blessings) if self.neow_blessings is not None else None
+        clone.neow_pending_result = copy.deepcopy(self.neow_pending_result) if self.neow_pending_result is not None else None
+        clone.current_chest_type = self.current_chest_type
+        clone.current_chest_reward = copy.deepcopy(self.current_chest_reward) if self.current_chest_reward is not None else None
+
+        # Lists (shallow copy since elements are strings)
+        clone._monster_list = list(self._monster_list)
+        clone._elite_list = list(self._elite_list)
+
+        # RNG streams — each Random has .copy()
+        clone.ai_rng = self.ai_rng.copy()
+        clone.hp_rng = self.hp_rng.copy()
+        clone.event_rng = self.event_rng.copy()
+        clone.misc_rng = self.misc_rng.copy()
+        clone.card_rng = self.card_rng.copy()
+        clone.treasure_rng = self.treasure_rng.copy()
+        clone.potion_rng = self.potion_rng.copy()
+        clone.relic_rng = self.relic_rng.copy()
+        clone.merchant_rng = self.merchant_rng.copy()
+        clone.neow_rng = self.neow_rng.copy()
+        clone.monster_rng = self.monster_rng.copy()
+        clone.shuffle_rng = self.shuffle_rng.copy()
+        clone.card_random_rng = self.card_random_rng.copy()
+
+        # Event handler (preserves seen_one_time_events, recent_events, Colosseum state)
+        clone.event_handler = copy.deepcopy(self.event_handler)
+
+        return clone
+
     def _apply_act_transition_rng_snaps(self) -> None:
         """Apply cardRng snapping when transitioning to a new act."""
         c = self.card_rng.counter

@@ -435,21 +435,21 @@ class InferenceServer:
 
             # Block until first request (with short timeout so we can check stop/syncs)
             try:
-                t_enqueue = time.perf_counter()
+                t_enqueue = time.monotonic()
                 first = self.request_q.get(timeout=0.050)
             except Exception:
                 # queue.Empty or EOFError (workers died) — just loop
                 continue
 
-            t_dequeue = time.perf_counter()
+            t_dequeue = time.monotonic()
             queue_wait_ms = (t_dequeue - t_enqueue) * 1000.0
 
             # Collect additional requests to fill batch
             batch = [first]
-            deadline = time.perf_counter() + (self.batch_timeout_ms / 1000.0)
+            deadline = time.monotonic() + (self.batch_timeout_ms / 1000.0)
 
             while len(batch) < self.max_batch_size:
-                remaining = deadline - time.perf_counter()
+                remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     break
                 try:
@@ -864,11 +864,11 @@ class InferenceClient:
             )
             return None
 
-        t_start = time.perf_counter()
+        t_start = time.monotonic()
         deadline = t_start + self.timeout_s
 
         while True:
-            remaining = deadline - time.perf_counter()
+            remaining = deadline - time.monotonic()
             if remaining <= 0:
                 logger.warning(
                     "InferenceClient slot=%d: timeout waiting for req_id=%d",

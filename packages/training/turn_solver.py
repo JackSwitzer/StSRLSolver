@@ -67,13 +67,8 @@ _STANCE_CARDS: Dict[str, str] = {
 # Early cutoff: skip nodes this far below the current best
 _EARLY_CUTOFF_GAP = 200.0
 
-# Node budgets per room type — (time_ms, node_limit)
-# Balanced for 16-worker throughput on M4 Mac Mini
-_BUDGETS: Dict[str, Tuple[float, int]] = {
-    "monster": (10.0, 500),
-    "elite": (100.0, 5_000),
-    "boss": (200.0, 10_000),
-}
+# Solver budgets are passed per-call from worker.py (which reads from training_config).
+# No hardcoded budgets here — solver uses self.default_time_budget_ms and self.default_node_budget.
 
 # LRU cache size for turn-level plan caching
 _PLAN_CACHE_SIZE = 512
@@ -146,10 +141,9 @@ class TurnSolver:
         if engine.phase != CombatPhase.PLAYER_TURN or engine.state.combat_over:
             return None
 
-        time_ms, node_limit = _BUDGETS.get(room_type, _BUDGETS["monster"])
-        # Override with instance defaults if they're more generous
-        time_ms = max(time_ms, self.default_time_budget_ms)
-        node_limit = max(node_limit, self.default_node_budget)
+        # Budget comes from worker (via training_config.SOLVER_BUDGETS, scaled by enemy HP)
+        time_ms = self.default_time_budget_ms
+        node_limit = self.default_node_budget
 
         actions = engine.get_legal_actions()
         if not actions:
@@ -290,18 +284,16 @@ class TurnSolver:
         if not living:
             return _SCORE_LETHAL + player.hp * 200
 
-        # Simulate enemy turn to get actual HP loss
+        # Simulate enemy turn to get actual HP loss.
+        # CombatEngine.end_turn() is monolithic: runs full enemy turn
+        # synchronously and returns with phase == PLAYER_TURN.
+        # Just read sim.state.player.hp after the call.
         try:
             sim = engine.copy()
             sim.execute_action(EndTurn())
-            # Run until player's next turn or combat ends
-            while (
-                sim.state.phase == CombatPhase.ENEMY_TURN
-                and not sim.is_combat_over()
-            ):
-                sim.tick()
             hp_after = sim.state.player.hp
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("TurnSolver: enemy turn simulation failed: %s", e)
             # Fallback: estimate from intents
             hp_after = player.hp - self._estimate_incoming(state)
 
@@ -418,7 +410,8 @@ class TurnSolver:
                 child = eng.copy()
                 try:
                     child.execute_action(action)
-                except Exception:
+                except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                    logger.warning("TurnSolver: DFS execute_action failed: %s", e)
                     continue
 
                 # If combat is over after this action, score it
@@ -500,7 +493,8 @@ class TurnSolver:
                 child_engine = node.engine.copy()
                 try:
                     child_engine.execute_action(action)
-                except Exception:
+                except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                    logger.warning("TurnSolver: best-first execute_action failed: %s", e)
                     continue
 
                 nodes_visited += 1
@@ -601,7 +595,8 @@ class TurnSolver:
                     child_engine = node.engine.copy()
                     try:
                         child_engine.execute_action(action)
-                    except Exception:
+                    except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                        logger.warning("TurnSolver: beam search execute_action failed: %s", e)
                         continue
 
                     nodes_visited += 1
@@ -992,7 +987,8 @@ class MultiTurnSolver:
         for action in plan:
             try:
                 sim.execute_action(action)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _score_plan execute_action failed: %s", e)
                 return _SCORE_DEATH
             if sim.state.combat_over:
                 break
@@ -1018,7 +1014,8 @@ class MultiTurnSolver:
         for action in plan:
             try:
                 sim.execute_action(action)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _evaluate_plan execute_action failed: %s", e)
                 return _SCORE_DEATH
             if sim.state.combat_over:
                 break
@@ -1035,17 +1032,10 @@ class MultiTurnSolver:
             # Plan didn't include EndTurn — add it
             try:
                 sim.execute_action(EndTurn())
-            except Exception:
-                pass
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _evaluate_plan EndTurn failed: %s", e)
 
-        # Run until player's next turn or combat ends
-        ticks = 0
-        while sim.phase == CombatPhase.ENEMY_TURN and not sim.is_combat_over() and ticks < 100:
-            try:
-                sim.tick()
-            except Exception:
-                break
-            ticks += 1
+        # end_turn() is monolithic — enemy turn already executed. No tick loop needed.
 
         if sim.state.combat_over or sim.is_combat_over():
             if sim.is_victory():
@@ -1076,11 +1066,11 @@ class MultiTurnSolver:
 
 
 # ---------------------------------------------------------------------------
-# TurnSolverAdapter: drop-in bridge for overnight.py
+# TurnSolverAdapter: drop-in bridge for training_runner.py
 # ---------------------------------------------------------------------------
 
 class TurnSolverAdapter:
-    """Drop-in replacement for _pick_combat_action() in overnight.py.
+    """Drop-in replacement for _pick_combat_action() in training_runner.py.
 
     Wraps TurnSolver and bridges between the GameRunner's CombatAction format
     and the engine-level Action format used by TurnSolver.
@@ -1175,7 +1165,8 @@ class TurnSolverAdapter:
         if room_type in ("boss", "b", "elite", "e"):
             try:
                 plan = self._multi_turn.solve(engine)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: multi-turn solve failed: %s", e)
                 plan = None
             if plan and len(plan) > 0:
                 self._cached_plan = plan
@@ -1190,7 +1181,8 @@ class TurnSolverAdapter:
         # DFS/beam TurnSolver (fast single-turn heuristic)
         try:
             plan = self._solver.solve_turn(engine, room_type)
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("TurnSolver: single-turn solve failed: %s", e)
             plan = None
 
         if plan and len(plan) > 0:

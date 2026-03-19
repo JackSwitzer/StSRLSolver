@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-def log_episode(episodes_path: Path, result: Dict[str, Any]) -> None:
+def log_episode(episodes_path: Path, result: Dict[str, Any], config_name: str = "") -> None:
     """Append one episode to episodes.jsonl."""
     transitions = result.get("transitions", [])
     total_reward = sum(t.get("reward", 0) for t in transitions)
@@ -17,6 +17,7 @@ def log_episode(episodes_path: Path, result: Dict[str, Any]) -> None:
 
     entry = {
         "timestamp": datetime.now().isoformat(),
+        "config_name": config_name,
         "seed": result["seed"],
         "floor": result["floor"],
         "won": result["won"],

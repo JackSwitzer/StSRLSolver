@@ -25,12 +25,12 @@ send_reload() {
     cat "$RELOAD_FILE"
 
     local pid
-    pid=$(pgrep -f "packages.training.overnight" | head -1)
+    pid=$(pgrep -f "packages.training.training_runner" | head -1)
     if [ -n "$pid" ]; then
         kill -SIGUSR1 "$pid"
         echo "Sent SIGUSR1 to PID $pid"
     else
-        echo "WARNING: No overnight process found. Reload file saved for next start."
+        echo "WARNING: No training_runner process found. Reload file saved for next start."
     fi
 }
 

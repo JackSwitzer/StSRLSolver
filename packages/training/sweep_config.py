@@ -4,13 +4,40 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from .training_config import ENTROPY_COEFF, LR_BASE, LR_SCHEDULE, LR_T_0, TEMPERATURE
+
 DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
-    # Single focused config — no weight forking, all budget goes to learning.
-    # Pure on-policy: model makes decisions, log_prob from unscaled policy.
-    {"name": "focused_b1024",
-     "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
-     "batch_size": 512, "entropy_coeff": 0.02, "temperature": 0.9,
-     "turn_solver_ms": 30.0},
+    # Config A: Old baseline (control)
+    {"name": "baseline_control",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 50.0},
+    # Config B: Tuned rewards (3x milestones, -0.3 death, 1.5x PBRS)
+    {"name": "reward_tuned_v12",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 100.0},
+    # Config C: Tuned rewards + MCTS strategic search
+    {"name": "reward_tuned_mcts",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 100.0, "strategic_search": True},
+    # Config D: Tuned rewards + BC warmup (uses best_trajectories if available)
+    {"name": "reward_tuned_bc",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 100.0},
+    # Config E: Full MCTS UCB (200 sims for cards, 50 for paths)
+    {"name": "full_mcts_ucb",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 100.0, "mcts_enabled": True},
+]
+
+# Weekend sweep: only configs not yet run (A-C completed 2026-03-19 afternoon)
+WEEKEND_SWEEP_CONFIGS: List[Dict[str, Any]] = [
+    cfg for cfg in DEFAULT_SWEEP_CONFIGS
+    if cfg["name"] in ("reward_tuned_bc", "full_mcts_ucb")
 ]
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
