@@ -27,7 +27,7 @@ actor StatusPoller {
     private func pollLoop() async {
         while isRunning && !Task.isCancelled {
             await poll()
-            try? await Task.sleep(for: .seconds(2.5))
+            try? await Task.sleep(for: .seconds(0.5))
         }
     }
 
@@ -64,7 +64,7 @@ actor StatusPoller {
             }
         }
 
-        // Reload episodes + perf_log every 4th poll (~10s)
+        // Reload episodes + perf_log every 4th poll (~2s)
         pollCount += 1
         if pollCount % 4 == 0 {
             let recent = await EpisodeLoader.loadRecent(from: logsURL)

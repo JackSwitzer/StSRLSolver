@@ -16,6 +16,9 @@ struct Episode: Codable, Identifiable {
     let durationS: Double?
     let duration: Double?
 
+    let timestamp: String?
+    let configName: String?
+
     let combats: [Combat]?
     let deckFinal: [String]?
     let relicsFinal: [String]?
@@ -34,7 +37,8 @@ struct Episode: Codable, Identifiable {
     var effectiveDuration: Double { duration ?? durationS ?? 0 }
 
     enum CodingKeys: String, CodingKey {
-        case seed, won, episode, floor, hp, duration, combats
+        case seed, won, episode, floor, hp, duration, combats, timestamp
+        case configName = "config_name"
         case floorsReached = "floors_reached"
         case hpRemaining = "hp_remaining"
         case maxHp = "max_hp"

@@ -76,6 +76,9 @@ struct LiveView: View {
 
                         PerformancePanelView(performance: cachedPerformance)
                             .sectionCard()
+
+                        BossFightView(episodes: cachedEpisodes)
+                            .sectionCard()
                     }
                     .padding(10)
                 }

@@ -18,13 +18,15 @@ struct TopRunsTable: View {
                     GridRow {
                         Text("#").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                         Text("Floor").font(.stsLabel).foregroundStyle(Color.stsTextDim)
+                        Text("Config").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                         Text("Seed").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                         Text("Killer").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                         Text("HP").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                         Text("Time").font(.stsLabel).foregroundStyle(Color.stsTextDim)
+                        Text("When").font(.stsLabel).foregroundStyle(Color.stsTextDim)
                     }
 
-                    Divider().gridCellColumns(6).background(Color.stsBorderDim)
+                    Divider().gridCellColumns(8).background(Color.stsBorderDim)
 
                     ForEach(Array(episodes.enumerated()), id: \.element.id) { rank, ep in
                         GridRow {
@@ -35,6 +37,11 @@ struct TopRunsTable: View {
                             Text("\(ep.effectiveFloor)")
                                 .font(.stsValue)
                                 .foregroundStyle(floorColor(ep.effectiveFloor))
+
+                            Text(ep.configName ?? "-")
+                                .font(.stsLabel)
+                                .foregroundStyle(Color.stsBlue)
+                                .lineLimit(1)
 
                             Text(ep.seed.prefix(10))
                                 .font(.stsBody)
@@ -52,6 +59,10 @@ struct TopRunsTable: View {
                             Text(Fmt.duration(ep.effectiveDuration))
                                 .font(.stsBody)
                                 .foregroundStyle(Color.stsTextDim)
+
+                            Text(shortTimestamp(ep.timestamp))
+                                .font(.stsLabel)
+                                .foregroundStyle(Color.stsTextMuted)
                         }
                     }
                 }
@@ -64,5 +75,26 @@ struct TopRunsTable: View {
         if floor >= 34 { return Color.stsBlue }
         if floor >= 17 { return Color.stsYellow }
         return Color.stsText
+    }
+
+    /// Parse ISO timestamp and show compact relative or HH:mm format
+    private func shortTimestamp(_ ts: String?) -> String {
+        guard let ts = ts else { return "-" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // Try with fractional seconds first, then without
+        guard let date = formatter.date(from: ts) ?? {
+            formatter.formatOptions = [.withInternetDateTime]
+            return formatter.date(from: ts)
+        }() else { return ts.prefix(5).description }
+
+        let elapsed = Date().timeIntervalSince(date)
+        if elapsed < 60 { return "now" }
+        if elapsed < 3600 { return "\(Int(elapsed / 60))m ago" }
+        if elapsed < 86400 { return "\(Int(elapsed / 3600))h ago" }
+
+        let df = DateFormatter()
+        df.dateFormat = "MM/dd HH:mm"
+        return df.string(from: date)
     }
 }

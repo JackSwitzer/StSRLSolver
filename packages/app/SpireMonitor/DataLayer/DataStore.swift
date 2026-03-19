@@ -15,7 +15,7 @@ final class DataStore {
     // Legacy single-stream loss (fallback when no perf_log)
     var lossHistory: [LossPoint] = []
 
-    // System stats (accumulated, max 720 = 30 min at 2.5s)
+    // System stats (accumulated, max 720 = 6 min at 0.5s)
     var systemStats: SystemStats?
     var systemHistory: [SystemStats] = []
 
@@ -48,6 +48,8 @@ final class DataStore {
             policy: status.policyLoss ?? 0,
             value: status.valueLoss ?? 0,
             avgFloor: status.avgFloor100 ?? 0,
+            peakFloor: Double(status.peakFloor ?? 0),
+            gamesPerMin: status.gamesPerMin ?? 0,
             configName: status.configName ?? ""
         )
         if lossHistory.last?.total != point.total || lossHistory.last?.step != point.step {
@@ -83,6 +85,8 @@ final class DataStore {
                     policy: entry.policyLoss ?? 0,
                     value: entry.valueLoss ?? 0,
                     avgFloor: entry.avgFloor ?? 0,
+                    peakFloor: Double(entry.peakFloor ?? 0),
+                    gamesPerMin: entry.gamesPerMin ?? 0,
                     configName: config
                 )
                 newHistory[config, default: []].append(point)
@@ -105,15 +109,20 @@ struct LossPoint: Identifiable {
     let policy: Double
     let value: Double
     let avgFloor: Double
+    let peakFloor: Double
+    let gamesPerMin: Double
     let configName: String
 
     init(step: Int, total: Double, policy: Double, value: Double,
-         avgFloor: Double = 0, configName: String = "") {
+         avgFloor: Double = 0, peakFloor: Double = 0, gamesPerMin: Double = 0,
+         configName: String = "") {
         self.step = step
         self.total = total
         self.policy = policy
         self.value = value
         self.avgFloor = avgFloor
+        self.peakFloor = peakFloor
+        self.gamesPerMin = gamesPerMin
         self.configName = configName
     }
 }
@@ -126,6 +135,8 @@ private struct PerfLogEntry: Codable {
     let policyLoss: Double?
     let valueLoss: Double?
     let avgFloor: Double?
+    let peakFloor: Int?
+    let gamesPerMin: Double?
 
     enum CodingKeys: String, CodingKey {
         case configName = "config_name"
@@ -134,6 +145,8 @@ private struct PerfLogEntry: Codable {
         case policyLoss = "policy_loss"
         case valueLoss = "value_loss"
         case avgFloor = "avg_floor"
+        case peakFloor = "peak_floor"
+        case gamesPerMin = "games_per_min"
     }
 }
 

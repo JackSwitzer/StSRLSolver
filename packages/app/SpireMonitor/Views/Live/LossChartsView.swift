@@ -7,6 +7,8 @@ enum LossMetric: String, CaseIterable {
     case policy = "Policy"
     case value = "Value"
     case avgFloor = "Avg Floor"
+    case peakFloor = "Peak Floor"
+    case gamesPerMin = "Games/min"
 }
 
 struct LossChartsView: View {
@@ -154,6 +156,8 @@ struct LossChartsView: View {
         case .policy: return pt.policy
         case .value: return pt.value
         case .avgFloor: return pt.avgFloor
+        case .peakFloor: return pt.peakFloor
+        case .gamesPerMin: return pt.gamesPerMin
         }
     }
 
