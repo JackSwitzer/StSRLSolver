@@ -49,8 +49,8 @@ RTOL = 1e-4
 def model_configs():
     """Return a list of (input_dim, hidden_dim, action_dim, num_blocks) tuples to test."""
     return [
-        (260, 768, 256, 4),   # Production config
-        (260, 128, 64, 2),    # Small config for fast tests
+        (540, 768, 512, 4),   # Production config
+        (540, 128, 64, 2),    # Small config for fast tests
     ]
 
 
@@ -58,14 +58,14 @@ def model_configs():
 def seeded_model_pair():
     """Create a PyTorch model with deterministic weights and its MLX conversion.
 
-    Uses the production architecture (260, 768, 256, 4 blocks).
+    Uses the production architecture (540, 768, 512, 4 blocks).
     Saves to a temp checkpoint and loads via from_pytorch() to test
     the full conversion pipeline.
     """
     torch.manual_seed(42)
     np.random.seed(42)
 
-    pt_model = StrategicNet(input_dim=260, hidden_dim=768, action_dim=256, num_blocks=4)
+    pt_model = StrategicNet(input_dim=540, hidden_dim=768, action_dim=512, num_blocks=4)
     pt_model.eval()
     pt_model.cpu()
 
@@ -135,8 +135,8 @@ class TestNumericalParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(0)
 
-        obs = rng.randn(1, 260).astype(np.float32)
-        mask = np.ones((1, 256), dtype=bool)
+        obs = rng.randn(1, 540).astype(np.float32)
+        mask = np.ones((1, 512), dtype=bool)
         mask[0, 10:] = False  # Only 10 valid actions
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
@@ -168,11 +168,11 @@ class TestNumericalParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(1)
 
-        obs = rng.randn(32, 260).astype(np.float32)
+        obs = rng.randn(32, 540).astype(np.float32)
         # Varied masks: each sample has different number of valid actions
-        mask = np.zeros((32, 256), dtype=bool)
+        mask = np.zeros((32, 512), dtype=bool)
         for i in range(32):
-            n_valid = rng.randint(1, 256)
+            n_valid = rng.randint(1, 512)
             mask[i, :n_valid] = True
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
@@ -194,10 +194,10 @@ class TestNumericalParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(2)
 
-        obs = rng.randn(128, 260).astype(np.float32)
-        mask = np.ones((128, 256), dtype=bool)
+        obs = rng.randn(128, 540).astype(np.float32)
+        mask = np.ones((128, 512), dtype=bool)
         # Block half the actions for all samples
-        mask[:, 128:] = False
+        mask[:, 256:] = False
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -227,8 +227,8 @@ class TestActionMaskParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(10)
 
-        obs = rng.randn(4, 260).astype(np.float32)
-        mask = np.ones((4, 256), dtype=bool)
+        obs = rng.randn(4, 540).astype(np.float32)
+        mask = np.ones((4, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -243,8 +243,8 @@ class TestActionMaskParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(11)
 
-        obs = rng.randn(4, 260).astype(np.float32)
-        mask = np.zeros((4, 256), dtype=bool)
+        obs = rng.randn(4, 540).astype(np.float32)
+        mask = np.zeros((4, 512), dtype=bool)
         # Each sample has exactly one valid action at different indices
         for i in range(4):
             mask[i, i * 3] = True
@@ -271,7 +271,7 @@ class TestActionMaskParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(12)
 
-        obs = rng.randn(2, 260).astype(np.float32)
+        obs = rng.randn(2, 540).astype(np.float32)
 
         # PyTorch with no mask
         with torch.no_grad():
@@ -296,9 +296,9 @@ class TestActionMaskParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(13)
 
-        obs = rng.randn(16, 260).astype(np.float32)
+        obs = rng.randn(16, 540).astype(np.float32)
         # Random masks with ~10% valid actions
-        mask = rng.rand(16, 256) < 0.1
+        mask = rng.rand(16, 512) < 0.1
         # Ensure at least one valid action per sample
         for i in range(16):
             if not mask[i].any():
@@ -506,8 +506,8 @@ class TestActivationParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(30)
 
-        obs = rng.randn(8, 260).astype(np.float32)
-        mask = np.ones((8, 256), dtype=bool)
+        obs = rng.randn(8, 540).astype(np.float32)
+        mask = np.ones((8, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -529,8 +529,8 @@ class TestActivationParity:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(31)
 
-        obs = rng.randn(4, 260).astype(np.float32)
-        mask = np.ones((4, 256), dtype=bool)
+        obs = rng.randn(4, 540).astype(np.float32)
+        mask = np.ones((4, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -605,8 +605,8 @@ class TestInputEdgeCases:
         """All-zero input produces identical outputs."""
         pt_model, mlx_model = seeded_model_pair
 
-        obs = np.zeros((1, 260), dtype=np.float32)
-        mask = np.ones((1, 256), dtype=bool)
+        obs = np.zeros((1, 540), dtype=np.float32)
+        mask = np.ones((1, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -621,8 +621,8 @@ class TestInputEdgeCases:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(50)
 
-        obs = (rng.randn(2, 260) * 100).astype(np.float32)
-        mask = np.ones((2, 256), dtype=bool)
+        obs = (rng.randn(2, 540) * 100).astype(np.float32)
+        mask = np.ones((2, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -638,8 +638,8 @@ class TestInputEdgeCases:
         """All-negative inputs."""
         pt_model, mlx_model = seeded_model_pair
 
-        obs = np.full((1, 260), -1.0, dtype=np.float32)
-        mask = np.ones((1, 256), dtype=bool)
+        obs = np.full((1, 540), -1.0, dtype=np.float32)
+        mask = np.ones((1, 512), dtype=bool)
 
         pt_out = _run_pytorch_forward(pt_model, obs, mask)
         mlx_out = _run_mlx_forward(mlx_model, obs, mask)
@@ -663,8 +663,8 @@ class TestDeterminism:
         _, mlx_model = seeded_model_pair
         rng = np.random.RandomState(60)
 
-        obs = rng.randn(4, 260).astype(np.float32)
-        mask = np.ones((4, 256), dtype=bool)
+        obs = rng.randn(4, 540).astype(np.float32)
+        mask = np.ones((4, 512), dtype=bool)
 
         out1 = _run_mlx_forward(mlx_model, obs, mask)
         out2 = _run_mlx_forward(mlx_model, obs, mask)
@@ -705,8 +705,8 @@ class TestMLXSaveLoad:
         pt_model, mlx_model = seeded_model_pair
         rng = np.random.RandomState(70)
 
-        obs = rng.randn(4, 260).astype(np.float32)
-        mask = np.ones((4, 256), dtype=bool)
+        obs = rng.randn(4, 540).astype(np.float32)
+        mask = np.ones((4, 512), dtype=bool)
         mask[:, 50:] = False
 
         ref_out = _run_mlx_forward(mlx_model, obs, mask)

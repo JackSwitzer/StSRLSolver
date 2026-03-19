@@ -26,7 +26,6 @@ import numpy as np
 from .episode_log import log_episode
 from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REPLAY_BUFFER_SIZE,
@@ -35,8 +34,6 @@ from .reward_config import (
     REWARD_WEIGHTS,
     STALL_DETECTION_WINDOW,
     STALL_IMPROVEMENT_THRESHOLD,
-    STANCE_CHANGE_REWARDS,
-    UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
 from .worker import _ACTION_DIM, _play_one_game, _worker_init
@@ -72,15 +69,15 @@ class OvernightRunner:
         self.run_dir = Path(config.get("run_dir", "logs/active"))
         self.max_games = config.get("max_games", 50000)
         self.games_per_batch = config.get("games_per_batch", 16)
-        self.workers = config.get("workers", 8)
+        self.workers = config.get("workers", 10)
         self.ascension = config.get("ascension", 0)
         self.eval_every = config.get("eval_every", 500)
         self.ppo_batch_size = config.get("ppo_batch_size", 256)
         self.temperature = config.get("temperature", 1.0)
         self.resume_path = config.get("resume_path", None)
-        self.hidden_dim = config.get("hidden_dim", 1024)
-        self.num_blocks = config.get("num_blocks", 6)
-        self.max_batch_size = config.get("max_batch_size", 32)
+        self.hidden_dim = config.get("hidden_dim", 768)
+        self.num_blocks = config.get("num_blocks", 4)
+        self.max_batch_size = config.get("max_batch_size", 16)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -231,8 +228,10 @@ class OvernightRunner:
             "combats": result.get("combats", []),
             "events": result.get("events", []),
             "deck_changes": result.get("deck_changes", []),
+            "deck_final": result.get("deck_final", []),
             "relics_final": result.get("relics_final", []),
             "path_choices": result.get("path_choices", []),
+            "card_picks": result.get("card_picks", []),
         }
         self._recent_episodes.append(ep)
         # Write every 10 games to avoid I/O spam
@@ -615,21 +614,12 @@ class OvernightRunner:
                         logger.info("  reward_weights -> updated")
 
                     # --- Legacy reward shaping (backwards compat) ---
-                    if "stance_rewards" in cfg:
-                        STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
-                        logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
                     if "event_rewards" in cfg:
                         EVENT_REWARDS.update(cfg["event_rewards"])
                         logger.info("  event_rewards -> %s", EVENT_REWARDS)
                     if "floor_milestones" in cfg:
                         FLOOR_MILESTONES.update({int(k): v for k, v in cfg["floor_milestones"].items()})
                         logger.info("  floor_milestones -> %s", FLOOR_MILESTONES)
-                    if "card_pick_rewards" in cfg:
-                        CARD_PICK_REWARDS.update(cfg["card_pick_rewards"])
-                        logger.info("  card_pick_rewards -> %s", CARD_PICK_REWARDS)
-                    if "upgrade_rewards" in cfg:
-                        UPGRADE_REWARDS.update(cfg["upgrade_rewards"])
-                        logger.info("  upgrade_rewards -> %s", UPGRADE_REWARDS)
 
                     # --- Replay buffer ---
                     if "replay_mix_ratio" in cfg:
@@ -650,12 +640,12 @@ class OvernightRunner:
         seed_pool = SeedPool(max_plays=5)
         best_avg_floor = 0.0
 
-        # Adaptive 3-phase sweep:
-        # Phase 1: Each config gets equal games (~25% of total each)
-        # Phase 2: Keep top 2 configs, each gets ~15% more games
-        # Phase 3: All-in on best config with remaining games
+        # Quick Phase 1 exploration (~20 min each) then ranked scale-up
+        # Phase 1: 500 games per config (quick ablation)
+        # Phase 2: Deep boss test (2h) with massive solver budgets
+        # Phase 3: Ranked allocation (remaining time, 50%/33%/17%)
         n_configs = len(self.sweep_configs)
-        phase1_games_per = self.max_games // (n_configs * 3)  # ~33% of budget split equally
+        phase1_games_per = min(500, self.max_games // max(n_configs, 1))
 
         config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
 
@@ -1021,9 +1011,9 @@ class OvernightRunner:
             if isinstance(v, (int, float))
         }
         sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
-        if sweep_avg > 7.0:
+        if sweep_avg > 12.0:
             trainer.decay_entropy(min_coeff=0.02, decay=0.999)
-        elif sweep_avg > 5.5:
+        elif sweep_avg > 8.0:
             trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
 
         games_since_checkpoint = self.total_games - self._stall_checkpoint_games
@@ -1213,7 +1203,7 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="Overnight training runner")
-    parser.add_argument("--workers", type=int, default=8, help="Number of parallel workers")
+    parser.add_argument("--workers", type=int, default=10, help="Number of parallel workers")
     parser.add_argument("--games", type=int, default=50000, help="Maximum total games")
     parser.add_argument("--batch", type=int, default=16, help="Games per batch")
     parser.add_argument("--batch-size", type=int, default=256, help="PPO mini-batch size")
@@ -1223,9 +1213,9 @@ def main():
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
-    parser.add_argument("--hidden-dim", type=int, default=1024, help="Model hidden dimension (768=3M, 1024=7M)")
-    parser.add_argument("--num-blocks", type=int, default=6, help="Number of residual blocks")
-    parser.add_argument("--max-batch-size", type=int, default=32, help="Max inference batch size")
+    parser.add_argument("--hidden-dim", type=int, default=768, help="Model hidden dimension (768=3M)")
+    parser.add_argument("--num-blocks", type=int, default=4, help="Number of residual blocks")
+    parser.add_argument("--max-batch-size", type=int, default=16, help="Max inference batch size")
     args = parser.parse_args()
 
     runner = OvernightRunner({

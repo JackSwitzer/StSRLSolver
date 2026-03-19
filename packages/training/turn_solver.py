@@ -109,15 +109,20 @@ class TurnSolver:
 
     Uses CombatEngine.copy() + execute_action() for simulation (guaranteed correct).
     Searches over ALL actions (cards + potions + scry), not just cards.
+
+    Optionally blends heuristic scoring with neural value estimates from InferenceServer.
     """
 
     def __init__(
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
+        inference_client=None,
     ):
         self.default_time_budget_ms = time_budget_ms
         self.default_node_budget = node_budget
+        self._client = inference_client
+        self._combat_encoder = None  # Lazy init
 
         # Tree reuse state
         self._cached_plan: Optional[List[Action]] = None
@@ -294,12 +299,8 @@ class TurnSolver:
         try:
             sim = engine.copy()
             sim.execute_action(EndTurn())
-            # Run until player's next turn or combat ends
-            while (
-                sim.state.phase == CombatPhase.ENEMY_TURN
-                and not sim.is_combat_over()
-            ):
-                sim.tick()
+            # After EndTurn, the engine processes the enemy turn internally.
+            # Read HP directly from the sim state.
             hp_after = sim.state.player.hp
         except Exception:
             # Fallback: estimate from intents
@@ -323,19 +324,56 @@ class TurnSolver:
         dmg_this_turn = orig_ehp - now_ehp
         est_turns = now_ehp / max(dmg_this_turn, 1) if dmg_this_turn > 0 else 10
 
+        # Damage-dealt bonus: reward progress toward killing enemies
+        damage_dealt = orig_ehp - now_ehp
+
+        # Split detection: if enemies increased, this is a split phase (e.g. Slime Boss)
+        now_living_count = len(living)
+        orig_living_count = sum(1 for e in original.state.enemies if e.hp > 0 and not e.is_escaping)
+        is_split = now_living_count > orig_living_count
+
         # Score: all terms are in comparable units (HP-equivalent)
         score = (
             -6.0 * actual_hp_lost
             + 60.0 * enemies_killed
+            + 2.0 * damage_dealt / max(orig_ehp, 1) * 10  # damage dealt bonus
             - 1.5 * now_ehp / max(orig_ehp, 1) * 10  # normalized remaining HP
             - 12.0 * min(est_turns, 10)
         )
 
-        # Stance: ending in Calm banks energy; ending in Wrath is dangerous
+        # Split detection bonus: reward triggering splits (means we're doing damage)
+        if is_split:
+            score += 30.0
+
+        # Safe turn bonus: no HP lost this turn
+        if actual_hp_lost == 0 and now_living_count > 0:
+            score += 15.0
+
+        # Stance: Calm entry vs staying in Calm distinction
         if state.stance == "Calm":
-            score += 25.0
-        elif state.stance == "Wrath" and now_living > 0:
-            score -= 60.0
+            # Check if we ENTERED Calm this turn (vs already being in Calm)
+            orig_stance = original.state.stance
+            if orig_stance != "Calm":
+                score += 30.0  # Entering Calm = banking energy
+            else:
+                score += 10.0  # Staying in Calm is OK but less valuable
+        elif state.stance == "Wrath" and now_living_count > 0:
+            # Wrath safety check: do we have exit cards in hand/draw?
+            hand = list(state.hand)
+            has_exit = any(
+                card_id.rstrip("+") in ("Vigilance", "EmptyBody", "EmptyFist", "EmptyMind",
+                                         "InnerPeace", "Tranquility", "ClearTheMind")
+                for card_id in hand
+            )
+            if has_exit:
+                score -= 20.0  # Less dangerous if we can exit next action
+            else:
+                # Check if enemies are threatening (attacking)
+                incoming = self._estimate_incoming(state)
+                if incoming > 0:
+                    score -= 80.0  # Very dangerous: Wrath + incoming + no exit
+                else:
+                    score -= 30.0  # Wrath but enemies not attacking
 
         # Penalize unspent energy with playable cards (unless Ice Cream relic present)
         unspent = state.energy
@@ -354,7 +392,33 @@ class TurnSolver:
                 else:
                     score -= 3.0 * unspent
 
+        # Blend with neural value estimate if available
+        neural_val = self._neural_eval(engine)
+        if neural_val is not None:
+            # Heuristic dominates early, neural improves over training
+            score = 0.7 * score + 0.3 * neural_val * 1000
+
         return score
+
+    def _neural_eval(self, engine: CombatEngine) -> Optional[float]:
+        """Request a neural value estimate from the InferenceServer's combat route.
+
+        Returns the value estimate, or None if client unavailable or request fails.
+        """
+        if self._client is None:
+            return None
+        try:
+            if self._combat_encoder is None:
+                from packages.training.state_encoders import CombatStateEncoder
+                self._combat_encoder = CombatStateEncoder()
+            import numpy as _np
+            obs = self._combat_encoder.encode(engine)
+            resp = self._client.infer_combat(obs, _np.array([], dtype=_np.int32))
+            if resp and resp.get("ok"):
+                return float(resp["value"])
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _estimate_incoming(state) -> int:
@@ -1038,15 +1102,8 @@ class MultiTurnSolver:
             except Exception:
                 pass
 
-        # Run until player's next turn or combat ends
-        ticks = 0
-        while sim.phase == CombatPhase.ENEMY_TURN and not sim.is_combat_over() and ticks < 100:
-            try:
-                sim.tick()
-            except Exception:
-                break
-            ticks += 1
-
+        # After EndTurn, the engine processes the enemy turn internally.
+        # Read state directly.
         if sim.state.combat_over or sim.is_combat_over():
             if sim.is_victory():
                 return _SCORE_LETHAL + sim.state.player.hp * 200
@@ -1100,14 +1157,16 @@ class TurnSolverAdapter:
         multi_turn_depth: int = 3,
         multi_turn_k: int = 4,
         multi_turn_budget_ms: float = 5000.0,
+        inference_client=None,
     ):
         self._solver = TurnSolver(
             time_budget_ms=time_budget_ms,
             node_budget=node_budget,
+            inference_client=inference_client,
         )
         # Multi-turn solver for boss/elite fights
         self._multi_turn = MultiTurnSolver(
-            inner_solver=TurnSolver(time_budget_ms=100, node_budget=5000),
+            inner_solver=TurnSolver(time_budget_ms=100, node_budget=5000, inference_client=inference_client),
             max_depth=multi_turn_depth,
             top_k=multi_turn_k,
             time_budget_ms=multi_turn_budget_ms,

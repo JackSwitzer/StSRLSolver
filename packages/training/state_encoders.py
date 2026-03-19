@@ -1,7 +1,7 @@
 """
 State encoders for the two-model RL architecture.
 
-RunStateEncoder: encodes run-level state for the strategic model (~250 dims, cached per floor).
+RunStateEncoder: encodes run-level state for the strategic model (~540 dims, cached per floor).
 CombatStateEncoder: encodes combat state for the combat net (~280 dims, per MCTS call).
 
 Cards are encoded by EFFECTS (not identity) so the model generalizes across cards.
@@ -15,7 +15,135 @@ import numpy as np
 
 
 # ---------------------------------------------------------------------------
-# Card effect vector (18 dims per card)
+# Card feature vector (24 dims per card) — structured, no embeddings
+# ---------------------------------------------------------------------------
+#
+# 24-dim axes:
+#   [0]  cost            [1]  damage           [2]  block            [3]  draw
+#   [4]  discard         [5]  aoe              [6]  exhaust          [7]  ethereal
+#   [8]  attack          [9]  skill            [10] power            [11] wrath
+#   [12] calm            [13] divinity         [14] exit_stance      [15] scry
+#   [16] multi_hit       [17] retain           [18] upgraded         [19] mantra
+#   [20] vuln_apply      [21] weak_apply       [22] block_power      [23] draw_power
+
+_CARD_FEAT_DIM = 24
+_STANCE_MAP = {"Wrath": 0, "Calm": 1, "Divinity": 2, "exit": 3}
+
+
+def _card_feature_vector(card_data, upgraded: bool = False) -> np.ndarray:
+    """Encode a card's static data into a 24-dim feature vector."""
+    from packages.engine.content.cards import CardType, CardTarget
+
+    v = np.zeros(_CARD_FEAT_DIM, dtype=np.float32)
+
+    cost = card_data.cost
+    v[0] = cost / 4.0 if cost >= 0 else -1.0
+
+    dmg = card_data.base_damage
+    v[1] = max(dmg, 0) / 40.0
+
+    blk = card_data.base_block
+    v[2] = max(blk, 0) / 30.0
+
+    effects_lower = [e.lower() for e in card_data.effects]
+    for e in effects_lower:
+        if "draw" in e:
+            v[3] = max(card_data.base_magic, 0) / 5.0
+            break
+    for e in effects_lower:
+        if "discard" in e:
+            v[4] = max(card_data.base_magic, 0) / 5.0
+            break
+
+    if card_data.target in (CardTarget.ALL_ENEMY, CardTarget.ALL):
+        v[5] = 1.0
+    v[6] = float(card_data.exhaust)
+    v[7] = float(card_data.ethereal)
+
+    # Type one-hot
+    if card_data.card_type == CardType.ATTACK:
+        v[8] = 1.0
+    elif card_data.card_type == CardType.SKILL:
+        v[9] = 1.0
+    elif card_data.card_type == CardType.POWER:
+        v[10] = 1.0
+
+    # Stance
+    if card_data.enter_stance:
+        idx = _STANCE_MAP.get(card_data.enter_stance)
+        if idx is not None and idx < 4:
+            v[11 + idx] = 1.0
+    if card_data.exit_stance:
+        v[14] = 1.0
+
+    # Scry
+    for e in effects_lower:
+        if "scry" in e:
+            v[15] = max(card_data.base_magic, 0) / 5.0
+            break
+
+    # Multi-hit (hits > 1)
+    hits = getattr(card_data, "hits", 1) or 1
+    if hits > 1:
+        v[16] = hits / 5.0
+
+    # Retain
+    v[17] = float(getattr(card_data, "retain", False))
+
+    # Upgraded flag
+    v[18] = float(upgraded)
+
+    # Mantra generation
+    for e in effects_lower:
+        if "mantra" in e:
+            v[19] = max(card_data.base_magic, 0) / 10.0
+            break
+
+    # Vuln/Weak application
+    for e in effects_lower:
+        if "vulnerable" in e or "vuln" in e:
+            v[20] = 1.0
+            break
+    for e in effects_lower:
+        if "weak" in e:
+            v[21] = 1.0
+            break
+
+    # Block power (e.g. MentalFortress, TalkToTheHand)
+    for e in effects_lower:
+        if "mentalfortress" in e or "talktothehand" in e or "like water" in e:
+            v[22] = 1.0
+            break
+
+    # Draw power (e.g. Rushdown)
+    for e in effects_lower:
+        if "rushdown" in e or "study" in e:
+            v[23] = 1.0
+            break
+
+    return v
+
+
+# Cache for 24-dim card feature vectors
+_CARD_FEAT_CACHE: Dict[str, np.ndarray] = {}
+
+
+def _get_card_features(card_id: str) -> np.ndarray:
+    """Get cached 24-dim feature vector for a card ID."""
+    if card_id not in _CARD_FEAT_CACHE:
+        from packages.engine.content.cards import ALL_CARDS
+        base_id = card_id.rstrip("+")
+        upgraded = card_id.endswith("+")
+        card_data = ALL_CARDS.get(base_id)
+        if card_data is None:
+            _CARD_FEAT_CACHE[card_id] = np.zeros(_CARD_FEAT_DIM, dtype=np.float32)
+        else:
+            _CARD_FEAT_CACHE[card_id] = _card_feature_vector(card_data, upgraded)
+    return _CARD_FEAT_CACHE[card_id]
+
+
+# ---------------------------------------------------------------------------
+# Legacy card effect vector (18 dims per card) — kept for CombatStateEncoder
 # ---------------------------------------------------------------------------
 
 # Powers whose application we track in the 3-dim compressed embedding.
@@ -24,8 +152,6 @@ TOP_POWERS = [
     "Strength", "Dexterity", "Vulnerable", "Weakened",
     "Mantra", "Ritual", "MentalFortress", "Rushdown",
 ]
-
-_STANCE_MAP = {"Wrath": 0, "Calm": 1, "Divinity": 2, "exit": 3}
 
 
 def _card_effect_vector(card_data) -> np.ndarray:
@@ -172,7 +298,7 @@ def _get_relic_index(relic_id: str) -> int:
 # ---
 # 260  total (dims 248-259 encode boss/elite info in previously zero-padded space)
 
-_CARD_EFFECT_DIM = 18
+_CARD_EFFECT_DIM = 18  # Legacy for CombatStateEncoder
 _MAX_POTION_SLOTS = 5
 _POTION_FUNC_DIM = 4  # damage, heal, block, utility
 _N_RELICS = 181
@@ -220,9 +346,9 @@ class RunStateEncoder:
     # = 6 + 3 + 16 + 181 + 20 + 21 + 4 + 3 = 254
     _STATE_DIM = _BASE_DIM + _PHASE_DIM  # 254 + 6 = 260
     _ACTION_SLOTS = 10  # Max actions to encode
-    _ACTION_FEAT_DIM = 22  # Features per action slot
-    _ACTION_DIM = _ACTION_SLOTS * _ACTION_FEAT_DIM  # 10 * 22 = 220
-    RUN_DIM = _STATE_DIM + _ACTION_DIM  # 260 + 220 = 480
+    _ACTION_FEAT_DIM = 28  # 4 type + 24 card features per action slot
+    _ACTION_DIM = _ACTION_SLOTS * _ACTION_FEAT_DIM  # 10 * 28 = 280
+    RUN_DIM = _STATE_DIM + _ACTION_DIM  # 260 + 280 = 540
 
     def __init__(self):
         self._relic_catalog = _get_relic_catalog()
@@ -267,44 +393,41 @@ class RunStateEncoder:
         features[off + 2] = float(getattr(run_state, "has_sapphire_key", False))
         off += 3
 
-        # --- Deck functional aggregate (16 dims) ---
-        # Average effect vector across deck + deck size + type distribution
+        # --- Deck functional aggregate (16 dims from 24-dim features) ---
+        # Average features + composition + synergy densities
         deck = getattr(run_state, "deck", [])
         n_deck = len(deck)
         if n_deck > 0:
-            # Accumulate effect vectors
-            effect_sum = np.zeros(18, dtype=np.float32)
-            n_attacks = 0
-            n_skills = 0
-            n_powers = 0
-            n_upgraded = 0
+            # Accumulate 24-dim feature vectors
+            feat_sum = np.zeros(_CARD_FEAT_DIM, dtype=np.float32)
             for card in deck:
                 card_id = card.id if hasattr(card, "id") else str(card)
-                ev = _get_card_effect(card_id)
-                effect_sum += ev
-                # Count types from the effect vector (indices 8,9,10)
-                n_attacks += ev[8]
-                n_skills += ev[9]
-                n_powers += ev[10]
-                if hasattr(card, "upgraded") and card.upgraded:
-                    n_upgraded += 1
+                if hasattr(card, "upgraded") and card.upgraded and not card_id.endswith("+"):
+                    card_id = card_id + "+"
+                fv = _get_card_features(card_id)
+                feat_sum += fv
 
-            # Average of first 8 effect dims (cost, damage, block, draw, discard, aoe, exhaust, ethereal)
-            avg_effects = effect_sum[:8] / n_deck
-            features[off:off + 8] = avg_effects
+            # Avg cost/damage/block/draw (4 dims)
+            features[off] = feat_sum[0] / n_deck      # avg cost
+            features[off + 1] = feat_sum[1] / n_deck  # avg damage
+            features[off + 2] = feat_sum[2] / n_deck  # avg block
+            features[off + 3] = feat_sum[3] / n_deck  # avg draw
 
-            # Deck composition (4 dims)
-            features[off + 8] = n_deck / 40.0
-            features[off + 9] = n_attacks / max(n_deck, 1)
-            features[off + 10] = n_skills / max(n_deck, 1)
-            features[off + 11] = n_powers / max(n_deck, 1)
+            # Composition (4 dims)
+            features[off + 4] = n_deck / 40.0
+            features[off + 5] = feat_sum[8] / max(n_deck, 1)   # attack ratio
+            features[off + 6] = feat_sum[9] / max(n_deck, 1)   # skill ratio
+            features[off + 7] = feat_sum[10] / max(n_deck, 1)  # power ratio
 
-            # Upgrade ratio + stance card density (4 dims)
-            features[off + 12] = n_upgraded / max(n_deck, 1)
-            # Stance cards: sum of stance dims (11-14) across deck
-            features[off + 13] = effect_sum[11] / max(n_deck, 1)  # wrath density
-            features[off + 14] = effect_sum[12] / max(n_deck, 1)  # calm density
-            features[off + 15] = (effect_sum[13] + effect_sum[14]) / max(n_deck, 1)  # divinity/exit
+            # Synergy densities (8 dims)
+            features[off + 8] = feat_sum[18] / max(n_deck, 1)   # upgrade ratio
+            features[off + 9] = feat_sum[11] / max(n_deck, 1)   # wrath density
+            features[off + 10] = feat_sum[12] / max(n_deck, 1)  # calm density
+            features[off + 11] = (feat_sum[13] + feat_sum[14]) / max(n_deck, 1)  # divinity/exit
+            features[off + 12] = feat_sum[15] / max(n_deck, 1)  # scry density
+            features[off + 13] = feat_sum[19] / max(n_deck, 1)  # mantra density
+            features[off + 14] = feat_sum[20] / max(n_deck, 1)  # vuln density
+            features[off + 15] = feat_sum[21] / max(n_deck, 1)  # weak density
         off += 16
 
         # --- Relic binary flags (181 dims) ---
@@ -410,12 +533,12 @@ class RunStateEncoder:
     ) -> None:
         """Encode available actions into the feature vector in-place.
 
-        Each action slot gets 22 dims:
+        Each action slot gets 28 dims:
           [0]     action type one-hot: card_pick
           [1]     action type one-hot: path
           [2]     action type one-hot: rest
           [3]     action type one-hot: shop/event/other
-          [4-21]  18-dim card effect vector (for card picks/shop cards)
+          [4-27]  24-dim card feature vector (for card picks/shop cards)
                   OR room type encoding (for paths)
                   OR option features (for rest/shop/event)
         """
@@ -437,14 +560,13 @@ class RunStateEncoder:
                     if reward_type == "card" and runner is not None:
                         cr = getattr(runner, "current_rewards", None)
                         if cr and hasattr(cr, "card_rewards") and cr.card_rewards:
-                            # choice_index maps directly to card index in first reward
                             cards = cr.card_rewards[0].cards
                             if 0 <= choice_idx < len(cards):
                                 card_obj = cards[choice_idx]
                                 card_id = getattr(card_obj, "id", None)
                                 if card_id:
-                                    ev = _get_card_effect(card_id)
-                                    features[base + 4:base + 4 + 18] = ev
+                                    fv = _get_card_features(card_id)
+                                    features[base + 4:base + 4 + _CARD_FEAT_DIM] = fv
                     elif reward_type == "skip_card":
                         features[base + 3] = 1.0  # skip marker
                 except Exception:

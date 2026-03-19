@@ -43,6 +43,7 @@ actor StatusPoller {
                 store.status = status
                 store.lastStatusUpdate = mtime
                 store.appendLoss(from: status)
+                store.appendDiagnostics(from: status)
             }
         }
 

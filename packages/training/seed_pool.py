@@ -5,6 +5,14 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 
+# Merl seeds: curated seeds known to produce interesting/challenging runs
+MERL_SEEDS: List[str] = [
+    "MERL_001", "MERL_002", "MERL_003", "MERL_004",
+    "MERL_005", "MERL_006", "MERL_007", "MERL_008",
+    "MERL_009", "MERL_010", "MERL_011", "MERL_012",
+]
+
+
 class SeedPool:
     """Manages seed rotation with difficulty-aware sampling."""
 
@@ -13,6 +21,10 @@ class SeedPool:
         self.play_counts: Dict[str, int] = {}
         self.results: Dict[str, List[Dict]] = {}  # seed -> list of game results
         self._next_idx = 0
+
+        # Prioritize Merl seeds first
+        for s in MERL_SEEDS:
+            self.play_counts[s] = 0
 
         if initial_seeds:
             for s in initial_seeds:
@@ -24,7 +36,15 @@ class SeedPool:
                 self.play_counts[s] = 0
 
     def get_seed(self) -> str:
-        """Get next seed to play (round-robin with max plays)."""
+        """Get next seed to play. Prioritizes Merl seeds (max_plays=10), then round-robin."""
+        # Prioritize Merl seeds with higher max_plays
+        merl_available = [s for s in MERL_SEEDS if self.play_counts.get(s, 0) < 10]
+        if merl_available:
+            seed = merl_available[self._next_idx % len(merl_available)]
+            self._next_idx += 1
+            self.play_counts[seed] = self.play_counts.get(seed, 0) + 1
+            return seed
+
         available = [s for s, c in self.play_counts.items() if c < self.max_plays]
         if not available:
             # All seeds exhausted, add more

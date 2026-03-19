@@ -80,7 +80,7 @@ class MLXStrategicNet:
 
     def __init__(
         self,
-        input_dim: int = 480,
+        input_dim: int = 540,
         hidden_dim: int = 768,
         action_dim: int = 512,
         num_blocks: int = 4,
@@ -354,7 +354,7 @@ def _apply_weights(net: MLXStrategicNet, data: dict):
 
 
 def benchmark(
-    input_dim: int = 254,
+    input_dim: int = 540,
     action_dim: int = 512,
     batch_sizes: list = [1, 8, 32, 128],
     n_iters: int = 100,
