@@ -16,6 +16,9 @@ pub mod powers;
 pub mod relics;
 pub mod state;
 
+#[cfg(test)]
+mod tests;
+
 use pyo3::prelude::*;
 
 /// Python module entry point.
