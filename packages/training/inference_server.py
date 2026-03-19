@@ -528,7 +528,7 @@ class InferenceServer:
                     shm = self._shm_server_loop
                     with self._stats_lock:
                         self._stats["total_requests"] = (
-                            self._stats.get("total_requests", 0)
+                            self._stats.get("total_requests", 0) + handled
                         )
                     continue
                 # No shared memory requests pending — check queue too

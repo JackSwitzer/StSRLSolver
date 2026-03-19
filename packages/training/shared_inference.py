@@ -169,13 +169,15 @@ class SharedInferenceBuffers:
         for shm in self._shm_blocks:
             try:
                 shm.close()
-            except Exception:
-                pass
+            except (BufferError, OSError) as e:
+                logger.warning("SharedInferenceBuffers: close failed for %s: %s", shm.name, e)
             if self._owns_memory:
                 try:
                     shm.unlink()
                 except FileNotFoundError:
                     pass
+                except OSError as e:
+                    logger.warning("SharedInferenceBuffers: unlink failed for %s: %s", shm.name, e)
         self._shm_blocks.clear()
         logger.debug("SharedInferenceBuffers cleaned up (owner=%s)", self._owns_memory)
 
@@ -184,8 +186,8 @@ class SharedInferenceBuffers:
         for shm in self._shm_blocks:
             try:
                 shm.close()
-            except Exception:
-                pass
+            except (BufferError, OSError) as e:
+                logger.warning("SharedInferenceBuffers: worker close failed: %s", e)
         self._shm_blocks.clear()
 
 
@@ -252,8 +254,9 @@ class SharedMemoryClient:
         while bufs.response_flags[slot] != 1:
             spin_count += 1
             if time.monotonic() > deadline:
-                # Timeout: clear request flag so server doesn't process stale data
+                # Timeout: clear both flags to prevent stale response on next call
                 bufs.request_flags[slot] = 0
+                bufs.response_flags[slot] = 0
                 logger.warning(
                     "SharedMemoryClient slot=%d: timeout after %.1fs (req #%d)",
                     slot,
