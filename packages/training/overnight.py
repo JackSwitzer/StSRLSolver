@@ -26,7 +26,6 @@ import numpy as np
 from .episode_log import log_episode
 from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REPLAY_BUFFER_SIZE,
@@ -35,7 +34,6 @@ from .reward_config import (
     REWARD_WEIGHTS,
     STALL_DETECTION_WINDOW,
     STALL_IMPROVEMENT_THRESHOLD,
-    STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
@@ -550,6 +548,9 @@ class OvernightRunner:
                 hidden_dim=self.hidden_dim,
                 num_blocks=self.num_blocks,
             ).to(device)
+        assert model.input_dim == encoder.RUN_DIM, (
+            f"Model input_dim={model.input_dim} != encoder RUN_DIM={encoder.RUN_DIM}"
+        )
         logger.info(
             "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
             model.param_count(), model.hidden_dim, model.num_blocks, device,
@@ -615,18 +616,12 @@ class OvernightRunner:
                         logger.info("  reward_weights -> updated")
 
                     # --- Legacy reward shaping (backwards compat) ---
-                    if "stance_rewards" in cfg:
-                        STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
-                        logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
                     if "event_rewards" in cfg:
                         EVENT_REWARDS.update(cfg["event_rewards"])
                         logger.info("  event_rewards -> %s", EVENT_REWARDS)
                     if "floor_milestones" in cfg:
                         FLOOR_MILESTONES.update({int(k): v for k, v in cfg["floor_milestones"].items()})
                         logger.info("  floor_milestones -> %s", FLOOR_MILESTONES)
-                    if "card_pick_rewards" in cfg:
-                        CARD_PICK_REWARDS.update(cfg["card_pick_rewards"])
-                        logger.info("  card_pick_rewards -> %s", CARD_PICK_REWARDS)
                     if "upgrade_rewards" in cfg:
                         UPGRADE_REWARDS.update(cfg["upgrade_rewards"])
                         logger.info("  upgrade_rewards -> %s", UPGRADE_REWARDS)

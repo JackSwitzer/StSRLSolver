@@ -347,7 +347,6 @@ class StrategicTrainer:
         total_metrics["entropy_coeff"] = self.entropy_coeff
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
-        total_metrics["floor_pred_loss"] = total_metrics.get("aux_loss", 0.0)  # for dashboard
 
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
