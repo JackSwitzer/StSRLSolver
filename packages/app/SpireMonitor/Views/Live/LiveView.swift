@@ -66,8 +66,9 @@ struct LiveView: View {
                             .frame(minHeight: 160)
                             .sectionCard()
 
-                        LossChartsView(history: store.lossHistory)
-                            .frame(minHeight: 160)
+                        LossChartsView(history: store.lossHistory,
+                                       configHistory: store.configLossHistory)
+                            .frame(minHeight: 200)
                             .sectionCard()
 
                         HyperparamGridView(status: store.status)

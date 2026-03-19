@@ -54,14 +54,19 @@ actor StatusPoller {
             }
         }
 
-        // Reload episodes every 4th poll (~10s) to pick up new data
+        // Reload episodes + perf_log every 4th poll (~10s)
         pollCount += 1
         if pollCount % 4 == 0 {
             let recent = await EpisodeLoader.loadRecent(from: logsURL)
             let top = await EpisodeLoader.loadTop(from: logsURL)
+
+            // Load perf_log.jsonl for per-config loss curves
+            let perfLogURL = logsURL.appending(path: "perf_log.jsonl")
+
             await MainActor.run {
                 if !recent.isEmpty { store.recentEpisodes = recent }
                 if !top.isEmpty { store.topEpisodes = top }
+                store.loadPerfLog(from: perfLogURL)
             }
         }
 
