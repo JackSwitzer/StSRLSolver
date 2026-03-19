@@ -640,12 +640,12 @@ class OvernightRunner:
         seed_pool = SeedPool(max_plays=5)
         best_avg_floor = 0.0
 
-        # Adaptive 3-phase sweep:
-        # Phase 1: Each config gets equal games (~25% of total each)
-        # Phase 2: Keep top 2 configs, each gets ~15% more games
-        # Phase 3: All-in on best config with remaining games
+        # Quick Phase 1 exploration (~20 min each) then ranked scale-up
+        # Phase 1: 500 games per config (quick ablation)
+        # Phase 2: Deep boss test (2h) with massive solver budgets
+        # Phase 3: Ranked allocation (remaining time, 50%/33%/17%)
         n_configs = len(self.sweep_configs)
-        phase1_games_per = self.max_games // (n_configs * 3)  # ~33% of budget split equally
+        phase1_games_per = min(500, self.max_games // max(n_configs, 1))
 
         config_scores: Dict[int, Dict[str, Any]] = {}  # idx -> {avg_floor, games, ...}
 
