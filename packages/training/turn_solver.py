@@ -284,16 +284,13 @@ class TurnSolver:
         if not living:
             return _SCORE_LETHAL + player.hp * 200
 
-        # Simulate enemy turn to get actual HP loss
+        # Simulate enemy turn to get actual HP loss.
+        # CombatEngine.end_turn() is monolithic: runs full enemy turn
+        # synchronously and returns with phase == PLAYER_TURN.
+        # Just read sim.state.player.hp after the call.
         try:
             sim = engine.copy()
             sim.execute_action(EndTurn())
-            # Run until player's next turn or combat ends
-            while (
-                sim.state.phase == CombatPhase.ENEMY_TURN
-                and not sim.is_combat_over()
-            ):
-                sim.tick()
             hp_after = sim.state.player.hp
         except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
             logger.warning("TurnSolver: enemy turn simulation failed: %s", e)
@@ -1038,15 +1035,7 @@ class MultiTurnSolver:
             except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
                 logger.warning("TurnSolver: _evaluate_plan EndTurn failed: %s", e)
 
-        # Run until player's next turn or combat ends
-        ticks = 0
-        while sim.phase == CombatPhase.ENEMY_TURN and not sim.is_combat_over() and ticks < 100:
-            try:
-                sim.tick()
-            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
-                logger.warning("TurnSolver: _evaluate_plan enemy tick failed: %s", e)
-                break
-            ticks += 1
+        # end_turn() is monolithic — enemy turn already executed. No tick loop needed.
 
         if sim.state.combat_over or sim.is_combat_over():
             if sim.is_victory():
