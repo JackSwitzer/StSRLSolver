@@ -6,6 +6,11 @@ struct TrainingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                // Sweep comparison
+                SweepComparisonView(configs: appState.store.configHistory)
+                    .sectionCard()
+                    .padding(.horizontal, 16)
+
                 // Top row: key metrics
                 if let status = appState.store.status {
                     HStack(spacing: 12) {

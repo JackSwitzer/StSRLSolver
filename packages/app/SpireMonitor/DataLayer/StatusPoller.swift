@@ -44,6 +44,22 @@ actor StatusPoller {
                 store.lastStatusUpdate = mtime
                 store.appendLoss(from: status)
                 store.appendDiagnostics(from: status)
+
+                if let config = status.configName {
+                    var stats = store.configHistory[config] ?? ConfigStats(
+                        name: config, games: 0, avgFloor: 0, peakFloor: 0, isActive: false
+                    )
+                    stats.games = status.totalGames ?? 0
+                    stats.avgFloor = status.avgFloor100 ?? 0
+                    stats.peakFloor = status.peakFloor ?? 0
+                    stats.lastLoss = status.totalLoss
+                    stats.phase = status.sweepPhase
+                    stats.isActive = true
+                    for key in store.configHistory.keys {
+                        store.configHistory[key]?.isActive = (key == config)
+                    }
+                    store.configHistory[config] = stats
+                }
             }
         }
 

@@ -114,11 +114,16 @@ struct LiveView: View {
             }
             .background(Color.stsCard)
         }
-        .focusable()
-        .focusEffectDisabled()
-        .onKeyPress("m", action: { toggleFloorMode(); return .handled })
-        .onKeyPress("f", action: { toggleStats(); return .handled })
-        .onAppear { refreshCaches() }
+        .onAppear {
+            refreshCaches()
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                switch event.charactersIgnoringModifiers {
+                case "m": toggleFloorMode(); return nil
+                case "f": toggleStats(); return nil
+                default: return event
+                }
+            }
+        }
         .onChange(of: store.recentEpisodes.count) { refreshCaches() }
         .onChange(of: store.topEpisodes.count) { refreshCaches() }
         .onChange(of: statsMode) { refreshCaches() }

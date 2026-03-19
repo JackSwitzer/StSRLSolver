@@ -17,6 +17,8 @@ final class DataStore {
     var systemStats: SystemStats?
     var systemHistory: [SystemStats] = []
 
+    var configHistory: [String: ConfigStats] = [:]
+
     var isLive: Bool {
         guard let last = lastStatusUpdate else { return false }
         return Date().timeIntervalSince(last) < 10
@@ -92,4 +94,15 @@ struct RoomPerformance {
     let avgTurns: Double
     let avgHpLost: Double
     let potionRate: Double
+}
+
+struct ConfigStats: Identifiable {
+    let id = UUID()
+    let name: String
+    var games: Int
+    var avgFloor: Double
+    var peakFloor: Int
+    var lastLoss: Double?
+    var phase: String?
+    var isActive: Bool
 }
