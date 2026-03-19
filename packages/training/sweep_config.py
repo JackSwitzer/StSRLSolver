@@ -27,6 +27,17 @@ DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
      "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
      "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
      "turn_solver_ms": 100.0},
+    # Config E: Full MCTS UCB (200 sims for cards, 50 for paths)
+    {"name": "full_mcts_ucb",
+     "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+     "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+     "turn_solver_ms": 100.0, "mcts_enabled": True},
+]
+
+# Weekend sweep: only configs not yet run (A-C completed 2026-03-19 afternoon)
+WEEKEND_SWEEP_CONFIGS: List[Dict[str, Any]] = [
+    cfg for cfg in DEFAULT_SWEEP_CONFIGS
+    if cfg["name"] in ("reward_tuned_bc", "full_mcts_ucb")
 ]
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)

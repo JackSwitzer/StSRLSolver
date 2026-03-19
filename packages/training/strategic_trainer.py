@@ -438,3 +438,119 @@ class StrategicTrainer:
         Starts at 0.05 (set in __init__), decays to min_coeff=0.01.
         """
         self.entropy_coeff = max(min_coeff, self.entropy_coeff * decay)
+
+    def calibrate_value_head(
+        self,
+        learned_rewards_path: str = "data/learned_rewards.json",
+        trajectory_dir: Optional[Path] = None,
+        epochs: int = 5,
+        max_samples: int = 3000,
+    ) -> Dict[str, float]:
+        """Calibrate value head using trajectory data as value targets.
+
+        Loads card lift ratios from learned_rewards_path and trajectory
+        observations. Trains the value head (only) to predict floor progress,
+        giving it meaningful gradients before PPO training begins.
+
+        Args:
+            learned_rewards_path: Path to JSON with card lift ratios
+            trajectory_dir: Directory with trajectory .npz files
+            epochs: Training epochs for calibration
+            max_samples: Maximum number of calibration samples
+
+        Returns:
+            Dict with calibration metrics (loss, samples, etc.)
+        """
+        import json
+
+        device = next(self.model.parameters()).device
+
+        # Load card lift ratios (optional — used for logging only)
+        card_lift_entries = 0
+        try:
+            with open(learned_rewards_path) as f:
+                lift_data = json.load(f)
+            for card, data in lift_data.items():
+                if isinstance(data, (int, float)) or (isinstance(data, dict) and "lift_ratio" in data):
+                    card_lift_entries += 1
+        except FileNotFoundError:
+            logger.info("calibrate_value_head: %s not found, continuing with trajectory data", learned_rewards_path)
+        except json.JSONDecodeError as e:
+            logger.warning("calibrate_value_head: invalid JSON in %s: %s", learned_rewards_path, e)
+
+        # Load trajectory observations
+        from .training_config import MODEL_ACTION_DIM
+        obs_list, value_targets = [], []
+        loaded = 0
+
+        if trajectory_dir is not None:
+            traj_files = sorted(trajectory_dir.glob("traj_F*.npz"), key=lambda p: p.stem, reverse=True)
+            for tf in traj_files:
+                if loaded >= max_samples:
+                    break
+                try:
+                    data = np.load(tf)
+                    for i in range(len(data["obs"])):
+                        if loaded >= max_samples:
+                            break
+                        obs_list.append(data["obs"][i])
+                        floor_val = float(data["final_floors"][i]) if "final_floors" in data else 0.5
+                        value_targets.append(floor_val)
+                        loaded += 1
+                except Exception as e:
+                    logger.warning("calibrate_value_head: failed to load %s: %s", tf.name, e)
+                    continue
+
+        if loaded == 0:
+            logger.info("calibrate_value_head: no trajectory data available")
+            return {"calibration_loss": 0, "calibration_samples": 0}
+
+        logger.info("calibrate_value_head: %d samples, %d card lift entries", loaded, card_lift_entries)
+
+        obs_t = torch.from_numpy(np.stack(obs_list)).float().to(device)
+        target_t = torch.tensor(value_targets, dtype=torch.float32).to(device)
+
+        # Only train value head, freeze policy
+        for name, param in self.model.named_parameters():
+            if "value" not in name and "shared" not in name:
+                param.requires_grad_(False)
+
+        self.model.train()
+        total_loss = 0.0
+        num_batches = 0
+
+        # Create dummy masks (all True for first action)
+        mask_t = torch.zeros(loaded, MODEL_ACTION_DIM, dtype=torch.bool, device=device)
+        mask_t[:, 0] = True
+
+        for epoch in range(epochs):
+            indices = torch.randperm(loaded)
+            for start in range(0, loaded, self.batch_size):
+                end = min(start + self.batch_size, loaded)
+                idx = indices[start:end]
+
+                out = self.model(obs_t[idx], mask_t[idx])
+                value_pred = out["value"]
+                loss = F.mse_loss(value_pred, target_t[idx])
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+
+                total_loss += loss.item()
+                num_batches += 1
+
+        # Unfreeze all parameters
+        for param in self.model.parameters():
+            param.requires_grad_(True)
+
+        avg_loss = total_loss / max(num_batches, 1)
+        logger.info("calibrate_value_head: %d epochs, avg_loss=%.4f", epochs, avg_loss)
+
+        return {
+            "calibration_loss": avg_loss,
+            "calibration_samples": loaded,
+            "calibration_epochs": epochs,
+            "card_lift_entries": card_lift_entries,
+        }

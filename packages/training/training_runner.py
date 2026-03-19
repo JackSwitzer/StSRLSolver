@@ -31,7 +31,7 @@ from .reward_config import (
     REWARD_WEIGHTS,
     UPGRADE_REWARDS,
 )
-from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
+from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS
 from .training_config import (
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
@@ -91,6 +91,7 @@ class OvernightRunner:
         self.hidden_dim = config.get("hidden_dim", MODEL_HIDDEN_DIM)
         self.num_blocks = config.get("num_blocks", MODEL_NUM_BLOCKS)
         self.max_batch_size = config.get("max_batch_size", TRAIN_MAX_BATCH_INFERENCE)
+        self.max_hours_per_config = config.get("max_hours_per_config", None)  # None = auto
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -741,11 +742,21 @@ class OvernightRunner:
             sweep_floors: Deque[int] = deque(maxlen=200)
 
             ts_ms = sweep_config.get("turn_solver_ms", 50.0)
+
+            # Time limit per config (prevents single config from monopolizing)
+            config_start_time = time.monotonic()
+            if self.max_hours_per_config is not None:
+                max_seconds = self.max_hours_per_config * 3600
+            else:
+                n_cfgs = max(len(self.sweep_configs), 1)
+                max_seconds = float("inf") if n_cfgs <= 1 else (48 * 3600) / n_cfgs
+
             logger.info(
-                "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f, ts=%.0fms",
+                "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f, ts=%.0fms, time_limit=%.1fh",
                 config_name, lr,
                 sweep_config.get("entropy_coeff", 0.05),
                 batch_size, temp, ts_ms,
+                max_seconds / 3600,
             )
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
@@ -755,7 +766,10 @@ class OvernightRunner:
             _TRAIN_STEPS = TRAIN_STEPS_PER_PHASE
             games_per_min = 0.0
 
-            while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
+            while (sweep_games < n_games
+                   and self.total_games < self.max_games
+                   and not self._shutdown_requested
+                   and (time.monotonic() - config_start_time) < max_seconds):
                 # -- COLLECT PHASE --
                 collect_t0 = time.monotonic()
                 collect_games = 0
@@ -1087,6 +1101,7 @@ class OvernightRunner:
         cfg = self._current_sweep_config
         ts_ms = cfg.get("turn_solver_ms", 50.0)
         _strategic = cfg.get("strategic_search", False)
+        _mcts = cfg.get("mcts_enabled", False)
 
         # Mixed temperature: ~25% of games use higher temp for exploration
         explore_temp = self.temperature * 1.5
@@ -1097,7 +1112,8 @@ class OvernightRunner:
                  explore_temp if i % 4 == 0 else self.temperature,
                  self.total_games,
                  ts_ms,
-                 _strategic),
+                 _strategic,
+                 _mcts),
             )
             for i, seed in enumerate(seeds)
         ]
@@ -1229,7 +1245,11 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=MODEL_HIDDEN_DIM, help="Model hidden dimension")
     parser.add_argument("--num-blocks", type=int, default=MODEL_NUM_BLOCKS, help="Number of residual blocks")
     parser.add_argument("--max-batch-size", type=int, default=TRAIN_MAX_BATCH_INFERENCE, help="Max inference batch size")
+    parser.add_argument("--weekend", action="store_true", help="Use weekend configs (skip already-completed sweeps)")
+    parser.add_argument("--max-hours-per-config", type=float, default=None, help="Hours per sweep config (None=auto)")
     args = parser.parse_args()
+
+    sweep = WEEKEND_SWEEP_CONFIGS if args.weekend else DEFAULT_SWEEP_CONFIGS
 
     runner = OvernightRunner({
         "workers": args.workers,
@@ -1245,6 +1265,8 @@ def main():
         "hidden_dim": args.hidden_dim,
         "num_blocks": args.num_blocks,
         "max_batch_size": args.max_batch_size,
+        "sweep_configs": sweep,
+        "max_hours_per_config": args.max_hours_per_config,
     })
 
     result = runner.run()

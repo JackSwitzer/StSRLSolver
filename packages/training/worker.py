@@ -136,6 +136,7 @@ def _play_one_game(
     total_games: int = 0,
     turn_solver_ms: float = 50.0,
     strategic_search: bool = False,
+    mcts_enabled: bool = False,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
@@ -171,6 +172,12 @@ def _play_one_game(
     )
 
     client = get_client()
+
+    # MCTS engine for strategic decisions (created once, reused per game)
+    mcts_engine = None
+    if mcts_enabled:
+        from packages.training.strategic_mcts import StrategicMCTS
+        mcts_engine = StrategicMCTS(encoder=encoder, client=client)
 
     # Worker status file for live dashboard grid
     import os
@@ -474,8 +481,25 @@ def _play_one_game(
                     # Clamp to valid range
                     action_idx = min(action_idx, n_actions - 1)
 
+                    # MCTS strategic search: full tree search override
+                    if mcts_engine is not None and n_actions > 1:
+                        try:
+                            mcts_idx, mcts_policy = mcts_engine.search(
+                                runner, actions, phase_type,
+                            )
+                            # Blend 80% MCTS / 20% model policy for training signal
+                            model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
+                            model_probs /= model_probs.sum()
+                            blended = 0.8 * mcts_policy + 0.2 * model_probs
+                            blended /= blended.sum()
+                            action_idx = int(np.random.choice(n_actions, p=blended))
+                            # Recompute log_prob for the MCTS-chosen action
+                            log_prob = float(np.log(probs_base[action_idx] + 1e-8))
+                        except Exception as e:
+                            logger.warning("MCTS search failed, using model policy: %s", e)
+
                     # Strategic search: value-head per-option evaluation
-                    if strategic_search and n_actions > 1 and client is not None:
+                    elif strategic_search and n_actions > 1 and client is not None:
                         search_result = _strategic_search(actions, runner, encoder, client, phase_type, n_actions)
                         if search_result is not None:
                             best_idx, search_policy = search_result
