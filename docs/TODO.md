@@ -1,7 +1,14 @@
 # TODO
 
-Last updated: 2026-03-18
-Baseline: 6100+ tests passing, training active with action-encoded observations.
+Last updated: 2026-03-19
+Status: MCTS 500 AlphaZero training running over weekend (90h target).
+
+## Weekend Status (2026-03-19 evening)
+- **MCTS running**: 15 workers, 18M model, 500 sims/decision, pure search scoring
+- **Monitor**: `bash scripts/training.sh status` + macOS app (boss deep-dive)
+- **Watch for**: floor 17 breakthrough, value loss decreasing, stalling detection
+- **After weekend**: analyze MCTS vs baseline, scale if floor 17 achieved, investigate value head if stuck
+- **Key fix this session**: TurnSolver Wrath penalty was #1 blocker (235k+ games affected)
 
 ## P1: Card behavior parity
 - [ ] `CRD-IC-001` Ironclad behavior closure -- [work unit](work_units/granular-cards-ironclad.md)

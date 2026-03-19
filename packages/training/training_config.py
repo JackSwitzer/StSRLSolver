@@ -140,9 +140,9 @@ PBRS_WEIGHTS: Dict[str, float] = {
 # ---------------------------------------------------------------------------
 # Combat MCTS budgets (sims per action, by room type)
 COMBAT_MCTS_BUDGETS: Dict[str, int] = {
-    "monster": 20,    # ~100ms per action, fast
-    "elite": 100,     # ~700ms per action, thorough
-    "boss": 500,      # ~3.5s per action → 5-10 min total per boss fight
+    "monster": 5,     # Fast — monsters are easy, don't waste compute
+    "elite": 20,      # Moderate search for elites
+    "boss": 200,      # Deep search — bosses are the bottleneck
 }
 
 # Strategic MCTS budgets (sims per decision, by phase type)
