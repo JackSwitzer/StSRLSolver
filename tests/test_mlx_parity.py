@@ -388,8 +388,8 @@ class TestWeightConversion:
         # input_linear (weight, bias) + input_norm (weight, bias) = 4
         mlx_param_count += 2  # input_linear
         mlx_param_count += 2  # input_norm
-        # Each block: linear (weight, bias) + norm (weight, bias) = 4
-        mlx_param_count += 4 * mlx_model.num_blocks
+        # Each block: fc1 (weight, bias) + fc2 (weight, bias) + norm (weight, bias) = 6
+        mlx_param_count += 6 * mlx_model.num_blocks
         # Heads: policy_1, policy_2, value_1, value_2, floor_1, floor_2, act_1, act_2
         # Each has weight + bias = 16
         mlx_param_count += 2 * 8
@@ -423,27 +423,44 @@ class TestWeightConversion:
         np.testing.assert_allclose(mlx_ln_b, pt_ln_b, atol=1e-7, err_msg="input_norm.bias mismatch")
 
     def test_residual_block_weights_match(self, seeded_model_pair):
-        """Each residual block's Linear + LayerNorm weights match."""
+        """Each residual block's fc1 + fc2 + LayerNorm weights match."""
         pt_model, mlx_model = seeded_model_pair
 
         for i in range(mlx_model.num_blocks):
             pt_block = pt_model.trunk[i]
             mlx_block = mlx_model.blocks[i]
 
-            pt_w = pt_block.linear.weight.detach().numpy()
-            mlx_w = np.array(mlx_block.linear.weight)
+            # fc1
+            pt_w = pt_block.fc1.weight.detach().numpy()
+            mlx_w = np.array(mlx_block.fc1.weight)
             np.testing.assert_allclose(
                 mlx_w, pt_w, atol=1e-7,
-                err_msg=f"Block {i} linear.weight mismatch",
+                err_msg=f"Block {i} fc1.weight mismatch",
             )
 
-            pt_b = pt_block.linear.bias.detach().numpy()
-            mlx_b = np.array(mlx_block.linear.bias)
+            pt_b = pt_block.fc1.bias.detach().numpy()
+            mlx_b = np.array(mlx_block.fc1.bias)
             np.testing.assert_allclose(
                 mlx_b, pt_b, atol=1e-7,
-                err_msg=f"Block {i} linear.bias mismatch",
+                err_msg=f"Block {i} fc1.bias mismatch",
             )
 
+            # fc2
+            pt_w2 = pt_block.fc2.weight.detach().numpy()
+            mlx_w2 = np.array(mlx_block.fc2.weight)
+            np.testing.assert_allclose(
+                mlx_w2, pt_w2, atol=1e-7,
+                err_msg=f"Block {i} fc2.weight mismatch",
+            )
+
+            pt_b2 = pt_block.fc2.bias.detach().numpy()
+            mlx_b2 = np.array(mlx_block.fc2.bias)
+            np.testing.assert_allclose(
+                mlx_b2, pt_b2, atol=1e-7,
+                err_msg=f"Block {i} fc2.bias mismatch",
+            )
+
+            # LayerNorm
             pt_ln_w = pt_block.norm.weight.detach().numpy()
             mlx_ln_w = np.array(mlx_block.norm.weight)
             np.testing.assert_allclose(

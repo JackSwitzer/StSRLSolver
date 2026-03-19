@@ -181,7 +181,8 @@ class MLXStrategicBackend:
         _load_ln(net.input_norm, "input_proj.1")
 
         for i, block in enumerate(net.blocks):
-            _load_linear(block.linear, f"trunk.{i}.linear")
+            _load_linear(block.fc1, f"trunk.{i}.fc1")
+            _load_linear(block.fc2, f"trunk.{i}.fc2")
             _load_ln(block.norm, f"trunk.{i}.norm")
 
         _load_linear(net.policy_1, "policy_head.0")
@@ -279,6 +280,11 @@ class InferenceServer:
     them across routes, runs MLX (or CPU PyTorch) forward passes, and
     scatters responses back to per-worker response queues.
 
+    When use_shared_memory=True (default on Apple Silicon), pre-allocates
+    shared memory arrays for zero-copy inference. Workers write observations
+    directly into shared buffers instead of pickling through mp.Queue.
+    Falls back to queue mode if shared memory allocation fails.
+
     Weight sync is non-blocking: post to _control_q from main thread, applied
     at the top of each serve loop iteration.
 
@@ -287,6 +293,10 @@ class InferenceServer:
         max_batch_size: maximum requests to batch before forward pass
         batch_timeout_ms: max wait (ms) to fill a batch
         use_mlx: if True and MLX available, prefer MLX backend
+        use_shared_memory: if True, use shared memory for zero-copy inference
+        shm_input_dim: observation vector dimension (default 480)
+        shm_action_dim: action space dimension (default 512)
+        shm_max_workers: pre-allocate shared memory for this many workers (default 30)
     """
 
     def __init__(
@@ -295,6 +305,10 @@ class InferenceServer:
         max_batch_size: int = 64,
         batch_timeout_ms: float = 5.0,
         use_mlx: bool = True,
+        use_shared_memory: bool = True,
+        shm_input_dim: int = 480,
+        shm_action_dim: int = 512,
+        shm_max_workers: int = 30,
     ):
         import multiprocessing as mp
 
@@ -305,10 +319,10 @@ class InferenceServer:
         self.batch_timeout_ms = batch_timeout_ms
         self.use_mlx = use_mlx and MLX_AVAILABLE
 
-        # Shared request queue (all workers -> server)
+        # Shared request queue (all workers -> server) — used in queue mode
         self.request_q: mp.Queue = ctx.Queue(maxsize=n_workers * max_batch_size * 2)
 
-        # Per-worker response queues (server -> individual worker)
+        # Per-worker response queues (server -> individual worker) — used in queue mode
         self.response_qs: List[mp.Queue] = [ctx.Queue(maxsize=128) for _ in range(n_workers)]
 
         # Slot queue: pre-loaded with [0..n_workers-1] for worker initialization
@@ -328,6 +342,51 @@ class InferenceServer:
         self._strategic_mask_buffer: Optional[np.ndarray] = None
         self._combat_obs_buffer: Optional[np.ndarray] = None
         self._combat_mask_buffer: Optional[np.ndarray] = None
+
+        # --- Shared memory mode ---
+        self._shm_buffers = None
+        self._shm_server_loop = None
+        self.use_shared_memory = False  # Set to True only if allocation succeeds
+
+        if use_shared_memory:
+            try:
+                from packages.training.shared_inference import (
+                    SharedInferenceBuffers,
+                    SharedMemoryServerLoop,
+                )
+
+                session_id = str(int(time.time() * 1000) % 1_000_000)
+                shm_slots = max(shm_max_workers, n_workers)
+                self._shm_buffers = SharedInferenceBuffers(
+                    max_workers=shm_slots,
+                    input_dim=shm_input_dim,
+                    action_dim=shm_action_dim,
+                    create=True,
+                    session_id=session_id,
+                )
+                self._shm_server_loop = SharedMemoryServerLoop(
+                    buffers=self._shm_buffers,
+                    get_backend=lambda: self._strategic_backend,
+                    batch_timeout_ms=batch_timeout_ms,
+                )
+                self.use_shared_memory = True
+                logger.info(
+                    "InferenceServer: shared memory mode ENABLED "
+                    "(slots=%d, input=%d, action=%d, session=%s)",
+                    shm_slots,
+                    shm_input_dim,
+                    shm_action_dim,
+                    session_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "InferenceServer: shared memory allocation failed, "
+                    "falling back to queue mode: %s",
+                    exc,
+                )
+                self._shm_buffers = None
+                self._shm_server_loop = None
+                self.use_shared_memory = False
 
         # Stats
         self._stats_lock = threading.Lock()
@@ -359,12 +418,15 @@ class InferenceServer:
 
     def start(self) -> None:
         """Start the server thread. Call once from main process."""
+        mode = "shared_memory" if self.use_shared_memory else "queue"
         logger.info(
-            "InferenceServer starting (n_workers=%d, max_batch=%d, timeout=%.1fms, backend=%s)",
+            "InferenceServer starting (n_workers=%d, max_batch=%d, timeout=%.1fms, "
+            "backend=%s, mode=%s)",
             self.n_workers,
             self.max_batch_size,
             self.batch_timeout_ms,
             "MLX" if self.use_mlx else "Torch-CPU",
+            mode,
         )
         self._thread.start()
 
@@ -374,6 +436,11 @@ class InferenceServer:
         self._thread.join(timeout=5.0)
         if self._thread.is_alive():
             logger.warning("InferenceServer thread did not exit cleanly within 5s")
+        # Clean up shared memory if allocated
+        if self._shm_buffers is not None:
+            self._shm_buffers.cleanup()
+            self._shm_buffers = None
+            logger.debug("InferenceServer: shared memory cleaned up")
 
     def sync_strategic_from_pytorch(
         self,
@@ -419,27 +486,68 @@ class InferenceServer:
         s.pop("batch_sizes", None)
         s.pop("queue_wait_ms", None)
         s.pop("forward_ms", None)
+        # Add shared memory stats
+        s["use_shared_memory"] = self.use_shared_memory
+        if self._shm_server_loop is not None:
+            s["shm_requests"] = self._shm_server_loop.total_requests
+            s["shm_batches"] = self._shm_server_loop.total_batches
         return s
+
+    @property
+    def shm_info(self) -> Optional[dict]:
+        """Return shared memory connection info for workers. None if disabled."""
+        if not self.use_shared_memory or self._shm_buffers is None:
+            return None
+        return self._shm_buffers.shm_names
 
     # ------------------------------------------------------------------
     # Server thread internals
     # ------------------------------------------------------------------
 
     def _serve_loop(self) -> None:
-        """Main server loop. Runs in daemon thread."""
-        logger.info("InferenceServer thread started")
+        """Main server loop. Runs in daemon thread.
+
+        In shared memory mode, polls shared buffers at high frequency.
+        Falls through to queue polling if no shared memory requests pending,
+        so both modes can coexist (e.g. during migration).
+        """
+        logger.info(
+            "InferenceServer thread started (mode=%s)",
+            "shared_memory" if self.use_shared_memory else "queue",
+        )
 
         while not self._stop.is_set():
             # Apply any pending weight syncs before touching requests
             self._apply_pending_syncs()
 
-            # Block until first request (with short timeout so we can check stop/syncs)
-            try:
-                t_enqueue = time.monotonic()
-                first = self.request_q.get(timeout=0.050)
-            except Exception:
-                # queue.Empty or EOFError (workers died) — just loop
-                continue
+            # --- Shared memory path (primary when enabled) ---
+            if self.use_shared_memory and self._shm_server_loop is not None:
+                handled = self._shm_server_loop.poll_and_dispatch()
+                if handled:
+                    # Update aggregate stats from shm loop
+                    shm = self._shm_server_loop
+                    with self._stats_lock:
+                        self._stats["total_requests"] = (
+                            self._stats.get("total_requests", 0)
+                        )
+                    continue
+                # No shared memory requests pending — check queue too
+                # (brief non-blocking check for any legacy queue requests)
+                try:
+                    t_enqueue = time.monotonic()
+                    first = self.request_q.get(timeout=0.001)
+                except Exception:
+                    # Nothing in queue either — short sleep and retry
+                    time.sleep(0.0005)  # 500us idle poll
+                    continue
+            else:
+                # --- Queue-only path (original behavior) ---
+                try:
+                    t_enqueue = time.monotonic()
+                    first = self.request_q.get(timeout=0.050)
+                except Exception:
+                    # queue.Empty or EOFError (workers died) — just loop
+                    continue
 
             t_dequeue = time.monotonic()
             queue_wait_ms = (t_dequeue - t_enqueue) * 1000.0

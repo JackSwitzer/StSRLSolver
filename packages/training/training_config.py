@@ -11,8 +11,8 @@ from typing import Any, Dict
 # ---------------------------------------------------------------------------
 # Model Architecture
 # ---------------------------------------------------------------------------
-MODEL_HIDDEN_DIM = 768
-MODEL_NUM_BLOCKS = 4
+MODEL_HIDDEN_DIM = 1024
+MODEL_NUM_BLOCKS = 8
 MODEL_ACTION_DIM = 512
 
 # ---------------------------------------------------------------------------
@@ -20,7 +20,8 @@ MODEL_ACTION_DIM = 512
 # ---------------------------------------------------------------------------
 TRAIN_WORKERS = 10
 TRAIN_BATCH_SIZE = 256
-TRAIN_MAX_BATCH_INFERENCE = 16
+TRAIN_MAX_BATCH_INFERENCE = 32
+INFERENCE_BATCH_TIMEOUT_MS = 15.0  # Batch timeout for inference server (was 5ms)
 TRAIN_GAMES_PER_BATCH = 16
 TRAIN_PPO_EPOCHS = 4
 TRAIN_STEPS_PER_PHASE = 10

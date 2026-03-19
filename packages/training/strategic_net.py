@@ -1,9 +1,8 @@
 """
 Strategic decision model for the two-model RL architecture.
 
-4x384 trunk with residual connections + LayerNorm.
+Residual trunk with LayerNorm (default: 8x1024, ~18M params).
 Multi-head output for different decision types + auxiliary predictions.
-Target ~3M parameters.
 
 The strategic model handles all non-combat decisions: path selection,
 card picks, rest sites, shop, events. Combat is handled by the
@@ -31,15 +30,20 @@ def _get_device() -> torch.device:
 
 
 class ResidualBlock(nn.Module):
-    """Residual block: Linear + LayerNorm + ReLU with skip connection."""
+    """Residual block: two-layer MLP + LayerNorm with skip connection.
+
+    fc1 -> ReLU -> fc2 -> LayerNorm -> + skip
+    """
 
     def __init__(self, dim: int):
         super().__init__()
-        self.linear = nn.Linear(dim, dim)
+        self.fc1 = nn.Linear(dim, dim)
+        self.fc2 = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.relu(self.norm(self.linear(x))) + x
+        h = F.relu(self.fc1(x))
+        return self.norm(self.fc2(h)) + x
 
 
 class StrategicNet(nn.Module):
@@ -47,10 +51,10 @@ class StrategicNet(nn.Module):
 
     Architecture:
         - Input projection: input_dim -> hidden_dim
-        - 4 residual blocks of Linear(hidden_dim) + LayerNorm + ReLU
+        - N residual blocks of Linear(hidden_dim) + LayerNorm + ReLU
         - Multi-head output:
             - decision: policy logits over action space
-            - value: P(win) estimate [-1, 1]
+            - value: scalar value estimate
             - floor_pred: predicted final floor
             - act_completion: P(clear act 1/2/3)
 
@@ -64,9 +68,9 @@ class StrategicNet(nn.Module):
     def __init__(
         self,
         input_dim: int = 480,
-        hidden_dim: int = 768,
+        hidden_dim: int = 1024,
         action_dim: int = 512,
-        num_blocks: int = 4,
+        num_blocks: int = 8,
     ):
         super().__init__()
         self.input_dim = input_dim
@@ -86,28 +90,28 @@ class StrategicNet(nn.Module):
 
         # --- Output heads ---
 
-        # Policy: 384 -> 256 -> action_dim
+        # Policy: hidden_dim -> 256 -> action_dim
         self.policy_head = nn.Sequential(
             nn.Linear(hidden_dim, 256),
             nn.ReLU(),
             nn.Linear(256, action_dim),
         )
 
-        # Value: 384 -> 64 -> 1 (no Tanh — rewards can exceed [-1, 1])
+        # Value: hidden_dim -> 64 -> 1 (no Tanh — rewards can exceed [-1, 1])
         self.value_head = nn.Sequential(
             nn.Linear(hidden_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
         )
 
-        # Floor prediction: 384 -> 64 -> 1
+        # Floor prediction: hidden_dim -> 64 -> 1
         self.floor_head = nn.Sequential(
             nn.Linear(hidden_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
         )
 
-        # Act completion P(clear act 1/2/3): 384 -> 64 -> 3
+        # Act completion P(clear act 1/2/3): hidden_dim -> 64 -> 3
         self.act_head = nn.Sequential(
             nn.Linear(hidden_dim, 64),
             nn.ReLU(),

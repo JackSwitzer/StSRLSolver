@@ -71,12 +71,15 @@ _WORKER_NAMES = [
 ]
 
 
-def _worker_init(request_q, response_qs, slot_q):
+def _worker_init(request_q, response_qs, slot_q, shm_info=None):
     """Called once per worker process to set up InferenceClient.
 
     Pops a unique slot_id from slot_q so each worker knows which
     response queue to listen on. If slot acquisition fails, the worker
     runs without an InferenceClient (falls back to first legal action).
+
+    When shm_info is provided, attaches to shared memory buffers for
+    zero-copy inference instead of using queue-based InferenceClient.
     """
     global _worker_name
     from packages.training.inference_server import InferenceClient
@@ -86,6 +89,41 @@ def _worker_init(request_q, response_qs, slot_q):
         logger.warning("Worker failed to acquire slot from slot_q — running without inference")
         _worker_name = "NoSlot"
         return
+
+    # Try shared memory mode first (zero-copy on Apple Silicon)
+    if shm_info is not None:
+        try:
+            from packages.training.shared_inference import (
+                SharedInferenceBuffers,
+                SharedMemoryClient,
+            )
+
+            buffers = SharedInferenceBuffers(
+                max_workers=shm_info["max_workers"],
+                input_dim=shm_info["input_dim"],
+                action_dim=shm_info["action_dim"],
+                create=False,
+                session_id=shm_info["session_id"],
+            )
+            client = SharedMemoryClient(buffers=buffers, slot=slot_id)
+            # Install as the module-level client via InferenceClient protocol
+            InferenceClient.setup_worker(request_q, response_qs[slot_id], slot_id)
+            # Override with shared memory client
+            import packages.training.inference_server as _ismod
+            _ismod._CLIENT = client
+            _worker_name = _WORKER_NAMES[slot_id % len(_WORKER_NAMES)]
+            logger.info(
+                "Worker %s (slot=%d): using shared memory inference",
+                _worker_name, slot_id,
+            )
+            return
+        except Exception as exc:
+            logger.warning(
+                "Worker slot=%d: shared memory attach failed, falling back to queue: %s",
+                slot_id, exc,
+            )
+
+    # Fallback: standard queue-based client
     InferenceClient.setup_worker(request_q, response_qs[slot_id], slot_id)
     _worker_name = _WORKER_NAMES[slot_id % len(_WORKER_NAMES)]
 

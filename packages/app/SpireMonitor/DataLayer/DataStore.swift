@@ -56,28 +56,44 @@ final class DataStore {
         }
     }
 
-    /// Load per-config loss history from perf_log.jsonl
+    /// Load per-config loss history from a single perf_log.jsonl
     func loadPerfLog(from url: URL) {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return }
+        loadPerfLogs(from: [url])
+    }
 
+    /// Load and merge per-config loss history from multiple perf_log.jsonl files.
+    /// Used to combine the active run with archived runs for comparison charts.
+    func loadPerfLogs(from urls: [URL]) {
         var newHistory: [String: [LossPoint]] = [:]
-        for line in text.split(separator: "\n") {
-            guard let lineData = line.data(using: .utf8),
-                  let entry = try? JSONDecoder().decode(PerfLogEntry.self, from: lineData) else {
-                continue
+        let decoder = JSONDecoder()
+
+        for url in urls {
+            guard let data = try? Data(contentsOf: url),
+                  let text = String(data: data, encoding: .utf8) else { continue }
+
+            for line in text.split(separator: "\n") {
+                guard let lineData = line.data(using: .utf8),
+                      let entry = try? decoder.decode(PerfLogEntry.self, from: lineData) else {
+                    continue
+                }
+                let config = entry.configName ?? "unknown"
+                let point = LossPoint(
+                    step: entry.trainStep ?? 0,
+                    total: entry.totalLoss ?? 0,
+                    policy: entry.policyLoss ?? 0,
+                    value: entry.valueLoss ?? 0,
+                    avgFloor: entry.avgFloor ?? 0,
+                    configName: config
+                )
+                newHistory[config, default: []].append(point)
             }
-            let config = entry.configName ?? "unknown"
-            let point = LossPoint(
-                step: entry.trainStep ?? 0,
-                total: entry.totalLoss ?? 0,
-                policy: entry.policyLoss ?? 0,
-                value: entry.valueLoss ?? 0,
-                avgFloor: entry.avgFloor ?? 0,
-                configName: config
-            )
-            newHistory[config, default: []].append(point)
         }
+
+        // Sort each config's points by step for consistent charting
+        for key in newHistory.keys {
+            newHistory[key]?.sort { $0.step < $1.step }
+        }
+
         configLossHistory = newHistory
     }
 }

@@ -49,23 +49,30 @@ def _as_bool_array(values: np.ndarray) -> np.ndarray:
 
 
 class MLXResidualBlock:
-    """Residual block: Linear + LayerNorm + ReLU with skip connection."""
+    """Residual block: two-layer MLP + LayerNorm with skip connection.
+
+    fc1 -> ReLU -> fc2 -> LayerNorm -> + skip
+    """
 
     def __init__(self, dim: int):
-        self.linear = nn.Linear(dim, dim)
+        self.fc1 = nn.Linear(dim, dim)
+        self.fc2 = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
 
     def __call__(self, x):
-        return mx.maximum(self.norm(self.linear(x)), 0) + x
+        h = mx.maximum(self.fc1(x), 0)
+        return self.norm(self.fc2(h)) + x
 
     def parameters(self):
         return {
-            "linear": self.linear.parameters(),
+            "fc1": self.fc1.parameters(),
+            "fc2": self.fc2.parameters(),
             "norm": self.norm.parameters(),
         }
 
     def update(self, params):
-        self.linear.update(params["linear"])
+        self.fc1.update(params["fc1"])
+        self.fc2.update(params["fc2"])
         self.norm.update(params["norm"])
 
 
@@ -74,16 +81,16 @@ class MLXStrategicNet:
 
     Architecture mirrors PyTorch StrategicNet exactly:
     - Input projection: input_dim -> hidden_dim (Linear + LayerNorm + ReLU)
-    - 4 residual blocks
+    - N residual blocks
     - Multi-head output: policy, value, floor, act_completion
     """
 
     def __init__(
         self,
         input_dim: int = 480,
-        hidden_dim: int = 768,
+        hidden_dim: int = 1024,
         action_dim: int = 512,
-        num_blocks: int = 4,
+        num_blocks: int = 8,
     ):
         check_mlx()
         self.input_dim = input_dim
@@ -229,7 +236,8 @@ class MLXStrategicNet:
         _load_layernorm(net.input_norm, state_dict, "input_proj.1")
 
         for i, block in enumerate(net.blocks):
-            _load_linear(block.linear, state_dict, f"trunk.{i}.linear")
+            _load_linear(block.fc1, state_dict, f"trunk.{i}.fc1")
+            _load_linear(block.fc2, state_dict, f"trunk.{i}.fc2")
             _load_layernorm(block.norm, state_dict, f"trunk.{i}.norm")
 
         _load_linear(net.policy_1, state_dict, "policy_head.0")
@@ -313,7 +321,8 @@ def _collect_weights(net: MLXStrategicNet) -> dict:
     _add("input_norm", net.input_norm)
 
     for i, block in enumerate(net.blocks):
-        _add(f"block.{i}.linear", block.linear)
+        _add(f"block.{i}.fc1", block.fc1)
+        _add(f"block.{i}.fc2", block.fc2)
         _add(f"block.{i}.norm", block.norm)
 
     _add("policy_1", net.policy_1)
@@ -340,7 +349,8 @@ def _apply_weights(net: MLXStrategicNet, data: dict):
     _set("input_norm", net.input_norm)
 
     for i, block in enumerate(net.blocks):
-        _set(f"block.{i}.linear", block.linear)
+        _set(f"block.{i}.fc1", block.fc1)
+        _set(f"block.{i}.fc2", block.fc2)
         _set(f"block.{i}.norm", block.norm)
 
     _set("policy_1", net.policy_1)
@@ -366,7 +376,7 @@ def benchmark(
     import torch
 
     print("=== MLX vs PyTorch Inference Benchmark ===")
-    print(f"Model: StrategicNet (input={input_dim}, hidden=768, action={action_dim})")
+    print(f"Model: StrategicNet (input={input_dim}, hidden=1024, action={action_dim})")
     print()
 
     # Create random weights (no checkpoint needed)

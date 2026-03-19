@@ -10,7 +10,7 @@ packages/training/     # RL pipeline
   training_config.py   # ← SINGLE SOURCE OF TRUTH for all params
   training_runner.py   # Orchestrator (COLLECT → TRAIN → SYNC)
   worker.py            # Game worker (10 parallel, plays via solver + model)
-  strategic_net.py     # StrategicNet (PyTorch, 3M params, hidden=768)
+  strategic_net.py     # StrategicNet (PyTorch, ~18M params, hidden=1024)
   strategic_trainer.py # PPO + GAE + OPR + auxiliary losses
   inference_server.py  # MLX batch inference on Metal GPU
   state_encoders.py    # RunStateEncoder (480-dim) + CombatStateEncoder

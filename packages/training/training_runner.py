@@ -212,6 +212,14 @@ class OvernightRunner:
             "gpu_percent": gpu_pct,
             **stats,
         }
+
+        # Add inference server stats if available
+        if self._server is not None:
+            try:
+                status["inference"] = self._server.get_stats()
+            except Exception:
+                pass
+
         status_path = self.run_dir / "status.json"
         status_path.write_text(json.dumps(status, indent=2))
 
@@ -572,8 +580,10 @@ class OvernightRunner:
         # --- Inference server setup ---
         from packages.training.inference_server import InferenceServer
 
+        from .training_config import INFERENCE_BATCH_TIMEOUT_MS
         self._server = InferenceServer(
             n_workers=self.workers, max_batch_size=self.max_batch_size,
+            batch_timeout_ms=INFERENCE_BATCH_TIMEOUT_MS,
         )
         self._server.sync_strategic_from_pytorch(model, version=0)
         self._server.start()
@@ -732,12 +742,22 @@ class OvernightRunner:
             # Create worker pool AFTER distillation — strict GPU phase separation.
             if self._executor is None:
                 ctx = mp.get_context("spawn")
+                shm_info = getattr(self._server, "shm_info", None)
                 self._executor = ctx.Pool(
                     processes=self.workers,
                     initializer=_worker_init,
-                    initargs=(self._server.request_q, self._server.response_qs, self._server.slot_q),
+                    initargs=(
+                        self._server.request_q,
+                        self._server.response_qs,
+                        self._server.slot_q,
+                        shm_info,
+                    ),
                 )
-                logger.info("Worker pool started (%d processes) — distillation complete", self.workers)
+                _mode = "shared_memory" if shm_info else "queue"
+                logger.info(
+                    "Worker pool started (%d processes, mode=%s) — distillation complete",
+                    self.workers, _mode,
+                )
 
             config_name = sweep_config.get("name", f"config_{sweep_idx}")
             sweep_games = 0

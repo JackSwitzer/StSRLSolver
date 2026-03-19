@@ -31,14 +31,24 @@ actor StatusPoller {
         }
     }
 
-    private func poll() async {
-        let logsURL = config.logsPath
+    /// Resolve the logs URL, following symlinks so reads work even when
+    /// `logs/active` is a relative symlink (e.g. `runs/run_XXXXXX`).
+    private func resolvedLogsURL() -> URL {
+        let raw = config.logsPath
+        let resolved = raw.path().isEmpty ? raw : URL(filePath: (raw.path() as NSString).resolvingSymlinksInPath)
+        return resolved
+    }
 
-        // Read status.json -- check file mtime to detect stale data
+    private func poll() async {
+        let logsURL = resolvedLogsURL()
+
+        // Read status.json -- check file mtime to detect stale data.
+        // Use resolved path so FileManager attribute lookups hit the real file.
         let statusURL = logsURL.appending(path: "status.json")
-        if let data = try? Data(contentsOf: statusURL),
+        let resolvedStatusPath = (statusURL.path() as NSString).resolvingSymlinksInPath
+        if let data = try? Data(contentsOf: URL(filePath: resolvedStatusPath)),
            let status = try? JSONDecoder().decode(TrainingStatus.self, from: data) {
-            let mtime = (try? FileManager.default.attributesOfItem(atPath: statusURL.path())[.modificationDate] as? Date) ?? .distantPast
+            let mtime = (try? FileManager.default.attributesOfItem(atPath: resolvedStatusPath)[.modificationDate] as? Date) ?? .distantPast
             await MainActor.run {
                 store.status = status
                 store.lastStatusUpdate = mtime
@@ -60,13 +70,35 @@ actor StatusPoller {
             let recent = await EpisodeLoader.loadRecent(from: logsURL)
             let top = await EpisodeLoader.loadTop(from: logsURL)
 
-            // Load perf_log.jsonl for per-config loss curves
-            let perfLogURL = logsURL.appending(path: "perf_log.jsonl")
+            // Collect perf_log.jsonl URLs: active run + all archived runs
+            var perfLogURLs: [URL] = []
 
+            // Active run perf_log
+            let activePerfLog = logsURL.appending(path: "perf_log.jsonl")
+            if FileManager.default.fileExists(atPath: activePerfLog.path()) {
+                perfLogURLs.append(activePerfLog)
+            }
+
+            // Scan archived runs: logs/runs/*/perf_log.jsonl
+            let runsDir = config.archivedRunsPath
+            if let runDirs = try? FileManager.default.contentsOfDirectory(
+                at: runsDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for runDir in runDirs {
+                    let perfLog = runDir.appending(path: "perf_log.jsonl")
+                    if FileManager.default.fileExists(atPath: perfLog.path()) {
+                        perfLogURLs.append(perfLog)
+                    }
+                }
+            }
+
+            let collectedPerfLogURLs = perfLogURLs
             await MainActor.run {
                 if !recent.isEmpty { store.recentEpisodes = recent }
                 if !top.isEmpty { store.topEpisodes = top }
-                store.loadPerfLog(from: perfLogURL)
+                store.loadPerfLogs(from: collectedPerfLogURLs)
             }
         }
 
