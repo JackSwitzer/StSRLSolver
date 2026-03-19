@@ -262,7 +262,9 @@ class OvernightRunner:
 
     def _log_episode(self, result: Dict[str, Any]) -> None:
         """Append one episode to episodes.jsonl."""
-        log_episode(self._episodes_path, result)
+        cfg = self._current_sweep_config
+        config_name = cfg.get("name", "") if cfg else ""
+        log_episode(self._episodes_path, result, config_name=config_name)
 
     def _save_best_trajectory(self, result: Dict[str, Any]) -> None:
         """Save transitions from top runs to disk for future warm-starts."""
@@ -1047,6 +1049,28 @@ class OvernightRunner:
             k: v for k, v in metrics.items()
             if isinstance(v, (int, float))
         }
+
+        # Append per-step metrics to perf_log.jsonl for loss curve comparison
+        perf_entry = {
+            "ts": datetime.now().isoformat(),
+            "config_name": config_name,
+            "train_step": metrics.get("train_steps", 0),
+            "total_games": self.total_games,
+            "total_loss": metrics.get("total_loss"),
+            "policy_loss": metrics.get("policy_loss"),
+            "value_loss": metrics.get("value_loss"),
+            "entropy": metrics.get("entropy"),
+            "clip_fraction": metrics.get("clip_fraction"),
+            "lr": metrics.get("lr"),
+            "entropy_coeff": metrics.get("entropy_coeff"),
+            "avg_floor": sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0,
+        }
+        try:
+            perf_path = self.run_dir / "perf_log.jsonl"
+            with open(perf_path, "a") as f:
+                f.write(json.dumps(perf_entry) + "\n")
+        except OSError:
+            pass
         sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
         if sweep_avg > 7.0:
             trainer.decay_entropy(min_coeff=0.02, decay=0.999)
