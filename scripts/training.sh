@@ -130,6 +130,7 @@ cmd_start() {
             --asc)     asc=$2; shift 2 ;;
             --headless) headless="--headless-after 0"; shift ;;
             --resume)  resume="--resume $2"; shift 2 ;;
+            --weekend) weekend="--weekend"; shift ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -157,6 +158,7 @@ cmd_start() {
         --run-dir "$run_dir" \
         $headless \
         $resume \
+        $weekend \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
