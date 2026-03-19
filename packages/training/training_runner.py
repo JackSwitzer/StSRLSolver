@@ -31,7 +31,7 @@ from .reward_config import (
     REWARD_WEIGHTS,
     UPGRADE_REWARDS,
 )
-from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS
+from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS, OVERNIGHT_SWEEP_CONFIGS
 from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
 from .training_config import (
     MODEL_HIDDEN_DIM,
@@ -1290,11 +1290,17 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=MODEL_HIDDEN_DIM, help="Model hidden dimension")
     parser.add_argument("--num-blocks", type=int, default=MODEL_NUM_BLOCKS, help="Number of residual blocks")
     parser.add_argument("--max-batch-size", type=int, default=TRAIN_MAX_BATCH_INFERENCE, help="Max inference batch size")
-    parser.add_argument("--weekend", action="store_true", help="Use weekend configs (skip already-completed sweeps)")
+    parser.add_argument("--weekend", action="store_true", help="Use weekend configs (D+E only)")
+    parser.add_argument("--overnight", action="store_true", help="Full 5-config ablation sweep")
     parser.add_argument("--max-hours-per-config", type=float, default=None, help="Hours per sweep config (None=auto)")
     args = parser.parse_args()
 
-    sweep = WEEKEND_SWEEP_CONFIGS if args.weekend else DEFAULT_SWEEP_CONFIGS
+    if args.overnight:
+        sweep = OVERNIGHT_SWEEP_CONFIGS
+    elif args.weekend:
+        sweep = WEEKEND_SWEEP_CONFIGS
+    else:
+        sweep = DEFAULT_SWEEP_CONFIGS
 
     runner = OvernightRunner({
         "workers": args.workers,

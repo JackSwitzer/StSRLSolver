@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-# High-value seeds from Merl's A20 Watcher runs -- prioritized for training
-MERL_SEEDS: List[str] = [
+# Core evaluation seeds — fixed set for reproducible ablations.
+# 8 seeds from Merl's A20 Watcher runs (proven winnable). Every config
+# in a sweep plays these same seeds, enabling fair comparison.
+EVAL_SEEDS: List[str] = [
     "1LM7V5N5RBS9T", "44A3PNRBRGEZ", "47WBD2053A2I", "2LS2I1KBMN52D",
     "4V6WMX8507Y02", "1AAG54G24TRIN", "2QMLIWRVYYM9", "28PB07ZASVLP3",
-    "2ATIY7STKY9BN", "QIPQIKIZ3YMG", "3AYDIYKAR3IP2", "4R9V1NTNCR0W7",
 ]
 
-# Max plays for Merl seeds (more replays -- these are proven winnable)
-_MERL_MAX_PLAYS = 10
+# Legacy alias
+MERL_SEEDS = EVAL_SEEDS
+
+# Max plays per seed — effectively unlimited (game budget is the real limit)
+# With 8 seeds and 32k games/config, each seed gets ~4k plays
+_EVAL_MAX_PLAYS = 100_000
 
 
 class SeedPool:
@@ -30,20 +35,13 @@ class SeedPool:
         self.results: Dict[str, List[Dict]] = {}  # seed -> list of game results
         self._next_idx = 0
 
-        # Always add Merl seeds first (prioritized)
-        for s in MERL_SEEDS:
+        # Core eval seeds (same across all configs for fair ablation)
+        for s in EVAL_SEEDS:
             self.play_counts[s] = 0
-            self._max_plays_per_seed[s] = _MERL_MAX_PLAYS
+            self._max_plays_per_seed[s] = _EVAL_MAX_PLAYS
 
         if initial_seeds:
             for s in initial_seeds:
-                if s not in self.play_counts:
-                    self.play_counts[s] = 0
-                    self._max_plays_per_seed[s] = max_plays
-        else:
-            # Generate default seeds
-            for i in range(200):
-                s = f"Train_{i}"
                 if s not in self.play_counts:
                     self.play_counts[s] = 0
                     self._max_plays_per_seed[s] = max_plays

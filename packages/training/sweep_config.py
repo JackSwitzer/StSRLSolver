@@ -34,11 +34,14 @@ DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
      "turn_solver_ms": 100.0, "mcts_enabled": True},
 ]
 
-# Weekend sweep: only configs not yet run (A-C completed 2026-03-19 afternoon)
+# Weekend sweep: only D+E (A-C completed 2026-03-19 afternoon)
 WEEKEND_SWEEP_CONFIGS: List[Dict[str, Any]] = [
     cfg for cfg in DEFAULT_SWEEP_CONFIGS
     if cfg["name"] in ("reward_tuned_bc", "full_mcts_ucb")
 ]
+
+# Overnight ablation: full 5-config sweep on 8 fixed seeds, 18M model + Wrath fix
+OVERNIGHT_SWEEP_CONFIGS = DEFAULT_SWEEP_CONFIGS
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
 ASCENSION_BREAKPOINTS: List[Tuple[float, float, int]] = [

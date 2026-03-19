@@ -131,6 +131,7 @@ cmd_start() {
             --headless) headless="--headless-after 0"; shift ;;
             --resume)  resume="--resume $2"; shift 2 ;;
             --weekend) weekend="--weekend"; shift ;;
+            --overnight) weekend="--overnight"; shift ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
