@@ -21,6 +21,7 @@ from .reward_config import (
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
+    SOLVER_BUDGETS,
     STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
     compute_potential,
@@ -132,11 +133,11 @@ def _play_one_game(
     from packages.training.turn_solver import TurnSolverAdapter
 
     encoder = RunStateEncoder()
-    # Scale node budget proportionally with time budget (100 nodes per ms)
-    _node_budget = max(1000, int(turn_solver_ms * 100))
+    # Default solver budgets (overridden per-combat based on room type + enemy HP)
+    _default_base_ms, _default_nodes, _ = SOLVER_BUDGETS.get("monster", (50.0, 5_000, 300_000))
     turn_solver = TurnSolverAdapter(
-        time_budget_ms=turn_solver_ms,
-        node_budget=_node_budget,
+        time_budget_ms=_default_base_ms,
+        node_budget=_default_nodes,
         # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
         multi_turn_depth=3,
         multi_turn_k=4,
@@ -285,6 +286,20 @@ def _play_one_game(
                 turns_log = []
                 combat_solver_ms = 0.0
                 combat_solver_calls = 0
+                # Dynamic solver budget based on room type + enemy HP
+                _rt = getattr(runner, "current_room_type", "monster")
+                _rt_key = "boss" if _rt in ("boss", "b") else "elite" if _rt in ("elite", "e") else "monster"
+                _base_ms, _base_nodes, _cap_ms = SOLVER_BUDGETS.get(_rt_key, (50.0, 5_000, 300_000))
+                _total_enemy_hp = 0
+                _combat_ref = getattr(runner, "current_combat", None)
+                if _combat_ref is not None:
+                    for _e in getattr(_combat_ref.state, "enemies", []):
+                        _total_enemy_hp += getattr(_e, "hp", 0)
+                _hp_scale = max(1.0, _total_enemy_hp / 100.0)
+                _scaled_ms = min(_base_ms * _hp_scale, _cap_ms)
+                _scaled_nodes = int(_base_nodes * _hp_scale)
+                turn_solver._solver.default_time_budget_ms = _scaled_ms
+                turn_solver._solver.default_node_budget = _scaled_nodes
             was_in_combat = True
             combat_room_type = getattr(runner, "current_room_type", "monster")
             # Track card plays, potion uses, stance changes

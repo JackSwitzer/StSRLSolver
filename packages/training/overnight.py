@@ -26,7 +26,6 @@ import numpy as np
 from .episode_log import log_episode
 from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REPLAY_BUFFER_SIZE,
@@ -35,7 +34,6 @@ from .reward_config import (
     REWARD_WEIGHTS,
     STALL_DETECTION_WINDOW,
     STALL_IMPROVEMENT_THRESHOLD,
-    STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
@@ -72,15 +70,15 @@ class OvernightRunner:
         self.run_dir = Path(config.get("run_dir", "logs/active"))
         self.max_games = config.get("max_games", 50000)
         self.games_per_batch = config.get("games_per_batch", 16)
-        self.workers = config.get("workers", 8)
+        self.workers = config.get("workers", 10)
         self.ascension = config.get("ascension", 0)
         self.eval_every = config.get("eval_every", 500)
         self.ppo_batch_size = config.get("ppo_batch_size", 256)
         self.temperature = config.get("temperature", 1.0)
         self.resume_path = config.get("resume_path", None)
-        self.hidden_dim = config.get("hidden_dim", 1024)
-        self.num_blocks = config.get("num_blocks", 6)
-        self.max_batch_size = config.get("max_batch_size", 32)
+        self.hidden_dim = config.get("hidden_dim", 768)
+        self.num_blocks = config.get("num_blocks", 4)
+        self.max_batch_size = config.get("max_batch_size", 16)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -615,18 +613,12 @@ class OvernightRunner:
                         logger.info("  reward_weights -> updated")
 
                     # --- Legacy reward shaping (backwards compat) ---
-                    if "stance_rewards" in cfg:
-                        STANCE_CHANGE_REWARDS.update(cfg["stance_rewards"])
-                        logger.info("  stance_rewards -> %s", STANCE_CHANGE_REWARDS)
                     if "event_rewards" in cfg:
                         EVENT_REWARDS.update(cfg["event_rewards"])
                         logger.info("  event_rewards -> %s", EVENT_REWARDS)
                     if "floor_milestones" in cfg:
                         FLOOR_MILESTONES.update({int(k): v for k, v in cfg["floor_milestones"].items()})
                         logger.info("  floor_milestones -> %s", FLOOR_MILESTONES)
-                    if "card_pick_rewards" in cfg:
-                        CARD_PICK_REWARDS.update(cfg["card_pick_rewards"])
-                        logger.info("  card_pick_rewards -> %s", CARD_PICK_REWARDS)
                     if "upgrade_rewards" in cfg:
                         UPGRADE_REWARDS.update(cfg["upgrade_rewards"])
                         logger.info("  upgrade_rewards -> %s", UPGRADE_REWARDS)
@@ -789,47 +781,6 @@ class OvernightRunner:
                 train_steps_before = trainer.train_steps
                 train_count = 0
 
-                # Mix in top trajectory files — always remember the best runs
-                from packages.training.strategic_trainer import StrategicTransition
-                traj_dir = self.run_dir / "best_trajectories"
-                if traj_dir.exists():
-                    traj_files = sorted(
-                        traj_dir.glob("traj_F*.npz"),
-                        key=lambda p: p.stem, reverse=True,
-                    )
-                    # Take top 10 trajectories (highest floor, most recent)
-                    top_trajs = traj_files[:10]
-                    mixed_count = 0
-                    for tf in top_trajs:
-                        try:
-                            data = np.load(tf)
-                            n_t = len(data["obs"])
-                            ep_id = hash(tf.stem) % (2**31)
-                            for i in range(n_t):
-                                mask_i = data["masks"][i]
-                                if mask_i.shape[0] < _ACTION_DIM:
-                                    mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
-                                                    constant_values=False)
-                                st = StrategicTransition(
-                                    obs=data["obs"][i],
-                                    action_mask=mask_i,
-                                    action=int(data["actions"][i]),
-                                    reward=float(data["rewards"][i]),
-                                    done=bool(data["dones"][i]),
-                                    value=float(data["values"][i]),
-                                    log_prob=float(data["log_probs"][i]),
-                                    episode_id=ep_id,
-                                    final_floor=float(data["final_floors"][i]),
-                                    cleared_act1=float(data["cleared_act1"][i]),
-                                )
-                                trainer.buffer.append(st)
-                                mixed_count += 1
-                        except Exception:
-                            continue
-                    if mixed_count > 0:
-                        logger.info("  Distilled %d transitions from top %d trajectories",
-                                    mixed_count, len(top_trajs))
-
                 # Save original epochs, temporarily increase for deeper training
                 orig_epochs = trainer.ppo_epochs
                 trainer.ppo_epochs = TRAIN_EPOCHS
@@ -952,15 +903,25 @@ class OvernightRunner:
             result = _run_config(idx, cfg, phase1_games_per)
             config_scores[idx] = result
 
-        # With single config, Phase 2+3 just continue training on the same config.
+        # Phase 2+3: ranked allocation across configs based on avg_floor
         if not self._shutdown_requested and config_scores:
-            remaining = self.max_games - self.total_games
-            if remaining > 0:
+            if len(config_scores) > 1:
+                ranked = sorted(config_scores.items(), key=lambda x: x[1].get("avg_floor", 0), reverse=True)
+                for rank, (idx, result) in enumerate(ranked):
+                    logger.info("  Rank %d: '%s' — avg floor %.1f", rank+1, self.sweep_configs[idx].get("name"), result.get("avg_floor", 0))
+                best_idx = ranked[0][0]
+                remaining = self.max_games - self.total_games
+                allocations = [0.50, 0.33, 0.17]
+                for rank, ((idx, _), pct) in enumerate(zip(ranked, allocations)):
+                    if self._shutdown_requested: break
+                    alloc = int(remaining * pct)
+                    if alloc <= 0: continue
+                    _run_config(idx, self.sweep_configs[idx], alloc)
+            else:
                 best_idx = 0
-                best_cfg = self.sweep_configs[best_idx]
-                logger.info("=== Continuing training (%d games remaining, replay=%d/%d) ===",
-                             remaining, replay_buffer.size, replay_buffer.best_floor)
-                _run_config(best_idx, best_cfg, remaining, fork_weights=False)
+                remaining = self.max_games - self.total_games
+                if remaining > 0:
+                    _run_config(best_idx, self.sweep_configs[best_idx], remaining)
 
         # Save checkpoint and clean up
         _warm_state = {"total_games": self.total_games}
@@ -1190,18 +1151,6 @@ class OvernightRunner:
         logger.info("Overnight run complete. Summary written to %s", self.run_dir / "summary.json")
 
 
-# Import for backward compat — the canonical source is strategic_trainer.py
-STRATEGIC_REWARDS = {
-    "floor_cleared": 0.01,
-    "normal_kill": 0.05,
-    "elite_kill": 0.15,
-    "boss_kill": 0.40,
-    "game_win": 1.0,
-    "game_loss_base": -0.3,
-    "hp_efficiency_scale": 0.05,
-}
-
-
 def main():
     """CLI entry point for overnight training."""
     import argparse
@@ -1213,7 +1162,7 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="Overnight training runner")
-    parser.add_argument("--workers", type=int, default=8, help="Number of parallel workers")
+    parser.add_argument("--workers", type=int, default=10, help="Number of parallel workers")
     parser.add_argument("--games", type=int, default=50000, help="Maximum total games")
     parser.add_argument("--batch", type=int, default=16, help="Games per batch")
     parser.add_argument("--batch-size", type=int, default=256, help="PPO mini-batch size")
@@ -1223,9 +1172,9 @@ def main():
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
-    parser.add_argument("--hidden-dim", type=int, default=1024, help="Model hidden dimension (768=3M, 1024=7M)")
-    parser.add_argument("--num-blocks", type=int, default=6, help="Number of residual blocks")
-    parser.add_argument("--max-batch-size", type=int, default=32, help="Max inference batch size")
+    parser.add_argument("--hidden-dim", type=int, default=768, help="Model hidden dimension (768=3M)")
+    parser.add_argument("--num-blocks", type=int, default=4, help="Number of residual blocks")
+    parser.add_argument("--max-batch-size", type=int, default=16, help="Max inference batch size")
     args = parser.parse_args()
 
     runner = OvernightRunner({
