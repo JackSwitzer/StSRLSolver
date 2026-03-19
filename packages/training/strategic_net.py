@@ -63,7 +63,7 @@ class StrategicNet(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 480,
+        input_dim: int = 540,
         hidden_dim: int = 768,
         action_dim: int = 512,
         num_blocks: int = 4,
@@ -226,10 +226,10 @@ class StrategicNet(nn.Module):
 
 
 if __name__ == "__main__":
-    model = StrategicNet(input_dim=254)
+    model = StrategicNet(input_dim=540)
     print(f"StrategicNet parameter count: {model.param_count():,}")
     print(f"  Target: ~3M")
-    x = torch.randn(1, 254)
+    x = torch.randn(1, 540)
     out = model(x)
     for k, v in out.items():
         print(f"  {k}: {v.shape}")

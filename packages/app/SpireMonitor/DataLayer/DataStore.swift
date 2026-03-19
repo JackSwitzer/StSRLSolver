@@ -11,6 +11,8 @@ final class DataStore {
 
     // Loss history (accumulated from polling, max 500 points)
     var lossHistory: [LossPoint] = []
+    // Diagnostics history (EV, KL, advantage — max 500 points)
+    var diagnosticsHistory: [DiagnosticsPoint] = []
     // System stats (accumulated, max 720 = 30 min at 2.5s)
     var systemStats: SystemStats?
     var systemHistory: [SystemStats] = []
@@ -40,6 +42,22 @@ final class DataStore {
             if lossHistory.count > 500 { lossHistory.removeFirst() }
         }
     }
+
+    func appendDiagnostics(from status: TrainingStatus) {
+        let step = status.trainSteps ?? diagnosticsHistory.count
+        let point = DiagnosticsPoint(
+            step: step,
+            explainedVariance: status.explainedVariance ?? 0,
+            meanValue: status.meanValue ?? 0,
+            klDivergence: status.klDivergence ?? 0,
+            meanAdvantage: status.meanAdvantage ?? 0,
+            meanReturn: status.meanReturn ?? 0
+        )
+        if diagnosticsHistory.last?.step != point.step {
+            diagnosticsHistory.append(point)
+            if diagnosticsHistory.count > 500 { diagnosticsHistory.removeFirst() }
+        }
+    }
 }
 
 struct LossPoint: Identifiable {
@@ -57,6 +75,16 @@ struct SystemStats: Identifiable {
     let memoryUsedGB: Double
     let memoryTotalGB: Double
     let gpuPercent: Double?
+}
+
+struct DiagnosticsPoint: Identifiable {
+    let id = UUID()
+    let step: Int
+    let explainedVariance: Double
+    let meanValue: Double
+    let klDivergence: Double
+    let meanAdvantage: Double
+    let meanReturn: Double
 }
 
 struct RoomPerformance {

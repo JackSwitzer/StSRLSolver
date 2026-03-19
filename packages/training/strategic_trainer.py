@@ -83,6 +83,7 @@ class StrategicTrainer:
         entropy_coeff: float = 0.05,
         value_coeff: float = 0.5,
         aux_coeff: float = 0.25,
+        opr_weight: float = 0.2,
         max_grad_norm: float = 0.5,
         ppo_epochs: int = 4,
         batch_size: int = 256,
@@ -100,12 +101,16 @@ class StrategicTrainer:
         self._initial_entropy_coeff = entropy_coeff
         self.value_coeff = value_coeff
         self.aux_coeff = aux_coeff
+        self.opr_weight = opr_weight
         self.max_grad_norm = max_grad_norm
         self.ppo_epochs = ppo_epochs
         self.batch_size = batch_size
         self.warmup_steps = warmup_steps
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        # OPR (Off-Policy Replay) buffer — stores old transitions for stability
+        self.opr_buffer: List[StrategicTransition] = []
 
         self._base_lr = lr
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-5)
@@ -349,6 +354,27 @@ class StrategicTrainer:
         total_metrics["num_transitions"] = N
         total_metrics["floor_pred_loss"] = total_metrics.get("aux_loss", 0.0)  # for dashboard
 
+        # Diagnostic metrics
+        with torch.no_grad():
+            # Explained variance: how well does value predict returns?
+            ret_np = ret_t.cpu().numpy()
+            val_np = np.array([t.value for t in self.buffer], dtype=np.float32)
+            var_ret = np.var(ret_np)
+            if var_ret > 1e-8:
+                total_metrics["explained_variance"] = float(1 - np.var(ret_np - val_np) / var_ret)
+            else:
+                total_metrics["explained_variance"] = 0.0
+            total_metrics["mean_value"] = float(np.mean(val_np))
+            total_metrics["mean_advantage"] = float(advantages.mean())
+            total_metrics["mean_return"] = float(ret_np.mean())
+
+            # KL divergence (approx) between old and new policy
+            out_final = self.model(obs_t[:min(256, N)].to(device), masks_t[:min(256, N)].to(device))
+            new_lp = F.log_softmax(out_final["policy_logits"], dim=-1)
+            new_action_lp = new_lp.gather(1, actions_t[:min(256, N)].to(device).unsqueeze(1)).squeeze(1)
+            kl = (old_lp_t[:min(256, N)].to(device) - new_action_lp).mean()
+            total_metrics["kl_divergence"] = float(kl.cpu())
+
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
         # and cleared by the caller after the train phase completes.
@@ -368,6 +394,10 @@ class StrategicTrainer:
             self.model.save(self.checkpoint_dir / "latest_strategic.pt")
             return True
         return False
+
+    def load_opr_buffer(self, transitions: List[StrategicTransition]) -> None:
+        """Load transitions into the OPR buffer for off-policy replay."""
+        self.opr_buffer = list(transitions)
 
     def decay_entropy(self, min_coeff: float = 0.01, decay: float = 0.999):
         """Anneal entropy coefficient.

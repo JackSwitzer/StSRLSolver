@@ -67,6 +67,8 @@ struct ContentView: View {
                 switch appState.selectedView {
                 case .live:
                     LiveView()
+                case .training:
+                    TrainingView()
                 case .analysis:
                     PlaceholderView(name: "Analysis")
                 case .detail:

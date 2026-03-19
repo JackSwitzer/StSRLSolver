@@ -17,12 +17,11 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
+    SOLVER_BUDGETS,
     STANCE_CHANGE_REWARDS,
-    UPGRADE_REWARDS,
     compute_potential,
 )
 
@@ -132,6 +131,8 @@ def _play_one_game(
     from packages.training.turn_solver import TurnSolverAdapter
 
     encoder = RunStateEncoder()
+    client = get_client()
+
     # Scale node budget proportionally with time budget (100 nodes per ms)
     _node_budget = max(1000, int(turn_solver_ms * 100))
     turn_solver = TurnSolverAdapter(
@@ -141,9 +142,8 @@ def _play_one_game(
         multi_turn_depth=3,
         multi_turn_k=4,
         multi_turn_budget_ms=5000.0,
+        inference_client=client,  # GPU eval for neural value blending
     )
-
-    client = get_client()
 
     # Worker status file for live dashboard grid
     import os
@@ -210,6 +210,7 @@ def _play_one_game(
     # Event and path tracking for episode logging
     events_visited: List[Dict[str, Any]] = []  # {floor, event_id}
     path_choices_log: List[Dict[str, Any]] = []  # {floor, chosen, options}
+    card_picks_log: List[Dict[str, Any]] = []  # {floor, offered, chosen}
 
     # Helper: record combat summary when transitioning out of combat.
     # Captures enemy names from combat state before it's cleared.
@@ -461,6 +462,26 @@ def _play_one_game(
                     if _last_pc.get("floor") == current_floor and "chosen" not in _last_pc:
                         _last_pc["chosen"] = action_idx
 
+                # Log card picks (offered vs chosen) at COMBAT_REWARDS
+                if phase_type == "card_pick" and runner is not None:
+                    try:
+                        cr = getattr(runner, "current_rewards", None)
+                        if cr and hasattr(cr, "card_rewards") and cr.card_rewards:
+                            _cards = cr.card_rewards[0].cards
+                            _offered = [getattr(c, "id", str(c)) for c in _cards]
+                            _chosen_action = actions[action_idx]
+                            _chosen_id = None
+                            _ci = getattr(_chosen_action, "choice_index", -1)
+                            if 0 <= _ci < len(_cards):
+                                _chosen_id = getattr(_cards[_ci], "id", str(_cards[_ci]))
+                            card_picks_log.append({
+                                "floor": current_floor,
+                                "offered": _offered,
+                                "chosen": _chosen_id,
+                            })
+                    except Exception:
+                        pass
+
                 new_rs = runner.run_state
                 new_potential = compute_potential(new_rs)
 
@@ -507,33 +528,7 @@ def _play_one_game(
                 if new_deck_size < prev_deck_size:
                     event_reward += REWARD_WEIGHTS["shop_remove"] * (prev_deck_size - new_deck_size)
 
-                # Upgrade detection (deck size unchanged, card upgraded)
-                elif new_deck_size == prev_deck_size and UPGRADE_REWARDS:
-                    # Check if an upgrade just happened (rest site or smith event)
-                    if phase_type == "rest":
-                        new_deck = list(getattr(new_rs, "deck", []))
-                        for card in new_deck:
-                            cid = getattr(card, "id", str(card))
-                            if getattr(card, "upgraded", False) and cid in UPGRADE_REWARDS:
-                                event_reward += UPGRADE_REWARDS[cid]
-                                break
-
-                # Card pick rewards (kept for hot-reload compat, zeroed by default)
-                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
-                    new_deck = list(getattr(new_rs, "deck", []))
-                    if new_deck:
-                        picked = new_deck[-1]
-                        card_id = getattr(picked, "id", str(picked))
-                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward != 0:
-                            act_mult = 1.5 if current_floor <= 17 else 1.0
-                            event_reward += pick_reward * act_mult
-
                 prev_deck_size = new_deck_size
-
-                # Stance rewards (zeroed by default — kept for hot-reload compat)
-                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
-                    event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)
@@ -606,9 +601,9 @@ def _play_one_game(
             if won:
                 transitions[-1]["reward"] += REWARD_WEIGHTS.get("win_reward", 10.0)
             else:
-                progress = final_floor / 55.0
-                death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
-                transitions[-1]["reward"] += death_scale * (1 - progress)
+                death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -2.0)
+                death_cutoff = REWARD_WEIGHTS.get("death_floor_cutoff", 20)
+                transitions[-1]["reward"] += death_scale * max(0, 1 - final_floor / death_cutoff)
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE
         # bootstraps from value estimate instead of zero
@@ -676,4 +671,5 @@ def _play_one_game(
         "combats": combats,
         "events": events_visited,
         "path_choices": path_choices_log,
+        "card_picks": card_picks_log,
     }

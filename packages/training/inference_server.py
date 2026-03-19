@@ -292,8 +292,8 @@ class InferenceServer:
     def __init__(
         self,
         n_workers: int,
-        max_batch_size: int = 64,
-        batch_timeout_ms: float = 5.0,
+        max_batch_size: int = 16,
+        batch_timeout_ms: float = 15.0,
         use_mlx: bool = True,
     ):
         import multiprocessing as mp
