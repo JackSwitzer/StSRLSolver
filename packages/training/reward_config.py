@@ -100,6 +100,14 @@ CARD_PICK_REWARDS: Dict[str, float] = {}  # Zeroed — kept for hot-reload compa
 # Upgrade rewards (new — separate from card picks, checked when deck size unchanged)
 UPGRADE_REWARDS: Dict[str, float] = dict(REWARD_WEIGHTS.get("upgrade_rewards", {}))
 
+# Solver time budgets per room type: (base_ms, node_budget, max_ms_cap)
+# Worker scales dynamically: budget_ms = base_ms * max(1.0, total_enemy_hp / 100.0)
+SOLVER_BUDGETS: Dict[str, tuple] = {
+    "monster": (50.0, 5_000, 300_000),       # 5min cap
+    "elite":   (200.0, 20_000, 600_000),     # 10min cap
+    "boss":    (500.0, 50_000, 1_200_000),   # 20min cap
+}
+
 # Best trajectory replay constants
 REPLAY_BUFFER_SIZE = 75        # Top ~15% of runs (keeps only the best)
 REPLAY_MIN_FLOOR = 12          # Only replay runs that got deep into Act 1
