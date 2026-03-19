@@ -548,6 +548,9 @@ class OvernightRunner:
                 hidden_dim=self.hidden_dim,
                 num_blocks=self.num_blocks,
             ).to(device)
+        assert model.input_dim == encoder.RUN_DIM, (
+            f"Model input_dim={model.input_dim} != encoder RUN_DIM={encoder.RUN_DIM}"
+        )
         logger.info(
             "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
             model.param_count(), model.hidden_dim, model.num_blocks, device,

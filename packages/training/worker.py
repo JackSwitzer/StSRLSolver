@@ -17,12 +17,10 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .reward_config import (
-    CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
     REWARD_WEIGHTS,
     SOLVER_BUDGETS,
-    STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
     compute_potential,
 )
@@ -199,7 +197,6 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
-    accumulated_stance_reward = 0.0
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -280,8 +277,7 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
-                accumulated_stance_reward = 0.0
-                prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
+                prev_stance = "Neutral"
                 turn_cards = []
                 turns_log = []
                 combat_solver_ms = 0.0
@@ -356,13 +352,12 @@ def _play_one_game(
                     turns_log.append(_turn_info)
                     turn_cards.clear()
             runner.take_action(action)
-            # Detect stance changes after action
+            # Detect stance changes after action (count only, no reward)
             combat_state = getattr(runner, "current_combat", None)
             if combat_state is not None:
                 cur_stance = getattr(combat_state.state, "stance", "Neutral")
                 if cur_stance != prev_stance:
                     combat_stance_changes += 1
-                    accumulated_stance_reward += STANCE_CHANGE_REWARDS.get(cur_stance, 0.0)
                     prev_stance = cur_stance
             # Detect phase change FROM combat after action execution.
             phase_after = runner.phase
@@ -408,6 +403,11 @@ def _play_one_game(
 
             n_actions = len(actions)
 
+            # Guard against action space overflow
+            if n_actions > _ACTION_DIM:
+                logger.warning("Action overflow: %d > %d, truncating", n_actions, _ACTION_DIM)
+                n_actions = _ACTION_DIM
+
             # Map GamePhase to phase_type for state encoding
             _PHASE_MAP = {
                 GamePhase.MAP_NAVIGATION: "path",
@@ -444,24 +444,24 @@ def _play_one_game(
                     logits_np = resp["logits"]  # numpy array, length action_dim
                     value = float(resp["value"])
 
+                    # Mask logits to valid actions only (prevents sampling invalid indices)
+                    logits_valid = logits_np[:n_actions]
+
                     # Temperature-scaled sampling
                     if temperature > 0:
-                        logits_scaled = logits_np / temperature
+                        logits_scaled = logits_valid / temperature
                         logits_scaled = logits_scaled - logits_scaled.max()
                         probs = np.exp(logits_scaled)
                         probs /= probs.sum()
-                        action_idx = int(np.random.choice(len(probs), p=probs))
+                        action_idx = int(np.random.choice(n_actions, p=probs))
                     else:
-                        action_idx = int(np.argmax(logits_np))
+                        action_idx = int(np.argmax(logits_valid))
 
                     # log_prob from UNSCALED policy (matches trainer's forward pass).
-                    logits_base = logits_np - logits_np.max()
+                    logits_base = logits_valid - logits_valid.max()
                     probs_base = np.exp(logits_base)
                     probs_base /= probs_base.sum()
                     log_prob = float(np.log(probs_base[action_idx] + 1e-8))
-
-                    # Clamp to valid range
-                    action_idx = min(action_idx, n_actions - 1)
                 else:
                     logits_np = None
 
@@ -533,22 +533,7 @@ def _play_one_game(
                                 event_reward += UPGRADE_REWARDS[cid]
                                 break
 
-                # Card pick rewards (kept for hot-reload compat, zeroed by default)
-                elif new_deck_size > prev_deck_size and CARD_PICK_REWARDS:
-                    new_deck = list(getattr(new_rs, "deck", []))
-                    if new_deck:
-                        picked = new_deck[-1]
-                        card_id = getattr(picked, "id", str(picked))
-                        pick_reward = CARD_PICK_REWARDS.get(card_id, 0.0)
-                        if pick_reward != 0:
-                            act_mult = 1.5 if current_floor <= 17 else 1.0
-                            event_reward += pick_reward * act_mult
-
                 prev_deck_size = new_deck_size
-
-                # Stance rewards (zeroed by default — kept for hot-reload compat)
-                if combat_just_ended and combat_stance_changes > 0 and accumulated_stance_reward != 0:
-                    event_reward += accumulated_stance_reward
 
                 # Floor milestone rewards (one-time per game)
                 new_floor = getattr(new_rs, "floor", 0)
