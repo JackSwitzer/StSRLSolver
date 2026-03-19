@@ -236,6 +236,160 @@ impl CardRegistry {
             effects: &["multi_hit"],
         });
 
+        // ---- Common Watcher Cards (continued) ----
+        Self::insert(&mut cards, CardDef {
+            id: "ThirdEye", name: "Third Eye", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
+            base_magic: 3, exhaust: false, enter_stance: None,
+            effects: &["scry"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "ThirdEye+", name: "Third Eye+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 9,
+            base_magic: 5, exhaust: false, enter_stance: None,
+            effects: &["scry"],
+        });
+
+        // ---- Uncommon Watcher Cards ----
+        Self::insert(&mut cards, CardDef {
+            id: "InnerPeace", name: "Inner Peace", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: false, enter_stance: None,
+            effects: &["if_calm_draw_else_calm"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "InnerPeace+", name: "Inner Peace+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 4, exhaust: false, enter_stance: None,
+            effects: &["if_calm_draw_else_calm"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "WheelKick", name: "Wheel Kick", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["draw"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "WheelKick+", name: "Wheel Kick+", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 2, base_damage: 20, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["draw"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Conclude", name: "Conclude", card_type: CardType::Attack,
+            target: CardTarget::AllEnemy, cost: 1, base_damage: 12, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None,
+            effects: &["end_turn"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Conclude+", name: "Conclude+", card_type: CardType::Attack,
+            target: CardTarget::AllEnemy, cost: 1, base_damage: 16, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None,
+            effects: &["end_turn"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "TalkToTheHand", name: "Talk to the Hand", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 5, base_block: -1,
+            base_magic: 2, exhaust: true, enter_stance: None,
+            effects: &["apply_block_return"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "TalkToTheHand+", name: "Talk to the Hand+", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
+            base_magic: 3, exhaust: true, enter_stance: None,
+            effects: &["apply_block_return"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Pray", name: "Pray", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: false, enter_stance: None,
+            effects: &["mantra"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Pray+", name: "Pray+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 4, exhaust: false, enter_stance: None,
+            effects: &["mantra"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Worship", name: "Worship", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
+            base_magic: 5, exhaust: false, enter_stance: None,
+            effects: &["mantra"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Worship+", name: "Worship+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
+            base_magic: 5, exhaust: false, enter_stance: None,
+            effects: &["mantra", "retain"],
+        });
+
+        // ---- Power Cards ----
+        Self::insert(&mut cards, CardDef {
+            id: "Adaptation", name: "Rushdown", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["on_wrath_draw"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Adaptation+", name: "Rushdown+", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["on_wrath_draw"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "MentalFortress", name: "Mental Fortress", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 4, exhaust: false, enter_stance: None,
+            effects: &["on_stance_change_block"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "MentalFortress+", name: "Mental Fortress+", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 6, exhaust: false, enter_stance: None,
+            effects: &["on_stance_change_block"],
+        });
+
+        // ---- Rare Watcher Cards ----
+        Self::insert(&mut cards, CardDef {
+            id: "Ragnarok", name: "Ragnarok", card_type: CardType::Attack,
+            target: CardTarget::AllEnemy, cost: 3, base_damage: 5, base_block: -1,
+            base_magic: 5, exhaust: false, enter_stance: Some("Wrath"),
+            effects: &["damage_random_x_times"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Ragnarok+", name: "Ragnarok+", card_type: CardType::Attack,
+            target: CardTarget::AllEnemy, cost: 3, base_damage: 6, base_block: -1,
+            base_magic: 6, exhaust: false, enter_stance: Some("Wrath"),
+            effects: &["damage_random_x_times"],
+        });
+
+        // ---- Special Cards ----
+        Self::insert(&mut cards, CardDef {
+            id: "Miracle", name: "Miracle", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
+            base_magic: 1, exhaust: true, enter_stance: None,
+            effects: &["gain_energy"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Miracle+", name: "Miracle+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: true, enter_stance: None,
+            effects: &["gain_energy"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Smite", name: "Smite", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 12, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None,
+            effects: &["retain"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Smite+", name: "Smite+", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 16, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None,
+            effects: &["retain"],
+        });
+
         // ---- Universal Status/Curse Cards ----
         Self::insert(&mut cards, CardDef {
             id: "Slimed", name: "Slimed", card_type: CardType::Status,

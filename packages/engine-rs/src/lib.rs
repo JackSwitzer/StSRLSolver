@@ -9,8 +9,11 @@
 pub mod actions;
 pub mod cards;
 pub mod damage;
+pub mod enemies;
 pub mod engine;
+pub mod potions;
 pub mod powers;
+pub mod relics;
 pub mod state;
 
 use pyo3::prelude::*;
