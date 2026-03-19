@@ -25,11 +25,12 @@ from .reward_config import (
     UPGRADE_REWARDS,
     compute_potential,
 )
+from .training_config import MODEL_ACTION_DIM
 
 logger = logging.getLogger(__name__)
 
-# ACTION_DIM constant — must match StrategicNet.action_dim
-_ACTION_DIM = 512
+# Re-export for backwards compat (overnight.py imports this)
+_ACTION_DIM = MODEL_ACTION_DIM
 
 # ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool

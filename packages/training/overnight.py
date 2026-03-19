@@ -29,17 +29,32 @@ from .reward_config import (
     CARD_PICK_REWARDS,
     EVENT_REWARDS,
     FLOOR_MILESTONES,
-    REPLAY_BUFFER_SIZE,
-    REPLAY_MIN_FLOOR,
-    REPLAY_MIX_RATIO,
     REWARD_WEIGHTS,
-    STALL_DETECTION_WINDOW,
-    STALL_IMPROVEMENT_THRESHOLD,
     STANCE_CHANGE_REWARDS,
     UPGRADE_REWARDS,
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS
-from .worker import _ACTION_DIM, _play_one_game, _worker_init
+from .training_config import (
+    ENTROPY_COEFF,
+    LR_BASE,
+    MODEL_ACTION_DIM,
+    MODEL_HIDDEN_DIM,
+    MODEL_NUM_BLOCKS,
+    REPLAY_BUFFER_SIZE,
+    REPLAY_MIN_FLOOR,
+    REPLAY_MIX_RATIO,
+    STALL_DETECTION_WINDOW,
+    STALL_IMPROVEMENT_THRESHOLD,
+    TEMPERATURE,
+    TRAIN_BATCH_SIZE,
+    TRAIN_COLLECT_GAMES,
+    TRAIN_GAMES_PER_BATCH,
+    TRAIN_MAX_BATCH_INFERENCE,
+    TRAIN_PPO_EPOCHS,
+    TRAIN_STEPS_PER_PHASE,
+    TRAIN_WORKERS,
+)
+from .worker import _play_one_game, _worker_init
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +86,16 @@ class OvernightRunner:
         self.sweep_configs = config.get("sweep_configs", DEFAULT_SWEEP_CONFIGS)
         self.run_dir = Path(config.get("run_dir", "logs/active"))
         self.max_games = config.get("max_games", 50000)
-        self.games_per_batch = config.get("games_per_batch", 16)
-        self.workers = config.get("workers", 8)
+        self.games_per_batch = config.get("games_per_batch", TRAIN_GAMES_PER_BATCH)
+        self.workers = config.get("workers", TRAIN_WORKERS)
         self.ascension = config.get("ascension", 0)
         self.eval_every = config.get("eval_every", 500)
-        self.ppo_batch_size = config.get("ppo_batch_size", 256)
-        self.temperature = config.get("temperature", 1.0)
+        self.ppo_batch_size = config.get("ppo_batch_size", TRAIN_BATCH_SIZE)
+        self.temperature = config.get("temperature", TEMPERATURE)
         self.resume_path = config.get("resume_path", None)
-        self.hidden_dim = config.get("hidden_dim", 1024)
-        self.num_blocks = config.get("num_blocks", 6)
-        self.max_batch_size = config.get("max_batch_size", 32)
+        self.hidden_dim = config.get("hidden_dim", MODEL_HIDDEN_DIM)
+        self.num_blocks = config.get("num_blocks", MODEL_NUM_BLOCKS)
+        self.max_batch_size = config.get("max_batch_size", TRAIN_MAX_BATCH_INFERENCE)
 
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
@@ -323,8 +338,8 @@ class OvernightRunner:
                 for i in range(n):
                     mask_i = data["masks"][i]
                     # Pad mask if trajectory was saved with smaller action_dim
-                    if mask_i.shape[0] < _ACTION_DIM:
-                        mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                    if mask_i.shape[0] < MODEL_ACTION_DIM:
+                        mask_i = np.pad(mask_i, (0, MODEL_ACTION_DIM - mask_i.shape[0]),
                                         constant_values=False)
                     trainer.add_transition(
                         obs=data["obs"][i],
@@ -393,8 +408,8 @@ class OvernightRunner:
                     ep_id = hash(tf.stem) % (2**31)
                     for i in range(n):
                         mask_i = data["masks"][i]
-                        if mask_i.shape[0] < _ACTION_DIM:
-                            mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                        if mask_i.shape[0] < MODEL_ACTION_DIM:
+                            mask_i = np.pad(mask_i, (0, MODEL_ACTION_DIM - mask_i.shape[0]),
                                             constant_values=False)
                         st = StrategicTransition(
                             obs=data["obs"][i],
@@ -672,7 +687,7 @@ class OvernightRunner:
             # No weight forking — learning accumulates across configs
             self._current_sweep_idx = sweep_idx
             self._current_sweep_config = sweep_config
-            lr = sweep_config.get("lr", 1e-4)
+            lr = sweep_config.get("lr", LR_BASE)
             batch_size = sweep_config.get("batch_size", self.ppo_batch_size)
             temp = sweep_config.get("temperature", self.temperature)
             self.temperature = temp
@@ -680,12 +695,12 @@ class OvernightRunner:
             trainer = StrategicTrainer(
                 model=model,
                 lr=lr,
-                entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
+                entropy_coeff=sweep_config.get("entropy_coeff", ENTROPY_COEFF),
                 clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
                 batch_size=batch_size,
-                lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                lr_schedule=sweep_config.get("lr_schedule", LR_SCHEDULE),
                 lr_T_max=sweep_config.get("lr_T_max", 30000),
-                lr_T_0=sweep_config.get("lr_T_0", 5000),
+                lr_T_0=sweep_config.get("lr_T_0", LR_T_0),
             )
 
             # Store trainer ref for signal handler access (hot-reload)
@@ -732,14 +747,14 @@ class OvernightRunner:
             logger.info(
                 "Config '%s': lr=%.1e, ent=%.3f, batch=%d, temp=%.1f, ts=%.0fms",
                 config_name, lr,
-                sweep_config.get("entropy_coeff", 0.05),
+                sweep_config.get("entropy_coeff", ENTROPY_COEFF),
                 batch_size, temp, ts_ms,
             )
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
-            COLLECT_GAMES = 100   # Games per collect phase
-            TRAIN_EPOCHS = 4     # PPO epochs (was 8, caused overfitting on small buffer)
-            TRAIN_STEPS_PER_PHASE = 10  # Train batch calls per phase
+            COLLECT_GAMES = TRAIN_COLLECT_GAMES
+            TRAIN_EPOCHS = TRAIN_PPO_EPOCHS
+            _TRAIN_STEPS_PER_PHASE = TRAIN_STEPS_PER_PHASE
             games_per_min = 0.0
 
             while sweep_games < n_games and self.total_games < self.max_games and not self._shutdown_requested:
@@ -807,8 +822,8 @@ class OvernightRunner:
                             ep_id = hash(tf.stem) % (2**31)
                             for i in range(n_t):
                                 mask_i = data["masks"][i]
-                                if mask_i.shape[0] < _ACTION_DIM:
-                                    mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
+                                if mask_i.shape[0] < MODEL_ACTION_DIM:
+                                    mask_i = np.pad(mask_i, (0, MODEL_ACTION_DIM - mask_i.shape[0]),
                                                     constant_values=False)
                                 st = StrategicTransition(
                                     obs=data["obs"][i],
@@ -835,7 +850,7 @@ class OvernightRunner:
                 trainer.ppo_epochs = TRAIN_EPOCHS
 
                 logger.info("=== TRAIN phase: %d steps, %d epochs, buffer %d ===",
-                            TRAIN_STEPS_PER_PHASE, TRAIN_EPOCHS, len(trainer.buffer))
+                            _TRAIN_STEPS_PER_PHASE, TRAIN_EPOCHS, len(trainer.buffer))
                 self.write_status({
                     "sweep_config": sweep_config, "sweep_phase": "training",
                     "config_name": config_name, "sweep_games": sweep_games,
@@ -848,7 +863,7 @@ class OvernightRunner:
                     "entropy": self._last_train_metrics.get("entropy"),
                 })
 
-                for _ in range(TRAIN_STEPS_PER_PHASE):
+                for _ in range(_TRAIN_STEPS_PER_PHASE):
                     if len(trainer.buffer) < trainer.batch_size // 2:
                         break  # Not enough data
                     train_metrics = trainer.train_batch()
@@ -1022,9 +1037,9 @@ class OvernightRunner:
         }
         sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
         if sweep_avg > 7.0:
-            trainer.decay_entropy(min_coeff=0.02, decay=0.999)
+            trainer.decay_entropy(min_coeff=ENTROPY_MIN, decay=0.999)
         elif sweep_avg > 5.5:
-            trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
+            trainer.decay_entropy(min_coeff=ENTROPY_MIN, decay=0.9999)
 
         games_since_checkpoint = self.total_games - self._stall_checkpoint_games
         if games_since_checkpoint >= STALL_DETECTION_WINDOW:
@@ -1043,9 +1058,9 @@ class OvernightRunner:
                 self._stall_checkpoint_floor = current_avg
                 self._stall_checkpoint_games = self.total_games
             else:
-                if trainer.entropy_coeff > 0.05:
+                if trainer.entropy_coeff > ENTROPY_COEFF:
                     old_ent = trainer.entropy_coeff
-                    trainer.entropy_coeff = max(0.05, trainer.entropy_coeff - 0.005)
+                    trainer.entropy_coeff = max(ENTROPY_COEFF, trainer.entropy_coeff - 0.005)
                     logger.info(
                         "Floor improving (%.1f -> %.1f): entropy decay %.4f -> %.4f",
                         self._stall_checkpoint_floor, current_avg,
@@ -1213,19 +1228,19 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="Overnight training runner")
-    parser.add_argument("--workers", type=int, default=8, help="Number of parallel workers")
+    parser.add_argument("--workers", type=int, default=TRAIN_WORKERS, help="Number of parallel workers")
     parser.add_argument("--games", type=int, default=50000, help="Maximum total games")
-    parser.add_argument("--batch", type=int, default=16, help="Games per batch")
-    parser.add_argument("--batch-size", type=int, default=256, help="PPO mini-batch size")
+    parser.add_argument("--batch", type=int, default=TRAIN_GAMES_PER_BATCH, help="Games per batch")
+    parser.add_argument("--batch-size", type=int, default=TRAIN_BATCH_SIZE, help="PPO mini-batch size")
     parser.add_argument("--ascension", type=int, default=0, help="Ascension level")
     parser.add_argument("--run-dir", type=str, default="logs/active", help="Output directory")
     parser.add_argument("--headless-after", type=int, default=30, help="Go headless after N minutes")
     parser.add_argument("--visual-at", type=str, default="07:30", help="Switch to visual at HH:MM")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature (0=greedy)")
+    parser.add_argument("--temperature", type=float, default=TEMPERATURE, help="Exploration temperature (0=greedy)")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt to resume from")
-    parser.add_argument("--hidden-dim", type=int, default=1024, help="Model hidden dimension (768=3M, 1024=7M)")
-    parser.add_argument("--num-blocks", type=int, default=6, help="Number of residual blocks")
-    parser.add_argument("--max-batch-size", type=int, default=32, help="Max inference batch size")
+    parser.add_argument("--hidden-dim", type=int, default=MODEL_HIDDEN_DIM, help="Model hidden dimension (768=3M, 1024=7M)")
+    parser.add_argument("--num-blocks", type=int, default=MODEL_NUM_BLOCKS, help="Number of residual blocks")
+    parser.add_argument("--max-batch-size", type=int, default=TRAIN_MAX_BATCH_INFERENCE, help="Max inference batch size")
     args = parser.parse_args()
 
     runner = OvernightRunner({

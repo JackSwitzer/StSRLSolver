@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from .reward_config import REPLAY_BUFFER_SIZE, REPLAY_MIN_FLOOR
+from .training_config import REPLAY_BUFFER_SIZE, REPLAY_MIN_FLOOR
 
 
 class TrajectoryReplayBuffer:
