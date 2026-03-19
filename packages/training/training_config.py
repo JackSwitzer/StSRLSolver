@@ -60,28 +60,30 @@ REWARD_WEIGHTS: Dict[str, Any] = {
     "damage_per_hp": 0.0,
 
     # Combat win rewards (boosted -- these are the primary progress signal)
-    "combat_win": 0.10,
-    "elite_win": 0.50,
-    "boss_win": 2.00,
+    "combat_win": 0.30,
+    "elite_win": 1.50,
+    "boss_win": 5.00,
 
     # Floor milestones -- 5-10x boost to create strong gradient toward deeper runs
     "floor_milestones": {
-        6: 0.50,     # First elite territory
-        10: 1.00,    # Mid-act 1
-        15: 2.00,    # Final campfire
-        16: 3.00,    # Reached Act 1 boss
-        17: 5.00,    # Beat Act 1 boss
-        25: 3.00,    # Mid-act 2
-        33: 5.00,    # Reached Act 2 boss
-        34: 8.00,    # Beat Act 2 boss
-        50: 8.00,    # Reached Act 3 boss
-        51: 12.00,   # Beat Act 3 boss
-        55: 15.00,   # Beat the Heart
+        3: 0.25,     # Early progress
+        6: 1.50,     # First elite territory
+        10: 3.00,    # Mid-act 1
+        13: 4.00,    # Late act 1
+        15: 6.00,    # Final campfire
+        16: 9.00,    # Reached Act 1 boss
+        17: 15.00,   # Beat Act 1 boss
+        25: 9.00,    # Mid-act 2
+        33: 15.00,   # Reached Act 2 boss
+        34: 24.00,   # Beat Act 2 boss
+        50: 24.00,   # Reached Act 3 boss
+        51: 36.00,   # Beat Act 3 boss
+        55: 50.00,   # Beat the Heart
     },
 
     # F16 HP bonus: reward arriving at boss floor healthy
-    "f16_hp_bonus_base": 0.50,
-    "f16_hp_bonus_per_hp": 0.02,
+    "f16_hp_bonus_base": 1.50,
+    "f16_hp_bonus_per_hp": 0.05,
 
     # Deck management
     "shop_remove": 0.40,
@@ -103,7 +105,7 @@ REWARD_WEIGHTS: Dict[str, Any] = {
 
     # Terminal rewards
     "win_reward": 10.0,
-    "death_penalty_scale": -1.0,  # Multiplied by (1 - progress)
+    "death_penalty_scale": -0.3,  # Multiplied by (1 - progress)
     "death_floor_cutoff": 55,     # progress = floor / this
 }
 

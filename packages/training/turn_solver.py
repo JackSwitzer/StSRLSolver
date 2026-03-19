@@ -295,7 +295,8 @@ class TurnSolver:
             ):
                 sim.tick()
             hp_after = sim.state.player.hp
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("TurnSolver: enemy turn simulation failed: %s", e)
             # Fallback: estimate from intents
             hp_after = player.hp - self._estimate_incoming(state)
 
@@ -412,7 +413,8 @@ class TurnSolver:
                 child = eng.copy()
                 try:
                     child.execute_action(action)
-                except Exception:
+                except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                    logger.warning("TurnSolver: DFS execute_action failed: %s", e)
                     continue
 
                 # If combat is over after this action, score it
@@ -494,7 +496,8 @@ class TurnSolver:
                 child_engine = node.engine.copy()
                 try:
                     child_engine.execute_action(action)
-                except Exception:
+                except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                    logger.warning("TurnSolver: best-first execute_action failed: %s", e)
                     continue
 
                 nodes_visited += 1
@@ -595,7 +598,8 @@ class TurnSolver:
                     child_engine = node.engine.copy()
                     try:
                         child_engine.execute_action(action)
-                    except Exception:
+                    except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                        logger.warning("TurnSolver: beam search execute_action failed: %s", e)
                         continue
 
                     nodes_visited += 1
@@ -986,7 +990,8 @@ class MultiTurnSolver:
         for action in plan:
             try:
                 sim.execute_action(action)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _score_plan execute_action failed: %s", e)
                 return _SCORE_DEATH
             if sim.state.combat_over:
                 break
@@ -1012,7 +1017,8 @@ class MultiTurnSolver:
         for action in plan:
             try:
                 sim.execute_action(action)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _evaluate_plan execute_action failed: %s", e)
                 return _SCORE_DEATH
             if sim.state.combat_over:
                 break
@@ -1029,15 +1035,16 @@ class MultiTurnSolver:
             # Plan didn't include EndTurn — add it
             try:
                 sim.execute_action(EndTurn())
-            except Exception:
-                pass
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _evaluate_plan EndTurn failed: %s", e)
 
         # Run until player's next turn or combat ends
         ticks = 0
         while sim.phase == CombatPhase.ENEMY_TURN and not sim.is_combat_over() and ticks < 100:
             try:
                 sim.tick()
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: _evaluate_plan enemy tick failed: %s", e)
                 break
             ticks += 1
 
@@ -1169,7 +1176,8 @@ class TurnSolverAdapter:
         if room_type in ("boss", "b", "elite", "e"):
             try:
                 plan = self._multi_turn.solve(engine)
-            except Exception:
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("TurnSolver: multi-turn solve failed: %s", e)
                 plan = None
             if plan and len(plan) > 0:
                 self._cached_plan = plan
@@ -1184,7 +1192,8 @@ class TurnSolverAdapter:
         # DFS/beam TurnSolver (fast single-turn heuristic)
         try:
             plan = self._solver.solve_turn(engine, room_type)
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("TurnSolver: single-turn solve failed: %s", e)
             plan = None
 
         if plan and len(plan) > 0:

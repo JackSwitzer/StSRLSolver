@@ -13,6 +13,10 @@ DEFAULT_SWEEP_CONFIGS: List[Dict[str, Any]] = [
      "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
      "batch_size": 512, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
      "turn_solver_ms": 30.0},
+    {"name": "reward_tuned_v12",
+     "lr": 1e-4, "lr_schedule": "cosine_warm_restarts", "lr_T_0": 10000,
+     "batch_size": 256, "entropy_coeff": 0.05, "temperature": 0.9,
+     "turn_solver_ms": 100.0},
 ]
 
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)

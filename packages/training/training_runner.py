@@ -712,6 +712,14 @@ class OvernightRunner:
             # Only distill on cold start (no checkpoint). Warm restarts already have
             # trained weights — re-distilling on the same data wastes time.
             if _warm_checkpoint is None and trainer.train_steps == 0:
+                # BC pretrain on best trajectories
+                traj_dir = self.run_dir / "best_trajectories"
+                if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
+                    logger.info("=== BC Pretrain ===")
+                    bc_metrics = trainer.bc_pretrain(traj_dir, epochs=10)
+                    logger.info("BC complete: %s", bc_metrics)
+                    if self._server is not None:
+                        self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
                 self._pretrain_from_trajectories(trainer, model)
                 self._deep_distillation(trainer, model, replay_buffer)
             else:
@@ -1078,6 +1086,7 @@ class OvernightRunner:
 
         cfg = self._current_sweep_config
         ts_ms = cfg.get("turn_solver_ms", 50.0)
+        _strategic = cfg.get("strategic_search", False)
 
         # Mixed temperature: ~25% of games use higher temp for exploration
         explore_temp = self.temperature * 1.5
@@ -1087,7 +1096,8 @@ class OvernightRunner:
                 (seed, self.ascension,
                  explore_temp if i % 4 == 0 else self.temperature,
                  self.total_games,
-                 ts_ms),
+                 ts_ms,
+                 _strategic),
             )
             for i, seed in enumerate(seeds)
         ]

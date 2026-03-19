@@ -31,6 +31,33 @@ logger = logging.getLogger(__name__)
 _ACTION_DIM = MODEL_ACTION_DIM
 
 # ---------------------------------------------------------------------------
+# Strategic search — value-head per-option evaluation
+# ---------------------------------------------------------------------------
+
+def _strategic_search(actions, runner, encoder, client, phase_type, n_actions):
+    """Evaluate each option via value head, return best + search policy."""
+    if client is None or n_actions <= 1:
+        return None
+    option_values = []
+    for i in range(n_actions):
+        obs = encoder.encode(runner.run_state, phase_type=phase_type,
+            boss_name=getattr(runner, "_boss_name", ""),
+            room_type=getattr(runner, "current_room_type", ""),
+            actions=actions, runner=runner)
+        resp = client.infer_strategic(obs, 1)
+        if resp and resp.get("ok"):
+            option_values.append(float(resp["value"]))
+        else:
+            return None
+    vals = np.array(option_values)
+    vals = vals - vals.max()
+    search_policy = np.exp(vals * 2.0)
+    search_policy /= search_policy.sum()
+    best_idx = int(np.argmax(option_values))
+    return best_idx, search_policy
+
+
+# ---------------------------------------------------------------------------
 # Worker initializer — called once per worker process by mp.Pool
 # ---------------------------------------------------------------------------
 
@@ -88,8 +115,8 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
                 return result  # Trust the solver's decision (including EndTurn)
-        except Exception:
-            pass  # Fall through to default
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_pick_combat_action: TurnSolver failed: %s", e)
 
     # Fallback (solver returned None): prefer playing a card over ending turn
     for a in actions:
@@ -108,6 +135,7 @@ def _play_one_game(
     temperature: float,
     total_games: int = 0,
     turn_solver_ms: float = 50.0,
+    strategic_search: bool = False,
 ) -> Dict[str, Any]:
     """Play a single game and return transitions + result.
 
@@ -169,7 +197,8 @@ def _play_one_game(
 
     try:
         runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
-    except Exception:
+    except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+        logger.warning("_play_one_game: GameRunner init failed for seed=%s: %s", seed, e)
         return {
             "seed": seed, "won": False, "floor": 0, "hp": 0,
             "decisions": 0, "duration_s": 0.0, "transitions": [],
@@ -250,7 +279,8 @@ def _play_one_game(
     while not runner.game_over and step < 5000:
         try:
             actions = runner.get_available_actions()
-        except Exception:
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_play_one_game: get_available_actions failed at floor=%d: %s", prev_floor, e)
             break
         if not actions:
             break
@@ -443,6 +473,18 @@ def _play_one_game(
 
                     # Clamp to valid range
                     action_idx = min(action_idx, n_actions - 1)
+
+                    # Strategic search: value-head per-option evaluation
+                    if strategic_search and n_actions > 1 and client is not None:
+                        search_result = _strategic_search(actions, runner, encoder, client, phase_type, n_actions)
+                        if search_result is not None:
+                            best_idx, search_policy = search_result
+                            # Blend 70% search / 30% model policy
+                            model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
+                            model_probs /= model_probs.sum()
+                            blended = 0.7 * search_policy + 0.3 * model_probs
+                            blended /= blended.sum()
+                            action_idx = int(np.random.choice(n_actions, p=blended))
                 else:
                     logits_np = None
 
