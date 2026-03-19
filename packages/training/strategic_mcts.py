@@ -249,7 +249,7 @@ class StrategicMCTS:
             return progress * 0.5  # Partial credit for progress
 
         hp_ratio = getattr(rs, "current_hp", 0) / max(getattr(rs, "max_hp", 80), 1)
-        return progress + hp_ratio * 0.2
+        return min(1.0, progress + hp_ratio * 0.2)
 
     @property
     def stats(self) -> Dict[str, Any]:

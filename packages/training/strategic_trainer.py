@@ -361,8 +361,9 @@ class StrategicTrainer:
 
     def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 5000) -> Dict[str, float]:
         """Behavioral cloning: supervised learning on expert trajectories."""
+        from .training_config import MODEL_ACTION_DIM
         device = next(self.model.parameters()).device
-        _ACTION_DIM = 512
+        _ACTION_DIM = MODEL_ACTION_DIM
 
         traj_files = sorted(trajectory_dir.glob("traj_F*.npz"), key=lambda p: p.stem, reverse=True)
         if not traj_files:

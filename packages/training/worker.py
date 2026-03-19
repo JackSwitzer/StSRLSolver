@@ -484,7 +484,7 @@ def _play_one_game(
                     # MCTS strategic search: full tree search override
                     if mcts_engine is not None and n_actions > 1:
                         try:
-                            mcts_idx, mcts_policy = mcts_engine.search(
+                            _, mcts_policy = mcts_engine.search(
                                 runner, actions, phase_type,
                             )
                             # Blend 80% MCTS / 20% model policy for training signal
@@ -495,20 +495,21 @@ def _play_one_game(
                             action_idx = int(np.random.choice(n_actions, p=blended))
                             # Recompute log_prob for the MCTS-chosen action
                             log_prob = float(np.log(probs_base[action_idx] + 1e-8))
-                        except Exception as e:
+                        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
                             logger.warning("MCTS search failed, using model policy: %s", e)
 
                     # Strategic search: value-head per-option evaluation
                     elif strategic_search and n_actions > 1 and client is not None:
                         search_result = _strategic_search(actions, runner, encoder, client, phase_type, n_actions)
                         if search_result is not None:
-                            best_idx, search_policy = search_result
+                            _, search_policy = search_result
                             # Blend 70% search / 30% model policy
                             model_probs = np.exp(logits_np[:n_actions] - logits_np[:n_actions].max())
                             model_probs /= model_probs.sum()
                             blended = 0.7 * search_policy + 0.3 * model_probs
                             blended /= blended.sum()
                             action_idx = int(np.random.choice(n_actions, p=blended))
+                            log_prob = float(np.log(probs_base[action_idx] + 1e-8))
                 else:
                     logits_np = None
 
