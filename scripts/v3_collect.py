@@ -122,7 +122,7 @@ def main():
     logger.info("Model: %d params on %s", param_count, device)
 
     # Inference server
-    N_WORKERS = 20  # Oversubscribe CPU — workers spend most time waiting on inference
+    N_WORKERS = 10  # Match CPU cores — more workers starves inference, gives 0 transitions
     server = InferenceServer(
         n_workers=N_WORKERS, max_batch_size=64, batch_timeout_ms=10.0,  # Bigger batches, tighter timeout
     )
@@ -163,7 +163,7 @@ def main():
         async_results = [
             pool.apply_async(
                 _play_one_game,
-                (seed, 0, 0.8, total_games, 5.0, False, False, 0),  # 5ms solver — speed over quality
+                (seed, 0, 0.8, total_games, 20.0, False, False, 0),  # 20ms solver — fast but produces transitions
             )
             for seed in seeds
         ]
@@ -260,12 +260,14 @@ def main():
     logger.info("=" * 60)
 
 
+_traj_counter = 0
+
 def _save_trajectory(traj_dir: Path, seed: str, floor: int, transitions: list):
     """Save a game's transitions as .npz for offline training."""
-    fname = f"traj_F{floor:02d}_{seed}.npz"
+    global _traj_counter
+    _traj_counter += 1
+    fname = f"traj_{_traj_counter:06d}_F{floor:02d}.npz"
     path = traj_dir / fname
-    if path.exists():
-        return  # Don't overwrite
 
     obs = np.stack([t["obs"] for t in transitions])
     masks = np.stack([t["action_mask"] for t in transitions])
