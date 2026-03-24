@@ -34,7 +34,7 @@ from .reward_config import (
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS, OVERNIGHT_SWEEP_CONFIGS
 from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
-from .training_config import ABORT_CLIP_FRACTION, ABORT_VALUE_LOSS, ABORT_ENTROPY_MIN
+from .training_config import ABORT_CLIP_FRACTION, ABORT_VALUE_LOSS, ABORT_ENTROPY_MIN, ABORT_GRACE_GAMES
 from .training_config import (
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
@@ -1068,10 +1068,10 @@ class OvernightRunner:
                 _clip = self._last_train_metrics.get("clip_fraction", 0)
                 _vloss = self._last_train_metrics.get("value_loss", 0)
                 _ent = self._last_train_metrics.get("entropy", 1.0)
-                if sweep_games > 500 and _clip > ABORT_CLIP_FRACTION:
+                if sweep_games > ABORT_GRACE_GAMES and _clip > ABORT_CLIP_FRACTION:
                     logger.warning("ABORT: clip fraction %.3f > %.3f after %d games", _clip, ABORT_CLIP_FRACTION, sweep_games)
                     break
-                if sweep_games > 1000 and _vloss > ABORT_VALUE_LOSS:
+                if sweep_games > ABORT_GRACE_GAMES and _vloss > ABORT_VALUE_LOSS:
                     logger.warning("ABORT: value loss %.3f > %.3f after %d games", _vloss, ABORT_VALUE_LOSS, sweep_games)
                     break
                 if _ent < ABORT_ENTROPY_MIN:

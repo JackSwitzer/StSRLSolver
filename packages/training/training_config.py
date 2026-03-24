@@ -228,9 +228,10 @@ MULTI_TURN_BUDGET_MS = 30_000.0  # 30s for boss multi-turn planning
 # ---------------------------------------------------------------------------
 # Abort Criteria (per-config)
 # ---------------------------------------------------------------------------
-ABORT_CLIP_FRACTION = 0.30    # Abort if clip > 30% after 500 games
-ABORT_VALUE_LOSS = 5.0        # Abort if value loss > 5.0 after 1000 games
+ABORT_CLIP_FRACTION = 0.30    # Abort if clip > 30% after grace period
+ABORT_VALUE_LOSS = 5.0        # Abort if value loss > 5.0 after grace period
 ABORT_ENTROPY_MIN = 0.01      # Abort if entropy < 0.01 (collapsed)
+ABORT_GRACE_GAMES = 2000      # No abort checks until this many games (BC->PPO needs warmup)
 
 # ---------------------------------------------------------------------------
 # IQL (Implicit Q-Learning) — Offline RL
