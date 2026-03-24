@@ -398,7 +398,11 @@ class StrategicTrainer:
                 n = len(data["obs"])
                 for i in range(n):
                     if loaded >= max_transitions: break
-                    obs_list.append(data["obs"][i])
+                    obs_i = data["obs"][i]
+                    # Skip mismatched dimensions (older trajectories)
+                    if obs_i.shape[0] != self.model.input_dim:
+                        continue
+                    obs_list.append(obs_i)
                     mask_i = data["masks"][i]
                     if mask_i.shape[0] < _ACTION_DIM:
                         mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]))
