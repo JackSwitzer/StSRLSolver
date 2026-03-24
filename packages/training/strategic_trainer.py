@@ -99,7 +99,19 @@ class StrategicTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         self._base_lr = lr
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-5)
+        # Per-head LR multipliers (MoE-style: value head trains faster)
+        from .training_config import LR_HEAD_MULTIPLIERS
+        param_groups = [
+            {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0)},
+            {"params": list(model.policy_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("policy", 2.0)},
+            {"params": list(model.value_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("value", 3.0)},
+            {"params": list(model.floor_head.parameters()) + list(model.act_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("auxiliary", 1.0)},
+        ]
+        self.optimizer = torch.optim.Adam(param_groups, eps=1e-5)
 
         # Configurable LR schedule (starts after warmup)
         if lr_schedule == "linear_decay":
@@ -225,6 +237,9 @@ class StrategicTrainer:
         adv_t = torch.from_numpy(advantages).float()
         ret_t = torch.from_numpy(returns).float()
 
+        # Save unnormalized returns for GAE consistency, normalize only in loss
+        ret_raw = ret_t.clone()
+
         # Auxiliary targets
         floor_targets = torch.tensor([t.final_floor for t in self.buffer], dtype=torch.float32)
         act_targets = torch.tensor(
@@ -282,8 +297,12 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss (clipped for stability)
-                value_loss = F.mse_loss(values, b_ret)
+                # Value loss with return normalization (inside loss only, not in-place)
+                b_ret_norm = b_ret
+                _rstd = b_ret.std()
+                if _rstd > 1e-8:
+                    b_ret_norm = (b_ret - b_ret.mean()) / (_rstd + 1e-8)
+                value_loss = F.mse_loss(values, b_ret_norm)
 
                 # Entropy bonus
                 probs = F.softmax(logits, dim=-1)
@@ -359,7 +378,7 @@ class StrategicTrainer:
             return True
         return False
 
-    def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 5000) -> Dict[str, float]:
+    def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 48000) -> Dict[str, float]:
         """Behavioral cloning: supervised learning on expert trajectories."""
         from .training_config import MODEL_ACTION_DIM
         device = next(self.model.parameters()).device

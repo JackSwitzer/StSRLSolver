@@ -13,6 +13,7 @@ from __future__ import annotations
 import gc
 import json
 import logging
+import math
 import multiprocessing as mp
 import signal
 import time
@@ -33,6 +34,7 @@ from .reward_config import (
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS, OVERNIGHT_SWEEP_CONFIGS
 from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
+from .training_config import ABORT_CLIP_FRACTION, ABORT_VALUE_LOSS, ABORT_ENTROPY_MIN
 from .training_config import (
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
@@ -133,6 +135,9 @@ class OvernightRunner:
         # Inference server + persistent pool (created in run())
         self._server = None
         self._executor: Optional[Any] = None
+
+        # Track whether distillation has run this session (prevents re-distilling on config switch)
+        self._distilled_this_run = False
 
     def should_be_headless(self) -> bool:
         """Check if we should be in headless mode based on schedule."""
@@ -725,7 +730,7 @@ class OvernightRunner:
 
             # Only distill on cold start (no checkpoint). Warm restarts already have
             # trained weights — re-distilling on the same data wastes time.
-            if _warm_checkpoint is None and trainer.train_steps == 0:
+            if not self._distilled_this_run and _warm_checkpoint is None and trainer.train_steps == 0:
                 # BC pretrain on best trajectories
                 traj_dir = self.run_dir / "best_trajectories"
                 if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
@@ -736,6 +741,7 @@ class OvernightRunner:
                         self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
                 self._pretrain_from_trajectories(trainer, model)
                 self._deep_distillation(trainer, model, replay_buffer)
+                self._distilled_this_run = True
             else:
                 logger.info("Warm restart (train_steps=%d) — skipping distillation", trainer.train_steps)
 
@@ -816,7 +822,8 @@ class OvernightRunner:
                 })
 
                 while collect_games < COLLECT_GAMES and not self._shutdown_requested:
-                    seeds, async_results = self._submit_batch(seed_pool)
+                    remaining = COLLECT_GAMES - collect_games
+                    seeds, async_results = self._submit_batch(seed_pool, max_games=remaining)
                     batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
                     for result in batch_results:
                         self._record_game(result)
@@ -826,6 +833,16 @@ class OvernightRunner:
                         sweep_games += 1
                         sweep_floors.append(result["floor"])
                         collect_games += 1
+
+                    # Write status after each batch for live monitoring
+                    self.write_status({
+                        "sweep_config": sweep_config, "sweep_phase": "collecting",
+                        "config_name": config_name, "sweep_games": sweep_games,
+                        "train_steps": trainer.train_steps,
+                        "buffer_size": len(trainer.buffer),
+                        "games_per_min": round(games_per_min, 1) if games_per_min else 0,
+                        "collect_progress": f"{collect_games}/{COLLECT_GAMES}",
+                    })
 
                 collect_duration = time.monotonic() - collect_t0
                 games_per_min = collect_games / max(collect_duration / 60.0, 0.01)
@@ -902,10 +919,15 @@ class OvernightRunner:
                     "entropy": self._last_train_metrics.get("entropy"),
                 })
 
+                _abort = False
                 for _ in range(_TRAIN_STEPS):
                     if len(trainer.buffer) < trainer.batch_size // 2:
                         break  # Not enough data
                     train_metrics = trainer.train_batch()
+                    if math.isnan(train_metrics.get("total_loss", 0)):
+                        logger.error("ABORT: NaN loss detected")
+                        _abort = True
+                        break
                     train_count += 1
                     self._process_train_metrics(
                         train_metrics, trainer, config_name, sweep_floors,
@@ -974,6 +996,22 @@ class OvernightRunner:
 
                 # GC between phases
                 gc.collect()
+
+                # Abort criteria — detect training collapse
+                if _abort:
+                    break
+                _clip = self._last_train_metrics.get("clip_fraction", 0)
+                _vloss = self._last_train_metrics.get("value_loss", 0)
+                _ent = self._last_train_metrics.get("entropy", 1.0)
+                if sweep_games > 500 and _clip > ABORT_CLIP_FRACTION:
+                    logger.warning("ABORT: clip fraction %.3f > %.3f after %d games", _clip, ABORT_CLIP_FRACTION, sweep_games)
+                    break
+                if sweep_games > 1000 and _vloss > ABORT_VALUE_LOSS:
+                    logger.warning("ABORT: value loss %.3f > %.3f after %d games", _vloss, ABORT_VALUE_LOSS, sweep_games)
+                    break
+                if _ent < ABORT_ENTROPY_MIN:
+                    logger.warning("ABORT: entropy %.4f < %.4f (collapsed)", _ent, ABORT_ENTROPY_MIN)
+                    break
 
             # Final training pass on remaining buffer
             if len(trainer.buffer) >= trainer.batch_size:
@@ -1143,9 +1181,12 @@ class OvernightRunner:
             games_per_min,
         )
 
-    def _submit_batch(self, seed_pool) -> Tuple[List[str], List[Any]]:
+    def _submit_batch(self, seed_pool, max_games: int = 0) -> Tuple[List[str], List[Any]]:
         """Submit a batch of games to workers. Returns immediately (non-blocking)."""
-        seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
+        batch_size = self.games_per_batch
+        if max_games > 0:
+            batch_size = min(batch_size, max_games)
+        seeds = [seed_pool.get_seed() for _ in range(batch_size)]
 
         cfg = self._current_sweep_config
         ts_ms = cfg.get("turn_solver_ms", 50.0)
@@ -1180,6 +1221,8 @@ class OvernightRunner:
         """Collect results from a previously submitted batch. Blocks until done."""
         results: List[Dict[str, Any]] = []
         for ar, seed in zip(async_results, seeds):
+            if self._shutdown_requested:
+                break
             try:
                 # MCTS deep search: boss fights can take 10+ min, full game up to 1h
                 result = ar.get(timeout=3600)

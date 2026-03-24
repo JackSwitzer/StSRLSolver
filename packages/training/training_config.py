@@ -24,16 +24,25 @@ TRAIN_MAX_BATCH_INFERENCE = 32
 INFERENCE_BATCH_TIMEOUT_MS = 15.0  # Batch timeout for inference server (was 5ms)
 TRAIN_GAMES_PER_BATCH = 16
 TRAIN_PPO_EPOCHS = 4
-TRAIN_STEPS_PER_PHASE = 10
-TRAIN_COLLECT_GAMES = 100
+TRAIN_STEPS_PER_PHASE = 30
+TRAIN_COLLECT_GAMES = 500
 
 # ---------------------------------------------------------------------------
 # Learning Rate
 # ---------------------------------------------------------------------------
-LR_BASE = 1e-4
+LR_BASE = 3e-5
 LR_SCHEDULE = "cosine_warm_restarts"
 LR_T_0 = 10000
 LR_WARMUP_STEPS = 100
+# Per-head LR multipliers (MoE-style: shared trunk trains slower, heads faster)
+LR_HEAD_MULTIPLIERS: Dict[str, float] = {
+    "trunk": 1.0,       # Shared trunk: base LR
+    "policy": 2.0,      # Policy head: 2x base (needs to track changing advantage landscape)
+    "value": 3.0,       # Value head: 3x base (needs to converge fast for GAE)
+    "auxiliary": 1.0,    # Floor/act prediction: base LR
+}
+# Combat net LR (separate network, can be more aggressive)
+LR_COMBAT_NET = 1e-3
 
 # ---------------------------------------------------------------------------
 # Exploration
@@ -48,8 +57,8 @@ TEMPERATURE = 0.9
 # ---------------------------------------------------------------------------
 SOLVER_BUDGETS: Dict[str, tuple] = {
     "monster": (50.0, 5_000, 300_000),       # 5 min cap
-    "elite":   (500.0, 50_000, 600_000),     # 10 min cap
-    "boss":    (10_000.0, 200_000, 600_000), # 10s base for bosses
+    "elite":   (2_000.0, 50_000, 600_000),   # 2s base for elites
+    "boss":    (30_000.0, 200_000, 600_000), # 30s base for bosses
 }
 SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
 
@@ -118,6 +127,12 @@ REWARD_WEIGHTS: Dict[str, Any] = {
     "potion_waste_penalty": -0.15,
     "potion_hoard_penalty": -0.30,
 
+    # Unspent energy penalty (RL reward signal, not just solver scoring)
+    # Negative reward when ending turn with energy >= 1 and playable cards
+    # Trains the model to play cards aggressively early, can decay later
+    "unspent_energy_reward": -0.15,  # Per energy left with playable cards
+    "unspent_playable_reward": -0.10,  # Per playable card left unplayed
+
     # Terminal rewards
     "win_reward": 10.0,
     "death_penalty_scale": -0.3,  # Multiplied by (1 - progress)
@@ -154,6 +169,34 @@ MCTS_BUDGETS: Dict[str, int] = {
     "event": 30,
     "other": 10,
 }
+
+# Adaptive search budget: spend more compute at critical moments
+# Floor-based multipliers (budget * multiplier at these floors)
+MCTS_FLOOR_MULTIPLIERS: Dict[int, float] = {
+    0: 10.0,   # Neow/start: 1 minute of deep planning
+    1: 5.0,    # First path choice — sets the whole run trajectory
+    2: 3.0,    # Still early, high leverage
+    3: 2.0,    # Tapering off
+    15: 3.0,   # Pre-boss floor — rest/upgrade decision is critical
+    16: 5.0,   # Boss floor — card pick after boss is high-leverage
+    32: 3.0,   # Pre-Act2 boss
+    33: 5.0,   # Act 2 boss floor
+    49: 3.0,   # Pre-Act3 boss
+    50: 5.0,   # Act 3 boss floor
+}
+# Phase-type multipliers for key decisions (stacks with floor multiplier)
+MCTS_PHASE_MULTIPLIERS: Dict[str, float] = {
+    "card_pick": 2.0,  # Card picks are the highest-leverage strategic decision
+    "rest": 1.5,       # Rest vs upgrade is important
+    "path": 1.0,       # Normal
+    "shop": 1.0,
+    "event": 1.0,
+    "other": 0.5,      # Low-impact decisions get less
+}
+# If only 1 action available, skip search entirely (forced path)
+MCTS_SKIP_FORCED = True
+# Hard cap on adaptive budget to prevent 10-min single decisions
+MCTS_ADAPTIVE_CAP = 5000
 MCTS_UCB_C = 1.414
 MCTS_BLEND_RATIO = 0.8       # MCTS weight (1 - this = model weight)
 STRATEGIC_BLEND_RATIO = 0.7  # Strategic search weight
@@ -170,6 +213,42 @@ EXPLORE_GAME_RATIO = 4         # Every Nth game uses explore temp
 REPLAY_BUFFER_SIZE = 75
 REPLAY_MIN_FLOOR = 12
 REPLAY_MIX_RATIO = 0.25
+
+# ---------------------------------------------------------------------------
+# Boss HP Progress Reward
+# ---------------------------------------------------------------------------
+BOSS_HP_PROGRESS_SCALE = 3.0  # boss_dmg_dealt / boss_max_hp * this
+
+# ---------------------------------------------------------------------------
+# Multi-turn Solver
+# ---------------------------------------------------------------------------
+MULTI_TURN_DEPTH = 5        # Turns ahead for boss/elite (was 3)
+MULTI_TURN_BUDGET_MS = 30_000.0  # 30s for boss multi-turn planning
+
+# ---------------------------------------------------------------------------
+# Abort Criteria (per-config)
+# ---------------------------------------------------------------------------
+ABORT_CLIP_FRACTION = 0.30    # Abort if clip > 30% after 500 games
+ABORT_VALUE_LOSS = 5.0        # Abort if value loss > 5.0 after 1000 games
+ABORT_ENTROPY_MIN = 0.01      # Abort if entropy < 0.01 (collapsed)
+
+# ---------------------------------------------------------------------------
+# IQL (Implicit Q-Learning) — Offline RL
+# ---------------------------------------------------------------------------
+IQL_EXPECTILE = 0.7
+IQL_DISCOUNT = 0.99
+IQL_LR = 3e-4
+IQL_TEMPERATURE = 3.0
+IQL_VALUE_HIDDEN = 512
+IQL_Q_HIDDEN = 512
+
+# ---------------------------------------------------------------------------
+# GRPO (Group Relative Policy Optimization)
+# ---------------------------------------------------------------------------
+GRPO_ROLLOUTS_CARD = 5       # Rollouts per card pick decision
+GRPO_ROLLOUTS_OTHER = 2      # Rollouts per other decision
+GRPO_CLIP = 0.2
+GRPO_LR = 3e-5
 
 # ---------------------------------------------------------------------------
 # Stall Detection (effectively disabled)

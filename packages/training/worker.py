@@ -23,7 +23,12 @@ from .reward_config import (
     UPGRADE_REWARDS,
     compute_potential,
 )
-from .training_config import MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO
+from .training_config import (
+    MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO,
+    SOLVER_BUDGETS, MULTI_TURN_DEPTH, MULTI_TURN_BUDGET_MS,
+    MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS, MCTS_SKIP_FORCED,
+    MCTS_ADAPTIVE_CAP,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +40,26 @@ _ACTION_DIM = MODEL_ACTION_DIM
 # ---------------------------------------------------------------------------
 
 def _strategic_search(actions, runner, encoder, client, phase_type, n_actions):
-    """Evaluate each option via value head, return best + search policy."""
+    """Evaluate each option via value head after taking that action."""
     if client is None or n_actions <= 1:
         return None
     option_values = []
     for i in range(n_actions):
-        obs = encoder.encode(runner.run_state, phase_type=phase_type,
-            boss_name=getattr(runner, "_boss_name", ""),
-            room_type=getattr(runner, "current_room_type", ""),
-            actions=actions, runner=runner)
-        resp = client.infer_strategic(obs, 1)
-        if resp and resp.get("ok"):
-            option_values.append(float(resp["value"]))
-        else:
+        try:
+            # Copy runner state, take action i, encode the resulting state
+            runner_copy = runner.copy()
+            runner_copy.take_action(actions[i])
+            obs = encoder.encode(runner_copy.run_state, phase_type=phase_type,
+                boss_name=getattr(runner_copy, "_boss_name", ""),
+                room_type=getattr(runner_copy, "current_room_type", ""),
+                actions=[], runner=runner_copy)
+            resp = client.infer_strategic(obs, 1)
+            if resp and resp.get("ok"):
+                option_values.append(float(resp["value"]))
+            else:
+                return None
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_strategic_search: option %d eval failed: %s", i, e)
             return None
     vals = np.array(option_values)
     vals = vals - vals.max()
@@ -83,10 +95,17 @@ def _worker_init(request_q, response_qs, slot_q, shm_info=None):
     """
     global _worker_name
     from packages.training.inference_server import InferenceClient
-    try:
-        slot_id = slot_q.get(timeout=10)
-    except Exception:
-        logger.warning("Worker failed to acquire slot from slot_q — running without inference")
+
+    slot_id = None
+    for attempt in range(3):
+        try:
+            slot_id = slot_q.get(timeout=10 * (attempt + 1))
+            break
+        except Exception:
+            logger.warning("Worker slot acquisition attempt %d/3 failed", attempt + 1)
+
+    if slot_id is None:
+        logger.warning("Worker failed to acquire slot after 3 attempts — running without inference")
         _worker_name = "NoSlot"
         return
 
@@ -205,10 +224,10 @@ def _play_one_game(
     turn_solver = TurnSolverAdapter(
         time_budget_ms=turn_solver_ms,
         node_budget=_node_budget,
-        # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
-        multi_turn_depth=3,
+        multi_turn_depth=MULTI_TURN_DEPTH,
         multi_turn_k=4,
-        multi_turn_budget_ms=5000.0,
+        multi_turn_budget_ms=MULTI_TURN_BUDGET_MS,
+        solver_budgets=SOLVER_BUDGETS,
     )
 
     client = get_client()
@@ -273,6 +292,7 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
+    combat_energy_wasted = 0.0  # Total unspent energy with playable cards
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -354,6 +374,7 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
+                combat_energy_wasted = 0.0
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
@@ -426,6 +447,12 @@ def _play_one_game(
                         _energy = getattr(_st, "energy", 0)
                         _playable = sum(1 for c in _hand_ids if _costs.get(c, 1) <= _energy)
                         _turn_info["playable_unplayed"] = _playable
+                        # Track energy wasted with playable cards (RL reward signal)
+                        if _energy >= 1 and _playable > 0:
+                            combat_energy_wasted += (
+                                _energy * REWARD_WEIGHTS.get("unspent_energy_reward", -0.15)
+                                + _playable * REWARD_WEIGHTS.get("unspent_playable_reward", -0.10)
+                            )
                     turns_log.append(_turn_info)
                     turn_cards.clear()
             runner.take_action(action)
@@ -536,13 +563,23 @@ def _play_one_game(
                     action_idx = min(action_idx, n_actions - 1)
 
                     # MCTS strategic search: full tree search override
+                    # Skip search for forced decisions (only 1 action)
                     if mcts_engine is not None and n_actions > 1:
                         try:
-                            # Budget override for card picks (mcts_card_sims)
+                            # Adaptive budget: base from config, scaled by floor + phase importance
                             budget_override = mcts_card_sims if (mcts_card_sims > 0 and phase_type == "card_pick") else None
-                            # Early-game boost: floors 1-10 get 1.5x budget
-                            if budget_override and current_floor <= 10:
-                                budget_override = int(budget_override * 1.5)
+                            # Floor-based multiplier (critical moments get deep search)
+                            floor_mult = MCTS_FLOOR_MULTIPLIERS.get(current_floor, 1.0)
+                            # Phase-type multiplier (card picks > rest > path > other)
+                            phase_mult = MCTS_PHASE_MULTIPLIERS.get(phase_type, 1.0)
+                            adaptive_mult = floor_mult * phase_mult
+                            if budget_override:
+                                budget_override = min(int(budget_override * adaptive_mult), MCTS_ADAPTIVE_CAP)
+                            elif adaptive_mult > 1.0:
+                                # No explicit override but high-importance moment: boost default
+                                from .training_config import MCTS_BUDGETS
+                                base_budget = MCTS_BUDGETS.get(phase_type, 50)
+                                budget_override = min(int(base_budget * adaptive_mult), MCTS_ADAPTIVE_CAP)
                             _, mcts_policy = mcts_engine.search(
                                 runner, actions, phase_type,
                                 budget=budget_override,
@@ -625,6 +662,20 @@ def _play_one_game(
                         _has_potions = any(p is not None for p in _potions) if _potions else False
                         if _has_potions:
                             event_reward += REWARD_WEIGHTS.get("potion_hoard_penalty", -0.30)
+
+                    # Unspent energy penalty (accumulated during combat turns)
+                    event_reward += combat_energy_wasted
+
+                    # Boss HP progress reward: continuous signal for boss fights
+                    if rt in ("boss", "b") and combats:
+                        _last_combat = combats[-1]
+                        _boss_enemies = getattr(runner, "current_combat", None)
+                        if _boss_enemies is not None:
+                            from .reward_config import compute_boss_hp_progress
+                            _boss_max = sum(getattr(e, "max_hp", 0) for e in _boss_enemies.state.enemies)
+                            _boss_now = sum(max(getattr(e, "hp", 0), 0) for e in _boss_enemies.state.enemies)
+                            _boss_dmg = max(0, _boss_max - _boss_now)
+                            event_reward += compute_boss_hp_progress(_boss_dmg, _boss_max)
 
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
