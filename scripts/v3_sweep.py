@@ -133,12 +133,24 @@ def main():
                 copied += 1
     logger.info("Consolidated %d trajectory files", copied)
 
-    # Cap BC to 3 epochs
+    # Cap BC to 3 epochs (sweep does light BC only — deep pretrain already done)
     import packages.training.strategic_trainer as st_mod
     _orig_bc = st_mod.StrategicTrainer.bc_pretrain
     def _bc_3ep(self, trajectory_dir, epochs=3, max_transitions=48000):
         return _orig_bc(self, trajectory_dir, epochs=3, max_transitions=max_transitions)
     st_mod.StrategicTrainer.bc_pretrain = _bc_3ep
+
+    # Load pretrained checkpoint if available (from v3_pretrain.py)
+    resume = None
+    for p in [Path("logs/strategic_checkpoints/bc_winner_v3.pt"),
+              Path("logs/strategic_checkpoints/bc_100ep_v3.pt"),
+              Path("logs/strategic_checkpoints/latest_strategic.pt")]:
+        if p.exists():
+            resume = str(p)
+            logger.info("Resuming from pretrained: %s", p.name)
+            break
+    if resume:
+        config["resume_path"] = resume
 
     try:
         runner = OvernightRunner(config)

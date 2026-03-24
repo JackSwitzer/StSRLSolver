@@ -342,6 +342,8 @@ def _play_one_game(
         # Capture boss enemy HP for boss HP progress reward
         _boss_max_hp = 0
         _boss_current_hp = 0
+        # Encode full combat state for CombatNet training (298-dim vector)
+        _combat_state_vec = None
         if _combat_ref is not None:
             try:
                 for e in _combat_ref.state.enemies:
@@ -349,6 +351,11 @@ def _play_one_game(
                     _boss_current_hp += max(getattr(e, "hp", 0), 0)
             except Exception:
                 pass
+            try:
+                from packages.training.state_encoders import CombatStateEncoder
+                _combat_state_vec = CombatStateEncoder().encode(_combat_ref)
+            except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+                logger.warning("Failed to encode combat state: %s", e)
         # Use runner.run_state directly (not captured `rs` which may be stale).
         # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
         _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
@@ -367,6 +374,7 @@ def _play_one_game(
             "solver_calls": combat_solver_calls,
             "boss_max_hp": _boss_max_hp,
             "boss_dmg_dealt": max(0, _boss_max_hp - _boss_current_hp),
+            "combat_state_vector": _combat_state_vec,
         })
 
     while not runner.game_over and step < 5000:

@@ -322,6 +322,21 @@ def _save_combat_data(combat_dir: Path, seed: str, game_floor: int, combat: dict
     except Exception:
         pass
 
+    # Save full 298-dim combat state vector as .npz for CombatNet training
+    combat_state_vec = combat.get("combat_state_vector")
+    if combat_state_vec is not None:
+        npz_name = f"combat_{seed}_f{floor:02d}_{room_type}.npz"
+        npz_path = combat_dir / npz_name
+        if not npz_path.exists():
+            try:
+                np.savez_compressed(
+                    npz_path,
+                    combat_obs=combat_state_vec,
+                    won=np.array(survived, dtype=bool),
+                )
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     main()
