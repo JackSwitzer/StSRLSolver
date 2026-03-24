@@ -33,6 +33,8 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("v3_collect")
+# Suppress solver EndTurn spam during collection
+logging.getLogger("packages.training.turn_solver").setLevel(logging.ERROR)
 
 
 def main():
@@ -120,9 +122,9 @@ def main():
     logger.info("Model: %d params on %s", param_count, device)
 
     # Inference server
-    N_WORKERS = 10
+    N_WORKERS = 20  # Oversubscribe CPU — workers spend most time waiting on inference
     server = InferenceServer(
-        n_workers=N_WORKERS, max_batch_size=32, batch_timeout_ms=15.0,
+        n_workers=N_WORKERS, max_batch_size=64, batch_timeout_ms=10.0,  # Bigger batches, tighter timeout
     )
     server.sync_strategic_from_pytorch(model, version=0)
     server.start()
@@ -161,7 +163,7 @@ def main():
         async_results = [
             pool.apply_async(
                 _play_one_game,
-                (seed, 0, 0.8, total_games, 50.0, False, False, 0),
+                (seed, 0, 0.8, total_games, 5.0, False, False, 0),  # 5ms solver — speed over quality
             )
             for seed in seeds
         ]
