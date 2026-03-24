@@ -705,7 +705,7 @@ class OvernightRunner:
             if algorithm == "iql":
                 from .iql_trainer import IQLTrainer
                 trainer = IQLTrainer(
-                    model=model,
+                    policy=model,
                     input_dim=model.input_dim,
                     action_dim=model.action_dim,
                     lr=sweep_config.get("lr", 3e-4),

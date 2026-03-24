@@ -1248,8 +1248,8 @@ class TurnSolverAdapter:
         return None  # Fall through to first legal action
 
     def _warn_end_turn_with_playable(self, combat_action, actions, engine, room_type):
-        """Log a warning if the solver chose EndTurn while playable cards exist."""
-        if getattr(combat_action, "action_type", None) == "end_turn":
+        """Log a warning if the solver chose EndTurn while playable cards exist with energy."""
+        if getattr(combat_action, "action_type", None) == "end_turn" and engine.state.energy > 0:
             playable = [a for a in actions if getattr(a, "action_type", None) == "play_card"]
             if playable:
                 logger.warning(
