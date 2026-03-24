@@ -146,10 +146,10 @@ def main():
     peak_floor = 0
     wins = 0
     start_time = time.monotonic()
-    batch_size = 16  # Games per batch
+    batch_size = 32  # Games per batch (2x workers for pipeline overlap)
 
-    SAVE_FLOOR_THRESHOLD = 4  # Save trajectories from floor 4+ (more data)
-    BEST_FLOOR_THRESHOLD = 10  # Save to best_trajectories from floor 10+
+    SAVE_FLOOR_THRESHOLD = 1  # Save ALL games (every transition is signal)
+    BEST_FLOOR_THRESHOLD = 8  # Save to best_trajectories from floor 8+
 
     logger.info("=" * 60)
     logger.info("DATA COLLECTION: %d workers, saving floor %d+ trajectories", N_WORKERS, SAVE_FLOOR_THRESHOLD)
