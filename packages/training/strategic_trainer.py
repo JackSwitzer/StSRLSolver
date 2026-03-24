@@ -517,7 +517,10 @@ class StrategicTrainer:
                     for i in range(len(data["obs"])):
                         if loaded >= max_samples:
                             break
-                        obs_list.append(data["obs"][i])
+                        obs_i = data["obs"][i]
+                        if obs_i.shape[0] != self.model.input_dim:
+                            continue
+                        obs_list.append(obs_i)
                         floor_val = float(data["final_floors"][i]) if "final_floors" in data else 0.5
                         value_targets.append(floor_val)
                         loaded += 1
