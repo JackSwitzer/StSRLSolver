@@ -26,7 +26,7 @@ from .reward_config import (
 from .training_config import (
     MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO,
     SOLVER_BUDGETS, MULTI_TURN_DEPTH, MULTI_TURN_BUDGET_MS,
-    MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS, MCTS_SKIP_FORCED,
+    MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS,
     MCTS_ADAPTIVE_CAP,
 )
 
@@ -221,6 +221,19 @@ def _play_one_game(
     encoder = RunStateEncoder()
     # Scale node budget proportionally with time budget (100 nodes per ms)
     _node_budget = max(1000, int(turn_solver_ms * 100))
+
+    # Load CombatNet if checkpoint exists (for neural leaf evaluation)
+    _combat_net = None
+    _combat_ckpt = Path("logs/active/combat_net.pt")
+    if _combat_ckpt.exists():
+        try:
+            from packages.training.combat_net import CombatNet
+            _combat_net = CombatNet.load(_combat_ckpt)
+            _combat_net.eval()
+        except Exception as e:
+            logger.warning("Failed to load CombatNet: %s", e)
+            _combat_net = None
+
     turn_solver = TurnSolverAdapter(
         time_budget_ms=turn_solver_ms,
         node_budget=_node_budget,
@@ -228,6 +241,7 @@ def _play_one_game(
         multi_turn_k=4,
         multi_turn_budget_ms=MULTI_TURN_BUDGET_MS,
         solver_budgets=SOLVER_BUDGETS,
+        combat_net=_combat_net,
     )
 
     client = get_client()
@@ -325,6 +339,16 @@ def _play_one_game(
                 _enc_name = ", ".join(_enemy_ids)
             except Exception:
                 pass
+        # Capture boss enemy HP for boss HP progress reward
+        _boss_max_hp = 0
+        _boss_current_hp = 0
+        if _combat_ref is not None:
+            try:
+                for e in _combat_ref.state.enemies:
+                    _boss_max_hp += getattr(e, "max_hp", 0)
+                    _boss_current_hp += max(getattr(e, "hp", 0), 0)
+            except Exception:
+                pass
         # Use runner.run_state directly (not captured `rs` which may be stale).
         # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
         _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
@@ -341,6 +365,8 @@ def _play_one_game(
             "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
             "solver_ms": round(combat_solver_ms),
             "solver_calls": combat_solver_calls,
+            "boss_max_hp": _boss_max_hp,
+            "boss_dmg_dealt": max(0, _boss_max_hp - _boss_current_hp),
         })
 
     while not runner.game_over and step < 5000:
@@ -669,12 +695,10 @@ def _play_one_game(
                     # Boss HP progress reward: continuous signal for boss fights
                     if rt in ("boss", "b") and combats:
                         _last_combat = combats[-1]
-                        _boss_enemies = getattr(runner, "current_combat", None)
-                        if _boss_enemies is not None:
+                        _boss_max = _last_combat.get("boss_max_hp", 0)
+                        _boss_dmg = _last_combat.get("boss_dmg_dealt", 0)
+                        if _boss_max > 0:
                             from .reward_config import compute_boss_hp_progress
-                            _boss_max = sum(getattr(e, "max_hp", 0) for e in _boss_enemies.state.enemies)
-                            _boss_now = sum(max(getattr(e, "hp", 0), 0) for e in _boss_enemies.state.enemies)
-                            _boss_dmg = max(0, _boss_max - _boss_now)
                             event_reward += compute_boss_hp_progress(_boss_dmg, _boss_max)
 
                 # Card removal reward (deck thinning is critical for Watcher)

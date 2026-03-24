@@ -700,16 +700,41 @@ class OvernightRunner:
             temp = sweep_config.get("temperature", self.temperature)
             self.temperature = temp
 
-            trainer = StrategicTrainer(
-                model=model,
-                lr=lr,
-                entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
-                clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
-                batch_size=batch_size,
-                lr_schedule=sweep_config.get("lr_schedule", "cosine"),
-                lr_T_max=sweep_config.get("lr_T_max", 30000),
-                lr_T_0=sweep_config.get("lr_T_0", 5000),
-            )
+            algorithm = sweep_config.get("algorithm", "ppo")
+
+            if algorithm == "iql":
+                from .iql_trainer import IQLTrainer
+                trainer = IQLTrainer(
+                    model=model,
+                    input_dim=model.input_dim,
+                    action_dim=model.action_dim,
+                    lr=sweep_config.get("lr", 3e-4),
+                    expectile=sweep_config.get("iql_expectile", 0.7),
+                    temperature=sweep_config.get("iql_temperature", 3.0),
+                )
+            elif algorithm == "grpo":
+                logger.info("GRPO: using PPO trainer with GRPO hyperparams (full GRPO rollout collection is TODO)")
+                trainer = StrategicTrainer(
+                    model=model,
+                    lr=lr,
+                    entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
+                    clip_epsilon=sweep_config.get("grpo_clip", 0.2),
+                    batch_size=batch_size,
+                    lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                    lr_T_max=sweep_config.get("lr_T_max", 30000),
+                    lr_T_0=sweep_config.get("lr_T_0", 5000),
+                )
+            else:  # "ppo" (default)
+                trainer = StrategicTrainer(
+                    model=model,
+                    lr=lr,
+                    entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
+                    clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
+                    batch_size=batch_size,
+                    lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                    lr_T_max=sweep_config.get("lr_T_max", 30000),
+                    lr_T_0=sweep_config.get("lr_T_0", 5000),
+                )
 
             # Store trainer ref for signal handler access (hot-reload)
             self._trainer = trainer
@@ -730,17 +755,22 @@ class OvernightRunner:
 
             # Only distill on cold start (no checkpoint). Warm restarts already have
             # trained weights — re-distilling on the same data wastes time.
-            if not self._distilled_this_run and _warm_checkpoint is None and trainer.train_steps == 0:
-                # BC pretrain on best trajectories
-                traj_dir = self.run_dir / "best_trajectories"
-                if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
-                    logger.info("=== BC Pretrain ===")
-                    bc_metrics = trainer.bc_pretrain(traj_dir, epochs=10)
-                    logger.info("BC complete: %s", bc_metrics)
-                    if self._server is not None:
-                        self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
-                self._pretrain_from_trajectories(trainer, model)
-                self._deep_distillation(trainer, model, replay_buffer)
+            # bc_warmup: True in config forces BC even if distillation already ran.
+            _force_bc = sweep_config.get("bc_warmup", False)
+            if (not self._distilled_this_run or _force_bc) and _warm_checkpoint is None and trainer.train_steps == 0:
+                # BC pretrain on best trajectories (only if trainer supports it)
+                if hasattr(trainer, 'bc_pretrain'):
+                    traj_dir = self.run_dir / "best_trajectories"
+                    if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
+                        logger.info("=== BC Pretrain ===")
+                        bc_metrics = trainer.bc_pretrain(traj_dir, epochs=10)
+                        logger.info("BC complete: %s", bc_metrics)
+                        if self._server is not None:
+                            self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
+                # Trajectory pretrain + deep distillation require PPO-style .buffer interface
+                if hasattr(trainer, 'buffer'):
+                    self._pretrain_from_trajectories(trainer, model)
+                    self._deep_distillation(trainer, model, replay_buffer)
                 self._distilled_this_run = True
             else:
                 logger.info("Warm restart (train_steps=%d) — skipping distillation", trainer.train_steps)
@@ -793,11 +823,39 @@ class OvernightRunner:
             )
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
-            # Constants sourced from training_config.py
-            COLLECT_GAMES = TRAIN_COLLECT_GAMES
-            TRAIN_EPOCHS = TRAIN_PPO_EPOCHS
-            _TRAIN_STEPS = TRAIN_STEPS_PER_PHASE
+            # Per-config overrides take precedence over training_config.py defaults.
+            COLLECT_GAMES = sweep_config.get("collect_games", TRAIN_COLLECT_GAMES)
+            TRAIN_EPOCHS = sweep_config.get("ppo_epochs", TRAIN_PPO_EPOCHS)
+            _TRAIN_STEPS = sweep_config.get("train_steps", TRAIN_STEPS_PER_PHASE)
             games_per_min = 0.0
+
+            # IQL: offline-only training (no game collection)
+            if algorithm == "iql":
+                from .offline_data import load_trajectories
+                traj_dirs = [
+                    self.run_dir / "best_trajectories",
+                    Path("logs/consolidated"),
+                ]
+                dataset = load_trajectories(
+                    [d for d in traj_dirs if d.exists()],
+                    max_transitions=48000,
+                )
+                if len(dataset) > 0:
+                    logger.info("IQL: training on %d offline transitions", len(dataset))
+                    iql_metrics = trainer.train_offline(dataset, epochs=50)
+                    logger.info("IQL complete: %s", iql_metrics)
+                    if self._server is not None:
+                        self._server.sync_strategic_from_pytorch(model, version=1)
+                else:
+                    logger.warning("IQL: no offline data found, skipping")
+                # Skip the collect/train loop entirely
+                sweep_elapsed = time.monotonic() - sweep_start
+                return {
+                    "config": sweep_config, "games": 0,
+                    "avg_floor": 0, "win_rate": 0,
+                    "duration_min": round(sweep_elapsed / 60, 1),
+                    "train_steps": getattr(trainer, "train_steps", 0),
+                }
 
             while (sweep_games < n_games
                    and self.total_games < self.max_games

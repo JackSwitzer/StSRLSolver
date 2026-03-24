@@ -805,12 +805,12 @@ class TestWorkerConfigWiring:
 
     def test_worker_imports_adaptive_budget_configs(self):
         from packages.training.worker import (
-            MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS, MCTS_SKIP_FORCED,
+            MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS, MCTS_ADAPTIVE_CAP,
         )
         assert MCTS_FLOOR_MULTIPLIERS[0] == 10.0  # Neow: 1 min deep planning
         assert MCTS_FLOOR_MULTIPLIERS[16] == 5.0   # Boss floor
         assert MCTS_PHASE_MULTIPLIERS["card_pick"] == 2.0
-        assert MCTS_SKIP_FORCED is True
+        assert MCTS_ADAPTIVE_CAP == 5000
 
 
 class TestAdaptiveSearchBudget:

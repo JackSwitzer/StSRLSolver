@@ -110,9 +110,11 @@ class TurnSolver:
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
+        neural_eval=None,  # Optional: (engine) -> float, for neural leaf blending
     ):
         self.default_time_budget_ms = time_budget_ms
         self.default_node_budget = node_budget
+        self._neural_eval = neural_eval
 
         # Tree reuse state
         self._cached_plan: Optional[List[Action]] = None
@@ -347,6 +349,16 @@ class TurnSolver:
                     score += W["unspent_energy_weight"] * unspent + W["unspent_playable_weight"] * playable
                 else:
                     score += W["unspent_idle_weight"] * unspent
+
+        # Neural leaf evaluation: blend with heuristic for robustness
+        if self._neural_eval is not None:
+            try:
+                neural_score = self._neural_eval(engine)
+                # Blend: 70% neural, 30% heuristic
+                # Scale neural output (0-1 probability) to heuristic score range
+                score = 0.7 * neural_score * 100.0 + 0.3 * score
+            except Exception:
+                pass  # Fall back to pure heuristic
 
         return score
 
@@ -1093,14 +1105,30 @@ class TurnSolverAdapter:
         multi_turn_k: int = 4,
         multi_turn_budget_ms: float = 30000.0,
         solver_budgets: dict = None,  # {room_type: (base_ms, base_nodes, cap_ms)}
+        combat_net=None,  # Optional CombatNet for neural leaf evaluation
     ):
+        # Build neural eval closure if CombatNet provided
+        self._combat_net = combat_net
+        self._combat_encoder = None
+        neural_eval = None
+        if combat_net is not None:
+            from packages.training.state_encoders import CombatStateEncoder
+            self._combat_encoder = CombatStateEncoder()
+            _cn = combat_net
+            _ce = self._combat_encoder
+
+            def neural_eval(engine):
+                obs = _ce.encode(engine)
+                return _cn.predict(obs)
+
         self._solver = TurnSolver(
             time_budget_ms=time_budget_ms,
             node_budget=node_budget,
+            neural_eval=neural_eval,
         )
         # Multi-turn solver for boss/elite fights
         self._multi_turn = MultiTurnSolver(
-            inner_solver=TurnSolver(time_budget_ms=500, node_budget=50000),
+            inner_solver=TurnSolver(time_budget_ms=500, node_budget=50000, neural_eval=neural_eval),
             max_depth=multi_turn_depth,
             top_k=multi_turn_k,
             time_budget_ms=multi_turn_budget_ms,
