@@ -133,6 +133,13 @@ REWARD_WEIGHTS: Dict[str, Any] = {
     "unspent_energy_reward": -0.15,  # Per energy left with playable cards
     "unspent_playable_reward": -0.10,  # Per playable card left unplayed
 
+    # Cards-played-per-turn reward shaping
+    # Penalize low card counts, reward long sequences (infinite combos!)
+    # 0 cards = -0.30, 1 card = -0.15, 2 cards = -0.05, 3+ = 0, 5+ = bonus
+    "cards_per_turn_penalties": {0: -0.30, 1: -0.15, 2: -0.05},
+    "cards_per_turn_bonus_threshold": 5,   # Cards above this get bonus
+    "cards_per_turn_bonus_per_card": 0.05, # Per card above threshold
+
     # Terminal rewards
     "win_reward": 10.0,
     "death_penalty_scale": -0.3,  # Multiplied by (1 - progress)

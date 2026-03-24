@@ -480,6 +480,17 @@ def _play_one_game(
                                 + _playable * REWARD_WEIGHTS.get("unspent_playable_reward", -0.10)
                             )
                     turns_log.append(_turn_info)
+                    # Cards-per-turn reward: penalize low count, reward long sequences
+                    _n_cards_played = len(turn_cards)
+                    _cpt_penalties = REWARD_WEIGHTS.get("cards_per_turn_penalties", {})
+                    if _n_cards_played in _cpt_penalties:
+                        combat_energy_wasted += _cpt_penalties[_n_cards_played]
+                    _bonus_thresh = REWARD_WEIGHTS.get("cards_per_turn_bonus_threshold", 5)
+                    if _n_cards_played > _bonus_thresh:
+                        combat_energy_wasted -= (  # negative of negative = positive reward
+                            (_n_cards_played - _bonus_thresh)
+                            * REWARD_WEIGHTS.get("cards_per_turn_bonus_per_card", 0.05)
+                        )
                     turn_cards.clear()
             runner.take_action(action)
             # Detect stance changes after action
