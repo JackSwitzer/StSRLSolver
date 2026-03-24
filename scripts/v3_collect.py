@@ -148,8 +148,8 @@ def main():
     start_time = time.monotonic()
     batch_size = 16  # Games per batch
 
-    SAVE_FLOOR_THRESHOLD = 8  # Save all trajectories from floor 8+ games
-    BEST_FLOOR_THRESHOLD = 12  # Save to best_trajectories from floor 12+
+    SAVE_FLOOR_THRESHOLD = 4  # Save trajectories from floor 4+ (more data)
+    BEST_FLOOR_THRESHOLD = 10  # Save to best_trajectories from floor 10+
 
     logger.info("=" * 60)
     logger.info("DATA COLLECTION: %d workers, saving floor %d+ trajectories", N_WORKERS, SAVE_FLOOR_THRESHOLD)
@@ -282,11 +282,17 @@ def _save_trajectory(traj_dir: Path, seed: str, floor: int, transitions: list):
     )
 
 
+_combat_counter = 0
+
 def _save_combat_data(combat_dir: Path, seed: str, game_floor: int, combat: dict, game_won: bool):
     """Save per-combat summary for CombatNet training.
 
     Each file: one fight's stats + outcome (did we survive this fight?).
+    Uses global counter for unique filenames — never skips duplicates.
     """
+    global _combat_counter
+    _combat_counter += 1
+
     floor = combat.get("floor", 0)
     room_type = combat.get("room_type", "monster")
     hp_lost = combat.get("hp_lost", 0)
@@ -296,46 +302,19 @@ def _save_combat_data(combat_dir: Path, seed: str, game_floor: int, combat: dict
     # Outcome: survived if game continued past this floor
     survived = game_floor > floor
 
-    fname = f"combat_{seed}_f{floor:02d}_{room_type}.json"
-    path = combat_dir / fname
-    if path.exists():
-        return
-
-    data = {
-        "seed": seed,
-        "floor": floor,
-        "room_type": room_type,
-        "encounter": combat.get("encounter_name", ""),
-        "hp_lost": hp_lost,
-        "cards_played": combat.get("cards_played", 0),
-        "turns": combat.get("turns", 0),
-        "potions_used": combat.get("potions_used", 0),
-        "solver_ms": combat.get("solver_ms", 0),
-        "boss_max_hp": boss_max_hp,
-        "boss_dmg_dealt": boss_dmg,
-        "survived": survived,
-        "game_won": game_won,
-        "game_floor": game_floor,
-    }
-    try:
-        path.write_text(json.dumps(data))
-    except Exception:
-        pass
-
     # Save full 298-dim combat state vector as .npz for CombatNet training
     combat_state_vec = combat.get("combat_state_vector")
     if combat_state_vec is not None:
-        npz_name = f"combat_{seed}_f{floor:02d}_{room_type}.npz"
+        npz_name = f"combat_{_combat_counter:06d}.npz"
         npz_path = combat_dir / npz_name
-        if not npz_path.exists():
-            try:
-                np.savez_compressed(
-                    npz_path,
-                    combat_obs=combat_state_vec,
-                    won=np.array(survived, dtype=bool),
-                )
-            except Exception:
-                pass
+        try:
+            np.savez_compressed(
+                npz_path,
+                combat_obs=combat_state_vec,
+                won=np.array(survived, dtype=bool),
+            )
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
