@@ -321,8 +321,8 @@ def _save_combat_data(combat_dir: Path, seed: str, game_floor: int, combat: dict
                 combat_obs=combat_state_vec,
                 won=np.array(survived, dtype=bool),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to save combat data: %s", e)
 
 
 if __name__ == "__main__":

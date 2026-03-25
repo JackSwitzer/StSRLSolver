@@ -721,24 +721,14 @@ class OvernightRunner:
                     expectile=sweep_config.get("iql_expectile", 0.7),
                     temperature=sweep_config.get("iql_temperature", 3.0),
                 )
-            elif algorithm == "grpo":
-                logger.info("GRPO: using PPO trainer with GRPO hyperparams (full GRPO rollout collection is TODO)")
+            else:
+                # PPO and GRPO both use StrategicTrainer
+                clip_eps = sweep_config.get("clip_epsilon", sweep_config.get("grpo_clip", 0.2))
                 trainer = StrategicTrainer(
                     model=model,
                     lr=lr,
                     entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
-                    clip_epsilon=sweep_config.get("grpo_clip", 0.2),
-                    batch_size=batch_size,
-                    lr_schedule=sweep_config.get("lr_schedule", "cosine"),
-                    lr_T_max=sweep_config.get("lr_T_max", 30000),
-                    lr_T_0=sweep_config.get("lr_T_0", 5000),
-                )
-            else:  # "ppo" (default)
-                trainer = StrategicTrainer(
-                    model=model,
-                    lr=lr,
-                    entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
-                    clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
+                    clip_epsilon=clip_eps,
                     batch_size=batch_size,
                     lr_schedule=sweep_config.get("lr_schedule", "cosine"),
                     lr_T_max=sweep_config.get("lr_T_max", 30000),

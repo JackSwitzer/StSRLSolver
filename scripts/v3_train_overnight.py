@@ -68,7 +68,8 @@ def load_strategic_data(max_transitions=200_000):
             action_list.append(data["actions"])
             floor_list.append(data["final_floors"])
             loaded += len(obs)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
             continue
 
     if not obs_list:
@@ -93,7 +94,8 @@ def load_combat_data():
                 continue
             obs_list.append(obs)
             won_list.append(bool(data["won"]))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", cf.name if hasattr(cf, 'name') else cf, e)
             continue
     if not obs_list:
         return None

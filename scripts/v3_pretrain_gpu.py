@@ -71,6 +71,7 @@ def load_all_trajectories(max_transitions: int = 200_000) -> dict:
             floor_list.append(floors)
             loaded += n
         except Exception as e:
+            logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
             continue
 
     if not obs_list:
@@ -101,7 +102,8 @@ def load_all_combat_data() -> dict:
                 continue
             obs_list.append(obs)
             won_list.append(bool(data["won"]))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", cf.name if hasattr(cf, 'name') else cf, e)
             continue
 
     if not obs_list:

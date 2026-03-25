@@ -237,9 +237,6 @@ class StrategicTrainer:
         adv_t = torch.from_numpy(advantages).float()
         ret_t = torch.from_numpy(returns).float()
 
-        # Save unnormalized returns for GAE consistency, normalize only in loss
-        ret_raw = ret_t.clone()
-
         # Auxiliary targets
         floor_targets = torch.tensor([t.final_floor for t in self.buffer], dtype=torch.float32)
         act_targets = torch.tensor(
@@ -297,12 +294,8 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss with return normalization (inside loss only, not in-place)
-                b_ret_norm = b_ret
-                _rstd = b_ret.std()
-                if _rstd > 1e-8:
-                    b_ret_norm = (b_ret - b_ret.mean()) / (_rstd + 1e-8)
-                value_loss = F.mse_loss(values, b_ret_norm)
+                # Value loss: predict raw returns (GAE expects raw-scale values)
+                value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
                 probs = F.softmax(logits, dim=-1)

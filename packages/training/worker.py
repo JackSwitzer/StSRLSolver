@@ -213,12 +213,14 @@ def _play_one_game(
                      done, value, log_prob, final_floor, cleared_act1/2/3)
     """
     from packages.engine.game import GameRunner, GamePhase, CombatAction
-    from packages.training.state_encoders import RunStateEncoder
+    from packages.training.state_encoders import RunStateEncoder, CombatStateEncoder
     from packages.training.inference_server import get_client
     from packages.training.turn_solver import TurnSolverAdapter
     from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
+    from packages.training.reward_config import compute_boss_hp_progress
 
     encoder = RunStateEncoder()
+    _combat_encoder = CombatStateEncoder()
     # Scale node budget proportionally with time budget (100 nodes per ms)
     _node_budget = max(1000, int(turn_solver_ms * 100))
 
@@ -408,8 +410,7 @@ def _play_one_game(
                 _engine = getattr(runner, "current_combat", None)
                 if _engine is not None:
                     try:
-                        from packages.training.state_encoders import CombatStateEncoder
-                        combat_state_snapshot = CombatStateEncoder().encode(_engine)
+                        combat_state_snapshot = _combat_encoder.encode(_engine)
                     except (RuntimeError, ValueError, KeyError, AttributeError, IndexError):
                         pass
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
@@ -725,7 +726,6 @@ def _play_one_game(
                         _boss_max = _last_combat.get("boss_max_hp", 0)
                         _boss_dmg = _last_combat.get("boss_dmg_dealt", 0)
                         if _boss_max > 0:
-                            from .reward_config import compute_boss_hp_progress
                             event_reward += compute_boss_hp_progress(_boss_dmg, _boss_max)
 
                 # Card removal reward (deck thinning is critical for Watcher)
@@ -830,7 +830,6 @@ def _play_one_game(
                         boss_max = last_combat.get("boss_max_hp", 0)
                         boss_dmg = last_combat.get("boss_dmg_dealt", 0)
                         if boss_max > 0:
-                            from .reward_config import compute_boss_hp_progress
                             transitions[-1]["reward"] += compute_boss_hp_progress(boss_dmg, boss_max)
 
             transitions[-1]["done"] = True

@@ -93,7 +93,8 @@ def load_trajectories_from_dir(traj_dir: Path, max_transitions: int = 500_000):
             floor_list.append(data["final_floors"])
             loaded += len(obs)
             n_files += 1
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
             continue
 
     if not obs_list:
@@ -144,7 +145,8 @@ def load_all_trajectories(extra_dirs=None, max_transitions: int = 500_000):
             action_list.append(data["actions"])
             floor_list.append(data["final_floors"])
             loaded += len(obs)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
             continue
 
     if not obs_list:
@@ -654,8 +656,8 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
                             combat_dir / f"combat_{combat_counter:06d}.npz",
                             combat_obs=vec, won=np.array(survived, dtype=bool),
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("Failed to save combat data: %s", e)
 
         # Log progress
         elapsed = time.monotonic() - start_time

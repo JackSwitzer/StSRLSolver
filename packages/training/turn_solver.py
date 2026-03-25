@@ -357,8 +357,8 @@ class TurnSolver:
                 # Blend: 70% neural, 30% heuristic
                 # Scale neural output (0-1 probability) to heuristic score range
                 score = 0.7 * neural_score * 100.0 + 0.3 * score
-            except Exception:
-                pass  # Fall back to pure heuristic
+            except Exception as e:
+                logger.warning("Neural eval failed, falling back to heuristic: %s", e)
 
         return score
 

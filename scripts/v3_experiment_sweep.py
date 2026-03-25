@@ -71,7 +71,8 @@ def load_strategic_data(extra_dirs=None, max_transitions=200_000):
             action_list.append(data["actions"])
             floor_list.append(data["final_floors"])
             loaded += len(obs)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
             continue
     if not obs_list:
         return None
@@ -92,7 +93,8 @@ def load_combat_data():
                 continue
             obs_list.append(obs)
             won_list.append(bool(data["won"]))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", cf.name if hasattr(cf, 'name') else cf, e)
             continue
     if not obs_list:
         return None
@@ -208,8 +210,9 @@ def collect_games(model, n_games, device, label=""):
     combat_dir.mkdir(parents=True, exist_ok=True)
 
     floors, saved_t, saved_c = [], 0, 0
-    ars = [(sp.get_seed(), pool.apply_async(_play_one_game, (sp.get_seed(), 0, 0.8, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0)))
-           for _ in range(n_games)]
+    seeds = [sp.get_seed() for _ in range(n_games)]
+    ars = [(s, pool.apply_async(_play_one_game, (s, 0, 0.8, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0)))
+           for s in seeds]
 
     for seed, ar in ars:
         try:
@@ -362,7 +365,8 @@ def experiment_C(data, device, time_limit):
                     )
                     buf_t = trainer.buffer[-1]
                     buf_t.final_floor = float(d["final_floors"][i])
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, 'name') else tf, e)
                 continue
 
         # Train PPO
