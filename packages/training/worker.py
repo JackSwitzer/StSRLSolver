@@ -555,6 +555,11 @@ def _play_one_game(
 
             n_actions = len(actions)
 
+            # Guard against action space overflow
+            if n_actions > _ACTION_DIM:
+                logger.warning("Action overflow: %d > %d, truncating", n_actions, _ACTION_DIM)
+                n_actions = _ACTION_DIM
+
             # Map GamePhase to phase_type for state encoding
             _PHASE_MAP = {
                 GamePhase.MAP_NAVIGATION: "path",
@@ -591,24 +596,24 @@ def _play_one_game(
                     logits_np = resp["logits"]  # numpy array, length action_dim
                     value = float(resp["value"])
 
+                    # Mask logits to valid actions only (prevents sampling invalid indices)
+                    logits_valid = logits_np[:n_actions]
+
                     # Temperature-scaled sampling
                     if temperature > 0:
-                        logits_scaled = logits_np / temperature
+                        logits_scaled = logits_valid / temperature
                         logits_scaled = logits_scaled - logits_scaled.max()
                         probs = np.exp(logits_scaled)
                         probs /= probs.sum()
-                        action_idx = int(np.random.choice(len(probs), p=probs))
+                        action_idx = int(np.random.choice(n_actions, p=probs))
                     else:
-                        action_idx = int(np.argmax(logits_np))
+                        action_idx = int(np.argmax(logits_valid))
 
                     # log_prob from UNSCALED policy (matches trainer's forward pass).
-                    logits_base = logits_np - logits_np.max()
+                    logits_base = logits_valid - logits_valid.max()
                     probs_base = np.exp(logits_base)
                     probs_base /= probs_base.sum()
                     log_prob = float(np.log(probs_base[action_idx] + 1e-8))
-
-                    # Clamp to valid range
-                    action_idx = min(action_idx, n_actions - 1)
 
                     # MCTS strategic search: full tree search override
                     # Skip search for forced decisions (only 1 action)
