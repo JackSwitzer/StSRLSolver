@@ -415,39 +415,58 @@ case "${1:-status}" in
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
     prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;
+    pretrain)
+        shift
+        case "${1:---all}" in
+            --bc)      shift; uv run python scripts/pretrain_bc.py "$@" ;;
+            --combat)  shift; uv run python scripts/pretrain_combat.py "$@" ;;
+            --eval)    shift; uv run python scripts/pretrain_eval.py "$@" ;;
+            --all|"")
+                echo "Running full pretrain pipeline: BC → CombatNet → Eval"
+                uv run python scripts/pretrain_bc.py "$@" && \
+                uv run python scripts/pretrain_combat.py && \
+                uv run python scripts/pretrain_eval.py
+                ;;
+            *) echo "Usage: $0 pretrain [--bc|--combat|--eval|--all] [options]"; exit 1 ;;
+        esac
+        ;;
+    experiment)
+        shift
+        config_name="${1:?Usage: $0 experiment <config-name>}"
+        shift
+        echo "Running experiment: $config_name"
+        uv run python -m packages.training.training_runner \
+            --sweep-config "$config_name" "$@"
+        ;;
+    push-metrics)
+        shift; uv run python scripts/push_metrics.py "$@" ;;
     *)
-        echo "Usage: $0 {start|stop|status|resume|weekend|restart|update|hotfix|prune} [options]"
+        echo "Usage: $0 {start|stop|status|resume|weekend|pretrain|experiment|push-metrics|...}"
         echo ""
-        echo "Commands:"
-        echo "  start      Start training (default 10K games, creates logs/runs/run_TIMESTAMP/)"
-        echo "  stop       Graceful shutdown (SIGTERM -> 30s -> SIGKILL)"
-        echo "  status     Read logs/active/status.json + tail log"
-        echo "  resume     Resume from checkpoint in logs/active/ or logs/runs/*/"
-        echo "  weekend    Long-running headless mode (default 500K games)"
-        echo "  restart    Quick restart: stop, save checkpoint, resume with code changes"
-        echo "  archive    Archive current active run (optional label arg), remove symlink"
-        echo "  fresh      Archive + start fresh (cold start with distillation from trajectories)"
-        echo "  update     Pull latest code + restart (git pull -> restart)"
-        echo "  hotfix     Live parameter tuning via SIGUSR1 + reload.json"
-        echo "  prune      Prune episodes.jsonl + consolidate top runs (safe while running)"
+        echo "Training:"
+        echo "  start      Start training (default 10K games)"
+        echo "  stop       Graceful shutdown"
+        echo "  status     Show training metrics"
+        echo "  resume     Resume from checkpoint"
+        echo "  weekend    Long-running headless mode"
+        echo "  restart    Quick restart with code changes"
         echo ""
-        echo "Run directory convention:"
-        echo "  logs/runs/run_TIMESTAMP[_label]/  -- each run gets a timestamped directory"
-        echo "  logs/active                       -- symlink to current run (single source of truth)"
+        echo "Pretrain:"
+        echo "  pretrain           Run full pipeline (BC → CombatNet → Eval)"
+        echo "  pretrain --bc      Behavioral cloning only"
+        echo "  pretrain --combat  CombatNet training only"
+        echo "  pretrain --eval    Evaluate checkpoint only"
         echo ""
-        echo "Options for start/weekend:"
-        echo "  --games N      Total games to play"
-        echo "  --workers N    Parallel workers (default: 8, weekend: 12)"
-        echo "  --batch N      Batch size for PPO (default: 256)"
-        echo "  --asc N        Ascension level (default: 0)"
-        echo "  --headless     No dashboard output (start only)"
+        echo "Experiments:"
+        echo "  experiment <name>  Run named experiment from sweep_config"
+        echo "  push-metrics       Push metrics to GitHub Gist"
         echo ""
-        echo "Options for prune:"
-        echo "  --dry-run          Preview without modifying files"
-        echo "  --keep N           Keep last N episodes (default: 10000)"
-        echo "  --top N            Top N episodes in top_episodes.json (default: 500)"
-        echo "  --skip-compress    Skip episode archiving"
-        echo "  --skip-top         Skip top episode consolidation"
+        echo "Management:"
+        echo "  archive    Archive current run"
+        echo "  fresh      Archive + cold start"
+        echo "  update     Pull latest + restart"
+        echo "  hotfix     Live parameter tuning"
+        echo "  prune      Prune old data"
         exit 1
         ;;
 esac
