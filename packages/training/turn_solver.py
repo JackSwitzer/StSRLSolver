@@ -1270,20 +1270,22 @@ class TurnSolverAdapter:
             combat_action = self._match_engine_to_combat(engine_action, actions, state)
             if combat_action is not None:
                 self._cached_plan_index = 1
-                self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
-                return combat_action
+                override = self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
+                return override if override is not None else combat_action
 
         return None  # Fall through to first legal action
 
     def _warn_end_turn_with_playable(self, combat_action, actions, engine, room_type):
-        """Log a warning if the solver chose EndTurn while playable cards exist with energy."""
+        """Override EndTurn if playable cards exist with energy — play first legal card."""
         if getattr(combat_action, "action_type", None) == "end_turn" and engine.state.energy > 0:
             playable = [a for a in actions if getattr(a, "action_type", None) == "play_card"]
             if playable:
                 logger.warning(
-                    "TurnSolver chose EndTurn with %d playable cards (energy=%d, room=%s)",
+                    "TurnSolver overriding EndTurn -> play_card (%d playable, energy=%d, room=%s)",
                     len(playable), engine.state.energy, room_type,
                 )
+                return playable[0]
+        return None
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.
