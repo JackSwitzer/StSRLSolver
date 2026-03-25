@@ -57,6 +57,19 @@ from .worker import _ACTION_DIM, _play_one_game, _worker_init
 
 logger = logging.getLogger(__name__)
 
+_COLLECT_POLL_INTERVAL_S = 0.1
+_COLLECT_RESULT_TIMEOUT_S = 3600.0
+
+
+def _within_run_caps(
+    sweep_games: int,
+    n_games: int,
+    total_games: int,
+    max_games: int,
+) -> bool:
+    """Return whether collection should continue under sweep/global limits."""
+    return sweep_games < n_games and total_games < max_games
+
 
 # ---------------------------------------------------------------------------
 # OvernightRunner — orchestrates training loop + multiprocessing
@@ -97,7 +110,10 @@ class OvernightRunner:
         self.max_batch_size = config.get("max_batch_size", TRAIN_MAX_BATCH_INFERENCE)
         self.max_hours_per_config = config.get("max_hours_per_config", None)  # None = auto
 
-        self.run_dir.mkdir(parents=True, exist_ok=True)
+        if self.run_dir.is_symlink() or self.run_dir.is_dir():
+            pass  # Already exists (symlink or real dir)
+        else:
+            self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
         self._start_datetime = datetime.now()
         self._current_sweep_idx = 0
@@ -139,6 +155,10 @@ class OvernightRunner:
 
         # Track whether distillation has run this session (prevents re-distilling on config switch)
         self._distilled_this_run = False
+        self._phase_name: Optional[str] = None
+        self._collect_games_target = 0
+        self._collect_games_completed = 0
+        self._sweep_games_completed = 0
 
     def should_be_headless(self) -> bool:
         """Check if we should be in headless mode based on schedule."""
@@ -263,19 +283,46 @@ class OvernightRunner:
             "card_picks": result.get("card_picks", []),
         }
         self._recent_episodes.append(ep)
-        # Write every 10 games to avoid I/O spam
-        if self.total_games % 10 == 0:
-            try:
-                ep_path = self.run_dir / "recent_episodes.json"
-                ep_path.write_text(json.dumps(list(self._recent_episodes), default=str))
-            except Exception:
-                pass
-            # Auto-write floor_curve.json for dashboard
-            try:
-                curve_path = self.run_dir / "floor_curve.json"
-                curve_path.write_text(json.dumps(list(self.recent_floors)))
-            except Exception:
-                pass
+        self._write_live_episode_artifacts()
+        if self._phase_name == "collecting":
+            self.write_status(self._live_status_stats())
+
+    def _write_live_episode_artifacts(self) -> None:
+        """Refresh dashboard-facing episode artifacts after each completed game."""
+        try:
+            ep_path = self.run_dir / "recent_episodes.json"
+            ep_path.write_text(json.dumps(list(self._recent_episodes), default=str))
+        except Exception:
+            pass
+        try:
+            curve_path = self.run_dir / "floor_curve.json"
+            curve_path.write_text(json.dumps(list(self.recent_floors)))
+        except Exception:
+            pass
+
+    def _live_status_stats(self) -> Dict[str, Any]:
+        """Build a lightweight status payload from current runner state."""
+        trainer = getattr(self, "_trainer", None)
+        cfg = self._current_sweep_config or {}
+        stats: Dict[str, Any] = {
+            "sweep_config": cfg,
+            "config_name": cfg.get("name", ""),
+            "sweep_games": self._sweep_games_completed,
+        }
+        if self._phase_name is not None:
+            stats["sweep_phase"] = self._phase_name
+        if trainer is not None:
+            stats["train_steps"] = getattr(trainer, "train_steps", 0)
+            if hasattr(trainer, "buffer"):
+                stats["buffer_size"] = len(trainer.buffer)
+        if self._phase_name == "collecting" and self._collect_games_target > 0:
+            stats["collect_progress"] = (
+                f"{self._collect_games_completed}/{self._collect_games_target}"
+            )
+        for key in ("total_loss", "policy_loss", "value_loss", "entropy"):
+            if key in self._last_train_metrics:
+                stats[key] = self._last_train_metrics[key]
+        return stats
 
     def _log_episode(self, result: Dict[str, Any]) -> None:
         """Append one episode to episodes.jsonl."""
@@ -736,6 +783,7 @@ class OvernightRunner:
                     lr_schedule=sweep_config.get("lr_schedule", "cosine"),
                     lr_T_max=sweep_config.get("lr_T_max", 30000),
                     lr_T_0=sweep_config.get("lr_T_0", 5000),
+                    checkpoint_dir=str(self.run_dir / "strategic_checkpoints"),
                 )
                 grpo_trainer = GRPOTrainer(
                     model=model,
@@ -756,6 +804,7 @@ class OvernightRunner:
                     lr_schedule=sweep_config.get("lr_schedule", "cosine"),
                     lr_T_max=sweep_config.get("lr_T_max", 30000),
                     lr_T_0=sweep_config.get("lr_T_0", 5000),
+                    checkpoint_dir=str(self.run_dir / "strategic_checkpoints"),
                 )
 
             # Store trainer ref for signal handler access (hot-reload)
@@ -810,6 +859,8 @@ class OvernightRunner:
                         self._server.response_qs,
                         self._server.slot_q,
                         shm_info,
+                        self._server.slot_registry,
+                        self._server.slot_registry_lock,
                     ),
                 )
                 _mode = "shared_memory" if shm_info else "queue"
@@ -880,50 +931,46 @@ class OvernightRunner:
                     "train_steps": getattr(trainer, "train_steps", 0),
                 }
 
-            while (sweep_games < n_games
-                   and self.total_games < self.max_games
+            while (_within_run_caps(sweep_games, n_games, self.total_games, self.max_games)
                    and not self._shutdown_requested
                    and (time.monotonic() - config_start_time) < max_seconds):
                 # -- COLLECT PHASE --
                 collect_t0 = time.monotonic()
                 collect_games = 0
                 phase_results: List[Dict[str, Any]] = []
+                self._phase_name = "collecting"
+                self._collect_games_target = COLLECT_GAMES
+                self._collect_games_completed = collect_games
+                self._sweep_games_completed = sweep_games
 
                 logger.info("=== COLLECT phase: gathering %d games ===", COLLECT_GAMES)
-                self.write_status({
-                    "sweep_config": sweep_config, "sweep_phase": "collecting",
-                    "config_name": config_name, "sweep_games": sweep_games,
-                    "train_steps": trainer.train_steps,
-                    "buffer_size": len(trainer.buffer),
-                    "games_per_min": round(games_per_min, 1),
-                    "total_loss": self._last_train_metrics.get("total_loss"),
-                    "policy_loss": self._last_train_metrics.get("policy_loss"),
-                    "value_loss": self._last_train_metrics.get("value_loss"),
-                    "entropy": self._last_train_metrics.get("entropy"),
-                })
+                collect_status = self._live_status_stats()
+                collect_status["games_per_min"] = round(games_per_min, 1)
+                self.write_status(collect_status)
 
-                while collect_games < COLLECT_GAMES and not self._shutdown_requested:
+                while (collect_games < COLLECT_GAMES
+                       and _within_run_caps(sweep_games, n_games, self.total_games, self.max_games)
+                       and not self._shutdown_requested):
                     remaining = COLLECT_GAMES - collect_games
                     seeds, async_results = self._submit_batch(seed_pool, max_games=remaining)
                     batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
                     for result in batch_results:
+                        if not _within_run_caps(sweep_games, n_games, self.total_games, self.max_games):
+                            break
+                        sweep_games += 1
+                        sweep_floors.append(result["floor"])
+                        collect_games += 1
+                        self._sweep_games_completed = sweep_games
+                        self._collect_games_completed = collect_games
                         self._record_game(result)
                         self._log_episode(result)
                         self._save_best_trajectory(result)
                         phase_results.append(result)
-                        sweep_games += 1
-                        sweep_floors.append(result["floor"])
-                        collect_games += 1
 
                     # Write status after each batch for live monitoring
-                    self.write_status({
-                        "sweep_config": sweep_config, "sweep_phase": "collecting",
-                        "config_name": config_name, "sweep_games": sweep_games,
-                        "train_steps": trainer.train_steps,
-                        "buffer_size": len(trainer.buffer),
-                        "games_per_min": round(games_per_min, 1) if games_per_min else 0,
-                        "collect_progress": f"{collect_games}/{COLLECT_GAMES}",
-                    })
+                    collect_status = self._live_status_stats()
+                    collect_status["games_per_min"] = round(games_per_min, 1) if games_per_min else 0
+                    self.write_status(collect_status)
 
                 collect_duration = time.monotonic() - collect_t0
                 games_per_min = collect_games / max(collect_duration / 60.0, 0.01)
@@ -940,6 +987,10 @@ class OvernightRunner:
                 train_t0 = time.monotonic()
                 train_steps_before = trainer.train_steps
                 train_count = 0
+                self._phase_name = "training"
+                self._collect_games_target = 0
+                self._collect_games_completed = 0
+                self._sweep_games_completed = sweep_games
 
                 # Mix in top trajectory files — always remember the best runs
                 from packages.training.strategic_trainer import StrategicTransition
@@ -991,17 +1042,9 @@ class OvernightRunner:
 
                 logger.info("=== TRAIN phase: %d steps, %d epochs, buffer %d ===",
                             _TRAIN_STEPS, TRAIN_EPOCHS, len(trainer.buffer))
-                self.write_status({
-                    "sweep_config": sweep_config, "sweep_phase": "training",
-                    "config_name": config_name, "sweep_games": sweep_games,
-                    "train_steps": trainer.train_steps,
-                    "buffer_size": len(trainer.buffer),
-                    "games_per_min": round(games_per_min, 1),
-                    "total_loss": self._last_train_metrics.get("total_loss"),
-                    "policy_loss": self._last_train_metrics.get("policy_loss"),
-                    "value_loss": self._last_train_metrics.get("value_loss"),
-                    "entropy": self._last_train_metrics.get("entropy"),
-                })
+                training_status = self._live_status_stats()
+                training_status["games_per_min"] = round(games_per_min, 1)
+                self.write_status(training_status)
 
                 _abort = False
                 if algorithm == "grpo":
@@ -1099,23 +1142,18 @@ class OvernightRunner:
                     model.save(self.run_dir / "periodic_checkpoint.pt", extra=_ckpt_extra)
                     model.save(self.run_dir / "shutdown_checkpoint.pt", extra=_ckpt_extra)
 
-                self.write_status({
-                    "sweep_config": sweep_config, "sweep_phase": "adaptive",
-                    "config_name": config_name, "sweep_games": sweep_games,
-                    "train_steps": trainer.train_steps,
-                    "buffer_size": len(trainer.buffer),
+                self._phase_name = "adaptive"
+                adaptive_status = self._live_status_stats()
+                adaptive_status.update({
                     "replay_buffer": replay_buffer.size,
                     "replay_best_floor": replay_buffer.best_floor,
                     "games_per_min": round(games_per_min, 1),
                     "entropy_coeff": getattr(trainer, "entropy_coeff", None),
-                    "total_loss": self._last_train_metrics.get("total_loss"),
-                    "policy_loss": self._last_train_metrics.get("policy_loss"),
-                    "value_loss": self._last_train_metrics.get("value_loss"),
-                    "entropy": self._last_train_metrics.get("entropy"),
                     "floor_pred_loss": self._last_train_metrics.get("floor_pred_loss"),
                     "act_pred_loss": self._last_train_metrics.get("act_pred_loss"),
                     "clip_fraction": self._last_train_metrics.get("clip_fraction"),
                 })
+                self.write_status(adaptive_status)
 
                 # GC between phases
                 gc.collect()
@@ -1344,21 +1382,14 @@ class OvernightRunner:
         seed_pool,
         trainer,
     ) -> List[Dict[str, Any]]:
-        """Collect results from a previously submitted batch. Blocks until done."""
+        """Collect results from a previously submitted batch using short polling."""
         results: List[Dict[str, Any]] = []
-        for ar, seed in zip(async_results, seeds):
-            if self._shutdown_requested:
-                break
-            try:
-                # MCTS deep search: boss fights can take 10+ min, full game up to 1h
-                result = ar.get(timeout=3600)
-            except Exception as e:
-                logger.warning("Game %s failed (%s): %s", seed, type(e).__name__, e)
-                result = {
-                    "seed": seed, "won": False, "floor": 0, "hp": 0,
-                    "decisions": 0, "duration_s": 0.0, "transitions": [],
-                }
+        pending = [
+            {"seed": seed, "async_result": ar, "submitted_at": time.monotonic()}
+            for seed, ar in zip(seeds, async_results)
+        ]
 
+        def _handle_result(seed: str, result: Dict[str, Any]) -> None:
             self._episode_counter += 1
             ep_id = self._episode_counter
             for t in result.get("transitions", []):
@@ -1387,8 +1418,49 @@ class OvernightRunner:
                     result["floor"], result["transitions"], result["won"]
                 )
 
+        while pending and not self._shutdown_requested:
+            progressed = False
+            now = time.monotonic()
+            next_pending: List[Dict[str, Any]] = []
+            for item in pending:
+                seed = item["seed"]
+                ar = item["async_result"]
+                if ar.ready():
+                    progressed = True
+                    try:
+                        result = ar.get(timeout=0)
+                    except Exception as e:
+                        logger.warning("Game %s failed (%s): %s", seed, type(e).__name__, e)
+                        result = {
+                            "seed": seed, "won": False, "floor": 0, "hp": 0,
+                            "decisions": 0, "duration_s": 0.0, "transitions": [],
+                        }
+                    _handle_result(seed, result)
+                elif now - item["submitted_at"] >= _COLLECT_RESULT_TIMEOUT_S:
+                    progressed = True
+                    logger.warning(
+                        "Game %s timed out after %.1fs — recording failure and continuing",
+                        seed, _COLLECT_RESULT_TIMEOUT_S,
+                    )
+                    _handle_result(seed, {
+                        "seed": seed, "won": False, "floor": 0, "hp": 0,
+                        "decisions": 0, "duration_s": _COLLECT_RESULT_TIMEOUT_S,
+                        "transitions": [],
+                    })
+                else:
+                    next_pending.append(item)
+            pending = next_pending
+            if pending and not progressed:
+                time.sleep(_COLLECT_POLL_INTERVAL_S)
+
+        if pending and self._shutdown_requested:
+            logger.info(
+                "Collect batch interrupted by shutdown; abandoning %d in-flight games",
+                len(pending),
+            )
+
         # Mix in replay transitions (25% of batch size)
-        if hasattr(self, "_replay_buffer") and self._replay_buffer.size > 0:
+        if results and hasattr(self, "_replay_buffer") and self._replay_buffer.size > 0:
             n_replay = max(1, int(len(results) * REPLAY_MIX_RATIO))
             replay_transitions = self._replay_buffer.sample_transitions(n_replay * 8)
             if replay_transitions:

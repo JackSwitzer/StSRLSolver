@@ -14,17 +14,18 @@ tags: [engine, parity, events]
 
 # Ultra-Granular Work Units: Events
 
-## Current parity slice (authoritative for next commit)
+## Notes
+- This is a legacy checklist from earlier audits and is not a live completion counter.
+- For active priority and completion state, use `TODO.md`.
+- Archived audit docs on `archive/pre-cleanup-2026-03` branch may contain the old broader-gap framing.
+
+## Already-captured slice
 - [x] `EVT-001` Event card-required choices emit explicit `select_cards` follow-up actions through `take_action_dict`.
 - [x] `EVT-001` Selection preview path is side-effect-free on live run/event state.
 - [x] `EVT-002` Selected card indices are passed to `EventHandler.execute_choice(..., card_idx=...)`.
 - [x] `EVT-002` Add action-surface tests proving non-default selected indices apply correctly.
 - [x] `EVT-003` Add deterministic multi-phase runner action-surface tests (phase continuity + follow-up action IDs).
 - [x] `EVT-004` Harden event alias normalization for Java class-name variants and lock with tests.
-
-## Notes
-- This file contains legacy checklist items from earlier audits.
-- For active priority and completion state, use `TODO.md`. Archived audit docs on `archive/pre-cleanup-2026-03` branch.
 
 ## Model-facing actions (no UI)
 - [ ] Expose event choices as explicit `event_choice` actions with required params. (action: event_choice{choice_index})

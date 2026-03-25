@@ -882,6 +882,11 @@ class MultiTurnSolver:
         self.top_k = top_k
         self.time_budget_ms = time_budget_ms
 
+    def set_inner_solver_budgets(self, time_budget_ms: float, node_budget: int) -> None:
+        """Update the inner solver defaults used for multi-turn candidate generation."""
+        self._solver.default_time_budget_ms = time_budget_ms
+        self._solver.default_node_budget = node_budget
+
     def solve(self, engine: CombatEngine) -> Optional[List[Action]]:
         """Find the best turn plan considering multi-turn outcomes.
 
@@ -921,12 +926,24 @@ class MultiTurnSolver:
         candidates: List[Tuple[List[Action], float]] = []
         seen_scores: set = set()
 
+        base_ms = max(30.0, float(self._solver.default_time_budget_ms))
+        base_nodes = max(1000, int(self._solver.default_node_budget))
+        candidate_budgets = [
+            (base_ms, base_nodes),
+            (max(50.0, base_ms * 0.5), max(2000, int(base_nodes * 0.4))),
+            (max(30.0, base_ms * 0.25), max(1000, int(base_nodes * 0.2))),
+        ]
+
         # Run solver with decreasing budgets to find diverse plans
-        for budget_ms, budget_nodes in [(100, 5000), (50, 2000), (30, 1000)]:
+        for budget_ms, budget_nodes in candidate_budgets:
             if time.monotonic() > deadline or len(candidates) >= self.top_k:
                 break
 
-            solver = TurnSolver(time_budget_ms=budget_ms, node_budget=budget_nodes)
+            solver = TurnSolver(
+                time_budget_ms=budget_ms,
+                node_budget=budget_nodes,
+                neural_eval=self._solver._neural_eval,
+            )
             plan = solver.solve_turn(engine, room_type="boss")
             if plan:
                 # Score this plan
@@ -1148,6 +1165,27 @@ class TurnSolverAdapter:
         self._cached_turn = -1
         self._cached_combat_id = -1
 
+    def _apply_room_type_budgets(self, engine, room_type: str) -> Optional[Tuple[float, int]]:
+        """Apply room-type budgets to single-turn and multi-turn solvers."""
+        _rt_key = room_type.lower() if room_type else "monster"
+        if not self._solver_budgets or _rt_key not in self._solver_budgets:
+            return None
+        base_ms, base_nodes, cap_ms = self._solver_budgets[_rt_key]
+        total_hp = sum(
+            getattr(e, "hp", 0)
+            for e in getattr(engine.state, "enemies", [])
+            if getattr(e, "hp", 0) > 0
+        )
+        from .training_config import SOLVER_HP_SCALE_DIVISOR
+
+        scale = max(1.0, total_hp / SOLVER_HP_SCALE_DIVISOR)
+        budget_ms = min(base_ms * scale, cap_ms)
+        budget_nodes = int(base_nodes * scale)
+        self._solver.default_time_budget_ms = budget_ms
+        self._solver.default_node_budget = budget_nodes
+        self._multi_turn.set_inner_solver_budgets(budget_ms, budget_nodes)
+        return budget_ms, budget_nodes
+
     def pick_action(self, actions: list, runner, room_type: str = "monster"):
         """Pick best combat action using DFS/beam TurnSolver.
 
@@ -1196,17 +1234,7 @@ class TurnSolverAdapter:
             self._cached_plan = None
 
         # Apply room-type-specific budgets from training_config.SOLVER_BUDGETS
-        _rt_key = room_type.lower() if room_type else "monster"
-        if self._solver_budgets and _rt_key in self._solver_budgets:
-            base_ms, base_nodes, cap_ms = self._solver_budgets[_rt_key]
-            # Scale by total enemy HP
-            total_hp = sum(getattr(e, 'hp', 0) for e in getattr(engine.state, 'enemies', []) if getattr(e, 'hp', 0) > 0)
-            from .training_config import SOLVER_HP_SCALE_DIVISOR
-            scale = max(1.0, total_hp / SOLVER_HP_SCALE_DIVISOR)
-            budget_ms = min(base_ms * scale, cap_ms)
-            budget_nodes = int(base_nodes * scale)
-            self._solver.default_time_budget_ms = budget_ms
-            self._solver.default_node_budget = budget_nodes
+        self._apply_room_type_budgets(engine, room_type)
 
         # For boss/elite: try multi-turn solver first (plans 3+ turns ahead)
         if room_type in ("boss", "b", "elite", "e"):

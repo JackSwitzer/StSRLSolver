@@ -329,6 +329,10 @@ class InferenceServer:
         self.slot_q: mp.Queue = ctx.Queue()
         for i in range(n_workers):
             self.slot_q.put(i)
+        # Reusable worker-slot registry for replacement workers.
+        # Each entry stores the owning PID, or -1 when free.
+        self.slot_registry = ctx.Array("q", [-1] * n_workers, lock=False)
+        self.slot_registry_lock = ctx.Lock()
 
         # Control queue for weight syncs (main thread -> server thread)
         self._control_q: queue.SimpleQueue = queue.SimpleQueue()
