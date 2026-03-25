@@ -55,8 +55,11 @@ def main():
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
     from packages.training.strategic_net import StrategicNet, _get_device
-    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS
+    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS, SOLVER_BUDGETS
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven solver budget (adapter overrides per room type at runtime)
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]  # 50ms base for monsters
 
     # Setup dirs
     run_dir = Path("logs/v3_collect")
@@ -163,7 +166,8 @@ def main():
         async_results = [
             pool.apply_async(
                 _play_one_game,
-                (seed, 0, 0.8, total_games, 20.0, False, False, 0),  # 20ms solver — fast but produces transitions
+                # MCTS disabled for collection throughput — solver budget from config
+                (seed, 0, 0.8, total_games, _default_solver_ms, False, False, 0),
             )
             for seed in seeds
         ]

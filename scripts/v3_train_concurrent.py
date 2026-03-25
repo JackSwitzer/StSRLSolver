@@ -505,8 +505,11 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
     from packages.training.strategic_net import StrategicNet
-    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS
+    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS, SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven defaults (adapter overrides per room type at runtime)
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]  # 50ms base for monsters
 
     logger.info("[COLLECT] Thread started")
 
@@ -593,7 +596,7 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
         async_results = [
             pool.apply_async(
                 _play_one_game,
-                (seed, 0, 0.8, total_games, 20.0, False, False, 0),
+                (seed, 0, 0.8, total_games, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0),
             )
             for seed in seeds
         ]

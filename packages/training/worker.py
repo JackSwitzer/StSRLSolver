@@ -820,6 +820,19 @@ def _play_one_game(
                 progress = final_floor / REWARD_WEIGHTS.get("death_floor_cutoff", 55)
                 death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
                 transitions[-1]["reward"] += death_scale * (1 - progress)
+
+                # Boss HP progress for games that died in boss combat.
+                # The combat_just_ended block (line ~722) never fires when the
+                # player dies at boss because game_over exits the loop first.
+                if combats:
+                    last_combat = combats[-1]
+                    if last_combat.get("room_type") in ("boss", "b"):
+                        boss_max = last_combat.get("boss_max_hp", 0)
+                        boss_dmg = last_combat.get("boss_dmg_dealt", 0)
+                        if boss_max > 0:
+                            from .reward_config import compute_boss_hp_progress
+                            transitions[-1]["reward"] += compute_boss_hp_progress(boss_dmg, boss_max)
+
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE
         # bootstraps from value estimate instead of zero

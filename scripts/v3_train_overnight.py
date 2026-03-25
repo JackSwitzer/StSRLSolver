@@ -255,7 +255,11 @@ def collect_games(model, n_games=2000):
     """Collect games with trained model, save trajectories + combat data."""
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
+    from packages.training.training_config import SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven solver budget (adapter overrides per room type at runtime)
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]  # 50ms base for monsters
 
     N_WORKERS = 10
     server = InferenceServer(n_workers=N_WORKERS, max_batch_size=32, batch_timeout_ms=15.0)
@@ -282,7 +286,7 @@ def collect_games(model, n_games=2000):
     ars = []
     for _ in range(n_games):
         seed = seed_pool.get_seed()
-        ars.append((seed, pool.apply_async(_play_one_game, (seed, 0, 0.8, 0, 20.0, False, False, 0))))
+        ars.append((seed, pool.apply_async(_play_one_game, (seed, 0, 0.8, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0))))
 
     for seed, ar in ars:
         try:

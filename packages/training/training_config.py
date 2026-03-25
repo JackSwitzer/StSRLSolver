@@ -158,6 +158,13 @@ PBRS_WEIGHTS: Dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
+# Combat MCTS toggle
+# ---------------------------------------------------------------------------
+# Enable combat MCTS for proper boss evaluation (200 sims/action for bosses).
+# Training scripts enable this; fast collection scripts disable it for throughput.
+MCTS_COMBAT_ENABLED = True
+
+# ---------------------------------------------------------------------------
 # MCTS
 # ---------------------------------------------------------------------------
 # Combat MCTS budgets (sims per action, by room type)

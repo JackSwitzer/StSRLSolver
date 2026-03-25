@@ -186,7 +186,11 @@ def train_bc(data, device, lr=3e-4, max_epochs=200, patience=20, batch_size=2048
 def collect_games(model, n_games, device, label=""):
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
+    from packages.training.training_config import SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven solver budget (adapter overrides per room type at runtime)
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]  # 50ms base for monsters
 
     N_W = 10
     server = InferenceServer(n_workers=N_W, max_batch_size=32, batch_timeout_ms=15.0)
@@ -204,7 +208,7 @@ def collect_games(model, n_games, device, label=""):
     combat_dir.mkdir(parents=True, exist_ok=True)
 
     floors, saved_t, saved_c = [], 0, 0
-    ars = [(sp.get_seed(), pool.apply_async(_play_one_game, (sp.get_seed(), 0, 0.8, 0, 20.0, False, False, 0)))
+    ars = [(sp.get_seed(), pool.apply_async(_play_one_game, (sp.get_seed(), 0, 0.8, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0)))
            for _ in range(n_games)]
 
     for seed, ar in ars:
@@ -247,7 +251,11 @@ def eval_model(model, n_games, device, label=""):
     """Quick eval without saving data."""
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
+    from packages.training.training_config import SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven solver budget
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]
 
     N_W = 10
     server = InferenceServer(n_workers=N_W, max_batch_size=32, batch_timeout_ms=15.0)
@@ -258,7 +266,7 @@ def eval_model(model, n_games, device, label=""):
     pool = ctx.Pool(processes=N_W, initializer=_worker_init,
                     initargs=(server.request_q, server.response_qs, server.slot_q, shm))
     sp = SeedPool()
-    ars = [pool.apply_async(_play_one_game, (sp.get_seed(), 0, 0.5, 0, 20.0, False, False, 0))
+    ars = [pool.apply_async(_play_one_game, (sp.get_seed(), 0, 0.5, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0))
            for _ in range(n_games)]
     floors = []
     for ar in ars:

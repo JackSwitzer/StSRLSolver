@@ -20,6 +20,32 @@ struct StatusBarView: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            if let config = status?.configName {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.stsAccent)
+                        .frame(width: 6, height: 6)
+                    Text(config)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.stsAccent)
+                    if let phase = status?.sweepPhase {
+                        Text("\u{00B7}")
+                            .foregroundStyle(Color.stsTextDim)
+                        Text(phase)
+                            .font(.stsLabel)
+                            .foregroundStyle(Color.stsTextDim)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.stsAccent.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                Rectangle()
+                    .fill(Color.stsBorderDim)
+                    .frame(width: 1, height: 30)
+            }
+
             metric("Games", value: Fmt.count(status?.totalGames ?? 0))
             divider
             metric("Avg Floor", value: avgFloor)

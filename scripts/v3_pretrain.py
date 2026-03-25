@@ -222,7 +222,11 @@ def eval_model(ckpt_path: Path, n_games: int = 50, label: str = "") -> Tuple[flo
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
     from packages.training.strategic_net import StrategicNet
+    from packages.training.training_config import SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
+
+    # Config-driven solver budget
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]
 
     logger.info("[%s] Loading checkpoint: %s", label, ckpt_path)
     model = StrategicNet.load(ckpt_path)
@@ -261,7 +265,7 @@ def eval_model(ckpt_path: Path, n_games: int = 50, label: str = "") -> Tuple[flo
         seed = seed_pool.get_seed()
         ar = pool.apply_async(
             _play_one_game,
-            (seed, 0, 0.8, 0, 50.0, False, False, 0),
+            (seed, 0, 0.8, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0),
         )
         async_results.append((i, seed, ar))
 

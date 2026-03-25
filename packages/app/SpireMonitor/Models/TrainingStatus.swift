@@ -21,6 +21,12 @@ struct TrainingStatus: Codable {
     let entropyCoeff: Double?
     let clipFraction: Double?
     let gpuPercent: Double?
+    // Diagnostic fields from strategic_trainer
+    let explainedVariance: Double?
+    let meanValue: Double?
+    let klDivergence: Double?
+    let meanAdvantage: Double?
+    let meanReturn: Double?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -43,5 +49,10 @@ struct TrainingStatus: Codable {
         case entropyCoeff = "entropy_coeff"
         case clipFraction = "clip_fraction"
         case gpuPercent = "gpu_percent"
+        case explainedVariance = "explained_variance"
+        case meanValue = "mean_value"
+        case klDivergence = "kl_divergence"
+        case meanAdvantage = "mean_advantage"
+        case meanReturn = "mean_return"
     }
 }

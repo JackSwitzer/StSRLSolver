@@ -286,7 +286,10 @@ def eval_model(n_games: int = 50):
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
     from packages.training.worker import _play_one_game, _worker_init
-    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS
+    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS, SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
+
+    # Config-driven solver budget
+    _default_solver_ms = SOLVER_BUDGETS["monster"][0]
 
     ckpt = Path("logs/strategic_checkpoints/bc_winner_v3.pt")
     if not ckpt.exists():
@@ -313,7 +316,7 @@ def eval_model(n_games: int = 50):
     ars = []
     for _ in range(n_games):
         seed = seed_pool.get_seed()
-        ars.append(pool.apply_async(_play_one_game, (seed, 0, 0.5, 0, 50.0, False, False, 0)))
+        ars.append(pool.apply_async(_play_one_game, (seed, 0, 0.5, 0, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0)))
 
     floors = []
     for ar in ars:
