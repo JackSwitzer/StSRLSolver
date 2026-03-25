@@ -117,8 +117,8 @@ def load_all_trajectories(extra_dirs=None, max_transitions: int = 500_000):
     seen = set()
     files = []
 
-    search_dirs = list(Path("logs").rglob("best_trajectories/traj_F*.npz"))
-    search_dirs += list(Path("logs").rglob("all_trajectories/traj_*.npz"))
+    # Search ALL trajectory dirs — experiments, collection, best, everything
+    search_dirs = list(Path("logs").rglob("traj_*.npz"))
     if extra_dirs:
         for d in extra_dirs:
             search_dirs += list(Path(d).rglob("traj_*.npz"))
