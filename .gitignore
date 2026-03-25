@@ -78,5 +78,8 @@ target/
 .claude/plans/
 .claude/.credentials.env
 
+# Model checkpoints (use GitHub Releases for curation)
+checkpoints/
+
 # Vite cache
 packages/viz/.vite/
