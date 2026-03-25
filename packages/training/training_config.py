@@ -60,7 +60,7 @@ TEMPERATURE = 0.9
 SOLVER_BUDGETS: Dict[str, tuple] = {
     "monster": (50.0, 5_000, 300_000),       # 5 min cap
     "elite":   (2_000.0, 50_000, 600_000),   # 2s base for elites
-    "boss":    (30_000.0, 200_000, 600_000), # 30s base for bosses
+    "boss":    (60_000.0, 400_000, 600_000), # 60s base for bosses (2x boost)
 }
 SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
 
@@ -111,36 +111,19 @@ REWARD_WEIGHTS: Dict[str, Any] = {
     "f16_hp_bonus_base": 1.50,
     "f16_hp_bonus_per_hp": 0.05,
 
-    # Deck management
-    "shop_remove": 0.40,
-
-    # Upgrade rewards (separate from card picks)
-    "upgrade_rewards": {
-        "Eruption": 0.30,    "Eruption+": 0.0,
-        "Vigilance": 0.10,   "Vigilance+": 0.0,
-        "Defend_P": -1.50,   "Defend_P+": 0.0,
-        "Strike_P": -0.50,   "Strike_P+": 0.0,
-    },
-
-    # Potions
-    "potion_use_elite": 0.50,
-    "potion_use_boss": 0.50,
-    "potion_kill_same_fight": 0.50,
-    "potion_waste_penalty": -0.15,
-    "potion_hoard_penalty": -0.30,
-
-    # Unspent energy penalty (RL reward signal, not just solver scoring)
-    # Negative reward when ending turn with energy >= 1 and playable cards
-    # Trains the model to play cards aggressively early, can decay later
-    "unspent_energy_reward": -0.15,  # Per energy left with playable cards
-    "unspent_playable_reward": -0.10,  # Per playable card left unplayed
-
-    # Cards-played-per-turn reward shaping
-    # Penalize low card counts, reward long sequences (infinite combos!)
-    # 0 cards = -0.30, 1 card = -0.15, 2 cards = -0.05, 3+ = 0, 5+ = bonus
-    "cards_per_turn_penalties": {0: -0.30, 1: -0.15, 2: -0.05},
-    "cards_per_turn_bonus_threshold": 5,   # Cards above this get bonus
-    "cards_per_turn_bonus_per_card": 0.05, # Per card above threshold
+    # Micro-rewards zeroed — let the model learn behavior
+    "shop_remove": 0.0,
+    "upgrade_rewards": {},
+    "potion_use_elite": 0.0,
+    "potion_use_boss": 0.0,
+    "potion_kill_same_fight": 0.0,
+    "potion_waste_penalty": 0.0,
+    "potion_hoard_penalty": 0.0,
+    "unspent_energy_reward": 0.0,
+    "unspent_playable_reward": 0.0,
+    "cards_per_turn_penalties": {},
+    "cards_per_turn_bonus_threshold": 999,
+    "cards_per_turn_bonus_per_card": 0.0,
 
     # Terminal rewards
     "win_reward": 10.0,
