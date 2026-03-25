@@ -440,6 +440,90 @@ case "${1:-status}" in
         ;;
     push-metrics)
         shift; uv run python scripts/push_metrics.py "$@" ;;
+    text)
+        shift
+        PHONE="+14166293183"
+        RUN_DIR=$(ls -td logs/runs/run_* 2>/dev/null | head -1)
+        if [ -z "$RUN_DIR" ]; then echo "No run directory found"; exit 1; fi
+        STATUS=$(cat "$RUN_DIR/status.json" 2>/dev/null)
+        EPISODES="$RUN_DIR/episodes.jsonl"
+        GAMES=$(echo "$STATUS" | jq -r '.total_games // 0')
+
+        # Min 10 games before texting (avoid sending zeros)
+        if [ "$GAMES" -lt 10 ] && [ "${1:-}" != "--force" ]; then
+            echo "Only $GAMES games — waiting for 10+ before texting (use --force to override)"
+            exit 0
+        fi
+
+        FLOOR=$(echo "$STATUS" | jq -r '.avg_floor_100 // .avg_floor // "?"')
+        PEAK=$(echo "$STATUS" | jq -r '.peak_floor // 0')
+        WINS=$(echo "$STATUS" | jq -r '.total_wins // 0')
+        SWEEP=$(echo "$STATUS" | jq -r '.current_sweep // "?"')
+        TOTAL_SW=$(echo "$STATUS" | jq -r '.total_sweeps // "?"')
+        ELAPSED=$(echo "$STATUS" | jq -r '.elapsed_hours // "?"')
+        ENT=$(echo "$STATUS" | jq -r '.entropy // "?"')
+        VL=$(echo "$STATUS" | jq -r '.value_loss // "?"')
+        PL=$(echo "$STATUS" | jq -r '.policy_loss // "?"')
+        GPU=$(echo "$STATUS" | jq -r '.gpu_percent // "?"')
+        CFG=$(echo "$STATUS" | jq -r '.config_name // "?"')
+        GPM=$(echo "$STATUS" | jq -r '.games_per_min // "?"')
+        COLLECT=$(echo "$STATUS" | jq -r '.collect_progress // "?"')
+        DISK=$(df -g . | tail -1 | awk '{print $4}')
+        PID_ALIVE=$([ -f .run/training.pid ] && kill -0 "$(cat .run/training.pid)" 2>/dev/null && echo "alive" || echo "DEAD")
+
+        # Death analysis
+        TOP_KILLER=$(tail -50 "$EPISODES" 2>/dev/null | jq -rs '
+          group_by(.death_enemy) | map({e: .[0].death_enemy, n: length})
+          | sort_by(-.n) | .[0] | "\(.e) x\(.n)"' 2>/dev/null || echo "?")
+        BOSS_ATTEMPTS=$(tail -100 "$EPISODES" 2>/dev/null | jq -s '[.[] | select(.floor >= 16)] | length' 2>/dev/null || echo "0")
+        BOSS_KILLS=$(tail -100 "$EPISODES" 2>/dev/null | jq -s '[.[] | select(.floor >= 17)] | length' 2>/dev/null || echo "0")
+        EARLY_D=$(tail -100 "$EPISODES" 2>/dev/null | jq -s '[.[] | select(.floor < 6)] | length' 2>/dev/null || echo "0")
+
+        # Threshold annotations
+        ent_note=""; [ "$ENT" != "?" ] && ent_note=$(echo "$ENT" | awk '{if ($1 < 0.02) print "(COLLAPSED <0.02)"; else if ($1 < 0.5) print "(low <0.5)"; else print "(ok >0.5)"}')
+        vl_note=""; [ "$VL" != "?" ] && vl_note=$(echo "$VL" | awk '{if ($1 > 5.0) print "(high, want <2.0)"; else if ($1 > 2.0) print "(elevated)"; else print "(ok)"}')
+        disk_note=""; [ "$DISK" -lt 5 ] 2>/dev/null && disk_note="LOW" || disk_note="ok"
+
+        MSG="=== StS Training (${ELAPSED}h) ===
+
+PROGRESS
+  Games: ${GAMES} (${COLLECT}) sweep ${SWEEP}/${TOTAL_SW}
+  Floor: ${FLOOR} avg | ${PEAK} peak
+  Wins: ${WINS}
+
+BOSS WALL
+  ${TOP_KILLER}
+  Boss: ${BOSS_KILLS}/${BOSS_ATTEMPTS} kills | Early deaths: ${EARLY_D}
+
+HEALTH
+  Entropy: ${ENT} ${ent_note}
+  Value loss: ${VL} ${vl_note}
+  Policy: ${PL}
+  Throughput: ${GPM} g/min
+
+SYSTEM
+  GPU ${GPU}% | ${DISK}GB free (${disk_note}) | ${PID_ALIVE}
+  Config: ${CFG}"
+
+        _send_text() {
+            osascript -e "tell application \"Messages\"
+              set s to 1st account whose service type = iMessage
+              send \"$1\" to participant \"$PHONE\" of s
+            end tell" 2>/dev/null
+        }
+
+        if [ "${1:-}" = "--loop" ]; then
+            INTERVAL="${2:-2h}"
+            SECS=$(echo "$INTERVAL" | sed 's/h/*3600/;s/m/*60/' | bc)
+            echo "Texting every $INTERVAL ($SECS seconds). Ctrl+C to stop."
+            caffeinate -dims -w $$ &
+            _send_text "$MSG" && echo "[$(date)] Sent" || echo "[$(date)] Failed"
+            sleep "$SECS"
+            exec "$0" text --loop "$INTERVAL"
+        else
+            _send_text "$MSG" && echo "Status text sent to $PHONE" || echo "Failed to send"
+        fi
+        ;;
     *)
         echo "Usage: $0 {start|stop|status|resume|weekend|pretrain|experiment|push-metrics|...}"
         echo ""
