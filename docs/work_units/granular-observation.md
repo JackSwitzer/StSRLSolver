@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Observation Schema (Model-Facing, No UI)"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, observation, spec]
+---
+
 # Observation Schema (Model-Facing, No UI)
 
 ## Scope summary

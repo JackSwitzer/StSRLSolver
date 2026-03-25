@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Map Visibility (Model-Facing)"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, map, visibility, spec]
+---
+
 # Map Visibility (Model-Facing)
 
 ## Scope summary

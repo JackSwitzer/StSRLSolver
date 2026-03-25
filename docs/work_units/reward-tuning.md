@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Reward Tuning"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [training, rewards, tuning]
+---
+
 # Work Unit: Reward Tuning
 
 ## Goal

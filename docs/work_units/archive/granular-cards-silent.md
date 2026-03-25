@@ -1,3 +1,17 @@
+---
+status: completed
+priority: P1
+pr: null
+title: "Ultra-Granular Work Units: Cards (Silent)"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: 2026-03-15
+depends_on: []
+assignee: claude
+tags: [engine, parity, cards, silent]
+---
+
 # Ultra-Granular Work Units: Cards (Silent)
 
 ## Current parity source

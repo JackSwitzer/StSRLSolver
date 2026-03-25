@@ -1,5 +1,10 @@
 # Work Units
 
+## Active
+- [events](granular-events.md) -- **P1** -- 11% complete, 22+ missing handlers/choice generators
+- [relics](granular-relics.md) -- **P2** -- 80% complete, missing Violet Lotus, Snecko Eye, Ice Cream, etc.
+- [powers](granular-powers.md) -- **P2** -- 85% complete, missing Draw, Focus, Mode Shift, Electro, etc.
+
 ## Reference Specs
 Contracts and schemas -- no implementation checklists.
 - [actions](granular-actions.md) -- Action API contract
@@ -9,22 +14,20 @@ Contracts and schemas -- no implementation checklists.
 - [map-visibility](granular-map-visibility.md) -- Map visibility rules
 - [agent-interface](granular-agent-interface.md) -- Agent API design
 
-## Active
-- [events](granular-events.md) -- 4/26 checked, 22 remaining
-- [relics](granular-relics.md) -- 56/68 checked, 12 remaining
-- [powers](granular-powers.md) -- 72/84 checked, 10 remaining (Draw, Focus, Mode Shift, etc.)
+## Reference Docs
+Prose design docs -- not checklisted.
+- [combat-logging](combat-logging.md) -- Combat replay and logging design
+- [reward-tuning](reward-tuning.md) -- Reward shaping improvements
+- [solver-upgrade](solver-upgrade.md) -- Dynamic solver budget design
+- [training-profiling](training-profiling.md) -- Training bottleneck investigation
 
-## Complete
-- [cards-watcher](granular-cards-watcher.md)
-- [cards-ironclad](granular-cards-ironclad.md)
-- [cards-silent](granular-cards-silent.md)
-- [cards-defect](granular-cards-defect.md)
-- [cards-shared](granular-cards-shared.md)
-- [potions](granular-potions.md)
-- [rewards](granular-rewards.md)
-
-## Deferred
-- [orbs](granular-orbs.md) -- Watcher-only RL, not needed yet
-
-## Scheduled
-_Add future work units here as new granular-*.md files._
+## Completed (archived)
+See [archive/](archive/) for completed work units:
+- granular-cards-watcher.md (100%) -- completed 2026-03-15
+- granular-cards-ironclad.md (98%) -- completed 2026-03-15
+- granular-cards-silent.md (98%) -- completed 2026-03-15
+- granular-cards-shared.md (100%) -- completed 2026-03-15
+- granular-cards-defect.md (98%) -- completed 2026-03-15
+- granular-orbs.md (100%) -- completed 2026-03-10
+- granular-potions.md (100%) -- completed 2026-03-10
+- granular-rewards.md (100%) -- completed 2026-03-10

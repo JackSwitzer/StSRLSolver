@@ -1,3 +1,17 @@
+---
+status: active
+priority: P2
+pr: null
+title: "Ultra-Granular Work Units: Powers"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, powers]
+---
+
 # Ultra-Granular Work Units: Powers
 
 ## Model-facing actions (no UI)

@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Combat Logging & Replay"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, combat, logging, replay]
+---
+
 # Work Unit: Combat Logging & Replay
 
 ## Goal

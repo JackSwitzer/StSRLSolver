@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Determinism & RNG Spec"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, determinism, rng, spec]
+---
+
 # Determinism & RNG Spec
 
 ## Scope summary

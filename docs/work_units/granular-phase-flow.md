@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Phase Flow (State Machine)"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, phase-flow, state-machine, spec]
+---
+
 # Phase Flow (State Machine)
 
 ## Scope summary

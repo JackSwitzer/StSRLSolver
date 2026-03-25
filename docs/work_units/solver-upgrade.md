@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Solver Upgrade"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [training, solver, performance]
+---
+
 # Work Unit: Solver Upgrade
 
 ## Goal

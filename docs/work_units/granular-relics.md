@@ -1,3 +1,17 @@
+---
+status: active
+priority: P2
+pr: null
+title: "Ultra-Granular Work Units: Relics"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, relics]
+---
+
 # Ultra-Granular Work Units: Relics
 
 ## Model-facing actions (no UI)

@@ -1,3 +1,17 @@
+---
+status: reference
+priority: P2
+pr: null
+title: "Action Spec (Model-Facing, No UI)"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, actions, spec]
+---
+
 # Action Spec (Model-Facing, No UI)
 
 Goal: every decision point should be traversable by a non-player agent via explicit, JSON-serializable actions.

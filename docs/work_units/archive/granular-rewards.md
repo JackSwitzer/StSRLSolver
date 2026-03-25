@@ -1,3 +1,17 @@
+---
+status: completed
+priority: P1
+pr: null
+title: "Ultra-Granular Work Units: Rewards"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: 2026-03-10
+depends_on: []
+assignee: claude
+tags: [engine, parity, rewards]
+---
+
 # Ultra-Granular Work Units: Rewards
 
 ## Canonical status (2026-02-22)

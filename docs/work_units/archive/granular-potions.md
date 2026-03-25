@@ -1,3 +1,17 @@
+---
+status: completed
+priority: P1
+pr: null
+title: "Ultra-Granular Work Units: Potions"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: 2026-03-10
+depends_on: []
+assignee: claude
+tags: [engine, parity, potions]
+---
+
 # Ultra-Granular Work Units: Potions
 
 ## Model-facing actions (no UI)

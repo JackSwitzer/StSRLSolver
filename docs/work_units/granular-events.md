@@ -1,3 +1,17 @@
+---
+status: active
+priority: P1
+pr: null
+title: "Ultra-Granular Work Units: Events"
+scope: foundation
+layer: engine-parity
+created: 2026-02-23
+completed: null
+depends_on: []
+assignee: claude
+tags: [engine, parity, events]
+---
+
 # Ultra-Granular Work Units: Events
 
 ## Current parity slice (authoritative for next commit)

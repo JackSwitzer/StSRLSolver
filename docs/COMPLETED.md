@@ -1,99 +1,59 @@
-# Completed Work
+# Completed Work Units
 
-Reverse chronological. PR references link to GitHub.
+Auto-generated from `docs/work_units/archive/` YAML frontmatter. Updated via `/pr`.
 
-## 2026-03-25: V3 Clean Merge + Git Consolidation
-**PRs**: #62-69 merged to main
+## Engine Parity (completed 2026-03)
 
-### Git Consolidation
-- Merged all open PRs (#62-69) into clean main
-- Closed stale worktree branches
-- PR #69: final clean merge of all v3 work
+| Work Unit | Completed | Notes |
+|-----------|-----------|-------|
+| [cards-watcher](work_units/archive/granular-cards-watcher.md) | 2026-03-15 | 7/7 (100%) |
+| [cards-ironclad](work_units/archive/granular-cards-ironclad.md) | 2026-03-15 | 61/62 (98%) |
+| [cards-silent](work_units/archive/granular-cards-silent.md) | 2026-03-15 | 60/61 (98%) |
+| [cards-shared](work_units/archive/granular-cards-shared.md) | 2026-03-15 | 5/5 (100%) |
+| [cards-defect](work_units/archive/granular-cards-defect.md) | 2026-03-15 | 74/75 (98%) |
+| [orbs](work_units/archive/granular-orbs.md) | 2026-03-10 | 28/28 (100%) |
+| [potions](work_units/archive/granular-potions.md) | 2026-03-10 | 34/34 (100%) |
+| [rewards](work_units/archive/granular-rewards.md) | 2026-03-10 | 4/4 (100%) |
 
-### V3 Bug Fixes (PR #67 — Codex audit)
-- Fixed value head output mismatch (was returning wrong dimension)
-- Removed silent `except Exception: pass` blocks (3 critical bugs across 255k games)
-- Fixed double-seeded RNG initialization
-- Fixed strategic search same-state loop
-- Fixed collect overshoot (games exceeding target count)
-- Fixed shutdown wedge (workers hanging on exit)
-- Fixed slot retry logic in inference server
-- Fixed status.json write race condition
-- Fixed distillation repeat bug
-- Fixed abort criteria (premature training termination)
+## Training V3 (completed 2026-03-25)
+
+PRs #62-69 merged to main.
+
+### Bug Fixes (PR #67 — Codex audit)
+- Value head output mismatch, silent except blocks, double-seeded RNG
+- Strategic search same-state loop, collect overshoot, shutdown wedge
+- Slot retry, status.json race, distillation repeat, abort criteria
 
 ### BC Pretrain Pipeline
-- Built pretrain-from-trajectories pipeline
-- 12,942 transitions baseline, 43.7% accuracy after 10 epochs
-- Per-head learning rates: trunk=1x, policy=2x, value=3x, aux=1x
-- Scripts: `v3_pretrain.py`, `v3_pretrain_gpu.py`
+- Pretrain-from-trajectories pipeline (12,942 transitions, 43.7% accuracy)
+- Per-head LR: trunk=1x, policy=2x, value=3x, aux=1x
 
 ### CombatNet
-- 298-dim input combat state encoder
-- 92% validation accuracy on 162k combat positions
+- 298-dim input, 92% val accuracy on 162k positions
 - 70/30 neural/heuristic blend in TurnSolver
-- Saved to `logs/active/combat_net.pt`
 
 ### 4-Experiment Sweep
-- Experiment A (baseline): avg floor 6.27
-- Experiment B (reward tuned): avg floor 6.35
-- **Experiment C (BC + PPO): avg floor 8.11** (winner)
-- Experiment D (incomplete)
-- Automated sweep via `v3_experiment_sweep.py`
+- A(6.27), B(6.35), **C(BC+PPO)=8.11 winner**, D(incomplete)
 
-### Overnight Concurrent Training
-- 220 training cycles completed
-- val_acc 55.9%, avg floor 8.9
-- Peak floor 16 (Act 1 boss)
-- 0 wins — floor 16 wall identified
+### Overnight Training
+- 220 cycles, val_acc 55.9%, avg floor 8.9, peak F16, 0 wins
 
-### Floor 16 Root Cause Analysis
-- All games die at Act 1 boss
-- Solver budget insufficient for boss fights
-- Boss HP progress reward captured during combat (not after)
-- Analysis in `docs/research/floor16-root-cause.md`
+### Infrastructure
+- training_config.py as single source of truth
+- Config-driven scripts, pause.sh, auto-archive
 
-### Action Masking Fix
-- Fixed action mask contract in gym environment
-- Prevented model from selecting invalid actions
+## AlphaZero MCTS Weekend (2026-03-19, PR #66)
+- MCTS 500 sims for strategic decisions, 15 workers
+- TurnSolver Wrath penalty fix (235k+ games affected)
+- Dynamic compute budgets, 1h game timeout
 
-### Diagnostic Metrics
-- Added `time.monotonic` timing throughout pipeline
-- Episode logging with per-floor diagnostics
-- DiagnosticsCharts, SweepComparison, CardPickSummary app views
+## Training V2 + Rewards (2026-03-17, PR #65)
+- PPO + GAE + OPR training loop
+- Reward v12, BC warmup, MCTS strategic search
+- Merl seeds (12 A20 expert seeds)
 
-### Training Infrastructure
-- `training_config.py` as single source of truth
-- Config-driven scripts (no hardcoded params)
-- `pause.sh` for graceful training pause
-- Auto-archive with timestamps (never rm -rf)
-
-## 2026-03-19: AlphaZero MCTS Weekend Run
-**PR**: #66
-
-- AlphaZero-style MCTS for strategic decisions (500 sims)
-- 15 workers, shared memory, pure search scoring
-- Dynamic compute budgets per decision complexity
-- 1h game timeout (was 120s — boss fights need 5+ min)
-- TurnSolver Wrath penalty fix (-60 was #1 blocker for 235k+ games)
-- App: boss deep-dive view, 500ms polling, per-config metrics
-- 6154 tests passing
-
-## 2026-03-17: Training V2 + Reward System
-**PR**: #65
-
-- PPO + GAE training loop with OPR auxiliary losses
-- Reward v12: 3x milestones, -0.3 death, 1.5x PBRS
-- Boss solver fix (sim.state.player.hp, no tick loop)
-- Exception safety audit (13 blocks with logging)
-- BC warmup in strategic_trainer.py
-- MCTS strategic search in worker.py
-- Merl seeds (12 A20 expert seeds in seed_pool.py)
-- 6076 tests passing
-
-## Earlier Work
-- Python game engine with 100% Java parity (Watcher)
-- Rust combat engine with PyO3 bindings
+## Earlier
+- Python game engine (100% Java parity, Watcher)
 - SwiftUI macOS monitoring dashboard
 - WebSocket server for live metrics
-- Full test suite covering cards, powers, relics, events, RNG
+- Full test suite (6227+ tests)
