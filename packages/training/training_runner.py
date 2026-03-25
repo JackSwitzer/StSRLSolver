@@ -36,6 +36,7 @@ from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_
 from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
 from .training_config import ABORT_CLIP_FRACTION, ABORT_VALUE_LOSS, ABORT_ENTROPY_MIN, ABORT_GRACE_GAMES
 from .training_config import (
+    ALGORITHM,
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
     REPLAY_BUFFER_SIZE,
@@ -709,7 +710,7 @@ class OvernightRunner:
             temp = sweep_config.get("temperature", self.temperature)
             self.temperature = temp
 
-            algorithm = sweep_config.get("algorithm", "ppo")
+            algorithm = sweep_config.get("algorithm", ALGORITHM)
 
             if algorithm == "iql":
                 from .iql_trainer import IQLTrainer
@@ -721,9 +722,31 @@ class OvernightRunner:
                     expectile=sweep_config.get("iql_expectile", 0.7),
                     temperature=sweep_config.get("iql_temperature", 3.0),
                 )
+            elif algorithm == "grpo":
+                from .grpo_trainer import GRPOTrainer
+                from .training_config import GRPO_CLIP, GRPO_LR, GRPO_ROLLOUTS_CARD, GRPO_ROLLOUTS_OTHER
+                # GRPO uses StrategicTrainer for collection (buffer/add_transition)
+                # and GRPOTrainer for the actual policy update
+                trainer = StrategicTrainer(
+                    model=model,
+                    lr=lr,
+                    entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
+                    clip_epsilon=sweep_config.get("grpo_clip", GRPO_CLIP),
+                    batch_size=batch_size,
+                    lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                    lr_T_max=sweep_config.get("lr_T_max", 30000),
+                    lr_T_0=sweep_config.get("lr_T_0", 5000),
+                )
+                grpo_trainer = GRPOTrainer(
+                    model=model,
+                    lr=sweep_config.get("grpo_lr", GRPO_LR),
+                    clip=sweep_config.get("grpo_clip", GRPO_CLIP),
+                    rollouts_card=sweep_config.get("grpo_rollouts_card", GRPO_ROLLOUTS_CARD),
+                    rollouts_other=sweep_config.get("grpo_rollouts_other", GRPO_ROLLOUTS_OTHER),
+                )
             else:
-                # PPO and GRPO both use StrategicTrainer
-                clip_eps = sweep_config.get("clip_epsilon", sweep_config.get("grpo_clip", 0.2))
+                # PPO (default)
+                clip_eps = sweep_config.get("clip_epsilon", 0.2)
                 trainer = StrategicTrainer(
                     model=model,
                     lr=lr,
@@ -742,12 +765,13 @@ class OvernightRunner:
             if _warm_checkpoint is not None:
                 try:
                     trainer.optimizer.load_state_dict(_warm_checkpoint["optimizer_state_dict"])
-                    trainer.scheduler.load_state_dict(_warm_checkpoint["scheduler_state_dict"])
+                    if hasattr(trainer, "scheduler") and "scheduler_state_dict" in _warm_checkpoint:
+                        trainer.scheduler.load_state_dict(_warm_checkpoint["scheduler_state_dict"])
                     trainer.train_steps = _warm_checkpoint.get("train_steps", 0)
-                    if "entropy_coeff" in _warm_checkpoint:
+                    if "entropy_coeff" in _warm_checkpoint and hasattr(trainer, "entropy_coeff"):
                         trainer.entropy_coeff = _warm_checkpoint["entropy_coeff"]
                     logger.info("Warm restart: optimizer restored (train_steps=%d, entropy=%.4f)",
-                                trainer.train_steps, trainer.entropy_coeff)
+                                trainer.train_steps, getattr(trainer, "entropy_coeff", 0.0))
                 except Exception as e:
                     logger.warning("Could not restore optimizer state: %s — using fresh optimizer", e)
                 _warm_checkpoint = None  # Only restore once
@@ -980,19 +1004,56 @@ class OvernightRunner:
                 })
 
                 _abort = False
-                for _ in range(_TRAIN_STEPS):
-                    if len(trainer.buffer) < trainer.batch_size // 2:
-                        break  # Not enough data
-                    train_metrics = trainer.train_batch()
-                    if math.isnan(train_metrics.get("total_loss", 0)):
-                        logger.error("ABORT: NaN loss detected")
-                        _abort = True
-                        break
-                    train_count += 1
-                    self._process_train_metrics(
-                        train_metrics, trainer, config_name, sweep_floors,
-                        games_per_min, best_avg_floor,
-                    )
+                if algorithm == "grpo":
+                    # GRPO: convert buffer transitions to GroupResults, train via GRPOTrainer
+                    from .grpo_trainer import GroupSample, GroupResult
+                    groups: list = []
+                    # Group transitions by episode_id to form rollout groups
+                    episode_groups: Dict[int, list] = {}
+                    for t in trainer.buffer:
+                        episode_groups.setdefault(t.episode_id, []).append(t)
+                    for ep_id, transitions in episode_groups.items():
+                        samples = []
+                        for t in transitions:
+                            samples.append(GroupSample(
+                                action_idx=t.action,
+                                obs=t.obs,
+                                action_mask=t.action_mask,
+                                log_prob=t.log_prob,
+                                total_return=t.final_floor,
+                            ))
+                        if len(samples) >= 2:
+                            group = GroupResult(samples=samples, phase_type="mixed")
+                            group.compute_advantages()
+                            groups.append(group)
+                    if groups:
+                        for _ in range(_TRAIN_STEPS):
+                            train_metrics = grpo_trainer.train_batch(groups)
+                            if math.isnan(train_metrics.get("total_loss", 0)):
+                                logger.error("ABORT: NaN loss detected (GRPO)")
+                                _abort = True
+                                break
+                            train_count += 1
+                            self._last_train_metrics = {
+                                k: v for k, v in train_metrics.items()
+                                if isinstance(v, (int, float))
+                            }
+                        logger.info("GRPO train: %d groups, %d steps", len(groups), train_count)
+                else:
+                    # PPO (default)
+                    for _ in range(_TRAIN_STEPS):
+                        if len(trainer.buffer) < trainer.batch_size // 2:
+                            break  # Not enough data
+                        train_metrics = trainer.train_batch()
+                        if math.isnan(train_metrics.get("total_loss", 0)):
+                            logger.error("ABORT: NaN loss detected")
+                            _abort = True
+                            break
+                        train_count += 1
+                        self._process_train_metrics(
+                            train_metrics, trainer, config_name, sweep_floors,
+                            games_per_min, best_avg_floor,
+                        )
 
                 # Restore original epochs
                 trainer.ppo_epochs = orig_epochs
@@ -1026,11 +1087,13 @@ class OvernightRunner:
                 # Periodic warm checkpoint — also save trainer state for clean shutdown
                 _ckpt_extra = {
                     "optimizer_state_dict": trainer.optimizer.state_dict(),
-                    "scheduler_state_dict": trainer.scheduler.state_dict(),
                     "train_steps": trainer.train_steps,
                     "total_games": self.total_games,
-                    "entropy_coeff": trainer.entropy_coeff,
                 }
+                if hasattr(trainer, "scheduler"):
+                    _ckpt_extra["scheduler_state_dict"] = trainer.scheduler.state_dict()
+                if hasattr(trainer, "entropy_coeff"):
+                    _ckpt_extra["entropy_coeff"] = trainer.entropy_coeff
                 self._last_trainer_state = _ckpt_extra
                 if self.total_games % 2000 < COLLECT_GAMES:
                     model.save(self.run_dir / "periodic_checkpoint.pt", extra=_ckpt_extra)
@@ -1044,7 +1107,7 @@ class OvernightRunner:
                     "replay_buffer": replay_buffer.size,
                     "replay_best_floor": replay_buffer.best_floor,
                     "games_per_min": round(games_per_min, 1),
-                    "entropy_coeff": trainer.entropy_coeff,
+                    "entropy_coeff": getattr(trainer, "entropy_coeff", None),
                     "total_loss": self._last_train_metrics.get("total_loss"),
                     "policy_loss": self._last_train_metrics.get("policy_loss"),
                     "value_loss": self._last_train_metrics.get("value_loss"),
@@ -1073,8 +1136,8 @@ class OvernightRunner:
                     logger.warning("ABORT: entropy %.4f < %.4f (collapsed)", _ent, ABORT_ENTROPY_MIN)
                     break
 
-            # Final training pass on remaining buffer
-            if len(trainer.buffer) >= trainer.batch_size:
+            # Final training pass on remaining buffer (PPO only; GRPO handled above)
+            if algorithm == "ppo" and hasattr(trainer, "buffer") and len(trainer.buffer) >= trainer.batch_size:
                 metrics = trainer.train_batch()
                 if self._server is not None:
                     self._server.sync_strategic_from_pytorch(
@@ -1195,29 +1258,32 @@ class OvernightRunner:
         except OSError:
             pass
         sweep_avg = sum(sweep_floors) / max(len(sweep_floors), 1) if sweep_floors else 0.0
-        if sweep_avg > 7.0:
-            trainer.decay_entropy(min_coeff=0.02, decay=0.999)
-        elif sweep_avg > 5.5:
-            trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
+        # Entropy decay only applies to trainers that support it (PPO's StrategicTrainer)
+        if hasattr(trainer, "decay_entropy"):
+            if sweep_avg > 7.0:
+                trainer.decay_entropy(min_coeff=0.02, decay=0.999)
+            elif sweep_avg > 5.5:
+                trainer.decay_entropy(min_coeff=0.02, decay=0.9999)
 
         games_since_checkpoint = self.total_games - self._stall_checkpoint_games
         if games_since_checkpoint >= STALL_DETECTION_WINDOW:
             current_avg = sum(self.recent_floors) / max(len(self.recent_floors), 1)
             improvement = current_avg - self._stall_checkpoint_floor
             if improvement < STALL_IMPROVEMENT_THRESHOLD:
-                old_ent = trainer.entropy_coeff
-                trainer.entropy_coeff = min(0.10, trainer.entropy_coeff + 0.02)
-                logger.warning(
-                    "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
-                    "(improvement %.1f < %.1f). Entropy bump: %.4f -> %.4f",
-                    self._stall_checkpoint_floor, current_avg,
-                    games_since_checkpoint, improvement,
-                    STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
-                )
+                if hasattr(trainer, "entropy_coeff"):
+                    old_ent = trainer.entropy_coeff
+                    trainer.entropy_coeff = min(0.10, trainer.entropy_coeff + 0.02)
+                    logger.warning(
+                        "STALL DETECTED: avg floor %.1f -> %.1f over %d games "
+                        "(improvement %.1f < %.1f). Entropy bump: %.4f -> %.4f",
+                        self._stall_checkpoint_floor, current_avg,
+                        games_since_checkpoint, improvement,
+                        STALL_IMPROVEMENT_THRESHOLD, old_ent, trainer.entropy_coeff,
+                    )
                 self._stall_checkpoint_floor = current_avg
                 self._stall_checkpoint_games = self.total_games
             else:
-                if trainer.entropy_coeff > 0.05:
+                if hasattr(trainer, "entropy_coeff") and trainer.entropy_coeff > 0.05:
                     old_ent = trainer.entropy_coeff
                     trainer.entropy_coeff = max(0.05, trainer.entropy_coeff - 0.005)
                     logger.info(

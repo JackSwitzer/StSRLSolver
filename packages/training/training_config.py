@@ -18,6 +18,8 @@ MODEL_ACTION_DIM = 512
 # ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
+ALGORITHM = "ppo"  # Options: "ppo", "iql", "grpo"
+
 TRAIN_WORKERS = 10
 TRAIN_BATCH_SIZE = 256
 TRAIN_MAX_BATCH_INFERENCE = 32
