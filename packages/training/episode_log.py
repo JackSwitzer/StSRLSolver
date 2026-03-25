@@ -7,6 +7,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+import numpy as np
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 
 def log_episode(episodes_path: Path, result: Dict[str, Any], config_name: str = "") -> None:
     """Append one episode to episodes.jsonl."""
@@ -39,4 +52,4 @@ def log_episode(episodes_path: Path, result: Dict[str, Any], config_name: str = 
         "construction_failure": result.get("construction_failure", False),
     }
     with open(episodes_path, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+        f.write(json.dumps(entry, cls=_NumpyEncoder) + "\n")
