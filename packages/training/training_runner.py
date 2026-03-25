@@ -13,6 +13,7 @@ from __future__ import annotations
 import gc
 import json
 import logging
+import math
 import multiprocessing as mp
 import signal
 import time
@@ -33,6 +34,7 @@ from .reward_config import (
 )
 from .sweep_config import ASCENSION_BREAKPOINTS, DEFAULT_SWEEP_CONFIGS, WEEKEND_SWEEP_CONFIGS, OVERNIGHT_SWEEP_CONFIGS
 from .training_config import EXPLORE_TEMP_MULTIPLIER, EXPLORE_GAME_RATIO
+from .training_config import ABORT_CLIP_FRACTION, ABORT_VALUE_LOSS, ABORT_ENTROPY_MIN, ABORT_GRACE_GAMES
 from .training_config import (
     MODEL_HIDDEN_DIM,
     MODEL_NUM_BLOCKS,
@@ -133,6 +135,9 @@ class OvernightRunner:
         # Inference server + persistent pool (created in run())
         self._server = None
         self._executor: Optional[Any] = None
+
+        # Track whether distillation has run this session (prevents re-distilling on config switch)
+        self._distilled_this_run = False
 
     def should_be_headless(self) -> bool:
         """Check if we should be in headless mode based on schedule."""
@@ -251,8 +256,10 @@ class OvernightRunner:
             "combats": result.get("combats", []),
             "events": result.get("events", []),
             "deck_changes": result.get("deck_changes", []),
+            "deck_final": result.get("deck_final", []),
             "relics_final": result.get("relics_final", []),
             "path_choices": result.get("path_choices", []),
+            "card_picks": result.get("card_picks", []),
         }
         self._recent_episodes.append(ep)
         # Write every 10 games to avoid I/O spam
@@ -343,13 +350,17 @@ class OvernightRunner:
                 n = len(data["obs"])
                 ep_id = hash(tf.stem) % (2**31)
                 for i in range(n):
+                    obs_i = data["obs"][i]
+                    # Skip mismatched dimensions (older trajectories)
+                    if obs_i.shape[0] != model.input_dim:
+                        continue
                     mask_i = data["masks"][i]
                     # Pad mask if trajectory was saved with smaller action_dim
                     if mask_i.shape[0] < _ACTION_DIM:
                         mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
                                         constant_values=False)
                     trainer.add_transition(
-                        obs=data["obs"][i],
+                        obs=obs_i,
                         action_mask=mask_i,
                         action=int(data["actions"][i]),
                         reward=float(data["rewards"][i]),
@@ -572,6 +583,9 @@ class OvernightRunner:
                 hidden_dim=self.hidden_dim,
                 num_blocks=self.num_blocks,
             ).to(device)
+        assert model.input_dim == encoder.RUN_DIM, (
+            f"Model input_dim ({model.input_dim}) != encoder RUN_DIM ({encoder.RUN_DIM})"
+        )
         logger.info(
             "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
             model.param_count(), model.hidden_dim, model.num_blocks, device,
@@ -695,16 +709,31 @@ class OvernightRunner:
             temp = sweep_config.get("temperature", self.temperature)
             self.temperature = temp
 
-            trainer = StrategicTrainer(
-                model=model,
-                lr=lr,
-                entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
-                clip_epsilon=sweep_config.get("clip_epsilon", 0.2),
-                batch_size=batch_size,
-                lr_schedule=sweep_config.get("lr_schedule", "cosine"),
-                lr_T_max=sweep_config.get("lr_T_max", 30000),
-                lr_T_0=sweep_config.get("lr_T_0", 5000),
-            )
+            algorithm = sweep_config.get("algorithm", "ppo")
+
+            if algorithm == "iql":
+                from .iql_trainer import IQLTrainer
+                trainer = IQLTrainer(
+                    policy=model,
+                    input_dim=model.input_dim,
+                    action_dim=model.action_dim,
+                    lr=sweep_config.get("lr", 3e-4),
+                    expectile=sweep_config.get("iql_expectile", 0.7),
+                    temperature=sweep_config.get("iql_temperature", 3.0),
+                )
+            else:
+                # PPO and GRPO both use StrategicTrainer
+                clip_eps = sweep_config.get("clip_epsilon", sweep_config.get("grpo_clip", 0.2))
+                trainer = StrategicTrainer(
+                    model=model,
+                    lr=lr,
+                    entropy_coeff=sweep_config.get("entropy_coeff", 0.05),
+                    clip_epsilon=clip_eps,
+                    batch_size=batch_size,
+                    lr_schedule=sweep_config.get("lr_schedule", "cosine"),
+                    lr_T_max=sweep_config.get("lr_T_max", 30000),
+                    lr_T_0=sweep_config.get("lr_T_0", 5000),
+                )
 
             # Store trainer ref for signal handler access (hot-reload)
             self._trainer = trainer
@@ -725,17 +754,23 @@ class OvernightRunner:
 
             # Only distill on cold start (no checkpoint). Warm restarts already have
             # trained weights — re-distilling on the same data wastes time.
-            if _warm_checkpoint is None and trainer.train_steps == 0:
-                # BC pretrain on best trajectories
-                traj_dir = self.run_dir / "best_trajectories"
-                if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
-                    logger.info("=== BC Pretrain ===")
-                    bc_metrics = trainer.bc_pretrain(traj_dir, epochs=10)
-                    logger.info("BC complete: %s", bc_metrics)
-                    if self._server is not None:
-                        self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
-                self._pretrain_from_trajectories(trainer, model)
-                self._deep_distillation(trainer, model, replay_buffer)
+            # bc_warmup: True in config forces BC even if distillation already ran.
+            _force_bc = sweep_config.get("bc_warmup", False)
+            if (not self._distilled_this_run or _force_bc) and _warm_checkpoint is None and trainer.train_steps == 0:
+                # BC pretrain on best trajectories (only if trainer supports it)
+                if hasattr(trainer, 'bc_pretrain'):
+                    traj_dir = self.run_dir / "best_trajectories"
+                    if traj_dir.exists() and any(traj_dir.glob("traj_F*.npz")):
+                        logger.info("=== BC Pretrain ===")
+                        bc_metrics = trainer.bc_pretrain(traj_dir, epochs=10)
+                        logger.info("BC complete: %s", bc_metrics)
+                        if self._server is not None:
+                            self._server.sync_strategic_from_pytorch(model, version=trainer.train_steps)
+                # Trajectory pretrain + deep distillation require PPO-style .buffer interface
+                if hasattr(trainer, 'buffer'):
+                    self._pretrain_from_trajectories(trainer, model)
+                    self._deep_distillation(trainer, model, replay_buffer)
+                self._distilled_this_run = True
             else:
                 logger.info("Warm restart (train_steps=%d) — skipping distillation", trainer.train_steps)
 
@@ -787,11 +822,39 @@ class OvernightRunner:
             )
 
             # Phased loop: COLLECT games -> TRAIN on best data -> repeat.
-            # Constants sourced from training_config.py
-            COLLECT_GAMES = TRAIN_COLLECT_GAMES
-            TRAIN_EPOCHS = TRAIN_PPO_EPOCHS
-            _TRAIN_STEPS = TRAIN_STEPS_PER_PHASE
+            # Per-config overrides take precedence over training_config.py defaults.
+            COLLECT_GAMES = sweep_config.get("collect_games", TRAIN_COLLECT_GAMES)
+            TRAIN_EPOCHS = sweep_config.get("ppo_epochs", TRAIN_PPO_EPOCHS)
+            _TRAIN_STEPS = sweep_config.get("train_steps", TRAIN_STEPS_PER_PHASE)
             games_per_min = 0.0
+
+            # IQL: offline-only training (no game collection)
+            if algorithm == "iql":
+                from .offline_data import load_trajectories
+                traj_dirs = [
+                    self.run_dir / "best_trajectories",
+                    Path("logs/consolidated"),
+                ]
+                dataset = load_trajectories(
+                    [d for d in traj_dirs if d.exists()],
+                    max_transitions=48000,
+                )
+                if len(dataset) > 0:
+                    logger.info("IQL: training on %d offline transitions", len(dataset))
+                    iql_metrics = trainer.train_offline(dataset, epochs=50)
+                    logger.info("IQL complete: %s", iql_metrics)
+                    if self._server is not None:
+                        self._server.sync_strategic_from_pytorch(model, version=1)
+                else:
+                    logger.warning("IQL: no offline data found, skipping")
+                # Skip the collect/train loop entirely
+                sweep_elapsed = time.monotonic() - sweep_start
+                return {
+                    "config": sweep_config, "games": 0,
+                    "avg_floor": 0, "win_rate": 0,
+                    "duration_min": round(sweep_elapsed / 60, 1),
+                    "train_steps": getattr(trainer, "train_steps", 0),
+                }
 
             while (sweep_games < n_games
                    and self.total_games < self.max_games
@@ -816,7 +879,8 @@ class OvernightRunner:
                 })
 
                 while collect_games < COLLECT_GAMES and not self._shutdown_requested:
-                    seeds, async_results = self._submit_batch(seed_pool)
+                    remaining = COLLECT_GAMES - collect_games
+                    seeds, async_results = self._submit_batch(seed_pool, max_games=remaining)
                     batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
                     for result in batch_results:
                         self._record_game(result)
@@ -826,6 +890,16 @@ class OvernightRunner:
                         sweep_games += 1
                         sweep_floors.append(result["floor"])
                         collect_games += 1
+
+                    # Write status after each batch for live monitoring
+                    self.write_status({
+                        "sweep_config": sweep_config, "sweep_phase": "collecting",
+                        "config_name": config_name, "sweep_games": sweep_games,
+                        "train_steps": trainer.train_steps,
+                        "buffer_size": len(trainer.buffer),
+                        "games_per_min": round(games_per_min, 1) if games_per_min else 0,
+                        "collect_progress": f"{collect_games}/{COLLECT_GAMES}",
+                    })
 
                 collect_duration = time.monotonic() - collect_t0
                 games_per_min = collect_games / max(collect_duration / 60.0, 0.01)
@@ -860,12 +934,15 @@ class OvernightRunner:
                             n_t = len(data["obs"])
                             ep_id = hash(tf.stem) % (2**31)
                             for i in range(n_t):
+                                obs_i = data["obs"][i]
+                                if obs_i.shape[0] != model.input_dim:
+                                    continue
                                 mask_i = data["masks"][i]
                                 if mask_i.shape[0] < _ACTION_DIM:
                                     mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]),
                                                     constant_values=False)
                                 st = StrategicTransition(
-                                    obs=data["obs"][i],
+                                    obs=obs_i,
                                     action_mask=mask_i,
                                     action=int(data["actions"][i]),
                                     reward=float(data["rewards"][i]),
@@ -902,10 +979,15 @@ class OvernightRunner:
                     "entropy": self._last_train_metrics.get("entropy"),
                 })
 
+                _abort = False
                 for _ in range(_TRAIN_STEPS):
                     if len(trainer.buffer) < trainer.batch_size // 2:
                         break  # Not enough data
                     train_metrics = trainer.train_batch()
+                    if math.isnan(train_metrics.get("total_loss", 0)):
+                        logger.error("ABORT: NaN loss detected")
+                        _abort = True
+                        break
                     train_count += 1
                     self._process_train_metrics(
                         train_metrics, trainer, config_name, sweep_floors,
@@ -974,6 +1056,22 @@ class OvernightRunner:
 
                 # GC between phases
                 gc.collect()
+
+                # Abort criteria — detect training collapse
+                if _abort:
+                    break
+                _clip = self._last_train_metrics.get("clip_fraction", 0)
+                _vloss = self._last_train_metrics.get("value_loss", 0)
+                _ent = self._last_train_metrics.get("entropy", 1.0)
+                if sweep_games > ABORT_GRACE_GAMES and _clip > ABORT_CLIP_FRACTION:
+                    logger.warning("ABORT: clip fraction %.3f > %.3f after %d games", _clip, ABORT_CLIP_FRACTION, sweep_games)
+                    break
+                if sweep_games > ABORT_GRACE_GAMES and _vloss > ABORT_VALUE_LOSS:
+                    logger.warning("ABORT: value loss %.3f > %.3f after %d games", _vloss, ABORT_VALUE_LOSS, sweep_games)
+                    break
+                if _ent < ABORT_ENTROPY_MIN:
+                    logger.warning("ABORT: entropy %.4f < %.4f (collapsed)", _ent, ABORT_ENTROPY_MIN)
+                    break
 
             # Final training pass on remaining buffer
             if len(trainer.buffer) >= trainer.batch_size:
@@ -1143,9 +1241,12 @@ class OvernightRunner:
             games_per_min,
         )
 
-    def _submit_batch(self, seed_pool) -> Tuple[List[str], List[Any]]:
+    def _submit_batch(self, seed_pool, max_games: int = 0) -> Tuple[List[str], List[Any]]:
         """Submit a batch of games to workers. Returns immediately (non-blocking)."""
-        seeds = [seed_pool.get_seed() for _ in range(self.games_per_batch)]
+        batch_size = self.games_per_batch
+        if max_games > 0:
+            batch_size = min(batch_size, max_games)
+        seeds = [seed_pool.get_seed() for _ in range(batch_size)]
 
         cfg = self._current_sweep_config
         ts_ms = cfg.get("turn_solver_ms", 50.0)
@@ -1180,6 +1281,8 @@ class OvernightRunner:
         """Collect results from a previously submitted batch. Blocks until done."""
         results: List[Dict[str, Any]] = []
         for ar, seed in zip(async_results, seeds):
+            if self._shutdown_requested:
+                break
             try:
                 # MCTS deep search: boss fights can take 10+ min, full game up to 1h
                 result = ar.get(timeout=3600)

@@ -33,6 +33,7 @@ __all__ = [
     "STALL_DETECTION_WINDOW",
     "STALL_IMPROVEMENT_THRESHOLD",
     "compute_potential",
+    "compute_boss_hp_progress",
 ]
 
 # Mutable dicts wired from REWARD_WEIGHTS -- hot-reload updates REWARD_WEIGHTS,
@@ -76,3 +77,17 @@ def compute_potential(run_state) -> float:
     relic_bonus = min(relic_count * 0.02, 0.15)
 
     return 1.5 * floor_pct + 0.30 * hp_pct + 0.15 * deck_quality + 0.10 * relic_bonus
+
+
+def compute_boss_hp_progress(boss_dmg_dealt: float, boss_max_hp: float) -> float:
+    """Compute continuous reward for boss fight damage.
+
+    Creates gradient between 'reached boss' and 'killed boss':
+    boss_dmg_dealt / boss_max_hp * BOSS_HP_PROGRESS_SCALE
+
+    E.g., dealing 50% of boss HP = 1.5 reward (with scale=3.0)
+    """
+    from .training_config import BOSS_HP_PROGRESS_SCALE
+    if boss_max_hp <= 0:
+        return 0.0
+    return (boss_dmg_dealt / boss_max_hp) * BOSS_HP_PROGRESS_SCALE

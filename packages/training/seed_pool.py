@@ -15,9 +15,15 @@ EVAL_SEEDS: List[str] = [
 # Legacy alias
 MERL_SEEDS = EVAL_SEEDS
 
+# 42 diverse training seeds — random A20 Watcher seeds for variety
+TRAINING_SEEDS: List[str] = [
+    f"Train_{i:03d}" for i in range(42)
+]
+
 # Max plays per seed — effectively unlimited (game budget is the real limit)
 # With 8 seeds and 32k games/config, each seed gets ~4k plays
 _EVAL_MAX_PLAYS = 100_000
+_TRAINING_MAX_PLAYS = 10_000  # Training seeds: high limit for diversity
 
 
 class SeedPool:
@@ -39,6 +45,12 @@ class SeedPool:
         for s in EVAL_SEEDS:
             self.play_counts[s] = 0
             self._max_plays_per_seed[s] = _EVAL_MAX_PLAYS
+
+        # Add default training seeds (high max_plays for diversity)
+        for s in TRAINING_SEEDS:
+            if s not in self.play_counts:
+                self.play_counts[s] = 0
+                self._max_plays_per_seed[s] = _TRAINING_MAX_PLAYS
 
         if initial_seeds:
             for s in initial_seeds:

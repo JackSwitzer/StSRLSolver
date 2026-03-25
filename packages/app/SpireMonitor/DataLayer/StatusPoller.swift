@@ -27,32 +27,39 @@ actor StatusPoller {
     private func pollLoop() async {
         while isRunning && !Task.isCancelled {
             await poll()
-            try? await Task.sleep(for: .seconds(0.5))
+            try? await Task.sleep(for: .seconds(2.5))
         }
     }
 
-    /// Resolve the logs URL, following symlinks so reads work even when
-    /// `logs/active` is a relative symlink (e.g. `runs/run_XXXXXX`).
-    private func resolvedLogsURL() -> URL {
-        let raw = config.logsPath
-        let resolved = raw.path().isEmpty ? raw : URL(filePath: (raw.path() as NSString).resolvingSymlinksInPath)
-        return resolved
-    }
-
     private func poll() async {
-        let logsURL = resolvedLogsURL()
+        let logsURL = config.logsPath
 
-        // Read status.json -- check file mtime to detect stale data.
-        // Use resolved path so FileManager attribute lookups hit the real file.
+        // Read status.json -- check file mtime to detect stale data
         let statusURL = logsURL.appending(path: "status.json")
-        let resolvedStatusPath = (statusURL.path() as NSString).resolvingSymlinksInPath
-        if let data = try? Data(contentsOf: URL(filePath: resolvedStatusPath)),
+        if let data = try? Data(contentsOf: statusURL),
            let status = try? JSONDecoder().decode(TrainingStatus.self, from: data) {
-            let mtime = (try? FileManager.default.attributesOfItem(atPath: resolvedStatusPath)[.modificationDate] as? Date) ?? .distantPast
+            let mtime = (try? FileManager.default.attributesOfItem(atPath: statusURL.path())[.modificationDate] as? Date) ?? .distantPast
             await MainActor.run {
                 store.status = status
                 store.lastStatusUpdate = mtime
                 store.appendLoss(from: status)
+                store.appendDiagnostics(from: status)
+
+                if let config = status.configName {
+                    var stats = store.configHistory[config] ?? ConfigStats(
+                        name: config, games: 0, avgFloor: 0, peakFloor: 0, isActive: false
+                    )
+                    stats.games = status.totalGames ?? 0
+                    stats.avgFloor = status.avgFloor100 ?? 0
+                    stats.peakFloor = status.peakFloor ?? 0
+                    stats.lastLoss = status.totalLoss
+                    stats.phase = status.sweepPhase
+                    stats.isActive = true
+                    for key in store.configHistory.keys {
+                        store.configHistory[key]?.isActive = (key == config)
+                    }
+                    store.configHistory[config] = stats
+                }
             }
         }
 
@@ -64,41 +71,14 @@ actor StatusPoller {
             }
         }
 
-        // Reload episodes + perf_log every 4th poll (~2s)
+        // Reload episodes every 4th poll (~10s) to pick up new data
         pollCount += 1
         if pollCount % 4 == 0 {
             let recent = await EpisodeLoader.loadRecent(from: logsURL)
             let top = await EpisodeLoader.loadTop(from: logsURL)
-
-            // Collect perf_log.jsonl URLs: active run + all archived runs
-            var perfLogURLs: [URL] = []
-
-            // Active run perf_log
-            let activePerfLog = logsURL.appending(path: "perf_log.jsonl")
-            if FileManager.default.fileExists(atPath: activePerfLog.path()) {
-                perfLogURLs.append(activePerfLog)
-            }
-
-            // Scan archived runs: logs/runs/*/perf_log.jsonl
-            let runsDir = config.archivedRunsPath
-            if let runDirs = try? FileManager.default.contentsOfDirectory(
-                at: runsDir,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            ) {
-                for runDir in runDirs {
-                    let perfLog = runDir.appending(path: "perf_log.jsonl")
-                    if FileManager.default.fileExists(atPath: perfLog.path()) {
-                        perfLogURLs.append(perfLog)
-                    }
-                }
-            }
-
-            let collectedPerfLogURLs = perfLogURLs
             await MainActor.run {
                 if !recent.isEmpty { store.recentEpisodes = recent }
                 if !top.isEmpty { store.topEpisodes = top }
-                store.loadPerfLogs(from: collectedPerfLogURLs)
             }
         }
 

@@ -110,9 +110,11 @@ class TurnSolver:
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
+        neural_eval=None,  # Optional: (engine) -> float, for neural leaf blending
     ):
         self.default_time_budget_ms = time_budget_ms
         self.default_node_budget = node_budget
+        self._neural_eval = neural_eval
 
         # Tree reuse state
         self._cached_plan: Optional[List[Action]] = None
@@ -347,6 +349,16 @@ class TurnSolver:
                     score += W["unspent_energy_weight"] * unspent + W["unspent_playable_weight"] * playable
                 else:
                     score += W["unspent_idle_weight"] * unspent
+
+        # Neural leaf evaluation: blend with heuristic for robustness
+        if self._neural_eval is not None:
+            try:
+                neural_score = self._neural_eval(engine)
+                # Blend: 70% neural, 30% heuristic
+                # Scale neural output (0-1 probability) to heuristic score range
+                score = 0.7 * neural_score * 100.0 + 0.3 * score
+            except Exception as e:
+                logger.warning("Neural eval failed, falling back to heuristic: %s", e)
 
         return score
 
@@ -1089,21 +1101,40 @@ class TurnSolverAdapter:
         self,
         time_budget_ms: float = 5.0,
         node_budget: int = 1000,
-        multi_turn_depth: int = 3,
+        multi_turn_depth: int = 5,
         multi_turn_k: int = 4,
-        multi_turn_budget_ms: float = 5000.0,
+        multi_turn_budget_ms: float = 30000.0,
+        solver_budgets: dict = None,  # {room_type: (base_ms, base_nodes, cap_ms)}
+        combat_net=None,  # Optional CombatNet for neural leaf evaluation
     ):
+        # Build neural eval closure if CombatNet provided
+        self._combat_net = combat_net
+        self._combat_encoder = None
+        neural_eval = None
+        if combat_net is not None:
+            from packages.training.state_encoders import CombatStateEncoder
+            self._combat_encoder = CombatStateEncoder()
+            _cn = combat_net
+            _ce = self._combat_encoder
+
+            def neural_eval(engine):
+                obs = _ce.encode(engine)
+                return _cn.predict(obs)
+
         self._solver = TurnSolver(
             time_budget_ms=time_budget_ms,
             node_budget=node_budget,
+            neural_eval=neural_eval,
         )
         # Multi-turn solver for boss/elite fights
         self._multi_turn = MultiTurnSolver(
-            inner_solver=TurnSolver(time_budget_ms=100, node_budget=5000),
+            inner_solver=TurnSolver(time_budget_ms=500, node_budget=50000, neural_eval=neural_eval),
             max_depth=multi_turn_depth,
             top_k=multi_turn_k,
             time_budget_ms=multi_turn_budget_ms,
         )
+        # Per-room-type budgets: {room_type: (base_ms, base_nodes, cap_ms)}
+        self._solver_budgets = solver_budgets or {}
 
         self._cached_plan: Optional[List[Action]] = None
         self._cached_plan_index: int = 0
@@ -1159,9 +1190,23 @@ class TurnSolverAdapter:
             combat_action = self._match_engine_to_combat(engine_action, actions, state)
             if combat_action is not None:
                 self._cached_plan_index += 1
+                self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
                 return combat_action
             # Cache invalid — replan
             self._cached_plan = None
+
+        # Apply room-type-specific budgets from training_config.SOLVER_BUDGETS
+        _rt_key = room_type.lower() if room_type else "monster"
+        if self._solver_budgets and _rt_key in self._solver_budgets:
+            base_ms, base_nodes, cap_ms = self._solver_budgets[_rt_key]
+            # Scale by total enemy HP
+            total_hp = sum(getattr(e, 'hp', 0) for e in getattr(engine.state, 'enemies', []) if getattr(e, 'hp', 0) > 0)
+            from .training_config import SOLVER_HP_SCALE_DIVISOR
+            scale = max(1.0, total_hp / SOLVER_HP_SCALE_DIVISOR)
+            budget_ms = min(base_ms * scale, cap_ms)
+            budget_nodes = int(base_nodes * scale)
+            self._solver.default_time_budget_ms = budget_ms
+            self._solver.default_node_budget = budget_nodes
 
         # For boss/elite: try multi-turn solver first (plans 3+ turns ahead)
         if room_type in ("boss", "b", "elite", "e"):
@@ -1178,6 +1223,7 @@ class TurnSolverAdapter:
                 combat_action = self._match_engine_to_combat(engine_action, actions, state)
                 if combat_action is not None:
                     self._cached_plan_index = 1
+                    self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
                     return combat_action
 
         # DFS/beam TurnSolver (fast single-turn heuristic)
@@ -1196,9 +1242,20 @@ class TurnSolverAdapter:
             combat_action = self._match_engine_to_combat(engine_action, actions, state)
             if combat_action is not None:
                 self._cached_plan_index = 1
+                self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
                 return combat_action
 
         return None  # Fall through to first legal action
+
+    def _warn_end_turn_with_playable(self, combat_action, actions, engine, room_type):
+        """Log a warning if the solver chose EndTurn while playable cards exist with energy."""
+        if getattr(combat_action, "action_type", None) == "end_turn" and engine.state.energy > 0:
+            playable = [a for a in actions if getattr(a, "action_type", None) == "play_card"]
+            if playable:
+                logger.warning(
+                    "TurnSolver chose EndTurn with %d playable cards (energy=%d, room=%s)",
+                    len(playable), engine.state.energy, room_type,
+                )
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.

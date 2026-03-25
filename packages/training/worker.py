@@ -23,7 +23,12 @@ from .reward_config import (
     UPGRADE_REWARDS,
     compute_potential,
 )
-from .training_config import MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO
+from .training_config import (
+    MODEL_ACTION_DIM, MCTS_BLEND_RATIO, STRATEGIC_BLEND_RATIO,
+    SOLVER_BUDGETS, MULTI_TURN_DEPTH, MULTI_TURN_BUDGET_MS,
+    MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS,
+    MCTS_ADAPTIVE_CAP,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +40,26 @@ _ACTION_DIM = MODEL_ACTION_DIM
 # ---------------------------------------------------------------------------
 
 def _strategic_search(actions, runner, encoder, client, phase_type, n_actions):
-    """Evaluate each option via value head, return best + search policy."""
+    """Evaluate each option via value head after taking that action."""
     if client is None or n_actions <= 1:
         return None
     option_values = []
     for i in range(n_actions):
-        obs = encoder.encode(runner.run_state, phase_type=phase_type,
-            boss_name=getattr(runner, "_boss_name", ""),
-            room_type=getattr(runner, "current_room_type", ""),
-            actions=actions, runner=runner)
-        resp = client.infer_strategic(obs, 1)
-        if resp and resp.get("ok"):
-            option_values.append(float(resp["value"]))
-        else:
+        try:
+            # Copy runner state, take action i, encode the resulting state
+            runner_copy = runner.copy()
+            runner_copy.take_action(actions[i])
+            obs = encoder.encode(runner_copy.run_state, phase_type=phase_type,
+                boss_name=getattr(runner_copy, "_boss_name", ""),
+                room_type=getattr(runner_copy, "current_room_type", ""),
+                actions=[], runner=runner_copy)
+            resp = client.infer_strategic(obs, 1)
+            if resp and resp.get("ok"):
+                option_values.append(float(resp["value"]))
+            else:
+                return None
+        except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
+            logger.warning("_strategic_search: option %d eval failed: %s", i, e)
             return None
     vals = np.array(option_values)
     vals = vals - vals.max()
@@ -83,10 +95,17 @@ def _worker_init(request_q, response_qs, slot_q, shm_info=None):
     """
     global _worker_name
     from packages.training.inference_server import InferenceClient
-    try:
-        slot_id = slot_q.get(timeout=10)
-    except Exception:
-        logger.warning("Worker failed to acquire slot from slot_q — running without inference")
+
+    slot_id = None
+    for attempt in range(3):
+        try:
+            slot_id = slot_q.get(timeout=10 * (attempt + 1))
+            break
+        except Exception:
+            logger.warning("Worker slot acquisition attempt %d/3 failed", attempt + 1)
+
+    if slot_id is None:
+        logger.warning("Worker failed to acquire slot after 3 attempts — running without inference")
         _worker_name = "NoSlot"
         return
 
@@ -194,21 +213,37 @@ def _play_one_game(
                      done, value, log_prob, final_floor, cleared_act1/2/3)
     """
     from packages.engine.game import GameRunner, GamePhase, CombatAction
-    from packages.training.state_encoders import RunStateEncoder
+    from packages.training.state_encoders import RunStateEncoder, CombatStateEncoder
     from packages.training.inference_server import get_client
     from packages.training.turn_solver import TurnSolverAdapter
     from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
+    from packages.training.reward_config import compute_boss_hp_progress
 
     encoder = RunStateEncoder()
+    _combat_encoder = CombatStateEncoder()
     # Scale node budget proportionally with time budget (100 nodes per ms)
     _node_budget = max(1000, int(turn_solver_ms * 100))
+
+    # Load CombatNet if checkpoint exists (for neural leaf evaluation)
+    _combat_net = None
+    _combat_ckpt = Path("logs/active/combat_net.pt")
+    if _combat_ckpt.exists():
+        try:
+            from packages.training.combat_net import CombatNet
+            _combat_net = CombatNet.load(_combat_ckpt)
+            _combat_net.eval()
+        except Exception as e:
+            logger.warning("Failed to load CombatNet: %s", e)
+            _combat_net = None
+
     turn_solver = TurnSolverAdapter(
         time_budget_ms=turn_solver_ms,
         node_budget=_node_budget,
-        # Multi-turn solver for boss/elite: 3 turns ahead, 4 candidate plans, 5s budget
-        multi_turn_depth=3,
+        multi_turn_depth=MULTI_TURN_DEPTH,
         multi_turn_k=4,
-        multi_turn_budget_ms=5000.0,
+        multi_turn_budget_ms=MULTI_TURN_BUDGET_MS,
+        solver_budgets=SOLVER_BUDGETS,
+        combat_net=_combat_net,
     )
 
     client = get_client()
@@ -273,6 +308,8 @@ def _play_one_game(
     combat_potions_used = 0
     event_reward_potion_use = 0.0
     combat_stance_changes = 0
+    combat_energy_wasted = 0.0  # Total unspent energy with playable cards
+    combat_state_snapshot: Optional[np.ndarray] = None  # 298-dim encoded state from combat start
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -305,6 +342,16 @@ def _play_one_game(
                 _enc_name = ", ".join(_enemy_ids)
             except Exception:
                 pass
+        # Capture boss enemy HP for boss HP progress reward
+        _boss_max_hp = 0
+        _boss_current_hp = 0
+        if _combat_ref is not None:
+            try:
+                for e in _combat_ref.state.enemies:
+                    _boss_max_hp += getattr(e, "max_hp", 0)
+                    _boss_current_hp += max(getattr(e, "hp", 0), 0)
+            except Exception:
+                pass
         # Use runner.run_state directly (not captured `rs` which may be stale).
         # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
         _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
@@ -321,6 +368,9 @@ def _play_one_game(
             "duration_ms": round((time.monotonic() - combat_start_time) * 1000),
             "solver_ms": round(combat_solver_ms),
             "solver_calls": combat_solver_calls,
+            "boss_max_hp": _boss_max_hp,
+            "boss_dmg_dealt": max(0, _boss_max_hp - _boss_current_hp),
+            "combat_state_vector": combat_state_snapshot,
         })
 
     while not runner.game_over and step < 5000:
@@ -354,6 +404,15 @@ def _play_one_game(
                 combat_potions_used = 0
                 event_reward_potion_use = 0.0
                 combat_stance_changes = 0
+                combat_energy_wasted = 0.0
+                # Encode combat state while engine is alive (for CombatNet training)
+                combat_state_snapshot = None
+                _engine = getattr(runner, "current_combat", None)
+                if _engine is not None:
+                    try:
+                        combat_state_snapshot = _combat_encoder.encode(_engine)
+                    except (RuntimeError, ValueError, KeyError, AttributeError, IndexError):
+                        pass
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
                 turns_log = []
@@ -426,7 +485,24 @@ def _play_one_game(
                         _energy = getattr(_st, "energy", 0)
                         _playable = sum(1 for c in _hand_ids if _costs.get(c, 1) <= _energy)
                         _turn_info["playable_unplayed"] = _playable
+                        # Track energy wasted with playable cards (RL reward signal)
+                        if _energy >= 1 and _playable > 0:
+                            combat_energy_wasted += (
+                                _energy * REWARD_WEIGHTS.get("unspent_energy_reward", -0.15)
+                                + _playable * REWARD_WEIGHTS.get("unspent_playable_reward", -0.10)
+                            )
                     turns_log.append(_turn_info)
+                    # Cards-per-turn reward: penalize low count, reward long sequences
+                    _n_cards_played = len(turn_cards)
+                    _cpt_penalties = REWARD_WEIGHTS.get("cards_per_turn_penalties", {})
+                    if _n_cards_played in _cpt_penalties:
+                        combat_energy_wasted += _cpt_penalties[_n_cards_played]
+                    _bonus_thresh = REWARD_WEIGHTS.get("cards_per_turn_bonus_threshold", 5)
+                    if _n_cards_played > _bonus_thresh:
+                        combat_energy_wasted -= (  # negative of negative = positive reward
+                            (_n_cards_played - _bonus_thresh)
+                            * REWARD_WEIGHTS.get("cards_per_turn_bonus_per_card", 0.05)
+                        )
                     turn_cards.clear()
             runner.take_action(action)
             # Detect stance changes after action
@@ -480,6 +556,11 @@ def _play_one_game(
 
             n_actions = len(actions)
 
+            # Guard against action space overflow
+            if n_actions > _ACTION_DIM:
+                logger.warning("Action overflow: %d > %d, truncating", n_actions, _ACTION_DIM)
+                n_actions = _ACTION_DIM
+
             # Map GamePhase to phase_type for state encoding
             _PHASE_MAP = {
                 GamePhase.MAP_NAVIGATION: "path",
@@ -516,33 +597,43 @@ def _play_one_game(
                     logits_np = resp["logits"]  # numpy array, length action_dim
                     value = float(resp["value"])
 
+                    # Mask logits to valid actions only (prevents sampling invalid indices)
+                    logits_valid = logits_np[:n_actions]
+
                     # Temperature-scaled sampling
                     if temperature > 0:
-                        logits_scaled = logits_np / temperature
+                        logits_scaled = logits_valid / temperature
                         logits_scaled = logits_scaled - logits_scaled.max()
                         probs = np.exp(logits_scaled)
                         probs /= probs.sum()
-                        action_idx = int(np.random.choice(len(probs), p=probs))
+                        action_idx = int(np.random.choice(n_actions, p=probs))
                     else:
-                        action_idx = int(np.argmax(logits_np))
+                        action_idx = int(np.argmax(logits_valid))
 
                     # log_prob from UNSCALED policy (matches trainer's forward pass).
-                    logits_base = logits_np - logits_np.max()
+                    logits_base = logits_valid - logits_valid.max()
                     probs_base = np.exp(logits_base)
                     probs_base /= probs_base.sum()
                     log_prob = float(np.log(probs_base[action_idx] + 1e-8))
 
-                    # Clamp to valid range
-                    action_idx = min(action_idx, n_actions - 1)
-
                     # MCTS strategic search: full tree search override
+                    # Skip search for forced decisions (only 1 action)
                     if mcts_engine is not None and n_actions > 1:
                         try:
-                            # Budget override for card picks (mcts_card_sims)
+                            # Adaptive budget: base from config, scaled by floor + phase importance
                             budget_override = mcts_card_sims if (mcts_card_sims > 0 and phase_type == "card_pick") else None
-                            # Early-game boost: floors 1-10 get 1.5x budget
-                            if budget_override and current_floor <= 10:
-                                budget_override = int(budget_override * 1.5)
+                            # Floor-based multiplier (critical moments get deep search)
+                            floor_mult = MCTS_FLOOR_MULTIPLIERS.get(current_floor, 1.0)
+                            # Phase-type multiplier (card picks > rest > path > other)
+                            phase_mult = MCTS_PHASE_MULTIPLIERS.get(phase_type, 1.0)
+                            adaptive_mult = floor_mult * phase_mult
+                            if budget_override:
+                                budget_override = min(int(budget_override * adaptive_mult), MCTS_ADAPTIVE_CAP)
+                            elif adaptive_mult > 1.0:
+                                # No explicit override but high-importance moment: boost default
+                                from .training_config import MCTS_BUDGETS
+                                base_budget = MCTS_BUDGETS.get(phase_type, 50)
+                                budget_override = min(int(base_budget * adaptive_mult), MCTS_ADAPTIVE_CAP)
                             _, mcts_policy = mcts_engine.search(
                                 runner, actions, phase_type,
                                 budget=budget_override,
@@ -625,6 +716,17 @@ def _play_one_game(
                         _has_potions = any(p is not None for p in _potions) if _potions else False
                         if _has_potions:
                             event_reward += REWARD_WEIGHTS.get("potion_hoard_penalty", -0.30)
+
+                    # Unspent energy penalty (accumulated during combat turns)
+                    event_reward += combat_energy_wasted
+
+                    # Boss HP progress reward: continuous signal for boss fights
+                    if rt in ("boss", "b") and combats:
+                        _last_combat = combats[-1]
+                        _boss_max = _last_combat.get("boss_max_hp", 0)
+                        _boss_dmg = _last_combat.get("boss_dmg_dealt", 0)
+                        if _boss_max > 0:
+                            event_reward += compute_boss_hp_progress(_boss_dmg, _boss_max)
 
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
@@ -718,6 +820,18 @@ def _play_one_game(
                 progress = final_floor / REWARD_WEIGHTS.get("death_floor_cutoff", 55)
                 death_scale = REWARD_WEIGHTS.get("death_penalty_scale", -1.0)
                 transitions[-1]["reward"] += death_scale * (1 - progress)
+
+                # Boss HP progress for games that died in boss combat.
+                # The combat_just_ended block (line ~722) never fires when the
+                # player dies at boss because game_over exits the loop first.
+                if combats:
+                    last_combat = combats[-1]
+                    if last_combat.get("room_type") in ("boss", "b"):
+                        boss_max = last_combat.get("boss_max_hp", 0)
+                        boss_dmg = last_combat.get("boss_dmg_dealt", 0)
+                        if boss_max > 0:
+                            transitions[-1]["reward"] += compute_boss_hp_progress(boss_dmg, boss_max)
+
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE
         # bootstraps from value estimate instead of zero

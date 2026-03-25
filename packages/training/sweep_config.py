@@ -45,6 +45,72 @@ WEEKEND_SWEEP_CONFIGS: List[Dict[str, Any]] = [
 # Overnight ablation: full 5-config sweep on 8 fixed seeds, 18M model + Wrath fix
 OVERNIGHT_SWEEP_CONFIGS = DEFAULT_SWEEP_CONFIGS
 
+# V3 Ablation: 4 algorithms, 2 hours each, all start from BC checkpoint
+V3_ABLATION_CONFIGS: List[Dict[str, Any]] = [
+    # A) Fixed PPO — TurnSolver combat, CombatNet eval, boss HP progress
+    {
+        "name": "v3_ppo_fixed",
+        "lr": 3e-5,
+        "lr_schedule": "cosine_warm_restarts",
+        "lr_T_0": LR_T_0,
+        "batch_size": 256,
+        "entropy_coeff": ENTROPY_COEFF,
+        "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0,
+        "collect_games": 500,
+        "train_steps": 30,
+        "max_hours": 2.0,
+        "boss_hp_progress": True,
+        "combat_net": True,
+        "algorithm": "ppo",
+    },
+    # B) IQL Offline RL — train on all offline data, no collection
+    {
+        "name": "v3_iql_offline",
+        "lr": 3e-4,
+        "lr_schedule": "cosine",
+        "lr_T_0": LR_T_0,
+        "batch_size": 256,
+        "max_hours": 2.0,
+        "algorithm": "iql",
+        "iql_expectile": 0.7,
+        "iql_temperature": 3.0,
+    },
+    # C) GRPO — 5 rollouts per card pick, group-relative advantages
+    {
+        "name": "v3_grpo",
+        "lr": 3e-5,
+        "lr_schedule": "cosine_warm_restarts",
+        "lr_T_0": LR_T_0,
+        "batch_size": 256,
+        "entropy_coeff": ENTROPY_COEFF,
+        "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0,
+        "max_hours": 2.0,
+        "algorithm": "grpo",
+        "grpo_rollouts_card": 5,
+        "grpo_rollouts_other": 2,
+    },
+    # D) BC -> PPO Hybrid — same as A but starts from BC checkpoint
+    {
+        "name": "v3_bc_ppo_hybrid",
+        "lr": 3e-5,
+        "lr_schedule": "cosine_warm_restarts",
+        "lr_T_0": LR_T_0,
+        "batch_size": 256,
+        "entropy_coeff": ENTROPY_COEFF,
+        "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0,
+        "collect_games": 500,
+        "train_steps": 30,
+        "max_hours": 2.0,
+        "boss_hp_progress": True,
+        "combat_net": True,
+        "algorithm": "ppo",
+        "bc_warmup": True,
+    },
+]
+
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
 ASCENSION_BREAKPOINTS: List[Tuple[float, float, int]] = [
     (17, 0.05, 1),   # Clearing Act 1 somewhat reliably -> A1

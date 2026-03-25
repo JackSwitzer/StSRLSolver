@@ -99,7 +99,19 @@ class StrategicTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         self._base_lr = lr
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-5)
+        # Per-head LR multipliers (MoE-style: value head trains faster)
+        from .training_config import LR_HEAD_MULTIPLIERS
+        param_groups = [
+            {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0)},
+            {"params": list(model.policy_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("policy", 2.0)},
+            {"params": list(model.value_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("value", 3.0)},
+            {"params": list(model.floor_head.parameters()) + list(model.act_head.parameters()),
+             "lr": lr * LR_HEAD_MULTIPLIERS.get("auxiliary", 1.0)},
+        ]
+        self.optimizer = torch.optim.Adam(param_groups, eps=1e-5)
 
         # Configurable LR schedule (starts after warmup)
         if lr_schedule == "linear_decay":
@@ -282,7 +294,7 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss (clipped for stability)
+                # Value loss: predict raw returns (GAE expects raw-scale values)
                 value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
@@ -339,6 +351,27 @@ class StrategicTrainer:
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
 
+        # Diagnostic metrics
+        with torch.no_grad():
+            # Explained variance: how well does value predict returns?
+            ret_np = ret_t.cpu().numpy()
+            val_np = np.array([t.value for t in self.buffer], dtype=np.float32)
+            var_ret = np.var(ret_np)
+            if var_ret > 1e-8:
+                total_metrics["explained_variance"] = float(1 - np.var(ret_np - val_np) / var_ret)
+            else:
+                total_metrics["explained_variance"] = 0.0
+            total_metrics["mean_value"] = float(np.mean(val_np))
+            total_metrics["mean_advantage"] = float(advantages.mean())
+            total_metrics["mean_return"] = float(ret_np.mean())
+
+            # KL divergence (approx) between old and new policy
+            out_final = self.model(obs_t[:min(256, N)].to(device), masks_t[:min(256, N)].to(device))
+            new_lp = F.log_softmax(out_final["policy_logits"], dim=-1)
+            new_action_lp = new_lp.gather(1, actions_t[:min(256, N)].to(device).unsqueeze(1)).squeeze(1)
+            kl = (old_lp_t[:min(256, N)].to(device) - new_action_lp).mean()
+            total_metrics["kl_divergence"] = float(kl.cpu())
+
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
         # and cleared by the caller after the train phase completes.
@@ -359,7 +392,7 @@ class StrategicTrainer:
             return True
         return False
 
-    def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 5000) -> Dict[str, float]:
+    def bc_pretrain(self, trajectory_dir: Path, epochs: int = 10, max_transitions: int = 48000) -> Dict[str, float]:
         """Behavioral cloning: supervised learning on expert trajectories."""
         from .training_config import MODEL_ACTION_DIM
         device = next(self.model.parameters()).device
@@ -379,7 +412,11 @@ class StrategicTrainer:
                 n = len(data["obs"])
                 for i in range(n):
                     if loaded >= max_transitions: break
-                    obs_list.append(data["obs"][i])
+                    obs_i = data["obs"][i]
+                    # Skip mismatched dimensions (older trajectories)
+                    if obs_i.shape[0] != self.model.input_dim:
+                        continue
+                    obs_list.append(obs_i)
                     mask_i = data["masks"][i]
                     if mask_i.shape[0] < _ACTION_DIM:
                         mask_i = np.pad(mask_i, (0, _ACTION_DIM - mask_i.shape[0]))
@@ -494,7 +531,10 @@ class StrategicTrainer:
                     for i in range(len(data["obs"])):
                         if loaded >= max_samples:
                             break
-                        obs_list.append(data["obs"][i])
+                        obs_i = data["obs"][i]
+                        if obs_i.shape[0] != self.model.input_dim:
+                            continue
+                        obs_list.append(obs_i)
                         floor_val = float(data["final_floors"][i]) if "final_floors" in data else 0.5
                         value_targets.append(floor_val)
                         loaded += 1

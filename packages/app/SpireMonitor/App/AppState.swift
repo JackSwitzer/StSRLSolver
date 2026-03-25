@@ -2,6 +2,7 @@ import Foundation
 
 enum AppView: String, CaseIterable, Identifiable {
     case live = "Live"
+    case training = "Training"
     case analysis = "Analysis"
     case detail = "Detail"
     case replay = "Replay"
@@ -11,6 +12,7 @@ enum AppView: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .live: "play.circle.fill"
+        case .training: "brain"
         case .analysis: "chart.bar.xaxis"
         case .detail: "doc.text.magnifyingglass"
         case .replay: "film"

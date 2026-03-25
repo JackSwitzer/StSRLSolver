@@ -627,7 +627,7 @@ class InferenceServer:
         combat_reqs = [r for r in batch if r.get("route") == "combat"]
         unknown_reqs = [r for r in batch if r.get("route") not in ("strategic", "combat")]
 
-        t_fwd_start = time.perf_counter()
+        t_fwd_start = time.monotonic()
 
         if strategic_reqs:
             self._forward_strategic(strategic_reqs)
@@ -638,7 +638,7 @@ class InferenceServer:
         for req in unknown_reqs:
             self._send_error(req, f"unknown route: {req.get('route')!r}")
 
-        fwd_ms = (time.perf_counter() - t_fwd_start) * 1000.0
+        fwd_ms = (time.monotonic() - t_fwd_start) * 1000.0
 
         # Update stats
         n = len(batch)
