@@ -4,6 +4,12 @@
 
 Perform a comprehensive performance audit of this Slay the Spire reinforcement learning project. The system trains a Watcher (A20) bot using behavioral cloning + PPO with MCTS tree search. Despite 12k+ games of training, it has **zero wins** and GPU utilization sits at **18%**. Your job is to identify concrete bottlenecks, propose fixes, and estimate their impact.
 
+**IMPORTANT — Use subagents to parallelize your work:**
+1. **Subagent 1 (Bug findings)**: Audit the codebase for remaining bugs, config mismatches, silent failures, reward signal issues. Create a draft PR with fixes.
+2. **Subagent 2 (Optimizations)**: Profile CPU/GPU utilization, identify compute bottlenecks, evaluate Rust engine integration, recommend architectural changes for our M4 Mac Mini setup.
+
+Explore broadly before committing to fixes. Read the full architecture first. Use the Rust engine branch (`origin/feat/rust-engine-expansion`) as a potential 10x speedup path.
+
 ---
 
 ## 1. Project Overview
