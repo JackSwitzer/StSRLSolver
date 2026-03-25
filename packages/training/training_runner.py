@@ -902,11 +902,16 @@ class OvernightRunner:
                     "entropy": self._last_train_metrics.get("entropy"),
                 })
 
-                while collect_games < COLLECT_GAMES and not self._shutdown_requested:
+                while (collect_games < COLLECT_GAMES
+                       and sweep_games < n_games
+                       and self.total_games < self.max_games
+                       and not self._shutdown_requested):
                     remaining = COLLECT_GAMES - collect_games
                     seeds, async_results = self._submit_batch(seed_pool, max_games=remaining)
                     batch_results = self._collect_batch(seeds, async_results, seed_pool, trainer)
                     for result in batch_results:
+                        if sweep_games >= n_games or self.total_games >= self.max_games:
+                            break
                         self._record_game(result)
                         self._log_episode(result)
                         self._save_best_trajectory(result)

@@ -166,19 +166,31 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
 
     room_type = getattr(runner, "current_room_type", "monster")
 
+    def _first_play_card():
+        for _a in actions:
+            if hasattr(_a, "action_type") and getattr(_a, "action_type", "") == "play_card":
+                return _a
+        return None
+
     # TurnSolver: works for all fight types
     if turn_solver_adapter is not None:
         try:
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
-                return result  # Trust the solver's decision (including EndTurn)
+                if hasattr(result, "action_type") and getattr(result, "action_type", "") == "end_turn":
+                    # Safety net: if EndTurn was chosen while playable cards remain,
+                    # force a card play to prevent zero-card turns.
+                    fallback = _first_play_card()
+                    if fallback is not None:
+                        return fallback
+                return result
         except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
             logger.warning("_pick_combat_action: TurnSolver failed: %s", e)
 
     # Fallback (solver returned None): prefer playing a card over ending turn
-    for a in actions:
-        if hasattr(a, 'action_type') and getattr(a, 'action_type', '') == 'play_card':
-            return a
+    fallback = _first_play_card()
+    if fallback is not None:
+        return fallback
     return actions[0]
 
 

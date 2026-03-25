@@ -34,3 +34,6 @@ Auto-generated from `docs/work_units/` YAML frontmatter. Updated via `/pr`.
 
 ## Completed
 See [COMPLETED.md](COMPLETED.md) for closed work units and full history.
+
+## Latest audit note
+- 2026-03-25: See `docs/research/optimization-bug-audit-2026-03-25.md` for latest optimization/bug audit and parity-priority recommendations.
