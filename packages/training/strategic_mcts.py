@@ -178,8 +178,8 @@ class StrategicMCTS:
                 break
 
             if phase == GamePhase.COMBAT:
-                # In combat: just take first action (fast rollout)
-                runner.take_action(acts[0])
+                # In combat: random action for rollout diversity
+                runner.take_action(acts[np.random.randint(len(acts))])
                 rollout_steps += 1
                 continue
 

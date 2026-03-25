@@ -110,7 +110,10 @@ class OvernightRunner:
         self.max_batch_size = config.get("max_batch_size", TRAIN_MAX_BATCH_INFERENCE)
         self.max_hours_per_config = config.get("max_hours_per_config", None)  # None = auto
 
-        self.run_dir.mkdir(parents=True, exist_ok=True)
+        if self.run_dir.is_symlink() or self.run_dir.is_dir():
+            pass  # Already exists (symlink or real dir)
+        else:
+            self.run_dir.mkdir(parents=True, exist_ok=True)
         self._start_time = time.monotonic()
         self._start_datetime = datetime.now()
         self._current_sweep_idx = 0
