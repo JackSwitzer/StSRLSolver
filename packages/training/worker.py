@@ -8,8 +8,10 @@ Contains:
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -83,12 +85,42 @@ _WORKER_NAMES = [
 ]
 
 
-def _worker_init(request_q, response_qs, slot_q, shm_info=None):
+def _pid_is_alive(pid: int) -> bool:
+    """Return whether the given PID still appears alive."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError as exc:
+        if exc.errno == errno.ESRCH:
+            return False
+        return True
+    return True
+
+
+def _claim_worker_slot(slot_registry, pid: int, pid_alive=_pid_is_alive) -> Optional[int]:
+    """Claim a free or stale worker slot from a shared slot registry."""
+    for idx, owner_pid in enumerate(slot_registry):
+        owner_pid = int(owner_pid)
+        if owner_pid <= 0 or not pid_alive(owner_pid):
+            slot_registry[idx] = pid
+            return idx
+    return None
+
+
+def _worker_init(
+    request_q,
+    response_qs,
+    slot_q,
+    shm_info=None,
+    slot_registry=None,
+    slot_registry_lock=None,
+):
     """Called once per worker process to set up InferenceClient.
 
-    Pops a unique slot_id from slot_q so each worker knows which
-    response queue to listen on. If slot acquisition fails, the worker
-    runs without an InferenceClient (falls back to first legal action).
+    Prefers a reusable slot registry so replacement workers can reclaim
+    slots from dead PIDs. Falls back to the legacy slot queue when no
+    registry is provided.
 
     When shm_info is provided, attaches to shared memory buffers for
     zero-copy inference instead of using queue-based InferenceClient.
@@ -97,17 +129,19 @@ def _worker_init(request_q, response_qs, slot_q, shm_info=None):
     from packages.training.inference_server import InferenceClient
 
     slot_id = None
-    for attempt in range(3):
-        try:
-            slot_id = slot_q.get(timeout=10 * (attempt + 1))
-            break
-        except Exception:
-            logger.warning("Worker slot acquisition attempt %d/3 failed", attempt + 1)
+    if slot_registry is not None and slot_registry_lock is not None:
+        with slot_registry_lock:
+            slot_id = _claim_worker_slot(slot_registry, os.getpid())
+    else:
+        for attempt in range(3):
+            try:
+                slot_id = slot_q.get(timeout=10 * (attempt + 1))
+                break
+            except Exception:
+                logger.warning("Worker slot acquisition attempt %d/3 failed", attempt + 1)
 
     if slot_id is None:
-        logger.warning("Worker failed to acquire slot after 3 attempts — running without inference")
-        _worker_name = "NoSlot"
-        return
+        raise RuntimeError("Worker failed to acquire inference slot")
 
     # Try shared memory mode first (zero-copy on Apple Silicon)
     if shm_info is not None:
@@ -194,6 +228,22 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
     return actions[0]
 
 
+def _boss_hp_progress_reward(combat_summary: Optional[Dict[str, Any]]) -> float:
+    """Return boss-damage reward for a combat summary, or 0 when not applicable."""
+    if not combat_summary:
+        return 0.0
+    room_type = str(combat_summary.get("room_type", "")).lower()
+    if room_type not in ("boss", "b"):
+        return 0.0
+    boss_max = combat_summary.get("boss_max_hp", 0)
+    boss_dmg = combat_summary.get("boss_dmg_dealt", 0)
+    if boss_max <= 0:
+        return 0.0
+    from packages.training.reward_config import compute_boss_hp_progress
+
+    return compute_boss_hp_progress(boss_dmg, boss_max)
+
+
 # ---------------------------------------------------------------------------
 # Worker function — runs in subprocess via mp.Pool
 # ---------------------------------------------------------------------------
@@ -229,7 +279,6 @@ def _play_one_game(
     from packages.training.inference_server import get_client
     from packages.training.turn_solver import TurnSolverAdapter
     from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
-    from packages.training.reward_config import compute_boss_hp_progress
 
     encoder = RunStateEncoder()
     _combat_encoder = CombatStateEncoder()
@@ -267,7 +316,6 @@ def _play_one_game(
         mcts_engine = StrategicMCTS(encoder=encoder, client=client)
 
     # Worker status file for live dashboard grid
-    import os
     _worker_id = os.getpid()
     _wname = globals().get("_worker_name", f"W{_worker_id}")
     _status_dir = Path("logs/active/workers")
@@ -734,11 +782,7 @@ def _play_one_game(
 
                     # Boss HP progress reward: continuous signal for boss fights
                     if rt in ("boss", "b") and combats:
-                        _last_combat = combats[-1]
-                        _boss_max = _last_combat.get("boss_max_hp", 0)
-                        _boss_dmg = _last_combat.get("boss_dmg_dealt", 0)
-                        if _boss_max > 0:
-                            event_reward += compute_boss_hp_progress(_boss_dmg, _boss_max)
+                        event_reward += _boss_hp_progress_reward(combats[-1])
 
                 # Card removal reward (deck thinning is critical for Watcher)
                 new_deck_size = len(getattr(new_rs, "deck", []))
@@ -837,12 +881,7 @@ def _play_one_game(
                 # The combat_just_ended block (line ~722) never fires when the
                 # player dies at boss because game_over exits the loop first.
                 if combats:
-                    last_combat = combats[-1]
-                    if last_combat.get("room_type") in ("boss", "b"):
-                        boss_max = last_combat.get("boss_max_hp", 0)
-                        boss_dmg = last_combat.get("boss_dmg_dealt", 0)
-                        if boss_max > 0:
-                            transitions[-1]["reward"] += compute_boss_hp_progress(boss_dmg, boss_max)
+                    transitions[-1]["reward"] += _boss_hp_progress_reward(combats[-1])
 
             transitions[-1]["done"] = True
         # Truncated games (step >= 5000, error): leave done=False so GAE

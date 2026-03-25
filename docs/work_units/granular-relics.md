@@ -14,6 +14,10 @@ tags: [engine, parity, relics]
 
 # Ultra-Granular Work Units: Relics
 
+## Notes
+- This is a legacy checklist from earlier audits and is not a live completion counter.
+- Use `TODO.md` and the current engine docs for active priority.
+
 ## Model-facing actions (no UI)
 - [ ] On-acquire relics that require choice should emit explicit action lists. (action: select_cards{pile:deck,card_indices})
 - [ ] Relic-driven choices should be resolvable via action parameters (no UI). (action: select_cards{pile:deck,card_indices})

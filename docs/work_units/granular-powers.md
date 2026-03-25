@@ -14,6 +14,10 @@ tags: [engine, parity, powers]
 
 # Ultra-Granular Work Units: Powers
 
+## Notes
+- This is a legacy checklist from earlier audits and is not a live completion counter.
+- Use `TODO.md` and the current engine docs for active priority.
+
 ## Model-facing actions (no UI)
 - [ ] Power triggers should not require UI; any selection must emit explicit action options. (action: none{})
 

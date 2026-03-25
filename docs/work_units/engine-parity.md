@@ -14,33 +14,26 @@ tags: [engine, parity, events, powers, relics]
 
 # Engine Parity
 
-Remaining parity work between the Python engine and the Java source. NOT blocking Watcher A20 training currently, but required for the 96% WR target.
+Legacy parity work between the Python engine and the Java source. This is not blocking current Watcher training, but it still matters for the long-run WR target.
 
-## Events (biggest gap)
+## Events
 
-- 49 unchecked items (11% complete)
-- This is the largest remaining parity gap by far
-- Many events have branching outcomes that affect run strategy (e.g. Knowing Skull, Golden Idol, Wheel of Change)
-- See `granular-events.md` for the full checklist
-- **Priority**: Focus on Watcher-relevant events first (Act 1-3 event pools that appear in A20 runs)
+- The granular event checklist is a legacy reference now, not a trustworthy open-gap count.
+- Use `granular-events.md` only to find the remaining event-tail items that still need explicit follow-up.
+- Prioritize Watcher-relevant event behavior first when adding parity work.
 
 ## Powers
 
-- 9 unchecked items (85% complete)
-- All remaining items are Defect/Ironclad/enemy powers, NOT Watcher powers
-- Not blocking Watcher training
-- See `granular-powers.md` for the full checklist
+- The granular power checklist is also a legacy reference, with most remaining items outside the Watcher core.
+- Use `granular-powers.md` only for the residual power-tail items that still need verification or cleanup.
 
 ## Relics
 
-- 14 unchecked items (80% complete)
-- Violet Lotus is implemented but untested
-- Several remaining relics are class-specific for non-Watcher classes
-- See `granular-relics.md` for the full checklist
+- The granular relic checklist is likewise a legacy reference.
+- Use `granular-relics.md` for the remaining relic-tail items and any doc/runtime mismatches that still need a source-of-truth decision.
 
 ## Approach
 
-1. Audit Watcher event pool — identify which of the 49 unchecked events actually appear in Watcher runs
-2. Implement Watcher-relevant events first (estimated ~20 of the 49)
-3. Defer Defect/Ironclad-only powers and relics until multi-class support
-4. Each event implementation needs: logic, tests, and Java source verification
+1. Treat the granular files as follow-up references, not live completion counters.
+2. Keep the remaining parity follow-up small and targeted.
+3. Add logic, tests, and Java-source verification together when a parity tail item is promoted into implementation.

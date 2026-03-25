@@ -27,14 +27,17 @@ Usage:
 import json
 import logging
 import multiprocessing as mp
+import re
 import signal
 import subprocess
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from collections import deque
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Sequence
 
 import numpy as np
 import torch
@@ -56,10 +59,209 @@ logging.basicConfig(
 logger = logging.getLogger("v3_concurrent")
 logging.getLogger("packages.training.turn_solver").setLevel(logging.ERROR)
 
+from packages.training.training_config import (
+    EXPLORE_GAME_RATIO,
+    EXPLORE_TEMP_MULTIPLIER,
+    INFERENCE_BATCH_TIMEOUT_MS,
+    MCTS_BUDGETS,
+    MCTS_COMBAT_ENABLED,
+    MODEL_ACTION_DIM,
+    MODEL_HIDDEN_DIM,
+    MODEL_NUM_BLOCKS,
+    SOLVER_BUDGETS,
+    TEMPERATURE,
+    TRAIN_BATCH_SIZE,
+    TRAIN_GAMES_PER_BATCH,
+    TRAIN_MAX_BATCH_INFERENCE,
+    TRAIN_PPO_EPOCHS,
+    TRAIN_WORKERS,
+)
+
 # ---------------------------------------------------------------------------
 # Global shutdown flag
 # ---------------------------------------------------------------------------
 _shutdown = threading.Event()
+
+
+@dataclass(frozen=True)
+class ConcurrentRuntimeConfig:
+    """Runtime settings for the concurrent training path."""
+
+    ascension: int = 0
+    temperature: float = TEMPERATURE
+    strategic_search: bool = False
+    mcts_enabled: bool = MCTS_COMBAT_ENABLED
+    mcts_card_sims: int = MCTS_BUDGETS.get("card_pick", 0)
+    worker_count: int = TRAIN_WORKERS
+    collection_batch_size: int = TRAIN_GAMES_PER_BATCH
+    inference_batch_size: int = TRAIN_MAX_BATCH_INFERENCE
+    inference_batch_timeout_ms: float = INFERENCE_BATCH_TIMEOUT_MS
+    training_batch_size: int = TRAIN_BATCH_SIZE
+    training_epochs: int = TRAIN_PPO_EPOCHS
+    solver_time_budget_ms: float = SOLVER_BUDGETS["monster"][0]
+    explore_temp_multiplier: float = EXPLORE_TEMP_MULTIPLIER
+    explore_game_ratio: int = EXPLORE_GAME_RATIO
+    resync_every: int = 500
+    max_transitions: int = 500_000
+    training_lr: float = 3e-4
+    training_patience: int = 5
+
+
+@dataclass
+class TrajectoryChunk:
+    """One trajectory file loaded into memory."""
+
+    path: Path
+    obs: np.ndarray
+    masks: np.ndarray
+    actions: np.ndarray
+    floors: np.ndarray
+
+
+def build_runtime_config() -> ConcurrentRuntimeConfig:
+    """Build the concurrent runtime config from shared training constants."""
+    return ConcurrentRuntimeConfig()
+
+
+def build_play_one_game_args(
+    seed: str,
+    total_games: int,
+    runtime: ConcurrentRuntimeConfig,
+    explore_game: bool = False,
+) -> tuple:
+    """Return the `_play_one_game` tuple with shared-config defaults."""
+    temperature = runtime.temperature
+    if explore_game:
+        temperature *= runtime.explore_temp_multiplier
+    return (
+        seed,
+        runtime.ascension,
+        temperature,
+        total_games,
+        runtime.solver_time_budget_ms,
+        runtime.strategic_search,
+        runtime.mcts_enabled,
+        runtime.mcts_card_sims,
+    )
+
+
+def _read_gpu_percent() -> Optional[int]:
+    """Best-effort Apple GPU utilization sample."""
+    try:
+        out = subprocess.check_output(
+            ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return None
+
+    for line in out.splitlines():
+        if "Device Utilization" in line:
+            match = re.search(r'"Device Utilization %".*?=\s*(\d+)', line)
+            if match:
+                return int(match.group(1))
+    return None
+
+
+def _load_trajectory_file(tf: Path) -> Optional[TrajectoryChunk]:
+    """Load and normalize a single trajectory archive."""
+    try:
+        with np.load(tf) as data:
+            obs = data["obs"]
+            if obs.ndim != 2 or obs.shape[1] != 480:
+                return None
+            masks = data["masks"]
+            if masks.shape[1] < 512:
+                masks = np.pad(masks, ((0, 0), (0, 512 - masks.shape[1])))
+            floors = data["final_floors"]
+            return TrajectoryChunk(
+                path=tf.resolve(),
+                obs=obs,
+                masks=masks,
+                actions=data["actions"],
+                floors=floors,
+            )
+    except Exception as e:
+        logger.warning("Failed to load %s: %s", tf.name if hasattr(tf, "name") else tf, e)
+        return None
+
+
+class TrajectoryCache:
+    """Incrementally discover and cache trajectory files."""
+
+    def __init__(self, search_dirs: Sequence[Path] | None = None, max_transitions: int = 500_000):
+        self.search_dirs = [Path(d) for d in (search_dirs or [Path("logs")])]
+        self.max_transitions = max_transitions
+        self._seen_files: set[Path] = set()
+        self._chunks: deque[TrajectoryChunk] = deque()
+        self._loaded_transitions = 0
+        self._n_files = 0
+        self._dirty = True
+        self._cache: Optional[dict] = None
+
+    def _discover_files(self, extra_dirs: Sequence[Path] | None = None) -> list[Path]:
+        search_roots = list(self.search_dirs)
+        if extra_dirs:
+            search_roots.extend(Path(d) for d in extra_dirs)
+
+        discovered: list[Path] = []
+        seen: set[Path] = set()
+        for root in search_roots:
+            if not root.exists():
+                continue
+            for tf in root.rglob("traj_*.npz"):
+                resolved = tf.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                if resolved not in self._seen_files:
+                    discovered.append(tf)
+
+        discovered.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return discovered
+
+    def _trim_to_limit(self) -> None:
+        while self._loaded_transitions > self.max_transitions and self._chunks:
+            removed = self._chunks.pop()
+            self._loaded_transitions -= len(removed.obs)
+            self._n_files -= 1
+
+    def update(self, extra_dirs: Sequence[Path] | None = None) -> Optional[dict]:
+        """Load newly discovered files and return a cached snapshot."""
+        new_files = self._discover_files(extra_dirs=extra_dirs)
+        if new_files:
+            for tf in new_files:
+                chunk = _load_trajectory_file(tf)
+                if chunk is None:
+                    continue
+                self._chunks.append(chunk)
+                self._seen_files.add(chunk.path)
+                self._loaded_transitions += len(chunk.obs)
+                self._n_files += 1
+            self._trim_to_limit()
+            self._dirty = True
+
+        if not self._chunks:
+            self._cache = None
+            self._dirty = False
+            return None
+
+        if self._dirty or self._cache is None:
+            obs = np.concatenate([chunk.obs for chunk in self._chunks])
+            masks = np.concatenate([chunk.masks for chunk in self._chunks])
+            actions = np.concatenate([chunk.actions for chunk in self._chunks]).astype(np.int64)
+            floors = np.concatenate([chunk.floors for chunk in self._chunks])
+            self._cache = {
+                "obs": obs,
+                "masks": masks,
+                "actions": actions,
+                "floors": floors,
+                "n_files": self._n_files,
+            }
+            self._dirty = False
+
+        return self._cache
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +367,6 @@ def load_all_trajectories(extra_dirs=None, max_transitions: int = 500_000):
 # ---------------------------------------------------------------------------
 
 def make_model(device):
-    from packages.training.training_config import MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS, MODEL_ACTION_DIM
     from packages.training.strategic_net import StrategicNet
     return StrategicNet(
         input_dim=480, hidden_dim=MODEL_HIDDEN_DIM,
@@ -173,20 +374,43 @@ def make_model(device):
     ).to(device)
 
 
-def load_checkpoint(device):
-    """Load best available checkpoint, or return a fresh model."""
-    from packages.training.strategic_net import StrategicNet
+def load_checkpoint_into_model(model, device, candidates: Sequence[Path]) -> bool:
+    """Load the first matching checkpoint into an existing model."""
     candidates = [
-        Path("logs/strategic_checkpoints/latest_strategic.pt"),
-        Path("logs/strategic_checkpoints/best_strategic_floor9.4.pt"),
-        Path("logs/strategic_checkpoints/bc_winner_v3.pt"),
+        Path(c) for c in candidates
     ]
     for ckpt in candidates:
         if ckpt.exists():
             logger.info("Loading checkpoint: %s", ckpt)
-            return StrategicNet.load(ckpt, device=device)
-    logger.warning("No checkpoint found, using fresh model")
-    return make_model(device)
+            checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            model.to(device)
+            return True
+    return False
+
+
+def make_optimizer(model, lr: float) -> torch.optim.Optimizer:
+    """Build the concurrent training optimizer."""
+    from packages.training.training_config import LR_HEAD_MULTIPLIERS
+
+    param_groups = [
+        {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
+         "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0), "weight_decay": 0.01},
+        {"params": list(model.policy_head.parameters()),
+         "lr": lr * LR_HEAD_MULTIPLIERS.get("policy", 2.0), "weight_decay": 0.01},
+        {"params": list(model.value_head.parameters()),
+         "lr": lr * LR_HEAD_MULTIPLIERS.get("value", 3.0), "weight_decay": 0.01},
+        {"params": list(model.floor_head.parameters()) + list(model.act_head.parameters()),
+         "lr": lr * LR_HEAD_MULTIPLIERS.get("auxiliary", 1.0), "weight_decay": 0.01},
+    ]
+    return torch.optim.AdamW(param_groups, eps=1e-5)
+
+
+def make_scheduler(optimizer: torch.optim.Optimizer, max_epochs: int):
+    """Build the concurrent training scheduler."""
+    return torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max_epochs, eta_min=1e-6,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +422,7 @@ class SharedState:
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._gpu_cache: tuple[float, Optional[int]] = (0.0, None)
 
         # Training -> Collection: latest checkpoint path for resync
         self.latest_checkpoint: Path | None = None
@@ -220,6 +445,7 @@ class SharedState:
         self.train_val_acc: float = 0.0
         self.train_total_transitions: int = 0
         self.train_new_transitions: int = 0
+        self.collect_inference_stats: dict[str, object] = {}
 
         # Timing
         self.start_time: float = time.monotonic()
@@ -255,9 +481,19 @@ class SharedState:
             self.train_total_transitions = total_transitions
             self.train_new_transitions = new_transitions
 
+    def update_inference_stats(self, stats: dict):
+        with self._lock:
+            self.collect_inference_stats = dict(stats)
+
     def snapshot(self) -> dict:
         with self._lock:
             elapsed = time.monotonic() - self.start_time
+            now = time.monotonic()
+            gpu_percent = self._gpu_cache[1]
+            if now - self._gpu_cache[0] > 10.0:
+                gpu_percent = _read_gpu_percent()
+                self._gpu_cache = (now, gpu_percent)
+            inference_stats = dict(self.collect_inference_stats)
             return {
                 "timestamp": datetime.now().isoformat(),
                 "elapsed_hours": round(elapsed / 3600, 2),
@@ -284,7 +520,8 @@ class SharedState:
                 "current_sweep": 0,
                 "total_sweeps": 1,
                 "headless": True,
-                "gpu_percent": 90.0,
+                "gpu_percent": gpu_percent,
+                **({"inference": inference_stats} if inference_stats else {}),
             }
 
 
@@ -292,7 +529,7 @@ class SharedState:
 # Training thread
 # ---------------------------------------------------------------------------
 
-def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
+def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path, runtime: ConcurrentRuntimeConfig):
     """Continuously trains BC on available trajectory data.
 
     Reloads .npz files from traj_dir every cycle to pick up new data from
@@ -300,12 +537,28 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
     held-out split. Saves checkpoint every cycle for the collection thread
     to resync from.
     """
-    from packages.training.training_config import LR_HEAD_MULTIPLIERS
-
     device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     logger.info("[TRAIN] Thread started on device=%s", device)
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    data_cache = TrajectoryCache(search_dirs=[Path("logs")], max_transitions=runtime.max_transitions)
+
+    model = make_model(device)
+    optimizer = make_optimizer(model, runtime.training_lr)
+    scheduler = make_scheduler(optimizer, runtime.training_epochs)
+    load_checkpoint_into_model(
+        model,
+        device,
+        [
+            ckpt for ckpt in [
+                shared.get_checkpoint()[0],
+                Path("logs/strategic_checkpoints/latest_strategic.pt"),
+                Path("logs/strategic_checkpoints/best_strategic_floor9.4.pt"),
+                Path("logs/strategic_checkpoints/bc_winner_v3.pt"),
+            ]
+            if ckpt is not None
+        ],
+    )
 
     # Wait for initial data to be available
     prev_transitions = 0
@@ -314,11 +567,8 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
     while not _shutdown.is_set():
         cycle += 1
 
-        # Load all available trajectories (picks up new ones from collector)
-        data = load_all_trajectories(
-            extra_dirs=[str(traj_dir)],
-            max_transitions=500_000,
-        )
+        # Load only newly discovered trajectories (cached in-memory after first read)
+        data = data_cache.update(extra_dirs=[traj_dir])
 
         if data is None:
             logger.info("[TRAIN] No data yet, waiting 30s...")
@@ -326,7 +576,7 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
             continue
 
         n_transitions = len(data["obs"])
-        new_transitions = n_transitions - prev_transitions
+        new_transitions = max(n_transitions - prev_transitions, 0)
 
         if n_transitions < 100:
             logger.info("[TRAIN] Only %d transitions, waiting 30s...", n_transitions)
@@ -338,32 +588,29 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
             cycle, n_transitions, new_transitions, data["n_files"],
         )
 
-        # Build or reload model
-        model = make_model(device)
-
         # Load latest checkpoint if one exists
         ckpt_path, _ver = shared.get_checkpoint()
         if ckpt_path is not None and ckpt_path.exists():
             try:
-                ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
-                model.load_state_dict(ckpt["model_state_dict"])
+                checkpoint = torch.load(ckpt_path, map_location=device, weights_only=True)
+                model.load_state_dict(checkpoint["model_state_dict"])
                 logger.info("[TRAIN] Resumed from checkpoint v%d", _ver)
             except Exception as e:
                 logger.warning("[TRAIN] Failed to load checkpoint: %s", e)
         elif cycle == 1:
             # First cycle: try loading a pre-existing checkpoint
-            for cand in [
-                Path("logs/strategic_checkpoints/latest_strategic.pt"),
-                Path("logs/strategic_checkpoints/best_strategic_floor9.4.pt"),
-            ]:
-                if cand.exists():
-                    try:
-                        ckpt = torch.load(cand, map_location=device, weights_only=True)
-                        model.load_state_dict(ckpt["model_state_dict"])
-                        logger.info("[TRAIN] Loaded initial checkpoint: %s", cand.name)
-                        break
-                    except Exception as e:
-                        logger.warning("[TRAIN] Failed to load %s: %s", cand.name, e)
+            if load_checkpoint_into_model(
+                model,
+                device,
+                [
+                    Path("logs/strategic_checkpoints/latest_strategic.pt"),
+                    Path("logs/strategic_checkpoints/best_strategic_floor9.4.pt"),
+                    Path("logs/strategic_checkpoints/bc_winner_v3.pt"),
+                ],
+            ):
+                logger.info("[TRAIN] Loaded initial checkpoint")
+            else:
+                logger.warning("[TRAIN] No checkpoint found, using fresh model")
 
         # Prepare tensors
         N = len(data["obs"])
@@ -378,25 +625,9 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
         train_idx, val_idx = perm[:split], perm[split:]
 
         # Optimizer with per-head LR multipliers
-        lr = 3e-4
-        batch_size = 2048
-        max_epochs = 10
-        patience = 5
-
-        param_groups = [
-            {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
-             "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0), "weight_decay": 0.01},
-            {"params": list(model.policy_head.parameters()),
-             "lr": lr * LR_HEAD_MULTIPLIERS.get("policy", 2.0), "weight_decay": 0.01},
-            {"params": list(model.value_head.parameters()),
-             "lr": lr * LR_HEAD_MULTIPLIERS.get("value", 3.0), "weight_decay": 0.01},
-            {"params": list(model.floor_head.parameters()) + list(model.act_head.parameters()),
-             "lr": lr * LR_HEAD_MULTIPLIERS.get("auxiliary", 1.0), "weight_decay": 0.01},
-        ]
-        optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=max_epochs, eta_min=1e-6,
-        )
+        batch_size = runtime.training_batch_size
+        max_epochs = runtime.training_epochs
+        patience = runtime.training_patience
 
         best_val = float("inf")
         best_state = None
@@ -482,11 +713,6 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
         )
         prev_transitions = n_transitions
 
-        # Free GPU memory between cycles
-        del obs_t, mask_t, action_t, floor_t, model, optimizer, scheduler
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-
         # Brief pause to let collection thread accumulate data
         _shutdown.wait(5)
 
@@ -497,7 +723,7 @@ def training_thread(shared: SharedState, traj_dir: Path, checkpoint_dir: Path):
 # Collection thread
 # ---------------------------------------------------------------------------
 
-def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
+def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path, runtime: ConcurrentRuntimeConfig):
     """Continuously collects games with the current model.
 
     Runs InferenceServer (MLX) + worker pool. Saves trajectories to traj_dir
@@ -507,11 +733,7 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
     from packages.training.inference_server import InferenceServer
     from packages.training.seed_pool import SeedPool
     from packages.training.strategic_net import StrategicNet
-    from packages.training.training_config import MODEL_ACTION_DIM, MODEL_HIDDEN_DIM, MODEL_NUM_BLOCKS, SOLVER_BUDGETS, MCTS_COMBAT_ENABLED
     from packages.training.worker import _play_one_game, _worker_init
-
-    # Config-driven defaults (adapter overrides per room type at runtime)
-    _default_solver_ms = SOLVER_BUDGETS["monster"][0]  # 50ms base for monsters
 
     logger.info("[COLLECT] Thread started")
 
@@ -526,36 +748,39 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
     ).to(device)
 
     # Try loading existing checkpoint
-    for cand in [
+    if load_checkpoint_into_model(model, device, [
         Path("logs/strategic_checkpoints/latest_strategic.pt"),
         Path("logs/strategic_checkpoints/best_strategic_floor9.4.pt"),
-    ]:
-        if cand.exists():
-            try:
-                model = StrategicNet.load(cand, device=device)
-                logger.info("[COLLECT] Loaded initial model: %s", cand.name)
-                break
-            except Exception as e:
-                logger.warning("[COLLECT] Failed to load %s: %s", cand.name, e)
+    ]):
+        logger.info("[COLLECT] Loaded initial model checkpoint")
 
     # Start inference server (MLX backend)
-    N_WORKERS = 10
     server = InferenceServer(
-        n_workers=N_WORKERS, max_batch_size=64, batch_timeout_ms=10.0,
+        n_workers=runtime.worker_count,
+        max_batch_size=runtime.inference_batch_size,
+        batch_timeout_ms=runtime.inference_batch_timeout_ms,
     )
     server.sync_strategic_from_pytorch(model, version=0)
     server.start()
     logger.info("[COLLECT] Inference server started (MLX)")
+    shared.update_inference_stats(server.get_stats())
 
     # Worker pool
     ctx = mp.get_context("spawn")
     shm = getattr(server, "shm_info", None)
     pool = ctx.Pool(
-        processes=N_WORKERS,
+        processes=runtime.worker_count,
         initializer=_worker_init,
-        initargs=(server.request_q, server.response_qs, server.slot_q, shm),
+        initargs=(
+            server.request_q,
+            server.response_qs,
+            server.slot_q,
+            shm,
+            server.slot_registry,
+            server.slot_registry_lock,
+        ),
     )
-    logger.info("[COLLECT] Worker pool: %d processes", N_WORKERS)
+    logger.info("[COLLECT] Worker pool: %d processes", runtime.worker_count)
 
     seed_pool = SeedPool()
     total_games = 0
@@ -567,11 +792,11 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
     start_time = time.monotonic()
     traj_counter = 0
     combat_counter = 0
-    batch_size = 32
+    batch_size = runtime.collection_batch_size
     last_resync_games = 0
     resync_version = 0
 
-    RESYNC_EVERY = 500  # Resync model weights every N games
+    RESYNC_EVERY = runtime.resync_every  # Resync model weights every N games
 
     logger.info("[COLLECT] Starting collection loop (batch_size=%d, resync_every=%d)",
                 batch_size, RESYNC_EVERY)
@@ -582,8 +807,9 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
             ckpt_path, version = shared.get_checkpoint()
             if ckpt_path is not None and version > resync_version and ckpt_path.exists():
                 try:
-                    resynced = StrategicNet.load(ckpt_path, device=device)
-                    server.sync_strategic_from_pytorch(resynced, version=version)
+                    checkpoint = torch.load(ckpt_path, map_location=device, weights_only=True)
+                    model.load_state_dict(checkpoint["model_state_dict"])
+                    server.sync_strategic_from_pytorch(model, version=version)
                     resync_version = version
                     last_resync_games = total_games
                     logger.info(
@@ -598,9 +824,14 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
         async_results = [
             pool.apply_async(
                 _play_one_game,
-                (seed, 0, 0.8, total_games, _default_solver_ms, False, MCTS_COMBAT_ENABLED, 0),
+                build_play_one_game_args(
+                    seed,
+                    total_games,
+                    runtime,
+                    explore_game=((total_games + i + 1) % max(runtime.explore_game_ratio, 1) == 0),
+                ),
             )
-            for seed in seeds
+            for i, seed in enumerate(seeds)
         ]
 
         # Collect results
@@ -663,6 +894,7 @@ def collection_thread(shared: SharedState, traj_dir: Path, combat_dir: Path):
         elapsed = time.monotonic() - start_time
         gpm = total_games / max(elapsed / 60, 0.01)
         avg_floor = sum(recent_floors) / max(len(recent_floors), 1)
+        shared.update_inference_stats(server.get_stats())
 
         if total_games % batch_size == 0:
             logger.info(
@@ -733,24 +965,43 @@ def main():
 
     # Shared state
     shared = SharedState()
+    runtime = build_runtime_config()
 
     logger.info("=" * 60)
     logger.info("CONCURRENT BC TRAINING + COLLECTION")
-    logger.info("  Training: MPS GPU, BC 10 epochs/cycle, batch=2048")
-    logger.info("  Collection: MLX inference, 10 workers, 32 games/batch")
-    logger.info("  Resync: every 500 games")
+    logger.info(
+        "  Training: MPS GPU, BC %d epochs/cycle, batch=%d",
+        runtime.training_epochs,
+        runtime.training_batch_size,
+    )
+    logger.info(
+        "  Collection: MLX inference, %d workers, %d games/batch, batch_timeout=%.1fms",
+        runtime.worker_count,
+        runtime.collection_batch_size,
+        runtime.inference_batch_timeout_ms,
+    )
+    logger.info("  Resync: every %d games", runtime.resync_every)
+    logger.info(
+        "  Policy: ascension=%d temp=%.2f explore=%.2fx/%d MCTS=%s strategic_search=%s",
+        runtime.ascension,
+        runtime.temperature,
+        runtime.explore_temp_multiplier,
+        runtime.explore_game_ratio,
+        runtime.mcts_enabled,
+        runtime.strategic_search,
+    )
     logger.info("=" * 60)
 
     # Start threads
     train_t = threading.Thread(
         target=training_thread,
-        args=(shared, traj_dir, checkpoint_dir),
+        args=(shared, traj_dir, checkpoint_dir, runtime),
         name="TrainingThread",
         daemon=True,
     )
     collect_t = threading.Thread(
         target=collection_thread,
-        args=(shared, traj_dir, combat_dir),
+        args=(shared, traj_dir, combat_dir, runtime),
         name="CollectionThread",
         daemon=True,
     )
