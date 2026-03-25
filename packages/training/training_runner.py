@@ -256,8 +256,10 @@ class OvernightRunner:
             "combats": result.get("combats", []),
             "events": result.get("events", []),
             "deck_changes": result.get("deck_changes", []),
+            "deck_final": result.get("deck_final", []),
             "relics_final": result.get("relics_final", []),
             "path_choices": result.get("path_choices", []),
+            "card_picks": result.get("card_picks", []),
         }
         self._recent_episodes.append(ep)
         # Write every 10 games to avoid I/O spam
@@ -581,6 +583,9 @@ class OvernightRunner:
                 hidden_dim=self.hidden_dim,
                 num_blocks=self.num_blocks,
             ).to(device)
+        assert model.input_dim == encoder.RUN_DIM, (
+            f"Model input_dim ({model.input_dim}) != encoder RUN_DIM ({encoder.RUN_DIM})"
+        )
         logger.info(
             "Strategic model: %d parameters (hidden=%d, blocks=%d), device=%s",
             model.param_count(), model.hidden_dim, model.num_blocks, device,

@@ -358,6 +358,27 @@ class StrategicTrainer:
         total_metrics["train_steps"] = self.train_steps
         total_metrics["num_transitions"] = N
 
+        # Diagnostic metrics
+        with torch.no_grad():
+            # Explained variance: how well does value predict returns?
+            ret_np = ret_t.cpu().numpy()
+            val_np = np.array([t.value for t in self.buffer], dtype=np.float32)
+            var_ret = np.var(ret_np)
+            if var_ret > 1e-8:
+                total_metrics["explained_variance"] = float(1 - np.var(ret_np - val_np) / var_ret)
+            else:
+                total_metrics["explained_variance"] = 0.0
+            total_metrics["mean_value"] = float(np.mean(val_np))
+            total_metrics["mean_advantage"] = float(advantages.mean())
+            total_metrics["mean_return"] = float(ret_np.mean())
+
+            # KL divergence (approx) between old and new policy
+            out_final = self.model(obs_t[:min(256, N)].to(device), masks_t[:min(256, N)].to(device))
+            new_lp = F.log_softmax(out_final["policy_logits"], dim=-1)
+            new_action_lp = new_lp.gather(1, actions_t[:min(256, N)].to(device).unsqueeze(1)).squeeze(1)
+            kl = (old_lp_t[:min(256, N)].to(device) - new_action_lp).mean()
+            total_metrics["kl_divergence"] = float(kl.cpu())
+
         # Don't trim buffer here — caller manages buffer lifecycle.
         # In phased training: buffer is reused across multiple train_batch() calls
         # and cleared by the caller after the train phase completes.
