@@ -1,3 +1,9 @@
+---
+name: codex-review
+description: Run a GPT 5.4 / Codex review of code, plans, or architecture via Codex CLI
+user-invocable: true
+---
+
 # Codex Review Skill
 
 Use this skill when the user asks for a GPT 5.4 / codex review of code, plans, or architecture.
