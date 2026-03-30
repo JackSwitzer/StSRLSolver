@@ -25,9 +25,9 @@ TRAIN_BATCH_SIZE = 256
 TRAIN_MAX_BATCH_INFERENCE = 32
 INFERENCE_BATCH_TIMEOUT_MS = 15.0  # Batch timeout for inference server (was 5ms)
 TRAIN_GAMES_PER_BATCH = 16
-TRAIN_PPO_EPOCHS = 4
+TRAIN_PPO_EPOCHS = 8
 TRAIN_STEPS_PER_PHASE = 30
-TRAIN_COLLECT_GAMES = 500
+TRAIN_COLLECT_GAMES = 100
 
 # ---------------------------------------------------------------------------
 # Learning Rate

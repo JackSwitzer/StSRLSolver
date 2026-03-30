@@ -37,3 +37,15 @@ See [COMPLETED.md](COMPLETED.md) for closed work units and full history.
 
 ## Latest audit note
 - 2026-03-25: See `docs/research/optimization-bug-audit-2026-03-25.md` for the current runtime/optimization audit and the remaining parity follow-up notes.
+- 2026-03-30: 5 PRs merged (#75-79). F16 wall analysis complete. Next: value head normalization, Rust engine scoping, auto-research system.
+
+## Immediate (next session)
+- [ ] Value head return normalization — bimodal rewards (0-2 vs 13-15) make value head unlearnable
+- [ ] Codex plugin dead code audit — use new codex/review plugin for systematic cleanup
+- [ ] Hyperparam sweep setup — configs in sweep_config.py, A/B test via `training.sh experiment`
+- [ ] Refine iMessage text system — test on branch, better formatting
+
+## Medium Term
+- [ ] Auto-research system — interval-based audits + fixes via /loop + /schedule
+- [ ] Rust engine migration scoping — audit Java source, estimate effort, plan 2-agent approach
+- [ ] Dashboard frontend — jackswitzer.com page consuming gist data (gist: 6fd47c26377bb8b9e16802f85d771348)
