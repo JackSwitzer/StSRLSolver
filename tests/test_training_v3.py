@@ -39,7 +39,7 @@ class TestTrainingConfig:
         from packages.training.training_config import SOLVER_BUDGETS
 
         base_ms, base_nodes, cap_ms = SOLVER_BUDGETS["boss"]
-        assert base_ms == 60_000.0, f"Boss base_ms should be 60s, got {base_ms}"
+        assert base_ms == 120_000.0, f"Boss base_ms should be 120s, got {base_ms}"
 
     def test_config_solver_budgets_elite(self):
         from packages.training.training_config import SOLVER_BUDGETS
