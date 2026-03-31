@@ -364,3 +364,77 @@ class TestDrawReductionLifecycle:
         # Second round: decrement to 0 -> remove
         execute_power_triggers("atEndOfRound", state, state.player)
         assert "Draw Reduction" not in state.player.statuses
+
+
+# =============================================================================
+# MasterReality Interaction (Java: MakeTempCardInHandAction auto-upgrades)
+# =============================================================================
+
+class TestMasterRealityAutoUpgrade:
+    """MasterReality: created cards are auto-upgraded.
+
+    Java: MakeTempCardInHandAction checks hasPower('MasterRealityPower')
+    and upgrades non-Curse/non-Status cards. Verified against Java source.
+    """
+
+    def test_battle_hymn_upgrades_smite_with_master_reality(self):
+        """BattleHymn should add Smite+ when MasterReality is active."""
+        state = _make_state()
+        state.player.statuses["BattleHymn"] = 1
+        state.player.statuses["MasterReality"] = 1
+        execute_power_triggers("atStartOfTurn", state, state.player)
+        assert "Smite+" in state.hand
+
+    def test_battle_hymn_normal_smite_without_master_reality(self):
+        """BattleHymn should add Smite (not +) without MasterReality."""
+        state = _make_state()
+        state.player.statuses["BattleHymn"] = 1
+        execute_power_triggers("atStartOfTurn", state, state.player)
+        assert "Smite" in state.hand
+        assert "Smite+" not in state.hand
+
+    def test_infinite_blades_upgrades_shiv_with_master_reality(self):
+        """InfiniteBlades should add Shiv+ when MasterReality is active."""
+        state = _make_state()
+        state.player.statuses["InfiniteBlades"] = 1
+        state.player.statuses["MasterReality"] = 1
+        execute_power_triggers("atStartOfTurn", state, state.player)
+        assert "Shiv+" in state.hand
+
+    def test_infinite_blades_normal_shiv_without_master_reality(self):
+        """InfiniteBlades should add Shiv (not +) without MasterReality."""
+        state = _make_state()
+        state.player.statuses["InfiniteBlades"] = 1
+        execute_power_triggers("atStartOfTurn", state, state.player)
+        assert "Shiv" in state.hand
+        assert "Shiv+" not in state.hand
+
+    def test_pure_water_upgrades_miracle_with_master_reality(self):
+        """PureWater relic should add Miracle+ when MasterReality is active."""
+        state = _make_state(relics=["PureWater"])
+        state.player.statuses["MasterReality"] = 1
+        execute_relic_triggers("atBattleStartPreDraw", state)
+        assert "Miracle+" in state.hand
+
+    def test_pure_water_normal_miracle_without_master_reality(self):
+        """PureWater relic should add Miracle (not +) without MasterReality."""
+        state = _make_state(relics=["PureWater"])
+        execute_relic_triggers("atBattleStartPreDraw", state)
+        assert "Miracle" in state.hand
+        assert "Miracle+" not in state.hand
+
+    def test_holy_water_upgrades_miracles_with_master_reality(self):
+        """HolyWater relic should add 3 Miracle+ when MasterReality is active."""
+        state = _make_state(relics=["HolyWater"])
+        state.player.statuses["MasterReality"] = 1
+        execute_relic_triggers("atBattleStartPreDraw", state)
+        upgraded_count = sum(1 for c in state.hand if c == "Miracle+")
+        assert upgraded_count == 3
+
+    def test_ninja_scroll_upgrades_shivs_with_master_reality(self):
+        """NinjaScroll relic should add 3 Shiv+ when MasterReality is active."""
+        state = _make_state(relics=["Ninja Scroll"])
+        state.player.statuses["MasterReality"] = 1
+        execute_relic_triggers("atBattleStartPreDraw", state)
+        upgraded_count = sum(1 for c in state.hand if c == "Shiv+")
+        assert upgraded_count == 3

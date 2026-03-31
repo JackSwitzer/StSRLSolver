@@ -154,16 +154,26 @@ def foresight_start(ctx: PowerContext) -> None:
 
 @power_trigger("atStartOfTurn", power="InfiniteBlades")
 def infinite_blades_start(ctx: PowerContext) -> None:
-    """Infinite Blades: Add Shiv(s) to hand at start of turn."""
+    """Infinite Blades: Add Shiv(s) to hand at start of turn.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Shiv+" if upgraded else "Shiv"
     for _ in range(ctx.amount):
-        ctx.add_card_to_hand("Shiv")
+        ctx.add_card_to_hand(card_id)
 
 
 @power_trigger("atStartOfTurn", power="BattleHymn")
 def battle_hymn_start(ctx: PowerContext) -> None:
-    """Battle Hymn: Add Smite(s) to hand at start of turn."""
+    """Battle Hymn: Add Smite(s) to hand at start of turn.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Smite+" if upgraded else "Smite"
     for _ in range(ctx.amount):
-        ctx.add_card_to_hand("Smite")
+        ctx.add_card_to_hand(card_id)
 
 
 @power_trigger("atStartOfTurn", power="FlameBarrier")
@@ -1887,9 +1897,12 @@ def confusion_on_draw(ctx: PowerContext) -> None:
 def collect_energy(ctx: PowerContext) -> None:
     """CollectPower: Add Miracle to hand (from Collect card).
     Java: CollectPower.onEnergyRecharge — add Miracle to hand, decrement.
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
     """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
     for _ in range(ctx.amount):
-        ctx.add_card_to_hand("Miracle")
+        ctx.add_card_to_hand(card_id)
     new_val = ctx.amount - 1
     if new_val <= 0:
         ctx.player.statuses.pop("Collect", None)

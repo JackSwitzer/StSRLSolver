@@ -405,8 +405,13 @@ def inserter_init(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="PureWater")
 def pure_water_start(ctx: RelicContext) -> None:
-    """Pure Water: Add Miracle to hand at combat start."""
-    ctx.add_card_to_hand("Miracle")
+    """Pure Water: Add Miracle to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
+    ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Bag of Preparation")
@@ -450,16 +455,26 @@ def enchiridion_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="HolyWater")
 def holy_water_start(ctx: RelicContext) -> None:
-    """Holy Water: Add 3 Miracles to hand at combat start."""
+    """Holy Water: Add 3 Miracles to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
     for _ in range(3):
-        ctx.add_card_to_hand("Miracle")
+        ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Ninja Scroll")
 def ninja_scroll_start(ctx: RelicContext) -> None:
-    """Ninja Scroll: Add 3 Shivs to hand at combat start."""
+    """Ninja Scroll: Add 3 Shivs to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Shiv+" if upgraded else "Shiv"
     for _ in range(3):
-        ctx.add_card_to_hand("Shiv")
+        ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Ring of the Snake")
