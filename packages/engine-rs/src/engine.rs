@@ -168,6 +168,16 @@ impl CombatEngine {
         self.state.turn += 1;
         self.phase = CombatPhase::PlayerTurn;
 
+        // Blasphemy: die at start of turn
+        if self.state.blasphemy_active {
+            self.state.blasphemy_active = false;
+            self.state.player.hp = 0;
+            self.state.combat_over = true;
+            self.state.player_won = false;
+            self.phase = CombatPhase::CombatOver;
+            return;
+        }
+
         // Reset energy
         self.state.energy = self.state.max_energy;
 
@@ -175,6 +185,9 @@ impl CombatEngine {
         self.state.cards_played_this_turn = 0;
         self.state.attacks_played_this_turn = 0;
         self.state.last_card_type = None;
+
+        // Reset per-turn statuses
+        self.state.player.set_status("WaveOfTheHand", 0);
 
         // Lantern: +1 energy on turn 1
         relics::apply_lantern_turn_start(&mut self.state);
@@ -202,6 +215,31 @@ impl CombatEngine {
             self.state.player.set_status("LoseDexterity", 0);
         }
 
+        // Deva Form: gain energy at start of turn (increasing)
+        let deva_form = self.state.player.status("DevaForm");
+        if deva_form > 0 {
+            self.state.energy += deva_form;
+            // Increase for next turn
+            self.state.player.set_status("DevaForm", deva_form + 1);
+        }
+
+        // Devotion: gain Mantra at start of turn
+        let devotion = self.state.player.status("Devotion");
+        if devotion > 0 {
+            self.gain_mantra(devotion);
+        }
+
+        // BattleHymn: add Smite(s) to hand at start of turn
+        let battle_hymn = self.state.player.status("BattleHymn");
+        if battle_hymn > 0 {
+            for _ in 0..battle_hymn {
+                let smite_id = self.temp_card_id("Smite");
+                if self.state.hand.len() < 10 {
+                    self.state.hand.push(smite_id);
+                }
+            }
+        }
+
         // Draw cards (default 5)
         self.draw_cards(5);
     }
@@ -213,6 +251,47 @@ impl CombatEngine {
 
         // Clear Entangled (only lasts one turn)
         self.state.player.set_status("Entangled", 0);
+
+        // ---- End-of-turn hand card triggers (before discarding) ----
+        {
+            let hand = self.state.hand.clone();
+            let hand_size = hand.len() as i32;
+            for card_id in &hand {
+                let card = self.card_registry.get_or_default(card_id);
+                // Burn/Burn+/Decay: deal damage to player
+                if card.effects.contains(&"end_turn_damage") && card.base_magic > 0 {
+                    self.state.player.hp -= card.base_magic;
+                    self.state.total_damage_taken += card.base_magic;
+                }
+                // Regret: deal damage equal to cards in hand
+                if card.effects.contains(&"end_turn_regret") {
+                    self.state.player.hp -= hand_size;
+                    self.state.total_damage_taken += hand_size;
+                }
+                // Doubt: apply 1 Weak
+                if card.effects.contains(&"end_turn_weak") {
+                    powers::apply_debuff(&mut self.state.player, "Weakened", card.base_magic.max(1));
+                }
+                // Shame: apply 1 Frail
+                if card.effects.contains(&"end_turn_frail") {
+                    powers::apply_debuff(&mut self.state.player, "Frail", card.base_magic.max(1));
+                }
+            }
+            // Check player death from status card damage
+            if self.state.player.hp <= 0 {
+                let revive_hp = potions::check_fairy_revive(&self.state);
+                if revive_hp > 0 {
+                    potions::consume_fairy(&mut self.state);
+                    self.state.player.hp = revive_hp;
+                } else {
+                    self.state.player.hp = 0;
+                    self.state.combat_over = true;
+                    self.state.player_won = false;
+                    self.phase = CombatPhase::CombatOver;
+                    return;
+                }
+            }
+        }
 
         // Discard hand — respecting Retain and Ethereal
         let hand = std::mem::take(&mut self.state.hand);
@@ -231,9 +310,35 @@ impl CombatEngine {
         }
         self.state.hand = retained;
 
-        // End-of-turn player powers: Metallicize, Plated Armor
+        // ---- End-of-turn power triggers ----
+
+        // Metallicize, Plated Armor
         powers::apply_metallicize(&mut self.state.player);
         powers::apply_plated_armor(&mut self.state.player);
+
+        // Like Water: if in Calm, gain block
+        let like_water = self.state.player.status("LikeWater");
+        if like_water > 0 && self.state.stance == Stance::Calm {
+            self.state.player.block += like_water;
+        }
+
+        // Study: add Insight to draw pile
+        let study = self.state.player.status("Study");
+        if study > 0 {
+            for _ in 0..study {
+                let insight_id = self.temp_card_id("Insight");
+                self.state.draw_pile.push(insight_id);
+            }
+        }
+
+        // Omega: deal damage to all living enemies
+        let omega = self.state.player.status("Omega");
+        if omega > 0 {
+            let living = self.state.living_enemy_indices();
+            for idx in living {
+                self.deal_damage_to_enemy(idx, omega);
+            }
+        }
 
         // Player poison tick (before enemy turns)
         let player_poison = self.state.player.status("Poison");
@@ -263,8 +368,17 @@ impl CombatEngine {
             }
         }
 
-        // Enemy turns
-        self.do_enemy_turns();
+        // Check combat end (Omega may have killed enemies)
+        if self.check_combat_end() {
+            return;
+        }
+
+        // Enemy turns (skip if Vault was played)
+        if self.state.skip_enemy_turn {
+            self.state.skip_enemy_turn = false;
+        } else {
+            self.do_enemy_turns();
+        }
 
         // End of round: decrement debuffs on player
         powers::decrement_debuffs(&mut self.state.player);
@@ -274,6 +388,12 @@ impl CombatEngine {
             if !enemy.entity.is_dead() {
                 powers::decrement_debuffs(&mut enemy.entity);
             }
+        }
+
+        // Decrement player Intangible
+        let intangible = self.state.player.status("Intangible");
+        if intangible > 0 {
+            self.state.player.set_status("Intangible", intangible - 1);
         }
 
         // Check combat end
@@ -303,6 +423,17 @@ impl CombatEngine {
             return false;
         }
 
+        // Signature Move: only playable if no other attacks in hand
+        if card.effects.contains(&"only_attack_in_hand") {
+            let other_attacks = self.state.hand.iter().filter(|c| {
+                let other_card = self.card_registry.get_or_default(c);
+                other_card.card_type == CardType::Attack && c.as_str() != card_id
+            }).count();
+            if other_attacks > 0 {
+                return false;
+            }
+        }
+
         true
     }
 
@@ -311,6 +442,12 @@ impl CombatEngine {
         if card.cost == -1 {
             return 0;
         }
+
+        // NextAttackFree: next attack costs 0
+        if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
+            return 0;
+        }
+
         card.cost
     }
 
@@ -367,10 +504,21 @@ impl CombatEngine {
         // Ornamental Fan: gain 4 block every 3 cards
         relics::check_ornamental_fan(&mut self.state);
 
+        // Consume NextAttackFree after playing an attack
+        if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
+            self.state.player.set_status("NextAttackFree", 0);
+        }
+
+        // Consume WaveOfTheHand at end of turn (reset flag)
+        // WaveOfTheHand is applied in block gain triggers (simplified: apply on any block)
+
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
             // Powers don't go to any pile
+        } else if card.effects.contains(&"shuffle_self_into_draw") {
+            // Tantrum: goes to draw pile instead of discard
+            // (already handled in execute_card_effects, don't double-add)
         } else if card.exhaust {
             self.state.exhaust_pile.push(card_id.clone());
         } else {
@@ -388,7 +536,7 @@ impl CombatEngine {
         self.check_combat_end();
     }
 
-    fn execute_card_effects(&mut self, card: &CardDef, _card_id: &str, target_idx: i32) {
+    fn execute_card_effects(&mut self, card: &CardDef, card_id: &str, target_idx: i32) {
         // ---- Pen Nib check (before damage) ----
         let pen_nib_active = if card.card_type == CardType::Attack {
             relics::check_pen_nib(&mut self.state)
@@ -407,7 +555,18 @@ impl CombatEngine {
             0
         };
 
+        // ---- Brilliance: extra damage from mantra gained ----
+        let brilliance_bonus = if card.effects.contains(&"damage_plus_mantra") {
+            self.state.mantra_gained
+        } else {
+            0
+        };
+
         // ---- Damage ----
+        // Track damage dealt for Wallop (block_from_damage)
+        let mut total_unblocked_damage = 0i32;
+        let mut enemy_killed = false;
+
         if card.base_damage >= 0 {
             let is_multi_hit = card.effects.contains(&"multi_hit");
             let hits = if is_multi_hit && card.base_magic > 0 {
@@ -429,7 +588,7 @@ impl CombatEngine {
                         let enemy_intangible = self.state.enemies[tidx].entity.status("Intangible") > 0;
                         let vuln_paper_frog = self.state.has_relic("Paper Frog");
                         let dmg = damage::calculate_damage_full(
-                            card.base_damage,
+                            card.base_damage + brilliance_bonus,
                             player_strength,
                             vigor,
                             player_weak,
@@ -445,18 +604,21 @@ impl CombatEngine {
                         // Talk to the Hand: player gains block per hit ONLY on HP damage
                         let block_return = self.state.enemies[tidx].entity.status("BlockReturn");
                         for _ in 0..hits {
-                            let enemy_hp_before = self.state.enemies[tidx].entity.hp;
                             let enemy_block_before = self.state.enemies[tidx].entity.block;
+                            let enemy_hp_before = self.state.enemies[tidx].entity.hp;
                             self.deal_damage_to_enemy(tidx, dmg);
+                            // Track unblocked damage for Wallop
+                            let blocked = enemy_block_before.min(dmg);
+                            let hp_dmg = dmg - blocked;
+                            total_unblocked_damage += (enemy_hp_before - self.state.enemies[tidx].entity.hp).max(0);
                             // BlockReturn only triggers on actual HP damage
                             if block_return > 0 {
-                                let blocked = enemy_block_before.min(dmg);
-                                let hp_dmg = dmg - blocked;
                                 if hp_dmg > 0 || enemy_hp_before > self.state.enemies[tidx].entity.hp {
                                     self.state.player.block += block_return;
                                 }
                             }
                             if self.state.enemies[tidx].entity.is_dead() {
+                                enemy_killed = true;
                                 break;
                             }
                         }
@@ -469,7 +631,7 @@ impl CombatEngine {
                         let enemy_intangible = self.state.enemies[enemy_idx].entity.status("Intangible") > 0;
                         let vuln_paper_frog = self.state.has_relic("Paper Frog");
                         let dmg = damage::calculate_damage_full(
-                            card.base_damage,
+                            card.base_damage + brilliance_bonus,
                             player_strength,
                             vigor,
                             player_weak,
@@ -487,6 +649,7 @@ impl CombatEngine {
                             let enemy_hp_before = self.state.enemies[enemy_idx].entity.hp;
                             let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
                             self.deal_damage_to_enemy(enemy_idx, dmg);
+                            total_unblocked_damage += (enemy_hp_before - self.state.enemies[enemy_idx].entity.hp).max(0);
                             if block_return > 0 {
                                 let blocked = enemy_block_before.min(dmg);
                                 let hp_dmg = dmg - blocked;
@@ -495,6 +658,7 @@ impl CombatEngine {
                                 }
                             }
                             if self.state.enemies[enemy_idx].entity.is_dead() {
+                                enemy_killed = true;
                                 break;
                             }
                         }
@@ -504,11 +668,26 @@ impl CombatEngine {
             }
         }
 
+        // ---- Wallop: gain block equal to unblocked damage dealt ----
+        if card.effects.contains(&"block_from_damage") {
+            self.state.player.block += total_unblocked_damage;
+        }
+
         // ---- Block ----
         if card.base_block >= 0 {
             let dex = self.state.player.dexterity();
             let frail = self.state.player.is_frail();
             let block = damage::calculate_block(card.base_block, dex, frail);
+            self.state.player.block += block;
+        }
+
+        // ---- Spirit Shield: gain block per card in hand ----
+        if card.effects.contains(&"block_per_card_in_hand") {
+            let cards_in_hand = self.state.hand.len() as i32;
+            let per_card = card.base_magic.max(1);
+            let dex = self.state.player.dexterity();
+            let frail = self.state.player.is_frail();
+            let block = damage::calculate_block(per_card * cards_in_hand, dex, frail);
             self.state.player.block += block;
         }
 
@@ -527,21 +706,32 @@ impl CombatEngine {
             self.draw_cards(card.base_magic);
         }
 
+        // ---- Scrawl: draw until hand is 10 ----
+        if card.effects.contains(&"draw_to_ten") {
+            let cards_to_draw = (10 - self.state.hand.len() as i32).max(0);
+            if cards_to_draw > 0 {
+                self.draw_cards(cards_to_draw);
+            }
+        }
+
         // ---- Mantra ----
         if card.effects.contains(&"mantra") && card.base_magic > 0 {
             self.gain_mantra(card.base_magic);
         }
 
-        // ---- Scry (simplified for MCTS: peek at top cards) ----
+        // ---- Scry ----
         if card.effects.contains(&"scry") && card.base_magic > 0 {
-            // For MCTS: approximate scry as a no-op on the draw pile.
-            // The real effect is choosing which cards to discard from top X,
-            // but for fast simulation we skip this selection step.
+            self.do_scry(card.base_magic);
         }
 
         // ---- Gain Energy (Miracle) ----
         if card.effects.contains(&"gain_energy") && card.base_magic > 0 {
             self.state.energy += card.base_magic;
+        }
+
+        // ---- Vigor (Wreath of Flame) ----
+        if card.effects.contains(&"vigor") && card.base_magic > 0 {
+            self.state.player.add_status("Vigor", card.base_magic);
         }
 
         // ---- Inner Peace: if in Calm, draw 3; else enter Calm ----
@@ -556,8 +746,6 @@ impl CombatEngine {
         // ---- BowlingBash: damage per living enemy (extra hits) ----
         if card.effects.contains(&"damage_per_enemy") {
             let living_count = self.state.living_enemy_indices().len() as i32;
-            // BowlingBash deals base_damage * living_count to the target.
-            // The base hit was already dealt above (1 hit). Deal (living_count - 1) more.
             if living_count > 1 && target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
                 let player_strength = self.state.player.strength();
                 let player_weak = self.state.player.is_weak();
@@ -592,6 +780,20 @@ impl CombatEngine {
             }
         }
 
+        // ---- SashWhip: apply Weak if last card played was an Attack ----
+        if card.effects.contains(&"weak_if_last_attack") {
+            if self.state.last_card_type == Some(CardType::Attack) {
+                if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                    let weak_amount = card.base_magic.max(1);
+                    powers::apply_debuff(
+                        &mut self.state.enemies[target_idx as usize].entity,
+                        "Weakened",
+                        weak_amount,
+                    );
+                }
+            }
+        }
+
         // ---- FollowUp: gain 1 energy if last card played was an Attack ----
         if card.effects.contains(&"energy_if_last_attack") {
             if self.state.last_card_type == Some(CardType::Attack) {
@@ -614,9 +816,6 @@ impl CombatEngine {
             let player_strength = self.state.player.strength();
             let player_weak = self.state.player.is_weak();
             let stance_mult = self.state.stance.outgoing_mult();
-            // The AllEnemy base hit was already dealt above. Ragnarok deals
-            // base_magic total hits to random enemies. We already did 1 pass
-            // (AllEnemy loop), so do (base_magic - 1) more random hits.
             for _ in 0..(card.base_magic - 1) {
                 let living = self.state.living_enemy_indices();
                 if living.is_empty() {
@@ -634,6 +833,216 @@ impl CombatEngine {
                 );
                 self.deal_damage_to_enemy(idx, dmg);
             }
+        }
+
+        // ---- Pressure Points: apply Mark, then damage all marked enemies ----
+        if card.effects.contains(&"pressure_points") {
+            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                let mark_amount = card.base_magic.max(1);
+                self.state.enemies[target_idx as usize]
+                    .entity
+                    .add_status("Mark", mark_amount);
+            }
+            // Deal damage to ALL enemies equal to their Mark
+            let living = self.state.living_enemy_indices();
+            for idx in living {
+                let mark = self.state.enemies[idx].entity.status("Mark");
+                if mark > 0 {
+                    // Mark damage ignores block (HP loss)
+                    self.state.enemies[idx].entity.hp -= mark;
+                    self.state.total_damage_dealt += mark;
+                    if self.state.enemies[idx].entity.hp <= 0 {
+                        self.state.enemies[idx].entity.hp = 0;
+                    }
+                }
+            }
+        }
+
+        // ---- Judgement: if enemy HP <= threshold, set HP to 0 ----
+        if card.effects.contains(&"judgement") {
+            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                let tidx = target_idx as usize;
+                let threshold = card.base_magic.max(1);
+                if self.state.enemies[tidx].entity.hp <= threshold {
+                    let hp = self.state.enemies[tidx].entity.hp;
+                    self.state.enemies[tidx].entity.hp = 0;
+                    self.state.total_damage_dealt += hp;
+                }
+            }
+        }
+
+        // ---- Lesson Learned: if enemy dies, upgrade a random card in draw/discard ----
+        if card.effects.contains(&"lesson_learned") && enemy_killed {
+            // Find a non-upgraded card and upgrade it
+            let mut upgraded = false;
+            for card_id in self.state.draw_pile.iter_mut() {
+                if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
+                    card_id.push('+');
+                    upgraded = true;
+                    break;
+                }
+            }
+            if !upgraded {
+                for card_id in self.state.discard_pile.iter_mut() {
+                    if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
+                        card_id.push('+');
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ---- Shuffle self into draw pile (Tantrum) ----
+        if card.effects.contains(&"shuffle_self_into_draw") {
+            self.state.draw_pile.push(card_id.to_string());
+            self.state.draw_pile.shuffle(&mut self.rng);
+        }
+
+        // ---- Add Insight to draw pile (Evaluate) ----
+        if card.effects.contains(&"insight_to_draw") {
+            let insight_id = self.temp_card_id("Insight");
+            self.state.draw_pile.push(insight_id);
+            self.state.draw_pile.shuffle(&mut self.rng);
+        }
+
+        // ---- Add Smite to hand (Carve Reality) ----
+        if card.effects.contains(&"add_smite_to_hand") {
+            let smite_id = self.temp_card_id("Smite");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(smite_id);
+            }
+        }
+
+        // ---- Add Safety to hand (Deceive Reality) ----
+        if card.effects.contains(&"add_safety_to_hand") {
+            let safety_id = self.temp_card_id("Safety");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(safety_id);
+            }
+        }
+
+        // ---- Add Through Violence to draw (Reach Heaven) ----
+        if card.effects.contains(&"add_through_violence_to_draw") {
+            let tv_id = self.temp_card_id("ThroughViolence");
+            self.state.draw_pile.push(tv_id);
+            self.state.draw_pile.shuffle(&mut self.rng);
+        }
+
+        // ---- Add Beta to draw (Alpha) ----
+        if card.effects.contains(&"add_beta_to_draw") {
+            let beta_id = self.temp_card_id("Beta");
+            self.state.draw_pile.push(beta_id);
+            self.state.draw_pile.shuffle(&mut self.rng);
+        }
+
+        // ---- Add Omega to draw (Beta) ----
+        if card.effects.contains(&"add_omega_to_draw") {
+            let omega_id = self.temp_card_id("Omega");
+            self.state.draw_pile.push(omega_id);
+            self.state.draw_pile.shuffle(&mut self.rng);
+        }
+
+        // ---- Fear No Evil: enter Calm if target enemy is attacking ----
+        if card.effects.contains(&"calm_if_enemy_attacking") {
+            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                if self.state.enemies[target_idx as usize].is_attacking() {
+                    self.change_stance(Stance::Calm);
+                }
+            }
+        }
+
+        // ---- Indignation: if in Wrath, apply Vuln to all; else enter Wrath ----
+        if card.effects.contains(&"indignation") {
+            if self.state.stance == Stance::Wrath {
+                let vuln_amount = card.base_magic.max(1);
+                let living = self.state.living_enemy_indices();
+                for idx in living {
+                    powers::apply_debuff(
+                        &mut self.state.enemies[idx].entity,
+                        "Vulnerable",
+                        vuln_amount,
+                    );
+                }
+            } else {
+                self.change_stance(Stance::Wrath);
+            }
+        }
+
+        // ---- Meditate: return cards from discard to hand (MCTS approximation) ----
+        if card.effects.contains(&"meditate") {
+            let count = card.base_magic.max(1) as usize;
+            // Move best cards from discard to hand (simplified: take from end)
+            for _ in 0..count {
+                if self.state.discard_pile.is_empty() {
+                    break;
+                }
+                if self.state.hand.len() >= 10 {
+                    break;
+                }
+                if let Some(card) = self.state.discard_pile.pop() {
+                    self.state.hand.push(card);
+                }
+            }
+        }
+
+        // ---- Wave of the Hand: apply WaveOfTheHand status ----
+        if card.effects.contains(&"wave_of_the_hand") {
+            self.state.player.add_status("WaveOfTheHand", card.base_magic.max(1));
+        }
+
+        // ---- Foreign Influence: MCTS approximation, add a random Smite ----
+        if card.effects.contains(&"foreign_influence") {
+            let smite_id = self.temp_card_id("Smite");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(smite_id);
+            }
+        }
+
+        // ---- Conjure Blade: create Expunger with X hits ----
+        if card.effects.contains(&"conjure_blade") {
+            // X-cost: all remaining energy was consumed. The energy was already paid (0 for X).
+            // But X-cost cards consume ALL energy. We need to set the hit count.
+            // X-cost: effective_cost returns 0, energy was only reduced by 0.
+            // Consume all remaining energy as X value.
+            let x_value = self.state.energy;
+            self.state.energy = 0;
+            // Create Expunger with X hits — store hit count in status
+            let expunger_id = self.temp_card_id("Expunger");
+            if x_value > 0 && self.state.hand.len() < 10 {
+                self.state.hand.push(expunger_id);
+                self.state.player.set_status("ExpungerHits", x_value);
+            }
+        }
+
+        // ---- Omniscience: MCTS approximation — draw top card and play it ----
+        if card.effects.contains(&"omniscience") {
+            // Simplified: draw 1 card (the top of draw pile gets played "twice")
+            // For MCTS, we just draw 2 cards as approximation
+            self.draw_cards(2);
+        }
+
+        // ---- Wish: MCTS approximation — gain Strength (most useful option) ----
+        if card.effects.contains(&"wish") {
+            let amount = card.base_magic.max(1);
+            self.state.player.add_status("Strength", amount);
+        }
+
+        // ---- Blasphemy: die_next_turn flag ----
+        if card.effects.contains(&"die_next_turn") {
+            self.state.blasphemy_active = true;
+        }
+
+        // ---- Skip enemy turn (Vault) ----
+        if card.effects.contains(&"skip_enemy_turn") {
+            self.state.skip_enemy_turn = true;
+        }
+
+        // ---- Signature Move: only_attack_in_hand (playability handled in can_play_card) ----
+        // No extra effect needed here, damage is already dealt above.
+
+        // ---- Swivel: next_attack_free ----
+        if card.effects.contains(&"next_attack_free") {
+            self.state.player.set_status("NextAttackFree", 1);
         }
     }
 
@@ -654,6 +1063,74 @@ impl CombatEngine {
                     self.state
                         .player
                         .set_status("MentalFortress", current + card.base_magic);
+                }
+                "battle_hymn" => {
+                    // BattleHymn: at start of turn, add Smite(s) to hand
+                    let current = self.state.player.status("BattleHymn");
+                    self.state
+                        .player
+                        .set_status("BattleHymn", current + card.base_magic.max(1));
+                }
+                "like_water" => {
+                    // LikeWater: at end of turn, if in Calm, gain block
+                    let current = self.state.player.status("LikeWater");
+                    self.state
+                        .player
+                        .set_status("LikeWater", current + card.base_magic.max(1));
+                }
+                "on_scry_block" => {
+                    // Nirvana: gain block on Scry
+                    let current = self.state.player.status("Nirvana");
+                    self.state
+                        .player
+                        .set_status("Nirvana", current + card.base_magic.max(1));
+                }
+                "study" => {
+                    // Study: at end of turn, add Insight to draw
+                    let current = self.state.player.status("Study");
+                    self.state
+                        .player
+                        .set_status("Study", current + card.base_magic.max(1));
+                }
+                "deva_form" => {
+                    // DevaForm: at start of turn, gain energy (increasing)
+                    let current = self.state.player.status("DevaForm");
+                    self.state
+                        .player
+                        .set_status("DevaForm", current + card.base_magic.max(1));
+                }
+                "devotion" => {
+                    // Devotion: at start of turn, gain Mantra
+                    let current = self.state.player.status("Devotion");
+                    self.state
+                        .player
+                        .set_status("Devotion", current + card.base_magic.max(1));
+                }
+                "establishment" => {
+                    // Establishment: retained cards cost 1 less
+                    let current = self.state.player.status("Establishment");
+                    self.state
+                        .player
+                        .set_status("Establishment", current + card.base_magic.max(1));
+                }
+                "fasting" => {
+                    // Fasting: gain Str and Dex, lose 1 max energy
+                    let amount = card.base_magic.max(1);
+                    self.state.player.add_status("Strength", amount);
+                    self.state.player.add_status("Dexterity", amount);
+                    self.state.max_energy -= 1;
+                    self.state.energy = self.state.energy.min(self.state.max_energy);
+                }
+                "master_reality" => {
+                    // MasterReality: all temp cards created are upgraded
+                    self.state.player.set_status("MasterReality", 1);
+                }
+                "omega" => {
+                    // Omega: deal damage to all enemies at end of turn
+                    let current = self.state.player.status("Omega");
+                    self.state
+                        .player
+                        .set_status("Omega", current + card.base_magic.max(1));
                 }
                 _ => {}
             }
@@ -1021,9 +1498,59 @@ impl CombatEngine {
     /// Gain mantra and check for Divinity entry (10+ mantra).
     fn gain_mantra(&mut self, amount: i32) {
         self.state.mantra += amount;
+        self.state.mantra_gained += amount;
         if self.state.mantra >= 10 {
             self.state.mantra -= 10;
             self.change_stance(Stance::Divinity);
+        }
+    }
+
+    // =======================================================================
+    // Helpers: Temp Card Creation (respects Master Reality)
+    // =======================================================================
+
+    /// Get the ID for a temporary card, upgrading if Master Reality is active.
+    fn temp_card_id(&self, base_id: &str) -> String {
+        if self.state.player.status("MasterReality") > 0 {
+            format!("{}+", base_id)
+        } else {
+            base_id.to_string()
+        }
+    }
+
+    /// Perform Scry: approximate for MCTS by discarding bottom N cards from draw pile.
+    /// Triggers Nirvana (on_scry block) and Weave (return_on_scry).
+    fn do_scry(&mut self, amount: i32) {
+        // For MCTS: approximate scry as discarding bottom cards from draw pile.
+        let to_scry = (amount as usize).min(self.state.draw_pile.len());
+        if to_scry > 0 {
+            // Remove from the bottom (front) of draw pile as an approximation
+            let scryed: Vec<String> = self.state.draw_pile.drain(0..to_scry).collect();
+            // In MCTS, we discard all scryed cards (simplification)
+            for card in scryed {
+                self.state.discard_pile.push(card);
+            }
+        }
+
+        // Nirvana: gain block when scrying
+        let nirvana = self.state.player.status("Nirvana");
+        if nirvana > 0 {
+            self.state.player.block += nirvana;
+        }
+
+        // Weave: return from discard to hand on Scry
+        let mut weave_indices = Vec::new();
+        for (i, card_id) in self.state.discard_pile.iter().enumerate() {
+            if card_id.starts_with("Weave") {
+                weave_indices.push(i);
+            }
+        }
+        // Remove in reverse order to maintain indices
+        for &i in weave_indices.iter().rev() {
+            let card = self.state.discard_pile.remove(i);
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            }
         }
     }
 

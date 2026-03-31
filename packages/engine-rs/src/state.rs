@@ -223,8 +223,14 @@ pub struct CombatState {
 
     // Watcher-specific
     pub mantra: i32,
+    /// Total mantra gained this combat (for Brilliance)
+    pub mantra_gained: i32,
     /// Last card type played this turn (for CrushJoints/FollowUp checks)
     pub last_card_type: Option<CardType>,
+    /// Skip enemy turn flag (Vault)
+    pub skip_enemy_turn: bool,
+    /// Blasphemy: die at start of next turn
+    pub blasphemy_active: bool,
 
     // Statistics
     pub total_damage_dealt: i32,
@@ -261,7 +267,10 @@ impl CombatState {
             combat_over: false,
             player_won: false,
             mantra: 0,
+            mantra_gained: 0,
             last_card_type: None,
+            skip_enemy_turn: false,
+            blasphemy_active: false,
             total_damage_dealt: 0,
             total_damage_taken: 0,
             total_cards_played: 0,
