@@ -69,6 +69,8 @@ pub enum RunPhase {
 
 /// Simplified Act 1 Watcher card pool for rewards.
 /// Uses CardRegistry IDs (PascalCase, no spaces) to match card lookups.
+/// Cards not in CardRegistry fall back to get_or_default() (1-cost 6-damage attack).
+/// This is intentional for the fast MCTS path — full card effects are in the Python engine.
 const WATCHER_COMMON_CARDS: &[&str] = &[
     "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
     "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",

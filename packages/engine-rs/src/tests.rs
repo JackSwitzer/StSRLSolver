@@ -2930,23 +2930,20 @@ mod bugfix_regression_tests {
     }
 
     #[test]
-    fn block_return_grants_block_on_enemy_attack() {
+    fn block_return_grants_block_on_player_attack() {
         let mut e = engine_with(
             vec!["TalkToTheHand".to_string(), "Strike_P".to_string(),
                  "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
-            100, 10,
+            100, 0,
         );
         play(&mut e, "TalkToTheHand");
         let br = e.state.enemies[0].entity.status("BlockReturn");
         assert!(br > 0);
-        // End turn: enemy attacks for 10, but player should gain BlockReturn block per hit
-        e.execute_action(&Action::EndTurn);
-        // Player should have gained block from BlockReturn during enemy attack
-        // Block decays at start of next turn, so check before that
-        // After end_turn, start_player_turn is called which sets block=0.
-        // We check total_damage_taken instead: 10 damage - 5 block from TttH base_damage, etc.
-        // Actually just verify the BlockReturn status was applied correctly
-        assert_eq!(e.state.enemies[0].entity.status("BlockReturn"), br);
+        // Player attacks marked enemy — should gain block
+        let block_before = e.state.player.block;
+        play(&mut e, "Strike_P");
+        assert_eq!(e.state.player.block, block_before + br,
+            "Player should gain BlockReturn block when attacking marked enemy");
     }
 
     #[test]

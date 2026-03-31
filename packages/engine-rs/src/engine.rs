@@ -334,13 +334,9 @@ impl CombatEngine {
             self.state.discard_pile.push(card_id.clone());
         }
 
-        // Conclude: discard remaining hand and end the turn
+        // Conclude: end the turn immediately after playing
+        // Let end_turn() handle the remaining hand (respects retain/ethereal)
         if card.effects.contains(&"end_turn") {
-            let hand = std::mem::take(&mut self.state.hand);
-            for c in hand {
-                self.state.discard_pile.push(c);
-            }
-            // Actually end the turn (enemy turns, debuff ticks, etc.)
             self.end_turn();
             return;
         }
@@ -384,9 +380,8 @@ impl CombatEngine {
             match card.target {
                 CardTarget::Enemy => {
                     if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                        let enemy_vuln = self.state.enemies[target_idx as usize]
-                            .entity
-                            .is_vulnerable();
+                        let tidx = target_idx as usize;
+                        let enemy_vuln = self.state.enemies[tidx].entity.is_vulnerable();
                         let mut dmg = damage::calculate_damage(
                             card.base_damage,
                             player_strength + vigor,
@@ -398,9 +393,14 @@ impl CombatEngine {
                         if pen_nib_active {
                             dmg *= 2;
                         }
+                        // Talk to the Hand: player gains block per hit on marked enemy
+                        let block_return = self.state.enemies[tidx].entity.status("BlockReturn");
                         for _ in 0..hits {
-                            self.deal_damage_to_enemy(target_idx as usize, dmg);
-                            if self.state.enemies[target_idx as usize].entity.is_dead() {
+                            self.deal_damage_to_enemy(tidx, dmg);
+                            if block_return > 0 {
+                                self.state.player.block += block_return;
+                            }
+                            if self.state.enemies[tidx].entity.is_dead() {
                                 break;
                             }
                         }
@@ -421,8 +421,12 @@ impl CombatEngine {
                         if pen_nib_active {
                             dmg *= 2;
                         }
+                        let block_return = self.state.enemies[enemy_idx].entity.status("BlockReturn");
                         for _ in 0..hits {
                             self.deal_damage_to_enemy(enemy_idx, dmg);
+                            if block_return > 0 {
+                                self.state.player.block += block_return;
+                            }
                             if self.state.enemies[enemy_idx].entity.is_dead() {
                                 break;
                             }
@@ -726,7 +730,6 @@ impl CombatEngine {
             let player_vuln = self.state.player.is_vulnerable();
 
             let hits = enemy.move_hits;
-            let block_return = enemy.entity.status("BlockReturn");
             for _ in 0..hits {
                 let mut hit_damage = damage_f * stance_mult;
 
@@ -739,11 +742,6 @@ impl CombatEngine {
                 let final_damage = (hit_damage as i32).max(0);
 
                 self.deal_damage_to_player(final_damage);
-
-                // Talk to the Hand: player gains block when this enemy attacks
-                if block_return > 0 {
-                    self.state.player.block += block_return;
-                }
 
                 if self.state.player.is_dead() {
                     return;
