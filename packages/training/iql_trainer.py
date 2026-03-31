@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .offline_data import OfflineBatch, OfflineDataset
-from .strategic_net import StrategicNet, _get_device
+from .strategic_net import StrategicNet
 from .training_config import (
     IQL_DISCOUNT,
     IQL_EXPECTILE,

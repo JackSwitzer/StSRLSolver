@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Optional, Dict, Set, Tuple, Any, Callable, TYPE_CHECKING
 import re
-from copy import deepcopy
 
 from ..content.cards import CardRarity, CardType, ALL_CARDS
 from ..generation.rewards import _get_card_pool as _get_reward_card_pool

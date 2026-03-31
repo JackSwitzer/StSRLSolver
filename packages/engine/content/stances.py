@@ -20,7 +20,6 @@ From decompiled WrathStance.java:
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional
 
 
 class StanceID(Enum):

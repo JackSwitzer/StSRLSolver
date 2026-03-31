@@ -6,9 +6,9 @@ Used by IQL trainer for offline RL on existing trajectory data.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -73,17 +73,6 @@ class OfflineDataset:
             next_states=torch.from_numpy(self.next_states[idx]).float(),
             dones=torch.from_numpy(self.dones[idx]).float(),
             action_masks=torch.from_numpy(self.action_masks[idx]).bool(),
-        )
-
-    def to_torch(self, device: torch.device) -> OfflineBatch:
-        """Convert entire dataset to PyTorch tensors on device."""
-        return OfflineBatch(
-            states=torch.from_numpy(self.states).float().to(device),
-            actions=torch.from_numpy(self.actions).long().to(device),
-            rewards=torch.from_numpy(self.rewards).float().to(device),
-            next_states=torch.from_numpy(self.next_states).float().to(device),
-            dones=torch.from_numpy(self.dones).float().to(device),
-            action_masks=torch.from_numpy(self.action_masks).bool().to(device),
         )
 
 

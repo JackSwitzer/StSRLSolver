@@ -10,15 +10,15 @@ Reference: DeepSeek-R1 approach adapted for game decision-making.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .strategic_net import StrategicNet, _get_device
+from .strategic_net import StrategicNet
 from .training_config import (
     GRPO_CLIP,
     GRPO_LR,

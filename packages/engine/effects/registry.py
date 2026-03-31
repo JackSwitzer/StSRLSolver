@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import (
-    Callable, Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Union
+    Callable, Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 )
 from enum import Enum
 import re

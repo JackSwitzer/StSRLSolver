@@ -40,7 +40,7 @@ from __future__ import annotations
 import logging
 import time
 from multiprocessing import shared_memory
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 

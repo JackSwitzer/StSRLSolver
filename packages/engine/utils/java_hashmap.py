@@ -16,8 +16,8 @@ References:
 - https://gist.github.com/hanleybrand/5224673
 """
 
-from typing import List, Dict, Any, Tuple, Optional
-from dataclasses import dataclass, field
+from typing import List, Any, Tuple, Optional
+from dataclasses import dataclass
 
 
 def java_string_hashcode(s: str) -> int:

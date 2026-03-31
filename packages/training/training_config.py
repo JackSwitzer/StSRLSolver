@@ -35,7 +35,6 @@ TRAIN_COLLECT_GAMES = 100
 LR_BASE = 3e-5
 LR_SCHEDULE = "cosine_warm_restarts"
 LR_T_0 = 10000
-LR_WARMUP_STEPS = 100
 # Per-head LR multipliers (MoE-style: shared trunk trains slower, heads faster)
 LR_HEAD_MULTIPLIERS: Dict[str, float] = {
     "trunk": 1.0,       # Shared trunk: base LR
@@ -43,15 +42,12 @@ LR_HEAD_MULTIPLIERS: Dict[str, float] = {
     "value": 3.0,       # Value head: 3x base (needs to converge fast for GAE)
     "auxiliary": 1.0,    # Floor/act prediction: base LR
 }
-# Combat net LR (separate network, can be more aggressive)
-LR_COMBAT_NET = 1e-3
 
 # ---------------------------------------------------------------------------
 # Exploration
 # ---------------------------------------------------------------------------
 ENTROPY_COEFF = 0.05
 ENTROPY_MIN = 0.02
-ENTROPY_FLOOR_AVG_FLOOR = 12.0  # Don't decay until avg_floor > this
 TEMPERATURE = 0.9
 
 # ---------------------------------------------------------------------------
@@ -135,12 +131,6 @@ REWARD_WEIGHTS: Dict[str, Any] = {
 # PBRS
 # ---------------------------------------------------------------------------
 PBRS_GAMMA = 0.99
-PBRS_WEIGHTS: Dict[str, float] = {
-    "floor": 1.5,
-    "hp": 0.30,
-    "deck_quality": 0.15,
-    "relic": 0.10,
-}
 
 # ---------------------------------------------------------------------------
 # Combat MCTS toggle

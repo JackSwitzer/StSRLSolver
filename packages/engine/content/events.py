@@ -7,7 +7,7 @@ Contains all events with their options, outcomes, and conditions.
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional, Callable
+from typing import Optional
 
 
 class Act(Enum):

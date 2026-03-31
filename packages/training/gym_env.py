@@ -35,7 +35,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from packages.engine.game import GamePhase, GameRunner
+from packages.engine.game import GameRunner
 from packages.engine.rl_masks import ActionSpace
 from packages.engine.rl_observations import ObservationEncoder
 

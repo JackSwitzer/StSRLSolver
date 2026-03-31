@@ -61,8 +61,7 @@ priority - Execution order (lower = earlier, default 5)
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional, Dict, List, Any, Callable
-import math
+from typing import Optional, Dict, List, Any
 
 from .power_inventory_autogen import AUTO_POWER_DATA, AUTO_POWER_ID_ALIASES
 

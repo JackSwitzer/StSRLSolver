@@ -1,6 +1,5 @@
 """Factory functions for common relic trigger patterns."""
-from typing import Callable, Optional, Any
-from functools import wraps
+from typing import Callable, Optional
 
 from . import relic_trigger, RelicContext
 

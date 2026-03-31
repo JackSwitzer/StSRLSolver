@@ -10,7 +10,7 @@ PBRS potential function + game events (win/loss/milestones) are the primary sign
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Dict
 
 from .training_config import (
     REPLAY_BUFFER_SIZE,

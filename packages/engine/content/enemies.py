@@ -35,9 +35,8 @@ Intent types (from AbstractMonster.Intent):
 """
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Dict, Tuple, Callable
+from typing import Any, List, Optional, Dict, Tuple
 from enum import Enum
-import math
 
 from ..state.rng import Random
 
