@@ -279,3 +279,18 @@ STALL_IMPROVEMENT_THRESHOLD = 0.0
 VALUE_NORM_METHOD = "popart"  # Options: "popart", "clip", "none"
 POPART_BETA = 0.0003         # EMA decay rate for PopArt running stats
 MAX_RETURN = 30.0            # Clip ceiling for "clip" method; returns scaled to [0, 1]
+
+# ---------------------------------------------------------------------------
+# Disk Retention Policy (used by scripts/disk-manager.sh)
+# ---------------------------------------------------------------------------
+RETENTION: Dict[str, Any] = {
+    "runs_keep_top_n": 10,         # Keep top N runs by avg_floor
+    "runs_keep_latest_n": 10,      # Keep latest N runs by date
+    "checkpoints_keep_latest_n": 10,  # Per run: keep latest N .pt files
+    "checkpoints_keep_best_n": 3,  # Per run: keep best N .pt files by floor
+    "archive_after_days": 7,       # Archive runs older than this
+    "delete_after_days": 30,       # Delete archived runs older than this
+    "disk_warn_gb": 10,            # Warn when free disk < this
+    "disk_pause_gb": 5,            # Pause training when free disk < this
+    "disk_emergency_gb": 3,        # Emergency prune when free disk < this
+}
