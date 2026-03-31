@@ -1036,6 +1036,86 @@ impl CardRegistry {
             effects: &["retain"],
         });
 
+        // ---- Special Generated Cards ----
+        // Beta (from Alpha chain): cost 2, skill, exhaust, add Omega to draw
+        Self::insert(&mut cards, CardDef {
+            id: "Beta", name: "Beta", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["add_omega_to_draw"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Beta+", name: "Beta+", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["add_omega_to_draw"],
+        });
+        // Omega (from Beta chain): cost 3, power, deal 50 dmg at end of turn
+        Self::insert(&mut cards, CardDef {
+            id: "Omega", name: "Omega", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,
+            base_magic: 50, exhaust: false, enter_stance: None,
+            effects: &["omega"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Omega+", name: "Omega+", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,
+            base_magic: 60, exhaust: false, enter_stance: None,
+            effects: &["omega"],
+        });
+        // Through Violence (from Reach Heaven): cost 0, 20 dmg, retain
+        Self::insert(&mut cards, CardDef {
+            id: "ThroughViolence", name: "Through Violence", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 0, base_damage: 20, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "ThroughViolence+", name: "Through Violence+", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 0, base_damage: 30, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
+        // Safety (from Deceive Reality): cost 1, 12 block, retain, exhaust
+        Self::insert(&mut cards, CardDef {
+            id: "Safety", name: "Safety", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 12,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Safety+", name: "Safety+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 16,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
+        // Insight (from Evaluate / Study): cost 0, draw 2, retain, exhaust
+        Self::insert(&mut cards, CardDef {
+            id: "Insight", name: "Insight", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: true, enter_stance: None,
+            effects: &["draw", "retain"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Insight+", name: "Insight+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: true, enter_stance: None,
+            effects: &["draw", "retain"],
+        });
+        // Expunger (from Conjure Blade): cost 1, deal 9 dmg X times
+        Self::insert(&mut cards, CardDef {
+            id: "Expunger", name: "Expunger", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
+            base_magic: 0, exhaust: false, enter_stance: None,
+            effects: &["multi_hit"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Expunger+", name: "Expunger+", card_type: CardType::Attack,
+            target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
+            base_magic: 0, exhaust: false, enter_stance: None,
+            effects: &["multi_hit"],
+        });
+
         // ---- Universal Status/Curse Cards ----
         Self::insert(&mut cards, CardDef {
             id: "Slimed", name: "Slimed", card_type: CardType::Status,
@@ -1056,7 +1136,38 @@ impl CardRegistry {
         Self::insert(&mut cards, CardDef {
             id: "Burn", name: "Burn", card_type: CardType::Status,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: false, enter_stance: None, effects: &["unplayable"],
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_damage"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Burn+", name: "Burn+", card_type: CardType::Status,
+            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 4, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_damage"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Decay", name: "Decay", card_type: CardType::Curse,
+            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_damage"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Regret", name: "Regret", card_type: CardType::Curse,
+            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_regret"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Doubt", name: "Doubt", card_type: CardType::Curse,
+            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 1, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_weak"],
+        });
+        Self::insert(&mut cards, CardDef {
+            id: "Shame", name: "Shame", card_type: CardType::Curse,
+            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 1, exhaust: false, enter_stance: None,
+            effects: &["unplayable", "end_turn_frail"],
         });
         Self::insert(&mut cards, CardDef {
             id: "AscendersBane", name: "Ascender's Bane", card_type: CardType::Curse,
