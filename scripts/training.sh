@@ -415,6 +415,15 @@ case "${1:-status}" in
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
     prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;
+    data)
+        shift
+        case "${1:-inventory}" in
+            inventory) shift; uv run python -m packages.training.data_utils_cli inventory "$@" ;;
+            quality)   shift; uv run python -m packages.training.data_utils_cli quality "$@" ;;
+            organize)  shift; uv run python -m packages.training.data_utils_cli organize "$@" ;;
+            *) echo "Usage: $0 data [inventory|quality|organize]"; exit 1 ;;
+        esac
+        ;;
     pretrain)
         shift
         case "${1:---all}" in
@@ -544,6 +553,11 @@ SYSTEM
         echo "Experiments:"
         echo "  experiment <name>  Run named experiment from sweep_config"
         echo "  push-metrics       Push metrics to GitHub Gist"
+        echo ""
+        echo "Data:"
+        echo "  data inventory  Inventory all training data"
+        echo "  data quality    Run quality checks"
+        echo "  data organize   Organize into tiered dirs"
         echo ""
         echo "Management:"
         echo "  archive    Archive current run"
