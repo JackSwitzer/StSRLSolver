@@ -74,7 +74,7 @@ struct ContentView: View {
                 case .detail:
                     PlaceholderView(name: "Detail")
                 case .replay:
-                    PlaceholderView(name: "Replay")
+                    ReplayView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

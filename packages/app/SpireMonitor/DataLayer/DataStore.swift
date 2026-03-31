@@ -16,6 +16,8 @@ final class DataStore {
     // System stats (accumulated, max 720 = 30 min at 2.5s)
     var systemStats: SystemStats?
     var systemHistory: [SystemStats] = []
+    // Persistent metrics history from metrics_history.jsonl
+    var metricsHistory: [MetricsSnapshot] = []
 
     var configHistory: [String: ConfigStats] = [:]
 

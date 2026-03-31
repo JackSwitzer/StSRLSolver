@@ -4,11 +4,13 @@ Usage:
     uv run python -m packages.training.data_utils_cli inventory
     uv run python -m packages.training.data_utils_cli quality
     uv run python -m packages.training.data_utils_cli organize [--dry-run]
+    uv run python -m packages.training.data_utils_cli tier [--dry-run] [--top-n 20]
 
 Or via training.sh:
     bash scripts/training.sh data inventory
     bash scripts/training.sh data quality
     bash scripts/training.sh data organize
+    bash scripts/training.sh data tier
 """
 
 from __future__ import annotations
@@ -28,6 +30,13 @@ from .data_utils import (
     load_combat_data,
     load_trajectory_file,
     parse_floor_from_filename,
+)
+from .data_tiers import (
+    DataTier,
+    TierConfig,
+    TIER_CONFIGS,
+    run_tier_pipeline,
+    score_trajectories,
 )
 
 logging.basicConfig(
@@ -141,6 +150,70 @@ def cmd_quality():
     print()
 
 
+def cmd_tier(dry_run: bool = False, top_n: int = 20):
+    """Run the full data tiering pipeline and report stats per tier."""
+    dirs = _all_traj_dirs()
+    existing_dirs = [d for d in dirs if d.exists()]
+    if not existing_dirs:
+        print("\nNo trajectory directories found.")
+        return
+
+    print("\n=== DATA TIERING PIPELINE ===\n")
+    print(f"Scanning {len(existing_dirs)} directories...")
+
+    results = run_tier_pipeline(existing_dirs)
+
+    # Report per tier
+    for tier in DataTier:
+        result = results.get(tier)
+        if result is None:
+            continue
+        config = TIER_CONFIGS[tier]
+        total = len(result.accepted) + result.rejected
+        size_bytes = sum(f.stat().st_size for f in result.accepted if f.exists())
+        size_mb = size_bytes / 1024 / 1024
+
+        print(f"  {tier.value.upper():>8s}: {len(result.accepted):5d} files "
+              f"({result.rejected:4d} rejected) | "
+              f"{result.total_transitions:7d} transitions | "
+              f"{size_mb:7.1f} MB")
+        print(f"           {config.description}")
+
+    # Copy qualifying files to logs/data/{tier}/
+    if not dry_run:
+        for tier in DataTier:
+            result = results.get(tier)
+            if result is None:
+                continue
+            dest = DATA_ROOT / tier.value
+            dest.mkdir(parents=True, exist_ok=True)
+            copied = 0
+            for f in result.accepted:
+                unique_name = f"{f.parent.name}_{f.name}"
+                dest_file = dest / unique_name
+                if not dest_file.exists():
+                    shutil.copy2(f, dest_file)
+                    copied += 1
+            if copied > 0:
+                print(f"  -> Copied {copied} new files to {dest}")
+
+    # Quality scoring: show top N trajectories
+    print(f"\n=== TOP {top_n} TRAJECTORIES (by quality score) ===\n")
+    scores = score_trajectories(existing_dirs, top_n=top_n)
+    if scores:
+        print(f"  {'File':<45s} {'Floor':>5s} {'Score':>6s} {'FlrScr':>6s} {'HP':>6s} {'Deck':>6s} {'Decs':>5s}")
+        print(f"  {'-'*45} {'-'*5} {'-'*6} {'-'*6} {'-'*6} {'-'*6} {'-'*5}")
+        for q in scores:
+            fname = q.path.name if q.path else "?"
+            print(f"  {fname:<45s} {q.floor:5d} {q.composite_score:6.3f} "
+                  f"{q.floor_score:6.3f} {q.hp_preservation:6.3f} "
+                  f"{q.deck_quality:6.3f} {q.decisions_count:5d}")
+    else:
+        print("  No scoreable trajectories found.")
+
+    print()
+
+
 def cmd_organize(dry_run: bool = False):
     """Organize data into tiered directory structure.
 
@@ -212,8 +285,9 @@ def cmd_organize(dry_run: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(description="Data pipeline utilities")
-    parser.add_argument("command", choices=["inventory", "quality", "organize"])
+    parser.add_argument("command", choices=["inventory", "quality", "organize", "tier"])
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    parser.add_argument("--top-n", type=int, default=20, help="Top N trajectories to show (tier command)")
     args = parser.parse_args()
 
     if args.command == "inventory":
@@ -222,6 +296,8 @@ def main():
         cmd_quality()
     elif args.command == "organize":
         cmd_organize(dry_run=args.dry_run)
+    elif args.command == "tier":
+        cmd_tier(dry_run=args.dry_run, top_n=args.top_n)
 
 
 if __name__ == "__main__":
