@@ -42,7 +42,20 @@ create_run_dir() {
 }
 
 training_alive() {
-    [ -f "$PID_DIR/training.pid" ] && kill -0 "$(cat "$PID_DIR/training.pid")" 2>/dev/null
+    # Check PID file first
+    if [ -f "$PID_DIR/training.pid" ] && kill -0 "$(cat "$PID_DIR/training.pid")" 2>/dev/null; then
+        return 0
+    fi
+    # Also scan for ANY training_runner process (catches manual nohup launches)
+    local orphan_pid
+    orphan_pid=$(pgrep -f "packages.training.training_runner" 2>/dev/null | head -1)
+    if [ -n "$orphan_pid" ]; then
+        echo "WARNING: Found orphan training_runner (PID $orphan_pid) without PID file."
+        echo "  Adopting into PID file..."
+        echo "$orphan_pid" > "$PID_DIR/training.pid"
+        return 0
+    fi
+    return 1
 }
 
 stop_training() {
@@ -117,20 +130,49 @@ stop_training() {
     pkill -f "caffeinate -dims" 2>/dev/null || true
 
     echo "Training stopped."
+
+    # Check queue for next run
+    _check_queue
 }
 
 # -- Commands ------------------------------------------------------
+
+cmd_queue() {
+    # Queue a training run to start after the current one finishes
+    local queue_file="$PID_DIR/training_queue.json"
+    echo "{\"args\": \"$*\", \"queued_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >> "$queue_file"
+    echo "Queued training run: $*"
+    echo "  Queue file: $queue_file ($(wc -l < "$queue_file" | tr -d ' ') items)"
+    echo "  Will start automatically when current training finishes."
+}
+
+_check_queue() {
+    # Called after training stops — start next queued run if any
+    local queue_file="$PID_DIR/training_queue.json"
+    if [ -f "$queue_file" ] && [ -s "$queue_file" ]; then
+        local next_args
+        next_args=$(head -1 "$queue_file" | uv run python -c "import sys,json; print(json.loads(sys.stdin.readline())['args'])" 2>/dev/null)
+        # Remove first line from queue
+        tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"
+        [ ! -s "$queue_file" ] && rm -f "$queue_file"
+        if [ -n "$next_args" ]; then
+            echo "Starting queued run: $next_args"
+            eval "cmd_start $next_args"
+        fi
+    fi
+}
 
 cmd_start() {
     if training_alive; then
         local pid
         pid=$(cat "$PID_DIR/training.pid")
-        echo "Training already running (PID $pid). Use 'stop' first."
+        echo "Training already running (PID $pid). Use 'stop' first, or 'queue' to run after it finishes."
+        echo "  Queue with: ./scripts/training.sh queue --games N [--algorithm algo]"
         exit 1
     fi
 
     # Parse args
-    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog=""
+    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog="" algorithm=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -142,6 +184,7 @@ cmd_start() {
             --weekend) weekend="--weekend"; shift ;;
             --overnight) weekend="--overnight"; shift ;;
             --watchdog) watchdog="1"; shift ;;
+            --algorithm) algorithm="--algorithm $2"; shift 2 ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -175,6 +218,7 @@ cmd_start() {
         $headless \
         $resume \
         $weekend \
+        $algorithm \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
@@ -428,6 +472,7 @@ cmd_quick_restart() {
 case "${1:-status}" in
     start)   shift; cmd_start "$@" ;;
     stop)    cmd_stop ;;
+    queue)   shift; cmd_queue "$@" ;;
     status)  cmd_status ;;
     resume)  shift; cmd_resume "$@" ;;
     weekend) shift; cmd_weekend "$@" ;;
