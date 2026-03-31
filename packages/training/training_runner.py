@@ -602,7 +602,7 @@ class OvernightRunner:
                 model = StrategicNet.load(self.resume_path, device=device)
                 model.train()
                 # Try to load warm-restart state (optimizer, scheduler, etc.)
-                ckpt = torch.load(self.resume_path, map_location=device, weights_only=False)
+                ckpt = torch.load(self.resume_path, map_location=device, weights_only=True)
                 if "optimizer_state_dict" in ckpt:
                     _warm_checkpoint = ckpt
                     logger.info("Warm resume from %s (train_steps=%d, games=%d)",
