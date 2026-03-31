@@ -25,6 +25,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 import numpy as np
 
 from .episode_log import log_episode
+from .milestone_detector import MilestoneDetector
 from .replay_buffer import TrajectoryReplayBuffer
 from .reward_config import (
     EVENT_REWARDS,
@@ -160,6 +161,12 @@ class OvernightRunner:
         self._collect_games_completed = 0
         self._sweep_games_completed = 0
 
+        # Milestone detector for structured monitoring events
+        self._milestone_detector = MilestoneDetector(self.run_dir)
+
+        # Metrics history accumulator (append-only JSONL for dashboard curves)
+        self._metrics_history_path = self.run_dir / "metrics_history.jsonl"
+
     def should_be_headless(self) -> bool:
         """Check if we should be in headless mode based on schedule."""
         elapsed_min = (time.monotonic() - self._start_time) / 60.0
@@ -242,6 +249,27 @@ class OvernightRunner:
         status_path = self.run_dir / "status.json"
         status_path.write_text(json.dumps(status, indent=2))
 
+        # Append to metrics_history.jsonl for training curve visualization
+        try:
+            history_line = {
+                "ts": status["timestamp"],
+                "games": self.total_games,
+                "wins": self.total_wins,
+                "avg_floor": status.get("avg_floor_100", 0),
+                "peak_floor": self.peak_floor,
+                "win_rate": status.get("win_rate_100", 0),
+                "games_per_min": status.get("games_per_min", 0),
+                "entropy": stats.get("entropy"),
+                "value_loss": stats.get("value_loss"),
+                "policy_loss": stats.get("policy_loss"),
+                "train_steps": stats.get("train_steps", 0),
+                "gpu_percent": gpu_pct,
+            }
+            with open(self._metrics_history_path, "a") as f:
+                f.write(json.dumps(history_line) + "\n")
+        except Exception:
+            pass  # Non-critical: don't break training for metrics logging
+
     def _record_game(self, result: Dict[str, Any]) -> None:
         """Record a game result and write recent_episodes.json for dashboard."""
         self.total_games += 1
@@ -279,6 +307,25 @@ class OvernightRunner:
         self._write_live_episode_artifacts()
         if self._phase_name == "collecting":
             self.write_status(self._live_status_stats())
+
+        # Check milestones after each game
+        try:
+            win_rate = sum(self.recent_wins) / max(len(self.recent_wins), 1) * 100
+            avg_floor = sum(self.recent_floors) / max(len(self.recent_floors), 1)
+            elapsed = time.monotonic() - self._start_time
+            gpm = self.total_games / max(elapsed / 60.0, 0.01)
+            self._milestone_detector.check(
+                total_games=self.total_games,
+                total_wins=self.total_wins,
+                avg_floor_100=avg_floor,
+                peak_floor=self.peak_floor,
+                win_rate_100=win_rate,
+                games_per_min=gpm,
+                entropy=self._last_train_metrics.get("entropy"),
+                value_loss=self._last_train_metrics.get("value_loss"),
+            )
+        except Exception as e:
+            logger.debug("Milestone check failed: %s", e)
 
     def _write_live_episode_artifacts(self) -> None:
         """Refresh dashboard-facing episode artifacts after each completed game."""
