@@ -12,12 +12,14 @@ separate combat solver (MCTS + combat net).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from .training_config import AUX_HEADS
 
 
 def _get_device() -> torch.device:
@@ -28,6 +30,44 @@ def _get_device() -> torch.device:
         return torch.device("cuda")
     return torch.device("cpu")
 
+
+
+
+class PopArtLayer(nn.Module):
+    """PopArt normalization for value targets.
+
+    Maintains running mean/std of value targets via exponential moving average.
+    Normalizes targets for training, denormalizes outputs for inference.
+
+    Reference: https://arxiv.org/abs/1602.07714
+    """
+
+    def __init__(self, beta: float = 0.0003):
+        super().__init__()
+        self.beta = beta
+        self.register_buffer("mu", torch.zeros(1))
+        self.register_buffer("sigma", torch.ones(1))
+        self.register_buffer("count", torch.zeros(1))
+
+    def update(self, targets: torch.Tensor) -> None:
+        """Update running statistics with a batch of targets."""
+        with torch.no_grad():
+            batch_mean = targets.mean()
+            batch_var = targets.var()
+            batch_std = (batch_var + 1e-8).sqrt()
+
+            self.count += 1
+            beta = max(self.beta, 1.0 / self.count.item())
+            self.mu = (1 - beta) * self.mu + beta * batch_mean
+            self.sigma = (1 - beta) * self.sigma + beta * batch_std
+
+    def normalize(self, targets: torch.Tensor) -> torch.Tensor:
+        """Normalize targets: y_norm = (y - mu) / sigma."""
+        return (targets - self.mu) / (self.sigma + 1e-8)
+
+    def denormalize(self, values: torch.Tensor) -> torch.Tensor:
+        """Denormalize model output: v_denorm = v * sigma + mu."""
+        return values * self.sigma + self.mu
 
 class ResidualBlock(nn.Module):
     """Residual block: two-layer MLP + LayerNorm with skip connection.
@@ -71,12 +111,19 @@ class StrategicNet(nn.Module):
         hidden_dim: int = 1024,
         action_dim: int = 512,
         num_blocks: int = 8,
+        enabled_aux_heads: Optional[Set[str]] = None,
     ):
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.action_dim = action_dim
         self.num_blocks = num_blocks
+
+        # Determine which aux heads are enabled (weight > 0 in config)
+        if enabled_aux_heads is not None:
+            self._enabled_aux = enabled_aux_heads
+        else:
+            self._enabled_aux = {k for k, v in AUX_HEADS.items() if v > 0}
 
         # Input projection
         self.input_proj = nn.Sequential(
@@ -119,6 +166,28 @@ class StrategicNet(nn.Module):
             nn.Sigmoid(),
         )
 
+        # --- New auxiliary heads (config-driven) ---
+
+        if "deck_quality" in self._enabled_aux:
+            self.deck_quality_head = nn.Sequential(
+                nn.Linear(hidden_dim, 64), nn.ReLU(), nn.Linear(64, 1),
+            )
+
+        if "combat_horizon" in self._enabled_aux:
+            self.combat_horizon_head = nn.Sequential(
+                nn.Linear(hidden_dim, 64), nn.ReLU(), nn.Linear(64, 1),
+            )
+
+        if "win_loss" in self._enabled_aux:
+            self.win_loss_head = nn.Sequential(
+                nn.Linear(hidden_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid(),
+            )
+
+        if "boss_ready" in self._enabled_aux:
+            self.boss_ready_head = nn.Sequential(
+                nn.Linear(hidden_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid(),
+            )
+
         self._init_weights()
 
     def _init_weights(self):
@@ -153,12 +222,23 @@ class StrategicNet(nn.Module):
         if action_mask is not None:
             logits = logits.masked_fill(~action_mask, -1e8)
 
-        return {
+        out = {
             "policy_logits": logits,
             "value": self.value_head(h).squeeze(-1),
             "floor_pred": self.floor_head(h).squeeze(-1),
             "act_completion": self.act_head(h),
         }
+
+        if "deck_quality" in self._enabled_aux:
+            out["deck_quality"] = self.deck_quality_head(h).squeeze(-1)
+        if "combat_horizon" in self._enabled_aux:
+            out["combat_horizon"] = self.combat_horizon_head(h).squeeze(-1)
+        if "win_loss" in self._enabled_aux:
+            out["win_loss"] = self.win_loss_head(h).squeeze(-1)
+        if "boss_ready" in self._enabled_aux:
+            out["boss_ready"] = self.boss_ready_head(h).squeeze(-1)
+
+        return out
 
     def predict_action(
         self,
@@ -206,6 +286,7 @@ class StrategicNet(nn.Module):
                 "hidden_dim": self.hidden_dim,
                 "action_dim": self.action_dim,
                 "num_blocks": self.num_blocks,
+                "enabled_aux_heads": self._enabled_aux,
             },
         }
         if extra:
@@ -220,10 +301,10 @@ class StrategicNet(nn.Module):
         """Load model from checkpoint."""
         if device is None:
             device = _get_device()
-        checkpoint = torch.load(path, map_location=device, weights_only=True)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         config = checkpoint["config"]
         model = cls(**config)
-        model.load_state_dict(checkpoint["model_state_dict"])
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
         model.to(device)
         model.eval()
         return model
