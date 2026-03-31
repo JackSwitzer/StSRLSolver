@@ -208,16 +208,36 @@ class TrajectoryQuality:
     decisions_count: int
 
 
-def score_trajectory(traj: TrajectoryData) -> TrajectoryQuality:
-    """Compute a composite quality score for a loaded trajectory.
+def _estimate_deck_quality(traj: TrajectoryData) -> float:
+    """Estimate deck quality from trajectory data.
+    Uses mask-based deck size proxy. Scoring: 12-25 cards -> 1.0, <12 -> 0.7,
+    >25 -> max(0.4, 1.0-(size-25)*0.03). Bonus +0.1 for upgrade proxy, +0.1 for scaling.
+    """
+    if len(traj.obs) == 0 or len(traj.masks) == 0:
+        return 0.7
+    avg_valid = float(np.mean(traj.masks.sum(axis=1)))
+    est_deck = avg_valid * 2.5
+    if 12 <= est_deck <= 25: q = 1.0
+    elif est_deck < 12: q = 0.7
+    else: q = max(0.4, 1.0 - (est_deck - 25) * 0.03)
+    if len(traj.rewards) > 0 and float(np.mean(traj.rewards)) > 0.3: q += 0.1
+    if len(traj.rewards) >= 10:
+        h = len(traj.rewards) // 2
+        if float(np.mean(traj.rewards[h:])) > float(np.mean(traj.rewards[:h])) + 0.1: q += 0.1
+    return round(q, 4)
 
+
+def score_trajectory(traj: TrajectoryData) -> TrajectoryQuality:
+    """Score trajectory DATA QUALITY for tiering (how useful is this data
+    for training), NOT game state value (that's compute_potential in
+    reward_config.py).
     Composite = 0.5*floor + 0.2*hp + 0.15*deck + 0.15*norm_decisions
     """
     floor_score = min(traj.floor / 55.0, 1.0)
     hp_preservation = float(np.mean(traj.final_floors)) if len(traj.final_floors) > 0 else 0.0
     decisions = len(traj.obs)
     norm_decisions = min(decisions / 200.0, 1.0)
-    deck_quality = 1.0
+    deck_quality = _estimate_deck_quality(traj)
 
     composite = (
         0.50 * floor_score
@@ -261,6 +281,7 @@ def score_trajectories(
 # Deck Analysis
 # ---------------------------------------------------------------------------
 
+# TODO: source from engine card metadata
 ATTACK_CARDS = {
     "Eruption", "Tantrum", "FlyingSleeves", "Ragnarok", "Conclude",
     "SashWhip", "CrushJoints", "FollowUp", "FlurryOfBlows",
@@ -352,18 +373,16 @@ def analyze_decks(episodes_path: Path) -> Dict[str, ArchetypeStats]:
                 continue
             try:
                 ep = json.loads(line)
-            except json.JSONDecodeError:
+                deck = ep.get("deck_final", [])
+                if not deck: continue
+                arch = classify_deck(deck)
+                archetype_data.setdefault(arch.name, []).append({
+                    "floor": ep.get("floor", 0),
+                    "won": ep.get("won", False),
+                })
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning("Skipping malformed episode line: %s", e)
                 continue
-
-            deck = ep.get("deck_final", [])
-            if not deck:
-                continue
-
-            arch = classify_deck(deck)
-            archetype_data.setdefault(arch.name, []).append({
-                "floor": ep.get("floor", 0),
-                "won": ep.get("won", False),
-            })
 
     result: Dict[str, ArchetypeStats] = {}
     for name, episodes in archetype_data.items():
@@ -498,7 +517,8 @@ def replay_episode(episodes_path: Path, episode_id: Optional[str] = None, index:
                 if episode_id and str(ep.get("seed", "")) == str(episode_id):
                     return ep
                 episodes.append(ep)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning("Skipping malformed episode in replay: %s", e)
                 continue
 
     if episode_id:
