@@ -8,6 +8,8 @@ use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::cards::CardType;
+
 // ---------------------------------------------------------------------------
 // Stance
 // ---------------------------------------------------------------------------
@@ -221,6 +223,8 @@ pub struct CombatState {
 
     // Watcher-specific
     pub mantra: i32,
+    /// Last card type played this turn (for CrushJoints/FollowUp checks)
+    pub last_card_type: Option<CardType>,
 
     // Statistics
     pub total_damage_dealt: i32,
@@ -257,6 +261,7 @@ impl CombatState {
             combat_over: false,
             player_won: false,
             mantra: 0,
+            last_card_type: None,
             total_damage_dealt: 0,
             total_damage_taken: 0,
             total_cards_played: 0,

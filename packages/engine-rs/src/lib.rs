@@ -195,7 +195,7 @@ impl PyRunEngine {
 }
 
 impl PyRunEngine {
-    fn encode_action(&self, action: &run::RunAction) -> i32 {
+    pub(crate) fn encode_action(&self, action: &run::RunAction) -> i32 {
         match action {
             run::RunAction::ChoosePath(i) => PATH_BASE + *i as i32,
             run::RunAction::PickCard(i) => CARD_PICK_BASE + *i as i32,
@@ -210,17 +210,19 @@ impl PyRunEngine {
                 match a {
                     crate::actions::Action::EndTurn => COMBAT_BASE,
                     crate::actions::Action::PlayCard { card_idx, target_idx } => {
-                        COMBAT_BASE + 1 + (*card_idx as i32 * 6) + ((*target_idx).max(0))
+                        // target_idx: -1 (no target) => +0, 0 => +1, 1 => +2, etc.
+                        COMBAT_BASE + 1 + (*card_idx as i32 * 6) + (*target_idx + 1)
                     }
                     crate::actions::Action::UsePotion { potion_idx, target_idx } => {
-                        COMBAT_BASE + 100 + (*potion_idx as i32 * 6) + ((*target_idx).max(0))
+                        // Same encoding: -1 => +0, 0 => +1, 1 => +2
+                        COMBAT_BASE + 100 + (*potion_idx as i32 * 6) + (*target_idx + 1)
                     }
                 }
             }
         }
     }
 
-    fn decode_action(&self, action_id: i32) -> Option<run::RunAction> {
+    pub(crate) fn decode_action(&self, action_id: i32) -> Option<run::RunAction> {
         if action_id >= COMBAT_BASE {
             let combat_id = action_id - COMBAT_BASE;
             if combat_id == 0 {
@@ -228,21 +230,23 @@ impl PyRunEngine {
             } else if combat_id >= 100 {
                 let p = combat_id - 100;
                 let potion_idx = (p / 6) as usize;
-                let target_idx = p % 6;
+                let target_raw = p % 6;
+                // Symmetric with encode: 0 => -1, 1 => 0, 2 => 1, etc.
                 return Some(run::RunAction::CombatAction(
                     crate::actions::Action::UsePotion {
                         potion_idx,
-                        target_idx: if target_idx > 0 { target_idx - 1 } else { -1 },
+                        target_idx: target_raw as i32 - 1,
                     },
                 ));
             } else {
                 let c = combat_id - 1;
                 let card_idx = (c / 6) as usize;
                 let target_raw = c % 6;
+                // Symmetric with encode: 0 => -1, 1 => 0, 2 => 1, etc.
                 return Some(run::RunAction::CombatAction(
                     crate::actions::Action::PlayCard {
                         card_idx,
-                        target_idx: if target_raw > 0 { (target_raw - 1) as i32 } else { -1 },
+                        target_idx: target_raw as i32 - 1,
                     },
                 ));
             }

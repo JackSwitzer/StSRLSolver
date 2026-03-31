@@ -68,30 +68,31 @@ pub enum RunPhase {
 // ---------------------------------------------------------------------------
 
 /// Simplified Act 1 Watcher card pool for rewards.
+/// Uses CardRegistry IDs (PascalCase, no spaces) to match card lookups.
 const WATCHER_COMMON_CARDS: &[&str] = &[
-    "Bowling Bash", "Consecrate", "Crescendo", "Crush Joints",
-    "Cut Through Fate", "Empty Body", "Empty Fist", "Evaluate",
-    "Flurry of Blows", "Flying Sleeves", "Follow Up", "Halt",
-    "Just Lucky", "Pressure Points", "Prostrate",
-    "Protect", "Sash Whip", "Tranquility",
+    "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
+    "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
+    "Flurry", "FlyingSleeves", "FollowUp", "Halt",
+    "JustLucky", "PressurePoints", "Prostrate",
+    "Protect", "SashWhip", "Tranquility",
 ];
 
 const WATCHER_UNCOMMON_CARDS: &[&str] = &[
-    "Battle Hymn", "Carve Reality", "Conclude", "Deceive Reality",
-    "Empty Mind", "Fear No Evil", "Foreign Influence", "Indignation",
-    "Inner Peace", "Like Water", "Meditate", "Nirvana",
-    "Perseverance", "Reach Heaven", "Sands of Time", "Signature Move",
-    "Smite", "Study", "Swivel", "Talk to the Hand",
-    "Tantrum", "Third Eye", "Wallop", "Wave of the Hand",
-    "Weave", "Wheel Kick", "Windmill Strike", "Wreath of Flame",
+    "BattleHymn", "CarveReality", "Conclude", "DeceiveReality",
+    "EmptyMind", "FearNoEvil", "ForeignInfluence", "Indignation",
+    "InnerPeace", "LikeWater", "Meditate", "Nirvana",
+    "Perseverance", "ReachHeaven", "SandsOfTime", "SignatureMove",
+    "Smite", "Study", "Swivel", "TalkToTheHand",
+    "Tantrum", "ThirdEye", "Wallop", "WaveOfTheHand",
+    "Weave", "WheelKick", "WindmillStrike", "WreathOfFlame",
 ];
 
 const WATCHER_RARE_CARDS: &[&str] = &[
-    "Alpha", "Blasphemy", "Brilliance", "Conjure Blade",
-    "Deva Form", "Devotion", "Establishment", "Fasting",
-    "Judgement", "Lesson Learned", "Master Reality",
-    "Mental Fortress", "Omniscience", "Ragnarok",
-    "Rushdown", "Scrawl", "Spirit Shield", "Vault",
+    "Alpha", "Blasphemy", "Brilliance", "ConjureBlade",
+    "DevaForm", "Devotion", "Establishment", "Fasting",
+    "Judgement", "LessonLearned", "MasterReality",
+    "MentalFortress", "Omniscience", "Ragnarok",
+    "Adaptation", "Scrawl", "SpiritShield", "Vault",
     "Wish",
 ];
 

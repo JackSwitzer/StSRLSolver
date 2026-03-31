@@ -11,6 +11,7 @@
 //! - get_legal_actions()
 
 use pyo3::prelude::*;
+use rand::Rng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
@@ -173,6 +174,7 @@ impl CombatEngine {
         // Reset turn counters
         self.state.cards_played_this_turn = 0;
         self.state.attacks_played_this_turn = 0;
+        self.state.last_card_type = None;
 
         // Lantern: +1 energy on turn 1
         relics::apply_lantern_turn_start(&mut self.state);
@@ -209,11 +211,22 @@ impl CombatEngine {
         // Clear Entangled (only lasts one turn)
         self.state.player.set_status("Entangled", 0);
 
-        // Discard hand
+        // Discard hand — respecting Retain and Ethereal
         let hand = std::mem::take(&mut self.state.hand);
+        let mut retained = Vec::new();
         for card_id in hand {
-            self.state.discard_pile.push(card_id);
+            let card = self.card_registry.get_or_default(&card_id);
+            if card.effects.contains(&"retain") {
+                // Retained cards stay in hand
+                retained.push(card_id);
+            } else if card.effects.contains(&"ethereal") {
+                // Ethereal cards exhaust instead of discarding
+                self.state.exhaust_pile.push(card_id);
+            } else {
+                self.state.discard_pile.push(card_id);
+            }
         }
+        self.state.hand = retained;
 
         // End-of-turn player powers: Metallicize, Plated Armor
         powers::apply_metallicize(&mut self.state.player);
@@ -296,8 +309,11 @@ impl CombatEngine {
             self.state.attacks_played_this_turn += 1;
         }
 
-        // Execute effects
+        // Execute effects (last_card_type refers to card played BEFORE this one)
         self.execute_card_effects(&card, &card_id, target_idx);
+
+        // Update last_card_type AFTER effects (so next card sees this one)
+        self.state.last_card_type = Some(card.card_type);
 
         // Stance change from card
         if let Some(stance_name) = card.enter_stance {
@@ -318,13 +334,15 @@ impl CombatEngine {
             self.state.discard_pile.push(card_id.clone());
         }
 
-        // Conclude: end turn after playing
+        // Conclude: discard remaining hand and end the turn
         if card.effects.contains(&"end_turn") {
-            // Discard hand and end turn (don't start new turn yet)
             let hand = std::mem::take(&mut self.state.hand);
             for c in hand {
                 self.state.discard_pile.push(c);
             }
+            // Actually end the turn (enemy turns, debuff ticks, etc.)
+            self.end_turn();
+            return;
         }
 
         // Check combat end after card play
@@ -461,6 +479,89 @@ impl CombatEngine {
                 self.draw_cards(card.base_magic);
             } else {
                 self.change_stance(Stance::Calm);
+            }
+        }
+
+        // ---- BowlingBash: damage per living enemy (extra hits) ----
+        if card.effects.contains(&"damage_per_enemy") {
+            let living_count = self.state.living_enemy_indices().len() as i32;
+            // BowlingBash deals base_damage * living_count to the target.
+            // The base hit was already dealt above (1 hit). Deal (living_count - 1) more.
+            if living_count > 1 && target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                let player_strength = self.state.player.strength();
+                let player_weak = self.state.player.is_weak();
+                let stance_mult = self.state.stance.outgoing_mult();
+                let enemy_vuln = self.state.enemies[target_idx as usize].entity.is_vulnerable();
+                let dmg = damage::calculate_damage(
+                    card.base_damage,
+                    player_strength + vigor,
+                    player_weak,
+                    stance_mult,
+                    enemy_vuln,
+                    false,
+                );
+                for _ in 0..(living_count - 1) {
+                    if self.state.enemies[target_idx as usize].entity.is_dead() {
+                        break;
+                    }
+                    self.deal_damage_to_enemy(target_idx as usize, dmg);
+                }
+            }
+        }
+
+        // ---- CrushJoints: apply Vulnerable if last card played was a Skill ----
+        if card.effects.contains(&"vuln_if_last_skill") {
+            if self.state.last_card_type == Some(CardType::Skill) {
+                if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                    let vuln_amount = card.base_magic.max(1);
+                    self.state.enemies[target_idx as usize]
+                        .entity
+                        .add_status("Vulnerable", vuln_amount);
+                }
+            }
+        }
+
+        // ---- FollowUp: gain 1 energy if last card played was an Attack ----
+        if card.effects.contains(&"energy_if_last_attack") {
+            if self.state.last_card_type == Some(CardType::Attack) {
+                self.state.energy += 1;
+            }
+        }
+
+        // ---- TalkToTheHand: apply BlockReturn to target ----
+        if card.effects.contains(&"apply_block_return") {
+            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
+                let amount = card.base_magic.max(1);
+                self.state.enemies[target_idx as usize]
+                    .entity
+                    .add_status("BlockReturn", amount);
+            }
+        }
+
+        // ---- Ragnarok: deal damage to random enemies X times ----
+        if card.effects.contains(&"damage_random_x_times") && card.base_magic > 0 {
+            let player_strength = self.state.player.strength();
+            let player_weak = self.state.player.is_weak();
+            let stance_mult = self.state.stance.outgoing_mult();
+            // The AllEnemy base hit was already dealt above. Ragnarok deals
+            // base_magic total hits to random enemies. We already did 1 pass
+            // (AllEnemy loop), so do (base_magic - 1) more random hits.
+            for _ in 0..(card.base_magic - 1) {
+                let living = self.state.living_enemy_indices();
+                if living.is_empty() {
+                    break;
+                }
+                let idx = living[self.rng.gen_range(0..living.len())];
+                let enemy_vuln = self.state.enemies[idx].entity.is_vulnerable();
+                let dmg = damage::calculate_damage(
+                    card.base_damage,
+                    player_strength + vigor,
+                    player_weak,
+                    stance_mult,
+                    enemy_vuln,
+                    false,
+                );
+                self.deal_damage_to_enemy(idx, dmg);
             }
         }
     }
@@ -625,6 +726,7 @@ impl CombatEngine {
             let player_vuln = self.state.player.is_vulnerable();
 
             let hits = enemy.move_hits;
+            let block_return = enemy.entity.status("BlockReturn");
             for _ in 0..hits {
                 let mut hit_damage = damage_f * stance_mult;
 
@@ -637,6 +739,11 @@ impl CombatEngine {
                 let final_damage = (hit_damage as i32).max(0);
 
                 self.deal_damage_to_player(final_damage);
+
+                // Talk to the Hand: player gains block when this enemy attacks
+                if block_return > 0 {
+                    self.state.player.block += block_return;
+                }
 
                 if self.state.player.is_dead() {
                     return;
