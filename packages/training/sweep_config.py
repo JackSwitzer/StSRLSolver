@@ -147,6 +147,68 @@ ALGORITHM_SWEEP_CONFIGS: Dict[str, List[Dict[str, Any]]] = {
     ],
 }
 
+# Reward simulation A/B test configs -- 4 variants for offline comparison
+# Used by `training.sh experiment reward-ab`
+REWARD_AB_CONFIGS: List[Dict[str, Any]] = [
+    {
+        "name": "reward_A_baseline",
+        "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+        "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0, "max_hours": 1.0,
+    },
+    {
+        "name": "reward_B_split_milestones",
+        "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+        "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0, "max_hours": 1.0,
+    },
+    {
+        "name": "reward_C_hp_heavy",
+        "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+        "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0, "max_hours": 1.0,
+    },
+    {
+        "name": "reward_D_boss_gradient",
+        "lr": LR_BASE, "lr_schedule": LR_SCHEDULE, "lr_T_0": LR_T_0,
+        "batch_size": 256, "entropy_coeff": ENTROPY_COEFF, "temperature": TEMPERATURE,
+        "turn_solver_ms": 100.0, "max_hours": 1.0,
+    },
+]
+
+# Per-algorithm sweep configs (used by `training.sh algorithm <name>`)
+ALGORITHM_SWEEP_CONFIGS: Dict[str, List[Dict[str, Any]]] = {
+    "ppo": DEFAULT_SWEEP_CONFIGS,
+    "iql": [
+        {
+            "name": "iql_default",
+            "algorithm": "iql",
+            "lr": IQL_LR,
+            "iql_expectile": IQL_EXPECTILE,
+            "iql_temperature": IQL_TEMPERATURE,
+            "batch_size": 256,
+            "max_hours": 4.0,
+        },
+    ],
+    "grpo": [
+        {
+            "name": "grpo_default",
+            "algorithm": "grpo",
+            "lr": GRPO_LR,
+            "lr_schedule": LR_SCHEDULE,
+            "lr_T_0": LR_T_0,
+            "batch_size": 256,
+            "entropy_coeff": ENTROPY_COEFF,
+            "temperature": TEMPERATURE,
+            "turn_solver_ms": 100.0,
+            "grpo_clip": GRPO_CLIP,
+            "grpo_rollouts_card": GRPO_ROLLOUTS_CARD,
+            "grpo_rollouts_other": GRPO_ROLLOUTS_OTHER,
+            "max_hours": 4.0,
+        },
+    ],
+}
+
 # Adaptive ascension breakpoints: (min_avg_floor, min_win_rate, target_ascension)
 ASCENSION_BREAKPOINTS: List[Tuple[float, float, int]] = [
     (17, 0.05, 1),   # Clearing Act 1 somewhat reliably -> A1
