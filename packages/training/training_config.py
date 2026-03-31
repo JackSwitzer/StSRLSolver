@@ -272,3 +272,10 @@ MAX_RETURN = 30.0            # Clip ceiling for "clip" method; returns scaled to
 # ---------------------------------------------------------------------------
 STALL_DETECTION_WINDOW = 50000
 STALL_IMPROVEMENT_THRESHOLD = 0.0
+
+# ---------------------------------------------------------------------------
+# Value Normalization
+# ---------------------------------------------------------------------------
+VALUE_NORM_METHOD = "popart"  # Options: "popart", "clip", "none"
+POPART_BETA = 0.0003         # EMA decay rate for PopArt running stats
+MAX_RETURN = 30.0            # Clip ceiling for "clip" method; returns scaled to [0, 1]

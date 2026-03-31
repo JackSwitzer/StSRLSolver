@@ -31,7 +31,7 @@ from .base_trainer import BaseTrainer
 
 logger = logging.getLogger(__name__)
 
-from .strategic_net import StrategicNet
+from .strategic_net import PopArtLayer, StrategicNet
 
 
 @dataclass
@@ -102,6 +102,13 @@ class StrategicTrainer(BaseTrainer):
         self._base_lr = lr
         # Per-head LR multipliers (MoE-style: value head trains faster)
         from .training_config import LR_HEAD_MULTIPLIERS
+        from .training_config import VALUE_NORM_METHOD, POPART_BETA, MAX_RETURN
+
+        # Value normalization
+        self._value_norm_method = VALUE_NORM_METHOD
+        self._max_return = MAX_RETURN
+        _device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
+        self._popart = PopArtLayer(beta=POPART_BETA).to(_device)
         param_groups = [
             {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
              "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0)},
@@ -295,8 +302,16 @@ class StrategicTrainer(BaseTrainer):
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss: predict raw returns (GAE expects raw-scale values)
-                value_loss = F.mse_loss(values, b_ret)
+                # Value loss with normalization
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_ret)
+                    norm_ret = self._popart.normalize(b_ret)
+                    value_loss = F.mse_loss(values, norm_ret)
+                elif self._value_norm_method == "clip":
+                    clipped_ret = b_ret.clamp(0.0, self._max_return) / self._max_return
+                    value_loss = F.mse_loss(values, clipped_ret)
+                else:
+                    value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
                 probs = F.softmax(logits, dim=-1)
@@ -573,7 +588,16 @@ class StrategicTrainer(BaseTrainer):
 
                 out = self.model(obs_t[idx], mask_t[idx])
                 value_pred = out["value"]
-                loss = F.mse_loss(value_pred, target_t[idx])
+
+                # Apply value normalization to calibration targets
+                b_target = target_t[idx]
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_target)
+                    b_target = self._popart.normalize(b_target)
+                elif self._value_norm_method == "clip":
+                    b_target = b_target.clamp(0.0, self._max_return) / self._max_return
+
+                loss = F.mse_loss(value_pred, b_target)
 
                 self.optimizer.zero_grad()
                 loss.backward()

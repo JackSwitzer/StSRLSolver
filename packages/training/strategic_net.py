@@ -29,6 +29,43 @@ def _get_device() -> torch.device:
     return torch.device("cpu")
 
 
+class PopArtLayer(nn.Module):
+    """PopArt normalization for value targets.
+
+    Maintains running mean/std of value targets via exponential moving average.
+    Normalizes targets for training, denormalizes outputs for inference.
+
+    Reference: https://arxiv.org/abs/1602.07714
+    """
+
+    def __init__(self, beta: float = 0.0003):
+        super().__init__()
+        self.beta = beta
+        self.register_buffer("mu", torch.zeros(1))
+        self.register_buffer("sigma", torch.ones(1))
+        self.register_buffer("count", torch.zeros(1))
+
+    def update(self, targets: torch.Tensor) -> None:
+        """Update running statistics with a batch of targets."""
+        with torch.no_grad():
+            batch_mean = targets.mean()
+            batch_var = targets.var()
+            batch_std = (batch_var + 1e-8).sqrt()
+
+            self.count += 1
+            beta = max(self.beta, 1.0 / self.count.item())
+            self.mu = (1 - beta) * self.mu + beta * batch_mean
+            self.sigma = (1 - beta) * self.sigma + beta * batch_std
+
+    def normalize(self, targets: torch.Tensor) -> torch.Tensor:
+        """Normalize targets: y_norm = (y - mu) / sigma."""
+        return (targets - self.mu) / (self.sigma + 1e-8)
+
+    def denormalize(self, values: torch.Tensor) -> torch.Tensor:
+        """Denormalize model output: v_denorm = v * sigma + mu."""
+        return values * self.sigma + self.mu
+
+
 class ResidualBlock(nn.Module):
     """Residual block: two-layer MLP + LayerNorm with skip connection.
 
