@@ -439,13 +439,38 @@ case "${1:-status}" in
             *) echo "Usage: $0 pretrain [--bc|--combat|--eval|--all] [options]"; exit 1 ;;
         esac
         ;;
+    algorithm)
+        shift
+        algo="${1:?Usage: $0 algorithm [ppo|iql|grpo]}"
+        shift
+        case "$algo" in
+            ppo|iql|grpo)
+                echo "Starting training with algorithm: $algo"
+                uv run python -m packages.training.training_runner \
+                    --algorithm "$algo" "$@"
+                ;;
+            *) echo "Unknown algorithm: $algo (choose ppo, iql, or grpo)"; exit 1 ;;
+        esac
+        ;;
     experiment)
         shift
         config_name="${1:?Usage: $0 experiment <config-name>}"
         shift
-        echo "Running experiment: $config_name"
-        uv run python -m packages.training.training_runner \
-            --sweep-config "$config_name" "$@"
+        case "$config_name" in
+            reward-sim)
+                echo "Running offline reward rescoring simulation..."
+                uv run python -m packages.training.reward_sim "$@"
+                ;;
+            reward-ab)
+                echo "Running reward A/B test (live games)..."
+                uv run python -m packages.training.offline_eval "$@"
+                ;;
+            *)
+                echo "Running experiment: $config_name"
+                uv run python -m packages.training.training_runner \
+                    --sweep-config "$config_name" "$@"
+                ;;
+        esac
         ;;
     push-metrics)
         shift; uv run python scripts/push_metrics.py "$@" ;;
@@ -551,7 +576,9 @@ SYSTEM
         echo "  pretrain --eval    Evaluate checkpoint only"
         echo ""
         echo "Experiments:"
-        echo "  experiment <name>  Run named experiment from sweep_config"
+        echo "  experiment <name>      Run named experiment from sweep_config"
+        echo "  experiment reward-sim  Offline reward rescoring simulation"
+        echo "  experiment reward-ab   Live A/B test with reward configs"
         echo "  push-metrics       Push metrics to GitHub Gist"
         echo ""
         echo "Data:"
