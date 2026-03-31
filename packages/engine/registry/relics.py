@@ -442,11 +442,17 @@ def gambling_chip_turn_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="Enchiridion")
 def enchiridion_start(ctx: RelicContext) -> None:
-    """Enchiridion: Add a random Power card to hand (costs 0 this turn)."""
+    """Enchiridion: Add a random Power card to hand (costs 0 this turn).
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
     from ..content.cards import ALL_CARDS, CardType
     powers = [cid for cid, card in ALL_CARDS.items() if card.card_type == CardType.POWER]
     if powers:
         chosen = ctx.random_choice(powers)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.player.statuses.get("MasterReality", 0) > 0 and not chosen.endswith("+"):
+            chosen = chosen + "+"
         ctx.add_card_to_hand(chosen)
         # Set the card to cost 0 for this turn
         if hasattr(ctx.state, 'card_costs'):
@@ -984,7 +990,10 @@ def charons_ashes_exhaust(ctx: RelicContext) -> None:
 
 @relic_trigger("onExhaust", relic="Dead Branch")
 def dead_branch_exhaust(ctx: RelicContext) -> None:
-    """Dead Branch: Add a random card to hand when a card is exhausted."""
+    """Dead Branch: Add a random card to hand when a card is exhausted.
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
     from ..content.cards import ALL_CARDS
 
     # Get all non-curse, non-status cards
@@ -993,6 +1002,9 @@ def dead_branch_exhaust(ctx: RelicContext) -> None:
 
     if pool:
         random_card = ctx.random_choice(pool)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.player.statuses.get("MasterReality", 0) > 0 and not random_card.endswith("+"):
+            random_card = random_card + "+"
         ctx.add_card_to_hand(random_card)
 
 

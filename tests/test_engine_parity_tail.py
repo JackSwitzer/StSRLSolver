@@ -536,3 +536,60 @@ class TestBottledMiracleMasterReality:
         bottled_miracle(ctx)
         upgraded_count = sum(1 for c in state.hand if c == "Miracle+")
         assert upgraded_count == 2
+
+
+# =============================================================================
+# Generated card upgrade parity (Java: upgrade only affects source card stats)
+# =============================================================================
+
+class TestGeneratedCardUpgradeParity:
+    """Java: upgrading a card that generates temp cards only affects the source
+    card's stats (damage, block, cost), never the generated card. MasterReality
+    is the only mechanism that upgrades generated cards via MakeTempCardInHandAction."""
+
+    def test_evaluate_upgraded_still_produces_base_insight(self):
+        """Upgraded Evaluate produces base Insight (upgrade only increases block)."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=True)
+        execute_effect("add_insight_to_draw", ctx)
+        assert "Insight" in state.draw_pile
+        assert "Insight+" not in state.draw_pile
+
+    def test_reach_heaven_upgraded_still_produces_base_through_violence(self):
+        """Upgraded Reach Heaven produces base ThroughViolence (upgrade only increases damage)."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=True)
+        execute_effect("add_through_violence_to_draw", ctx)
+        assert "ThroughViolence" in state.draw_pile
+        assert "ThroughViolence+" not in state.draw_pile
+
+    def test_alpha_upgraded_still_produces_base_beta(self):
+        """Upgraded Alpha produces base Beta (upgrade only makes it innate)."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=True)
+        execute_effect("shuffle_beta_into_draw", ctx)
+        assert "Beta" in state.draw_pile
+        assert "Beta+" not in state.draw_pile
+
+    def test_dead_branch_master_reality_upgrades(self):
+        """Dead Branch with MasterReality should produce upgraded cards."""
+        state = _make_state(relics=["Dead Branch"])
+        state.player.statuses["MasterReality"] = 1
+        execute_relic_triggers("onExhaust", state)
+        # All cards added should be upgraded (end with +)
+        new_cards = [c for c in state.hand if c != "Strike_R"]
+        assert len(new_cards) > 0
+        for card in new_cards:
+            assert card.endswith("+"), f"Expected upgraded card, got {card}"
+
+    def test_dead_branch_no_master_reality_base_cards(self):
+        """Dead Branch without MasterReality should produce base cards."""
+        state = _make_state(relics=["Dead Branch"])
+        execute_relic_triggers("onExhaust", state)
+        new_cards = [c for c in state.hand if c != "Strike_R"]
+        assert len(new_cards) > 0
+        for card in new_cards:
+            assert not card.endswith("+"), f"Expected base card, got {card}"

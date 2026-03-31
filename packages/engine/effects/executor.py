@@ -416,11 +416,12 @@ class EffectExecutor:
         "gain_block_per_card_in_hand": lambda s, c, cd, r: c.gain_block((cd.magic_number if cd.magic_number > 0 else 3) * len(c.hand)),
 
         # Card generation
-        "add_insight_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Insight+" if c.is_upgraded else "Insight", "top"),
+        # Java: generated cards are always base variant; upgrade only affects source card stats
+        "add_insight_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Insight", "top"),
         "add_smite_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Smite+" if c.get_player_status("MasterReality") > 0 else "Smite"),
         "add_safety_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Safety+" if c.get_player_status("MasterReality") > 0 else "Safety"),
-        "add_through_violence_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("ThroughViolence+" if c.is_upgraded else "ThroughViolence", "top"),
-        "shuffle_beta_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Beta+" if c.is_upgraded else "Beta", "random"),
+        "add_through_violence_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("ThroughViolence", "top"),
+        "shuffle_beta_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Beta", "random"),
         "shuffle_omega_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Omega", "random"),
         "add_expunger_to_hand": lambda s, c, cd, r: (c.add_card_to_hand("Expunger"), c.extra_data.__setitem__("expunger_x", (c.energy_spent + 1) if c.is_upgraded else c.energy_spent)),
 

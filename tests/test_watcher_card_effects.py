@@ -371,10 +371,10 @@ class TestCardGenerationEffects:
         assert ctx_basic.draw_pile[-1] == "Insight"
 
     def test_add_insight_upgraded(self, ctx_basic):
-        """Upgraded Evaluate adds Insight+ to draw pile."""
+        """Upgraded Evaluate still adds base Insight (Java: upgrade only increases block)."""
         ctx_basic.is_upgraded = True
         execute_effect("add_insight_to_draw", ctx_basic)
-        assert ctx_basic.draw_pile[-1] == "Insight+"
+        assert ctx_basic.draw_pile[-1] == "Insight"
 
     def test_add_smite_to_hand(self, ctx_basic):
         """Carve Reality adds Smite to hand."""
