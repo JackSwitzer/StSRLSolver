@@ -2185,6 +2185,43 @@ def stasis_on_death(ctx: PowerContext) -> None:
 
 
 # =============================================================================
+# ELECTRO (Electrodynamics): Lightning orbs hit ALL enemies
+# =============================================================================
+
+@power_trigger("atBattleStart", power="Electrodynamics")
+def electro_battle_start(ctx: PowerContext) -> None:
+    """Electrodynamics: Sync lightning_hits_all flag on OrbManager at combat start.
+
+    Java: ElectrodynamicsPower is a passive — Lightning orbs hit all enemies.
+    The card effect sets the flag when played, but if combat state is restored
+    from a checkpoint or the power is applied via non-card means, this ensures
+    the OrbManager flag stays in sync.
+    """
+    from ..effects.orbs import get_orb_manager
+    manager = get_orb_manager(ctx.state)
+    manager.lightning_hits_all = True
+
+
+@power_trigger("atBattleStart", power="Electro")
+def electro_alias_battle_start(ctx: PowerContext) -> None:
+    """Electro alias for Electrodynamics."""
+    from ..effects.orbs import get_orb_manager
+    manager = get_orb_manager(ctx.state)
+    manager.lightning_hits_all = True
+
+
+# =============================================================================
+# DRAW POWER: increase cards drawn per turn
+# =============================================================================
+# Java: DrawPower.onInitialApplication increases gameHandSize by amount,
+# onRemove decreases it. In the Python engine, draw count is computed each
+# turn from statuses (combat_engine.py line 384:
+#   draw_count += self.state.player.statuses.get("Draw", 0))
+# so no trigger is needed — the status IS the implementation.
+# This comment documents the intentional design choice.
+
+
+# =============================================================================
 # DEAD CODE DOCUMENTATION
 # =============================================================================
 # The following Java powers exist as classes but are NEVER instantiated
