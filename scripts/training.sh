@@ -84,6 +84,15 @@ stop_training() {
         kill -9 "$pid" 2>/dev/null || true
     fi
 
+    # Stop watchdog
+    if [ -f "$PID_DIR/watchdog.pid" ]; then
+        local wd_pid
+        wd_pid=$(cat "$PID_DIR/watchdog.pid")
+        kill "$wd_pid" 2>/dev/null || true
+        rm -f "$PID_DIR/watchdog.pid"
+        echo "  Watchdog stopped."
+    fi
+
     # Stop caffeinate
     if [ -f "$PID_DIR/caffeinate.pid" ]; then
         local caf_pid
@@ -121,7 +130,7 @@ cmd_start() {
     fi
 
     # Parse args
-    local games=10000 workers=8 batch=256 asc=0 headless="" resume=""
+    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -132,6 +141,7 @@ cmd_start() {
             --resume)  resume="--resume $2"; shift 2 ;;
             --weekend) weekend="--weekend"; shift ;;
             --overnight) weekend="--overnight"; shift ;;
+            --watchdog) watchdog="1"; shift ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -170,6 +180,14 @@ cmd_start() {
     local train_pid=$!
     echo "$train_pid" > "$PID_DIR/training.pid"
     echo "  training: PID $train_pid"
+
+    # Start watchdog if requested
+    if [ -n "$watchdog" ]; then
+        nohup bash scripts/watchdog.sh > "$run_dir/watchdog.log" 2>&1 &
+        echo $! > "$PID_DIR/watchdog.pid"
+        echo "  watchdog: PID $!"
+    fi
+
     echo ""
     echo "Monitor with: ./scripts/training.sh status"
     echo "Stop with:    ./scripts/training.sh stop"
