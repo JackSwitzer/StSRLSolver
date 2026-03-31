@@ -1,7 +1,10 @@
 import Foundation
 
-struct Episode: Codable, Identifiable {
+struct Episode: Codable, Identifiable, Hashable {
     let id = UUID()
+
+    static func == (lhs: Episode, rhs: Episode) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
     let seed: String
     let won: Bool

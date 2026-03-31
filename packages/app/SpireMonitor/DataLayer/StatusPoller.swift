@@ -82,6 +82,14 @@ actor StatusPoller {
             }
         }
 
+        // Reload metrics history every 12th poll (~30s)
+        if pollCount % 12 == 0 || pollCount == 1 {
+            let metrics = await MetricsHistoryLoader.load(from: logsURL)
+            await MainActor.run {
+                if !metrics.isEmpty { store.metricsHistory = metrics }
+            }
+        }
+
         // Scan workers/*.json
         let workersDir = logsURL.appending(path: "workers")
         if let files = try? FileManager.default.contentsOfDirectory(at: workersDir, includingPropertiesForKeys: nil) {

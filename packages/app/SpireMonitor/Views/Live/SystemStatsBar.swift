@@ -11,9 +11,15 @@ struct SystemStatsBar: View {
             miniGauge("CPU", value: current?.cpuPercent ?? 0, unit: "%",
                        data: history.map(\.cpuPercent), color: .stsBlue)
 
-            // GPU chart
-            miniGauge("GPU", value: current?.gpuPercent ?? 0, unit: "%",
-                       data: history.compactMap(\.gpuPercent), color: .stsGold)
+            // GPU chart (from status.json gpu_percent; shows N/A when not available)
+            if let gpuVal = current?.gpuPercent {
+                miniGauge("GPU", value: gpuVal, unit: "%",
+                           data: history.compactMap(\.gpuPercent), color: .stsGold)
+            } else {
+                miniGauge("GPU", value: 0, unit: " N/A",
+                           data: [], color: .stsTextMuted,
+                           formatter: { _ in "---" })
+            }
 
             // RAM chart
             miniGauge("RAM", value: current?.memoryUsedGB ?? 0,
