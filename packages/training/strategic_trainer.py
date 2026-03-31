@@ -20,12 +20,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from .base_trainer import BaseTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ class StrategicTransition:
     cleared_act3: float = 0.0
 
 
-class StrategicTrainer:
+class StrategicTrainer(BaseTrainer):
     """PPO trainer for the strategic model.
 
     Collects transitions at every non-combat decision point.
@@ -594,3 +596,37 @@ class StrategicTrainer:
             "calibration_epochs": epochs,
             "card_lift_entries": card_lift_entries,
         }
+
+    # ------------------------------------------------------------------
+    # BaseTrainer interface
+    # ------------------------------------------------------------------
+
+    def train_step(self, batch: Any = None) -> Dict[str, float]:
+        """Run a single PPO training step on the current buffer."""
+        return self.train_batch()
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Save model + optimizer state to disk."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        extra = {
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "train_steps": self.train_steps,
+            "entropy_coeff": self.entropy_coeff,
+        }
+        if hasattr(self, "scheduler"):
+            extra["scheduler_state_dict"] = self.scheduler.state_dict()
+        self.model.save(path, extra=extra)
+
+    def load_checkpoint(self, path: Path) -> None:
+        """Restore optimizer + scheduler state from a checkpoint."""
+        path = Path(path)
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        if "optimizer_state_dict" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if "train_steps" in ckpt:
+            self.train_steps = ckpt["train_steps"]
+        if "entropy_coeff" in ckpt:
+            self.entropy_coeff = ckpt["entropy_coeff"]
+        if hasattr(self, "scheduler") and "scheduler_state_dict" in ckpt:
+            self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])

@@ -439,6 +439,19 @@ case "${1:-status}" in
             *) echo "Usage: $0 pretrain [--bc|--combat|--eval|--all] [options]"; exit 1 ;;
         esac
         ;;
+    algorithm)
+        shift
+        algo="${1:?Usage: $0 algorithm [ppo|iql|grpo]}"
+        shift
+        case "$algo" in
+            ppo|iql|grpo)
+                echo "Starting training with algorithm: $algo"
+                uv run python -m packages.training.training_runner \
+                    --algorithm "$algo" "$@"
+                ;;
+            *) echo "Unknown algorithm: $algo (choose ppo, iql, or grpo)"; exit 1 ;;
+        esac
+        ;;
     experiment)
         shift
         config_name="${1:?Usage: $0 experiment <config-name>}"

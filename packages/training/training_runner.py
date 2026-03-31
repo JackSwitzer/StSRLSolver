@@ -1534,6 +1534,9 @@ def main():
     parser.add_argument("--weekend", action="store_true", help="Use weekend configs (D+E only)")
     parser.add_argument("--overnight", action="store_true", help="Full 5-config ablation sweep")
     parser.add_argument("--max-hours-per-config", type=float, default=None, help="Hours per sweep config (None=auto)")
+    parser.add_argument("--algorithm", type=str, default=None, choices=["ppo", "iql", "grpo"],
+                        help="Override algorithm for all sweep configs")
+    parser.add_argument("--sweep-config", type=str, default=None, help="Named sweep config to run")
     args = parser.parse_args()
 
     if args.overnight:
@@ -1542,6 +1545,10 @@ def main():
         sweep = WEEKEND_SWEEP_CONFIGS
     else:
         sweep = DEFAULT_SWEEP_CONFIGS
+
+    # --algorithm flag overrides algorithm in all sweep configs
+    if args.algorithm:
+        sweep = [{**cfg, "algorithm": args.algorithm} for cfg in sweep]
 
     runner = OvernightRunner({
         "workers": args.workers,

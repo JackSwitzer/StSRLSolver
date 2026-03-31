@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .base_trainer import BaseTrainer
 from .offline_data import OfflineBatch, OfflineDataset
 from .strategic_net import StrategicNet
 from .training_config import (
@@ -106,7 +107,7 @@ def _expectile_loss(diff: torch.Tensor, expectile: float) -> torch.Tensor:
     return (weight * diff.pow(2)).mean()
 
 
-class IQLTrainer:
+class IQLTrainer(BaseTrainer):
     """Implicit Q-Learning trainer for offline RL.
 
     Training loop:
@@ -290,3 +291,37 @@ class IQLTrainer:
         total_metrics["dataset_size"] = n
 
         return total_metrics
+
+    # ------------------------------------------------------------------
+    # BaseTrainer interface
+    # ------------------------------------------------------------------
+
+    def save_checkpoint(self, path) -> None:
+        """Save all networks + optimizer states."""
+        from pathlib import Path as _Path
+        path = _Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "policy_state_dict": self.policy.state_dict(),
+            "v_net_state_dict": self.v_net.state_dict(),
+            "q_net_state_dict": self.q_net.state_dict(),
+            "q_target_state_dict": self.q_target.state_dict(),
+            "v_optimizer": self.v_optimizer.state_dict(),
+            "q_optimizer": self.q_optimizer.state_dict(),
+            "policy_optimizer": self.policy_optimizer.state_dict(),
+            "train_steps": self.train_steps,
+        }, path)
+
+    def load_checkpoint(self, path) -> None:
+        """Restore all networks + optimizer states."""
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        if "policy_state_dict" in ckpt:
+            self.policy.load_state_dict(ckpt["policy_state_dict"])
+        if "v_net_state_dict" in ckpt:
+            self.v_net.load_state_dict(ckpt["v_net_state_dict"])
+        if "q_net_state_dict" in ckpt:
+            self.q_net.load_state_dict(ckpt["q_net_state_dict"])
+        if "q_target_state_dict" in ckpt:
+            self.q_target.load_state_dict(ckpt["q_target_state_dict"])
+        if "train_steps" in ckpt:
+            self.train_steps = ckpt["train_steps"]
