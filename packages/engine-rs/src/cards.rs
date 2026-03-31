@@ -5630,6 +5630,8 @@ mod tests {
         assert_card(&reg, "Deadly Poison", 1, -1, -1, 5, CardType::Skill);
         assert_card(&reg, "Deadly Poison+", 1, -1, -1, 7, CardType::Skill);
         assert_has_effect(&reg, "Deadly Poison", "poison");
+    }
+
     // Defect card registration tests
     // -----------------------------------------------------------------------
     #[test]
