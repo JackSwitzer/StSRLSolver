@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 

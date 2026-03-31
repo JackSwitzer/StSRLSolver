@@ -113,7 +113,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .registry import (
-    effect, effect_simple, effect_custom, EffectContext
+    effect, effect_simple, EffectContext
 )
 
 if TYPE_CHECKING:

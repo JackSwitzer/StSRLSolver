@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict, Set, Tuple, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Set, Tuple, Any
 
-from ..state.run import RunState, CardInstance
-from ..state.rng import Random, GameRNG
+from ..state.run import RunState
+from ..state.rng import Random
 from ..generation.rewards import (
     ShopInventory, RewardState,
     generate_shop_inventory, generate_card_rewards, generate_colorless_card_rewards,

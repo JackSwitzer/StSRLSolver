@@ -17,7 +17,7 @@ Integration with GameRunner:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple, Any, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from enum import Enum, auto
 
 if TYPE_CHECKING:
@@ -25,9 +25,9 @@ if TYPE_CHECKING:
     from ..state.rng import Random
 
 # Import content modules
-from ..content.cards import Card, CardRarity, CardType, CardColor
-from ..content.relics import Relic, RelicTier, ALL_RELICS, get_relic
-from ..content.potions import Potion, PotionRarity, ALL_POTIONS
+from ..content.cards import Card, CardRarity
+from ..content.relics import Relic, RelicTier, get_relic
+from ..content.potions import Potion, PotionRarity
 
 
 # ============================================================================

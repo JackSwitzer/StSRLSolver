@@ -8,7 +8,7 @@ Based on decompiled source analysis (Jan 2026).
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Tuple, Any
 from enum import Enum
 import os
 import importlib.util

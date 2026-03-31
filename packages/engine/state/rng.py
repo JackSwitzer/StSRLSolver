@@ -21,7 +21,7 @@ RNG Streams (from AbstractDungeon):
 """
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional
 import struct
 
 

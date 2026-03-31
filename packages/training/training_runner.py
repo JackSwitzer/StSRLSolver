@@ -179,13 +179,6 @@ class OvernightRunner:
 
         return True
 
-    def get_current_sweep_config(self) -> Optional[Dict[str, Any]]:
-        """Return current hyperparameter config from sweep schedule."""
-        if not self.sweep_configs:
-            return None
-        if self._current_sweep_idx >= len(self.sweep_configs):
-            return None
-        return self.sweep_configs[self._current_sweep_idx]
 
     def _advance_sweep(self) -> bool:
         """Advance to next sweep config. Returns False if sweep is done."""

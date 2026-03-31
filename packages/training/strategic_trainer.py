@@ -18,8 +18,7 @@ Phase 2A fixes (2026-03-12):
 from __future__ import annotations
 
 import logging
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -30,7 +29,7 @@ import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
-from .strategic_net import StrategicNet, _get_device
+from .strategic_net import StrategicNet
 
 
 @dataclass

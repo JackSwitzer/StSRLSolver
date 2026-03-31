@@ -106,6 +106,3 @@ class SeedPool:
     def total_games(self) -> int:
         return sum(self.play_counts.values())
 
-    @property
-    def unique_seeds(self) -> int:
-        return len([s for s, c in self.play_counts.items() if c > 0])

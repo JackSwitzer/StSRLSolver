@@ -10,7 +10,6 @@ Reference: decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Set, Tuple
-import random as py_random
 
 from ..state.rng import Random
 
