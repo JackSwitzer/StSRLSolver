@@ -781,11 +781,14 @@ def wave_of_the_hand_effect(ctx: EffectContext) -> None:
 
 @effect_simple("gain_mantra_add_insight")
 def pray_effect(ctx: EffectContext) -> None:
-    """Pray - Gain mantra and add Insight to draw pile."""
+    """Pray - Gain mantra and add Insight to draw pile.
+
+    Java: Pray always creates base Insight.
+    Upgrading only increases mantra (3->4), not the generated card.
+    """
     mantra = ctx.magic_number if ctx.magic_number > 0 else 3
     ctx.gain_mantra(mantra)
-    card_id = "Insight+" if ctx.is_upgraded else "Insight"
-    ctx.add_card_to_draw_pile(card_id, "random")
+    ctx.add_card_to_draw_pile("Insight", "random")
 
 
 # =============================================================================

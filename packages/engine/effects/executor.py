@@ -431,7 +431,7 @@ class EffectExecutor:
 
         # Mantra effects
         "gain_mantra": lambda s, c, cd, r: c.gain_mantra(cd.magic_number if cd.magic_number > 0 else 2),
-        "gain_mantra_add_insight": lambda s, c, cd, r: (c.gain_mantra(cd.magic_number if cd.magic_number > 0 else 3), c.add_card_to_draw_pile("Insight+" if c.is_upgraded else "Insight", "random")),
+        "gain_mantra_add_insight": lambda s, c, cd, r: (c.gain_mantra(cd.magic_number if cd.magic_number > 0 else 3), c.add_card_to_draw_pile("Insight", "random")),
         "scry": lambda s, c, cd, r: c.scry(cd.magic_number if cd.magic_number > 0 else 3),
 
         # Status applications
