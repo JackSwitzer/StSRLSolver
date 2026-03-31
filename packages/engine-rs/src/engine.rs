@@ -18,6 +18,7 @@ use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
 use crate::damage;
 use crate::enemies;
+use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
 use crate::relics;
@@ -243,6 +244,9 @@ impl CombatEngine {
             self.gain_mantra(devotion);
         }
 
+        // ---- Start-of-turn orb passives (Plasma) ----
+        self.apply_orb_start_of_turn();
+
         // BattleHymn: add Smite(s) to hand at start of turn
         let battle_hymn = self.state.player.status("BattleHymn");
         if battle_hymn > 0 {
@@ -370,6 +374,12 @@ impl CombatEngine {
             for idx in living {
                 self.deal_damage_to_enemy(idx, omega);
             }
+        }
+
+        // ---- End-of-turn orb passives ----
+        self.apply_orb_end_of_turn();
+        if self.state.combat_over {
+            return;
         }
 
         // Player poison tick (before enemy turns)
@@ -1279,6 +1289,99 @@ impl CombatEngine {
             } else {
                 self.state.player.hp = 0;
             }
+        }
+    }
+
+    // =======================================================================
+    // Orb Effects
+    // =======================================================================
+
+    /// Pick a random living enemy index using the combat RNG.
+    fn random_living_enemy(&mut self) -> Option<usize> {
+        let living = self.state.living_enemy_indices();
+        if living.is_empty() {
+            return None;
+        }
+        if living.len() == 1 {
+            return Some(living[0]);
+        }
+        let roll = self.rng.random(living.len() as i32 - 1) as usize;
+        Some(living[roll])
+    }
+
+    /// Pick the living enemy with the lowest HP.
+    fn lowest_hp_enemy(&self) -> Option<usize> {
+        let living = self.state.living_enemy_indices();
+        living
+            .iter()
+            .copied()
+            .min_by_key(|&i| self.state.enemies[i].entity.hp)
+    }
+
+    /// Apply a single evoke effect to the game state.
+    fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
+        match effect {
+            EvokeEffect::LightningDamage(dmg) => {
+                if let Some(idx) = self.random_living_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            EvokeEffect::FrostBlock(block) => {
+                self.state.player.block += block;
+            }
+            EvokeEffect::DarkDamage(dmg) => {
+                if let Some(idx) = self.lowest_hp_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            EvokeEffect::PlasmaEnergy(energy) => {
+                self.state.energy += energy;
+            }
+            EvokeEffect::None => {}
+        }
+    }
+
+    /// Apply a single passive effect to the game state.
+    fn apply_passive_effect(&mut self, effect: PassiveEffect) {
+        match effect {
+            PassiveEffect::LightningDamage(dmg) => {
+                if let Some(idx) = self.random_living_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            PassiveEffect::FrostBlock(block) => {
+                self.state.player.block += block;
+            }
+            PassiveEffect::PlasmaEnergy(energy) => {
+                self.state.energy += energy;
+            }
+            PassiveEffect::None => {}
+        }
+    }
+
+    /// Trigger orb end-of-turn passives and apply their effects.
+    fn apply_orb_end_of_turn(&mut self) {
+        if !self.state.orb_slots.has_orbs() {
+            return;
+        }
+        let focus = self.state.player.focus();
+        let effects = self.state.orb_slots.trigger_end_of_turn_passives(focus);
+        for effect in effects {
+            self.apply_passive_effect(effect);
+            if self.state.player.is_dead() || self.check_combat_end() {
+                return;
+            }
+        }
+    }
+
+    /// Trigger orb start-of-turn passives (Plasma) and apply their effects.
+    fn apply_orb_start_of_turn(&mut self) {
+        if !self.state.orb_slots.has_orbs() {
+            return;
+        }
+        let effects = self.state.orb_slots.trigger_start_of_turn_passives();
+        for effect in effects {
+            self.apply_passive_effect(effect);
         }
     }
 
