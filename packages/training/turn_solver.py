@@ -1157,6 +1157,7 @@ class TurnSolverAdapter:
         self._cached_plan_index: int = 0
         self._cached_turn: int = -1
         self._cached_combat_id: int = -1
+        self.last_solver_scores: List[Tuple[str, float]] = []
 
     def reset(self):
         """Invalidate cached plan. Call at the start of each new combat."""
@@ -1164,6 +1165,7 @@ class TurnSolverAdapter:
         self._cached_plan_index = 0
         self._cached_turn = -1
         self._cached_combat_id = -1
+        self.last_solver_scores = []
 
     def _apply_room_type_budgets(self, engine, room_type: str) -> Optional[Tuple[float, int]]:
         """Apply room-type budgets to single-turn and multi-turn solvers."""
@@ -1228,7 +1230,6 @@ class TurnSolverAdapter:
             combat_action = self._match_engine_to_combat(engine_action, actions, state)
             if combat_action is not None:
                 self._cached_plan_index += 1
-                self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
                 return combat_action
             # Cache invalid — replan
             self._cached_plan = None
@@ -1236,9 +1237,18 @@ class TurnSolverAdapter:
         # Apply room-type-specific budgets from training_config.SOLVER_BUDGETS
         self._apply_room_type_budgets(engine, room_type)
 
+        # Reset solver scores for this decision
+        self.last_solver_scores = []
+
         # For boss/elite: try multi-turn solver first (plans 3+ turns ahead)
         if room_type in ("boss", "b", "elite", "e"):
             try:
+                candidates = self._multi_turn._get_turn_candidates(
+                    engine, time.monotonic() + self._multi_turn.time_budget_ms / 1000.0
+                )
+                for cand_plan, cand_score in candidates:
+                    desc = self._describe_plan(cand_plan, engine.state)
+                    self.last_solver_scores.append((desc, round(cand_score, 2)))
                 plan = self._multi_turn.solve(engine)
             except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
                 logger.warning("TurnSolver: multi-turn solve failed: %s", e)
@@ -1251,7 +1261,6 @@ class TurnSolverAdapter:
                 combat_action = self._match_engine_to_combat(engine_action, actions, state)
                 if combat_action is not None:
                     self._cached_plan_index = 1
-                    self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
                     return combat_action
 
         # DFS/beam TurnSolver (fast single-turn heuristic)
@@ -1262,6 +1271,11 @@ class TurnSolverAdapter:
             plan = None
 
         if plan and len(plan) > 0:
+            if not self.last_solver_scores:
+                score = self._multi_turn._score_plan(engine, plan)
+                desc = self._describe_plan(plan, engine.state)
+                self.last_solver_scores.append((desc, round(score, 2)))
+
             self._cached_plan = plan
             self._cached_plan_index = 0
             self._cached_turn = current_turn
@@ -1270,22 +1284,26 @@ class TurnSolverAdapter:
             combat_action = self._match_engine_to_combat(engine_action, actions, state)
             if combat_action is not None:
                 self._cached_plan_index = 1
-                override = self._warn_end_turn_with_playable(combat_action, actions, engine, room_type)
-                return override if override is not None else combat_action
+                return combat_action
 
         return None  # Fall through to first legal action
 
-    def _warn_end_turn_with_playable(self, combat_action, actions, engine, room_type):
-        """Override EndTurn if playable cards exist with energy — play first legal card."""
-        if getattr(combat_action, "action_type", None) == "end_turn" and engine.state.energy > 0:
-            playable = [a for a in actions if getattr(a, "action_type", None) == "play_card"]
-            if playable:
-                logger.warning(
-                    "TurnSolver overriding EndTurn -> play_card (%d playable, energy=%d, room=%s)",
-                    len(playable), engine.state.energy, room_type,
-                )
-                return playable[0]
-        return None
+    @staticmethod
+    def _describe_plan(plan: List[Action], state) -> str:
+        """Return a short human-readable description of a turn plan."""
+        parts = []
+        hand = list(state.hand) if hasattr(state, "hand") else []
+        for a in plan:
+            if isinstance(a, EndTurn):
+                parts.append("EndTurn")
+            elif isinstance(a, PlayCard):
+                card_id = hand[a.card_idx] if 0 <= a.card_idx < len(hand) else f"card#{a.card_idx}"
+                parts.append(str(card_id))
+            elif isinstance(a, UsePotion):
+                parts.append(f"potion#{a.potion_idx}")
+            else:
+                parts.append(type(a).__name__)
+        return " -> ".join(parts) if parts else "empty"
 
     def _match_engine_to_combat(self, engine_action: Action, combat_actions: list, state) -> Any:
         """Match an engine-level Action to a CombatAction in the available list.

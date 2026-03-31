@@ -186,10 +186,11 @@ def _worker_init(
 # ---------------------------------------------------------------------------
 
 def _pick_combat_action(actions, runner, turn_solver_adapter=None):
-    """Pick a combat action. TurnSolver first, then prefer card plays over EndTurn.
+    """Pick a combat action using TurnSolver. Trusts solver decisions including EndTurn.
 
-    Safety net: if solver returns EndTurn but playable cards exist, prefer a card.
-    This prevents the 5.9% zero-card-played bug where the solver ends turn immediately.
+    EndTurn is a valid strategic choice for Watcher stance cycling: holding energy
+    in Calm to explode in Wrath next turn is optimal play. The solver's multi-turn
+    evaluation already accounts for this.
     """
     if len(actions) <= 1:
         return actions[0]
@@ -200,31 +201,19 @@ def _pick_combat_action(actions, runner, turn_solver_adapter=None):
 
     room_type = getattr(runner, "current_room_type", "monster")
 
-    def _first_play_card():
-        for _a in actions:
-            if hasattr(_a, "action_type") and getattr(_a, "action_type", "") == "play_card":
-                return _a
-        return None
-
-    # TurnSolver: works for all fight types
+    # TurnSolver: works for all fight types — trust its EndTurn decisions
     if turn_solver_adapter is not None:
         try:
             result = turn_solver_adapter.pick_action(actions, runner, room_type)
             if result is not None:
-                if hasattr(result, "action_type") and getattr(result, "action_type", "") == "end_turn":
-                    # Safety net: if EndTurn was chosen while playable cards remain,
-                    # force a card play to prevent zero-card turns.
-                    fallback = _first_play_card()
-                    if fallback is not None:
-                        return fallback
                 return result
         except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
             logger.warning("_pick_combat_action: TurnSolver failed: %s", e)
 
     # Fallback (solver returned None): prefer playing a card over ending turn
-    fallback = _first_play_card()
-    if fallback is not None:
-        return fallback
+    for _a in actions:
+        if hasattr(_a, "action_type") and getattr(_a, "action_type", "") == "play_card":
+            return _a
     return actions[0]
 
 
@@ -551,6 +540,9 @@ def _play_one_game(
                                 _energy * REWARD_WEIGHTS.get("unspent_energy_reward", -0.15)
                                 + _playable * REWARD_WEIGHTS.get("unspent_playable_reward", -0.10)
                             )
+                    # Record solver scores for this turn (enables learning from search)
+                    if turn_solver is not None and hasattr(turn_solver, "last_solver_scores"):
+                        _turn_info["solver_scores"] = turn_solver.last_solver_scores[:]
                     turns_log.append(_turn_info)
                     # Cards-per-turn reward: penalize low count, reward long sequences
                     _n_cards_played = len(turn_cards)

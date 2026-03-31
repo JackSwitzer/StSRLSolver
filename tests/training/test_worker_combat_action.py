@@ -18,14 +18,15 @@ def _mk_runner():
     )
 
 
-def test_pick_combat_action_overrides_solver_end_turn_when_card_play_exists():
+def test_pick_combat_action_trusts_solver_end_turn():
+    """EndTurn is a valid choice -- solver decision is trusted (stance cycling)."""
     end_turn = SimpleNamespace(action_type="end_turn")
     play_card = SimpleNamespace(action_type="play_card")
     actions = [end_turn, play_card]
 
     chosen = _pick_combat_action(actions, _mk_runner(), _DummySolver(end_turn))
 
-    assert chosen is play_card
+    assert chosen is end_turn
 
 
 def test_pick_combat_action_keeps_solver_end_turn_when_no_card_play_exists():
@@ -36,3 +37,24 @@ def test_pick_combat_action_keeps_solver_end_turn_when_no_card_play_exists():
     chosen = _pick_combat_action(actions, _mk_runner(), _DummySolver(end_turn))
 
     assert chosen is end_turn
+
+
+def test_pick_combat_action_fallback_prefers_card_play():
+    """When solver returns None, fallback prefers card play over end turn."""
+    end_turn = SimpleNamespace(action_type="end_turn")
+    play_card = SimpleNamespace(action_type="play_card")
+    actions = [end_turn, play_card]
+
+    chosen = _pick_combat_action(actions, _mk_runner(), _DummySolver(None))
+
+    assert chosen is play_card
+
+
+def test_pick_combat_action_returns_solver_card():
+    play_card1 = SimpleNamespace(action_type="play_card")
+    play_card2 = SimpleNamespace(action_type="play_card")
+    actions = [play_card1, play_card2]
+
+    chosen = _pick_combat_action(actions, _mk_runner(), _DummySolver(play_card2))
+
+    assert chosen is play_card2

@@ -56,7 +56,7 @@ TEMPERATURE = 0.9
 SOLVER_BUDGETS: Dict[str, tuple] = {
     "monster": (50.0, 5_000, 300_000),       # 5 min cap
     "elite":   (2_000.0, 50_000, 600_000),   # 2s base for elites
-    "boss":    (60_000.0, 400_000, 600_000), # 60s base for bosses (2x boost)
+    "boss":    (120_000.0, 400_000, 600_000), # 120s base for bosses
 }
 SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
 
