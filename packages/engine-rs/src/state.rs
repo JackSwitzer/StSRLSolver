@@ -239,6 +239,10 @@ pub struct CombatState {
 
     // Relics (just IDs for checking effects)
     pub relics: Vec<String>,
+
+    /// Cards explicitly retained this turn (e.g. by Meditate).
+    /// These survive the end-of-turn discard even without the "retain" effect.
+    pub retained_cards: Vec<String>,
 }
 
 impl CombatState {
@@ -275,6 +279,7 @@ impl CombatState {
             total_damage_taken: 0,
             total_cards_played: 0,
             relics: Vec::new(),
+            retained_cards: Vec::new(),
         }
     }
 

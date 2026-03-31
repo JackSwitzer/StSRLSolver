@@ -295,10 +295,11 @@ impl CombatEngine {
 
         // Discard hand — respecting Retain and Ethereal
         let hand = std::mem::take(&mut self.state.hand);
+        let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
         let mut retained = Vec::new();
         for card_id in hand {
             let card = self.card_registry.get_or_default(&card_id);
-            if card.effects.contains(&"retain") {
+            if card.effects.contains(&"retain") || explicitly_retained.contains(&card_id) {
                 // Retained cards stay in hand
                 retained.push(card_id);
             } else if card.effects.contains(&"ethereal") {
@@ -972,6 +973,7 @@ impl CombatEngine {
         if card.effects.contains(&"meditate") {
             let count = card.base_magic.max(1) as usize;
             // Move best cards from discard to hand (simplified: take from end)
+            // Returned cards are retained through end-of-turn discard.
             for _ in 0..count {
                 if self.state.discard_pile.is_empty() {
                     break;
@@ -979,8 +981,9 @@ impl CombatEngine {
                 if self.state.hand.len() >= 10 {
                     break;
                 }
-                if let Some(card) = self.state.discard_pile.pop() {
-                    self.state.hand.push(card);
+                if let Some(returned) = self.state.discard_pile.pop() {
+                    self.state.retained_cards.push(returned.clone());
+                    self.state.hand.push(returned);
                 }
             }
         }

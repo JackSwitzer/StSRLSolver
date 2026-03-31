@@ -3806,6 +3806,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 9]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        if !e.state.hand.contains(&"Meditate".to_string()) {
+            e.state.hand.push("Meditate".to_string());
+        }
         // Put a card in discard
         e.state.discard_pile.push("WreathOfFlame".to_string());
         play_card(&mut e, "Meditate", -1);
@@ -3845,6 +3848,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        if !e.state.hand.contains(&"BattleHymn".to_string()) {
+            e.state.hand.push("BattleHymn".to_string());
+        }
         play_card(&mut e, "BattleHymn", -1);
         assert_eq!(e.state.player.status("BattleHymn"), 1);
         // End turn, start next turn
@@ -3860,6 +3866,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        if !e.state.hand.contains(&"LikeWater".to_string()) {
+            e.state.hand.push("LikeWater".to_string());
+        }
         play_card(&mut e, "LikeWater", -1);
         e.state.stance = Stance::Calm;
         e.execute_action(&Action::EndTurn);
@@ -3879,6 +3888,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        if !e.state.hand.contains(&"Devotion".to_string()) {
+            e.state.hand.push("Devotion".to_string());
+        }
         play_card(&mut e, "Devotion", -1);
         assert_eq!(e.state.player.status("Devotion"), 2);
         e.execute_action(&Action::EndTurn);
@@ -3894,6 +3906,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        if !e.state.hand.contains(&"DevaForm".to_string()) {
+            e.state.hand.push("DevaForm".to_string());
+        }
         play_card(&mut e, "DevaForm", -1);
         assert_eq!(e.state.player.status("DevaForm"), 1);
         e.execute_action(&Action::EndTurn);
@@ -3911,6 +3926,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        if !e.state.hand.contains(&"Fasting".to_string()) {
+            e.state.hand.push("Fasting".to_string());
+        }
         play_card(&mut e, "Fasting", -1);
         assert_eq!(e.state.player.strength(), 3, "Fasting should give 3 Strength");
         assert_eq!(e.state.player.dexterity(), 3, "Fasting should give 3 Dexterity");
@@ -3939,10 +3957,15 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        if !e.state.hand.contains(&"Study".to_string()) {
+            e.state.hand.push("Study".to_string());
+        }
         play_card(&mut e, "Study", -1);
         e.execute_action(&Action::EndTurn);
-        // Study should have added an Insight to draw pile
-        let insight_count = e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
+        // Study should have added an Insight to draw pile (may have been drawn into hand on next turn)
+        let insight_count = e.state.draw_pile.iter()
+            .chain(e.state.discard_pile.iter())
+            .chain(e.state.hand.iter())
             .filter(|c| c.starts_with("Insight")).count();
         assert!(insight_count >= 1,
             "Study should add Insight to draw pile at end of turn");
@@ -3955,6 +3978,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 14]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        if !e.state.hand.contains(&"Establishment".to_string()) {
+            e.state.hand.push("Establishment".to_string());
+        }
         play_card(&mut e, "Establishment", -1);
         assert_eq!(e.state.player.status("Establishment"), 1,
             "Establishment should set status");
@@ -4052,6 +4078,9 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 14]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        if !e.state.hand.contains(&"CutThroughFate".to_string()) {
+            e.state.hand.push("CutThroughFate".to_string());
+        }
         e.state.player.set_status("Nirvana", 4);
         let block_before = e.state.player.block;
         play_card(&mut e, "CutThroughFate", 0);
