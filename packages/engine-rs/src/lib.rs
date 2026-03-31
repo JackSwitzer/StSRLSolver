@@ -180,6 +180,17 @@ impl PyRunEngine {
         Ok(dict)
     }
 
+    fn copy(&self) -> Self {
+        PyRunEngine {
+            inner: self.inner.clone(),
+        }
+    }
+
+    #[getter]
+    fn seed(&self) -> u64 {
+        self.inner.seed
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "RustRunEngine(floor={}, hp={}/{}, gold={}, phase={}, deck={}, done={})",

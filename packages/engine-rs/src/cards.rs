@@ -66,6 +66,7 @@ impl CardDef {
 
 /// Static card registry. Populated with core Watcher cards + universals.
 /// Cards not in the registry fall back to defaults (cost 1, attack, enemy target).
+#[derive(Clone)]
 pub struct CardRegistry {
     cards: HashMap<&'static str, CardDef>,
 }

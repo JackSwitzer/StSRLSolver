@@ -372,6 +372,7 @@ impl RunState {
 // RunEngine — the full run simulation engine
 // ---------------------------------------------------------------------------
 
+#[derive(Clone)]
 pub struct RunEngine {
     pub run_state: RunState,
     pub map: DungeonMap,

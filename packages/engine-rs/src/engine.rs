@@ -34,6 +34,7 @@ pub enum CombatPhase {
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
+#[derive(Clone)]
 pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
