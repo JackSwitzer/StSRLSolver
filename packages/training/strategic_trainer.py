@@ -20,16 +20,18 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .base_trainer import BaseTrainer
+
 logger = logging.getLogger(__name__)
 
-from .strategic_net import StrategicNet
+from .strategic_net import PopArtLayer, StrategicNet
 
 
 @dataclass
@@ -50,7 +52,7 @@ class StrategicTransition:
     cleared_act3: float = 0.0
 
 
-class StrategicTrainer:
+class StrategicTrainer(BaseTrainer):
     """PPO trainer for the strategic model.
 
     Collects transitions at every non-combat decision point.
@@ -100,6 +102,13 @@ class StrategicTrainer:
         self._base_lr = lr
         # Per-head LR multipliers (MoE-style: value head trains faster)
         from .training_config import LR_HEAD_MULTIPLIERS
+        from .training_config import VALUE_NORM_METHOD, POPART_BETA, MAX_RETURN
+
+        # Value normalization
+        self._value_norm_method = VALUE_NORM_METHOD
+        self._max_return = MAX_RETURN
+        _device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
+        self._popart = PopArtLayer(beta=POPART_BETA).to(_device)
         param_groups = [
             {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
              "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0)},
@@ -293,8 +302,16 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss: predict raw returns (GAE expects raw-scale values)
-                value_loss = F.mse_loss(values, b_ret)
+                # Value loss with normalization
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_ret)
+                    norm_ret = self._popart.normalize(b_ret)
+                    value_loss = F.mse_loss(values, norm_ret)
+                elif self._value_norm_method == "clip":
+                    clipped_ret = b_ret.clamp(0.0, self._max_return) / self._max_return
+                    value_loss = F.mse_loss(values, clipped_ret)
+                else:
+                    value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
                 probs = F.softmax(logits, dim=-1)
@@ -571,7 +588,16 @@ class StrategicTrainer:
 
                 out = self.model(obs_t[idx], mask_t[idx])
                 value_pred = out["value"]
-                loss = F.mse_loss(value_pred, target_t[idx])
+
+                # Apply value normalization to calibration targets
+                b_target = target_t[idx]
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_target)
+                    b_target = self._popart.normalize(b_target)
+                elif self._value_norm_method == "clip":
+                    b_target = b_target.clamp(0.0, self._max_return) / self._max_return
+
+                loss = F.mse_loss(value_pred, b_target)
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -594,3 +620,37 @@ class StrategicTrainer:
             "calibration_epochs": epochs,
             "card_lift_entries": card_lift_entries,
         }
+
+    # ------------------------------------------------------------------
+    # BaseTrainer interface
+    # ------------------------------------------------------------------
+
+    def train_step(self, batch: Any = None) -> Dict[str, float]:
+        """Run a single PPO training step on the current buffer."""
+        return self.train_batch()
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Save model + optimizer state to disk."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        extra = {
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "train_steps": self.train_steps,
+            "entropy_coeff": self.entropy_coeff,
+        }
+        if hasattr(self, "scheduler"):
+            extra["scheduler_state_dict"] = self.scheduler.state_dict()
+        self.model.save(path, extra=extra)
+
+    def load_checkpoint(self, path: Path) -> None:
+        """Restore optimizer + scheduler state from a checkpoint."""
+        path = Path(path)
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        if "optimizer_state_dict" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if "train_steps" in ckpt:
+            self.train_steps = ckpt["train_steps"]
+        if "entropy_coeff" in ckpt:
+            self.entropy_coeff = ckpt["entropy_coeff"]
+        if hasattr(self, "scheduler") and "scheduler_state_dict" in ckpt:
+            self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])
