@@ -438,3 +438,101 @@ class TestMasterRealityAutoUpgrade:
         execute_relic_triggers("atBattleStartPreDraw", state)
         upgraded_count = sum(1 for c in state.hand if c == "Shiv+")
         assert upgraded_count == 3
+
+
+# =============================================================================
+# CarveReality / DeceiveReality MasterReality interaction
+# =============================================================================
+
+class TestCarveRealityMasterReality:
+    """Carve Reality: upgrade only increases damage, never upgrades generated Smite.
+    MasterReality is the only thing that upgrades the generated Smite."""
+
+    def test_carve_reality_base_produces_base_smite(self):
+        """Base Carve Reality should produce base Smite."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=False)
+        execute_effect("add_smite_to_hand", ctx)
+        assert "Smite" in state.hand
+        assert "Smite+" not in state.hand
+
+    def test_carve_reality_upgraded_still_produces_base_smite(self):
+        """Upgraded Carve Reality should still produce base Smite (Java: upgrade only increases damage)."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=True)
+        execute_effect("add_smite_to_hand", ctx)
+        assert "Smite" in state.hand
+        assert "Smite+" not in state.hand
+
+    def test_carve_reality_master_reality_upgrades_smite(self):
+        """MasterReality should upgrade the generated Smite to Smite+."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        state.player.statuses["MasterReality"] = 1
+        ctx = EffectContext(state=state, is_upgraded=False)
+        execute_effect("add_smite_to_hand", ctx)
+        assert "Smite+" in state.hand
+
+
+class TestDeceiveRealityMasterReality:
+    """Deceive Reality: upgrade only increases block, never upgrades generated Safety.
+    MasterReality is the only thing that upgrades the generated Safety."""
+
+    def test_deceive_reality_base_produces_base_safety(self):
+        """Base Deceive Reality should produce base Safety."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=False)
+        execute_effect("add_safety_to_hand", ctx)
+        assert "Safety" in state.hand
+        assert "Safety+" not in state.hand
+
+    def test_deceive_reality_upgraded_still_produces_base_safety(self):
+        """Upgraded Deceive Reality should still produce base Safety (Java: upgrade only increases block)."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        ctx = EffectContext(state=state, is_upgraded=True)
+        execute_effect("add_safety_to_hand", ctx)
+        assert "Safety" in state.hand
+        assert "Safety+" not in state.hand
+
+    def test_deceive_reality_master_reality_upgrades_safety(self):
+        """MasterReality should upgrade the generated Safety to Safety+."""
+        from packages.engine.effects.registry import EffectContext, execute_effect
+        state = _make_state()
+        state.player.statuses["MasterReality"] = 1
+        ctx = EffectContext(state=state, is_upgraded=False)
+        execute_effect("add_safety_to_hand", ctx)
+        assert "Safety+" in state.hand
+
+
+# =============================================================================
+# BottledMiracle MasterReality interaction
+# =============================================================================
+
+class TestBottledMiracleMasterReality:
+    """BottledMiracle potion: Java uses MakeTempCardInHandAction, so MasterReality applies."""
+
+    def test_bottled_miracle_base_produces_base_miracles(self):
+        """BottledMiracle without MasterReality produces base Miracles."""
+        from packages.engine.registry import PotionContext
+        from packages.engine.registry.potions import bottled_miracle
+        state = _make_state()
+        ctx = PotionContext(state=state, potion_id="BottledMiracle", potency=2)
+        bottled_miracle(ctx)
+        miracle_count = sum(1 for c in state.hand if c == "Miracle")
+        assert miracle_count == 2
+        assert "Miracle+" not in state.hand
+
+    def test_bottled_miracle_master_reality_upgrades(self):
+        """BottledMiracle with MasterReality produces Miracle+."""
+        from packages.engine.registry import PotionContext
+        from packages.engine.registry.potions import bottled_miracle
+        state = _make_state()
+        state.player.statuses["MasterReality"] = 1
+        ctx = PotionContext(state=state, potion_id="BottledMiracle", potency=2)
+        bottled_miracle(ctx)
+        upgraded_count = sum(1 for c in state.hand if c == "Miracle+")
+        assert upgraded_count == 2

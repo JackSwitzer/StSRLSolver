@@ -200,9 +200,14 @@ def focus_potion(ctx: PotionContext) -> None:
 
 @potion_effect("BottledMiracle")
 def bottled_miracle(ctx: PotionContext) -> None:
-    """Bottled Miracle (Watcher): Add 2 Miracles to hand (4 with Sacred Bark)."""
+    """Bottled Miracle (Watcher): Add 2 Miracles to hand (4 with Sacred Bark).
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
     for _ in range(ctx.potency):
-        ctx.add_card_to_hand("Miracle")
+        ctx.add_card_to_hand(card_id)
 
 
 # =============================================================================

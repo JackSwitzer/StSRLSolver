@@ -333,15 +333,27 @@ def add_insight_to_draw(ctx: EffectContext) -> None:
 
 @effect_simple("add_smite_to_hand")
 def add_smite_to_hand(ctx: EffectContext) -> None:
-    """Add a Smite to hand (Carve Reality)."""
-    card_id = "Smite+" if ctx.is_upgraded else "Smite"
+    """Add a Smite to hand (Carve Reality).
+
+    Java: CarveReality always creates base Smite via MakeTempCardInHandAction.
+    Upgrading CarveReality only increases damage, not the generated card.
+    MasterReality auto-upgrades the generated Smite.
+    """
+    upgraded = ctx.get_player_status("MasterReality") > 0
+    card_id = "Smite+" if upgraded else "Smite"
     ctx.add_card_to_hand(card_id)
 
 
 @effect_simple("add_safety_to_hand")
 def add_safety_to_hand(ctx: EffectContext) -> None:
-    """Add a Safety to hand (Deceive Reality)."""
-    card_id = "Safety+" if ctx.is_upgraded else "Safety"
+    """Add a Safety to hand (Deceive Reality).
+
+    Java: DeceiveReality always creates base Safety via MakeTempCardInHandAction.
+    Upgrading DeceiveReality only increases block, not the generated card.
+    MasterReality auto-upgrades the generated Safety.
+    """
+    upgraded = ctx.get_player_status("MasterReality") > 0
+    card_id = "Safety+" if upgraded else "Safety"
     ctx.add_card_to_hand(card_id)
 
 

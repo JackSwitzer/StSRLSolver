@@ -417,8 +417,8 @@ class EffectExecutor:
 
         # Card generation
         "add_insight_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Insight+" if c.is_upgraded else "Insight", "top"),
-        "add_smite_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Smite+" if c.is_upgraded else "Smite"),
-        "add_safety_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Safety+" if c.is_upgraded else "Safety"),
+        "add_smite_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Smite+" if c.get_player_status("MasterReality") > 0 else "Smite"),
+        "add_safety_to_hand": lambda s, c, cd, r: c.add_card_to_hand("Safety+" if c.get_player_status("MasterReality") > 0 else "Safety"),
         "add_through_violence_to_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("ThroughViolence+" if c.is_upgraded else "ThroughViolence", "top"),
         "shuffle_beta_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Beta+" if c.is_upgraded else "Beta", "random"),
         "shuffle_omega_into_draw": lambda s, c, cd, r: c.add_card_to_draw_pile("Omega", "random"),
@@ -586,11 +586,13 @@ class EffectExecutor:
             result.scried_cards = ctx.scried_cards
             result.effects_executed.append(f"foresight_scry_{foresight}")
 
-        # Battle Hymn - add Smite to hand
+        # Battle Hymn - add Smite to hand (MasterReality auto-upgrades)
         battle_hymn = ctx.get_player_status("BattleHymn")
         if battle_hymn > 0:
+            upgraded = ctx.get_player_status("MasterReality") > 0
+            smite_id = "Smite+" if upgraded else "Smite"
             for _ in range(battle_hymn):
-                ctx.add_card_to_hand("Smite")
+                ctx.add_card_to_hand(smite_id)
             result.effects_executed.append(f"battle_hymn_{battle_hymn}")
 
         # Deva Form - gain energy
