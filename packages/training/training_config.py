@@ -23,7 +23,7 @@ ALGORITHM = "ppo"  # Options: "ppo", "iql", "grpo"
 TRAIN_WORKERS = 10
 TRAIN_BATCH_SIZE = 256
 TRAIN_MAX_BATCH_INFERENCE = 32
-INFERENCE_BATCH_TIMEOUT_MS = 15.0  # Batch timeout for inference server (was 5ms)
+INFERENCE_BATCH_TIMEOUT_MS = 75.0  # Batch timeout: 75ms fills batches better with 8 workers (was 15ms)
 TRAIN_GAMES_PER_BATCH = 16
 TRAIN_PPO_EPOCHS = 8
 TRAIN_STEPS_PER_PHASE = 30
@@ -58,7 +58,7 @@ SOLVER_BUDGETS: Dict[str, tuple] = {
     "elite":   (2_000.0, 50_000, 600_000),   # 2s base for elites
     "boss":    (120_000.0, 400_000, 600_000), # 120s base for bosses
 }
-SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
+SOLVER_HP_SCALE_DIVISOR = 1000.0  # budget_ms = base * max(1, total_hp / this). Was 100 — caused 60x explosion on multi-enemy rooms
 
 # Solver scoring weights — keep minimal, let model learn strategy
 SOLVER_SCORING: Dict[str, float] = {
