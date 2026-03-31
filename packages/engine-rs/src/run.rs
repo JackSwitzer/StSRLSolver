@@ -99,6 +99,67 @@ const WATCHER_RARE_CARDS: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Ironclad card pools
+// ---------------------------------------------------------------------------
+
+const IRONCLAD_COMMON_CARDS: &[&str] = &[
+    "Anger", "Armaments", "Body Slam", "Clash", "Cleave",
+    "Clothesline", "Flex", "Havoc", "Headbutt", "Heavy Blade",
+    "Iron Wave", "Perfected Strike", "Pommel Strike", "Shrug It Off",
+    "Sword Boomerang", "Thunderclap", "True Grit", "Twin Strike",
+    "Warcry", "Wild Strike",
+];
+
+const IRONCLAD_UNCOMMON_CARDS: &[&str] = &[
+    "Battle Trance", "Blood for Blood", "Bloodletting", "Burning Pact",
+    "Carnage", "Combust", "Dark Embrace", "Disarm", "Dropkick",
+    "Dual Wield", "Entrench", "Evolve", "Feel No Pain", "Fire Breathing",
+    "Flame Barrier", "Ghostly Armor", "Hemokinesis", "Infernal Blade",
+    "Inflame", "Intimidate", "Metallicize", "Power Through", "Pummel",
+    "Rage", "Rampage", "Reckless Charge", "Rupture", "Searing Blow",
+    "Second Wind", "Seeing Red", "Sentinel", "Sever Soul", "Shockwave",
+    "Spot Weakness", "Uppercut", "Whirlwind",
+];
+
+const IRONCLAD_RARE_CARDS: &[&str] = &[
+    "Barricade", "Berserk", "Bludgeon", "Brutality", "Corruption",
+    "Demon Form", "Double Tap", "Exhume", "Feed", "Fiend Fire",
+    "Immolate", "Impervious", "Juggernaut", "Limit Break", "Offering",
+    "Reaper",
+];
+
+// ---------------------------------------------------------------------------
+// Silent card pools
+// ---------------------------------------------------------------------------
+
+const SILENT_COMMON_CARDS: &[&str] = &[
+    "Acrobatics", "Backflip", "Bane", "Blade Dance", "Cloak and Dagger",
+    "Dagger Spray", "Dagger Throw", "Deadly Poison", "Deflect",
+    "Dodge and Roll", "Flying Knee", "Outmaneuver", "Piercing Wail",
+    "Poisoned Stab", "Prepared", "Quick Slash", "Slice",
+    "Sneaky Strike", "Sucker Punch",
+];
+
+const SILENT_UNCOMMON_CARDS: &[&str] = &[
+    "Accuracy", "All-Out Attack", "Backstab", "Blur", "Bouncing Flask",
+    "Calculated Gamble", "Caltrops", "Catalyst", "Choke", "Concentrate",
+    "Crippling Cloud", "Dash", "Distraction", "Endless Agony", "Envenom",
+    "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",
+    "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
+    "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
+    "Riddle with Holes", "Setup", "Skewer", "Tactician", "Terror",
+    "Well-Laid Plans",
+];
+
+const SILENT_RARE_CARDS: &[&str] = &[
+    "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
+    "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
+    "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
+    "Nightmare", "Phantasmal Killer", "Storm of Steel",
+    "Tools of the Trade", "Unload", "Wraith Form",
+];
+
+// ---------------------------------------------------------------------------
 // Act 1 encounter pools (simplified)
 // ---------------------------------------------------------------------------
 
