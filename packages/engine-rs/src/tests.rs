@@ -3073,3 +3073,389 @@ mod bugfix_regression_tests {
             "No retained-only cards should appear");
     }
 }
+
+// =========================================================================
+// P0/P1 Combat Engine Bug Regression Tests
+// =========================================================================
+
+#[cfg(test)]
+mod combat_engine_p0_p1_regression {
+    use crate::actions::Action;
+    use crate::engine::CombatEngine;
+    use crate::enemies;
+    use crate::state::{CombatState, EnemyCombatState};
+
+    /// Helper: create engine with specific enemy and deck.
+    fn make_engine(
+        deck: Vec<String>,
+        enemy_id: &str,
+        enemy_hp: i32,
+        enemy_dmg: i32,
+        enemy_hits: i32,
+    ) -> CombatEngine {
+        let mut enemy = enemies::create_enemy(enemy_id, enemy_hp, enemy_hp);
+        if enemy_dmg > 0 {
+            enemy.set_move(enemy.move_id, enemy_dmg, enemy_hits, 0);
+        }
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        CombatEngine::new(state, 42)
+    }
+
+    fn play_card(e: &mut CombatEngine, card: &str, target: i32) {
+        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+            e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: target });
+        }
+    }
+
+    // ===== P0-1: Player Poison Ticks =====
+
+    #[test]
+    fn player_poison_ticks_at_end_of_turn() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 6, 1, 0); // JawWorm does 6 damage
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Apply poison to player and give enough block to absorb enemy attack
+        e.state.player.set_status("Poison", 5);
+        e.state.player.block = 100; // Block all enemy damage
+        let hp_before = e.state.player.hp;
+
+        // End turn triggers poison tick (poison bypasses block)
+        e.execute_action(&Action::EndTurn);
+
+        // Player should have taken exactly 5 poison damage (enemy was fully blocked)
+        assert_eq!(e.state.player.hp, hp_before - 5,
+            "Player should take exactly 5 poison damage (enemy blocked)");
+        // Poison decrements by 1
+        assert_eq!(e.state.player.status("Poison"), 4,
+            "Poison should decrement to 4");
+    }
+
+    #[test]
+    fn player_poison_kills_player() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 0, 0, 0);
+        let state = CombatState::new(3, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        e.state.player.set_status("Poison", 5);
+        e.execute_action(&Action::EndTurn);
+
+        assert!(e.state.combat_over, "Combat should be over");
+        assert!(!e.state.player_won, "Player should have lost");
+        assert_eq!(e.state.player.hp, 0);
+    }
+
+    // ===== P0-2: Enemy Attacks Use Intangible/Torii/Tungsten =====
+
+    #[test]
+    fn enemy_attack_respects_intangible() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut e = make_engine(deck, "JawWorm", 100, 30, 1);
+        e.start_combat();
+
+        e.state.player.set_status("Intangible", 1);
+        let hp_before = e.state.player.hp;
+
+        e.execute_action(&Action::EndTurn);
+
+        // Intangible caps damage to 1
+        assert!(e.state.player.hp >= hp_before - 1,
+            "Intangible should cap damage to 1, got hp={} from {}",
+            e.state.player.hp, hp_before);
+    }
+
+    #[test]
+    fn enemy_attack_respects_torii() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut e = make_engine(deck, "JawWorm", 100, 4, 1);
+        e.start_combat();
+
+        e.state.relics.push("Torii".to_string());
+        e.state.player.block = 0;
+        let hp_before = e.state.player.hp;
+
+        e.execute_action(&Action::EndTurn);
+
+        // Torii reduces 2-5 unblocked damage to 1
+        assert_eq!(e.state.player.hp, hp_before - 1,
+            "Torii should reduce 4 damage to 1");
+    }
+
+    #[test]
+    fn enemy_attack_respects_tungsten_rod() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
+        e.start_combat();
+
+        e.state.relics.push("Tungsten Rod".to_string());
+        e.state.player.block = 0;
+        let hp_before = e.state.player.hp;
+
+        e.execute_action(&Action::EndTurn);
+
+        // Tungsten Rod reduces HP loss by 1
+        assert_eq!(e.state.player.hp, hp_before - 9,
+            "Tungsten Rod should reduce 10 damage to 9 HP loss");
+    }
+
+    // ===== P0-3: Boss Phase Transitions =====
+
+    #[test]
+    fn guardian_mode_shift_triggers_on_damage() {
+        let deck: Vec<String> = (0..10).map(|_| "Strike_P".to_string()).collect();
+        let enemy = enemies::create_enemy("TheGuardian", 240, 240);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 10);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Deal enough damage to trigger mode shift (threshold=30)
+        // Strike does 6 damage, we need 5 strikes (6*5=30)
+        for _ in 0..5 {
+            play_card(&mut e, "Strike_P", 0);
+        }
+
+        // Guardian should have shifted to defensive mode
+        assert!(e.state.enemies[0].entity.status("SharpHide") > 0,
+            "Guardian should have entered defensive mode (SharpHide > 0)");
+    }
+
+    #[test]
+    fn slime_boss_splits_at_half_hp() {
+        let deck: Vec<String> = (0..20).map(|_| "Strike_P".to_string()).collect();
+        let enemy = enemies::create_enemy("SlimeBoss", 140, 140);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 50);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Manually reduce boss HP to just above threshold, then one more hit
+        e.state.enemies[0].entity.hp = 71; // Just above 50% (70)
+
+        // Strike does 6 damage -> brings to 65, which is <= 70 -> triggers split
+        play_card(&mut e, "Strike_P", 0);
+
+        // Boss should be dead (hp set to 0 by split) and 2 new slimes spawned
+        assert!(e.state.enemies[0].entity.is_dead(),
+            "Slime Boss should be dead after split, hp={}",
+            e.state.enemies[0].entity.hp);
+        assert!(e.state.enemies.len() >= 3,
+            "Should have spawned 2 new medium slimes, total enemies: {}",
+            e.state.enemies.len());
+    }
+
+    // ===== P0-4: Gremlin Nob + Lagavulin =====
+
+    #[test]
+    fn gremlin_nob_enrage_on_non_attack() {
+        let mut deck: Vec<String> = vec!["Defend_P".to_string(); 5];
+        deck.extend(vec!["Strike_P".to_string(); 5]);
+        let enemy = enemies::create_enemy("GremlinNob", 106, 106);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        let str_before = e.state.enemies[0].entity.strength();
+
+        // Play a Defend (Skill) — should trigger Enrage (+2 Str)
+        play_card(&mut e, "Defend_P", -1);
+
+        let str_after = e.state.enemies[0].entity.strength();
+        assert_eq!(str_after, str_before + 2,
+            "Gremlin Nob should gain 2 Strength from Enrage when player plays a Skill");
+    }
+
+    #[test]
+    fn gremlin_nob_no_enrage_on_attack() {
+        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let enemy = enemies::create_enemy("GremlinNob", 106, 106);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        let str_before = e.state.enemies[0].entity.strength();
+
+        // Play a Strike (Attack) — should NOT trigger Enrage
+        play_card(&mut e, "Strike_P", 0);
+
+        let str_after = e.state.enemies[0].entity.strength();
+        assert_eq!(str_after, str_before,
+            "Gremlin Nob should NOT gain Strength when player plays an Attack");
+    }
+
+    #[test]
+    fn lagavulin_sleeps_then_wakes() {
+        let deck: Vec<String> = vec!["Defend_P".to_string(); 10];
+        let enemy = enemies::create_enemy("Lagavulin", 112, 112);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Lagavulin starts sleeping with Metallicize
+        assert!(e.state.enemies[0].entity.status("SleepTurns") > 0,
+            "Lagavulin should start with SleepTurns > 0");
+        assert!(e.state.enemies[0].entity.status("Metallicize") > 0,
+            "Lagavulin should start with Metallicize while sleeping");
+    }
+
+    #[test]
+    fn lagavulin_wakes_on_damage() {
+        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let enemy = enemies::create_enemy("Lagavulin", 112, 112);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Attack Lagavulin — should wake it up
+        play_card(&mut e, "Strike_P", 0);
+
+        assert_eq!(e.state.enemies[0].entity.status("SleepTurns"), 0,
+            "Lagavulin should wake up when damaged");
+        assert_eq!(e.state.enemies[0].entity.status("Metallicize"), 0,
+            "Lagavulin should lose Metallicize when woken");
+    }
+
+    // ===== P1-5: Pen Nib Uses calculate_damage_full =====
+
+    #[test]
+    fn pen_nib_doubles_damage_via_full_calc() {
+        let deck: Vec<String> = vec!["Strike_P".to_string(); 20];
+        let mut enemy = EnemyCombatState::new("JawWorm", 200, 200);
+        enemy.set_move(1, 0, 0, 0);
+        let mut state = CombatState::new(80, 80, vec![enemy], deck, 50);
+        state.relics.push("Pen Nib".to_string());
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Set counter to 9 so next attack triggers Pen Nib
+        e.state.player.set_status("PenNibCounter", 9);
+
+        let hp_before = e.state.enemies[0].entity.hp;
+        play_card(&mut e, "Strike_P", 0);
+        let hp_after = e.state.enemies[0].entity.hp;
+
+        // Strike does 6 base, Pen Nib doubles to 12
+        assert_eq!(hp_before - hp_after, 12,
+            "Pen Nib should double Strike damage from 6 to 12");
+    }
+
+    // ===== P1-6: Plated Armor Decrements on HP Loss =====
+
+    #[test]
+    fn plated_armor_decrements_on_hp_loss() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
+        e.start_combat();
+
+        e.state.player.set_status("Plated Armor", 4);
+        e.state.player.block = 0;
+
+        e.execute_action(&Action::EndTurn);
+
+        // After taking unblocked damage, Plated Armor should decrement
+        assert_eq!(e.state.player.status("Plated Armor"), 3,
+            "Plated Armor should decrement by 1 after taking unblocked HP damage");
+    }
+
+    #[test]
+    fn plated_armor_not_decremented_when_fully_blocked() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut e = make_engine(deck, "JawWorm", 100, 5, 1);
+        e.start_combat();
+
+        e.state.player.set_status("Plated Armor", 4);
+        e.state.player.block = 20; // More than enough to block
+
+        e.execute_action(&Action::EndTurn);
+
+        // Fully blocked = no HP loss = Plated Armor should NOT decrement
+        assert_eq!(e.state.player.status("Plated Armor"), 4,
+            "Plated Armor should NOT decrement when damage is fully blocked");
+    }
+
+    // ===== P1-7: TalkToTheHand Only Grants Block on HP Damage =====
+
+    #[test]
+    fn talk_to_the_hand_no_block_when_enemy_blocks() {
+        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 0, 0, 0);
+        enemy.entity.block = 50; // Enough block to absorb Strike damage
+        enemy.entity.set_status("BlockReturn", 3);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        let block_before = e.state.player.block;
+        play_card(&mut e, "Strike_P", 0);
+        let block_after = e.state.player.block;
+
+        // Strike does 6 damage, enemy has 50 block -> 0 HP damage -> no BlockReturn
+        assert_eq!(block_after, block_before,
+            "TalkToTheHand should NOT grant block when hit deals no HP damage (enemy blocked)");
+    }
+
+    #[test]
+    fn talk_to_the_hand_grants_block_on_hp_damage() {
+        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 0, 0, 0);
+        enemy.entity.block = 0;
+        enemy.entity.set_status("BlockReturn", 3);
+        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        let block_before = e.state.player.block;
+        play_card(&mut e, "Strike_P", 0);
+        let block_after = e.state.player.block;
+
+        // Strike does 6 HP damage -> BlockReturn should trigger
+        assert_eq!(block_after, block_before + 3,
+            "TalkToTheHand should grant 3 block when hit deals HP damage");
+    }
+
+    // ===== P1-8: Anchor Block Not Wiped Turn 1 =====
+
+    #[test]
+    fn anchor_block_preserved_turn_1() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 0, 0, 0);
+        let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        state.relics.push("Anchor".to_string());
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // After start_combat, turn 1 should have Anchor's 10 block
+        assert_eq!(e.state.player.block, 10,
+            "Anchor should give 10 block at combat start that is NOT wiped on turn 1");
+    }
+
+    #[test]
+    fn block_resets_normally_on_turn_2() {
+        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 0, 0, 0);
+        let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
+        state.relics.push("Anchor".to_string());
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+
+        // Play a Defend to gain block, then end turn
+        play_card(&mut e, "Defend_P", -1);
+        let block_after_defend = e.state.player.block;
+        assert!(block_after_defend > 10, "Should have block from Anchor + Defend");
+
+        // End turn -> turn 2 starts -> block should be reset to 0
+        e.execute_action(&Action::EndTurn);
+
+        // On turn 2, block should be reset
+        assert_eq!(e.state.player.block, 0,
+            "Block should reset to 0 on turn 2 start (normal decay)");
+    }
+}

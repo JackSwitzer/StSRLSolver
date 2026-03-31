@@ -185,7 +185,10 @@ impl CombatEngine {
         }
 
         // Block decay (simplified: no Barricade/Blur/Calipers in fast path)
-        self.state.player.block = 0;
+        // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
+        if self.state.turn > 1 {
+            self.state.player.block = 0;
+        }
 
         // LoseStrength/LoseDexterity at end of previous turn
         let lose_str = self.state.player.status("LoseStrength");
@@ -231,6 +234,34 @@ impl CombatEngine {
         // End-of-turn player powers: Metallicize, Plated Armor
         powers::apply_metallicize(&mut self.state.player);
         powers::apply_plated_armor(&mut self.state.player);
+
+        // Player poison tick (before enemy turns)
+        let player_poison = self.state.player.status("Poison");
+        if player_poison > 0 {
+            let intangible = self.state.player.status("Intangible") > 0;
+            let tungsten_rod = self.state.has_relic("Tungsten Rod");
+            let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
+            self.state.player.hp -= hp_loss;
+            self.state.total_damage_taken += hp_loss;
+            // Decrement poison by 1
+            let new_poison = player_poison - 1;
+            self.state.player.set_status("Poison", new_poison);
+
+            if self.state.player.hp <= 0 {
+                // Check Fairy in a Bottle
+                let revive_hp = potions::check_fairy_revive(&self.state);
+                if revive_hp > 0 {
+                    potions::consume_fairy(&mut self.state);
+                    self.state.player.hp = revive_hp;
+                } else {
+                    self.state.player.hp = 0;
+                    self.state.combat_over = true;
+                    self.state.player_won = false;
+                    self.phase = CombatPhase::CombatOver;
+                    return;
+                }
+            }
+        }
 
         // Enemy turns
         self.do_enemy_turns();
@@ -321,6 +352,18 @@ impl CombatEngine {
             self.change_stance(new_stance);
         }
 
+        // Gremlin Nob Enrage: gains Strength when player plays non-Attack
+        if card.card_type != CardType::Attack {
+            for enemy in &mut self.state.enemies {
+                if enemy.is_alive() {
+                    let enrage = enemy.entity.status("Enrage");
+                    if enrage > 0 {
+                        enemy.entity.add_status("Strength", enrage);
+                    }
+                }
+            }
+        }
+
         // Ornamental Fan: gain 4 block every 3 cards
         relics::check_ornamental_fan(&mut self.state);
 
@@ -375,6 +418,7 @@ impl CombatEngine {
 
             let player_strength = self.state.player.strength();
             let player_weak = self.state.player.is_weak();
+            let weak_paper_crane = self.state.has_relic("Paper Crane");
             let stance_mult = self.state.stance.outgoing_mult();
 
             match card.target {
@@ -382,23 +426,35 @@ impl CombatEngine {
                     if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
                         let tidx = target_idx as usize;
                         let enemy_vuln = self.state.enemies[tidx].entity.is_vulnerable();
-                        let mut dmg = damage::calculate_damage(
+                        let enemy_intangible = self.state.enemies[tidx].entity.status("Intangible") > 0;
+                        let vuln_paper_frog = self.state.has_relic("Paper Frog");
+                        let dmg = damage::calculate_damage_full(
                             card.base_damage,
-                            player_strength + vigor,
+                            player_strength,
+                            vigor,
                             player_weak,
+                            weak_paper_crane,
+                            pen_nib_active,
+                            false, // double_damage
                             stance_mult,
                             enemy_vuln,
-                            false,
+                            vuln_paper_frog,
+                            false, // flight
+                            enemy_intangible,
                         );
-                        if pen_nib_active {
-                            dmg *= 2;
-                        }
-                        // Talk to the Hand: player gains block per hit on marked enemy
+                        // Talk to the Hand: player gains block per hit ONLY on HP damage
                         let block_return = self.state.enemies[tidx].entity.status("BlockReturn");
                         for _ in 0..hits {
+                            let enemy_hp_before = self.state.enemies[tidx].entity.hp;
+                            let enemy_block_before = self.state.enemies[tidx].entity.block;
                             self.deal_damage_to_enemy(tidx, dmg);
+                            // BlockReturn only triggers on actual HP damage
                             if block_return > 0 {
-                                self.state.player.block += block_return;
+                                let blocked = enemy_block_before.min(dmg);
+                                let hp_dmg = dmg - blocked;
+                                if hp_dmg > 0 || enemy_hp_before > self.state.enemies[tidx].entity.hp {
+                                    self.state.player.block += block_return;
+                                }
                             }
                             if self.state.enemies[tidx].entity.is_dead() {
                                 break;
@@ -410,22 +466,33 @@ impl CombatEngine {
                     let living = self.state.living_enemy_indices();
                     for enemy_idx in living {
                         let enemy_vuln = self.state.enemies[enemy_idx].entity.is_vulnerable();
-                        let mut dmg = damage::calculate_damage(
+                        let enemy_intangible = self.state.enemies[enemy_idx].entity.status("Intangible") > 0;
+                        let vuln_paper_frog = self.state.has_relic("Paper Frog");
+                        let dmg = damage::calculate_damage_full(
                             card.base_damage,
-                            player_strength + vigor,
+                            player_strength,
+                            vigor,
                             player_weak,
+                            weak_paper_crane,
+                            pen_nib_active,
+                            false, // double_damage
                             stance_mult,
                             enemy_vuln,
-                            false,
+                            vuln_paper_frog,
+                            false, // flight
+                            enemy_intangible,
                         );
-                        if pen_nib_active {
-                            dmg *= 2;
-                        }
                         let block_return = self.state.enemies[enemy_idx].entity.status("BlockReturn");
                         for _ in 0..hits {
+                            let enemy_hp_before = self.state.enemies[enemy_idx].entity.hp;
+                            let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
                             self.deal_damage_to_enemy(enemy_idx, dmg);
                             if block_return > 0 {
-                                self.state.player.block += block_return;
+                                let blocked = enemy_block_before.min(dmg);
+                                let hp_dmg = dmg - blocked;
+                                if hp_dmg > 0 || enemy_hp_before > self.state.enemies[enemy_idx].entity.hp {
+                                    self.state.player.block += block_return;
+                                }
                             }
                             if self.state.enemies[enemy_idx].entity.is_dead() {
                                 break;
@@ -634,8 +701,51 @@ impl CombatEngine {
         if enemy.entity.hp <= 0 {
             enemy.entity.hp = 0;
         }
+
+        // Boss damage hooks
+        if hp_damage > 0 {
+            let enemy_id = self.state.enemies[enemy_idx].id.clone();
+            match enemy_id.as_str() {
+                "TheGuardian" => {
+                    enemies::guardian_check_mode_shift(
+                        &mut self.state.enemies[enemy_idx],
+                        hp_damage,
+                    );
+                }
+                "Lagavulin" => {
+                    // Wake Lagavulin if damaged while sleeping
+                    let sleep_turns = self.state.enemies[enemy_idx].entity.status("SleepTurns");
+                    if sleep_turns > 0 {
+                        enemies::lagavulin_wake_up(&mut self.state.enemies[enemy_idx]);
+                    }
+                }
+                "SlimeBoss" => {
+                    if enemies::slime_boss_should_split(&self.state.enemies[enemy_idx]) {
+                        self.do_slime_boss_split(enemy_idx);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
+    /// Handle Slime Boss splitting into two smaller slimes.
+    fn do_slime_boss_split(&mut self, boss_idx: usize) {
+        // Kill the boss
+        self.state.enemies[boss_idx].entity.hp = 0;
+
+        // Spawn two medium slimes (one Acid, one Spike) at the boss's remaining HP split
+        let boss_max_hp = self.state.enemies[boss_idx].entity.max_hp;
+        let slime_hp = boss_max_hp / 4; // Each medium slime gets 1/4 of boss max HP
+
+        let acid = enemies::create_enemy("AcidSlime_M", slime_hp, slime_hp);
+        let spike = enemies::create_enemy("SpikeSlime_M", slime_hp, slime_hp);
+
+        self.state.enemies.push(acid);
+        self.state.enemies.push(spike);
+    }
+
+    #[allow(dead_code)]
     fn deal_damage_to_player(&mut self, damage: i32) {
         let player = &mut self.state.player;
         let blocked = player.block.min(damage);
@@ -725,23 +835,50 @@ impl CombatEngine {
                 damage_f *= damage::WEAK_MULT;
             }
 
-            // Stance multiplier for incoming
-            let stance_mult = self.state.stance.incoming_mult();
+            // Floor the per-hit base (before stance/vuln/intangible)
+            let per_hit_base = (damage_f as i32).max(0);
+
+            let is_wrath = self.state.stance == Stance::Wrath;
             let player_vuln = self.state.player.is_vulnerable();
+            let player_intangible = self.state.player.status("Intangible") > 0;
+            let has_torii = self.state.has_relic("Torii");
+            let has_tungsten = self.state.has_relic("Tungsten Rod");
 
             let hits = enemy.move_hits;
             for _ in 0..hits {
-                let mut hit_damage = damage_f * stance_mult;
+                let result = damage::calculate_incoming_damage(
+                    per_hit_base,
+                    self.state.player.block,
+                    is_wrath,
+                    player_vuln,
+                    player_intangible,
+                    has_torii,
+                    has_tungsten,
+                );
 
-                // Vulnerable
-                if player_vuln {
-                    hit_damage *= damage::VULN_MULT;
+                self.state.player.block = result.block_remaining;
+                if result.hp_loss > 0 {
+                    self.state.player.hp -= result.hp_loss;
+                    self.state.total_damage_taken += result.hp_loss;
+
+                    // Plated Armor decrements on unblocked HP damage
+                    let plated = self.state.player.status("Plated Armor");
+                    if plated > 0 {
+                        let new_plated = plated - 1;
+                        self.state.player.set_status("Plated Armor", new_plated);
+                    }
                 }
 
-                // Floor
-                let final_damage = (hit_damage as i32).max(0);
-
-                self.deal_damage_to_player(final_damage);
+                if self.state.player.hp <= 0 {
+                    // Check Fairy in a Bottle
+                    let revive_hp = potions::check_fairy_revive(&self.state);
+                    if revive_hp > 0 {
+                        potions::consume_fairy(&mut self.state);
+                        self.state.player.hp = revive_hp;
+                    } else {
+                        self.state.player.hp = 0;
+                    }
+                }
 
                 if self.state.player.is_dead() {
                     return;
@@ -802,6 +939,13 @@ impl CombatEngine {
             for _ in 0..amt {
                 self.state.discard_pile.push("Burn".to_string());
             }
+        }
+        // Lagavulin Siphon Soul: reduce player Strength and Dexterity
+        if let Some(&amt) = effects.get("siphon_str") {
+            self.state.player.add_status("Strength", -(amt));
+        }
+        if let Some(&amt) = effects.get("siphon_dex") {
+            self.state.player.add_status("Dexterity", -(amt));
         }
 
         // Advance enemy to next move for next turn
