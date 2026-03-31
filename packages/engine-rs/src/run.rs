@@ -163,6 +163,8 @@ pub enum EventEffect {
     Nothing,
     /// Upgrade a random card
     UpgradeCard,
+    /// Golden Idol: lose 25% max HP, gain 300 gold
+    GoldenIdolTake,
 }
 
 fn act1_events() -> Vec<EventDef> {
@@ -178,7 +180,7 @@ fn act1_events() -> Vec<EventDef> {
         EventDef {
             name: "Golden Idol".to_string(),
             options: vec![
-                EventOption { text: "Take (gain 300 gold, lose 25% max HP)".into(), effect: EventEffect::DamageAndGold(0, 300) },
+                EventOption { text: "Take (gain 300 gold, lose 25% max HP)".into(), effect: EventEffect::GoldenIdolTake },
                 EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
             ],
         },
@@ -217,6 +219,8 @@ pub struct ShopState {
     pub cards: Vec<(String, i32)>,
     /// Card removal price
     pub remove_price: i32,
+    /// Whether the player has already used their one card removal this shop visit
+    pub removal_used: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +262,7 @@ pub struct RunState {
 impl RunState {
     pub fn new(ascension: i32) -> Self {
         // Watcher starter deck
-        let deck = vec![
+        let mut deck = vec![
             "Strike_P".to_string(),
             "Strike_P".to_string(),
             "Strike_P".to_string(),
@@ -270,6 +274,11 @@ impl RunState {
             "Eruption".to_string(),
             "Vigilance".to_string(),
         ];
+
+        // Ascension 10+: add Ascender's Bane (unplayable curse) to starter deck
+        if ascension >= 10 {
+            deck.push("AscendersBane".to_string());
+        }
 
         let max_hp = if ascension >= 14 { 68 } else { 72 };
 
@@ -463,7 +472,7 @@ impl RunEngine {
                     actions.push(RunAction::ShopBuyCard(i));
                 }
             }
-            if self.run_state.gold >= shop.remove_price && self.run_state.deck.len() > 5 {
+            if !shop.removal_used && self.run_state.gold >= shop.remove_price && self.run_state.deck.len() > 5 {
                 for (i, _) in self.run_state.deck.iter().enumerate() {
                     actions.push(RunAction::ShopRemoveCard(i));
                 }
@@ -902,6 +911,7 @@ impl RunEngine {
         self.current_shop = Some(ShopState {
             cards,
             remove_price,
+            removal_used: false,
         });
         self.phase = RunPhase::Shop;
     }
@@ -923,11 +933,12 @@ impl RunEngine {
                 return 0.0;
             }
             RunAction::ShopRemoveCard(idx) => {
-                if let Some(ref shop) = self.current_shop {
-                    if *idx < self.run_state.deck.len() && self.run_state.gold >= shop.remove_price {
+                if let Some(ref mut shop) = self.current_shop {
+                    if !shop.removal_used && *idx < self.run_state.deck.len() && self.run_state.gold >= shop.remove_price {
                         let price = shop.remove_price;
                         self.run_state.gold -= price;
                         self.run_state.deck.remove(*idx);
+                        shop.removal_used = true;
                     }
                 }
                 // Stay in shop
@@ -997,6 +1008,17 @@ impl RunEngine {
                             self.run_state.gold += gold;
                         }
                         // Check death
+                        if self.run_state.current_hp <= 0 {
+                            self.run_state.run_over = true;
+                            self.phase = RunPhase::GameOver;
+                            return -1.0;
+                        }
+                    }
+                    EventEffect::GoldenIdolTake => {
+                        // Lose 25% max HP (rounded down), gain 300 gold
+                        let damage = self.run_state.max_hp / 4;
+                        self.run_state.current_hp = (self.run_state.current_hp - damage).max(0);
+                        self.run_state.gold += 300;
                         if self.run_state.current_hp <= 0 {
                             self.run_state.run_over = true;
                             self.phase = RunPhase::GameOver;
@@ -1073,7 +1095,7 @@ mod tests {
     fn test_run_engine_creation() {
         let engine = RunEngine::new(42, 20);
         assert_eq!(engine.run_state.current_hp, 68); // A14+ = 68
-        assert_eq!(engine.run_state.deck.len(), 10);
+        assert_eq!(engine.run_state.deck.len(), 11); // 10 base + AscendersBane (A10+)
         assert_eq!(engine.phase, RunPhase::MapChoice);
         assert!(!engine.is_done());
     }
@@ -1219,5 +1241,88 @@ mod tests {
         // Leave shop
         engine.step(&RunAction::ShopLeave);
         assert_eq!(engine.phase, RunPhase::MapChoice);
+    }
+
+    #[test]
+    fn test_a10_deck_contains_ascenders_bane() {
+        // A10+ should have AscendersBane in starter deck
+        let engine = RunEngine::new(42, 10);
+        assert!(
+            engine.run_state.deck.contains(&"AscendersBane".to_string()),
+            "A10 deck should contain AscendersBane"
+        );
+        assert_eq!(engine.run_state.deck.len(), 11); // 10 base + 1 curse
+
+        // Below A10 should not have it
+        let engine_low = RunEngine::new(42, 9);
+        assert!(
+            !engine_low.run_state.deck.contains(&"AscendersBane".to_string()),
+            "A9 deck should not contain AscendersBane"
+        );
+        assert_eq!(engine_low.run_state.deck.len(), 10);
+    }
+
+    #[test]
+    fn test_golden_idol_costs_hp() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.max_hp = 72;
+        engine.run_state.current_hp = 72;
+        let gold_before = engine.run_state.gold;
+
+        // Set up Golden Idol event manually
+        engine.current_event = Some(EventDef {
+            name: "Golden Idol".to_string(),
+            options: vec![
+                EventOption {
+                    text: "Take".into(),
+                    effect: EventEffect::GoldenIdolTake,
+                },
+                EventOption {
+                    text: "Leave".into(),
+                    effect: EventEffect::Nothing,
+                },
+            ],
+        });
+        engine.phase = RunPhase::Event;
+
+        engine.step(&RunAction::EventChoice(0));
+
+        // Should lose 25% of 72 = 18 HP
+        assert_eq!(engine.run_state.current_hp, 72 - 18);
+        // Should gain 300 gold
+        assert_eq!(engine.run_state.gold, gold_before + 300);
+    }
+
+    #[test]
+    fn test_shop_removal_only_once() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.gold = 10000;
+        engine.run_state.deck = vec![
+            "Strike_P".to_string(),
+            "Strike_P".to_string(),
+            "Strike_P".to_string(),
+            "Strike_P".to_string(),
+            "Defend_P".to_string(),
+            "Defend_P".to_string(),
+            "Defend_P".to_string(),
+            "Eruption".to_string(),
+            "Vigilance".to_string(),
+            "Tantrum".to_string(),
+        ];
+        engine.enter_shop();
+
+        // Should have removal options available
+        let actions = engine.get_legal_actions();
+        let has_remove = actions.iter().any(|a| matches!(a, RunAction::ShopRemoveCard(_)));
+        assert!(has_remove, "Should offer card removal before first use");
+
+        // Remove a card
+        engine.step(&RunAction::ShopRemoveCard(0));
+        assert_eq!(engine.run_state.deck.len(), 9);
+
+        // After removal, should NOT have removal options
+        let actions_after = engine.get_legal_actions();
+        let has_remove_after = actions_after.iter().any(|a| matches!(a, RunAction::ShopRemoveCard(_)));
+        assert!(!has_remove_after, "Should not offer card removal after first use");
     }
 }

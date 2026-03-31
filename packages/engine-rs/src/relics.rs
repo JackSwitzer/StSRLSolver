@@ -79,6 +79,10 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                 // Heal 2 HP at combat start
                 state.player.hp = (state.player.hp + 2).min(state.player.max_hp);
             }
+            "PureWater" => {
+                // Add a Miracle card to hand at combat start
+                state.hand.push("Miracle".to_string());
+            }
             _ => {} // Unknown relic, ignore
         }
     }
@@ -304,6 +308,18 @@ mod tests {
         assert_eq!(state.player.strength(), 1);
         assert!(state.enemies[0].entity.is_vulnerable());
         assert_eq!(state.player.block, 10);
+    }
+
+    #[test]
+    fn test_pure_water_adds_miracle() {
+        let mut state = make_test_state();
+        state.relics.push("PureWater".to_string());
+
+        let hand_before = state.hand.len();
+        apply_combat_start_relics(&mut state);
+
+        assert_eq!(state.hand.len(), hand_before + 1);
+        assert_eq!(state.hand.last().unwrap(), "Miracle");
     }
 
     #[test]

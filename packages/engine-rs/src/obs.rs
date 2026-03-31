@@ -22,8 +22,48 @@ pub const ACTION_SLOTS: usize = 10;
 pub const ACTION_FEAT_DIM: usize = 22;
 
 // Relic catalog — sorted list matching Python's sorted(ALL_RELICS.keys())
-// We use a fixed list; unknown relics are ignored.
+// Generated from: sorted(ALL_RELICS.keys()) in packages/engine/content/relics.py
 const N_RELICS: usize = 181;
+
+const RELIC_CATALOG: [&str; N_RELICS] = [
+    "Akabeko", "Anchor", "Ancient Tea Set", "Art of War", "Astrolabe",
+    "Bag of Marbles", "Bag of Preparation", "Bird Faced Urn", "Black Blood", "Black Star",
+    "Blood Vial", "Bloody Idol", "Blue Candle", "Boot", "Bottled Flame",
+    "Bottled Lightning", "Bottled Tornado", "Brimstone", "Bronze Scales", "Burning Blood",
+    "Busted Crown", "Cables", "Calipers", "Calling Bell", "CaptainsWheel",
+    "Cauldron", "Centennial Puzzle", "CeramicFish", "Champion Belt", "Charon's Ashes",
+    "Chemical X", "Circlet", "CloakClasp", "ClockworkSouvenir", "Coffee Dripper",
+    "Cracked Core", "CultistMask", "Cursed Key", "Damaru", "Darkstone Periapt",
+    "DataDisk", "Dead Branch", "Discerning Monocle", "DollysMirror", "Dream Catcher",
+    "Du-Vu Doll", "Ectoplasm", "Emotion Chip", "Empty Cage", "Enchiridion",
+    "Eternal Feather", "FaceOfCleric", "FossilizedHelix", "Frozen Egg 2", "Frozen Eye",
+    "FrozenCore", "Fusion Hammer", "Gambling Chip", "Ginger", "Girya",
+    "Golden Idol", "GoldenEye", "Gremlin Horn", "GremlinMask", "HandDrill",
+    "Happy Flower", "HolyWater", "HornCleat", "HoveringKite", "Ice Cream",
+    "Incense Burner", "InkBottle", "Inserter", "Juzu Bracelet", "Kunai",
+    "Lantern", "Lee's Waffle", "Letter Opener", "Lizard Tail", "Magic Flower",
+    "Mango", "Mark of Pain", "Mark of the Bloom", "Matryoshka", "MawBank",
+    "MealTicket", "Meat on the Bone", "Medical Kit", "Melange", "Membership Card",
+    "Mercury Hourglass", "Molten Egg 2", "Mummified Hand", "MutagenicStrength", "Necronomicon",
+    "NeowsBlessing", "Nilry's Codex", "Ninja Scroll", "Nloth's Gift", "NlothsMask",
+    "Nuclear Battery", "Nunchaku", "Odd Mushroom", "Oddly Smooth Stone", "Old Coin",
+    "Omamori", "OrangePellets", "Orichalcum", "Ornamental Fan", "Orrery",
+    "Pandora's Box", "Pantograph", "Paper Crane", "Paper Frog", "Peace Pipe",
+    "Pear", "Pen Nib", "Philosopher's Stone", "Pocketwatch", "Potion Belt",
+    "Prayer Wheel", "PreservedInsect", "PrismaticShard", "PureWater", "Question Card",
+    "Red Circlet", "Red Mask", "Red Skull", "Regal Pillow", "Ring of the Serpent",
+    "Ring of the Snake", "Runic Capacitor", "Runic Cube", "Runic Dome", "Runic Pyramid",
+    "SacredBark", "Self Forming Clay", "Shovel", "Shuriken", "Singing Bowl",
+    "SlaversCollar", "Sling", "Smiling Mask", "Snake Skull", "Snecko Eye",
+    "Sozu", "Spirit Poop", "SsserpentHead", "StoneCalendar", "Strange Spoon",
+    "Strawberry", "StrikeDummy", "Sundial", "Symbiotic Virus", "TeardropLocket",
+    "The Courier", "The Specimen", "TheAbacus", "Thread and Needle", "Tingsha",
+    "Tiny Chest", "Tiny House", "Toolbox", "Torii", "Tough Bandages",
+    "Toxic Egg 2", "Toy Ornithopter", "TungstenRod", "Turnip", "TwistedFunnel",
+    "Unceasing Top", "Vajra", "Velvet Choker", "VioletLotus", "War Paint",
+    "WarpedTongs", "Whetstone", "White Beast Statue", "WingedGreaves", "WristBlade",
+    "Yang",
+];
 
 /// Boss ID mapping matching Python's _BOSS_ID_MAP.
 fn boss_id_index(name: &str) -> i32 {
@@ -235,10 +275,11 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     off += 16;
 
     // --- Relic binary flags (181 dims) ---
-    // Simplified: we don't maintain a full sorted catalog, so encode by hash position
+    // Uses sorted catalog matching Python's sorted(ALL_RELICS.keys())
     for relic in &rs.relics {
-        let hash_idx = simple_relic_hash(relic) % N_RELICS;
-        obs[off + hash_idx] = 1.0;
+        if let Some(idx) = relic_catalog_index(relic) {
+            obs[off + idx] = 1.0;
+        }
     }
     off += N_RELICS;
 
@@ -321,13 +362,10 @@ fn encode_map_lookahead(engine: &RunEngine, obs: &mut [f32; RUN_DIM], off: usize
     }
 }
 
-/// Simple hash for relic name -> index. Not perfect but functional.
-fn simple_relic_hash(relic: &str) -> usize {
-    let mut hash: usize = 5381;
-    for b in relic.bytes() {
-        hash = hash.wrapping_mul(33).wrapping_add(b as usize);
-    }
-    hash
+/// Look up relic index in the sorted catalog (matches Python's sorted(ALL_RELICS.keys())).
+/// Returns None for unknown relics.
+fn relic_catalog_index(relic: &str) -> Option<usize> {
+    RELIC_CATALOG.iter().position(|&r| r == relic)
 }
 
 // ---------------------------------------------------------------------------
@@ -609,6 +647,23 @@ mod tests {
         let ev = card_effect_vector("Strike_P", &registry);
         assert!(ev[1] > 0.0, "Strike should have damage > 0");
         assert_eq!(ev[8], 1.0, "Strike should be attack type");
+    }
+
+    #[test]
+    fn test_relic_encoding_matches_python_order() {
+        // Verify that relic encoding uses the correct sorted position
+        // matching Python's sorted(ALL_RELICS.keys())
+        assert_eq!(relic_catalog_index("Akabeko"), Some(0));
+        assert_eq!(relic_catalog_index("PureWater"), Some(123));
+        assert_eq!(relic_catalog_index("Vajra"), Some(171));
+        assert_eq!(relic_catalog_index("Yang"), Some(180));
+        assert_eq!(relic_catalog_index("NonexistentRelic"), None);
+
+        // Verify observation vector encodes PureWater at the right position
+        let engine = RunEngine::new(42, 20);
+        let obs = get_observation(&engine);
+        // PureWater is at index 123 in catalog, relic section starts at offset 25
+        assert_eq!(obs[25 + 123], 1.0, "PureWater should be at obs[148]");
     }
 
     #[test]
