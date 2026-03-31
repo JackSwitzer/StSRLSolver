@@ -326,37 +326,58 @@ def apply_vulnerable_1(ctx: EffectContext) -> None:
 
 @effect_simple("add_insight_to_draw")
 def add_insight_to_draw(ctx: EffectContext) -> None:
-    """Add an Insight to top of draw pile (Evaluate)."""
-    card_id = "Insight+" if ctx.is_upgraded else "Insight"
-    ctx.add_card_to_draw_pile(card_id, "top")
+    """Add an Insight to top of draw pile (Evaluate).
+
+    Java: Evaluate always creates base Insight.
+    Upgrading only increases block (6->10), not the generated card.
+    """
+    ctx.add_card_to_draw_pile("Insight", "top")
 
 
 @effect_simple("add_smite_to_hand")
 def add_smite_to_hand(ctx: EffectContext) -> None:
-    """Add a Smite to hand (Carve Reality)."""
-    card_id = "Smite+" if ctx.is_upgraded else "Smite"
+    """Add a Smite to hand (Carve Reality).
+
+    Java: CarveReality always creates base Smite via MakeTempCardInHandAction.
+    Upgrading CarveReality only increases damage, not the generated card.
+    MasterReality auto-upgrades the generated Smite.
+    """
+    upgraded = ctx.get_player_status("MasterReality") > 0
+    card_id = "Smite+" if upgraded else "Smite"
     ctx.add_card_to_hand(card_id)
 
 
 @effect_simple("add_safety_to_hand")
 def add_safety_to_hand(ctx: EffectContext) -> None:
-    """Add a Safety to hand (Deceive Reality)."""
-    card_id = "Safety+" if ctx.is_upgraded else "Safety"
+    """Add a Safety to hand (Deceive Reality).
+
+    Java: DeceiveReality always creates base Safety via MakeTempCardInHandAction.
+    Upgrading DeceiveReality only increases block, not the generated card.
+    MasterReality auto-upgrades the generated Safety.
+    """
+    upgraded = ctx.get_player_status("MasterReality") > 0
+    card_id = "Safety+" if upgraded else "Safety"
     ctx.add_card_to_hand(card_id)
 
 
 @effect_simple("add_through_violence_to_draw")
 def add_through_violence_to_draw(ctx: EffectContext) -> None:
-    """Add Through Violence to top of draw pile (Reach Heaven)."""
-    card_id = "ThroughViolence+" if ctx.is_upgraded else "ThroughViolence"
-    ctx.add_card_to_draw_pile(card_id, "top")
+    """Add Through Violence to top of draw pile (Reach Heaven).
+
+    Java: ReachHeaven always creates base ThroughViolence.
+    Upgrading only increases damage (10->15), not the generated card.
+    """
+    ctx.add_card_to_draw_pile("ThroughViolence", "top")
 
 
 @effect_simple("shuffle_beta_into_draw")
 def shuffle_beta_into_draw(ctx: EffectContext) -> None:
-    """Shuffle Beta into draw pile (Alpha)."""
-    card_id = "Beta+" if ctx.is_upgraded else "Beta"
-    ctx.add_card_to_draw_pile(card_id, "random")
+    """Shuffle Beta into draw pile (Alpha).
+
+    Java: Alpha always creates base Beta.
+    Upgrading only makes Alpha innate, not the generated card.
+    """
+    ctx.add_card_to_draw_pile("Beta", "random")
 
 
 @effect_simple("shuffle_omega_into_draw")
@@ -760,11 +781,14 @@ def wave_of_the_hand_effect(ctx: EffectContext) -> None:
 
 @effect_simple("gain_mantra_add_insight")
 def pray_effect(ctx: EffectContext) -> None:
-    """Pray - Gain mantra and add Insight to draw pile."""
+    """Pray - Gain mantra and add Insight to draw pile.
+
+    Java: Pray always creates base Insight.
+    Upgrading only increases mantra (3->4), not the generated card.
+    """
     mantra = ctx.magic_number if ctx.magic_number > 0 else 3
     ctx.gain_mantra(mantra)
-    card_id = "Insight+" if ctx.is_upgraded else "Insight"
-    ctx.add_card_to_draw_pile(card_id, "random")
+    ctx.add_card_to_draw_pile("Insight", "random")
 
 
 # =============================================================================
@@ -1840,7 +1864,10 @@ def add_burn_to_discard(ctx: EffectContext) -> None:
 
 @effect_simple("add_random_attack_cost_0")
 def add_random_attack_cost_0(ctx: EffectContext) -> None:
-    """Infernal Blade - Add a random Attack that costs 0 this turn."""
+    """Infernal Blade - Add a random Attack that costs 0 this turn.
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
     from ..content.cards import ALL_CARDS, CardType, CardColor
     attacks = [
         cid for cid, c in ALL_CARDS.items()
@@ -1849,6 +1876,9 @@ def add_random_attack_cost_0(ctx: EffectContext) -> None:
     ]
     if attacks:
         card_id = ctx.random_choice(attacks)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.get_player_status("MasterReality") > 0 and not card_id.endswith("+"):
+            card_id = card_id + "+"
         ctx.add_card_to_hand(card_id)
         # Mark card as cost 0 this turn
         if not hasattr(ctx.state, "card_costs"):
@@ -2997,7 +3027,8 @@ def put_card_on_draw_pile_cost_0(ctx: EffectContext) -> None:
 def add_random_skill_cost_0(ctx: EffectContext) -> None:
     """Add a random Skill to hand that costs 0 (Distraction).
 
-    Java: AbstractDungeon.returnTrulyRandomCardInCombat(CardType.SKILL)
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    AbstractDungeon.returnTrulyRandomCardInCombat(CardType.SKILL)
     Returns any Skill from any color (not just Green).
     """
     from ..content.cards import ALL_CARDS, CardType
@@ -3008,6 +3039,9 @@ def add_random_skill_cost_0(ctx: EffectContext) -> None:
     ]
     if skills:
         card_id = ctx.random_choice(skills)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.get_player_status("MasterReality") > 0 and not card_id.endswith("+"):
+            card_id = card_id + "+"
         ctx.add_card_to_hand(card_id)
         # Mark card as cost 0 this turn
         ctx.state.card_costs = getattr(ctx.state, 'card_costs', {})

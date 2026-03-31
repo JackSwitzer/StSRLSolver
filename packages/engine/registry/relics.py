@@ -405,8 +405,13 @@ def inserter_init(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="PureWater")
 def pure_water_start(ctx: RelicContext) -> None:
-    """Pure Water: Add Miracle to hand at combat start."""
-    ctx.add_card_to_hand("Miracle")
+    """Pure Water: Add Miracle to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
+    ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Bag of Preparation")
@@ -437,11 +442,17 @@ def gambling_chip_turn_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="Enchiridion")
 def enchiridion_start(ctx: RelicContext) -> None:
-    """Enchiridion: Add a random Power card to hand (costs 0 this turn)."""
+    """Enchiridion: Add a random Power card to hand (costs 0 this turn).
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
     from ..content.cards import ALL_CARDS, CardType
     powers = [cid for cid, card in ALL_CARDS.items() if card.card_type == CardType.POWER]
     if powers:
         chosen = ctx.random_choice(powers)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.player.statuses.get("MasterReality", 0) > 0 and not chosen.endswith("+"):
+            chosen = chosen + "+"
         ctx.add_card_to_hand(chosen)
         # Set the card to cost 0 for this turn
         if hasattr(ctx.state, 'card_costs'):
@@ -450,16 +461,26 @@ def enchiridion_start(ctx: RelicContext) -> None:
 
 @relic_trigger("atBattleStartPreDraw", relic="HolyWater")
 def holy_water_start(ctx: RelicContext) -> None:
-    """Holy Water: Add 3 Miracles to hand at combat start."""
+    """Holy Water: Add 3 Miracles to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Miracle+" if upgraded else "Miracle"
     for _ in range(3):
-        ctx.add_card_to_hand("Miracle")
+        ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Ninja Scroll")
 def ninja_scroll_start(ctx: RelicContext) -> None:
-    """Ninja Scroll: Add 3 Shivs to hand at combat start."""
+    """Ninja Scroll: Add 3 Shivs to hand at combat start.
+
+    Java: MakeTempCardInHandAction checks MasterRealityPower and auto-upgrades.
+    """
+    upgraded = ctx.player.statuses.get("MasterReality", 0) > 0
+    card_id = "Shiv+" if upgraded else "Shiv"
     for _ in range(3):
-        ctx.add_card_to_hand("Shiv")
+        ctx.add_card_to_hand(card_id)
 
 
 @relic_trigger("atBattleStartPreDraw", relic="Ring of the Snake")
@@ -969,7 +990,10 @@ def charons_ashes_exhaust(ctx: RelicContext) -> None:
 
 @relic_trigger("onExhaust", relic="Dead Branch")
 def dead_branch_exhaust(ctx: RelicContext) -> None:
-    """Dead Branch: Add a random card to hand when a card is exhausted."""
+    """Dead Branch: Add a random card to hand when a card is exhausted.
+
+    Java: Uses MakeTempCardInHandAction which checks MasterReality.
+    """
     from ..content.cards import ALL_CARDS
 
     # Get all non-curse, non-status cards
@@ -978,6 +1002,9 @@ def dead_branch_exhaust(ctx: RelicContext) -> None:
 
     if pool:
         random_card = ctx.random_choice(pool)
+        # MasterReality auto-upgrades non-curse/status temp cards
+        if ctx.player.statuses.get("MasterReality", 0) > 0 and not random_card.endswith("+"):
+            random_card = random_card + "+"
         ctx.add_card_to_hand(random_card)
 
 
