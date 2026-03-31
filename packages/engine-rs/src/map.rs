@@ -183,14 +183,13 @@ pub fn generate_map(seed: u64, ascension: i32) -> DungeonMap {
 
 /// Simple RNG wrapper matching Java's Random.random(range) behavior.
 struct MapRng {
-    rng: rand::rngs::SmallRng,
+    rng: crate::seed::StsRandom,
 }
 
 impl MapRng {
     fn new(seed: u64) -> Self {
-        use rand::SeedableRng;
         Self {
-            rng: rand::rngs::SmallRng::seed_from_u64(seed),
+            rng: crate::seed::StsRandom::new(seed),
         }
     }
 

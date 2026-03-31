@@ -5,7 +5,6 @@
 //! Exposes step(action) -> (obs, reward, done, info) RL interface.
 
 use rand::Rng;
-use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
 use crate::enemies;
@@ -378,7 +377,7 @@ pub struct RunEngine {
     pub map: DungeonMap,
     pub phase: RunPhase,
     pub seed: u64,
-    rng: rand::rngs::SmallRng,
+    rng: crate::seed::StsRandom,
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
@@ -408,7 +407,7 @@ impl RunEngine {
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
         let map = generate_map(seed, ascension);
-        let mut rng = rand::rngs::SmallRng::seed_from_u64(seed.wrapping_add(1));
+        let mut rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
 
         // Pick boss
         let boss_idx = rng.gen_range(0..ACT1_BOSSES.len());
@@ -1198,7 +1197,7 @@ mod tests {
     fn test_full_run_terminates() {
         // Run a full game with random actions — it should eventually terminate
         let mut engine = RunEngine::new(42, 20);
-        let mut rng = rand::rngs::SmallRng::seed_from_u64(42);
+        let mut rng = crate::seed::StsRandom::new(42);
         let mut steps = 0;
         let max_steps = 50_000;
 

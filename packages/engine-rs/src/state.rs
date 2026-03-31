@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::cards::CardType;
+use crate::orbs::OrbSlots;
 
 // ---------------------------------------------------------------------------
 // Stance
@@ -243,6 +244,9 @@ pub struct CombatState {
     /// Cards explicitly retained this turn (e.g. by Meditate).
     /// These survive the end-of-turn discard even without the "retain" effect.
     pub retained_cards: Vec<String>,
+
+    /// Orb slots (Defect mechanic, also available for cross-character mods).
+    pub orb_slots: OrbSlots,
 }
 
 impl CombatState {
@@ -280,6 +284,7 @@ impl CombatState {
             total_cards_played: 0,
             relics: Vec::new(),
             retained_cards: Vec::new(),
+            orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
         }
     }
 

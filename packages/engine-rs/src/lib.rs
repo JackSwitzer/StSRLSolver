@@ -15,10 +15,12 @@ pub mod enemies;
 pub mod engine;
 pub mod map;
 pub mod obs;
+pub mod orbs;
 pub mod potions;
 pub mod powers;
 pub mod relics;
 pub mod run;
+pub mod seed;
 pub mod state;
 
 #[cfg(test)]
@@ -38,7 +40,258 @@ fn sts_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<state::PyCombatState>()?;
     m.add_class::<actions::PyAction>()?;
     m.add_class::<PyRunEngine>()?;
+    m.add_class::<StSEngine>()?;
+    m.add_class::<ActionInfo>()?;
+    m.add_class::<CombatSolver>()?;
     Ok(())
+}
+
+// ===========================================================================
+// ActionInfo — describes a legal action
+// ===========================================================================
+
+#[pyclass]
+#[derive(Clone)]
+pub struct ActionInfo {
+    #[pyo3(get)]
+    pub id: i32,
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub action_type: String,
+}
+
+#[pymethods]
+impl ActionInfo {
+    fn __repr__(&self) -> String {
+        format!("ActionInfo(id={}, name='{}', type='{}')", self.id, self.name, self.action_type)
+    }
+}
+
+// ===========================================================================
+// CombatSolver — cloned combat state for MCTS lookahead
+// ===========================================================================
+
+#[pyclass]
+#[derive(Clone)]
+pub struct CombatSolver {
+    engine: engine::CombatEngine,
+}
+
+#[pymethods]
+impl CombatSolver {
+    fn step(&mut self, action_id: i32) -> PyResult<(f32, bool)> {
+        let action = match action_id {
+            0 => crate::actions::Action::EndTurn,
+            id if id >= 1 && id < 100 => {
+                let c = id - 1;
+                crate::actions::Action::PlayCard {
+                    card_idx: (c / 6) as usize,
+                    target_idx: (c % 6) as i32 - 1,
+                }
+            }
+            id if id >= 100 => {
+                let p = id - 100;
+                crate::actions::Action::UsePotion {
+                    potion_idx: (p / 6) as usize,
+                    target_idx: (p % 6) as i32 - 1,
+                }
+            }
+            _ => return Err(pyo3::exceptions::PyValueError::new_err("Invalid action id")),
+        };
+
+        self.engine.execute_action(&action);
+        let done = self.engine.is_combat_over();
+        // Combat actions don't return reward directly; reward computed at run level
+        Ok((0.0, done))
+    }
+
+    fn get_legal_actions(&self) -> Vec<i32> {
+        self.engine
+            .get_legal_actions()
+            .iter()
+            .map(|a| match a {
+                crate::actions::Action::EndTurn => 0,
+                crate::actions::Action::PlayCard { card_idx, target_idx } => {
+                    1 + (*card_idx as i32 * 6) + (*target_idx + 1)
+                }
+                crate::actions::Action::UsePotion { potion_idx, target_idx } => {
+                    100 + (*potion_idx as i32 * 6) + (*target_idx + 1)
+                }
+            })
+            .collect()
+    }
+
+    fn is_done(&self) -> bool {
+        self.engine.is_combat_over()
+    }
+
+    fn is_won(&self) -> bool {
+        self.engine.state.player_won
+    }
+
+    fn copy(&self) -> Self {
+        Self {
+            engine: self.engine.clone(),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CombatSolver(hp={}/{}, turn={}, done={})",
+            self.engine.state.player.hp,
+            self.engine.state.player.max_hp,
+            self.engine.state.turn,
+            self.engine.is_combat_over(),
+        )
+    }
+}
+
+// ===========================================================================
+// StSEngine — Gym-style API wrapping RunEngine
+// ===========================================================================
+
+#[pyclass]
+pub struct StSEngine {
+    inner: run::RunEngine,
+    run_engine_py: PyRunEngine,
+}
+
+#[pymethods]
+impl StSEngine {
+    #[new]
+    #[pyo3(signature = (seed, ascension=20, character="watcher"))]
+    fn new(seed: &str, ascension: i32, character: &str) -> Self {
+        let _ = character; // Only Watcher supported currently
+        let seed_val = seed::seed_from_string(seed);
+        let engine = run::RunEngine::new(seed_val, ascension);
+        let run_py = PyRunEngine {
+            inner: engine.clone(),
+        };
+        Self {
+            inner: engine,
+            run_engine_py: run_py,
+        }
+    }
+
+    /// Gym-style step: action -> (obs, reward, done, info)
+    fn step<'py>(&mut self, py: Python<'py>, action: i32) -> PyResult<(Vec<f32>, f32, bool, Bound<'py, PyDict>)> {
+        self.run_engine_py.inner = self.inner.clone();
+        let (reward, done) = self.run_engine_py.step(action);
+        self.inner = self.run_engine_py.inner.clone();
+
+        let obs_vec = obs::get_observation(&self.inner).to_vec();
+        let info = PyDict::new_bound(py);
+        info.set_item("floor", self.inner.run_state.floor)?;
+        info.set_item("hp", self.inner.run_state.current_hp)?;
+        info.set_item("phase", match self.inner.current_phase() {
+            run::RunPhase::MapChoice => "map",
+            run::RunPhase::Combat => "combat",
+            run::RunPhase::CardReward => "card_reward",
+            run::RunPhase::Campfire => "campfire",
+            run::RunPhase::Shop => "shop",
+            run::RunPhase::Event => "event",
+            run::RunPhase::GameOver => "game_over",
+        })?;
+        info.set_item("run_won", self.inner.run_state.run_won)?;
+
+        Ok((obs_vec, reward, done, info))
+    }
+
+    fn reset(&mut self, seed: &str) {
+        let seed_val = seed::seed_from_string(seed);
+        self.inner.reset(seed_val);
+    }
+
+    fn get_state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
+        dict.set_item("floor", self.inner.run_state.floor)?;
+        dict.set_item("hp", self.inner.run_state.current_hp)?;
+        dict.set_item("max_hp", self.inner.run_state.max_hp)?;
+        dict.set_item("gold", self.inner.run_state.gold)?;
+        dict.set_item("deck_size", self.inner.run_state.deck.len())?;
+        dict.set_item("combats_won", self.inner.run_state.combats_won)?;
+        dict.set_item("elites_killed", self.inner.run_state.elites_killed)?;
+        dict.set_item("bosses_killed", self.inner.run_state.bosses_killed)?;
+        dict.set_item("run_won", self.inner.run_state.run_won)?;
+        dict.set_item("total_reward", self.inner.total_reward)?;
+        dict.set_item("phase", match self.inner.current_phase() {
+            run::RunPhase::MapChoice => "map",
+            run::RunPhase::Combat => "combat",
+            run::RunPhase::CardReward => "card_reward",
+            run::RunPhase::Campfire => "campfire",
+            run::RunPhase::Shop => "shop",
+            run::RunPhase::Event => "event",
+            run::RunPhase::GameOver => "game_over",
+        })?;
+        Ok(dict)
+    }
+
+    fn get_legal_actions(&self) -> Vec<ActionInfo> {
+        let py_re = PyRunEngine {
+            inner: self.inner.clone(),
+        };
+        let action_ids = py_re.get_legal_actions();
+        action_ids
+            .into_iter()
+            .map(|id| {
+                let (name, atype) = if id >= COMBAT_BASE + 100 {
+                    (format!("use_potion_{}", id - COMBAT_BASE - 100), "potion".to_string())
+                } else if id >= COMBAT_BASE + 1 {
+                    (format!("play_card_{}", id - COMBAT_BASE - 1), "card".to_string())
+                } else if id == COMBAT_BASE {
+                    ("end_turn".to_string(), "combat".to_string())
+                } else if id >= EVENT_BASE {
+                    (format!("event_choice_{}", id - EVENT_BASE), "event".to_string())
+                } else if id == SHOP_LEAVE {
+                    ("shop_leave".to_string(), "shop".to_string())
+                } else if id >= SHOP_REMOVE_BASE {
+                    (format!("shop_remove_{}", id - SHOP_REMOVE_BASE), "shop".to_string())
+                } else if id >= SHOP_BUY_BASE {
+                    (format!("shop_buy_{}", id - SHOP_BUY_BASE), "shop".to_string())
+                } else if id >= CAMP_UPGRADE_BASE {
+                    (format!("camp_upgrade_{}", id - CAMP_UPGRADE_BASE), "campfire".to_string())
+                } else if id == CAMP_REST {
+                    ("camp_rest".to_string(), "campfire".to_string())
+                } else if id == CARD_SKIP {
+                    ("card_skip".to_string(), "card_reward".to_string())
+                } else if id >= CARD_PICK_BASE {
+                    (format!("card_pick_{}", id - CARD_PICK_BASE), "card_reward".to_string())
+                } else {
+                    (format!("choose_path_{}", id), "map".to_string())
+                };
+                ActionInfo { id, name, action_type: atype }
+            })
+            .collect()
+    }
+
+    fn clone_combat(&self) -> Option<CombatSolver> {
+        // Only available during combat phase
+        if self.inner.current_phase() != run::RunPhase::Combat {
+            return None;
+        }
+        // Get the combat engine from the run engine
+        if let Some(ce) = self.inner.get_combat_engine() {
+            Some(CombatSolver { engine: ce.clone() })
+        } else {
+            None
+        }
+    }
+
+    fn get_seed(&self) -> String {
+        seed::seed_to_string(self.inner.seed)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "StSEngine(seed='{}', floor={}, hp={}/{}, phase={:?})",
+            self.get_seed(),
+            self.inner.run_state.floor,
+            self.inner.run_state.current_hp,
+            self.inner.run_state.max_hp,
+            self.inner.current_phase(),
+        )
+    }
 }
 
 // ===========================================================================

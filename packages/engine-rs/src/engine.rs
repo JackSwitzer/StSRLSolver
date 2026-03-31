@@ -13,7 +13,6 @@
 use pyo3::prelude::*;
 use rand::Rng;
 use rand::seq::SliceRandom;
-use rand::SeedableRng;
 
 use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -39,7 +38,7 @@ pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
     pub card_registry: CardRegistry,
-    rng: rand::rngs::SmallRng,
+    rng: crate::seed::StsRandom,
 }
 
 impl CombatEngine {
@@ -49,7 +48,7 @@ impl CombatEngine {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: CardRegistry::new(),
-            rng: rand::rngs::SmallRng::seed_from_u64(seed),
+            rng: crate::seed::StsRandom::new(seed),
         }
     }
 
