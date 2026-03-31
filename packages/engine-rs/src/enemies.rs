@@ -46,6 +46,16 @@ pub mod move_ids {
     pub const SS_LICK: i32 = 4; // Frail
     pub const SS_SPLIT: i32 = 3;
 
+    // Gremlin Nob
+    pub const NOB_BELLOW: i32 = 1;
+    pub const NOB_RUSH: i32 = 2;
+    pub const NOB_SKULL_BASH: i32 = 3;
+
+    // Lagavulin
+    pub const LAGA_SLEEP: i32 = 1;
+    pub const LAGA_ATTACK: i32 = 2;
+    pub const LAGA_SIPHON: i32 = 3;
+
     // Sentry
     pub const SENTRY_BOLT: i32 = 1;
     pub const SENTRY_BEAM: i32 = 2;
@@ -138,6 +148,18 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Large: Tackle (16 damage) or Lick (frail 2)
             enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
         }
+        "GremlinNob" | "Gremlin Nob" => {
+            // First turn: Bellow (gain Enrage power)
+            enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
+            // Enrage: +2 Strength each time player plays a non-Attack (A2+=3)
+            enemy.entity.set_status("Enrage", 2);
+        }
+        "Lagavulin" => {
+            // Starts asleep for 3 turns (high block/metallicize while sleeping)
+            enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
+            enemy.entity.set_status("Metallicize", 8);
+            enemy.entity.set_status("SleepTurns", 3);
+        }
         "Sentry" => {
             // Alternates Bolt/Beam. Start with Bolt (9 damage)
             enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
@@ -187,6 +209,8 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState) {
         "SpikeSlime_S" => roll_spike_slime_s(enemy),
         "SpikeSlime_M" => roll_spike_slime_m(enemy),
         "SpikeSlime_L" => roll_spike_slime_l(enemy),
+        "GremlinNob" | "Gremlin Nob" => roll_gremlin_nob(enemy),
+        "Lagavulin" => roll_lagavulin(enemy),
         "Sentry" => roll_sentry(enemy),
         "TheGuardian" => roll_guardian(enemy),
         "Hexaghost" => roll_hexaghost(enemy),
@@ -385,6 +409,51 @@ fn roll_spike_slime_l(enemy: &mut EnemyCombatState) {
     } else {
         enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
     }
+}
+
+fn roll_gremlin_nob(enemy: &mut EnemyCombatState) {
+    // After Bellow: Rush -> Skull Bash cycle
+    // Rush: 14 damage, Skull Bash: 6 damage + apply 2 Vulnerable
+    if last_move(enemy, move_ids::NOB_BELLOW) || last_move(enemy, move_ids::NOB_SKULL_BASH) {
+        enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
+    } else {
+        // After Rush: Skull Bash
+        enemy.set_move(move_ids::NOB_SKULL_BASH, 6, 1, 0);
+        enemy.move_effects.insert("vulnerable".to_string(), 2);
+    }
+}
+
+fn roll_lagavulin(enemy: &mut EnemyCombatState) {
+    let sleep_turns = enemy.entity.status("SleepTurns");
+
+    if sleep_turns > 0 {
+        // Still sleeping: decrement sleep counter, remain idle
+        enemy.entity.set_status("SleepTurns", sleep_turns - 1);
+        if sleep_turns - 1 <= 0 {
+            // Wake up: remove Metallicize, prepare attack
+            enemy.entity.set_status("Metallicize", 0);
+            enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
+        } else {
+            enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
+        }
+    } else {
+        // Awake: alternate Attack (18 damage) and Siphon Soul (-1 Str, -1 Dex)
+        if last_move(enemy, move_ids::LAGA_ATTACK) {
+            enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
+            // Siphon Soul debuffs are applied via move_effects
+            enemy.move_effects.insert("siphon_str".to_string(), 1);
+            enemy.move_effects.insert("siphon_dex".to_string(), 1);
+        } else {
+            enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
+        }
+    }
+}
+
+/// Wake Lagavulin early (e.g. when player deals damage to it while sleeping).
+pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
+    enemy.entity.set_status("SleepTurns", 0);
+    enemy.entity.set_status("Metallicize", 0);
+    enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
 }
 
 fn roll_sentry(enemy: &mut EnemyCombatState) {
