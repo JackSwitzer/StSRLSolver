@@ -140,6 +140,11 @@ cmd_start() {
     run_dir=$(create_run_dir)
     local run_log="$run_dir/nohup.log"
 
+    # Preflight: disk check
+    echo "Preflight: disk check..."
+    bash scripts/disk-manager.sh status
+    echo ""
+
     echo "Starting training..."
     echo "  Games: $games | Workers: $workers | Batch: $batch | Ascension: $asc"
     echo "  Run dir: $run_dir"
@@ -415,6 +420,10 @@ case "${1:-status}" in
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
     prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;
+    disk)
+        shift
+        bash scripts/disk-manager.sh "${@:-status}"
+        ;;
     data)
         shift
         case "${1:-inventory}" in
@@ -585,6 +594,12 @@ SYSTEM
         echo "  data inventory  Inventory all training data"
         echo "  data quality    Run quality checks"
         echo "  data organize   Organize into tiered dirs"
+        echo ""
+        echo "Disk:"
+        echo "  disk status     Disk usage breakdown + retention compliance"
+        echo "  disk clean      Apply retention policies"
+        echo "  disk archive    Compress old runs for export"
+        echo "  disk policy     Show retention settings"
         echo ""
         echo "Management:"
         echo "  archive    Archive current run"
