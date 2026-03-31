@@ -178,8 +178,12 @@ impl CombatEngine {
             return;
         }
 
-        // Reset energy
-        self.state.energy = self.state.max_energy;
+        // Reset energy — Ice Cream preserves unspent energy
+        if relics::has_ice_cream(&self.state) {
+            self.state.energy += self.state.max_energy;
+        } else {
+            self.state.energy = self.state.max_energy;
+        }
 
         // Reset turn counters
         self.state.cards_played_this_turn = 0;
@@ -189,18 +193,28 @@ impl CombatEngine {
         // Reset per-turn statuses
         self.state.player.set_status("WaveOfTheHand", 0);
 
-        // Lantern: +1 energy on turn 1
-        relics::apply_lantern_turn_start(&mut self.state);
+        // Necronomicon reset
+        relics::necronomicon_reset(&mut self.state);
+
+        // All turn-start relic effects (Lantern, Happy Flower, Mercury Hourglass, etc.)
+        relics::apply_turn_start_relics(&mut self.state);
 
         // Divinity auto-exit at start of turn
         if self.state.stance == Stance::Divinity {
             self.change_stance(Stance::Neutral);
         }
 
-        // Block decay (simplified: no Barricade/Blur/Calipers in fast path)
+        // Block decay — Calipers retains up to 15, Barricade retains all
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
         if self.state.turn > 1 {
-            self.state.player.block = 0;
+            let barricade = self.state.player.status("Barricade") > 0;
+            let blur = self.state.player.status("Blur") > 0;
+            if barricade || blur {
+                // Keep all block
+            } else {
+                let retained = relics::calipers_block_retention(&self.state, self.state.player.block);
+                self.state.player.block = retained;
+            }
         }
 
         // LoseStrength/LoseDexterity at end of previous turn
@@ -293,23 +307,40 @@ impl CombatEngine {
             }
         }
 
-        // Discard hand — respecting Retain and Ethereal
-        let hand = std::mem::take(&mut self.state.hand);
+        // ---- End-of-turn relic triggers (before discard) ----
+        relics::apply_turn_end_relics(&mut self.state);
+
+        // Discard hand — Runic Pyramid keeps entire hand, else respect Retain + Ethereal
         let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
-        let mut retained = Vec::new();
-        for card_id in hand {
-            let card = self.card_registry.get_or_default(&card_id);
-            if card.effects.contains(&"retain") || explicitly_retained.contains(&card_id) {
-                // Retained cards stay in hand
-                retained.push(card_id);
-            } else if card.effects.contains(&"ethereal") {
-                // Ethereal cards exhaust instead of discarding
-                self.state.exhaust_pile.push(card_id);
-            } else {
-                self.state.discard_pile.push(card_id);
+        if relics::has_runic_pyramid(&self.state) {
+            // Runic Pyramid: keep all cards except ethereal (which exhaust)
+            let hand = std::mem::take(&mut self.state.hand);
+            let mut kept = Vec::new();
+            for card_id in hand {
+                let card = self.card_registry.get_or_default(&card_id);
+                if card.effects.contains(&"ethereal") {
+                    self.state.exhaust_pile.push(card_id);
+                } else {
+                    kept.push(card_id);
+                }
             }
+            self.state.hand = kept;
+        } else {
+            // Normal: retain tagged cards + explicitly retained (Meditate), exhaust ethereal, discard rest
+            let hand = std::mem::take(&mut self.state.hand);
+            let mut retained = Vec::new();
+            for card_id in hand {
+                let card = self.card_registry.get_or_default(&card_id);
+                if card.effects.contains(&"retain") || explicitly_retained.contains(&card_id) {
+                    retained.push(card_id);
+                } else if card.effects.contains(&"ethereal") {
+                    self.state.exhaust_pile.push(card_id);
+                } else {
+                    self.state.discard_pile.push(card_id);
+                }
+            }
+            self.state.hand = retained;
         }
-        self.state.hand = retained;
 
         // ---- End-of-turn power triggers ----
 
@@ -413,6 +444,11 @@ impl CombatEngine {
             return false;
         }
 
+        // Velvet Choker: max 6 cards per turn
+        if !relics::velvet_choker_can_play(&self.state) {
+            return false;
+        }
+
         // Energy check
         let cost = self.effective_cost(card, card_id);
         if cost > self.state.energy {
@@ -502,8 +538,8 @@ impl CombatEngine {
             }
         }
 
-        // Ornamental Fan: gain 4 block every 3 cards
-        relics::check_ornamental_fan(&mut self.state);
+        // All on-card-play relic effects (Fan, Kunai, Shuriken, Nunchaku, etc.)
+        relics::on_card_played(&mut self.state, card.card_type);
 
         // Consume NextAttackFree after playing an attack
         if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
