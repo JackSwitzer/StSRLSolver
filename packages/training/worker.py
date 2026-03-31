@@ -52,14 +52,10 @@ def _strategic_search(actions, runner, encoder, client, phase_type, n_actions):
             # Copy runner state, take action i, encode the resulting state
             runner_copy = runner.copy()
             runner_copy.take_action(actions[i])
-            # Rust engine provides obs directly; Python engine uses encoder
-            if hasattr(runner_copy, "get_observation"):
-                obs = runner_copy.get_observation()
-            else:
-                obs = encoder.encode(runner_copy.run_state, phase_type=phase_type,
-                    boss_name=getattr(runner_copy, "_boss_name", ""),
-                    room_type=getattr(runner_copy, "current_room_type", ""),
-                    actions=[], runner=runner_copy)
+            obs = encoder.encode(runner_copy.run_state, phase_type=phase_type,
+                boss_name=getattr(runner_copy, "_boss_name", ""),
+                room_type=getattr(runner_copy, "current_room_type", ""),
+                actions=[], runner=runner_copy)
             resp = client.infer_strategic(obs, 1)
             if resp and resp.get("ok"):
                 option_values.append(float(resp["value"]))
@@ -268,21 +264,11 @@ def _play_one_game(
         transitions: list of dicts with (obs, action_mask, action, reward,
                      done, value, log_prob, final_floor, cleared_act1/2/3)
     """
-    from packages.training.training_config import USE_RUST_ENGINE
-    from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
-
-    # Engine backend selection: Rust (fast, opaque combat) or Python (full control)
-    _use_rust = USE_RUST_ENGINE
-    if _use_rust:
-        from packages.training.rust_engine_wrapper import RustGameRunner, RustGamePhase
-        GamePhase = RustGamePhase  # type: ignore[assignment]
-        CombatAction = None  # Not used with Rust engine
-    else:
-        from packages.engine.game import GameRunner, GamePhase, CombatAction
-
+    from packages.engine.game import GameRunner, GamePhase, CombatAction
     from packages.training.state_encoders import RunStateEncoder, CombatStateEncoder
     from packages.training.inference_server import get_client
     from packages.training.turn_solver import TurnSolverAdapter
+    from packages.training.training_config import COMBAT_MCTS_BUDGETS as _combat_mcts_budgets
 
     encoder = RunStateEncoder()
     _combat_encoder = CombatStateEncoder()
@@ -301,18 +287,15 @@ def _play_one_game(
             logger.warning("Failed to load CombatNet: %s", e)
             _combat_net = None
 
-    # TurnSolver only used with Python engine (Rust engine handles combat internally)
-    turn_solver = None
-    if not _use_rust:
-        turn_solver = TurnSolverAdapter(
-            time_budget_ms=turn_solver_ms,
-            node_budget=_node_budget,
-            multi_turn_depth=MULTI_TURN_DEPTH,
-            multi_turn_k=4,
-            multi_turn_budget_ms=MULTI_TURN_BUDGET_MS,
-            solver_budgets=SOLVER_BUDGETS,
-            combat_net=_combat_net,
-        )
+    turn_solver = TurnSolverAdapter(
+        time_budget_ms=turn_solver_ms,
+        node_budget=_node_budget,
+        multi_turn_depth=MULTI_TURN_DEPTH,
+        multi_turn_k=4,
+        multi_turn_budget_ms=MULTI_TURN_BUDGET_MS,
+        solver_budgets=SOLVER_BUDGETS,
+        combat_net=_combat_net,
+    )
 
     client = get_client()
 
@@ -345,10 +328,7 @@ def _play_one_game(
             pass
 
     try:
-        if _use_rust:
-            runner = RustGameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
-        else:
-            runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
+        runner = GameRunner(seed=seed, ascension=ascension, character="Watcher", verbose=False)
     except (RuntimeError, ValueError, KeyError, AttributeError, IndexError) as e:
         logger.warning("_play_one_game: GameRunner init failed for seed=%s: %s", seed, e)
         return {
@@ -462,8 +442,7 @@ def _play_one_game(
         if phase == GamePhase.COMBAT:
             if not was_in_combat:
                 # Combat just started — reset solver cache, record baseline
-                if turn_solver is not None:
-                    turn_solver.reset()
+                turn_solver.reset()
                 combat_start_hp = getattr(rs, "current_hp", 0)
                 combat_cards_played = 0
                 combat_turns = 0
@@ -500,12 +479,8 @@ def _play_one_game(
             # Track card plays, potion uses, stance changes
             _solve_t0 = time.monotonic()
 
-            if _use_rust:
-                # Rust engine: combat is opaque, just pick first legal action
-                # The Rust engine handles combat internally via step()
-                action = actions[0]
-            elif mcts_engine is not None:
-                # MCTS combat: use neural value head for evaluation
+            # MCTS combat: use neural value head for evaluation
+            if mcts_engine is not None:
                 budget = _combat_mcts_budgets.get(combat_room_type, 20)
                 try:
                     idx, _ = mcts_engine.search(
@@ -520,9 +495,7 @@ def _play_one_game(
                 action = _pick_combat_action(actions, runner, turn_solver)
             combat_solver_ms += (time.monotonic() - _solve_t0) * 1000
             combat_solver_calls += 1
-
-            # Track combat action details (Python engine only -- Rust actions are opaque ints)
-            if not _use_rust and hasattr(action, "action_type"):
+            if hasattr(action, "action_type"):
                 atype = getattr(action, "action_type", "")
                 if atype == "play_card":
                     combat_cards_played += 1
@@ -594,14 +567,13 @@ def _play_one_game(
                         )
                     turn_cards.clear()
             runner.take_action(action)
-            # Detect stance changes after action (Python engine only)
-            if not _use_rust:
-                combat_state = getattr(runner, "current_combat", None)
-                if combat_state is not None:
-                    cur_stance = getattr(combat_state.state, "stance", "Neutral")
-                    if cur_stance != prev_stance:
-                        combat_stance_changes += 1
-                        prev_stance = cur_stance
+            # Detect stance changes after action
+            combat_state = getattr(runner, "current_combat", None)
+            if combat_state is not None:
+                cur_stance = getattr(combat_state.state, "stance", "Neutral")
+                if cur_stance != prev_stance:
+                    combat_stance_changes += 1
+                    prev_stance = cur_stance
             # Detect phase change FROM combat after action execution.
             phase_after = runner.phase
             if was_in_combat and phase_after != GamePhase.COMBAT:
@@ -665,16 +637,12 @@ def _play_one_game(
             phase_type = _PHASE_MAP.get(phase, "other")
 
             # Encode state with phase context + boss/room info + available actions
-            if _use_rust:
-                # Rust engine produces 480-dim obs internally
-                run_obs = runner.get_observation()
-            else:
-                _boss = getattr(runner, "_boss_name", "")
-                _room = getattr(runner, "current_room_type", "")
-                run_obs = encoder.encode(
-                    rs, phase_type=phase_type, boss_name=_boss, room_type=_room,
-                    actions=actions, runner=runner,
-                )
+            _boss = getattr(runner, "_boss_name", "")
+            _room = getattr(runner, "current_room_type", "")
+            run_obs = encoder.encode(
+                rs, phase_type=phase_type, boss_name=_boss, room_type=_room,
+                actions=actions, runner=runner,
+            )
 
             mask = np.zeros(_ACTION_DIM, dtype=np.bool_)
             mask[:n_actions] = True

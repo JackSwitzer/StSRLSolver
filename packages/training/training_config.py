@@ -9,11 +9,6 @@ from __future__ import annotations
 from typing import Any, Dict
 
 # ---------------------------------------------------------------------------
-# Engine Backend
-# ---------------------------------------------------------------------------
-USE_RUST_ENGINE = False  # When True, worker.py uses sts_engine.RustRunEngine via RustGameRunner
-
-# ---------------------------------------------------------------------------
 # Model Architecture
 # ---------------------------------------------------------------------------
 MODEL_HIDDEN_DIM = 1024
