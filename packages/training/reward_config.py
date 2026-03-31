@@ -76,7 +76,7 @@ def compute_potential(run_state) -> float:
     relic_count = len(getattr(run_state, "relics", []))
     relic_bonus = min(relic_count * 0.02, 0.15)
 
-    return 1.5 * floor_pct + 0.30 * hp_pct + 0.15 * deck_quality + 0.10 * relic_bonus
+    return 1.5 * floor_pct + 0.80 * hp_pct + 0.15 * deck_quality + 0.10 * relic_bonus
 
 
 def compute_boss_hp_progress(boss_dmg_dealt: float, boss_max_hp: float) -> float:
