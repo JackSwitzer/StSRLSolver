@@ -4,11 +4,17 @@ Usage:
     uv run python -m packages.training.data_utils_cli inventory
     uv run python -m packages.training.data_utils_cli quality
     uv run python -m packages.training.data_utils_cli organize [--dry-run]
+    uv run python -m packages.training.data_utils_cli tier
+    uv run python -m packages.training.data_utils_cli replay [--seed SEED]
+    uv run python -m packages.training.data_utils_cli prune [--dry-run]
+    uv run python -m packages.training.data_utils_cli compress [--dry-run]
 
 Or via training.sh:
     bash scripts/training.sh data inventory
     bash scripts/training.sh data quality
     bash scripts/training.sh data organize
+    bash scripts/training.sh data tier
+    bash scripts/training.sh data replay [seed]
 """
 
 from __future__ import annotations
@@ -210,10 +216,98 @@ def cmd_organize(dry_run: bool = False):
     print()
 
 
+def cmd_tier():
+    """Run the tiering pipeline and report stats per tier."""
+    from .data_tiers import TIER_CONFIGS, run_tier_pipeline, score_trajectories
+
+    dirs = _all_traj_dirs()
+    print("\n=== DATA TIER REPORT ===\n")
+
+    results = run_tier_pipeline(dirs)
+    for tier in TIER_CONFIGS:
+        r = results[tier]
+        print(f"  [{tier.value.upper():>8}] {len(r.accepted):4d} files | "
+              f"{r.total_transitions:7d} transitions | {r.rejected:3d} rejected")
+        print(f"            {TIER_CONFIGS[tier].description}")
+
+    print("\n=== TOP 10 TRAJECTORIES (by quality score) ===\n")
+    top = score_trajectories(dirs, top_n=10)
+    for i, q in enumerate(top, 1):
+        print(f"  {i:2d}. F{q.floor:02d} score={q.composite_score:.3f} "
+              f"(floor={q.floor_score:.2f} hp={q.hp_preservation:.2f} "
+              f"deck={q.deck_quality:.2f} decisions={q.decisions_count})")
+        print(f"      {q.path.name}")
+
+    print()
+
+
+def cmd_replay(seed: str = "", index: int = -1):
+    """Show game replay for a specific episode."""
+    from .data_tiers import format_replay, replay_episode
+
+    episodes_path = None
+    active = Path("logs/active/episodes.jsonl")
+    if active.exists():
+        episodes_path = active
+    else:
+        for run in sorted(Path("logs/runs").glob("run_*"), reverse=True):
+            ep = run / "episodes.jsonl"
+            if ep.exists():
+                episodes_path = ep
+                break
+
+    if episodes_path is None:
+        print("No episodes.jsonl found.")
+        return
+
+    episode = replay_episode(episodes_path, episode_id=seed if seed else None, index=index)
+    if episode is None:
+        print(f"Episode not found (seed={seed}, index={index}).")
+        return
+
+    print(format_replay(episode))
+
+
+def cmd_prune(dry_run: bool = False):
+    """Prune old checkpoints across all runs."""
+    from .data_tiers import prune_checkpoints
+
+    total_pruned = 0
+    for run_dir in sorted(Path("logs/runs").glob("run_*")):
+        deleted = prune_checkpoints(run_dir, keep_latest=5, dry_run=dry_run)
+        if deleted:
+            action = "Would prune" if dry_run else "Pruned"
+            print(f"  {action} {len(deleted)} checkpoints from {run_dir.name}")
+            total_pruned += len(deleted)
+
+    if total_pruned == 0:
+        print("  No checkpoints to prune.")
+    else:
+        action = "Would prune" if dry_run else "Pruned"
+        print(f"\n  {action} {total_pruned} total checkpoints.")
+
+
+def cmd_compress(dry_run: bool = False):
+    """Compress old episodes.jsonl files."""
+    from .data_tiers import compress_old_jsonl
+
+    compressed = compress_old_jsonl(Path("logs/runs"), dry_run=dry_run)
+    if compressed:
+        action = "Would compress" if dry_run else "Compressed"
+        print(f"  {action} {len(compressed)} files.")
+    else:
+        print("  No files to compress.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Data pipeline utilities")
-    parser.add_argument("command", choices=["inventory", "quality", "organize"])
+    parser.add_argument(
+        "command",
+        choices=["inventory", "quality", "organize", "tier", "replay", "prune", "compress"],
+    )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    parser.add_argument("--seed", default="", help="Episode seed for replay")
+    parser.add_argument("--index", type=int, default=-1, help="Episode index for replay")
     args = parser.parse_args()
 
     if args.command == "inventory":
@@ -222,6 +316,14 @@ def main():
         cmd_quality()
     elif args.command == "organize":
         cmd_organize(dry_run=args.dry_run)
+    elif args.command == "tier":
+        cmd_tier()
+    elif args.command == "replay":
+        cmd_replay(seed=args.seed, index=args.index)
+    elif args.command == "prune":
+        cmd_prune(dry_run=args.dry_run)
+    elif args.command == "compress":
+        cmd_compress(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

@@ -421,7 +421,11 @@ case "${1:-status}" in
             inventory) shift; uv run python -m packages.training.data_utils_cli inventory "$@" ;;
             quality)   shift; uv run python -m packages.training.data_utils_cli quality "$@" ;;
             organize)  shift; uv run python -m packages.training.data_utils_cli organize "$@" ;;
-            *) echo "Usage: $0 data [inventory|quality|organize]"; exit 1 ;;
+            tier)      shift; uv run python -m packages.training.data_utils_cli tier "$@" ;;
+            replay)    shift; uv run python -m packages.training.data_utils_cli replay --seed "${1:-}" ;;
+            prune)     shift; uv run python -m packages.training.data_utils_cli prune "$@" ;;
+            compress)  shift; uv run python -m packages.training.data_utils_cli compress "$@" ;;
+            *) echo "Usage: $0 data [inventory|quality|organize|tier|replay|prune|compress]"; exit 1 ;;
         esac
         ;;
     pretrain)
@@ -558,6 +562,10 @@ SYSTEM
         echo "  data inventory  Inventory all training data"
         echo "  data quality    Run quality checks"
         echo "  data organize   Organize into tiered dirs"
+        echo "  data tier       Run tiering pipeline + quality scores"
+        echo "  data replay     Show game replay (optional seed)"
+        echo "  data prune      Prune old checkpoints"
+        echo "  data compress   Gzip old episodes.jsonl files"
         echo ""
         echo "Management:"
         echo "  archive    Archive current run"
