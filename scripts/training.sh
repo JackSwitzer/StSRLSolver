@@ -84,6 +84,15 @@ stop_training() {
         kill -9 "$pid" 2>/dev/null || true
     fi
 
+    # Stop watchdog
+    if [ -f "$PID_DIR/watchdog.pid" ]; then
+        local wd_pid
+        wd_pid=$(cat "$PID_DIR/watchdog.pid")
+        kill "$wd_pid" 2>/dev/null || true
+        rm -f "$PID_DIR/watchdog.pid"
+        echo "  Watchdog stopped."
+    fi
+
     # Stop caffeinate
     if [ -f "$PID_DIR/caffeinate.pid" ]; then
         local caf_pid
@@ -121,7 +130,7 @@ cmd_start() {
     fi
 
     # Parse args
-    local games=10000 workers=8 batch=256 asc=0 headless="" resume=""
+    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -132,6 +141,7 @@ cmd_start() {
             --resume)  resume="--resume $2"; shift 2 ;;
             --weekend) weekend="--weekend"; shift ;;
             --overnight) weekend="--overnight"; shift ;;
+            --watchdog) watchdog="1"; shift ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -139,6 +149,11 @@ cmd_start() {
     local run_dir
     run_dir=$(create_run_dir)
     local run_log="$run_dir/nohup.log"
+
+    # Preflight: disk check
+    echo "Preflight: disk check..."
+    bash scripts/disk-manager.sh status
+    echo ""
 
     echo "Starting training..."
     echo "  Games: $games | Workers: $workers | Batch: $batch | Ascension: $asc"
@@ -165,6 +180,14 @@ cmd_start() {
     local train_pid=$!
     echo "$train_pid" > "$PID_DIR/training.pid"
     echo "  training: PID $train_pid"
+
+    # Start watchdog if requested
+    if [ -n "$watchdog" ]; then
+        nohup bash scripts/watchdog.sh > "$run_dir/watchdog.log" 2>&1 &
+        echo $! > "$PID_DIR/watchdog.pid"
+        echo "  watchdog: PID $!"
+    fi
+
     echo ""
     echo "Monitor with: ./scripts/training.sh status"
     echo "Stop with:    ./scripts/training.sh stop"
@@ -415,6 +438,10 @@ case "${1:-status}" in
     update)  shift; echo "Pulling latest code..."; git pull --ff-only && cmd_quick_restart "$@" ;;
     hotfix)  shift; ./scripts/hotfix.sh "$@" ;;
     prune)   shift; uv run python scripts/utils/prune_data.py "$@" ;;
+    disk)
+        shift
+        bash scripts/disk-manager.sh "${@:-status}"
+        ;;
     data)
         shift
         case "${1:-inventory}" in
@@ -439,13 +466,38 @@ case "${1:-status}" in
             *) echo "Usage: $0 pretrain [--bc|--combat|--eval|--all] [options]"; exit 1 ;;
         esac
         ;;
+    algorithm)
+        shift
+        algo="${1:?Usage: $0 algorithm [ppo|iql|grpo]}"
+        shift
+        case "$algo" in
+            ppo|iql|grpo)
+                echo "Starting training with algorithm: $algo"
+                uv run python -m packages.training.training_runner \
+                    --algorithm "$algo" "$@"
+                ;;
+            *) echo "Unknown algorithm: $algo (choose ppo, iql, or grpo)"; exit 1 ;;
+        esac
+        ;;
     experiment)
         shift
         config_name="${1:?Usage: $0 experiment <config-name>}"
         shift
-        echo "Running experiment: $config_name"
-        uv run python -m packages.training.training_runner \
-            --sweep-config "$config_name" "$@"
+        case "$config_name" in
+            reward-sim)
+                echo "Running offline reward rescoring simulation..."
+                uv run python -m packages.training.reward_sim "$@"
+                ;;
+            reward-ab)
+                echo "Running reward A/B test (live games)..."
+                uv run python -m packages.training.offline_eval "$@"
+                ;;
+            *)
+                echo "Running experiment: $config_name"
+                uv run python -m packages.training.training_runner \
+                    --sweep-config "$config_name" "$@"
+                ;;
+        esac
         ;;
     push-metrics)
         shift; uv run python scripts/push_metrics.py "$@" ;;
@@ -551,13 +603,21 @@ SYSTEM
         echo "  pretrain --eval    Evaluate checkpoint only"
         echo ""
         echo "Experiments:"
-        echo "  experiment <name>  Run named experiment from sweep_config"
+        echo "  experiment <name>      Run named experiment from sweep_config"
+        echo "  experiment reward-sim  Offline reward rescoring simulation"
+        echo "  experiment reward-ab   Live A/B test with reward configs"
         echo "  push-metrics       Push metrics to GitHub Gist"
         echo ""
         echo "Data:"
         echo "  data inventory  Inventory all training data"
         echo "  data quality    Run quality checks"
         echo "  data organize   Organize into tiered dirs"
+        echo ""
+        echo "Disk:"
+        echo "  disk status     Disk usage breakdown + retention compliance"
+        echo "  disk clean      Apply retention policies"
+        echo "  disk archive    Compress old runs for export"
+        echo "  disk policy     Show retention settings"
         echo ""
         echo "Management:"
         echo "  archive    Archive current run"

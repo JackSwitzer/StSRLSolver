@@ -30,6 +30,7 @@ from .training_config import (
     SOLVER_BUDGETS, MULTI_TURN_DEPTH, MULTI_TURN_BUDGET_MS,
     MCTS_FLOOR_MULTIPLIERS, MCTS_PHASE_MULTIPLIERS,
     MCTS_ADAPTIVE_CAP,
+    BOSS_ENTRY_BONUS, BOSS_SURVIVAL_BONUS, BOSS_FLOORS,
 )
 
 logger = logging.getLogger(__name__)
@@ -359,6 +360,8 @@ def _play_one_game(
     combat_stance_changes = 0
     combat_energy_wasted = 0.0  # Total unspent energy with playable cards
     combat_state_snapshot: Optional[np.ndarray] = None  # 298-dim encoded state from combat start
+    combat_boss_max_hp = 0  # Captured at combat start (engine clears enemies on end)
+    combat_boss_last_hp = 0  # Updated each turn to track damage dealt
     prev_stance = "Neutral"
     # Per-turn card tracking
     turn_cards: List[str] = []  # Cards played this turn
@@ -391,16 +394,10 @@ def _play_one_game(
                 _enc_name = ", ".join(_enemy_ids)
             except Exception:
                 pass
-        # Capture boss enemy HP for boss HP progress reward
-        _boss_max_hp = 0
-        _boss_current_hp = 0
-        if _combat_ref is not None:
-            try:
-                for e in _combat_ref.state.enemies:
-                    _boss_max_hp += getattr(e, "max_hp", 0)
-                    _boss_current_hp += max(getattr(e, "hp", 0), 0)
-            except Exception:
-                pass
+        # Boss HP was captured at combat start + updated each turn (engine clears
+        # current_combat before we get here, so reading enemies now would give 0).
+        _boss_max_hp = combat_boss_max_hp
+        _boss_dmg_dealt = max(0, _boss_max_hp - combat_boss_last_hp)
         # Use runner.run_state directly (not captured `rs` which may be stale).
         # On death the engine now syncs HP to 0, but clamp with max(0, _) anyway.
         _post_hp = max(0, getattr(runner.run_state, "current_hp", 0))
@@ -418,7 +415,7 @@ def _play_one_game(
             "solver_ms": round(combat_solver_ms),
             "solver_calls": combat_solver_calls,
             "boss_max_hp": _boss_max_hp,
-            "boss_dmg_dealt": max(0, _boss_max_hp - _boss_current_hp),
+            "boss_dmg_dealt": _boss_dmg_dealt,
             "combat_state_vector": combat_state_snapshot,
         })
 
@@ -461,6 +458,16 @@ def _play_one_game(
                     try:
                         combat_state_snapshot = _combat_encoder.encode(_engine)
                     except (RuntimeError, ValueError, KeyError, AttributeError, IndexError):
+                        pass
+                # Capture boss enemy HP now (engine clears current_combat on end)
+                combat_boss_max_hp = 0
+                combat_boss_last_hp = 0
+                if _engine is not None:
+                    try:
+                        for e in _engine.state.enemies:
+                            combat_boss_max_hp += getattr(e, "max_hp", 0)
+                            combat_boss_last_hp += max(getattr(e, "hp", 0), 0)
+                    except Exception:
                         pass
                 prev_stance = getattr(getattr(rs, "combat", None), "stance", "Neutral") if hasattr(rs, "combat") else "Neutral"
                 turn_cards = []
@@ -517,12 +524,15 @@ def _play_one_game(
                         _hand_ids = list(_st.hand) if hasattr(_st, "hand") else []
                         _turn_info["hand_at_end"] = _hand_ids[:10]
                         _turn_info["energy_left"] = getattr(_st, "energy", 0)
-                        # Player state for replay
-                        _turn_info["player_hp"] = getattr(_st, "hp", 0)
-                        _turn_info["player_block"] = getattr(_st, "block", 0)
+                        # Player state for replay (hp/block are on player EntityState)
+                        _player = getattr(_st, "player", None)
+                        _turn_info["player_hp"] = getattr(_player, "hp", 0) if _player else 0
+                        _turn_info["player_block"] = getattr(_player, "block", 0) if _player else 0
                         _turn_info["stance"] = getattr(_st, "stance", "Neutral")
-                        # Enemy state for replay
+                        # Update boss HP tracking for damage calculation
                         _enemies = getattr(_st, "enemies", [])
+                        combat_boss_last_hp = sum(max(getattr(e, "hp", 0), 0) for e in _enemies)
+                        # Enemy state for replay
                         _turn_info["enemies"] = [
                             {"name": getattr(e, "name", "?"), "hp": getattr(e, "hp", 0),
                              "max_hp": getattr(e, "max_hp", 0), "block": getattr(e, "block", 0),
@@ -798,13 +808,19 @@ def _play_one_game(
                 new_floor = getattr(new_rs, "floor", 0)
                 for milestone_floor, milestone_reward in FLOOR_MILESTONES.items():
                     if new_floor >= milestone_floor and milestone_floor not in reached_milestones:
-                        # F16 HP bonus: reward arriving at boss floor healthy
-                        if milestone_floor == 16:
-                            _cur_hp = getattr(new_rs, "current_hp", 0)
-                            milestone_reward = (
-                                REWARD_WEIGHTS.get("f16_hp_bonus_base", 0.50)
-                                + REWARD_WEIGHTS.get("f16_hp_bonus_per_hp", 0.02) * _cur_hp
-                            )
+                        # Boss floors: entry bonus only (survival bonus on beat)
+                        if milestone_floor in BOSS_FLOORS:
+                            milestone_reward = BOSS_ENTRY_BONUS
+                            # F16 HP bonus: reward arriving at boss floor healthy
+                            if milestone_floor == 16:
+                                _cur_hp = getattr(new_rs, "current_hp", 0)
+                                milestone_reward += (
+                                    REWARD_WEIGHTS.get("f16_hp_bonus_base", 0.50)
+                                    + REWARD_WEIGHTS.get("f16_hp_bonus_per_hp", 0.02) * _cur_hp
+                                )
+                        # Post-boss floors (17, 34, 51): survival bonus
+                        elif milestone_floor in [bf + 1 for bf in BOSS_FLOORS]:
+                            milestone_reward = BOSS_SURVIVAL_BONUS
                         event_reward += milestone_reward
                         reached_milestones.add(milestone_floor)
 

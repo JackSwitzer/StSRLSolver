@@ -277,3 +277,115 @@ def test_sweep_config_overrides_algorithm():
     sweep_cfg3 = {}
     algorithm3 = sweep_cfg3.get("algorithm", default)
     assert algorithm3 == "ppo"
+
+
+# ---------------------------------------------------------------------------
+# 9. BaseTrainer ABC
+# ---------------------------------------------------------------------------
+
+def test_base_trainer_is_abstract():
+    from packages.training.base_trainer import BaseTrainer
+    with pytest.raises(TypeError):
+        BaseTrainer()
+
+
+def test_all_trainers_inherit_base():
+    from packages.training.base_trainer import BaseTrainer
+    from packages.training.grpo_trainer import GRPOTrainer
+    from packages.training.iql_trainer import IQLTrainer
+    from packages.training.strategic_trainer import StrategicTrainer
+    assert issubclass(StrategicTrainer, BaseTrainer)
+    assert issubclass(IQLTrainer, BaseTrainer)
+    assert issubclass(GRPOTrainer, BaseTrainer)
+
+
+def test_ppo_train_step_delegates_to_train_batch():
+    from packages.training.strategic_trainer import StrategicTrainer
+    model = _make_fake_model()
+    trainer = StrategicTrainer(model=model)
+    metrics = trainer.train_step()
+    assert "policy_loss" in metrics
+    assert metrics["num_transitions"] == 0
+
+
+def test_grpo_train_step_delegates_to_train_batch():
+    from packages.training.grpo_trainer import GRPOTrainer
+    model = _make_fake_model()
+    trainer = GRPOTrainer(model=model)
+    metrics = trainer.train_step()
+    assert metrics["policy_loss"] == 0.0
+
+
+def test_iql_train_step_runs():
+    from packages.training.iql_trainer import IQLTrainer
+    from packages.training.offline_data import OfflineBatch
+    model = _make_fake_model()
+    trainer = IQLTrainer(policy=model, input_dim=model.input_dim, action_dim=model.action_dim)
+    batch = OfflineBatch(
+        states=torch.randn(8, model.input_dim),
+        actions=torch.randint(0, 5, (8,)),
+        rewards=torch.randn(8),
+        next_states=torch.randn(8, model.input_dim),
+        dones=torch.zeros(8),
+        action_masks=torch.ones(8, model.action_dim, dtype=torch.bool),
+    )
+    metrics = trainer.train_step(batch)
+    assert "v_loss" in metrics
+    assert trainer.train_steps == 1
+
+
+def test_ppo_save_load_checkpoint(tmp_path):
+    from packages.training.strategic_trainer import StrategicTrainer
+    model = _make_fake_model()
+    trainer = StrategicTrainer(model=model)
+    trainer.train_steps = 42
+    ckpt_path = tmp_path / "test_ckpt.pt"
+    trainer.save_checkpoint(ckpt_path)
+    assert ckpt_path.exists()
+    trainer2 = StrategicTrainer(model=_make_fake_model())
+    trainer2.load_checkpoint(ckpt_path)
+    assert trainer2.train_steps == 42
+
+
+def test_iql_save_load_checkpoint(tmp_path):
+    from packages.training.iql_trainer import IQLTrainer
+    model = _make_fake_model()
+    trainer = IQLTrainer(policy=model, input_dim=model.input_dim, action_dim=model.action_dim)
+    trainer.train_steps = 99
+    ckpt_path = tmp_path / "iql_ckpt.pt"
+    trainer.save_checkpoint(ckpt_path)
+    assert ckpt_path.exists()
+    model2 = _make_fake_model()
+    trainer2 = IQLTrainer(policy=model2, input_dim=model2.input_dim, action_dim=model2.action_dim)
+    trainer2.load_checkpoint(ckpt_path)
+    assert trainer2.train_steps == 99
+
+
+def test_grpo_save_load_checkpoint(tmp_path):
+    from packages.training.grpo_trainer import GRPOTrainer
+    model = _make_fake_model()
+    trainer = GRPOTrainer(model=model)
+    trainer.train_steps = 17
+    ckpt_path = tmp_path / "grpo_ckpt.pt"
+    trainer.save_checkpoint(ckpt_path)
+    assert ckpt_path.exists()
+    trainer2 = GRPOTrainer(model=_make_fake_model())
+    trainer2.load_checkpoint(ckpt_path)
+    assert trainer2.train_steps == 17
+
+
+def test_sweep_config_has_algorithm_configs():
+    from packages.training.sweep_config import ALGORITHM_SWEEP_CONFIGS
+    assert "ppo" in ALGORITHM_SWEEP_CONFIGS
+    assert "iql" in ALGORITHM_SWEEP_CONFIGS
+    assert "grpo" in ALGORITHM_SWEEP_CONFIGS
+    for algo, configs in ALGORITHM_SWEEP_CONFIGS.items():
+        assert len(configs) > 0
+
+
+def test_v3_ablation_covers_all_algorithms():
+    from packages.training.sweep_config import V3_ABLATION_CONFIGS
+    algos = {cfg.get("algorithm", "ppo") for cfg in V3_ABLATION_CONFIGS}
+    assert "ppo" in algos
+    assert "iql" in algos
+    assert "grpo" in algos

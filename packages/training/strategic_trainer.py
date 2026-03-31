@@ -20,16 +20,18 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .base_trainer import BaseTrainer
+
 logger = logging.getLogger(__name__)
 
-from .strategic_net import StrategicNet
+from .strategic_net import PopArtLayer, StrategicNet
 
 
 @dataclass
@@ -48,9 +50,14 @@ class StrategicTransition:
     cleared_act1: float = 0.0
     cleared_act2: float = 0.0
     cleared_act3: float = 0.0
+    # New auxiliary targets
+    deck_quality: float = 0.0      # floor reached (contextual quality signal)
+    combat_horizon: float = 0.0    # turns until combat ends
+    won_run: float = 0.0           # 1.0 if run was won, 0.0 otherwise
+    boss_ready: float = 0.0        # 1.0 if next boss was beaten
 
 
-class StrategicTrainer:
+class StrategicTrainer(BaseTrainer):
     """PPO trainer for the strategic model.
 
     Collects transitions at every non-combat decision point.
@@ -99,7 +106,23 @@ class StrategicTrainer:
 
         self._base_lr = lr
         # Per-head LR multipliers (MoE-style: value head trains faster)
-        from .training_config import LR_HEAD_MULTIPLIERS
+        from .training_config import LR_HEAD_MULTIPLIERS, AUX_HEADS
+        from .training_config import VALUE_NORM_METHOD, POPART_BETA, MAX_RETURN
+        self._aux_head_weights = AUX_HEADS
+
+        # Value normalization
+        self._value_norm_method = VALUE_NORM_METHOD
+        self._max_return = MAX_RETURN
+        _device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
+        self._popart = PopArtLayer(beta=POPART_BETA).to(_device)
+
+        # Collect all auxiliary head parameters
+        aux_params = list(model.floor_head.parameters()) + list(model.act_head.parameters())
+        for head_name in ("deck_quality", "combat_horizon", "win_loss", "boss_ready"):
+            head_attr = f"{head_name}_head"
+            if hasattr(model, head_attr):
+                aux_params += list(getattr(model, head_attr).parameters())
+
         param_groups = [
             {"params": list(model.input_proj.parameters()) + list(model.trunk.parameters()),
              "lr": lr * LR_HEAD_MULTIPLIERS.get("trunk", 1.0)},
@@ -107,7 +130,7 @@ class StrategicTrainer:
              "lr": lr * LR_HEAD_MULTIPLIERS.get("policy", 2.0)},
             {"params": list(model.value_head.parameters()),
              "lr": lr * LR_HEAD_MULTIPLIERS.get("value", 3.0)},
-            {"params": list(model.floor_head.parameters()) + list(model.act_head.parameters()),
+            {"params": aux_params,
              "lr": lr * LR_HEAD_MULTIPLIERS.get("auxiliary", 1.0)},
         ]
         self.optimizer = torch.optim.Adam(param_groups, eps=1e-5)
@@ -243,12 +266,19 @@ class StrategicTrainer:
             dtype=torch.float32,
         )
 
+        # New aux targets
+        deck_quality_targets = torch.tensor([t.deck_quality for t in self.buffer], dtype=torch.float32)
+        combat_horizon_targets = torch.tensor([t.combat_horizon for t in self.buffer], dtype=torch.float32)
+        win_loss_targets = torch.tensor([t.won_run for t in self.buffer], dtype=torch.float32)
+        boss_ready_targets = torch.tensor([t.boss_ready for t in self.buffer], dtype=torch.float32)
+
         # Normalize advantages
         adv_std = adv_t.std()
         if adv_std > 1e-8:
             adv_t = (adv_t - adv_t.mean()) / (adv_std + 1e-8)
 
         N = obs_t.shape[0]
+        aux_weights = self._aux_head_weights
         total_metrics: Dict[str, float] = {
             "policy_loss": 0.0,
             "value_loss": 0.0,
@@ -256,6 +286,10 @@ class StrategicTrainer:
             "aux_loss": 0.0,
             "floor_pred_loss": 0.0,
             "act_pred_loss": 0.0,
+            "deck_quality_loss": 0.0,
+            "combat_horizon_loss": 0.0,
+            "win_loss_loss": 0.0,
+            "boss_ready_loss": 0.0,
             "total_loss": 0.0,
             "clip_fraction": 0.0,
         }
@@ -276,6 +310,10 @@ class StrategicTrainer:
                 b_ret = ret_t[idx].to(device)
                 b_floor = floor_targets[idx].to(device)
                 b_act = act_targets[idx].to(device)
+                b_deck_q = deck_quality_targets[idx].to(device)
+                b_combat_h = combat_horizon_targets[idx].to(device)
+                b_win = win_loss_targets[idx].to(device)
+                b_boss = boss_ready_targets[idx].to(device)
 
                 # Forward
                 out = self.model(b_obs, b_masks)
@@ -293,8 +331,16 @@ class StrategicTrainer:
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * b_adv
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Value loss: predict raw returns (GAE expects raw-scale values)
-                value_loss = F.mse_loss(values, b_ret)
+                # Value loss with normalization
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_ret)
+                    norm_ret = self._popart.normalize(b_ret)
+                    value_loss = F.mse_loss(values, norm_ret)
+                elif self._value_norm_method == "clip":
+                    clipped_ret = b_ret.clamp(0.0, self._max_return) / self._max_return
+                    value_loss = F.mse_loss(values, clipped_ret)
+                else:
+                    value_loss = F.mse_loss(values, b_ret)
 
                 # Entropy bonus
                 probs = F.softmax(logits, dim=-1)
@@ -302,10 +348,32 @@ class StrategicTrainer:
                 ent_term = ent_term.nan_to_num(0.0)
                 entropy = -ent_term.sum(dim=-1).mean()
 
-                # Auxiliary losses
+                # Auxiliary losses (weighted by AUX_HEADS config)
                 floor_loss = F.mse_loss(floor_pred, b_floor)
                 act_loss = F.binary_cross_entropy(act_pred, b_act)
-                aux_loss = (floor_loss + act_loss) / 2.0
+                aux_loss = (
+                    aux_weights.get("floor_pred", 0.15) * floor_loss
+                    + aux_weights.get("act_completion", 0.10) * act_loss
+                )
+
+                # New auxiliary head losses
+                deck_q_loss = torch.tensor(0.0, device=device)
+                combat_h_loss = torch.tensor(0.0, device=device)
+                win_loss_l = torch.tensor(0.0, device=device)
+                boss_ready_loss = torch.tensor(0.0, device=device)
+
+                if "deck_quality" in out:
+                    deck_q_loss = F.mse_loss(out["deck_quality"], b_deck_q)
+                    aux_loss = aux_loss + aux_weights.get("deck_quality", 0.10) * deck_q_loss
+                if "combat_horizon" in out:
+                    combat_h_loss = F.mse_loss(out["combat_horizon"], b_combat_h)
+                    aux_loss = aux_loss + aux_weights.get("combat_horizon", 0.10) * combat_h_loss
+                if "win_loss" in out:
+                    win_loss_l = F.binary_cross_entropy(out["win_loss"], b_win)
+                    aux_loss = aux_loss + aux_weights.get("win_loss", 0.20) * win_loss_l
+                if "boss_ready" in out:
+                    boss_ready_loss = F.binary_cross_entropy(out["boss_ready"], b_boss)
+                    aux_loss = aux_loss + aux_weights.get("boss_ready", 0.15) * boss_ready_loss
 
                 # Total loss
                 loss = (
@@ -332,6 +400,10 @@ class StrategicTrainer:
                 total_metrics["aux_loss"] += aux_loss.item()
                 total_metrics["floor_pred_loss"] += floor_loss.item()
                 total_metrics["act_pred_loss"] += act_loss.item()
+                total_metrics["deck_quality_loss"] += deck_q_loss.item()
+                total_metrics["combat_horizon_loss"] += combat_h_loss.item()
+                total_metrics["win_loss_loss"] += win_loss_l.item()
+                total_metrics["boss_ready_loss"] += boss_ready_loss.item()
                 total_metrics["total_loss"] += loss.item()
                 total_metrics["clip_fraction"] += clip_frac
 
@@ -571,7 +643,16 @@ class StrategicTrainer:
 
                 out = self.model(obs_t[idx], mask_t[idx])
                 value_pred = out["value"]
-                loss = F.mse_loss(value_pred, target_t[idx])
+
+                # Apply value normalization to calibration targets
+                b_target = target_t[idx]
+                if self._value_norm_method == "popart":
+                    self._popart.update(b_target)
+                    b_target = self._popart.normalize(b_target)
+                elif self._value_norm_method == "clip":
+                    b_target = b_target.clamp(0.0, self._max_return) / self._max_return
+
+                loss = F.mse_loss(value_pred, b_target)
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -594,3 +675,37 @@ class StrategicTrainer:
             "calibration_epochs": epochs,
             "card_lift_entries": card_lift_entries,
         }
+
+    # ------------------------------------------------------------------
+    # BaseTrainer interface
+    # ------------------------------------------------------------------
+
+    def train_step(self, batch: Any = None) -> Dict[str, float]:
+        """Run a single PPO training step on the current buffer."""
+        return self.train_batch()
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Save model + optimizer state to disk."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        extra = {
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "train_steps": self.train_steps,
+            "entropy_coeff": self.entropy_coeff,
+        }
+        if hasattr(self, "scheduler"):
+            extra["scheduler_state_dict"] = self.scheduler.state_dict()
+        self.model.save(path, extra=extra)
+
+    def load_checkpoint(self, path: Path) -> None:
+        """Restore optimizer + scheduler state from a checkpoint."""
+        path = Path(path)
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        if "optimizer_state_dict" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if "train_steps" in ckpt:
+            self.train_steps = ckpt["train_steps"]
+        if "entropy_coeff" in ckpt:
+            self.entropy_coeff = ckpt["entropy_coeff"]
+        if hasattr(self, "scheduler") and "scheduler_state_dict" in ckpt:
+            self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])

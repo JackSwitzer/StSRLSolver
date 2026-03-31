@@ -22,7 +22,11 @@ struct TrainingView: View {
                     .padding(.horizontal, 16)
                 }
 
-                // Charts
+                // Persistent training curves (from metrics_history.jsonl)
+                TrainingCurvesView()
+                    .padding(.horizontal, 16)
+
+                // Live diagnostics charts (from polling)
                 DiagnosticsChartsView()
                     .padding(.horizontal, 16)
 

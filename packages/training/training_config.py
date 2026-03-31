@@ -23,7 +23,7 @@ ALGORITHM = "ppo"  # Options: "ppo", "iql", "grpo"
 TRAIN_WORKERS = 10
 TRAIN_BATCH_SIZE = 256
 TRAIN_MAX_BATCH_INFERENCE = 32
-INFERENCE_BATCH_TIMEOUT_MS = 15.0  # Batch timeout for inference server (was 5ms)
+INFERENCE_BATCH_TIMEOUT_MS = 75.0  # Batch timeout: 75ms fills batches better with 8 workers (was 15ms)
 TRAIN_GAMES_PER_BATCH = 16
 TRAIN_PPO_EPOCHS = 8
 TRAIN_STEPS_PER_PHASE = 30
@@ -58,7 +58,7 @@ SOLVER_BUDGETS: Dict[str, tuple] = {
     "elite":   (2_000.0, 50_000, 600_000),   # 2s base for elites
     "boss":    (120_000.0, 400_000, 600_000), # 120s base for bosses
 }
-SOLVER_HP_SCALE_DIVISOR = 100.0  # budget_ms = base * max(1, total_hp / this)
+SOLVER_HP_SCALE_DIVISOR = 1000.0  # budget_ms = base * max(1, total_hp / this). Was 100 — caused 60x explosion on multi-enemy rooms
 
 # Solver scoring weights — keep minimal, let model learn strategy
 SOLVER_SCORING: Dict[str, float] = {
@@ -87,25 +87,27 @@ REWARD_WEIGHTS: Dict[str, Any] = {
     "boss_win": 5.00,
 
     # Floor milestones -- 5-10x boost to create strong gradient toward deeper runs
+    # Boss floors (16/33/50) use BOSS_ENTRY_BONUS from config, not this value.
+    # Post-boss floors (17/34/51) use BOSS_SURVIVAL_BONUS from config.
     "floor_milestones": {
         3: 0.25,     # Early progress
         6: 1.50,     # First elite territory
         10: 3.00,    # Mid-act 1
         13: 4.00,    # Late act 1
         15: 6.00,    # Final campfire
-        16: 9.00,    # Reached Act 1 boss
-        17: 15.00,   # Beat Act 1 boss
+        16: 2.00,    # Boss entry (overridden by BOSS_ENTRY_BONUS)
+        17: 12.00,   # Beat Act 1 boss (overridden by BOSS_SURVIVAL_BONUS)
         25: 9.00,    # Mid-act 2
-        33: 15.00,   # Reached Act 2 boss
-        34: 24.00,   # Beat Act 2 boss
-        50: 24.00,   # Reached Act 3 boss
-        51: 36.00,   # Beat Act 3 boss
+        33: 2.00,    # Boss entry (overridden by BOSS_ENTRY_BONUS)
+        34: 22.00,   # Beat Act 2 boss (overridden by BOSS_SURVIVAL_BONUS)
+        50: 2.00,    # Boss entry (overridden by BOSS_ENTRY_BONUS)
+        51: 22.00,   # Beat Act 3 boss (overridden by BOSS_SURVIVAL_BONUS)
         55: 50.00,   # Beat the Heart
     },
 
     # F16 HP bonus: reward arriving at boss floor healthy
-    "f16_hp_bonus_base": 1.50,
-    "f16_hp_bonus_per_hp": 0.05,
+    "f16_hp_bonus_base": 5.00,
+    "f16_hp_bonus_per_hp": 0.15,
 
     # Micro-rewards zeroed — let the model learn behavior
     "shop_remove": 0.0,
@@ -123,7 +125,7 @@ REWARD_WEIGHTS: Dict[str, Any] = {
 
     # Terminal rewards
     "win_reward": 10.0,
-    "death_penalty_scale": -0.3,  # Multiplied by (1 - progress)
+    "death_penalty_scale": -3.0,  # Multiplied by (1 - progress)
     "death_floor_cutoff": 55,     # progress = floor / this
 }
 
@@ -208,6 +210,11 @@ REPLAY_MIX_RATIO = 0.25
 # ---------------------------------------------------------------------------
 BOSS_HP_PROGRESS_SCALE = 3.0  # boss_dmg_dealt / boss_max_hp * this
 
+# Boss milestone split: entry bonus on room entry, survival bonus on boss beat
+BOSS_ENTRY_BONUS = 2.0
+BOSS_SURVIVAL_BONUS = 12.0
+BOSS_FLOORS = [16, 33, 50]
+
 # ---------------------------------------------------------------------------
 # Multi-turn Solver
 # ---------------------------------------------------------------------------
@@ -241,7 +248,49 @@ GRPO_CLIP = 0.2
 GRPO_LR = 3e-5
 
 # ---------------------------------------------------------------------------
+# Auxiliary Heads
+# ---------------------------------------------------------------------------
+# Weight for each auxiliary head loss. Set to 0 to disable a head.
+AUX_HEADS: Dict[str, float] = {
+    "floor_pred": 0.15,       # Predict final floor reached (existing)
+    "act_completion": 0.10,   # P(clear act 1/2/3) (existing)
+    "deck_quality": 0.10,     # Predict floor reached from current state
+    "combat_horizon": 0.10,   # Predict turns until combat ends
+    "win_loss": 0.20,         # P(win_run) from any state
+    "boss_ready": 0.15,       # P(beat_boss) given current deck+HP+relics
+}
+
+# ---------------------------------------------------------------------------
+# Value Normalization
+# ---------------------------------------------------------------------------
+VALUE_NORM_METHOD = "popart"  # Options: "popart", "clip", "none"
+POPART_BETA = 0.0003         # EMA decay rate for PopArt running stats
+MAX_RETURN = 30.0            # Clip ceiling for "clip" method; returns scaled to [0, 1]
+
+# ---------------------------------------------------------------------------
 # Stall Detection (effectively disabled)
 # ---------------------------------------------------------------------------
 STALL_DETECTION_WINDOW = 50000
 STALL_IMPROVEMENT_THRESHOLD = 0.0
+
+# ---------------------------------------------------------------------------
+# Value Normalization
+# ---------------------------------------------------------------------------
+VALUE_NORM_METHOD = "popart"  # Options: "popart", "clip", "none"
+POPART_BETA = 0.0003         # EMA decay rate for PopArt running stats
+MAX_RETURN = 30.0            # Clip ceiling for "clip" method; returns scaled to [0, 1]
+
+# ---------------------------------------------------------------------------
+# Disk Retention Policy (used by scripts/disk-manager.sh)
+# ---------------------------------------------------------------------------
+RETENTION: Dict[str, Any] = {
+    "runs_keep_top_n": 10,         # Keep top N runs by avg_floor
+    "runs_keep_latest_n": 10,      # Keep latest N runs by date
+    "checkpoints_keep_latest_n": 10,  # Per run: keep latest N .pt files
+    "checkpoints_keep_best_n": 3,  # Per run: keep best N .pt files by floor
+    "archive_after_days": 7,       # Archive runs older than this
+    "delete_after_days": 30,       # Delete archived runs older than this
+    "disk_warn_gb": 10,            # Warn when free disk < this
+    "disk_pause_gb": 5,            # Pause training when free disk < this
+    "disk_emergency_gb": 3,        # Emergency prune when free disk < this
+}

@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .base_trainer import BaseTrainer
 from .strategic_net import StrategicNet
 from .training_config import (
     GRPO_CLIP,
@@ -58,7 +59,7 @@ class GroupResult:
         return self.advantage
 
 
-class GRPOTrainer:
+class GRPOTrainer(BaseTrainer):
     """Group Relative Policy Optimization trainer.
 
     For each strategic decision:
@@ -318,3 +319,34 @@ class GRPOTrainer:
             "advantage_std": adv_t.std().item(),
             "train_steps": self.train_steps,
         }
+
+    # ------------------------------------------------------------------
+    # BaseTrainer interface
+    # ------------------------------------------------------------------
+
+    def train_step(self, batch: Any = None) -> Dict[str, float]:
+        """Run a single GRPO training step."""
+        if batch is None:
+            batch = []
+        return self.train_batch(batch)
+
+    def save_checkpoint(self, path) -> None:
+        """Save model + optimizer state."""
+        from pathlib import Path as _Path
+        path = _Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "train_steps": self.train_steps,
+        }, path)
+
+    def load_checkpoint(self, path) -> None:
+        """Restore model + optimizer state."""
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        if "model_state_dict" in ckpt:
+            self.model.load_state_dict(ckpt["model_state_dict"])
+        if "optimizer_state_dict" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if "train_steps" in ckpt:
+            self.train_steps = ckpt["train_steps"]
