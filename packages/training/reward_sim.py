@@ -194,19 +194,6 @@ def rescore_trajectory(traj: TrajectoryData, reward_config: Dict[str, Any]) -> D
     }
 
 
-def load_trajectories_for_sim(
-    dirs: Sequence[Path],
-    max_files: int = 500,
-) -> List[TrajectoryData]:
-    """Load trajectory files for reward simulation (no dim filtering)."""
-    files = find_trajectory_files(list(dirs), min_floor=0)[:max_files]
-    trajectories = []
-    for f in files:
-        traj = load_trajectory_file(f)
-        if traj is not None:
-            trajectories.append(traj)
-    logger.info("Loaded %d trajectories for reward simulation", len(trajectories))
-    return trajectories
 
 
 def compare_configs(
@@ -229,7 +216,13 @@ def compare_configs(
     if data_dirs is None:
         data_dirs = [Path("logs/runs")]
 
-    trajectories = load_trajectories_for_sim(data_dirs, max_files=max_files)
+    files = find_trajectory_files(list(data_dirs), min_floor=0)[:max_files]
+    trajectories: List[TrajectoryData] = []
+    for f in files:
+        traj = load_trajectory_file(f)
+        if traj is not None:
+            trajectories.append(traj)
+    logger.info("Loaded %d trajectories for reward simulation", len(trajectories))
     if not trajectories:
         logger.warning("No trajectories found for reward simulation")
         return {"error": "no_trajectories", "configs": [c["name"] for c in configs]}

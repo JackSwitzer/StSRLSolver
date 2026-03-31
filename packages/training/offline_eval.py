@@ -1,8 +1,9 @@
-"""Offline evaluation: play games with a model under different reward configs.
+"""Offline evaluation: play games with a model and measure performance.
 
 Unlike reward_sim.py (which rescores existing data), this module actually
-plays games using the inference server and measures real performance metrics
-under different reward configurations.
+plays games using the inference server and measures real performance metrics.
+Reward shaping uses the global training_config -- there is no per-eval
+override because workers read config at import time.
 """
 
 from __future__ import annotations
@@ -18,22 +19,24 @@ logger = logging.getLogger(__name__)
 
 def evaluate_model(
     model_path: str,
-    reward_config: Dict[str, Any],
     num_games: int = 50,
     workers: int = 4,
     ascension: int = 0,
+    label: str = "eval",
 ) -> Dict[str, Any]:
     """Play N games with a model and collect performance metrics.
 
     Uses the existing worker.py game-playing infrastructure via subprocess
-    workers and the inference server.
+    workers and the inference server.  Reward shaping is determined by the
+    global training_config -- there is no per-eval override because the
+    workers read config at import time.
 
     Args:
         model_path: Path to model checkpoint (.pt file).
-        reward_config: Reward config dict (for labeling, not applied to worker).
         num_games: Number of games to play.
         workers: Number of parallel workers.
         ascension: Ascension level.
+        label: Human-readable label for logging / result dict.
 
     Returns:
         Dict with performance metrics: avg_floor, boss_damage, hp_at_boss, win_rate.
@@ -42,16 +45,14 @@ def evaluate_model(
 
     from .worker import _play_one_game, _worker_init
 
-    config_name = reward_config.get("name", "unknown")
+    config_name = label
     logger.info("Evaluating model %s under config '%s' (%d games, %d workers)",
                 model_path, config_name, num_games, workers)
 
     t0 = time.monotonic()
 
-    # Generate seeds
     seeds = [f"Eval_{config_name}_{i}" for i in range(num_games)]
 
-    # Play games using worker pool
     results: List[Dict[str, Any]] = []
     try:
         with Pool(workers, initializer=_worker_init) as pool:
@@ -72,17 +73,14 @@ def evaluate_model(
 
     elapsed = time.monotonic() - t0
 
-    # Compute metrics
     floors = [r.get("floor", 0) for r in results]
     wins = sum(1 for r in results if r.get("won", False))
     hp_values = [r.get("hp", 0) for r in results]
 
-    # Boss damage from combat summaries (if available)
     boss_damage = []
     hp_at_boss = []
     for r in results:
         for t in r.get("transitions", []):
-            # Look for boss combat indicators in the trajectory
             pass
         if r.get("floor", 0) >= 16:
             hp_at_boss.append(r.get("hp", 0))
@@ -140,16 +138,10 @@ def run_ab_test(
 ) -> Dict[str, Any]:
     """Run A/B test: play games under multiple reward configs and compare.
 
-    Args:
-        model_path: Path to model checkpoint.
-        config_names: Config names to test (from reward_sim.ALL_REWARD_CONFIGS).
-            Defaults to ["A_baseline", "B_split_milestones", "C_hp_heavy"].
-        num_games: Games per config.
-        workers: Parallel workers.
-        output_path: Where to save results.
-
-    Returns:
-        Comparison results dict.
+    Note: since workers use the global training_config for reward shaping,
+    A/B testing of reward configs requires changing the global config between
+    runs.  This function currently runs games under the *same* reward config
+    but labels them per-config for structural comparison.
     """
     from .reward_sim import ALL_REWARD_CONFIGS
 
@@ -177,9 +169,9 @@ def run_ab_test(
     for cfg in configs_to_test:
         metrics = evaluate_model(
             model_path=model_path,
-            reward_config=cfg,
             num_games=num_games,
             workers=workers,
+            label=cfg["name"],
         )
         results["configs"][cfg["name"]] = metrics
 
@@ -189,7 +181,6 @@ def run_ab_test(
 
     logger.info("A/B test results saved to %s", output_path)
 
-    # Print comparison
     print(f"\n=== A/B Test Results ({num_games} games/config) ===\n")
     for name, metrics in results["configs"].items():
         if "error" in metrics:
@@ -203,15 +194,9 @@ def run_ab_test(
     return results
 
 
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     import argparse
-
     logging.basicConfig(level=logging.INFO)
-
     parser = argparse.ArgumentParser(description="Offline model evaluation")
     parser.add_argument("--model", required=True, help="Path to model checkpoint")
     parser.add_argument("--games", type=int, default=50, help="Games to play")
@@ -219,14 +204,8 @@ if __name__ == "__main__":
     parser.add_argument("--configs", type=str, default="A,B,C",
                         help="Comma-separated config names (A/B/C/D)")
     args = parser.parse_args()
-
     config_map = {"A": "A_baseline", "B": "B_split_milestones",
                   "C": "C_hp_heavy", "D": "D_boss_gradient"}
     names = [config_map.get(c.strip(), c.strip()) for c in args.configs.split(",")]
-
-    run_ab_test(
-        model_path=args.model,
-        config_names=names,
-        num_games=args.games,
-        workers=args.workers,
-    )
+    run_ab_test(model_path=args.model, config_names=names,
+                num_games=args.games, workers=args.workers)
