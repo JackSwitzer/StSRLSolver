@@ -412,7 +412,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                     engine.state.enemies[idx].entity.hp = 0;
                 }
                 // Still fire boss hooks (rebirth, mode shift, etc.)
-                crate::combat_hooks::on_enemy_damaged(engine, idx, mark);
+                crate::combat_hooks::on_enemy_damaged(engine, idx, mark, true);
             }
         }
     }
@@ -1246,6 +1246,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Draw next turn (Predator) ----
     if card.effects.contains(&"draw_next_turn") {
         engine.state.player.add_status(sk::DRAW_CARD, card.base_magic);
+    }
+
+    // ---- Flame Barrier: gain block (from base_block) + set FlameBarrier status ----
+    if card.effects.contains(&"flame_barrier") {
+        engine.state.player.set_status(sk::FLAME_BARRIER, card.base_magic);
     }
 
     // ---- Double Tap: next Attack played twice ----

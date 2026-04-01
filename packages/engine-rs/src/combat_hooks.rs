@@ -31,7 +31,7 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         if poison_dmg > 0 {
             engine.state.total_damage_dealt += poison_dmg;
             // Trigger boss hooks for poison damage (Guardian, SlimeBoss, etc.)
-            on_enemy_damaged(engine, i, poison_dmg);
+            on_enemy_damaged(engine, i, poison_dmg, false);
             if engine.state.enemies[i].entity.is_dead() {
                 engine.state.enemies[i].entity.hp = 0;
                 continue;
@@ -186,7 +186,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 e.entity.hp = 0;
             }
             if hp_dmg_t > 0 {
-                on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
+                on_enemy_damaged(engine, enemy_idx, hp_dmg_t, false);
             }
         }
 
@@ -203,7 +203,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 e.entity.hp = 0;
             }
             if hp_dmg_f > 0 {
-                on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
+                on_enemy_damaged(engine, enemy_idx, hp_dmg_f, false);
             }
         }
     }
@@ -401,7 +401,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 /// Awakened One rebirth, Champ execute threshold).
 ///
 /// Called from `deal_damage_to_enemy()` when HP damage is dealt.
-pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: i32) {
+pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: i32, from_player: bool) {
     if hp_damage <= 0 {
         return;
     }
@@ -449,12 +449,14 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         _ => {}
     }
 
-    // Angry: enemy gains Strength when damaged
-    let angry = engine.state.enemies[enemy_idx].entity.status(sk::ANGRY);
-    if angry > 0 {
-        engine.state.enemies[enemy_idx]
-            .entity
-            .add_status(sk::STRENGTH, angry);
+    // Angry: enemy gains Strength when damaged by player attacks (not poison/thorns)
+    if from_player {
+        let angry = engine.state.enemies[enemy_idx].entity.status(sk::ANGRY);
+        if angry > 0 {
+            engine.state.enemies[enemy_idx]
+                .entity
+                .add_status(sk::STRENGTH, angry);
+        }
     }
 }
 

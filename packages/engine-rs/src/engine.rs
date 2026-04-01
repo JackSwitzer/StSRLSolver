@@ -238,6 +238,64 @@ impl CombatEngine {
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
+        // NextTurnBlock: gain block from previous turn's delayed block (Dodge and Roll)
+        let ntb = self.state.player.status(sk::NEXT_TURN_BLOCK);
+        if ntb > 0 {
+            self.state.player.block += ntb;
+            self.state.player.set_status(sk::NEXT_TURN_BLOCK, 0);
+        }
+
+        // Energized: gain extra energy from previous turn
+        let en = self.state.player.status(sk::ENERGIZED);
+        if en > 0 {
+            self.state.energy += en;
+            self.state.player.set_status(sk::ENERGIZED, 0);
+        }
+
+        // Loop: trigger front orb passive again (Java: atStartOfTurn)
+        let loop_count = self.state.player.status(sk::LOOP);
+        if loop_count > 0 && self.state.orb_slots.has_orbs() {
+            let focus = self.state.player.focus();
+            let front = &mut self.state.orb_slots.slots[0];
+            if !front.is_empty() {
+                let effect = match front.orb_type {
+                    crate::orbs::OrbType::Lightning => {
+                        let damage = front.passive_with_focus(focus);
+                        PassiveEffect::LightningDamage(damage)
+                    }
+                    crate::orbs::OrbType::Frost => {
+                        let block = front.passive_with_focus(focus);
+                        PassiveEffect::FrostBlock(block)
+                    }
+                    crate::orbs::OrbType::Dark => {
+                        let gain = front.passive_with_focus(focus);
+                        front.evoke_amount += gain;
+                        PassiveEffect::None
+                    }
+                    crate::orbs::OrbType::Plasma => {
+                        PassiveEffect::PlasmaEnergy(front.base_passive)
+                    }
+                    crate::orbs::OrbType::Empty => PassiveEffect::None,
+                };
+                self.apply_passive_effect(effect);
+                if self.state.combat_over {
+                    return;
+                }
+            }
+        }
+
+        // CreativeAI: add random Power card to hand (Java: atStartOfTurn, pre-draw)
+        if self.state.player.status(sk::CREATIVE_AI) > 0 && self.state.hand.len() < 10 {
+            let smite_id = self.temp_card_id("Smite");
+            self.state.hand.push(smite_id);
+        }
+
+        // Magnetism: add random card to hand (Java: atStartOfTurn, pre-draw)
+        if self.state.player.status(sk::MAGNETISM) > 0 && self.state.hand.len() < 10 {
+            let strike_id = self.temp_card_id("Strike");
+            self.state.hand.push(strike_id);
+        }
+
         // BattleHymn: add Smite(s) to hand at start of turn
         let battle_hymn = self.state.player.status(sk::BATTLE_HYMN);
         if battle_hymn > 0 {
@@ -252,24 +310,19 @@ impl CombatEngine {
         // Draw cards (default 5)
         self.draw_cards(5);
 
+        // DrawCard: extra draws from previous turn (Predator)
+        let dc = self.state.player.status(sk::DRAW_CARD);
+        if dc > 0 {
+            self.draw_cards(dc);
+            self.state.player.set_status(sk::DRAW_CARD, 0);
+        }
+
         // ---- Start-of-turn power consumptions (after draw) ----
 
         // Devotion: gain Mantra at start of turn (Java: atStartOfTurnPostDraw)
         let devotion = self.state.player.status(sk::DEVOTION);
         if devotion > 0 {
             self.gain_mantra(devotion);
-        }
-
-        // WraithForm: lose 1 Dexterity each turn
-        let wf = self.state.player.status(sk::WRAITH_FORM);
-        if wf > 0 {
-            self.state.player.add_status(sk::DEXTERITY, -1);
-        }
-
-        // CreativeAI: add random Power card to hand (MCTS: add "Smite")
-        if self.state.player.status(sk::CREATIVE_AI) > 0 && self.state.hand.len() < 10 {
-            let smite_id = self.temp_card_id("Smite");
-            self.state.hand.push(smite_id);
         }
 
         // DoppelgangerDraw: consume extra draws at turn start
@@ -284,12 +337,6 @@ impl CombatEngine {
         if de > 0 {
             self.state.energy += de;
             self.state.player.set_status(sk::DOPPELGANGER_ENERGY, 0);
-        }
-
-        // Magnetism: add random card to hand (MCTS: add "Strike")
-        if self.state.player.status(sk::MAGNETISM) > 0 && self.state.hand.len() < 10 {
-            let strike_id = self.temp_card_id("Strike");
-            self.state.hand.push(strike_id);
         }
 
         // Mayhem: play top card of draw pile automatically (MCTS: skip)
@@ -432,6 +479,12 @@ impl CombatEngine {
         // Rage: clear at end of turn
         self.state.player.set_status(sk::RAGE, 0);
 
+        // WraithForm: lose 1 Dexterity each turn (Java: atEndOfTurn)
+        let wf = self.state.player.status(sk::WRAITH_FORM);
+        if wf > 0 {
+            self.state.player.add_status(sk::DEXTERITY, -1);
+        }
+
         // TempStrength: remove temporary Strength at end of turn
         let temp_str = self.state.player.status(sk::TEMP_STRENGTH);
         if temp_str > 0 {
@@ -482,6 +535,9 @@ impl CombatEngine {
             self.state.hand = kept;
         } else {
             // Normal: retain tagged cards + explicitly retained (Meditate), exhaust ethereal, discard rest
+            // RetainCards (Well-Laid Plans): keep up to N additional cards
+            let retain_extra = self.state.player.status(sk::RETAIN_CARDS);
+            let mut extra_retained = 0;
             let hand = std::mem::take(&mut self.state.hand);
             let mut retained = Vec::new();
             for card_id in hand {
@@ -491,6 +547,10 @@ impl CombatEngine {
                 } else if card.effects.contains(&"ethereal") {
                     self.state.exhaust_pile.push(card_id);
                     ethereal_exhausted += 1;
+                } else if retain_extra > 0 && extra_retained < retain_extra {
+                    // Well-Laid Plans: retain additional cards beyond explicit retain
+                    retained.push(card_id);
+                    extra_retained += 1;
                 } else {
                     self.state.discard_pile.push(card_id);
                 }
@@ -509,38 +569,6 @@ impl CombatEngine {
         self.apply_orb_end_of_turn();
         if self.state.combat_over {
             return;
-        }
-
-        // Loop: trigger front orb passive again
-        let loop_count = self.state.player.status(sk::LOOP);
-        if loop_count > 0 && self.state.orb_slots.has_orbs() {
-            let focus = self.state.player.focus();
-            let front = &mut self.state.orb_slots.slots[0];
-            if !front.is_empty() {
-                let effect = match front.orb_type {
-                    crate::orbs::OrbType::Lightning => {
-                        let damage = front.passive_with_focus(focus);
-                        PassiveEffect::LightningDamage(damage)
-                    }
-                    crate::orbs::OrbType::Frost => {
-                        let block = front.passive_with_focus(focus);
-                        PassiveEffect::FrostBlock(block)
-                    }
-                    crate::orbs::OrbType::Dark => {
-                        let gain = front.passive_with_focus(focus);
-                        front.evoke_amount += gain;
-                        PassiveEffect::None
-                    }
-                    crate::orbs::OrbType::Plasma => {
-                        PassiveEffect::PlasmaEnergy(front.base_passive)
-                    }
-                    crate::orbs::OrbType::Empty => PassiveEffect::None,
-                };
-                self.apply_passive_effect(effect);
-                if self.state.combat_over {
-                    return;
-                }
-            }
         }
 
         // Player poison tick (before enemy turns)
@@ -860,6 +888,24 @@ impl CombatEngine {
             crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
         }
 
+        // DoubleTap: replay Attack card (Java: onUseCard re-executes)
+        if card.card_type == CardType::Attack
+            && self.state.player.status(sk::DOUBLE_TAP) > 0
+            && !self.state.combat_over
+        {
+            crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+            self.state.player.add_status(sk::DOUBLE_TAP, -1);
+        }
+
+        // Burst: replay Skill card (Java: onUseCard re-executes)
+        if card.card_type == CardType::Skill
+            && self.state.player.status(sk::BURST) > 0
+            && !self.state.combat_over
+        {
+            crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+            self.state.player.add_status(sk::BURST, -1);
+        }
+
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
@@ -1098,6 +1144,11 @@ impl CombatEngine {
                     let amt = card.base_magic.max(1);
                     self.state.player.add_status(sk::HELLO_WORLD, amt);
                 }
+                "channel_lightning_on_damage" => {
+                    // Static Discharge: channel Lightning when taking unblocked damage
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status(sk::STATIC_DISCHARGE, amt);
+                }
                 "lightning_hits_all" => {
                     let amt = card.base_magic.max(1);
                     self.state.player.add_status(sk::ELECTRODYNAMICS, amt);
@@ -1165,6 +1216,10 @@ impl CombatEngine {
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
         let enemy = &mut self.state.enemies[enemy_idx];
 
+        // Invincible: cap damage per hit (boss damage cap, e.g. Awakened One phase 2)
+        let inv = enemy.entity.status(sk::INVINCIBLE);
+        let damage = if inv > 0 { damage.min(inv) } else { damage };
+
         // Flight: halve incoming damage while Flight > 0, decrement per hit
         let flight = enemy.entity.status(sk::FLIGHT);
         let effective_damage = if flight > 0 {
@@ -1185,7 +1240,7 @@ impl CombatEngine {
         }
 
         // Boss damage hooks
-        combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
+        combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage, true);
     }
 
     #[allow(dead_code)]
