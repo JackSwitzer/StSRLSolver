@@ -257,6 +257,9 @@ pub struct CombatState {
 
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
+
+    /// Card replay tracking (Double Tap / Burst). Engine.rs consumes this.
+    pub replay_pending: Option<String>,
 }
 
 impl CombatState {
@@ -295,6 +298,7 @@ impl CombatState {
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
+            replay_pending: None,
         }
     }
 
