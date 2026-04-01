@@ -514,7 +514,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Wave of the Hand ----
     if card.effects.contains(&"wave_of_the_hand") {
-        engine.state.player.add_status("WaveOfTheHand", card.base_magic.max(1));
+        engine.state.player.add_status("Wave of the Hand", card.base_magic.max(1));
+    }
+
+    // ---- Rage: gain block when playing Attacks this turn ----
+    if card.effects.contains(&"rage") {
+        engine.state.player.add_status("Rage", card.base_magic.max(1));
     }
 
     // ---- Foreign Influence: MCTS approximation ----

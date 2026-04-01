@@ -188,7 +188,7 @@ impl CombatEngine {
         self.state.last_card_type = None;
 
         // Reset per-turn statuses
-        self.state.player.set_status("WaveOfTheHand", 0);
+        self.state.player.set_status("Wave of the Hand", 0);
 
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);

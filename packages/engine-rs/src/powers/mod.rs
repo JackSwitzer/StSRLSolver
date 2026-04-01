@@ -871,7 +871,7 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         "BattleHymn" => PowerDef {
             id: "BattleHymn",
             power_type: PowerType::Buff,
-            on_turn_start_post_draw: true, // add Smite to hand
+            on_turn_start: true, // add Smite to hand (Java: atStartOfTurn)
             ..Default::default()
         },
         "Devotion" => PowerDef {
