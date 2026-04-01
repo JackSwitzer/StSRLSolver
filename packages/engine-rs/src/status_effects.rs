@@ -14,7 +14,8 @@ use crate::state::CombatState;
 /// Handles: Burn (2 dmg), Burn+ (4 dmg), Decay (2 dmg), Regret (hand-size HP loss),
 /// Doubt (1 Weak), Shame (1 Frail).
 ///
-/// Damage is HP_LOSS type (bypasses block, affected by Intangible/Tungsten Rod).
+/// Burn/Decay deal DAMAGE (goes through Block first, then HP).
+/// Regret is HP_LOSS (bypasses Block, affected by Intangible/Tungsten Rod).
 ///
 /// Returns `true` if the player died from status damage (combat should end).
 pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &CardRegistry) -> bool {
@@ -27,7 +28,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
     for card_id in &hand {
         let card = card_registry.get_or_default(card_id);
 
-        // Burn (2), Burn+ (4), Decay (2): end-of-turn HP loss
+        // Burn (2), Burn+ (4), Decay (2): end-of-turn DAMAGE (goes through Block)
         if card.effects.contains(&"end_turn_damage") {
             // Burn/Burn+ have correct base_magic (2/4).
             // Decay curse re-registration has base_magic=-1, so hardcode 2.
@@ -36,10 +37,22 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
             } else {
                 2 // Decay fallback
             };
-            let hp_loss = damage::apply_hp_loss(raw, intangible, tungsten);
-            if hp_loss > 0 {
-                state.player.hp -= hp_loss;
-                state.total_damage_taken += hp_loss;
+            // Burn/Decay deal damage, not HP loss — Block absorbs first
+            let blocked = state.player.block.min(raw);
+            let mut hp_damage = raw - blocked;
+            state.player.block -= blocked;
+
+            // Apply Intangible (cap unblocked to 1) and Tungsten Rod (-1)
+            if intangible && hp_damage > 1 {
+                hp_damage = 1;
+            }
+            if tungsten && hp_damage > 0 {
+                hp_damage = (hp_damage - 1).max(0);
+            }
+
+            if hp_damage > 0 {
+                state.player.hp -= hp_damage;
+                state.total_damage_taken += hp_damage;
             }
         }
 

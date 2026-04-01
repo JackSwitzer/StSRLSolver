@@ -25,10 +25,12 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Metallicize: enemy gains block
         powers::apply_metallicize(&mut engine.state.enemies[i].entity);
 
-        // Poison tick
+        // Poison tick — route through on_enemy_damaged so boss hooks fire
         let poison_dmg = powers::tick_poison(&mut engine.state.enemies[i].entity);
         if poison_dmg > 0 {
             engine.state.total_damage_dealt += poison_dmg;
+            // Trigger boss hooks for poison damage (Guardian, SlimeBoss, etc.)
+            on_enemy_damaged(engine, i, poison_dmg);
             if engine.state.enemies[i].entity.is_dead() {
                 engine.state.enemies[i].entity.hp = 0;
                 continue;
@@ -59,6 +61,13 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
 
 /// Execute a single enemy's move (attack, block, status effects).
 fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
+    // Awakened One rebirth: if pending, execute the rebirth this turn instead of normal move
+    if engine.state.enemies[enemy_idx].entity.status("RebirthPending") > 0 {
+        engine.state.enemies[enemy_idx].entity.set_status("RebirthPending", 0);
+        enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
     let enemy = &engine.state.enemies[enemy_idx];
     if enemy.move_id == -1 {
         return;
@@ -187,6 +196,38 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.player.add_status("Dexterity", -(amt));
     }
 
+    // Champ Anger / Time Eater Haste: remove all debuffs from this enemy
+    if effects.get("remove_debuffs").copied().unwrap_or(0) > 0 {
+        let debuff_keys: Vec<String> = engine.state.enemies[enemy_idx]
+            .entity
+            .statuses
+            .keys()
+            .filter(|k| {
+                matches!(
+                    k.as_str(),
+                    "Weakened" | "Vulnerable" | "Frail" | "Poison" | "Slow"
+                    | "Hex" | "Constricted" | "Mark" | "Choked"
+                )
+            })
+            .cloned()
+            .collect();
+        for key in debuff_keys {
+            engine.state.enemies[enemy_idx].entity.statuses.remove(&key);
+        }
+    }
+
+    // Time Eater Haste: heal to half max HP
+    if effects.get("heal_to_half").copied().unwrap_or(0) > 0 {
+        let half = engine.state.enemies[enemy_idx].entity.max_hp / 2;
+        engine.state.enemies[enemy_idx].entity.hp = half;
+    }
+
+    // Heal full (Awakened One rebirth, etc.)
+    if effects.get("heal_full").copied().unwrap_or(0) > 0 {
+        engine.state.enemies[enemy_idx].entity.hp =
+            engine.state.enemies[enemy_idx].entity.max_hp;
+    }
+
     // Advance enemy to next move for next turn
     enemies::roll_next_move(&mut engine.state.enemies[enemy_idx]);
 }
@@ -221,10 +262,14 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             }
         }
         "AwakenedOne" | "Awakened One" => {
-            // Phase 1 death triggers rebirth instead of actual death.
+            // Phase 1 death triggers rebirth intent first (not instant heal).
             let phase = engine.state.enemies[enemy_idx].entity.status("Phase");
             if phase == 1 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
-                enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
+                // Keep alive at 0 HP and mark rebirth pending — actual heal happens next enemy turn
+                engine.state.enemies[enemy_idx].entity.hp = 0;
+                engine.state.enemies[enemy_idx].entity.set_status("RebirthPending", 1);
+                // Force alive so the enemy turn loop processes this enemy
+                engine.state.enemies[enemy_idx].entity.hp = 1;
             }
         }
         "Champ" => {
@@ -269,15 +314,15 @@ pub fn on_player_card_played(engine: &mut CombatEngine) -> bool {
 
 /// Handle Slime Boss splitting into two smaller slimes.
 fn do_slime_boss_split(engine: &mut CombatEngine, boss_idx: usize) {
+    // Capture boss's current HP before killing (each child gets the boss's current HP)
+    let boss_current_hp = engine.state.enemies[boss_idx].entity.hp;
+
     // Kill the boss
     engine.state.enemies[boss_idx].entity.hp = 0;
 
-    // Spawn two medium slimes (one Acid, one Spike) at the boss's remaining HP split
-    let boss_max_hp = engine.state.enemies[boss_idx].entity.max_hp;
-    let slime_hp = boss_max_hp / 4; // Each medium slime gets 1/4 of boss max HP
-
-    let acid = enemies::create_enemy("AcidSlime_M", slime_hp, slime_hp);
-    let spike = enemies::create_enemy("SpikeSlime_M", slime_hp, slime_hp);
+    // Spawn two Large slimes (one Acid, one Spike) with boss's current HP
+    let acid = enemies::create_enemy("AcidSlime_L", boss_current_hp, boss_current_hp);
+    let spike = enemies::create_enemy("SpikeSlime_L", boss_current_hp, boss_current_hp);
 
     engine.state.enemies.push(acid);
     engine.state.enemies.push(spike);

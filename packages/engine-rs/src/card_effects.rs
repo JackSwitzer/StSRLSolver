@@ -14,11 +14,11 @@ use crate::state::Stance;
 ///
 /// Called from `CombatEngine::play_card()` after energy payment and hand removal.
 pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: &str, target_idx: i32) {
-    // ---- X-cost: consume all remaining energy as X value ----
+    // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
     let x_value = if card.cost == -1 {
         let x = engine.state.energy;
         engine.state.energy = 0;
-        x
+        x + crate::relics::chemical_x_bonus(&engine.state)
     } else {
         0
     };
@@ -373,24 +373,21 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         for idx in living {
             let mark = engine.state.enemies[idx].entity.status("Mark");
             if mark > 0 {
-                engine.state.enemies[idx].entity.hp -= mark;
-                engine.state.total_damage_dealt += mark;
-                if engine.state.enemies[idx].entity.hp <= 0 {
-                    engine.state.enemies[idx].entity.hp = 0;
-                }
+                // Route through deal_damage_to_enemy so boss hooks fire
+                engine.deal_damage_to_enemy(idx, mark);
             }
         }
     }
 
-    // ---- Judgement: if enemy HP <= threshold, set HP to 0 ----
+    // ---- Judgement: if enemy HP <= threshold, deal their remaining HP as damage ----
     if card.effects.contains(&"judgement") {
         if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let tidx = target_idx as usize;
             let threshold = card.base_magic.max(1);
             if engine.state.enemies[tidx].entity.hp <= threshold {
                 let hp = engine.state.enemies[tidx].entity.hp;
-                engine.state.enemies[tidx].entity.hp = 0;
-                engine.state.total_damage_dealt += hp;
+                // Route through deal_damage_to_enemy so boss hooks fire
+                engine.deal_damage_to_enemy(tidx, hp + engine.state.enemies[tidx].entity.block);
             }
         }
     }

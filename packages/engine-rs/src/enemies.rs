@@ -1773,9 +1773,19 @@ fn roll_awakened_one(enemy: &mut EnemyCombatState) {
 }
 
 /// Trigger Awakened One rebirth (Phase 1 -> Phase 2).
+/// Heals to full, removes all debuffs, enters Phase 2.
 pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status("Phase", 2);
     enemy.entity.set_status("Curiosity", 0);
+    // Remove all debuffs
+    let debuffs: Vec<String> = enemy.entity.statuses.keys()
+        .filter(|k| matches!(k.as_str(), "Weakened" | "Vulnerable" | "Frail" | "Poison"
+            | "Slow" | "Hex" | "Constricted" | "Mark" | "Choked"))
+        .cloned()
+        .collect();
+    for debuff in debuffs {
+        enemy.entity.statuses.remove(&debuff);
+    }
     // Heal to full (second form HP)
     enemy.entity.hp = enemy.entity.max_hp;
     enemy.move_history.clear();

@@ -266,61 +266,12 @@ impl CombatEngine {
         // Clear Entangled (only lasts one turn)
         self.state.player.set_status("Entangled", 0);
 
-        // ---- End-of-turn hand card triggers (before discarding) ----
-        let player_died = status_effects::process_end_turn_hand_cards(
-            &mut self.state,
-            &self.card_registry,
-        );
-        if player_died {
-            self.phase = CombatPhase::CombatOver;
-            return;
-        }
+        // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
-        // ---- End-of-turn relic triggers (before discard) ----
+        // 1. End-of-turn relic triggers
         relics::apply_turn_end_relics(&mut self.state);
 
-        // Discard hand — Runic Pyramid keeps entire hand, else respect Retain + Ethereal
-        let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
-        let mut ethereal_exhausted = 0i32;
-        if relics::has_runic_pyramid(&self.state) {
-            // Runic Pyramid: keep all cards except ethereal (which exhaust)
-            let hand = std::mem::take(&mut self.state.hand);
-            let mut kept = Vec::new();
-            for card_id in hand {
-                let card = self.card_registry.get_or_default(&card_id);
-                if card.effects.contains(&"ethereal") {
-                    self.state.exhaust_pile.push(card_id);
-                    ethereal_exhausted += 1;
-                } else {
-                    kept.push(card_id);
-                }
-            }
-            self.state.hand = kept;
-        } else {
-            // Normal: retain tagged cards + explicitly retained (Meditate), exhaust ethereal, discard rest
-            let hand = std::mem::take(&mut self.state.hand);
-            let mut retained = Vec::new();
-            for card_id in hand {
-                let card = self.card_registry.get_or_default(&card_id);
-                if card.effects.contains(&"retain") || explicitly_retained.contains(&card_id) {
-                    retained.push(card_id);
-                } else if card.effects.contains(&"ethereal") {
-                    self.state.exhaust_pile.push(card_id);
-                    ethereal_exhausted += 1;
-                } else {
-                    self.state.discard_pile.push(card_id);
-                }
-            }
-            self.state.hand = retained;
-        }
-
-        // Trigger exhaust hooks for ethereal cards exhausted at end of turn
-        for _ in 0..ethereal_exhausted {
-            self.trigger_on_exhaust();
-        }
-
-        // ---- End-of-turn power triggers ----
-
+        // 2. End-of-turn power triggers
         // Metallicize, Plated Armor
         powers::apply_metallicize(&mut self.state.player);
         powers::apply_plated_armor(&mut self.state.player);
@@ -347,6 +298,61 @@ impl CombatEngine {
             for idx in living {
                 self.deal_damage_to_enemy(idx, omega);
             }
+        }
+
+        // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
+        let player_died = status_effects::process_end_turn_hand_cards(
+            &mut self.state,
+            &self.card_registry,
+        );
+        if player_died {
+            self.phase = CombatPhase::CombatOver;
+            return;
+        }
+
+        // 4. Discard hand — Runic Pyramid keeps hand, but status/curse cards self-discard
+        let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
+        let mut ethereal_exhausted = 0i32;
+        if relics::has_runic_pyramid(&self.state) {
+            // Runic Pyramid: keep all cards except ethereal (exhaust) and status/curse (discard after trigger)
+            let hand = std::mem::take(&mut self.state.hand);
+            let mut kept = Vec::new();
+            for card_id in hand {
+                let card = self.card_registry.get_or_default(&card_id);
+                if card.effects.contains(&"ethereal") {
+                    self.state.exhaust_pile.push(card_id);
+                    ethereal_exhausted += 1;
+                } else if card.card_type == crate::cards::CardType::Status
+                    || card.card_type == crate::cards::CardType::Curse
+                {
+                    // Status and Curse cards discard even with Runic Pyramid
+                    self.state.discard_pile.push(card_id);
+                } else {
+                    kept.push(card_id);
+                }
+            }
+            self.state.hand = kept;
+        } else {
+            // Normal: retain tagged cards + explicitly retained (Meditate), exhaust ethereal, discard rest
+            let hand = std::mem::take(&mut self.state.hand);
+            let mut retained = Vec::new();
+            for card_id in hand {
+                let card = self.card_registry.get_or_default(&card_id);
+                if card.effects.contains(&"retain") || explicitly_retained.contains(&card_id) {
+                    retained.push(card_id);
+                } else if card.effects.contains(&"ethereal") {
+                    self.state.exhaust_pile.push(card_id);
+                    ethereal_exhausted += 1;
+                } else {
+                    self.state.discard_pile.push(card_id);
+                }
+            }
+            self.state.hand = retained;
+        }
+
+        // Trigger exhaust hooks for ethereal cards exhausted at end of turn
+        for _ in 0..ethereal_exhausted {
+            self.trigger_on_exhaust();
         }
 
         // ---- End-of-turn orb passives ----
@@ -519,6 +525,16 @@ impl CombatEngine {
                     }
                 }
             }
+        }
+
+        // Pain curse: deal 1 HP loss per Pain card in hand on every card play
+        let pain_killed = status_effects::process_pain_on_card_play(
+            &mut self.state,
+            &self.card_registry,
+        );
+        if pain_killed {
+            self.phase = CombatPhase::CombatOver;
+            return;
         }
 
         // All on-card-play relic effects (Fan, Kunai, Shuriken, Nunchaku, etc.)
