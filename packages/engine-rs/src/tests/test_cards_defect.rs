@@ -427,7 +427,8 @@ mod defect_card_java_parity_tests {
 
     defect_test!(meteo_strike_channels_plasma, {
         let mut e = filled_engine(&["Meteor Strike"], 60, 0);
-        e.init_defect_orbs(1);
+        e.init_defect_orbs(3);
+        e.state.energy = 5;
         ensure_in_hand(&mut e, "Meteor Strike");
         play_on_enemy(&mut e, "Meteor Strike", 0);
         assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Plasma);

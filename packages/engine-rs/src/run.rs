@@ -1211,6 +1211,35 @@ impl RunEngine {
                             }
                         }
                     }
+                    EventEffect::TransformCard => {
+                        if self.run_state.deck.len() > 5 {
+                            let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                            self.run_state.deck.remove(idx);
+                        }
+                        let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
+                        self.run_state.deck.push(WATCHER_COMMON_CARDS[card_idx].to_string());
+                    }
+                    EventEffect::DuplicateCard => {
+                        if !self.run_state.deck.is_empty() {
+                            let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                            let card = self.run_state.deck[idx].clone();
+                            self.run_state.deck.push(card);
+                        }
+                    }
+                    EventEffect::GainPotion => {}
+                    EventEffect::LosePercentHp(percent) => {
+                        let loss = (self.run_state.max_hp * percent) / 100;
+                        self.run_state.current_hp = (self.run_state.current_hp - loss.max(1)).max(0);
+                        if self.run_state.current_hp <= 0 {
+                            self.run_state.run_over = true;
+                            self.phase = RunPhase::GameOver;
+                            return -1.0;
+                        }
+                    }
+                    EventEffect::GoldAndCurse(gold) => {
+                        self.run_state.gold += gold;
+                        self.run_state.deck.push("Curse".to_string());
+                    }
                 }
             }
         }
