@@ -235,12 +235,6 @@ impl CombatEngine {
             self.state.player.set_status(sk::DEVA_FORM, deva_form + 1);
         }
 
-        // Devotion: gain Mantra at start of turn
-        let devotion = self.state.player.status(sk::DEVOTION);
-        if devotion > 0 {
-            self.gain_mantra(devotion);
-        }
-
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
@@ -259,6 +253,47 @@ impl CombatEngine {
         self.draw_cards(5);
 
         // ---- Start-of-turn power consumptions (after draw) ----
+
+        // Devotion: gain Mantra at start of turn (Java: atStartOfTurnPostDraw)
+        let devotion = self.state.player.status(sk::DEVOTION);
+        if devotion > 0 {
+            self.gain_mantra(devotion);
+        }
+
+        // WraithForm: lose 1 Dexterity each turn
+        let wf = self.state.player.status(sk::WRAITH_FORM);
+        if wf > 0 {
+            self.state.player.add_status(sk::DEXTERITY, -1);
+        }
+
+        // CreativeAI: add random Power card to hand (MCTS: add "Smite")
+        if self.state.player.status(sk::CREATIVE_AI) > 0 && self.state.hand.len() < 10 {
+            let smite_id = self.temp_card_id("Smite");
+            self.state.hand.push(smite_id);
+        }
+
+        // DoppelgangerDraw: consume extra draws at turn start
+        let dd = self.state.player.status(sk::DOPPELGANGER_DRAW);
+        if dd > 0 {
+            self.draw_cards(dd);
+            self.state.player.set_status(sk::DOPPELGANGER_DRAW, 0);
+        }
+
+        // DoppelgangerEnergy: consume extra energy at turn start
+        let de = self.state.player.status(sk::DOPPELGANGER_ENERGY);
+        if de > 0 {
+            self.state.energy += de;
+            self.state.player.set_status(sk::DOPPELGANGER_ENERGY, 0);
+        }
+
+        // Magnetism: add random card to hand (MCTS: add "Strike")
+        if self.state.player.status(sk::MAGNETISM) > 0 && self.state.hand.len() < 10 {
+            let strike_id = self.temp_card_id("Strike");
+            self.state.hand.push(strike_id);
+        }
+
+        // Mayhem: play top card of draw pile automatically (MCTS: skip)
+        // No-op for MCTS simplicity
 
         // DemonForm: gain Strength each turn
         let demon_form = self.state.player.status(sk::DEMON_FORM);
@@ -442,6 +477,8 @@ impl CombatEngine {
                     kept.push(card_id);
                 }
             }
+            // Track retained cards for Establishment cost reduction
+            self.state.retained_cards = kept.clone();
             self.state.hand = kept;
         } else {
             // Normal: retain tagged cards + explicitly retained (Meditate), exhaust ethereal, discard rest
@@ -458,6 +495,8 @@ impl CombatEngine {
                     self.state.discard_pile.push(card_id);
                 }
             }
+            // Track retained cards for Establishment cost reduction
+            self.state.retained_cards = retained.clone();
             self.state.hand = retained;
         }
 
@@ -470,6 +509,38 @@ impl CombatEngine {
         self.apply_orb_end_of_turn();
         if self.state.combat_over {
             return;
+        }
+
+        // Loop: trigger front orb passive again
+        let loop_count = self.state.player.status(sk::LOOP);
+        if loop_count > 0 && self.state.orb_slots.has_orbs() {
+            let focus = self.state.player.focus();
+            let front = &mut self.state.orb_slots.slots[0];
+            if !front.is_empty() {
+                let effect = match front.orb_type {
+                    crate::orbs::OrbType::Lightning => {
+                        let damage = front.passive_with_focus(focus);
+                        PassiveEffect::LightningDamage(damage)
+                    }
+                    crate::orbs::OrbType::Frost => {
+                        let block = front.passive_with_focus(focus);
+                        PassiveEffect::FrostBlock(block)
+                    }
+                    crate::orbs::OrbType::Dark => {
+                        let gain = front.passive_with_focus(focus);
+                        front.evoke_amount += gain;
+                        PassiveEffect::None
+                    }
+                    crate::orbs::OrbType::Plasma => {
+                        PassiveEffect::PlasmaEnergy(front.base_passive)
+                    }
+                    crate::orbs::OrbType::Empty => PassiveEffect::None,
+                };
+                self.apply_passive_effect(effect);
+                if self.state.combat_over {
+                    return;
+                }
+            }
         }
 
         // Player poison tick (before enemy turns)
@@ -590,7 +661,7 @@ impl CombatEngine {
         true
     }
 
-    fn effective_cost(&self, card: &CardDef, _card_id: &str) -> i32 {
+    fn effective_cost(&self, card: &CardDef, card_id: &str) -> i32 {
         // X-cost cards: always playable if energy >= 0
         if card.cost == -1 {
             return 0;
@@ -611,7 +682,15 @@ impl CombatEngine {
             return 0;
         }
 
-        card.cost
+        let mut cost = card.cost;
+
+        // Establishment: retained cards cost 1 less per stack
+        let establishment = self.state.player.status(sk::ESTABLISHMENT);
+        if establishment > 0 && self.state.retained_cards.contains(&card_id.to_string()) {
+            cost = (cost - establishment).max(0);
+        }
+
+        cost
     }
 
     fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
@@ -650,6 +729,14 @@ impl CombatEngine {
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
         crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+
+        // Electrodynamics: when playing an Attack, channel Lightning for each living enemy
+        if card.card_type == CardType::Attack && self.state.player.status(sk::ELECTRODYNAMICS) > 0 {
+            let count = self.state.living_enemy_indices().len();
+            for _ in 0..count {
+                self.channel_orb(crate::orbs::OrbType::Lightning);
+            }
+        }
 
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
@@ -762,6 +849,15 @@ impl CombatEngine {
         // Consume NextAttackFree after playing an attack
         if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
             self.state.player.set_status(sk::NEXT_ATTACK_FREE, 0);
+        }
+
+        // EchoForm: replay the first card played this turn
+        if self.state.cards_played_this_turn == 1
+            && self.state.player.status(sk::ECHO_FORM) > 0
+            && card.card_type != CardType::Power
+            && !self.state.combat_over
+        {
+            crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
         }
 
         // Power card: install status effect instead of going to discard
@@ -1068,8 +1164,18 @@ impl CombatEngine {
 
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
         let enemy = &mut self.state.enemies[enemy_idx];
-        let blocked = enemy.entity.block.min(damage);
-        let hp_damage = damage - blocked;
+
+        // Flight: halve incoming damage while Flight > 0, decrement per hit
+        let flight = enemy.entity.status(sk::FLIGHT);
+        let effective_damage = if flight > 0 {
+            enemy.entity.set_status(sk::FLIGHT, flight - 1);
+            (damage as f64 * 0.5) as i32
+        } else {
+            damage
+        };
+
+        let blocked = enemy.entity.block.min(effective_damage);
+        let hp_damage = effective_damage - blocked;
         enemy.entity.block -= blocked;
         enemy.entity.hp -= hp_damage;
         self.state.total_damage_dealt += hp_damage;
