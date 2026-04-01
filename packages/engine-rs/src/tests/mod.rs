@@ -13,11 +13,22 @@
 //! 10. Integration — multi-turn combats, combined effects
 
 
+pub(crate) mod support;
 mod test_cards;
+mod test_cards_defect;
+mod test_cards_ironclad;
+mod test_cards_silent;
+mod test_cards_watcher;
 mod test_damage;
+mod test_enemy_ai;
 mod test_enemies;
+mod test_events_parity;
+mod test_bosses;
 mod test_integration;
 mod test_potions;
 mod test_powers;
+mod test_powers_parity;
 mod test_relics;
+mod test_relics_parity;
+mod test_run_parity;
 mod test_state;
