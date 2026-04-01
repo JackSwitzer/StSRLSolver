@@ -249,8 +249,23 @@ impl CombatEngine {
             }
         }
 
-        // Draw cards (default 5)
-        self.draw_cards(5);
+        // Draw cards (default 5 + Draw/Machine Learning power)
+        let ml = self.state.player.status(sk::DRAW);
+        self.draw_cards(5 + ml);
+
+        // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
+        let extra_draw = self.state.player.status(sk::TURN_START_EXTRA_DRAW);
+        if extra_draw > 0 {
+            self.draw_cards(extra_draw);
+            self.state.player.set_status(sk::TURN_START_EXTRA_DRAW, 0);
+        }
+
+        // InkBottleDraw: one-shot extra draw from Ink Bottle relic trigger
+        let ink_draw = self.state.player.status(sk::INK_BOTTLE_DRAW);
+        if ink_draw > 0 {
+            self.draw_cards(ink_draw);
+            self.state.player.set_status(sk::INK_BOTTLE_DRAW, 0);
+        }
 
         // ---- Start-of-turn power consumptions (after draw) ----
 
@@ -292,8 +307,23 @@ impl CombatEngine {
             self.state.hand.push(strike_id);
         }
 
-        // Mayhem: play top card of draw pile automatically (MCTS: skip)
-        // No-op for MCTS simplicity
+        // EnterDivinity (Damaru relic): enter Divinity stance, then clear flag
+        if self.state.player.status(sk::ENTER_DIVINITY) > 0 {
+            self.change_stance(Stance::Divinity);
+            self.state.player.set_status(sk::ENTER_DIVINITY, 0);
+        }
+
+        // Mayhem: add top card of draw pile to hand (simplified from auto-play)
+        let mayhem = self.state.player.status(sk::MAYHEM);
+        if mayhem > 0 {
+            for _ in 0..mayhem {
+                if self.state.hand.len() < 10 {
+                    if let Some(card_id) = self.state.draw_pile.pop() {
+                        self.state.hand.push(card_id);
+                    }
+                }
+            }
+        }
 
         // DemonForm: gain Strength each turn
         let demon_form = self.state.player.status(sk::DEMON_FORM);
@@ -543,6 +573,37 @@ impl CombatEngine {
             }
         }
 
+        // FrozenCore: at end of turn, if no orbs channeled, channel 1 Lightning
+        if self.state.player.status(sk::FROZEN_CORE_TRIGGER) > 0 {
+            if self.state.orb_slots.occupied_count() == 0 && self.state.orb_slots.has_orbs() {
+                self.channel_orb(crate::orbs::OrbType::Lightning);
+            }
+        }
+
+        // Constricted: deal Constricted damage to player at end of turn
+        let constricted = self.state.player.status(sk::CONSTRICTED);
+        if constricted > 0 {
+            let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
+            let has_tungsten = self.state.has_relic("Tungsten Rod");
+            let hp_loss = damage::apply_hp_loss(constricted, intangible, has_tungsten);
+            self.state.player.hp -= hp_loss;
+            self.state.total_damage_taken += hp_loss;
+
+            if self.state.player.hp <= 0 {
+                let revive_hp = potions::check_fairy_revive(&self.state);
+                if revive_hp > 0 {
+                    potions::consume_fairy(&mut self.state);
+                    self.state.player.hp = revive_hp;
+                } else {
+                    self.state.player.hp = 0;
+                    self.state.combat_over = true;
+                    self.state.player_won = false;
+                    self.phase = CombatPhase::CombatOver;
+                    return;
+                }
+            }
+        }
+
         // Player poison tick (before enemy turns)
         let player_poison = self.state.player.status(sk::POISON);
         if player_poison > 0 {
@@ -620,10 +681,16 @@ impl CombatEngine {
             return false;
         }
 
-        // Energy check
-        let cost = self.effective_cost(card, card_id);
-        if cost > self.state.energy {
-            return false;
+        // Energy check — Confusion: any card could cost 0-3, so playable if energy >= 0
+        if self.state.player.status(sk::CONFUSION) > 0 && card.cost >= 0 {
+            if self.state.energy < 0 {
+                return false;
+            }
+        } else {
+            let cost = self.effective_cost(card, card_id);
+            if cost > self.state.energy {
+                return false;
+            }
         }
 
         // Entangled: can't play attacks
@@ -682,6 +749,51 @@ impl CombatEngine {
             return 0;
         }
 
+        // Confusion/SneckoEye: randomize card costs 0-3
+        // MCTS approximation: use deterministic midpoint (1) to avoid RNG in &self method
+        if self.state.player.status(sk::CONFUSION) > 0 {
+            return 1;
+        }
+
+        let mut cost = card.cost;
+
+        // Establishment: retained cards cost 1 less per stack
+        let establishment = self.state.player.status(sk::ESTABLISHMENT);
+        if establishment > 0 && self.state.retained_cards.contains(&card_id.to_string()) {
+            cost = (cost - establishment).max(0);
+        }
+
+        cost
+    }
+
+    /// Effective cost with RNG for actual card play (Confusion randomization).
+    /// Called from play_card where &mut self is available.
+    fn effective_cost_mut(&mut self, card: &CardDef, card_id: &str) -> i32 {
+        // X-cost cards: always playable if energy >= 0
+        if card.cost == -1 {
+            return 0;
+        }
+
+        // NextAttackFree: next attack costs 0
+        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
+            return 0;
+        }
+
+        // Corruption: all Skills cost 0
+        if card.card_type == CardType::Skill && self.state.player.status(sk::CORRUPTION) > 0 {
+            return 0;
+        }
+
+        // BulletTime: all cards cost 0
+        if self.state.player.status(sk::BULLET_TIME) > 0 {
+            return 0;
+        }
+
+        // Confusion/SneckoEye: randomize card costs 0-3
+        if self.state.player.status(sk::CONFUSION) > 0 {
+            return self.rng.random(3);
+        }
+
         let mut cost = card.cost;
 
         // Establishment: retained cards cost 1 less per stack
@@ -705,8 +817,8 @@ impl CombatEngine {
             return;
         }
 
-        // Pay energy
-        let cost = self.effective_cost(&card, &card_id);
+        // Pay energy (use RNG-aware version for Confusion randomization)
+        let cost = self.effective_cost_mut(&card, &card_id);
         self.state.energy -= cost;
 
         // Remove from hand
@@ -729,6 +841,33 @@ impl CombatEngine {
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
         crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+
+        // Envenom: when Attack deals unblocked damage, apply Poison to target
+        // MCTS approximation: apply Envenom Poison to target after every attack card
+        let envenom = self.state.player.status(sk::ENVENOM);
+        if envenom > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
+            let tidx = target_idx as usize;
+            if tidx < self.state.enemies.len() && self.state.enemies[tidx].is_alive() {
+                self.state.enemies[tidx].entity.add_status(sk::POISON, envenom);
+            }
+        }
+
+        // Sadistic Nature: deal damage when debuff applied to enemy
+        // MCTS approximation: deal Sadistic damage per debuff-applying attack
+        let sadistic = self.state.player.status(sk::SADISTIC);
+        if sadistic > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
+            // Check if card applies debuffs (Weak, Vulnerable, Poison via effects)
+            let applies_debuff = card.effects.iter().any(|e| {
+                *e == "weak" || *e == "vulnerable" || *e == "poison"
+                    || *e == "weak_all" || *e == "vulnerable_all"
+            });
+            if applies_debuff {
+                let tidx = target_idx as usize;
+                if tidx < self.state.enemies.len() && self.state.enemies[tidx].is_alive() {
+                    self.deal_damage_to_enemy(tidx, sadistic);
+                }
+            }
+        }
 
         // Electrodynamics: when playing an Attack, channel Lightning for each living enemy
         if card.card_type == CardType::Attack && self.state.player.status(sk::ELECTRODYNAMICS) > 0 {
@@ -755,6 +894,16 @@ impl CombatEngine {
                     if enrage > 0 {
                         enemy.entity.add_status(sk::STRENGTH, enrage);
                     }
+                }
+            }
+        }
+
+        // Hex: when player plays a non-Attack card, add 1 Daze to draw pile
+        if card.card_type != CardType::Attack {
+            let hex = self.state.player.status(sk::HEX);
+            if hex > 0 {
+                for _ in 0..hex {
+                    self.state.draw_pile.push("Daze".to_string());
                 }
             }
         }
@@ -871,6 +1020,12 @@ impl CombatEngine {
             let heatsink_draw = powers::get_heatsink_draw(&self.state.player);
             if heatsink_draw > 0 {
                 self.draw_cards(heatsink_draw);
+            }
+            // MummifiedHand: when Power card played, random card in hand costs 0 this turn
+            // MCTS approximation: reduce energy cost of cheapest card in hand by setting its cost
+            // to 0 is not feasible without per-card cost tracking; grant 1 energy instead
+            if self.state.player.status(sk::MUMMIFIED_HAND_TRIGGER) > 0 && !self.state.hand.is_empty() {
+                self.state.energy += 1;
             }
             // Powers don't go to any pile
         } else if card.effects.contains(&"shuffle_self_into_draw") {
