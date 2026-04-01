@@ -639,6 +639,15 @@ impl CombatEngine {
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
+            // Storm: channel Lightning when playing a Power
+            if powers::should_storm_channel(&self.state.player) {
+                self.channel_orb(crate::orbs::OrbType::Lightning);
+            }
+            // Heatsink: draw cards when playing a Power
+            let heatsink_draw = powers::get_heatsink_draw(&self.state.player);
+            if heatsink_draw > 0 {
+                self.draw_cards(heatsink_draw);
+            }
             // Powers don't go to any pile
         } else if card.effects.contains(&"shuffle_self_into_draw") {
             // Tantrum: goes to draw pile instead of discard
@@ -746,6 +755,26 @@ impl CombatEngine {
                     self.state
                         .player
                         .set_status("Omega", current + card.base_magic.max(1));
+                }
+                "after_image" => {
+                    let current = self.state.player.status("After Image");
+                    self.state.player.set_status("After Image", current + card.base_magic.max(1));
+                }
+                "draw_on_power_play" => {
+                    let current = self.state.player.status("Heatsink");
+                    self.state.player.set_status("Heatsink", current + card.base_magic.max(1));
+                }
+                "channel_lightning_on_power" => {
+                    let current = self.state.player.status("Storm");
+                    self.state.player.set_status("Storm", current + card.base_magic.max(1));
+                }
+                "buffer" => {
+                    let current = self.state.player.status("Buffer");
+                    self.state.player.set_status("Buffer", current + card.base_magic.max(1));
+                }
+                "extra_draw_each_turn" => {
+                    let current = self.state.player.status("Draw");
+                    self.state.player.set_status("Draw", current + card.base_magic.max(1));
                 }
                 _ => {}
             }

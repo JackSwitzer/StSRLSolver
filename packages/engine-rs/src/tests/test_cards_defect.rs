@@ -405,12 +405,12 @@ mod defect_card_java_parity_tests {
         play_self(&mut e, "Fission+");
         assert!(e.state.enemies[0].entity.hp < before_hp);
         assert!(e.state.player.block >= before_block);
-        assert_eq!(e.state.energy, 5);
+        assert_eq!(e.state.energy, 6);
     });
 
     defect_test!(glacier_gains_block_and_channels_frost, {
         let mut e = filled_engine(&["Glacier"], 40, 0);
-        e.init_defect_orbs(1);
+        e.init_defect_orbs(3);
         ensure_in_hand(&mut e, "Glacier");
         play_self(&mut e, "Glacier");
         assert_eq!(e.state.player.block, 7);

@@ -883,7 +883,7 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         "Establishment" => PowerDef {
             id: "Establishment",
             power_type: PowerType::Buff,
-            // Retained cards cost 1 less
+            on_turn_end: true, // retained cards cost 1 less
             ..Default::default()
         },
         "Foresight" => PowerDef {
@@ -1111,8 +1111,9 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         },
         "Wraith Form" => PowerDef {
             id: "Wraith Form",
-            power_type: PowerType::Buff,
-            on_turn_start: true, // lose 1 Dexterity each turn
+            power_type: PowerType::Debuff,
+            can_go_negative: true,
+            on_turn_end: true, // lose 1 Dexterity each turn
             ..Default::default()
         },
 

@@ -2302,8 +2302,8 @@ mod effect_handler_tests {
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WaveOfTheHand", -1);
-        assert_eq!(e.state.player.status("WaveOfTheHand"), 1,
-            "Wave of the Hand should set WaveOfTheHand status");
+        assert_eq!(e.state.player.status("Wave of the Hand"), 1,
+            "Wave of the Hand should set status");
     }
 
     // ===== 37. Conjure Blade: X-cost creates Expunger =====
