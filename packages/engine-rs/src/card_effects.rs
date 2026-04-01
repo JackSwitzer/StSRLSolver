@@ -59,6 +59,30 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     let grand_finale_blocked = card.effects.contains(&"only_empty_draw")
         && !engine.state.draw_pile.is_empty();
 
+    // ---- Heavy Blade: strength multiplier (3x base, 5x upgraded) ----
+    let heavy_blade_mult = if card.effects.contains(&"heavy_blade") {
+        card.base_magic.max(1)
+    } else {
+        1
+    };
+
+    // ---- Perfected Strike: +N damage per "Strike" card in all piles ----
+    let perfected_strike_bonus = if card.effects.contains(&"perfected_strike") {
+        let per_strike = card.base_magic.max(1);
+        let strike_count = engine.state.hand.iter()
+            .chain(engine.state.draw_pile.iter())
+            .chain(engine.state.discard_pile.iter())
+            .chain(engine.state.exhaust_pile.iter())
+            .filter(|id| {
+                let lower = id.to_lowercase();
+                lower.contains("strike")
+            })
+            .count() as i32;
+        per_strike * strike_count
+    } else {
+        0
+    };
+
     // ---- Damage ----
     // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
@@ -68,7 +92,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let effective_base_damage = if body_slam_damage >= 0 {
             body_slam_damage
         } else {
-            card.base_damage
+            card.base_damage + perfected_strike_bonus
         };
 
         let is_multi_hit = card.effects.contains(&"multi_hit");
@@ -82,7 +106,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             1
         };
 
-        let player_strength = engine.state.player.strength();
+        let player_strength = engine.state.player.strength() * heavy_blade_mult;
         let player_weak = engine.state.player.is_weak();
         let weak_paper_crane = engine.state.has_relic("Paper Crane");
         let stance_mult = engine.state.stance.outgoing_mult();
@@ -998,6 +1022,234 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             if let Some(card_id) = engine.state.draw_pile.pop() {
                 engine.state.hand.push(card_id);
             }
+        }
+    }
+
+    // ====================================================================
+    // Newly implemented effect handlers
+    // ====================================================================
+
+    // ---- Poison: apply Poison to single target ----
+    if card.effects.contains(&"poison") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            engine.state.enemies[target_idx as usize]
+                .entity
+                .add_status("Poison", amount);
+        }
+    }
+
+    // ---- Poison All: apply Poison to ALL enemies ----
+    if card.effects.contains(&"poison_all") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            engine.state.enemies[idx].entity.add_status("Poison", amount);
+        }
+    }
+
+    // ---- Copy to Discard: add a copy of this card to discard (Anger) ----
+    if card.effects.contains(&"copy_to_discard") {
+        engine.state.discard_pile.push(card_id.to_string());
+    }
+
+    // ---- Discard: force player to discard 1 card from hand (MCTS: discard random) ----
+    if card.effects.contains(&"discard") {
+        if !engine.state.hand.is_empty() {
+            let idx = engine.rng_gen_range(0..engine.state.hand.len());
+            let discarded = engine.state.hand.remove(idx);
+            engine.state.discard_pile.push(discarded);
+        }
+    }
+
+    // ---- Discard to Top of Draw: move a card from discard to top of draw (Headbutt) ----
+    if card.effects.contains(&"discard_to_top_of_draw") {
+        if !engine.state.discard_pile.is_empty() {
+            // MCTS approximation: move the last discarded card to top of draw
+            if let Some(moved) = engine.state.discard_pile.pop() {
+                engine.state.draw_pile.push(moved);
+            }
+        }
+    }
+
+    // ---- Double Block: double current player block (Entrench) ----
+    if card.effects.contains(&"double_block") {
+        engine.state.player.block *= 2;
+    }
+
+    // ---- Offering: lose 6 HP, gain 2 energy, draw N cards ----
+    if card.effects.contains(&"offering") {
+        engine.state.player.hp = (engine.state.player.hp - 6).max(0);
+        engine.state.energy += 2;
+        let draw_count = card.base_magic.max(3);
+        engine.draw_cards(draw_count);
+    }
+
+    // ---- Thorns: apply Thorns to self (Caltrops) ----
+    if card.effects.contains(&"thorns") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Thorns", amount);
+    }
+
+    // ---- Gain Strength (Inflame) ----
+    if card.effects.contains(&"gain_strength") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Strength", amount);
+    }
+
+    // ---- Temp Strength: gain Strength this turn, lose at end (Flex) ----
+    if card.effects.contains(&"temp_strength") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Strength", amount);
+        // Track temporary strength to remove at end of turn
+        engine.state.player.add_status("TempStrength", amount);
+    }
+
+    // ---- Gain Dexterity (Footwork) ----
+    if card.effects.contains(&"gain_dexterity") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Dexterity", amount);
+    }
+
+    // ---- Reduce Strength: target enemy loses Strength (Disarm) ----
+    if card.effects.contains(&"reduce_strength") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            let tidx = target_idx as usize;
+            let current = engine.state.enemies[tidx].entity.strength();
+            engine.state.enemies[tidx].entity.set_status("Strength", current - amount);
+        }
+    }
+
+    // ---- Reduce Strength All Temp: all enemies lose Strength temporarily (Piercing Wail) ----
+    if card.effects.contains(&"reduce_strength_all_temp") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            let current = engine.state.enemies[idx].entity.strength();
+            engine.state.enemies[idx].entity.set_status("Strength", current - amount);
+            // Track for restoration at end of turn
+            engine.state.enemies[idx].entity.add_status("TempStrengthLoss", amount);
+        }
+    }
+
+    // ---- Heal: restore HP (Bandage Up) ----
+    if card.effects.contains(&"heal") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
+    }
+
+    // ---- Heal on Play: same as heal (Bite) ----
+    if card.effects.contains(&"heal_on_play") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
+    }
+
+    // ---- Intangible: gain Intangible (Apparition/Ghostly) ----
+    if card.effects.contains(&"intangible") {
+        engine.state.player.add_status("Intangible", 1);
+    }
+
+    // ---- Exhaust Choose: player chooses N cards from hand to exhaust (MCTS: random) ----
+    if card.effects.contains(&"exhaust_choose") {
+        let count = 1; // Standard: exhaust 1 card
+        for _ in 0..count {
+            if engine.state.hand.is_empty() {
+                break;
+            }
+            let idx = engine.rng_gen_range(0..engine.state.hand.len());
+            let exhausted = engine.state.hand.remove(idx);
+            engine.state.exhaust_pile.push(exhausted);
+        }
+    }
+
+    // ---- Exhaust Random: exhaust N random cards from hand ----
+    if card.effects.contains(&"exhaust_random") {
+        let count = 1; // Standard: exhaust 1 random card
+        for _ in 0..count {
+            if engine.state.hand.is_empty() {
+                break;
+            }
+            let idx = engine.rng_gen_range(0..engine.state.hand.len());
+            let exhausted = engine.state.hand.remove(idx);
+            engine.state.exhaust_pile.push(exhausted);
+        }
+    }
+
+    // ---- Spot Weakness: if target enemy intending Attack, gain Strength ----
+    if card.effects.contains(&"spot_weakness") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            if engine.state.enemies[tidx].is_attacking() {
+                let amount = card.base_magic.max(1);
+                engine.state.player.add_status("Strength", amount);
+            }
+        }
+    }
+
+    // ---- Fiend Fire: exhaust all hand cards, deal damage per card exhausted ----
+    if card.effects.contains(&"fiend_fire") {
+        let hand_count = engine.state.hand.len() as i32;
+        // Exhaust all cards from hand
+        let exhausted_cards: Vec<String> = engine.state.hand.drain(..).collect();
+        engine.state.exhaust_pile.extend(exhausted_cards);
+        // Deal base_damage per card exhausted to the target
+        if hand_count > 0 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let player_strength = engine.state.player.strength();
+            let player_weak = engine.state.player.is_weak();
+            let weak_paper_crane = engine.state.has_relic("Paper Crane");
+            let stance_mult = engine.state.stance.outgoing_mult();
+            let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+            let enemy_intangible = engine.state.enemies[tidx].entity.status("Intangible") > 0;
+            let vuln_paper_frog = engine.state.has_relic("Paper Frog");
+            let dmg = damage::calculate_damage_full(
+                card.base_damage,
+                player_strength,
+                vigor,
+                player_weak,
+                weak_paper_crane,
+                pen_nib_active,
+                false,
+                stance_mult,
+                enemy_vuln,
+                vuln_paper_frog,
+                false,
+                enemy_intangible,
+            );
+            for _ in 0..hand_count {
+                if engine.state.enemies[tidx].entity.is_dead() {
+                    break;
+                }
+                engine.deal_damage_to_enemy(tidx, dmg);
+            }
+        }
+    }
+
+    // ---- Second Wind: exhaust all non-attack cards in hand, gain block per exhaust ----
+    if card.effects.contains(&"second_wind") {
+        let registry = crate::cards::CardRegistry::new();
+        let block_per = card.base_block.max(5);
+        let dex = engine.state.player.dexterity();
+        let frail = engine.state.player.is_frail();
+        let mut to_exhaust = Vec::new();
+        let mut remaining = Vec::new();
+        for hand_card in engine.state.hand.drain(..) {
+            let is_attack = registry.get(&hand_card)
+                .map(|def| def.card_type == CardType::Attack)
+                .unwrap_or(false);
+            if is_attack {
+                remaining.push(hand_card);
+            } else {
+                to_exhaust.push(hand_card);
+            }
+        }
+        let exhaust_count = to_exhaust.len() as i32;
+        engine.state.exhaust_pile.extend(to_exhaust);
+        engine.state.hand = remaining;
+        if exhaust_count > 0 {
+            let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
+            engine.state.player.block += block;
         }
     }
 }
