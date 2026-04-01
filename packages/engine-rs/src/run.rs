@@ -188,7 +188,73 @@ const ACT1_ELITE_ENCOUNTERS: &[&[&str]] = &[
 const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
 
 // ---------------------------------------------------------------------------
-// Event definitions (5 common Act 1 events)
+// Act 2 encounter pools
+// ---------------------------------------------------------------------------
+
+const ACT2_WEAK_ENCOUNTERS: &[&[&str]] = &[
+    &["Byrd", "Byrd"],
+    &["Chosen"],
+    &["ShelledParasite"],
+    &["Cultist", "Chosen"],
+];
+
+const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
+    &["SnakePlant"],
+    &["Centurion", "Mystic"],
+    &["Cultist", "Cultist", "Cultist"],
+    &["Byrd", "Byrd", "Byrd"],
+    &["Chosen", "Cultist"],
+    &["ShelledParasite", "FungiBeast"],
+];
+
+const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
+    &["GremlinLeader"],
+    &["BookOfStabbing"],
+    &["TaskMaster"],
+];
+
+const ACT2_BOSSES: &[&str] = &["BronzeAutomaton", "TheCollector", "TheChamp"];
+
+// ---------------------------------------------------------------------------
+// Act 3 encounter pools
+// ---------------------------------------------------------------------------
+
+const ACT3_WEAK_ENCOUNTERS: &[&[&str]] = &[
+    &["Darkling", "Darkling", "Darkling"],
+    &["OrbWalker"],
+    &["Repulsor"],
+];
+
+const ACT3_STRONG_ENCOUNTERS: &[&[&str]] = &[
+    &["WrithingMass"],
+    &["GiantHead"],
+    &["Nemesis"],
+    &["Reptomancer"],
+    &["Transient"],
+    &["Maw"],
+    &["SpireGrowth"],
+];
+
+const ACT3_ELITE_ENCOUNTERS: &[&[&str]] = &[
+    &["GiantHead"],
+    &["Nemesis"],
+    &["Reptomancer"],
+];
+
+const ACT3_BOSSES: &[&str] = &["AwakenedOne", "TimeEater", "DonuAndDeca"];
+
+// ---------------------------------------------------------------------------
+// Act 4 encounters
+// ---------------------------------------------------------------------------
+
+const ACT4_ELITE_ENCOUNTERS: &[&[&str]] = &[
+    &["SpireShield", "SpireSpear"],
+];
+
+const ACT4_BOSSES: &[&str] = &["CorruptHeart"];
+
+// ---------------------------------------------------------------------------
+// Event definitions
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,6 +329,87 @@ fn act1_events() -> Vec<EventDef> {
             options: vec![
                 EventOption { text: "Upgrade (upgrade a card)".into(), effect: EventEffect::UpgradeCard },
                 EventOption { text: "Remove (remove a card)".into(), effect: EventEffect::RemoveCard },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+    ]
+}
+
+fn act2_events() -> Vec<EventDef> {
+    vec![
+        EventDef {
+            name: "Forgotten Altar".to_string(),
+            options: vec![
+                EventOption { text: "Offer (lose 5 HP, gain golden idol)".into(), effect: EventEffect::Hp(-5) },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Council of Ghosts".to_string(),
+            options: vec![
+                EventOption { text: "Accept (gain 5 Apparitions, lose max HP)".into(), effect: EventEffect::MaxHp(-5) },
+                EventOption { text: "Refuse".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Masked Bandits".to_string(),
+            options: vec![
+                EventOption { text: "Pay (lose all gold)".into(), effect: EventEffect::Gold(-999) },
+                EventOption { text: "Fight".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Knowing Skull".to_string(),
+            options: vec![
+                EventOption { text: "Ask for gold (gain 90 gold, lose 10% HP)".into(), effect: EventEffect::DamageAndGold(-6, 90) },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Vampires".to_string(),
+            options: vec![
+                EventOption { text: "Accept (remove Strikes, gain Bites)".into(), effect: EventEffect::RemoveCard },
+                EventOption { text: "Refuse".into(), effect: EventEffect::Nothing },
+            ],
+        },
+    ]
+}
+
+fn act3_events() -> Vec<EventDef> {
+    vec![
+        EventDef {
+            name: "Mysterious Sphere".to_string(),
+            options: vec![
+                EventOption { text: "Open (gain relic, fight)".into(), effect: EventEffect::GainRelic },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Mind Bloom".to_string(),
+            options: vec![
+                EventOption { text: "I am War (fight Act 1 boss, gain rare relic)".into(), effect: EventEffect::GainRelic },
+                EventOption { text: "I am Awake (upgrade all, lose ability to heal)".into(), effect: EventEffect::UpgradeCard },
+                EventOption { text: "I am Rich (gain 999 gold)".into(), effect: EventEffect::Gold(999) },
+            ],
+        },
+        EventDef {
+            name: "Tomb of Lord Red Mask".to_string(),
+            options: vec![
+                EventOption { text: "Don the mask (gain Red Mask)".into(), effect: EventEffect::GainRelic },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Sensory Stone".to_string(),
+            options: vec![
+                EventOption { text: "Focus (gain a card)".into(), effect: EventEffect::GainCard },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Secret Portal".to_string(),
+            options: vec![
+                EventOption { text: "Enter (skip to boss)".into(), effect: EventEffect::Nothing },
                 EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
             ],
         },
@@ -644,22 +791,34 @@ impl RunEngine {
     // =======================================================================
 
     fn enter_combat(&mut self, is_elite: bool, is_boss: bool) {
+        let act = self.run_state.act;
         let encounter = if is_boss {
             vec![self.boss_id.clone()]
         } else if is_elite {
-            let pool = ACT1_ELITE_ENCOUNTERS;
+            let pool = match act {
+                2 => ACT2_ELITE_ENCOUNTERS,
+                3 => ACT3_ELITE_ENCOUNTERS,
+                4 => ACT4_ELITE_ENCOUNTERS,
+                _ => ACT1_ELITE_ENCOUNTERS,
+            };
             let idx = self.elite_encounter_idx % pool.len();
             self.elite_encounter_idx += 1;
             pool[idx].iter().map(|s| s.to_string()).collect()
-        } else if self.run_state.floor <= 3 {
-            let pool = ACT1_WEAK_ENCOUNTERS;
-            let idx = self.weak_encounter_idx % pool.len();
-            self.weak_encounter_idx += 1;
-            pool[idx].iter().map(|s| s.to_string()).collect()
         } else {
-            let pool = ACT1_STRONG_ENCOUNTERS;
-            let idx = self.strong_encounter_idx % pool.len();
-            self.strong_encounter_idx += 1;
+            // Weak encounters for early floors in the act, strong otherwise
+            let act_floor = self.run_state.floor % 17; // relative floor within act
+            let is_weak = act_floor <= 3;
+            let pool = match (act, is_weak) {
+                (2, true) => ACT2_WEAK_ENCOUNTERS,
+                (2, false) => ACT2_STRONG_ENCOUNTERS,
+                (3, true) => ACT3_WEAK_ENCOUNTERS,
+                (3, false) => ACT3_STRONG_ENCOUNTERS,
+                (_, true) => ACT1_WEAK_ENCOUNTERS,
+                (_, false) => ACT1_STRONG_ENCOUNTERS,
+            };
+            let counter = if is_weak { &mut self.weak_encounter_idx } else { &mut self.strong_encounter_idx };
+            let idx = *counter % pool.len();
+            *counter += 1;
             pool[idx].iter().map(|s| s.to_string()).collect()
         };
 
@@ -765,6 +924,117 @@ impl RunEngine {
             }
             "SlimeBoss" => {
                 let hp = if a20 { 150 } else { 140 };
+                (hp, hp)
+            }
+            // Act 2 enemies
+            "Byrd" => {
+                let hp = if a20 { 28 } else { 25 };
+                (hp, hp)
+            }
+            "Chosen" => {
+                let hp = if a20 { 99 } else { 95 };
+                (hp, hp)
+            }
+            "ShelledParasite" => {
+                let hp = if a20 { 73 } else { 68 };
+                (hp, hp)
+            }
+            "SnakePlant" => {
+                let hp = if a20 { 79 } else { 75 };
+                (hp, hp)
+            }
+            "Centurion" => {
+                let hp = if a20 { 80 } else { 76 };
+                (hp, hp)
+            }
+            "Mystic" => {
+                let hp = if a20 { 52 } else { 48 };
+                (hp, hp)
+            }
+            "GremlinLeader" => {
+                let hp = if a20 { 162 } else { 140 };
+                (hp, hp)
+            }
+            "BookOfStabbing" => {
+                let hp = if a20 { 168 } else { 160 };
+                (hp, hp)
+            }
+            "TaskMaster" => {
+                let hp = if a20 { 64 } else { 60 };
+                (hp, hp)
+            }
+            "BronzeAutomaton" => {
+                let hp = if a20 { 320 } else { 300 };
+                (hp, hp)
+            }
+            "TheCollector" => {
+                let hp = if a20 { 318 } else { 282 };
+                (hp, hp)
+            }
+            "TheChamp" => {
+                let hp = if a20 { 440 } else { 420 };
+                (hp, hp)
+            }
+            // Act 3 enemies
+            "Darkling" => {
+                let hp = if a20 { 55 } else { 48 };
+                (hp, hp)
+            }
+            "OrbWalker" => {
+                let hp = if a20 { 100 } else { 90 };
+                (hp, hp)
+            }
+            "Repulsor" => {
+                let hp = if a20 { 36 } else { 29 };
+                (hp, hp)
+            }
+            "WrithingMass" => {
+                let hp = if a20 { 175 } else { 160 };
+                (hp, hp)
+            }
+            "GiantHead" => {
+                let hp = if a20 { 520 } else { 500 };
+                (hp, hp)
+            }
+            "Nemesis" => {
+                let hp = if a20 { 200 } else { 185 };
+                (hp, hp)
+            }
+            "Reptomancer" => {
+                let hp = if a20 { 210 } else { 190 };
+                (hp, hp)
+            }
+            "Transient" => {
+                let hp = if a20 { 1000 } else { 999 };
+                (hp, hp)
+            }
+            "Maw" => {
+                let hp = if a20 { 310 } else { 300 };
+                (hp, hp)
+            }
+            "SpireGrowth" => {
+                let hp = if a20 { 190 } else { 170 };
+                (hp, hp)
+            }
+            "AwakenedOne" => {
+                let hp = if a20 { 320 } else { 300 };
+                (hp, hp)
+            }
+            "TimeEater" => {
+                let hp = if a20 { 480 } else { 456 };
+                (hp, hp)
+            }
+            "DonuAndDeca" | "Donu" | "Deca" => {
+                let hp = if a20 { 282 } else { 250 };
+                (hp, hp)
+            }
+            // Act 4 enemies
+            "SpireShield" | "SpireSpear" => {
+                let hp = if a20 { 220 } else { 200 };
+                (hp, hp)
+            }
+            "CorruptHeart" => {
+                let hp = if a20 { 800 } else { 750 };
                 (hp, hp)
             }
             _ => (40, 40),
@@ -1019,7 +1289,11 @@ impl RunEngine {
     // =======================================================================
 
     fn enter_event(&mut self) {
-        let events = act1_events();
+        let events = match self.run_state.act {
+            2 => act2_events(),
+            3 => act3_events(),
+            _ => act1_events(),
+        };
         let idx = self.rng.gen_range(0..events.len());
         self.current_event = Some(events[idx].clone());
         self.phase = RunPhase::Event;

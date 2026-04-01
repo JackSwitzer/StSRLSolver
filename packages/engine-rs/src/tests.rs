@@ -1155,7 +1155,7 @@ mod enemy_tests {
         roll_next_move(&mut e); // Inferno
         assert_eq!(e.move_id, HEX_INFERNO);
         assert_eq!(e.move_hits, 6);
-        assert_eq!(*e.move_effects.get("burn+").unwrap(), 3);
+        assert_eq!(*e.move_effects.get("burn_upgrade").unwrap(), 1);
     }
     #[test] fn hex_cycle_repeats() {
         let mut e = create_enemy("Hexaghost", 250, 250);
@@ -2111,6 +2111,12 @@ mod engine_integration_tests {
         }
     }
 
+    fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
+        if !engine.state.hand.contains(&card_id.to_string()) {
+            engine.state.hand.push(card_id.to_string());
+        }
+    }
+
     // ---- Eruption in Wrath = double = 9*2=18 ----
     #[test] fn eruption_in_wrath_18() {
         let mut e = engine_with(
@@ -2191,6 +2197,7 @@ mod engine_integration_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "Conclude");
         let turn_before = e.state.turn;
         play(&mut e, "Conclude");
         // Conclude should advance the turn (enemy turns, then new player turn)
@@ -2207,6 +2214,7 @@ mod engine_integration_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "CutThroughFate");
         let hand_before = e.state.hand.len();
         play(&mut e, "CutThroughFate");
         // Played 1, drew 2 = net +1
@@ -2221,6 +2229,7 @@ mod engine_integration_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "WheelKick");
         let hand_before = e.state.hand.len();
         play(&mut e, "WheelKick");
         assert_eq!(e.state.hand.len(), hand_before + 1); // -1 played +2 drawn
@@ -2352,6 +2361,8 @@ mod engine_integration_tests {
                  "Defend_P".to_string(), "Defend_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "Adaptation");
+        ensure_in_hand(&mut e, "Eruption");
         play_self(&mut e, "Adaptation");
         assert_eq!(e.state.player.status("Rushdown"), 2);
         let hand_before = e.state.hand.len();
@@ -2456,6 +2467,8 @@ mod engine_integration_tests {
                  "Defend_P".to_string(), "Defend_P".to_string(), "Defend_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "InnerPeace");
+        while e.state.draw_pile.len() < 3 { e.state.draw_pile.push("Defend_P".to_string()); }
         e.state.stance = Stance::Calm;
         let hs = e.state.hand.len();
         play_self(&mut e, "InnerPeace");
@@ -2893,6 +2906,8 @@ mod engine_integration_tests {
                  "Defend_P".to_string(), "Defend_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "Eruption");
+        while e.state.draw_pile.len() < 2 { e.state.draw_pile.push("Defend_P".to_string()); }
         e.state.player.set_status("Rushdown", 2);
         e.state.player.set_status("MentalFortress", 4);
         let hs = e.state.hand.len();
@@ -2975,6 +2990,12 @@ mod bugfix_regression_tests {
     use crate::state::{CombatState, EnemyCombatState};
     use crate::run::RunAction;
     use crate::{PyRunEngine, COMBAT_BASE};
+
+    fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
+        if !engine.state.hand.contains(&card_id.to_string()) {
+            engine.state.hand.push(card_id.to_string());
+        }
+    }
 
     fn engine_with(deck: Vec<String>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", enemy_hp, enemy_hp);
@@ -3210,6 +3231,7 @@ mod bugfix_regression_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "Conclude");
         let turn_before = e.state.turn;
         play(&mut e, "Conclude");
         assert_eq!(e.state.turn, turn_before + 1, "Conclude must advance the turn");
@@ -3225,6 +3247,7 @@ mod bugfix_regression_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 5,
         );
+        ensure_in_hand(&mut e, "Conclude");
         let hp_before = e.state.player.hp;
         play(&mut e, "Conclude");
         assert!(e.state.player.hp < hp_before, "Conclude should trigger enemy attacks");
@@ -3242,6 +3265,7 @@ mod bugfix_regression_tests {
                  "Strike_P".to_string(), "Strike_P".to_string()],
             100, 0,
         );
+        ensure_in_hand(&mut e, "Smite");
         // Don't play Smite, just end turn
         assert!(e.state.hand.contains(&"Smite".to_string()));
         e.execute_action(&Action::EndTurn);
@@ -3704,6 +3728,12 @@ mod effect_handler_tests {
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState, Stance};
 
+    fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
+        if !engine.state.hand.contains(&card_id.to_string()) {
+            engine.state.hand.push(card_id.to_string());
+        }
+    }
+
     fn make_engine_with_deck(deck: Vec<String>) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0); // passive enemy
@@ -3995,6 +4025,7 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 9]);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
+        ensure_in_hand(&mut e, "Blasphemy");
         play_card(&mut e, "Blasphemy", -1);
         assert_eq!(e.state.stance, Stance::Divinity,
             "Blasphemy should enter Divinity");
@@ -4014,6 +4045,7 @@ mod effect_handler_tests {
         deck.extend(vec!["Defend_P".to_string(); 9]);
         let mut e = make_engine_with_deck_and_enemy(deck, 100, 20);
         e.start_combat();
+        ensure_in_hand(&mut e, "Vault");
         let hp_before = e.state.player.hp;
         play_card(&mut e, "Vault", -1);
         // Vault ends turn and skips enemies
@@ -4176,6 +4208,8 @@ mod effect_handler_tests {
         deck.extend(vec!["CarveReality".to_string(); 9]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        ensure_in_hand(&mut e, "MasterReality");
+        ensure_in_hand(&mut e, "CarveReality");
         play_card(&mut e, "MasterReality", -1);
         assert_eq!(e.state.player.status("MasterReality"), 1);
         // Now play Carve Reality — should create Smite+
@@ -4227,6 +4261,8 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 9]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        ensure_in_hand(&mut e, "Swivel");
+        ensure_in_hand(&mut e, "Strike_P");
         play_card(&mut e, "Swivel", -1);
         assert_eq!(e.state.player.status("NextAttackFree"), 1);
         let energy_before = e.state.energy;
@@ -4281,6 +4317,7 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 9]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        ensure_in_hand(&mut e, "Brilliance");
         // Simulate having gained 20 mantra
         e.state.mantra_gained = 20;
         let hp_before = e.state.enemies[0].entity.hp;
@@ -4330,6 +4367,7 @@ mod effect_handler_tests {
         deck.extend(vec!["WreathOfFlame".to_string(); 9]);
         let mut e = make_engine_with_deck_and_enemy(deck, 5, 0);
         e.start_combat();
+        ensure_in_hand(&mut e, "LessonLearned");
         play_card(&mut e, "LessonLearned", 0);
         // Should have killed the 5 HP enemy (10 dmg)
         assert!(e.state.enemies[0].entity.is_dead());
@@ -4358,6 +4396,7 @@ mod effect_handler_tests {
         deck.extend(vec!["Strike_P".to_string(); 9]);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
+        ensure_in_hand(&mut e, "ConjureBlade");
         assert_eq!(e.state.energy, 3);
         play_card(&mut e, "ConjureBlade", -1);
         // Should consume all energy

@@ -1929,7 +1929,12 @@ mod tests {
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
 
-        let hand_size_before = engine.state.hand.len(); // Should be 5
+        // Ensure Eruption is in hand (RNG may not have drawn it)
+        if !engine.state.hand.contains(&"Eruption".to_string()) {
+            engine.state.hand.push("Eruption".to_string());
+        }
+
+        let hand_size_before = engine.state.hand.len();
 
         // Find and play Eruption (enters Wrath)
         let eruption_idx = engine
@@ -1944,7 +1949,7 @@ mod tests {
         });
 
         assert_eq!(engine.state.stance, Stance::Wrath);
-        // Rushdown drew 2 cards: hand was 4 (after playing Eruption), now 6
+        // Rushdown drew 2 cards: hand was (N-1) after playing Eruption, now N-1+2
         assert_eq!(engine.state.hand.len(), hand_size_before - 1 + 2);
     }
 
@@ -2304,7 +2309,12 @@ mod tests {
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
 
-        let hand_before = engine.state.hand.len(); // 5
+        // Ensure InnerPeace is in hand (RNG may not have drawn it)
+        if !engine.state.hand.contains(&"InnerPeace".to_string()) {
+            engine.state.hand.push("InnerPeace".to_string());
+        }
+
+        let hand_before = engine.state.hand.len();
 
         let ip_idx = engine
             .state
@@ -2317,7 +2327,7 @@ mod tests {
             target_idx: -1,
         });
 
-        // In Calm: draws 3 (base_magic=3). Hand was 4 after playing, now 7
+        // In Calm: draws 3 (base_magic=3). Hand was (N-1) after playing, now N-1+3
         assert_eq!(engine.state.hand.len(), hand_before - 1 + 3);
         // Stays in Calm (doesn't change stance when drawing)
         assert_eq!(engine.state.stance, Stance::Calm);
