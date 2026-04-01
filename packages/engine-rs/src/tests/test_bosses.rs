@@ -166,13 +166,16 @@ mod boss_java_parity_tests {
     fn hexaghost_a4_scaling_matches_java_expectations() {
         let mut enemy = create_enemy("Hexaghost", 264, 264);
 
+        // Activate -> Divider -> Sear(orb=0) -> Tackle(orb=1)
+        roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_damage, 6);
         assert_eq!(enemy.move_hits, 2);
 
-        roll_times(&mut enemy, 6);
+        // Sear(2) -> Inflame(3) -> Tackle(4) -> Sear(5) -> Inferno(6)
+        roll_times(&mut enemy, 5);
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
         assert_eq!(enemy.move_damage, 3);
         assert_eq!(enemy.move_hits, 6);
@@ -186,7 +189,8 @@ mod boss_java_parity_tests {
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_effects.get("burn"), Some(&2));
 
-        roll_times(&mut enemy, 2);
+        // Sear(0) -> Tackle(1) -> Sear(2) -> Inflame(3)
+        roll_times(&mut enemy, 3);
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
         assert_eq!(enemy.move_effects.get("strength"), Some(&3));
     }

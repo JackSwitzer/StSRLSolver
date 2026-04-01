@@ -412,10 +412,29 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "TheGuardian" => {
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
-            enemy.entity.set_status("ModeShift", 30);
+            if hp >= 250 {
+                enemy.entity.set_status("ModeShift", 40);
+                enemy.entity.set_status("FierceBashDmg", 36);
+                enemy.entity.set_status("RollDmg", 10);
+            } else {
+                enemy.entity.set_status("ModeShift", 30);
+                enemy.entity.set_status("FierceBashDmg", 32);
+                enemy.entity.set_status("RollDmg", 9);
+            }
         }
         "Hexaghost" => {
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
+            if hp >= 264 {
+                enemy.entity.set_status("StrAmt", 3);
+                enemy.entity.set_status("SearBurnCount", 2);
+                enemy.entity.set_status("FireTackleDmg", 6);
+                enemy.entity.set_status("InfernoDmg", 3);
+            } else {
+                enemy.entity.set_status("StrAmt", 2);
+                enemy.entity.set_status("SearBurnCount", 1);
+                enemy.entity.set_status("FireTackleDmg", 5);
+                enemy.entity.set_status("InfernoDmg", 2);
+            }
         }
         "SlimeBoss" => {
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
@@ -493,8 +512,19 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::POINTY_STAB, 5, 2, 0);
         }
         "BronzeAutomaton" | "Bronze Automaton" => {
-            // First turn: Spawn Orbs
             enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
+            if hp >= 320 {
+                enemy.entity.set_status("FlailDmg", 8);
+                enemy.entity.set_status("BeamDmg", 50);
+                enemy.entity.set_status("StrAmt", 4);
+                enemy.entity.set_status("BlockAmt", 12);
+            } else {
+                enemy.entity.set_status("FlailDmg", 7);
+                enemy.entity.set_status("BeamDmg", 45);
+                enemy.entity.set_status("StrAmt", 3);
+                enemy.entity.set_status("BlockAmt", 9);
+            }
+            enemy.entity.set_status("Artifact", 3);
         }
         "BronzeOrb" | "Bronze Orb" => {
             // First turn: Stasis (steal card from hand)
@@ -506,26 +536,34 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
         "Champ" => {
-            // Java: complex RNG-based move pattern. First turn determined by RNG.
-            // Damage: A4+ slash=18 slap=14, else slash=16 slap=12. Execute always 10x2.
-            // Str: A19=4, A4+=3, else 2. Forge: A19=7/20, A9+=6/18, else 5/15.
-            // Face Slap gives Frail 2 + Vulnerable 2 (Java).
-            // For MCTS: deterministic pattern starting with Face Slap.
-            enemy.set_move(move_ids::CHAMP_FACE_SLAP, 12, 1, 0);
+            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = if hp >= 440 {
+                (18, 14, 4, 7, 20)
+            } else {
+                (16, 12, 2, 5, 15)
+            };
+            enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
             enemy.move_effects.insert("frail".to_string(), 2);
             enemy.move_effects.insert("vulnerable".to_string(), 2);
             enemy.entity.set_status("NumTurns", 0);
             enemy.entity.set_status("ThresholdReached", 0);
-            enemy.entity.set_status("StrAmt", 2);
-            enemy.entity.set_status("ForgeAmt", 5);
-            enemy.entity.set_status("BlockAmt", 15);
+            enemy.entity.set_status("StrAmt", str_amt);
+            enemy.entity.set_status("ForgeAmt", forge_amt);
+            enemy.entity.set_status("BlockAmt", block_amt);
             enemy.entity.set_status("ForgeTimes", 0);
-            enemy.entity.set_status("SlashDmg", 16);
-            enemy.entity.set_status("SlapDmg", 12);
+            enemy.entity.set_status("SlashDmg", slash_dmg);
+            enemy.entity.set_status("SlapDmg", slap_dmg);
         }
         "TheCollector" | "Collector" => {
-            // First turn: Spawn (summon TorchHeads)
             enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
+            if hp >= 300 {
+                enemy.entity.set_status("FireballDmg", 21);
+                enemy.entity.set_status("StrAmt", 4);
+                enemy.entity.set_status("BlockAmt", 18);
+            } else {
+                enemy.entity.set_status("FireballDmg", 18);
+                enemy.entity.set_status("StrAmt", 3);
+                enemy.entity.set_status("BlockAmt", 15);
+            }
         }
 
         // =================================================================
@@ -617,35 +655,37 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Regen: A19 = 15, else 10. A4: starts with +2 Str.
             // First turn always Slash (20 damage). Has Unawakened power.
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
-            enemy.entity.set_status("Curiosity", 1);
             enemy.entity.set_status("Phase", 1);
-            enemy.entity.set_status("Regenerate", 10);
-            enemy.entity.set_status("FirstTurn", 0); // already set first move
+            enemy.entity.set_status("FirstTurn", 0);
+            if hp >= 320 {
+                enemy.entity.set_status("Curiosity", 2);
+                enemy.entity.set_status("Regenerate", 15);
+                enemy.entity.set_status("Strength", 2);
+            } else {
+                enemy.entity.set_status("Curiosity", 1);
+                enemy.entity.set_status("Regenerate", 10);
+            }
         }
         "Donu" => {
-            // Alternates: Beam (10x2) and Circle of Protection (+3 Str to both)
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
             enemy.move_effects.insert("strength".to_string(), 3);
-            enemy.entity.set_status("Artifact", 2);
+            if hp >= 265 { enemy.entity.set_status("Artifact", 3); enemy.entity.set_status("BeamDmg", 12); }
+            else { enemy.entity.set_status("Artifact", 2); enemy.entity.set_status("BeamDmg", 10); }
         }
         "Deca" => {
-            // Java: Deca starts with isAttacking=true, so first getMove picks Beam.
-            // Beam (10x2 + 2 Daze), Square (16 block). A4+ beam=12. A19 artifact=3 + plated armor.
-            enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
+            let bdmg = if hp >= 265 { 12 } else { 10 };
+            enemy.set_move(move_ids::DECA_BEAM, bdmg, 2, 0);
             enemy.move_effects.insert("daze".to_string(), 2);
-            enemy.entity.set_status("Artifact", 2);
+            if hp >= 265 { enemy.entity.set_status("Artifact", 3); } else { enemy.entity.set_status("Artifact", 2); }
+            enemy.entity.set_status("BeamDmg", bdmg);
         }
         "TimeEater" | "Time Eater" => {
-            // After player plays 12 cards: Haste (heal to 50%, cleanse).
-            // A4: reverb=8, headSlam=32. Else reverb=7, headSlam=26.
-            // Has Time Warp power. Head Slam applies draw reduction.
-            // Ripple: 20 block + Vuln 1 + Weak 1. A19 also Frail 1.
-            // A19: Head Slam also adds 2 Slimed.
-            enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
+            let (rd, hsd) = if hp >= 480 { (8, 32) } else { (7, 26) };
+            enemy.set_move(move_ids::TE_REVERBERATE, rd, 3, 0);
             enemy.entity.set_status("CardCount", 0);
             enemy.entity.set_status("UsedHaste", 0);
-            enemy.entity.set_status("ReverbDmg", 7);
-            enemy.entity.set_status("HeadSlamDmg", 26);
+            enemy.entity.set_status("ReverbDmg", rd);
+            enemy.entity.set_status("HeadSlamDmg", hsd);
         }
 
         // =================================================================
@@ -667,21 +707,24 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("SkewerCount", 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
-            // First turn: Debilitate (Vuln 2, Weak 2, Frail 2 + status cards to draw pile).
-            // A4: echo=45, bloodHits=15. Else echo=40, bloodHits=12.
-            // A9: HP=800. A19: invincible=200, beatOfDeath=2.
-            // Buff cycle: +2 Str + [Artifact 2, +1 BeatOfDeath, PainfulStabs, +10 Str, +50 Str]
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.move_effects.insert("vulnerable".to_string(), 2);
             enemy.move_effects.insert("weak".to_string(), 2);
             enemy.move_effects.insert("frail".to_string(), 2);
-            enemy.entity.set_status("Invincible", 300);
-            enemy.entity.set_status("BeatOfDeath", 1);
             enemy.entity.set_status("MoveCount", 0);
-            enemy.entity.set_status("BloodHitCount", 12);
-            enemy.entity.set_status("EchoDmg", 40);
             enemy.entity.set_status("BuffCount", 0);
             enemy.entity.set_status("IsFirstMove", 1);
+            if hp >= 800 {
+                enemy.entity.set_status("Invincible", 200);
+                enemy.entity.set_status("BeatOfDeath", 2);
+                enemy.entity.set_status("BloodHitCount", 15);
+                enemy.entity.set_status("EchoDmg", 45);
+            } else {
+                enemy.entity.set_status("Invincible", 300);
+                enemy.entity.set_status("BeatOfDeath", 1);
+                enemy.entity.set_status("BloodHitCount", 12);
+                enemy.entity.set_status("EchoDmg", 40);
+            }
         }
 
         _ => {
@@ -1171,14 +1214,22 @@ mod tests {
         let mut enemy = create_enemy("TheCollector", 282, 282);
         assert_eq!(enemy.move_id, move_ids::COLL_SPAWN);
 
+        // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
+        roll_next_move(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+        assert_eq!(enemy.move_damage, 18);
+
+        roll_next_move(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+
+        roll_next_move(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
+
+        // Mega Debuff at turn 4 (turnsTaken >= 3)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
         assert_eq!(enemy.move_effects.get("vulnerable"), Some(&3));
         assert_eq!(enemy.move_effects.get("weak"), Some(&3));
-
-        roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
-        assert_eq!(enemy.move_damage, 18);
     }
 
     // ----- Act 3 -----
