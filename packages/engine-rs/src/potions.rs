@@ -1,9 +1,12 @@
 //! Potion effects for MCTS combat simulations.
 //!
 //! Implements all 44 potions from Slay the Spire. Each potion has:
-//! - A potency value (base, non-A11 values)
+//! - A potency value (base values, with A11 reduced versions)
 //! - Target type (self, single enemy, all enemies)
 //! - Effect on use
+//!
+//! Ascension 11+ reduces potion effectiveness. Call `apply_potion_scaled`
+//! with the run's ascension level, or use `apply_potion` for base potency.
 
 use crate::state::CombatState;
 
@@ -19,28 +22,80 @@ pub struct PotionResult {
 pub fn potion_requires_target(potion_id: &str) -> bool {
     matches!(
         potion_id,
-        "Fire Potion" | "FirePotion" |
-        "Weak Potion" | "WeakenPotion" |
-        "FearPotion" | "Fear Potion" |
-        "Poison Potion" | "PoisonPotion"
+        "Fire Potion"
+            | "FirePotion"
+            | "Weak Potion"
+            | "WeakenPotion"
+            | "FearPotion"
+            | "Fear Potion"
+            | "Poison Potion"
+            | "PoisonPotion"
     )
 }
 
-/// Apply a potion's effect to the combat state.
+/// Return (base_potency, a11_potency) for the named potion.
+/// Ascension 11 reduces most potion values. Potions not in this table
+/// are unaffected by ascension.
+fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
+    match potion_id {
+        "Fire Potion" | "FirePotion" => Some((20, 15)),
+        "Explosive Potion" | "ExplosivePotion" => Some((10, 7)),
+        "Block Potion" | "BlockPotion" => Some((12, 9)),
+        "Strength Potion" | "StrengthPotion" => Some((2, 1)),
+        "Dexterity Potion" | "DexterityPotion" => Some((2, 1)),
+        "Focus Potion" | "FocusPotion" => Some((2, 1)),
+        "SteroidPotion" | "Flex Potion" => Some((5, 3)),
+        "SpeedPotion" => Some((5, 3)),
+        "Weak Potion" | "WeakenPotion" => Some((3, 2)),
+        "FearPotion" | "Fear Potion" => Some((3, 2)),
+        "Poison Potion" | "PoisonPotion" => Some((6, 4)),
+        "Energy Potion" | "EnergyPotion" => Some((2, 1)),
+        "Swift Potion" | "SwiftPotion" => Some((3, 2)),
+        "SneckoOil" => Some((5, 4)),
+        "Ancient Potion" | "AncientPotion" => Some((1, 1)),
+        "Regen Potion" | "RegenPotion" => Some((5, 4)),
+        "EssenceOfSteel" => Some((4, 3)),
+        "LiquidBronze" => Some((3, 2)),
+        "CultistPotion" => Some((1, 1)),
+        "HeartOfIron" => Some((6, 4)),
+        "GhostInAJar" => Some((1, 1)),
+        "DuplicationPotion" => Some((1, 1)),
+        "Blood Potion" | "BloodPotion" => Some((20, 15)),
+        "Fruit Juice" | "FruitJuice" => Some((5, 3)),
+        "BottledMiracle" => Some((2, 1)),
+        "CunningPotion" => Some((3, 2)),
+        "PotionOfCapacity" => Some((2, 1)),
+        _ => None,
+    }
+}
+
+/// Get the effective potency for a potion, accounting for ascension 11+
+/// and Sacred Bark.
+fn effective_potency(potion_id: &str, ascension: i32, bark_mult: i32) -> i32 {
+    match potion_potency(potion_id) {
+        Some((base, a11)) => {
+            let raw = if ascension >= 11 { a11 } else { base };
+            raw * bark_mult
+        }
+        None => bark_mult,
+    }
+}
+
+/// Apply a potion with ascension scaling.
+/// `ascension`: the run's ascension level (0-20). At A11+ potency is reduced.
 /// Returns true if the potion was successfully consumed.
-/// `sacred_bark` doubles potency if true.
-pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -> bool {
+pub fn apply_potion_scaled(
+    state: &mut CombatState,
+    potion_id: &str,
+    target_idx: i32,
+    ascension: i32,
+) -> bool {
     let bark = state.has_relic("SacredBark");
-    let mult = if bark { 2 } else { 1 };
+    let bark_mult = if bark { 2 } else { 1 };
 
     match potion_id {
-        // =====================================================================
-        // DAMAGE POTIONS
-        // =====================================================================
-
         "Fire Potion" | "FirePotion" => {
-            // Deal 20 damage to target enemy
-            let potency = 20 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
@@ -53,8 +108,7 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
         }
 
         "Explosive Potion" | "ExplosivePotion" => {
-            // Deal 10 damage to ALL enemies
-            let potency = 10 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             let living = state.living_enemy_indices();
             for idx in living {
                 deal_damage_to_enemy(state, idx, potency);
@@ -62,65 +116,46 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
             true
         }
 
-        // =====================================================================
-        // BLOCK POTIONS
-        // =====================================================================
-
         "Block Potion" | "BlockPotion" => {
-            // Gain 12 block
-            state.player.block += 12 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.block += potency;
             true
         }
 
-        // =====================================================================
-        // STAT POTIONS (permanent for combat)
-        // =====================================================================
-
         "Strength Potion" | "StrengthPotion" => {
-            // Gain 2 Strength
-            state.player.add_status("Strength", 2 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Strength", potency);
             true
         }
 
         "Dexterity Potion" | "DexterityPotion" => {
-            // Gain 2 Dexterity
-            state.player.add_status("Dexterity", 2 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Dexterity", potency);
             true
         }
 
         "Focus Potion" | "FocusPotion" => {
-            // Gain 2 Focus
-            state.player.add_status("Focus", 2 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Focus", potency);
             true
         }
 
-        // =====================================================================
-        // TEMPORARY STAT POTIONS
-        // =====================================================================
-
         "SteroidPotion" | "Flex Potion" => {
-            // Gain 5 temporary Strength
-            let potency = 5 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.add_status("Strength", potency);
             state.player.add_status("LoseStrength", potency);
             true
         }
 
         "SpeedPotion" => {
-            // Gain 5 temporary Dexterity
-            let potency = 5 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.add_status("Dexterity", potency);
             state.player.add_status("LoseDexterity", potency);
             true
         }
 
-        // =====================================================================
-        // DEBUFF POTIONS
-        // =====================================================================
-
         "Weak Potion" | "WeakenPotion" => {
-            // Apply 3 Weak to target
-            let potency = 3 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
@@ -133,8 +168,7 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
         }
 
         "FearPotion" | "Fear Potion" => {
-            // Apply 3 Vulnerable to target
-            let potency = 3 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
@@ -147,8 +181,7 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
         }
 
         "Poison Potion" | "PoisonPotion" => {
-            // Apply 6 Poison to target
-            let potency = 6 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
@@ -160,119 +193,90 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
             }
         }
 
-        // =====================================================================
-        // ENERGY / DRAW POTIONS
-        // =====================================================================
-
         "Energy Potion" | "EnergyPotion" => {
-            // Gain 2 Energy this turn
-            state.energy += 2 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.energy += potency;
             true
         }
 
         "Swift Potion" | "SwiftPotion" => {
-            // Draw 3 cards
-            let potency = 3 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.set_status("PotionDraw", potency);
             true
         }
 
         "SneckoOil" => {
-            // Draw 5 cards and randomize their costs
-            let potency = 5 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.set_status("PotionDraw", potency);
-            // Cost randomization handled by engine
             true
         }
 
-        // =====================================================================
-        // POWER/BUFF POTIONS
-        // =====================================================================
-
         "Ancient Potion" | "AncientPotion" => {
-            // Gain 1 Artifact
-            state.player.add_status("Artifact", 1 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Artifact", potency);
             true
         }
 
         "Regen Potion" | "RegenPotion" => {
-            // Gain 5 Regeneration
-            state.player.add_status("Regeneration", 5 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Regeneration", potency);
             true
         }
 
         "EssenceOfSteel" => {
-            // Gain 4 Plated Armor
-            state.player.add_status("Plated Armor", 4 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Plated Armor", potency);
             true
         }
 
         "LiquidBronze" => {
-            // Gain 3 Thorns
-            state.player.add_status("Thorns", 3 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Thorns", potency);
             true
         }
 
         "CultistPotion" => {
-            // Gain 1 Ritual (Strength gain per turn)
-            state.player.add_status("Ritual", 1 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Ritual", potency);
             true
         }
 
         "HeartOfIron" => {
-            // Gain 6 Metallicize
-            state.player.add_status("Metallicize", 6 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Metallicize", potency);
             true
         }
 
         "GhostInAJar" => {
-            // Gain 1 Intangible
-            state.player.add_status("Intangible", 1 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Intangible", potency);
             true
         }
 
         "DuplicationPotion" => {
-            // Next card is played twice (1 Duplication)
-            state.player.add_status("Duplication", 1 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("Duplication", potency);
             true
         }
 
-        // =====================================================================
-        // HEAL / HP POTIONS
-        // =====================================================================
-
         "Blood Potion" | "BloodPotion" => {
-            // Heal 20% of max HP
-            let potency = 20 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             let heal = (state.player.max_hp * potency) / 100;
             state.player.hp = (state.player.hp + heal).min(state.player.max_hp);
             true
         }
 
         "Fruit Juice" | "FruitJuice" => {
-            // Gain 5 max HP permanently
-            let potency = 5 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.max_hp += potency;
             state.player.hp += potency;
             true
         }
 
-        // =====================================================================
-        // FAIRY IN A BOTTLE (auto-trigger on death)
-        // =====================================================================
-
-        "FairyPotion" | "Fairy in a Bottle" => {
-            // Auto-triggers on death, not manual use.
-            false
-        }
-
-        // =====================================================================
-        // CARD GENERATION POTIONS
-        // =====================================================================
+        "FairyPotion" | "Fairy in a Bottle" => false,
 
         "BottledMiracle" => {
-            // Add 2 Miracles to hand
-            let potency = 2 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
                     state.hand.push("Miracle".to_string());
@@ -282,8 +286,7 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
         }
 
         "CunningPotion" => {
-            // Add 3 Shivs to hand
-            let potency = 3 * mult;
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
                     state.hand.push("Shiv".to_string());
@@ -292,104 +295,50 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
             true
         }
 
-        // =====================================================================
-        // DISCOVERY POTIONS (add card from choices)
-        // =====================================================================
-
-        "AttackPotion" => {
-            // Discover an Attack card (simplified: no effect in MCTS)
-            // In MCTS, we just skip
-            true
-        }
-
-        "SkillPotion" => {
-            // Discover a Skill card
-            true
-        }
-
-        "PowerPotion" => {
-            // Discover a Power card
-            true
-        }
-
-        "ColorlessPotion" => {
-            // Discover a Colorless card
-            true
-        }
-
-        // =====================================================================
-        // SPECIAL POTIONS
-        // =====================================================================
+        "AttackPotion" | "SkillPotion" | "PowerPotion" | "ColorlessPotion" => true,
 
         "Ambrosia" => {
-            // Enter Divinity stance (Watcher)
             state.stance = crate::state::Stance::Divinity;
             true
         }
 
         "StancePotion" => {
-            // Enter Calm or Wrath (choice; simplified to Wrath for MCTS)
             state.stance = crate::state::Stance::Wrath;
             true
         }
 
         "SmokeBomb" => {
-            // Escape combat (non-boss). Combat ends with no reward.
             state.combat_over = true;
             state.player_won = false;
             true
         }
 
-        "EntropicBrew" => {
-            // Fill empty potion slots with random potions
-            // In MCTS, just mark as used
-            true
-        }
+        "EntropicBrew" | "BlessingOfTheForge" | "Elixir" | "ElixirPotion"
+        | "LiquidMemories" | "DistilledChaosPotion" | "DistilledChaos"
+        | "EssenceOfDarkness" => true,
 
         "GamblersBrew" => {
-            // Discard hand and draw same number of cards
             let hand_size = state.hand.len() as i32;
             state.discard_pile.extend(state.hand.drain(..));
             state.player.set_status("PotionDraw", hand_size);
             true
         }
 
-        "BlessingOfTheForge" => {
-            // Upgrade all cards in hand (simplified: no upgrade tracking in MCTS)
-            true
-        }
-
-        "Elixir" | "ElixirPotion" => {
-            // Exhaust any number of cards from hand (complex; simplified)
-            true
-        }
-
-        "LiquidMemories" => {
-            // Put 1 card from discard into hand (complex; simplified)
-            true
-        }
-
-        "DistilledChaosPotion" | "DistilledChaos" => {
-            // Play 3 random cards from draw pile (complex; simplified)
-            true
-        }
-
-        "EssenceOfDarkness" => {
-            // Channel 1 Dark orb per orb slot (Defect; orbs Python-side)
-            true
-        }
-
         "PotionOfCapacity" => {
-            // Gain 2 orb slots (Defect)
-            state.player.add_status("OrbSlots", 2 * mult);
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            state.player.add_status("OrbSlots", potency);
             true
         }
 
-        _ => {
-            // Unknown potion: no effect, but consume it
-            true
-        }
+        _ => true,
     }
+}
+
+/// Apply a potion's effect to the combat state (base potency, no ascension scaling).
+/// Returns true if the potion was successfully consumed.
+/// Backward-compatible wrapper: passes ascension=0 (no A11 reduction).
+pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -> bool {
+    apply_potion_scaled(state, potion_id, target_idx, 0)
 }
 
 /// Deal damage to a specific enemy (used by damage potions).
@@ -411,8 +360,15 @@ fn deal_damage_to_enemy(state: &mut CombatState, idx: usize, dmg: i32) {
 /// Check if player should auto-revive (Fairy in a Bottle).
 /// Returns the HP to revive to (30% of max_hp), or 0 if no fairy.
 pub fn check_fairy_revive(state: &CombatState) -> i32 {
+    check_fairy_revive_scaled(state, 0)
+}
+
+/// Check fairy revive with ascension scaling.
+/// A11+ reduces revive from 30% to 20% max HP.
+pub fn check_fairy_revive_scaled(state: &CombatState, ascension: i32) -> i32 {
     let bark = state.has_relic("SacredBark");
-    let potency = if bark { 60 } else { 30 };
+    let base_pct = if ascension >= 11 { 20 } else { 30 };
+    let potency = if bark { base_pct * 2 } else { base_pct };
     for potion in &state.potions {
         if potion == "FairyPotion" || potion == "Fairy in a Bottle" {
             return (state.player.max_hp * potency) / 100;
@@ -442,7 +398,8 @@ mod tests {
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
-        let mut state = CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
+        let mut state =
+            CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
         state.potions = vec!["".to_string(); 3];
         state
     }
@@ -450,12 +407,11 @@ mod tests {
     fn make_two_enemy_state() -> CombatState {
         let e1 = EnemyCombatState::new("JawWorm", 44, 44);
         let e2 = EnemyCombatState::new("Cultist", 50, 50);
-        let mut state = CombatState::new(80, 80, vec![e1, e2], vec!["Strike_P".to_string(); 5], 3);
+        let mut state =
+            CombatState::new(80, 80, vec![e1, e2], vec!["Strike_P".to_string(); 5], 3);
         state.potions = vec!["".to_string(); 3];
         state
     }
-
-    // --- Damage potions ---
 
     #[test]
     fn test_fire_potion_damage() {
@@ -494,16 +450,12 @@ mod tests {
         assert_eq!(state.enemies[1].entity.hp, hp1 - 10);
     }
 
-    // --- Block potions ---
-
     #[test]
     fn test_block_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Block Potion", -1);
         assert_eq!(state.player.block, 12);
     }
-
-    // --- Stat potions ---
 
     #[test]
     fn test_strength_potion() {
@@ -526,8 +478,6 @@ mod tests {
         assert_eq!(state.player.status("Focus"), 2);
     }
 
-    // --- Temporary stat potions ---
-
     #[test]
     fn test_flex_potion_temporary_strength() {
         let mut state = make_test_state();
@@ -543,8 +493,6 @@ mod tests {
         assert_eq!(state.player.dexterity(), 5);
         assert_eq!(state.player.status("LoseDexterity"), 5);
     }
-
-    // --- Debuff potions ---
 
     #[test]
     fn test_weak_potion() {
@@ -567,8 +515,6 @@ mod tests {
         assert_eq!(state.enemies[0].entity.status("Poison"), 6);
     }
 
-    // --- Energy / draw potions ---
-
     #[test]
     fn test_energy_potion() {
         let mut state = make_test_state();
@@ -583,8 +529,6 @@ mod tests {
         apply_potion(&mut state, "Swift Potion", -1);
         assert_eq!(state.player.status("PotionDraw"), 3);
     }
-
-    // --- Power/buff potions ---
 
     #[test]
     fn test_ancient_potion_artifact() {
@@ -642,14 +586,11 @@ mod tests {
         assert_eq!(state.player.status("Duplication"), 1);
     }
 
-    // --- Heal / HP potions ---
-
     #[test]
     fn test_blood_potion() {
         let mut state = make_test_state();
         state.player.hp = 60;
         apply_potion(&mut state, "Blood Potion", -1);
-        // 20% of 80 = 16
         assert_eq!(state.player.hp, 76);
     }
 
@@ -661,14 +602,12 @@ mod tests {
         assert_eq!(state.player.hp, 85);
     }
 
-    // --- Fairy in a Bottle ---
-
     #[test]
     fn test_fairy_revive_check() {
         let mut state = make_test_state();
         assert_eq!(check_fairy_revive(&state), 0);
         state.potions[0] = "FairyPotion".to_string();
-        assert_eq!(check_fairy_revive(&state), 24); // 30% of 80 = 24
+        assert_eq!(check_fairy_revive(&state), 24);
     }
 
     #[test]
@@ -683,10 +622,8 @@ mod tests {
     fn test_fairy_manual_use_fails() {
         let mut state = make_test_state();
         let success = apply_potion(&mut state, "FairyPotion", -1);
-        assert!(!success); // Can't use manually
+        assert!(!success);
     }
-
-    // --- Card generation potions ---
 
     #[test]
     fn test_bottled_miracle() {
@@ -706,8 +643,6 @@ mod tests {
         assert_eq!(state.hand.len(), 3);
         assert!(state.hand.iter().all(|c| c == "Shiv"));
     }
-
-    // --- Special potions ---
 
     #[test]
     fn test_ambrosia() {
@@ -741,15 +676,13 @@ mod tests {
         assert_eq!(state.player.status("OrbSlots"), 2);
     }
 
-    // --- Sacred Bark doubles potions ---
-
     #[test]
     fn test_sacred_bark_doubles_fire() {
         let mut state = make_test_state();
         state.relics.push("SacredBark".to_string());
         let hp = state.enemies[0].entity.hp;
         apply_potion(&mut state, "Fire Potion", 0);
-        assert_eq!(state.enemies[0].entity.hp, hp - 40); // 20 * 2
+        assert_eq!(state.enemies[0].entity.hp, hp - 40);
     }
 
     #[test]
@@ -757,7 +690,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("SacredBark".to_string());
         apply_potion(&mut state, "Block Potion", -1);
-        assert_eq!(state.player.block, 24); // 12 * 2
+        assert_eq!(state.player.block, 24);
     }
 
     #[test]
@@ -765,7 +698,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("SacredBark".to_string());
         apply_potion(&mut state, "Strength Potion", -1);
-        assert_eq!(state.player.strength(), 4); // 2 * 2
+        assert_eq!(state.player.strength(), 4);
     }
 
     #[test]
@@ -774,10 +707,8 @@ mod tests {
         state.relics.push("SacredBark".to_string());
         state.potions[0] = "FairyPotion".to_string();
         let revive = check_fairy_revive(&state);
-        assert_eq!(revive, 48); // 60% of 80 = 48
+        assert_eq!(revive, 48);
     }
-
-    // --- Target requirements ---
 
     #[test]
     fn test_potion_requires_target() {
@@ -788,5 +719,90 @@ mod tests {
         assert!(!potion_requires_target("Block Potion"));
         assert!(!potion_requires_target("Strength Potion"));
         assert!(!potion_requires_target("Energy Potion"));
+    }
+
+    // --- Ascension 11 reduced potency tests ---
+
+    #[test]
+    fn test_a11_fire_potion_reduced() {
+        let mut state = make_test_state();
+        let initial_hp = state.enemies[0].entity.hp;
+        apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 15);
+    }
+
+    #[test]
+    fn test_a11_block_potion_reduced() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Block Potion", -1, 11);
+        assert_eq!(state.player.block, 9);
+    }
+
+    #[test]
+    fn test_a11_strength_potion_reduced() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Strength Potion", -1, 11);
+        assert_eq!(state.player.strength(), 1);
+    }
+
+    #[test]
+    fn test_a11_weak_potion_reduced() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Weak Potion", 0, 11);
+        assert_eq!(state.enemies[0].entity.status("Weakened"), 2);
+    }
+
+    #[test]
+    fn test_a11_poison_potion_reduced() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Poison Potion", 0, 11);
+        assert_eq!(state.enemies[0].entity.status("Poison"), 4);
+    }
+
+    #[test]
+    fn test_a11_energy_potion_reduced() {
+        let mut state = make_test_state();
+        let initial = state.energy;
+        apply_potion_scaled(&mut state, "Energy Potion", -1, 11);
+        assert_eq!(state.energy, initial + 1);
+    }
+
+    #[test]
+    fn test_a11_fruit_juice_reduced() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Fruit Juice", -1, 11);
+        assert_eq!(state.player.max_hp, 83);
+    }
+
+    #[test]
+    fn test_a11_fairy_revive_reduced() {
+        let mut state = make_test_state();
+        state.potions[0] = "FairyPotion".to_string();
+        let revive = check_fairy_revive_scaled(&state, 11);
+        assert_eq!(revive, 16);
+    }
+
+    #[test]
+    fn test_a10_no_reduction() {
+        let mut state = make_test_state();
+        let initial_hp = state.enemies[0].entity.hp;
+        apply_potion_scaled(&mut state, "Fire Potion", 0, 10);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 20);
+    }
+
+    #[test]
+    fn test_a11_sacred_bark_stacks() {
+        let mut state = make_test_state();
+        state.relics.push("SacredBark".to_string());
+        let initial_hp = state.enemies[0].entity.hp;
+        apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 30);
+    }
+
+    #[test]
+    fn test_a20_potency_same_as_a11() {
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Block Potion", -1, 20);
+        assert_eq!(state.player.block, 9);
     }
 }
