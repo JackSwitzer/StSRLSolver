@@ -241,11 +241,13 @@ mod tests {
 
     #[test]
     fn murmur_hash3_basic() {
-        // Known value: murmur_hash3(0) should produce a deterministic result
-        let h = murmur_hash3(0);
+        // murmur_hash3(0) == 0 because 0 is a fixed point of the finalizer.
+        assert_eq!(murmur_hash3(0), 0);
+        // Non-zero seed should produce a non-zero deterministic result.
+        let h = murmur_hash3(42);
         assert_ne!(h, 0);
         // Same input always same output
-        assert_eq!(h, murmur_hash3(0));
+        assert_eq!(h, murmur_hash3(42));
     }
 
     #[test]
