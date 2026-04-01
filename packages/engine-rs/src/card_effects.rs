@@ -89,7 +89,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     let mut total_unblocked_damage = 0i32;
     let mut enemy_killed = false;
 
-    if !grand_finale_blocked && (card.base_damage >= 0 || body_slam_damage >= 0) {
+    // Skip generic damage for cards that use damage_random_x_times (they handle their own hits)
+    let skip_generic_damage = card.effects.contains(&"damage_random_x_times");
+
+    if !skip_generic_damage && !grand_finale_blocked && (card.base_damage >= 0 || body_slam_damage >= 0) {
         let effective_base_damage = if body_slam_damage >= 0 {
             body_slam_damage
         } else {
@@ -99,7 +102,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let is_multi_hit = card.effects.contains(&"multi_hit");
 
         // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
-        let hits = if card.effects.contains(&"x_cost") && card.cost == -1 {
+        let hits = if card_id == "Expunger" || card_id == "Expunger+" {
+            // Expunger hits = X from Conjure Blade (stored in ExpungerHits status)
+            engine.state.player.status(sk::EXPUNGER_HITS).max(1)
+        } else if card.effects.contains(&"x_cost") && card.cost == -1 {
             x_value
         } else if is_multi_hit && card.base_magic > 0 {
             card.base_magic
@@ -368,7 +374,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let player_strength = engine.state.player.strength();
         let player_weak = engine.state.player.is_weak();
         let stance_mult = engine.state.stance.outgoing_mult();
-        for _ in 0..(card.base_magic - 1) {
+        for _ in 0..card.base_magic {
             let living = engine.state.living_enemy_indices();
             if living.is_empty() {
                 break;

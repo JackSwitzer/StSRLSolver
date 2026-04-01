@@ -498,8 +498,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         ragnarok_java_parity,
-        base = ("Ragnarok", "Ragnarok", 3, 5, -1, 5, CardType::Attack, CardTarget::AllEnemy, false, Some("Wrath"), ["damage_random_x_times"]),
-        plus = ("Ragnarok+", "Ragnarok+", 3, 6, -1, 6, CardType::Attack, CardTarget::AllEnemy, false, Some("Wrath"), ["damage_random_x_times"]),
+        base = ("Ragnarok", "Ragnarok", 3, 5, -1, 5, CardType::Attack, CardTarget::AllEnemy, false, None, ["damage_random_x_times"]),
+        plus = ("Ragnarok+", "Ragnarok+", 3, 6, -1, 6, CardType::Attack, CardTarget::AllEnemy, false, None, ["damage_random_x_times"]),
         {}
     );
     watcher_test!(

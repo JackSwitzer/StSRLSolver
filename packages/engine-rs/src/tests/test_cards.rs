@@ -377,7 +377,7 @@ mod card_registry_tests {
         assert_eq!(c.base_magic, 5);
         assert_eq!(c.cost, 3);
         assert_eq!(c.target, CardTarget::AllEnemy);
-        assert_eq!(c.enter_stance, Some("Wrath"));
+        assert_eq!(c.enter_stance, None); // Java Ragnarok does NOT change stance
     }
 
     #[test]

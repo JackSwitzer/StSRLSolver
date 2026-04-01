@@ -706,7 +706,7 @@ mod power_java_parity_tests {
     }
 
     #[test]
-    #[ignore] // Crashes (SIGABRT) in complex multi-power state — index management bug, not trigger ordering
+    #[ignore] // SIGABRT in complex multi-power state — index management bug, not trigger ordering
     fn on_card_play_powers_match_java_on_engine() {
         let mut engine = make_engine(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P", "Defend_P"], 100, 0);
         ensure_in_hand(&mut engine, "After Image");

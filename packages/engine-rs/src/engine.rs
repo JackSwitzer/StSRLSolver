@@ -257,6 +257,81 @@ impl CombatEngine {
 
         // Draw cards (default 5)
         self.draw_cards(5);
+
+        // ---- Start-of-turn power consumptions (after draw) ----
+
+        // DemonForm: gain Strength each turn
+        let demon_form = self.state.player.status(sk::DEMON_FORM);
+        if demon_form > 0 {
+            self.state.player.add_status(sk::STRENGTH, demon_form);
+        }
+
+        // NoxiousFumes: apply Poison to all living enemies
+        let noxious_fumes = self.state.player.status(sk::NOXIOUS_FUMES);
+        if noxious_fumes > 0 {
+            for ei in 0..self.state.enemies.len() {
+                if self.state.enemies[ei].is_alive() {
+                    self.state.enemies[ei].entity.add_status(sk::POISON, noxious_fumes);
+                }
+            }
+        }
+
+        // Brutality: draw cards and lose HP each turn
+        let brutality = self.state.player.status(sk::BRUTALITY);
+        if brutality > 0 {
+            self.draw_cards(brutality);
+            self.state.player.hp -= brutality;
+            self.state.total_damage_taken += brutality;
+            if self.state.player.hp <= 0 {
+                self.state.player.hp = 0;
+                self.state.combat_over = true;
+                self.state.player_won = false;
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+        }
+
+        // Berserk: gain energy each turn
+        let berserk = self.state.player.status(sk::BERSERK);
+        if berserk > 0 {
+            self.state.energy += berserk;
+        }
+
+        // InfiniteBlades: add a Shiv to hand each turn
+        let infinite_blades = self.state.player.status(sk::INFINITE_BLADES);
+        if infinite_blades > 0 {
+            for _ in 0..infinite_blades {
+                let shiv_id = self.temp_card_id("Shiv");
+                if self.state.hand.len() < 10 {
+                    self.state.hand.push(shiv_id);
+                }
+            }
+        }
+
+        // HelloWorld: add a random common card to hand (MCTS: add Strike)
+        let hello_world = self.state.player.status(sk::HELLO_WORLD);
+        if hello_world > 0 {
+            for _ in 0..hello_world {
+                let strike_id = self.temp_card_id("Strike");
+                if self.state.hand.len() < 10 {
+                    self.state.hand.push(strike_id);
+                }
+            }
+        }
+
+        // ToolsOfTheTrade: draw cards then discard random cards
+        let tools = self.state.player.status(sk::TOOLS_OF_THE_TRADE);
+        if tools > 0 {
+            self.draw_cards(tools);
+            // Discard random cards from hand
+            for _ in 0..tools {
+                if !self.state.hand.is_empty() {
+                    let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
+                    let discarded = self.state.hand.remove(idx);
+                    self.state.discard_pile.push(discarded);
+                }
+            }
+        }
     }
 
     fn end_turn(&mut self) {
@@ -298,6 +373,45 @@ impl CombatEngine {
             let living = self.state.living_enemy_indices();
             for idx in living {
                 self.deal_damage_to_enemy(idx, omega);
+            }
+        }
+
+        // Combust: lose 1 HP, deal damage to all living enemies
+        let combust = self.state.player.status(sk::COMBUST);
+        if combust > 0 {
+            self.state.player.hp -= 1;
+            self.state.total_damage_taken += 1;
+            if self.state.player.hp <= 0 {
+                self.state.player.hp = 0;
+                self.state.combat_over = true;
+                self.state.player_won = false;
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+            let living = self.state.living_enemy_indices();
+            for idx in living {
+                self.deal_damage_to_enemy(idx, combust);
+            }
+        }
+
+        // Rage: clear at end of turn
+        self.state.player.set_status(sk::RAGE, 0);
+
+        // TempStrength: remove temporary Strength at end of turn
+        let temp_str = self.state.player.status(sk::TEMP_STRENGTH);
+        if temp_str > 0 {
+            self.state.player.add_status(sk::STRENGTH, -temp_str);
+            self.state.player.set_status(sk::TEMP_STRENGTH, 0);
+        }
+
+        // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
+        for ei in 0..self.state.enemies.len() {
+            if self.state.enemies[ei].is_alive() {
+                let tsl = self.state.enemies[ei].entity.status(sk::TEMP_STRENGTH_LOSS);
+                if tsl > 0 {
+                    self.state.enemies[ei].entity.add_status(sk::STRENGTH, tsl);
+                    self.state.enemies[ei].entity.set_status(sk::TEMP_STRENGTH_LOSS, 0);
+                }
             }
         }
 
@@ -487,6 +601,16 @@ impl CombatEngine {
             return 0;
         }
 
+        // Corruption: all Skills cost 0
+        if card.card_type == CardType::Skill && self.state.player.status(sk::CORRUPTION) > 0 {
+            return 0;
+        }
+
+        // BulletTime: all cards cost 0
+        if self.state.player.status(sk::BULLET_TIME) > 0 {
+            return 0;
+        }
+
         card.cost
     }
 
@@ -656,7 +780,11 @@ impl CombatEngine {
         } else if card.effects.contains(&"shuffle_self_into_draw") {
             // Tantrum: goes to draw pile instead of discard
             // (already handled in execute_card_effects, don't double-add)
-        } else if card.exhaust {
+        } else if card.exhaust
+            || (card.card_type == CardType::Skill
+                && self.state.player.status(sk::CORRUPTION) > 0)
+        {
+            // Corruption: Skills are exhausted instead of discarded
             self.state.exhaust_pile.push(card_id.clone());
             self.trigger_on_exhaust();
         } else {
@@ -963,7 +1091,15 @@ impl CombatEngine {
         player.hp -= hp_damage;
         self.state.total_damage_taken += hp_damage;
 
-        if player.hp <= 0 {
+        // Rupture: gain Strength when taking HP damage
+        if hp_damage > 0 {
+            let rupture = self.state.player.status(sk::RUPTURE);
+            if rupture > 0 {
+                self.state.player.add_status(sk::STRENGTH, rupture);
+            }
+        }
+
+        if self.state.player.hp <= 0 {
             // Check Fairy in a Bottle
             let revive_hp = potions::check_fairy_revive(&self.state);
             if revive_hp > 0 {
@@ -1259,7 +1395,16 @@ impl CombatEngine {
     // =======================================================================
 
     pub fn draw_cards(&mut self, count: i32) {
-        for _ in 0..count {
+        // NoDraw: skip draw entirely
+        if self.state.player.status(sk::NO_DRAW) > 0 {
+            return;
+        }
+
+        // DrawReduction: reduce draw count
+        let draw_reduction = self.state.player.status(sk::DRAW_REDUCTION);
+        let actual_count = (count - draw_reduction).max(0);
+
+        for _ in 0..actual_count {
             if self.state.hand.len() >= 10 {
                 break; // Hand size limit
             }
