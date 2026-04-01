@@ -657,7 +657,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Bullet Time: cards cost 0, no more draw this turn ----
     if card.effects.contains(&"bullet_time") {
         engine.state.player.set_status("BulletTime", 1);
-        engine.state.player.set_status("NoDraw", 1);
+        engine.state.player.set_status("No Draw", 1);
     }
 
     // ---- Malaise: apply X Weak + X Strength Down (X-cost) ----

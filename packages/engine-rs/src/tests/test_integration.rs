@@ -2061,7 +2061,7 @@ mod effect_handler_tests {
         // The block from LikeWater is applied at end of turn. After enemy turn and debuff decay,
         // start_player_turn resets block. So we need to check DURING end of turn.
         // For now, just verify the status is set.
-        assert_eq!(e.state.player.status("LikeWater"), 5);
+        assert_eq!(e.state.player.status("Like Water"), 5);
     }
 
     // ===== 23. Install Power: Devotion =====
@@ -2250,7 +2250,7 @@ mod effect_handler_tests {
         let deck = vec!["Defend_P".to_string(); 15];
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        e.state.player.set_status("Omega", 50);
+        e.state.player.set_status("OmegaPower", 50);
         let enemy_hp_before = e.state.enemies[0].entity.hp;
         e.execute_action(&Action::EndTurn);
         // Omega should have dealt 50 damage at end of turn

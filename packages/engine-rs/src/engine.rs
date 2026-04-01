@@ -277,7 +277,7 @@ impl CombatEngine {
         powers::apply_plated_armor(&mut self.state.player);
 
         // Like Water: if in Calm, gain block
-        let like_water = self.state.player.status("LikeWater");
+        let like_water = self.state.player.status("Like Water");
         if like_water > 0 && self.state.stance == Stance::Calm {
             self.state.player.block += like_water;
         }
@@ -292,7 +292,7 @@ impl CombatEngine {
         }
 
         // Omega: deal damage to all living enemies
-        let omega = self.state.player.status("Omega");
+        let omega = self.state.player.status("OmegaPower");
         if omega > 0 {
             let living = self.state.living_enemy_indices();
             for idx in living {
@@ -700,10 +700,10 @@ impl CombatEngine {
                 }
                 "like_water" => {
                     // LikeWater: at end of turn, if in Calm, gain block
-                    let current = self.state.player.status("LikeWater");
+                    let current = self.state.player.status("Like Water");
                     self.state
                         .player
-                        .set_status("LikeWater", current + card.base_magic.max(1));
+                        .set_status("Like Water", current + card.base_magic.max(1));
                 }
                 "on_scry_block" => {
                     // Nirvana: gain block on Scry
@@ -754,10 +754,10 @@ impl CombatEngine {
                 }
                 "omega" => {
                     // Omega: deal damage to all enemies at end of turn
-                    let current = self.state.player.status("Omega");
+                    let current = self.state.player.status("OmegaPower");
                     self.state
                         .player
-                        .set_status("Omega", current + card.base_magic.max(1));
+                        .set_status("OmegaPower", current + card.base_magic.max(1));
                 }
                 "after_image" => {
                     let current = self.state.player.status("After Image");

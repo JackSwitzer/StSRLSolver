@@ -559,7 +559,7 @@ mod silent_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Bullet Time");
         assert!(play_self(&mut engine, "Bullet Time"));
         assert_eq!(engine.state.player.status("BulletTime"), 1);
-        assert_eq!(engine.state.player.status("NoDraw"), 1);
+        assert_eq!(engine.state.player.status("No Draw"), 1);
     }
 
     #[test]

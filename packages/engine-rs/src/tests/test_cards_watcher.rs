@@ -443,7 +443,7 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "LikeWater");
             play_self(&mut engine, "LikeWater");
-            assert_eq!(engine.state.player.status("LikeWater"), 5);
+            assert_eq!(engine.state.player.status("Like Water"), 5);
         }
     );
     watcher_test!(
