@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 mod exordium;
 mod city;
 mod beyond;
+mod shrines;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDef {
@@ -40,6 +41,16 @@ pub enum EventEffect {
     UpgradeCard,
     /// Golden Idol: lose 25% max HP, gain 300 gold
     GoldenIdolTake,
+    /// Transform a card into a random one of the same type
+    TransformCard,
+    /// Duplicate (copy) a card
+    DuplicateCard,
+    /// Gain a random potion
+    GainPotion,
+    /// Lose a percentage of max HP (value = percent, e.g. 10 = 10%)
+    LosePercentHp(i32),
+    /// Gain gold and a curse card
+    GoldAndCurse(i32),
 }
 
 
@@ -50,4 +61,9 @@ pub fn events_for_act(act: i32) -> Vec<EventDef> {
         3 => beyond::act3_events(),
         _ => exordium::act1_events(),
     }
+}
+
+/// Get shrine events (shared across all acts in Java).
+pub fn shrine_events() -> Vec<EventDef> {
+    shrines::shrine_events()
 }
