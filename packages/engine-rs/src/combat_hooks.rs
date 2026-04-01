@@ -191,7 +191,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     enemies::roll_next_move(&mut engine.state.enemies[enemy_idx]);
 }
 
-/// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split, Lagavulin wake).
+/// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split, Lagavulin wake,
+/// Awakened One rebirth, Champ execute threshold).
 ///
 /// Called from `deal_damage_to_enemy()` when HP damage is dealt.
 pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: i32) {
@@ -219,8 +220,51 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 do_slime_boss_split(engine, enemy_idx);
             }
         }
+        "AwakenedOne" | "Awakened One" => {
+            // Phase 1 death triggers rebirth instead of actual death.
+            let phase = engine.state.enemies[enemy_idx].entity.status("Phase");
+            if phase == 1 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
+                enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
+            }
+        }
+        "Champ" => {
+            // When Champ drops to <= 50% HP, immediately trigger Phase 2 (Anger).
+            // roll_champ handles the move selection, but we re-roll here so the
+            // transition happens mid-turn rather than waiting for next enemy turn.
+            let enemy = &mut engine.state.enemies[enemy_idx];
+            if enemy.entity.hp <= enemy.entity.max_hp / 2
+                && enemy.entity.status("ThresholdReached") == 0
+            {
+                enemies::roll_next_move(enemy);
+            }
+        }
         _ => {}
     }
+}
+
+/// Handle Time Eater card count and other enemy on-card-played triggers.
+///
+/// Called from `play_card()` after a card is played. Increments Time Warp on
+/// all living enemies that have the power. When 12 cards are reached, the
+/// Time Eater ends the player's turn and gains Strength.
+///
+/// Returns `true` if the player's turn should end (Time Warp triggered).
+pub fn on_player_card_played(engine: &mut CombatEngine) -> bool {
+    let mut end_turn = false;
+
+    for i in 0..engine.state.enemies.len() {
+        if !engine.state.enemies[i].is_alive() {
+            continue;
+        }
+
+        // Time Warp: count cards, at 12 end turn + enemy gains 2 Strength
+        if powers::increment_time_warp(&mut engine.state.enemies[i].entity) {
+            engine.state.enemies[i].entity.add_status("Strength", 2);
+            end_turn = true;
+        }
+    }
+
+    end_turn
 }
 
 /// Handle Slime Boss splitting into two smaller slimes.
