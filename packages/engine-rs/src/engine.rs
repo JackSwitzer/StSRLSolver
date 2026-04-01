@@ -1,27 +1,22 @@
-//! Combat engine — core turn loop for MCTS simulations.
+//! Combat engine — slim orchestrator for MCTS simulations.
 //!
-//! Mirrors the Python CombatEngine with full power triggers:
-//! - State management (energy, HP, block, hand, draw/discard)
-//! - Damage/block calculation with all modifiers
-//! - Card play with power triggers (Rushdown, MentalFortress, Mantra)
-//! - Enemy AI (Act 1 enemies + bosses)
-//! - Relic effects at combat start and during play
-//! - Potion effects
-//! - End turn (enemy attacks, block decay, debuff ticks)
-//! - get_legal_actions()
+//! Core turn loop that delegates to:
+//! - card_effects: card play effect execution
+//! - status_effects: end-of-turn hand card triggers
+//! - combat_hooks: enemy turns, boss damage hooks
 
 use pyo3::prelude::*;
-use rand::Rng;
 use rand::seq::SliceRandom;
 
 use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
+use crate::combat_hooks;
 use crate::damage;
-use crate::enemies;
 use crate::potions;
 use crate::powers;
 use crate::relics;
 use crate::state::{CombatState, EnemyCombatState, PyCombatState, Stance};
+use crate::status_effects;
 
 /// Combat phase enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +33,7 @@ pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
     pub card_registry: CardRegistry,
-    rng: crate::seed::StsRandom,
+    pub(crate) rng: crate::seed::StsRandom,
 }
 
 impl CombatEngine {
@@ -267,44 +262,13 @@ impl CombatEngine {
         self.state.player.set_status("Entangled", 0);
 
         // ---- End-of-turn hand card triggers (before discarding) ----
-        {
-            let hand = self.state.hand.clone();
-            let hand_size = hand.len() as i32;
-            for card_id in &hand {
-                let card = self.card_registry.get_or_default(card_id);
-                // Burn/Burn+/Decay: deal damage to player
-                if card.effects.contains(&"end_turn_damage") && card.base_magic > 0 {
-                    self.state.player.hp -= card.base_magic;
-                    self.state.total_damage_taken += card.base_magic;
-                }
-                // Regret: deal damage equal to cards in hand
-                if card.effects.contains(&"end_turn_regret") {
-                    self.state.player.hp -= hand_size;
-                    self.state.total_damage_taken += hand_size;
-                }
-                // Doubt: apply 1 Weak
-                if card.effects.contains(&"end_turn_weak") {
-                    powers::apply_debuff(&mut self.state.player, "Weakened", card.base_magic.max(1));
-                }
-                // Shame: apply 1 Frail
-                if card.effects.contains(&"end_turn_frail") {
-                    powers::apply_debuff(&mut self.state.player, "Frail", card.base_magic.max(1));
-                }
-            }
-            // Check player death from status card damage
-            if self.state.player.hp <= 0 {
-                let revive_hp = potions::check_fairy_revive(&self.state);
-                if revive_hp > 0 {
-                    potions::consume_fairy(&mut self.state);
-                    self.state.player.hp = revive_hp;
-                } else {
-                    self.state.player.hp = 0;
-                    self.state.combat_over = true;
-                    self.state.player_won = false;
-                    self.phase = CombatPhase::CombatOver;
-                    return;
-                }
-            }
+        let player_died = status_effects::process_end_turn_hand_cards(
+            &mut self.state,
+            &self.card_registry,
+        );
+        if player_died {
+            self.phase = CombatPhase::CombatOver;
+            return;
         }
 
         // ---- End-of-turn relic triggers (before discard) ----
@@ -409,7 +373,7 @@ impl CombatEngine {
         if self.state.skip_enemy_turn {
             self.state.skip_enemy_turn = false;
         } else {
-            self.do_enemy_turns();
+            combat_hooks::do_enemy_turns(self);
         }
 
         // End of round: decrement debuffs on player
@@ -515,7 +479,7 @@ impl CombatEngine {
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
-        self.execute_card_effects(&card, &card_id, target_idx);
+        crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
 
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
@@ -546,9 +510,6 @@ impl CombatEngine {
             self.state.player.set_status("NextAttackFree", 0);
         }
 
-        // Consume WaveOfTheHand at end of turn (reset flag)
-        // WaveOfTheHand is applied in block gain triggers (simplified: apply on any block)
-
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
@@ -571,518 +532,6 @@ impl CombatEngine {
 
         // Check combat end after card play
         self.check_combat_end();
-    }
-
-    fn execute_card_effects(&mut self, card: &CardDef, card_id: &str, target_idx: i32) {
-        // ---- Pen Nib check (before damage) ----
-        let pen_nib_active = if card.card_type == CardType::Attack {
-            relics::check_pen_nib(&mut self.state)
-        } else {
-            false
-        };
-
-        // ---- Vigor (consumed on first attack hit) ----
-        let vigor = if card.card_type == CardType::Attack {
-            let v = self.state.player.status("Vigor");
-            if v > 0 {
-                self.state.player.set_status("Vigor", 0);
-            }
-            v
-        } else {
-            0
-        };
-
-        // ---- Brilliance: extra damage from mantra gained ----
-        let brilliance_bonus = if card.effects.contains(&"damage_plus_mantra") {
-            self.state.mantra_gained
-        } else {
-            0
-        };
-
-        // ---- Damage ----
-        // Track damage dealt for Wallop (block_from_damage)
-        let mut total_unblocked_damage = 0i32;
-        let mut enemy_killed = false;
-
-        if card.base_damage >= 0 {
-            let is_multi_hit = card.effects.contains(&"multi_hit");
-            let hits = if is_multi_hit && card.base_magic > 0 {
-                card.base_magic
-            } else {
-                1
-            };
-
-            let player_strength = self.state.player.strength();
-            let player_weak = self.state.player.is_weak();
-            let weak_paper_crane = self.state.has_relic("Paper Crane");
-            let stance_mult = self.state.stance.outgoing_mult();
-
-            match card.target {
-                CardTarget::Enemy => {
-                    if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                        let tidx = target_idx as usize;
-                        let enemy_vuln = self.state.enemies[tidx].entity.is_vulnerable();
-                        let enemy_intangible = self.state.enemies[tidx].entity.status("Intangible") > 0;
-                        let vuln_paper_frog = self.state.has_relic("Paper Frog");
-                        let dmg = damage::calculate_damage_full(
-                            card.base_damage + brilliance_bonus,
-                            player_strength,
-                            vigor,
-                            player_weak,
-                            weak_paper_crane,
-                            pen_nib_active,
-                            false, // double_damage
-                            stance_mult,
-                            enemy_vuln,
-                            vuln_paper_frog,
-                            false, // flight
-                            enemy_intangible,
-                        );
-                        // Talk to the Hand: player gains block per hit ONLY on HP damage
-                        let block_return = self.state.enemies[tidx].entity.status("BlockReturn");
-                        for _ in 0..hits {
-                            let enemy_block_before = self.state.enemies[tidx].entity.block;
-                            let enemy_hp_before = self.state.enemies[tidx].entity.hp;
-                            self.deal_damage_to_enemy(tidx, dmg);
-                            // Track unblocked damage for Wallop
-                            let blocked = enemy_block_before.min(dmg);
-                            let hp_dmg = dmg - blocked;
-                            total_unblocked_damage += (enemy_hp_before - self.state.enemies[tidx].entity.hp).max(0);
-                            // BlockReturn only triggers on actual HP damage
-                            if block_return > 0 {
-                                if hp_dmg > 0 || enemy_hp_before > self.state.enemies[tidx].entity.hp {
-                                    self.state.player.block += block_return;
-                                }
-                            }
-                            if self.state.enemies[tidx].entity.is_dead() {
-                                enemy_killed = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                CardTarget::AllEnemy => {
-                    let living = self.state.living_enemy_indices();
-                    for enemy_idx in living {
-                        let enemy_vuln = self.state.enemies[enemy_idx].entity.is_vulnerable();
-                        let enemy_intangible = self.state.enemies[enemy_idx].entity.status("Intangible") > 0;
-                        let vuln_paper_frog = self.state.has_relic("Paper Frog");
-                        let dmg = damage::calculate_damage_full(
-                            card.base_damage + brilliance_bonus,
-                            player_strength,
-                            vigor,
-                            player_weak,
-                            weak_paper_crane,
-                            pen_nib_active,
-                            false, // double_damage
-                            stance_mult,
-                            enemy_vuln,
-                            vuln_paper_frog,
-                            false, // flight
-                            enemy_intangible,
-                        );
-                        let block_return = self.state.enemies[enemy_idx].entity.status("BlockReturn");
-                        for _ in 0..hits {
-                            let enemy_hp_before = self.state.enemies[enemy_idx].entity.hp;
-                            let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
-                            self.deal_damage_to_enemy(enemy_idx, dmg);
-                            total_unblocked_damage += (enemy_hp_before - self.state.enemies[enemy_idx].entity.hp).max(0);
-                            if block_return > 0 {
-                                let blocked = enemy_block_before.min(dmg);
-                                let hp_dmg = dmg - blocked;
-                                if hp_dmg > 0 || enemy_hp_before > self.state.enemies[enemy_idx].entity.hp {
-                                    self.state.player.block += block_return;
-                                }
-                            }
-                            if self.state.enemies[enemy_idx].entity.is_dead() {
-                                enemy_killed = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // ---- Wallop: gain block equal to unblocked damage dealt ----
-        if card.effects.contains(&"block_from_damage") {
-            self.state.player.block += total_unblocked_damage;
-        }
-
-        // ---- Block ----
-        if card.base_block >= 0 {
-            let dex = self.state.player.dexterity();
-            let frail = self.state.player.is_frail();
-            let block = damage::calculate_block(card.base_block, dex, frail);
-            self.state.player.block += block;
-        }
-
-        // ---- Spirit Shield: gain block per card in hand ----
-        if card.effects.contains(&"block_per_card_in_hand") {
-            let cards_in_hand = self.state.hand.len() as i32;
-            let per_card = card.base_magic.max(1);
-            let dex = self.state.player.dexterity();
-            let frail = self.state.player.is_frail();
-            let block = damage::calculate_block(per_card * cards_in_hand, dex, frail);
-            self.state.player.block += block;
-        }
-
-        // ---- Halt: extra block in Wrath ----
-        if card.effects.contains(&"extra_block_in_wrath") && self.state.stance == Stance::Wrath {
-            if card.base_magic > 0 {
-                let dex = self.state.player.dexterity();
-                let frail = self.state.player.is_frail();
-                let extra = damage::calculate_block(card.base_magic, dex, frail);
-                self.state.player.block += extra;
-            }
-        }
-
-        // ---- Draw ----
-        if card.effects.contains(&"draw") && card.base_magic > 0 {
-            self.draw_cards(card.base_magic);
-        }
-
-        // ---- Scrawl: draw until hand is 10 ----
-        if card.effects.contains(&"draw_to_ten") {
-            let cards_to_draw = (10 - self.state.hand.len() as i32).max(0);
-            if cards_to_draw > 0 {
-                self.draw_cards(cards_to_draw);
-            }
-        }
-
-        // ---- Mantra ----
-        if card.effects.contains(&"mantra") && card.base_magic > 0 {
-            self.gain_mantra(card.base_magic);
-        }
-
-        // ---- Scry ----
-        if card.effects.contains(&"scry") && card.base_magic > 0 {
-            self.do_scry(card.base_magic);
-        }
-
-        // ---- Gain Energy (Miracle) ----
-        if card.effects.contains(&"gain_energy") && card.base_magic > 0 {
-            self.state.energy += card.base_magic;
-        }
-
-        // ---- Vigor (Wreath of Flame) ----
-        if card.effects.contains(&"vigor") && card.base_magic > 0 {
-            self.state.player.add_status("Vigor", card.base_magic);
-        }
-
-        // ---- Inner Peace: if in Calm, draw 3; else enter Calm ----
-        if card.effects.contains(&"if_calm_draw_else_calm") {
-            if self.state.stance == Stance::Calm {
-                self.draw_cards(card.base_magic);
-            } else {
-                self.change_stance(Stance::Calm);
-            }
-        }
-
-        // ---- BowlingBash: damage per living enemy (extra hits) ----
-        if card.effects.contains(&"damage_per_enemy") {
-            let living_count = self.state.living_enemy_indices().len() as i32;
-            if living_count > 1 && target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                let player_strength = self.state.player.strength();
-                let player_weak = self.state.player.is_weak();
-                let stance_mult = self.state.stance.outgoing_mult();
-                let enemy_vuln = self.state.enemies[target_idx as usize].entity.is_vulnerable();
-                let dmg = damage::calculate_damage(
-                    card.base_damage,
-                    player_strength + vigor,
-                    player_weak,
-                    stance_mult,
-                    enemy_vuln,
-                    false,
-                );
-                for _ in 0..(living_count - 1) {
-                    if self.state.enemies[target_idx as usize].entity.is_dead() {
-                        break;
-                    }
-                    self.deal_damage_to_enemy(target_idx as usize, dmg);
-                }
-            }
-        }
-
-        // ---- CrushJoints: apply Vulnerable if last card played was a Skill ----
-        if card.effects.contains(&"vuln_if_last_skill") {
-            if self.state.last_card_type == Some(CardType::Skill) {
-                if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                    let vuln_amount = card.base_magic.max(1);
-                    self.state.enemies[target_idx as usize]
-                        .entity
-                        .add_status("Vulnerable", vuln_amount);
-                }
-            }
-        }
-
-        // ---- SashWhip: apply Weak if last card played was an Attack ----
-        if card.effects.contains(&"weak_if_last_attack") {
-            if self.state.last_card_type == Some(CardType::Attack) {
-                if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                    let weak_amount = card.base_magic.max(1);
-                    powers::apply_debuff(
-                        &mut self.state.enemies[target_idx as usize].entity,
-                        "Weakened",
-                        weak_amount,
-                    );
-                }
-            }
-        }
-
-        // ---- FollowUp: gain 1 energy if last card played was an Attack ----
-        if card.effects.contains(&"energy_if_last_attack") {
-            if self.state.last_card_type == Some(CardType::Attack) {
-                self.state.energy += 1;
-            }
-        }
-
-        // ---- TalkToTheHand: apply BlockReturn to target ----
-        if card.effects.contains(&"apply_block_return") {
-            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                let amount = card.base_magic.max(1);
-                self.state.enemies[target_idx as usize]
-                    .entity
-                    .add_status("BlockReturn", amount);
-            }
-        }
-
-        // ---- Ragnarok: deal damage to random enemies X times ----
-        if card.effects.contains(&"damage_random_x_times") && card.base_magic > 0 {
-            let player_strength = self.state.player.strength();
-            let player_weak = self.state.player.is_weak();
-            let stance_mult = self.state.stance.outgoing_mult();
-            for _ in 0..(card.base_magic - 1) {
-                let living = self.state.living_enemy_indices();
-                if living.is_empty() {
-                    break;
-                }
-                let idx = living[self.rng.gen_range(0..living.len())];
-                let enemy_vuln = self.state.enemies[idx].entity.is_vulnerable();
-                let dmg = damage::calculate_damage(
-                    card.base_damage,
-                    player_strength + vigor,
-                    player_weak,
-                    stance_mult,
-                    enemy_vuln,
-                    false,
-                );
-                self.deal_damage_to_enemy(idx, dmg);
-            }
-        }
-
-        // ---- Pressure Points: apply Mark, then damage all marked enemies ----
-        if card.effects.contains(&"pressure_points") {
-            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                let mark_amount = card.base_magic.max(1);
-                self.state.enemies[target_idx as usize]
-                    .entity
-                    .add_status("Mark", mark_amount);
-            }
-            // Deal damage to ALL enemies equal to their Mark
-            let living = self.state.living_enemy_indices();
-            for idx in living {
-                let mark = self.state.enemies[idx].entity.status("Mark");
-                if mark > 0 {
-                    // Mark damage ignores block (HP loss)
-                    self.state.enemies[idx].entity.hp -= mark;
-                    self.state.total_damage_dealt += mark;
-                    if self.state.enemies[idx].entity.hp <= 0 {
-                        self.state.enemies[idx].entity.hp = 0;
-                    }
-                }
-            }
-        }
-
-        // ---- Judgement: if enemy HP <= threshold, set HP to 0 ----
-        if card.effects.contains(&"judgement") {
-            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                let tidx = target_idx as usize;
-                let threshold = card.base_magic.max(1);
-                if self.state.enemies[tidx].entity.hp <= threshold {
-                    let hp = self.state.enemies[tidx].entity.hp;
-                    self.state.enemies[tidx].entity.hp = 0;
-                    self.state.total_damage_dealt += hp;
-                }
-            }
-        }
-
-        // ---- Lesson Learned: if enemy dies, upgrade a random card in draw/discard ----
-        if card.effects.contains(&"lesson_learned") && enemy_killed {
-            // Find a non-upgraded card and upgrade it
-            let mut upgraded = false;
-            for card_id in self.state.draw_pile.iter_mut() {
-                if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
-                    card_id.push('+');
-                    upgraded = true;
-                    break;
-                }
-            }
-            if !upgraded {
-                for card_id in self.state.discard_pile.iter_mut() {
-                    if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
-                        card_id.push('+');
-                        break;
-                    }
-                }
-            }
-        }
-
-        // ---- Shuffle self into draw pile (Tantrum) ----
-        if card.effects.contains(&"shuffle_self_into_draw") {
-            self.state.draw_pile.push(card_id.to_string());
-            self.state.draw_pile.shuffle(&mut self.rng);
-        }
-
-        // ---- Add Insight to draw pile (Evaluate) ----
-        if card.effects.contains(&"insight_to_draw") {
-            let insight_id = self.temp_card_id("Insight");
-            self.state.draw_pile.push(insight_id);
-            self.state.draw_pile.shuffle(&mut self.rng);
-        }
-
-        // ---- Add Smite to hand (Carve Reality) ----
-        if card.effects.contains(&"add_smite_to_hand") {
-            let smite_id = self.temp_card_id("Smite");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(smite_id);
-            }
-        }
-
-        // ---- Add Safety to hand (Deceive Reality) ----
-        if card.effects.contains(&"add_safety_to_hand") {
-            let safety_id = self.temp_card_id("Safety");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(safety_id);
-            }
-        }
-
-        // ---- Add Through Violence to draw (Reach Heaven) ----
-        if card.effects.contains(&"add_through_violence_to_draw") {
-            let tv_id = self.temp_card_id("ThroughViolence");
-            self.state.draw_pile.push(tv_id);
-            self.state.draw_pile.shuffle(&mut self.rng);
-        }
-
-        // ---- Add Beta to draw (Alpha) ----
-        if card.effects.contains(&"add_beta_to_draw") {
-            let beta_id = self.temp_card_id("Beta");
-            self.state.draw_pile.push(beta_id);
-            self.state.draw_pile.shuffle(&mut self.rng);
-        }
-
-        // ---- Add Omega to draw (Beta) ----
-        if card.effects.contains(&"add_omega_to_draw") {
-            let omega_id = self.temp_card_id("Omega");
-            self.state.draw_pile.push(omega_id);
-            self.state.draw_pile.shuffle(&mut self.rng);
-        }
-
-        // ---- Fear No Evil: enter Calm if target enemy is attacking ----
-        if card.effects.contains(&"calm_if_enemy_attacking") {
-            if target_idx >= 0 && (target_idx as usize) < self.state.enemies.len() {
-                if self.state.enemies[target_idx as usize].is_attacking() {
-                    self.change_stance(Stance::Calm);
-                }
-            }
-        }
-
-        // ---- Indignation: if in Wrath, apply Vuln to all; else enter Wrath ----
-        if card.effects.contains(&"indignation") {
-            if self.state.stance == Stance::Wrath {
-                let vuln_amount = card.base_magic.max(1);
-                let living = self.state.living_enemy_indices();
-                for idx in living {
-                    powers::apply_debuff(
-                        &mut self.state.enemies[idx].entity,
-                        "Vulnerable",
-                        vuln_amount,
-                    );
-                }
-            } else {
-                self.change_stance(Stance::Wrath);
-            }
-        }
-
-        // ---- Meditate: return cards from discard to hand (MCTS approximation) ----
-        if card.effects.contains(&"meditate") {
-            let count = card.base_magic.max(1) as usize;
-            // Move best cards from discard to hand (simplified: take from end)
-            // Returned cards are retained through end-of-turn discard.
-            for _ in 0..count {
-                if self.state.discard_pile.is_empty() {
-                    break;
-                }
-                if self.state.hand.len() >= 10 {
-                    break;
-                }
-                if let Some(returned) = self.state.discard_pile.pop() {
-                    self.state.retained_cards.push(returned.clone());
-                    self.state.hand.push(returned);
-                }
-            }
-        }
-
-        // ---- Wave of the Hand: apply WaveOfTheHand status ----
-        if card.effects.contains(&"wave_of_the_hand") {
-            self.state.player.add_status("WaveOfTheHand", card.base_magic.max(1));
-        }
-
-        // ---- Foreign Influence: MCTS approximation, add a random Smite ----
-        if card.effects.contains(&"foreign_influence") {
-            let smite_id = self.temp_card_id("Smite");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(smite_id);
-            }
-        }
-
-        // ---- Conjure Blade: create Expunger with X hits ----
-        if card.effects.contains(&"conjure_blade") {
-            // X-cost: all remaining energy was consumed. The energy was already paid (0 for X).
-            // But X-cost cards consume ALL energy. We need to set the hit count.
-            // X-cost: effective_cost returns 0, energy was only reduced by 0.
-            // Consume all remaining energy as X value.
-            let x_value = self.state.energy;
-            self.state.energy = 0;
-            // Create Expunger with X hits — store hit count in status
-            let expunger_id = self.temp_card_id("Expunger");
-            if x_value > 0 && self.state.hand.len() < 10 {
-                self.state.hand.push(expunger_id);
-                self.state.player.set_status("ExpungerHits", x_value);
-            }
-        }
-
-        // ---- Omniscience: MCTS approximation — draw top card and play it ----
-        if card.effects.contains(&"omniscience") {
-            // Simplified: draw 1 card (the top of draw pile gets played "twice")
-            // For MCTS, we just draw 2 cards as approximation
-            self.draw_cards(2);
-        }
-
-        // ---- Wish: MCTS approximation — gain Strength (most useful option) ----
-        if card.effects.contains(&"wish") {
-            let amount = card.base_magic.max(1);
-            self.state.player.add_status("Strength", amount);
-        }
-
-        // ---- Blasphemy: die_next_turn flag ----
-        if card.effects.contains(&"die_next_turn") {
-            self.state.blasphemy_active = true;
-        }
-
-        // ---- Skip enemy turn (Vault) ----
-        if card.effects.contains(&"skip_enemy_turn") {
-            self.state.skip_enemy_turn = true;
-        }
-
-        // ---- Signature Move: only_attack_in_hand (playability handled in can_play_card) ----
-        // No extra effect needed here, damage is already dealt above.
-
-        // ---- Swivel: next_attack_free ----
-        if card.effects.contains(&"next_attack_free") {
-            self.state.player.set_status("NextAttackFree", 1);
-        }
     }
 
     /// Install a power card as a permanent status effect.
@@ -1206,7 +655,7 @@ impl CombatEngine {
     // Damage Dealing / Taking
     // =======================================================================
 
-    fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+    pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
         let enemy = &mut self.state.enemies[enemy_idx];
         let blocked = enemy.entity.block.min(damage);
         let hp_damage = damage - blocked;
@@ -1219,50 +668,11 @@ impl CombatEngine {
         }
 
         // Boss damage hooks
-        if hp_damage > 0 {
-            let enemy_id = self.state.enemies[enemy_idx].id.clone();
-            match enemy_id.as_str() {
-                "TheGuardian" => {
-                    enemies::guardian_check_mode_shift(
-                        &mut self.state.enemies[enemy_idx],
-                        hp_damage,
-                    );
-                }
-                "Lagavulin" => {
-                    // Wake Lagavulin if damaged while sleeping
-                    let sleep_turns = self.state.enemies[enemy_idx].entity.status("SleepTurns");
-                    if sleep_turns > 0 {
-                        enemies::lagavulin_wake_up(&mut self.state.enemies[enemy_idx]);
-                    }
-                }
-                "SlimeBoss" => {
-                    if enemies::slime_boss_should_split(&self.state.enemies[enemy_idx]) {
-                        self.do_slime_boss_split(enemy_idx);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// Handle Slime Boss splitting into two smaller slimes.
-    fn do_slime_boss_split(&mut self, boss_idx: usize) {
-        // Kill the boss
-        self.state.enemies[boss_idx].entity.hp = 0;
-
-        // Spawn two medium slimes (one Acid, one Spike) at the boss's remaining HP split
-        let boss_max_hp = self.state.enemies[boss_idx].entity.max_hp;
-        let slime_hp = boss_max_hp / 4; // Each medium slime gets 1/4 of boss max HP
-
-        let acid = enemies::create_enemy("AcidSlime_M", slime_hp, slime_hp);
-        let spike = enemies::create_enemy("SpikeSlime_M", slime_hp, slime_hp);
-
-        self.state.enemies.push(acid);
-        self.state.enemies.push(spike);
+        combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
     }
 
     #[allow(dead_code)]
-    fn deal_damage_to_player(&mut self, damage: i32) {
+    pub fn deal_damage_to_player(&mut self, damage: i32) {
         let player = &mut self.state.player;
         let blocked = player.block.min(damage);
         let hp_damage = damage - blocked;
@@ -1283,196 +693,10 @@ impl CombatEngine {
     }
 
     // =======================================================================
-    // Enemy Turns
-    // =======================================================================
-
-    fn do_enemy_turns(&mut self) {
-        self.phase = CombatPhase::EnemyTurn;
-
-        let num_enemies = self.state.enemies.len();
-        for i in 0..num_enemies {
-            if !self.state.enemies[i].is_alive() {
-                continue;
-            }
-
-            // Block decays at start of enemy turn
-            self.state.enemies[i].entity.block = 0;
-
-            // Metallicize: enemy gains block
-            powers::apply_metallicize(&mut self.state.enemies[i].entity);
-
-            // Poison tick
-            let poison_dmg = powers::tick_poison(&mut self.state.enemies[i].entity);
-            if poison_dmg > 0 {
-                self.state.total_damage_dealt += poison_dmg;
-                if self.state.enemies[i].entity.is_dead() {
-                    self.state.enemies[i].entity.hp = 0;
-                    continue;
-                }
-            }
-
-            // Ritual strength gain (not first turn)
-            if !self.state.enemies[i].first_turn {
-                powers::apply_ritual(&mut self.state.enemies[i].entity);
-            }
-
-            // Execute enemy move
-            self.execute_enemy_move(i);
-
-            // Check player death
-            if self.state.player.is_dead() {
-                self.state.player.hp = 0;
-                self.state.combat_over = true;
-                self.state.player_won = false;
-                self.phase = CombatPhase::CombatOver;
-                return;
-            }
-
-            // Mark first turn complete
-            self.state.enemies[i].first_turn = false;
-        }
-    }
-
-    fn execute_enemy_move(&mut self, enemy_idx: usize) {
-        let enemy = &self.state.enemies[enemy_idx];
-        if enemy.move_id == -1 {
-            return;
-        }
-
-        // Attack
-        if enemy.move_damage > 0 {
-            let enemy_strength = enemy.entity.strength();
-            let enemy_weak = enemy.entity.is_weak();
-            let base_damage = enemy.move_damage + enemy_strength;
-
-            // Apply Weak to enemy's attack
-            let mut damage_f = base_damage as f64;
-            if enemy_weak {
-                damage_f *= damage::WEAK_MULT;
-            }
-
-            // Floor the per-hit base (before stance/vuln/intangible)
-            let per_hit_base = (damage_f as i32).max(0);
-
-            let is_wrath = self.state.stance == Stance::Wrath;
-            let player_vuln = self.state.player.is_vulnerable();
-            let player_intangible = self.state.player.status("Intangible") > 0;
-            let has_torii = self.state.has_relic("Torii");
-            let has_tungsten = self.state.has_relic("Tungsten Rod");
-
-            let hits = enemy.move_hits;
-            for _ in 0..hits {
-                let result = damage::calculate_incoming_damage(
-                    per_hit_base,
-                    self.state.player.block,
-                    is_wrath,
-                    player_vuln,
-                    player_intangible,
-                    has_torii,
-                    has_tungsten,
-                );
-
-                self.state.player.block = result.block_remaining;
-                if result.hp_loss > 0 {
-                    self.state.player.hp -= result.hp_loss;
-                    self.state.total_damage_taken += result.hp_loss;
-
-                    // Plated Armor decrements on unblocked HP damage
-                    let plated = self.state.player.status("Plated Armor");
-                    if plated > 0 {
-                        let new_plated = plated - 1;
-                        self.state.player.set_status("Plated Armor", new_plated);
-                    }
-                }
-
-                if self.state.player.hp <= 0 {
-                    // Check Fairy in a Bottle
-                    let revive_hp = potions::check_fairy_revive(&self.state);
-                    if revive_hp > 0 {
-                        potions::consume_fairy(&mut self.state);
-                        self.state.player.hp = revive_hp;
-                    } else {
-                        self.state.player.hp = 0;
-                    }
-                }
-
-                if self.state.player.is_dead() {
-                    return;
-                }
-            }
-        }
-
-        // Block
-        if self.state.enemies[enemy_idx].move_block > 0 {
-            let block = self.state.enemies[enemy_idx].move_block;
-            self.state.enemies[enemy_idx].entity.block += block;
-        }
-
-        // Apply move effects
-        let effects = self.state.enemies[enemy_idx].move_effects.clone();
-        if let Some(&amt) = effects.get("weak") {
-            powers::apply_debuff(&mut self.state.player, "Weakened", amt);
-        }
-        if let Some(&amt) = effects.get("vulnerable") {
-            powers::apply_debuff(&mut self.state.player, "Vulnerable", amt);
-        }
-        if let Some(&amt) = effects.get("frail") {
-            powers::apply_debuff(&mut self.state.player, "Frail", amt);
-        }
-        if let Some(&amt) = effects.get("strength") {
-            self.state.enemies[enemy_idx]
-                .entity
-                .add_status("Strength", amt);
-        }
-        if let Some(&amt) = effects.get("ritual") {
-            self.state.enemies[enemy_idx]
-                .entity
-                .set_status("Ritual", amt);
-        }
-        if let Some(&amt) = effects.get("entangle") {
-            if amt > 0 {
-                self.state.player.set_status("Entangled", 1);
-            }
-        }
-        if let Some(&amt) = effects.get("slimed") {
-            // Add Slimed cards to discard pile
-            for _ in 0..amt {
-                self.state.discard_pile.push("Slimed".to_string());
-            }
-        }
-        if let Some(&amt) = effects.get("daze") {
-            // Add Daze cards to discard pile
-            for _ in 0..amt {
-                self.state.discard_pile.push("Daze".to_string());
-            }
-        }
-        if let Some(&amt) = effects.get("burn") {
-            for _ in 0..amt {
-                self.state.discard_pile.push("Burn".to_string());
-            }
-        }
-        if let Some(&amt) = effects.get("burn+") {
-            for _ in 0..amt {
-                self.state.discard_pile.push("Burn".to_string());
-            }
-        }
-        // Lagavulin Siphon Soul: reduce player Strength and Dexterity
-        if let Some(&amt) = effects.get("siphon_str") {
-            self.state.player.add_status("Strength", -(amt));
-        }
-        if let Some(&amt) = effects.get("siphon_dex") {
-            self.state.player.add_status("Dexterity", -(amt));
-        }
-
-        // Advance enemy to next move for next turn
-        enemies::roll_next_move(&mut self.state.enemies[enemy_idx]);
-    }
-
-    // =======================================================================
     // Draw / Shuffle
     // =======================================================================
 
-    fn draw_cards(&mut self, count: i32) {
+    pub fn draw_cards(&mut self, count: i32) {
         for _ in 0..count {
             if self.state.hand.len() >= 10 {
                 break; // Hand size limit
@@ -1494,11 +718,22 @@ impl CombatEngine {
         }
     }
 
+    /// Shuffle the draw pile (pub(crate) for card_effects).
+    pub(crate) fn shuffle_draw_pile(&mut self) {
+        self.state.draw_pile.shuffle(&mut self.rng);
+    }
+
+    /// Generate a random range using the engine RNG (pub(crate) for card_effects).
+    pub(crate) fn rng_gen_range(&mut self, range: std::ops::Range<usize>) -> usize {
+        use rand::Rng;
+        self.rng.gen_range(range)
+    }
+
     // =======================================================================
     // Stance
     // =======================================================================
 
-    fn change_stance(&mut self, new_stance: Stance) {
+    pub fn change_stance(&mut self, new_stance: Stance) {
         let old_stance = self.state.stance;
         if old_stance == new_stance {
             return;
@@ -1535,7 +770,7 @@ impl CombatEngine {
     }
 
     /// Gain mantra and check for Divinity entry (10+ mantra).
-    fn gain_mantra(&mut self, amount: i32) {
+    pub fn gain_mantra(&mut self, amount: i32) {
         self.state.mantra += amount;
         self.state.mantra_gained += amount;
         if self.state.mantra >= 10 {
@@ -1549,7 +784,7 @@ impl CombatEngine {
     // =======================================================================
 
     /// Get the ID for a temporary card, upgrading if Master Reality is active.
-    fn temp_card_id(&self, base_id: &str) -> String {
+    pub fn temp_card_id(&self, base_id: &str) -> String {
         if self.state.player.status("MasterReality") > 0 {
             format!("{}+", base_id)
         } else {
@@ -1559,7 +794,7 @@ impl CombatEngine {
 
     /// Perform Scry: approximate for MCTS by discarding bottom N cards from draw pile.
     /// Triggers Nirvana (on_scry block) and Weave (return_on_scry).
-    fn do_scry(&mut self, amount: i32) {
+    pub fn do_scry(&mut self, amount: i32) {
         // For MCTS: approximate scry as discarding bottom cards from draw pile.
         let to_scry = (amount as usize).min(self.state.draw_pile.len());
         if to_scry > 0 {
@@ -1597,7 +832,7 @@ impl CombatEngine {
     // Combat End Check
     // =======================================================================
 
-    fn check_combat_end(&mut self) -> bool {
+    pub fn check_combat_end(&mut self) -> bool {
         if self.state.combat_over {
             return true;
         }

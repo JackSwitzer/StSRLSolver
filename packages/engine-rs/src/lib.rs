@@ -9,7 +9,9 @@
 //! PyO3 bindings expose both engines to Python as `sts_engine`.
 
 pub mod actions;
+pub mod card_effects;
 pub mod cards;
+pub mod combat_hooks;
 pub mod damage;
 pub mod enemies;
 pub mod engine;
@@ -22,6 +24,7 @@ pub mod relics;
 pub mod run;
 pub mod seed;
 pub mod state;
+pub mod status_effects;
 
 #[cfg(test)]
 mod tests;
