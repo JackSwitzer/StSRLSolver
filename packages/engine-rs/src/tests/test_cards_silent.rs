@@ -314,8 +314,8 @@ mod silent_card_java_parity_tests {
         "A Thousand Cuts+", 2, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
     );
     card_pair_test!(adrenaline,
-        "Adrenaline", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["gain_energy", "draw"],
-        "Adrenaline+", 0, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["gain_energy", "draw"],
+        "Adrenaline", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
+        "Adrenaline+", 0, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
     );
     card_pair_test!(after_image,
         "After Image", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],

@@ -228,8 +228,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     }
 
     // ---- Draw ----
-    if card.effects.contains(&"draw") && card.base_magic > 0 {
-        engine.draw_cards(card.base_magic);
+    if card.effects.contains(&"draw") {
+        let count = if card.base_magic > 0 { card.base_magic } else { 1 };
+        engine.draw_cards(count);
     }
 
     // ---- Scrawl: draw until hand is 10 ----
@@ -562,6 +563,61 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ====================================================================
     // Ironclad / Silent — newly implemented effects
     // ====================================================================
+
+    // ---- Apply Vulnerable to single target (Bash, Terror) ----
+    if card.effects.contains(&"vulnerable") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Vulnerable",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Vulnerable to ALL enemies (Thunderclap) ----
+    if card.effects.contains(&"vulnerable_all") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            powers::apply_debuff(
+                &mut engine.state.enemies[idx].entity,
+                "Vulnerable",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Weak to single target (Clothesline, Neutralize, Sucker Punch, Leg Sweep) ----
+    if card.effects.contains(&"weak") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Weakened",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Weak to ALL enemies ----
+    if card.effects.contains(&"weak_all") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            powers::apply_debuff(
+                &mut engine.state.enemies[idx].entity,
+                "Weakened",
+                amount,
+            );
+        }
+    }
+
+    // ---- Gain exactly 1 energy (Adrenaline) ----
+    if card.effects.contains(&"gain_energy_1") {
+        engine.state.energy += 1;
+    }
 
     // ---- Limit Break: double current Strength ----
     if card.effects.contains(&"double_strength") {
