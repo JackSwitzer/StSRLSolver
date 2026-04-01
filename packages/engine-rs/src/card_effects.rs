@@ -564,11 +564,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // Ironclad / Silent — newly implemented effects
     // ====================================================================
 
-<<<<<<< HEAD
-    // ---- Apply Vulnerable to single target (Bash, Terror) ----
-=======
-    // ---- Apply Vulnerable to single target (Bash, Terror, etc.) ----
->>>>>>> origin/fix/bucket2-v2
+    // ---- Apply Vulnerable to single target ----
     if card.effects.contains(&"vulnerable") {
         if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let amount = card.base_magic.max(1);
@@ -580,11 +576,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-<<<<<<< HEAD
-    // ---- Apply Vulnerable to ALL enemies (Thunderclap) ----
-=======
-    // ---- Apply Vulnerable to ALL enemies (Thunderclap, etc.) ----
->>>>>>> origin/fix/bucket2-v2
+    // ---- Apply Vulnerable to ALL enemies ----
     if card.effects.contains(&"vulnerable_all") {
         let amount = card.base_magic.max(1);
         let living = engine.state.living_enemy_indices();
@@ -597,11 +589,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-<<<<<<< HEAD
-    // ---- Apply Weak to single target (Clothesline, Neutralize, Sucker Punch, Leg Sweep) ----
-=======
-    // ---- Apply Weak to single target (Clothesline, Neutralize, etc.) ----
->>>>>>> origin/fix/bucket2-v2
+    // ---- Apply Weak to single target ----
     if card.effects.contains(&"weak") {
         if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let amount = card.base_magic.max(1);
