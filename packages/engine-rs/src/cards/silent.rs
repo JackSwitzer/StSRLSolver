@@ -806,13 +806,13 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Adrenaline", name: "Adrenaline", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["gain_energy", "draw"],
+            effects: &["gain_energy_1", "draw"],
         });
         insert(cards, CardDef {
             id: "Adrenaline+", name: "Adrenaline+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["gain_energy", "draw"],
+            effects: &["gain_energy_1", "draw"],
         });
 
         // ---- Silent Rare: After Image ---- (cost 1, power, 1 block per card played; upgrade: cost 0)  [Note: ID is "After Image"]

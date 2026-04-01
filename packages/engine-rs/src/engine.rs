@@ -456,6 +456,22 @@ impl CombatEngine {
             }
         }
 
+        // Clash: only playable if hand contains only attacks
+        if card.effects.contains(&"only_attacks_in_hand") {
+            let has_non_attack = self.state.hand.iter().any(|c| {
+                let other_card = self.card_registry.get_or_default(c);
+                other_card.card_type != CardType::Attack
+            });
+            if has_non_attack {
+                return false;
+            }
+        }
+
+        // Grand Finale: only playable if draw pile is empty
+        if card.effects.contains(&"only_empty_draw") && !self.state.draw_pile.is_empty() {
+            return false;
+        }
+
         true
     }
 

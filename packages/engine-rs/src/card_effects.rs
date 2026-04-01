@@ -228,8 +228,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     }
 
     // ---- Draw ----
-    if card.effects.contains(&"draw") && card.base_magic > 0 {
-        engine.draw_cards(card.base_magic);
+    if card.effects.contains(&"draw") {
+        let count = if card.base_magic > 0 { card.base_magic } else { 1 };
+        engine.draw_cards(count);
     }
 
     // ---- Scrawl: draw until hand is 10 ----
@@ -590,7 +591,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Apply Weak to single target (Clothesline, Neutralize, etc.) ----
     if card.effects.contains(&"weak") {
-        if target_idx >= 0 && (target_idx as uгрупа) < engine.state.enemies.len() {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let amount = card.base_magic.max(1);
             powers::apply_debuff(
                 &mut engine.state.enemies[target_idx as usize].entity,
