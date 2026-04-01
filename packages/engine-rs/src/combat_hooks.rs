@@ -227,6 +227,100 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             engine.state.enemies[enemy_idx].entity.max_hp;
     }
 
+    // Artifact: give enemy Artifact stacks
+    if let Some(&amt) = effects.get("artifact") {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status("Artifact", amt);
+    }
+
+    // Burn+: add upgraded Burn cards to player discard
+    if let Some(&amt) = effects.get("burn_upgrade") {
+        for _ in 0..amt {
+            engine.state.discard_pile.push("Burn+".to_string());
+        }
+    }
+
+    // Confused: apply Confusion to player
+    if effects.get("confused").copied().unwrap_or(0) > 0 {
+        engine.state.player.set_status("Confusion", 1);
+    }
+
+    // Constrict: apply Constricted to player
+    if let Some(&amt) = effects.get("constrict") {
+        engine.state.player.add_status("Constricted", amt);
+    }
+
+    // Dexterity down: reduce player Dexterity
+    if let Some(&amt) = effects.get("dexterity_down") {
+        engine.state.player.add_status("Dexterity", -amt);
+    }
+
+    // Draw Reduction: reduce player draw next turn
+    if let Some(&amt) = effects.get("draw_reduction") {
+        engine.state.player.add_status("Draw Reduction", amt);
+    }
+
+    // Hex: apply Hex to player
+    if let Some(&amt) = effects.get("hex") {
+        engine.state.player.set_status("Hex", amt);
+    }
+
+    // Painful Stabs: add Wound cards to player discard
+    if let Some(&amt) = effects.get("painful_stabs") {
+        for _ in 0..amt {
+            engine.state.discard_pile.push("Wound".to_string());
+        }
+    }
+
+    // Stasis: steal random card from player hand (simplified: remove from hand)
+    if effects.get("stasis").copied().unwrap_or(0) > 0 {
+        if !engine.state.hand.is_empty() {
+            let idx = engine.state.hand.len() - 1;
+            engine.state.hand.remove(idx);
+        }
+    }
+
+    // Strength bonus: give enemy Strength
+    if let Some(&amt) = effects.get("strength_bonus") {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status("Strength", amt);
+    }
+
+    // Strength down: reduce player Strength
+    if let Some(&amt) = effects.get("strength_down") {
+        engine.state.player.add_status("Strength", -amt);
+    }
+
+    // Thorns: give enemy Thorns
+    if let Some(&amt) = effects.get("thorns") {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status("Thorns", amt);
+    }
+
+    // Void: add Void card to player draw pile
+    if let Some(&amt) = effects.get("void") {
+        for _ in 0..amt {
+            engine.state.draw_pile.push("Void".to_string());
+        }
+    }
+
+    // Wound: add Wound cards to player discard
+    if let Some(&amt) = effects.get("wound") {
+        for _ in 0..amt {
+            engine.state.discard_pile.push("Wound".to_string());
+        }
+    }
+
+    // Beat of Death: set Beat of Death power on enemy
+    if let Some(&amt) = effects.get("beat_of_death") {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status("Beat of Death", amt);
+    }
+
     // Advance enemy to next move for next turn
     enemies::roll_next_move(&mut engine.state.enemies[enemy_idx]);
 }
