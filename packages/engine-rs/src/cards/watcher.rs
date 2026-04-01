@@ -609,6 +609,54 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             effects: &["retain", "grow_damage_on_retain"],
         });
 
+        // ---- Uncommon: Sanctity ---- (cost 1, 6 block, draw 2 if last card played was Skill; +3 block upgrade)
+        insert(cards, CardDef {
+            id: "Sanctity", name: "Sanctity", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
+            base_magic: 2, exhaust: false, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Sanctity+", name: "Sanctity+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 9,
+            base_magic: 2, exhaust: false, enter_stance: None, effects: &[],
+        });
+
+        // ---- Uncommon: Simmering Fury ---- (Java ID: Vengeance, cost 1, next turn enter Wrath + draw 2; +1 magic upgrade)
+        insert(cards, CardDef {
+            id: "Vengeance", name: "Simmering Fury", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: false, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Vengeance+", name: "Simmering Fury+", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: false, enter_stance: None, effects: &[],
+        });
+
+        // ---- Uncommon: Foresight ---- (Java ID: Wireheading, cost 1, power, scry 3 at start of turn; +1 magic upgrade)
+        insert(cards, CardDef {
+            id: "Wireheading", name: "Foresight", card_type: CardType::Power,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: false, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Wireheading+", name: "Foresight+", card_type: CardType::Power,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: 4, exhaust: false, enter_stance: None, effects: &[],
+        });
+
+        // ---- Uncommon: Collect ---- (cost X, skill, exhaust, gain X Miracles next turn; upgrade: X+1)
+        insert(cards, CardDef {
+            id: "Collect", name: "Collect", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: -1, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Collect+", name: "Collect+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: -1, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None, effects: &[],
+        });
+
         // ---- Uncommon: Wreath of Flame ---- (cost 1, gain 5 Vigor; +3 magic upgrade)
         insert(cards, CardDef {
             id: "WreathOfFlame", name: "Wreath of Flame", card_type: CardType::Skill,
@@ -936,6 +984,42 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: true, enter_stance: None,
             effects: &["wish"],
+        });
+
+        // ---- Rare: Deus Ex Machina ---- (cost -2 (unplayable), skill, exhaust, on draw: add 2 Miracles to hand; +1 magic upgrade)
+        insert(cards, CardDef {
+            id: "DeusExMachina", name: "Deus Ex Machina", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 2, exhaust: true, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "DeusExMachina+", name: "Deus Ex Machina+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: -2, base_damage: -1, base_block: -1,
+            base_magic: 3, exhaust: true, enter_stance: None, effects: &[],
+        });
+
+        // ---- Rare: Discipline ---- (cost 2, power, deprecated; upgrade: cost 1)
+        insert(cards, CardDef {
+            id: "Discipline", name: "Discipline", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Discipline+", name: "Discipline+", card_type: CardType::Power,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: false, enter_stance: None, effects: &[],
+        });
+
+        // ---- Rare: Unraveling ---- (cost 2, skill, exhaust, play all cards in hand for free; upgrade: cost 1)
+        insert(cards, CardDef {
+            id: "Unraveling", name: "Unraveling", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None, effects: &[],
+        });
+        insert(cards, CardDef {
+            id: "Unraveling+", name: "Unraveling+", card_type: CardType::Skill,
+            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            base_magic: -1, exhaust: true, enter_stance: None, effects: &[],
         });
 
         // ---- Special Cards ----
