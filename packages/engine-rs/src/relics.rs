@@ -696,8 +696,8 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
     let is_skill = card_type == CardType::Skill;
     let is_power = card_type == CardType::Power;
 
-    // --- Ornamental Fan: gain 4 block every 3 cards played ---
-    if state.has_relic("Ornamental Fan") {
+    // --- Ornamental Fan: gain 4 block every 3 ATTACKS played ---
+    if is_attack && state.has_relic("Ornamental Fan") {
         let counter = state.player.status("OrnamentalFanCounter") + 1;
         if counter >= 3 {
             state.player.block += 4;
@@ -729,13 +729,12 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
         }
     }
 
-    // --- Letter Opener: every 3 skills, deal 5 damage to random enemy ---
+    // --- Letter Opener: every 3 skills, deal 5 damage to ALL enemies ---
     if is_skill && state.has_relic("Letter Opener") {
         let counter = state.player.status("LetterOpenerCounter") + 1;
         if counter >= 3 {
-            // Deal 5 damage to all enemies (simplified from random)
             let living = state.living_enemy_indices();
-            if let Some(&idx) = living.first() {
+            for idx in living {
                 let enemy = &mut state.enemies[idx];
                 let dmg = 5;
                 let blocked = enemy.entity.block.min(dmg);
@@ -840,8 +839,8 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
     }
 }
 
-/// Apply Ornamental Fan: gain 4 block after playing 3 cards.
-/// Legacy wrapper — use on_card_played for new code.
+/// Apply Ornamental Fan: gain 4 block after playing 3 ATTACKS.
+/// Legacy wrapper — caller MUST only call for attacks. Use on_card_played for new code.
 pub fn check_ornamental_fan(state: &mut CombatState) {
     if !state.has_relic("Ornamental Fan") {
         return;
@@ -900,9 +899,11 @@ pub fn apply_turn_end_relics(state: &mut CombatState) {
         }
     }
 
-    // Stone Calendar: on 7th turn, deal 52 damage to all enemies
+    // Stone Calendar: on exactly the 7th turn, deal 52 damage to all enemies (once)
     if state.has_relic("StoneCalendar") {
-        if state.player.status("StoneCalendarCounter") >= 7 {
+        if state.player.status("StoneCalendarCounter") == 7
+            && state.player.status("StoneCalendarFired") == 0
+        {
             let living = state.living_enemy_indices();
             for idx in living {
                 let enemy = &mut state.enemies[idx];
@@ -916,6 +917,7 @@ pub fn apply_turn_end_relics(state: &mut CombatState) {
                     enemy.entity.hp = 0;
                 }
             }
+            state.player.set_status("StoneCalendarFired", 1);
         }
     }
 
@@ -1073,6 +1075,25 @@ pub fn apply_boot(state: &CombatState, unblocked_damage: i32) -> i32 {
         5
     } else {
         unblocked_damage
+    }
+}
+
+/// Torii: if unblocked attack damage is > 1 and <= 5, reduce to 1.
+/// (Does NOT apply to HP_LOSS or THORNS damage types.)
+pub fn apply_torii(state: &CombatState, unblocked_damage: i32) -> i32 {
+    if state.has_relic("Torii") && unblocked_damage > 1 && unblocked_damage <= 5 {
+        1
+    } else {
+        unblocked_damage
+    }
+}
+
+/// Tungsten Rod: reduce all HP loss by 1 (minimum 0).
+pub fn apply_tungsten_rod(state: &CombatState, damage: i32) -> i32 {
+    if state.has_relic("TungstenRod") && damage > 0 {
+        (damage - 1).max(0)
+    } else {
+        damage
     }
 }
 
@@ -1528,17 +1549,19 @@ mod tests {
     // --- On card play tests ---
 
     #[test]
-    fn test_ornamental_fan_every_3_cards() {
+    fn test_ornamental_fan_every_3_attacks() {
         let mut state = make_test_state();
         state.relics.push("Ornamental Fan".to_string());
         apply_combat_start_relics(&mut state);
 
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.block, 0);
-        on_card_played(&mut state, CardType::Skill);
+        on_card_played(&mut state, CardType::Skill); // Skills don't count
         assert_eq!(state.player.block, 0);
         on_card_played(&mut state, CardType::Attack);
-        assert_eq!(state.player.block, 4);
+        assert_eq!(state.player.block, 0); // Only 2 attacks so far
+        on_card_played(&mut state, CardType::Attack);
+        assert_eq!(state.player.block, 4); // 3rd attack triggers
     }
 
     #[test]
@@ -1861,17 +1884,20 @@ mod tests {
     }
 
     #[test]
-    fn test_letter_opener() {
-        let mut state = make_test_state();
+    fn test_letter_opener_hits_all_enemies() {
+        let mut state = make_two_enemy_state();
         state.relics.push("Letter Opener".to_string());
         apply_combat_start_relics(&mut state);
-        let hp = state.enemies[0].entity.hp;
+        let hp0 = state.enemies[0].entity.hp;
+        let hp1 = state.enemies[1].entity.hp;
 
         on_card_played(&mut state, CardType::Skill);
         on_card_played(&mut state, CardType::Skill);
-        assert_eq!(state.enemies[0].entity.hp, hp);
+        assert_eq!(state.enemies[0].entity.hp, hp0);
+        assert_eq!(state.enemies[1].entity.hp, hp1);
         on_card_played(&mut state, CardType::Skill);
-        assert_eq!(state.enemies[0].entity.hp, hp - 5);
+        assert_eq!(state.enemies[0].entity.hp, hp0 - 5);
+        assert_eq!(state.enemies[1].entity.hp, hp1 - 5);
     }
 
     #[test]
@@ -1919,5 +1945,68 @@ mod tests {
         let hp = state.enemies[0].entity.hp;
         tingsha_on_discard(&mut state);
         assert_eq!(state.enemies[0].entity.hp, hp - 3);
+    }
+
+    // --- Torii tests ---
+
+    #[test]
+    fn test_torii_reduces_small_damage() {
+        let mut state = make_test_state();
+        state.relics.push("Torii".to_string());
+        assert_eq!(apply_torii(&state, 5), 1); // 5 -> 1
+        assert_eq!(apply_torii(&state, 3), 1); // 3 -> 1
+        assert_eq!(apply_torii(&state, 2), 1); // 2 -> 1
+    }
+
+    #[test]
+    fn test_torii_no_effect_on_high_damage() {
+        let mut state = make_test_state();
+        state.relics.push("Torii".to_string());
+        assert_eq!(apply_torii(&state, 6), 6);
+        assert_eq!(apply_torii(&state, 20), 20);
+    }
+
+    #[test]
+    fn test_torii_no_effect_on_zero_or_one() {
+        let mut state = make_test_state();
+        state.relics.push("Torii".to_string());
+        assert_eq!(apply_torii(&state, 0), 0);
+        assert_eq!(apply_torii(&state, 1), 1);
+    }
+
+    // --- Tungsten Rod tests ---
+
+    #[test]
+    fn test_tungsten_rod_reduces_by_one() {
+        let mut state = make_test_state();
+        state.relics.push("TungstenRod".to_string());
+        assert_eq!(apply_tungsten_rod(&state, 5), 4);
+        assert_eq!(apply_tungsten_rod(&state, 1), 0);
+        assert_eq!(apply_tungsten_rod(&state, 0), 0);
+    }
+
+    // --- Stone Calendar fires only once ---
+
+    #[test]
+    fn test_stone_calendar_fires_once() {
+        let enemy = EnemyCombatState::new("Boss", 200, 200);
+        let mut state = CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
+        state.relics.push("StoneCalendar".to_string());
+        apply_combat_start_relics(&mut state);
+
+        for t in 1..=7 {
+            state.turn = t;
+            apply_turn_start_relics(&mut state);
+        }
+        let hp_before = state.enemies[0].entity.hp;
+        apply_turn_end_relics(&mut state); // Turn 7 end: should fire
+        assert_eq!(state.enemies[0].entity.hp, hp_before - 52);
+
+        // Turn 8: should NOT fire again
+        state.turn = 8;
+        apply_turn_start_relics(&mut state);
+        let hp_after_t8 = state.enemies[0].entity.hp;
+        apply_turn_end_relics(&mut state);
+        assert_eq!(state.enemies[0].entity.hp, hp_after_t8); // No additional damage
     }
 }
