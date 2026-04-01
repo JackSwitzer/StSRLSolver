@@ -8,6 +8,7 @@ use crate::engine::{CombatEngine, CombatPhase};
 use crate::potions;
 use crate::powers;
 use crate::state::Stance;
+use crate::status_keys::sk;
 
 /// Execute all enemy turns: block decay, poison ticks, ritual, moves.
 pub fn do_enemy_turns(engine: &mut CombatEngine) {
@@ -62,8 +63,8 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
 /// Execute a single enemy's move (attack, block, status effects).
 fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Awakened One rebirth: if pending, execute the rebirth this turn instead of normal move
-    if engine.state.enemies[enemy_idx].entity.status("RebirthPending") > 0 {
-        engine.state.enemies[enemy_idx].entity.set_status("RebirthPending", 0);
+    if engine.state.enemies[enemy_idx].entity.status(sk::REBIRTH_PENDING) > 0 {
+        engine.state.enemies[enemy_idx].entity.set_status(sk::REBIRTH_PENDING, 0);
         enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
         return;
     }
@@ -90,7 +91,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
         let is_wrath = engine.state.stance == Stance::Wrath;
         let player_vuln = engine.state.player.is_vulnerable();
-        let player_intangible = engine.state.player.status("Intangible") > 0;
+        let player_intangible = engine.state.player.status(sk::INTANGIBLE) > 0;
         let has_torii = engine.state.has_relic("Torii");
         let has_tungsten = engine.state.has_relic("Tungsten Rod");
 
@@ -112,10 +113,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.total_damage_taken += result.hp_loss;
 
                 // Plated Armor decrements on unblocked HP damage
-                let plated = engine.state.player.status("Plated Armor");
+                let plated = engine.state.player.status(sk::PLATED_ARMOR);
                 if plated > 0 {
                     let new_plated = plated - 1;
-                    engine.state.player.set_status("Plated Armor", new_plated);
+                    engine.state.player.set_status(sk::PLATED_ARMOR, new_plated);
                 }
             }
 
@@ -145,27 +146,27 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Apply move effects
     let effects = engine.state.enemies[enemy_idx].move_effects.clone();
     if let Some(&amt) = effects.get("weak") {
-        powers::apply_debuff(&mut engine.state.player, "Weakened", amt);
+        powers::apply_debuff(&mut engine.state.player, sk::WEAKENED, amt);
     }
     if let Some(&amt) = effects.get("vulnerable") {
-        powers::apply_debuff(&mut engine.state.player, "Vulnerable", amt);
+        powers::apply_debuff(&mut engine.state.player, sk::VULNERABLE, amt);
     }
     if let Some(&amt) = effects.get("frail") {
-        powers::apply_debuff(&mut engine.state.player, "Frail", amt);
+        powers::apply_debuff(&mut engine.state.player, sk::FRAIL, amt);
     }
     if let Some(&amt) = effects.get("strength") {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status("Strength", amt);
+            .add_status(sk::STRENGTH, amt);
     }
     if let Some(&amt) = effects.get("ritual") {
         engine.state.enemies[enemy_idx]
             .entity
-            .set_status("Ritual", amt);
+            .set_status(sk::RITUAL, amt);
     }
     if let Some(&amt) = effects.get("entangle") {
         if amt > 0 {
-            engine.state.player.set_status("Entangled", 1);
+            engine.state.player.set_status(sk::ENTANGLED, 1);
         }
     }
     if let Some(&amt) = effects.get("slimed") {
@@ -190,10 +191,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     // Lagavulin Siphon Soul: reduce player Strength and Dexterity
     if let Some(&amt) = effects.get("siphon_str") {
-        engine.state.player.add_status("Strength", -(amt));
+        engine.state.player.add_status(sk::STRENGTH, -(amt));
     }
     if let Some(&amt) = effects.get("siphon_dex") {
-        engine.state.player.add_status("Dexterity", -(amt));
+        engine.state.player.add_status(sk::DEXTERITY, -(amt));
     }
 
     // Champ Anger / Time Eater Haste: remove ALL debuffs from this enemy
@@ -231,7 +232,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(&amt) = effects.get("artifact") {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status("Artifact", amt);
+            .add_status(sk::ARTIFACT, amt);
     }
 
     // Burn+: add upgraded Burn cards to player discard
@@ -243,27 +244,27 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     // Confused: apply Confusion to player
     if effects.get("confused").copied().unwrap_or(0) > 0 {
-        engine.state.player.set_status("Confusion", 1);
+        engine.state.player.set_status(sk::CONFUSION, 1);
     }
 
     // Constrict: apply Constricted to player
     if let Some(&amt) = effects.get("constrict") {
-        engine.state.player.add_status("Constricted", amt);
+        engine.state.player.add_status(sk::CONSTRICTED, amt);
     }
 
     // Dexterity down: reduce player Dexterity
     if let Some(&amt) = effects.get("dexterity_down") {
-        engine.state.player.add_status("Dexterity", -amt);
+        engine.state.player.add_status(sk::DEXTERITY, -amt);
     }
 
     // Draw Reduction: reduce player draw next turn
     if let Some(&amt) = effects.get("draw_reduction") {
-        engine.state.player.add_status("Draw Reduction", amt);
+        engine.state.player.add_status(sk::DRAW_REDUCTION, amt);
     }
 
     // Hex: apply Hex to player
     if let Some(&amt) = effects.get("hex") {
-        engine.state.player.set_status("Hex", amt);
+        engine.state.player.set_status(sk::HEX, amt);
     }
 
     // Painful Stabs: add Wound cards to player discard
@@ -285,19 +286,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(&amt) = effects.get("strength_bonus") {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status("Strength", amt);
+            .add_status(sk::STRENGTH, amt);
     }
 
     // Strength down: reduce player Strength
     if let Some(&amt) = effects.get("strength_down") {
-        engine.state.player.add_status("Strength", -amt);
+        engine.state.player.add_status(sk::STRENGTH, -amt);
     }
 
     // Thorns: give enemy Thorns
     if let Some(&amt) = effects.get("thorns") {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status("Thorns", amt);
+            .add_status(sk::THORNS, amt);
     }
 
     // Void: add Void card to player draw pile
@@ -318,7 +319,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(&amt) = effects.get("beat_of_death") {
         engine.state.enemies[enemy_idx]
             .entity
-            .set_status("Beat of Death", amt);
+            .set_status(sk::BEAT_OF_DEATH, amt);
     }
 
     // Advance enemy to next move for next turn
@@ -344,7 +345,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         }
         "Lagavulin" => {
             // Wake Lagavulin if damaged while sleeping
-            let sleep_turns = engine.state.enemies[enemy_idx].entity.status("SleepTurns");
+            let sleep_turns = engine.state.enemies[enemy_idx].entity.status(sk::SLEEP_TURNS);
             if sleep_turns > 0 {
                 enemies::lagavulin_wake_up(&mut engine.state.enemies[enemy_idx]);
             }
@@ -357,10 +358,10 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         "AwakenedOne" | "Awakened One" => {
             // Phase 1 death triggers rebirth — body stays at 0 HP and untargetable
             // until next enemy turn when rebirth executes (heal to full, phase 2).
-            let phase = engine.state.enemies[enemy_idx].entity.status("Phase");
+            let phase = engine.state.enemies[enemy_idx].entity.status(sk::PHASE);
             if phase == 1 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
                 engine.state.enemies[enemy_idx].entity.hp = 0;
-                engine.state.enemies[enemy_idx].entity.set_status("RebirthPending", 1);
+                engine.state.enemies[enemy_idx].entity.set_status(sk::REBIRTH_PENDING, 1);
             }
         }
         "Champ" => {
@@ -369,7 +370,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             // transition happens mid-turn rather than waiting for next enemy turn.
             let enemy = &mut engine.state.enemies[enemy_idx];
             if enemy.entity.hp <= enemy.entity.max_hp / 2
-                && enemy.entity.status("ThresholdReached") == 0
+                && enemy.entity.status(sk::THRESHOLD_REACHED) == 0
             {
                 enemies::roll_next_move(enemy);
             }
@@ -395,7 +396,7 @@ pub fn on_player_card_played(engine: &mut CombatEngine) -> bool {
 
         // Time Warp: count cards, at 12 end turn + enemy gains 2 Strength
         if powers::increment_time_warp(&mut engine.state.enemies[i].entity) {
-            engine.state.enemies[i].entity.add_status("Strength", 2);
+            engine.state.enemies[i].entity.add_status(sk::STRENGTH, 2);
             end_turn = true;
         }
     }

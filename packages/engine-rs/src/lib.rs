@@ -26,6 +26,7 @@ pub mod run;
 pub mod seed;
 pub mod state;
 pub mod status_effects;
+pub mod status_keys;
 
 #[cfg(test)]
 mod tests;

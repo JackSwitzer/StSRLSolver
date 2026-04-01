@@ -8,6 +8,7 @@ use crate::damage;
 use crate::potions;
 use crate::powers;
 use crate::state::CombatState;
+use crate::status_keys::sk;
 
 /// Process end-of-turn hand card triggers before discarding.
 ///
@@ -22,7 +23,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
     let hand = state.hand.clone();
     let hand_size = hand.len() as i32;
 
-    let intangible = state.player.status("Intangible") > 0;
+    let intangible = state.player.status(sk::INTANGIBLE) > 0;
     let tungsten = state.has_relic("Tungsten Rod") || state.has_relic("TungstenRod");
 
     for card_id in &hand {
@@ -76,12 +77,12 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
 
         // Doubt: apply 1 Weak
         if card.effects.contains(&"end_turn_weak") {
-            powers::apply_debuff(&mut state.player, "Weakened", 1);
+            powers::apply_debuff(&mut state.player, sk::WEAKENED, 1);
         }
 
         // Shame: apply 1 Frail
         if card.effects.contains(&"end_turn_frail") {
-            powers::apply_debuff(&mut state.player, "Frail", 1);
+            powers::apply_debuff(&mut state.player, sk::FRAIL, 1);
         }
     }
 
@@ -110,7 +111,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
 ///
 /// Returns `true` if the player died.
 pub fn process_pain_on_card_play(state: &mut CombatState, card_registry: &CardRegistry) -> bool {
-    let intangible = state.player.status("Intangible") > 0;
+    let intangible = state.player.status(sk::INTANGIBLE) > 0;
     let tungsten = state.has_relic("Tungsten Rod") || state.has_relic("TungstenRod");
 
     // Count Pain cards currently in hand

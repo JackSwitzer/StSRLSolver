@@ -1,5 +1,6 @@
 use crate::cards::CardType;
 use crate::state::CombatState;
+use crate::status_keys::sk;
 
 // ==========================================================================
 // 1. COMBAT START — atBattleStart / atPreBattle / atBattleStartPreDraw
@@ -13,25 +14,25 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             // --- Stat buffs ---
             "Vajra" => {
                 // +1 Strength at combat start
-                state.player.add_status("Strength", 1);
+                state.player.add_status(sk::STRENGTH, 1);
             }
             "Oddly Smooth Stone" | "OddlySmoothStone" => {
                 // +1 Dexterity at combat start
-                state.player.add_status("Dexterity", 1);
+                state.player.add_status(sk::DEXTERITY, 1);
             }
             "Data Disk" | "DataDisk" => {
                 // +1 Focus at combat start
-                state.player.add_status("Focus", 1);
+                state.player.add_status(sk::FOCUS, 1);
             }
             "Akabeko" => {
                 // 8 Vigor at combat start
-                state.player.add_status("Vigor", 8);
+                state.player.add_status(sk::VIGOR, 8);
             }
             "Bag of Marbles" => {
                 // Apply 1 Vulnerable to ALL enemies
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status("Vulnerable", 1);
+                        enemy.entity.add_status(sk::VULNERABLE, 1);
                     }
                 }
             }
@@ -39,17 +40,17 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                 // Apply 1 Weak to ALL enemies
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status("Weakened", 1);
+                        enemy.entity.add_status(sk::WEAKENED, 1);
                     }
                 }
             }
             "Thread and Needle" => {
                 // 4 Plated Armor at combat start
-                state.player.add_status("Plated Armor", 4);
+                state.player.add_status(sk::PLATED_ARMOR, 4);
             }
             "Bronze Scales" => {
                 // 3 Thorns at combat start
-                state.player.add_status("Thorns", 3);
+                state.player.add_status(sk::THORNS, 3);
             }
             "Anchor" => {
                 // 10 Block at combat start
@@ -57,15 +58,15 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             }
             "Lantern" => {
                 // +1 energy on turn 1 (tracked via counter)
-                state.player.set_status("LanternReady", 1);
+                state.player.set_status(sk::LANTERN_READY, 1);
             }
             "Clockwork Souvenir" | "ClockworkSouvenir" => {
                 // 1 Artifact at combat start
-                state.player.add_status("Artifact", 1);
+                state.player.add_status(sk::ARTIFACT, 1);
             }
             "Fossilized Helix" | "FossilizedHelix" => {
                 // 1 Buffer at combat start
-                state.player.add_status("Buffer", 1);
+                state.player.add_status(sk::BUFFER, 1);
             }
             "Mark of Pain" => {
                 // 2 Wounds in draw pile
@@ -78,8 +79,8 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             }
             "MutagenicStrength" => {
                 // +3 Strength, -3 at end of turn (temporary)
-                state.player.add_status("Strength", 3);
-                state.player.add_status("LoseStrength", 3);
+                state.player.add_status(sk::STRENGTH, 3);
+                state.player.add_status(sk::LOSE_STRENGTH, 3);
             }
 
             // --- Card-generation relics (atBattleStartPreDraw) ---
@@ -107,18 +108,18 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             // --- Draw relics (atBattleStart -> draw) ---
             "Bag of Preparation" => {
                 // Draw 2 extra cards at combat start
-                state.player.set_status("BagOfPrepDraw", 2);
+                state.player.set_status(sk::BAG_OF_PREP_DRAW, 2);
             }
             "Ring of the Snake" => {
                 // Draw 2 extra cards at combat start
-                state.player.set_status("BagOfPrepDraw", 2);
+                state.player.set_status(sk::BAG_OF_PREP_DRAW, 2);
             }
 
             // --- Philosopher's Stone: +1 energy, all enemies +1 Strength ---
             "Philosopher's Stone" | "PhilosophersStone" => {
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status("Strength", 1);
+                        enemy.entity.add_status(sk::STRENGTH, 1);
                     }
                 }
                 // Energy bonus handled via max_energy on equip (Python side)
@@ -126,32 +127,32 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- Pen Nib: track counter ---
             "Pen Nib" => {
-                if state.player.status("PenNibCounter") == 0 {
-                    state.player.set_status("PenNibCounter", 0);
+                if state.player.status(sk::PEN_NIB_COUNTER) == 0 {
+                    state.player.set_status(sk::PEN_NIB_COUNTER, 0);
                 }
             }
 
             // --- Counter-based relics: initialize ---
             "Ornamental Fan" => {
-                state.player.set_status("OrnamentalFanCounter", 0);
+                state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, 0);
             }
             "Kunai" => {
-                state.player.set_status("KunaiCounter", 0);
+                state.player.set_status(sk::KUNAI_COUNTER, 0);
             }
             "Shuriken" => {
-                state.player.set_status("ShurikenCounter", 0);
+                state.player.set_status(sk::SHURIKEN_COUNTER, 0);
             }
             "Nunchaku" => {
                 // Counter persists across combats, don't reset
             }
             "Letter Opener" => {
-                state.player.set_status("LetterOpenerCounter", 0);
+                state.player.set_status(sk::LETTER_OPENER_COUNTER, 0);
             }
             "Happy Flower" => {
                 // Counter persists across combats (counter field)
                 // Initialize if not set
-                if state.player.status("HappyFlowerCounter") == 0 {
-                    state.player.set_status("HappyFlowerCounter", 0);
+                if state.player.status(sk::HAPPY_FLOWER_COUNTER) == 0 {
+                    state.player.set_status(sk::HAPPY_FLOWER_COUNTER, 0);
                 }
             }
             "Sundial" => {
@@ -166,51 +167,51 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- Turn-limited relics: init counter ---
             "HornCleat" => {
-                state.player.set_status("HornCleatCounter", 0);
+                state.player.set_status(sk::HORN_CLEAT_COUNTER, 0);
             }
             "CaptainsWheel" => {
-                state.player.set_status("CaptainsWheelCounter", 0);
+                state.player.set_status(sk::CAPTAINS_WHEEL_COUNTER, 0);
             }
             "StoneCalendar" => {
-                state.player.set_status("StoneCalendarCounter", 0);
+                state.player.set_status(sk::STONE_CALENDAR_COUNTER, 0);
             }
 
             // --- Velvet Choker: card limit ---
             "Velvet Choker" | "VelvetChoker" => {
-                state.player.set_status("VelvetChokerCounter", 0);
+                state.player.set_status(sk::VELVET_CHOKER_COUNTER, 0);
             }
 
             // --- Pocketwatch ---
             "Pocketwatch" => {
-                state.player.set_status("PocketwatchCounter", 0);
-                state.player.set_status("PocketwatchFirstTurn", 1);
+                state.player.set_status(sk::POCKETWATCH_COUNTER, 0);
+                state.player.set_status(sk::POCKETWATCH_FIRST_TURN, 1);
             }
 
             // --- Violet Lotus: +1 energy on Calm exit (handled in stance change) ---
-            "Violet Lotus" | "VioletLotus" => {
-                state.player.set_status("VioletLotus", 1);
+            "Violet Lotus" | sk::VIOLET_LOTUS => {
+                state.player.set_status(sk::VIOLET_LOTUS, 1);
             }
 
             // --- Emotion Chip: on HP loss, trigger orb passive ---
             "Emotion Chip" | "EmotionChip" => {
-                state.player.set_status("EmotionChipReady", 1);
+                state.player.set_status(sk::EMOTION_CHIP_READY, 1);
             }
 
             // --- CentennialPuzzle: first HP loss draws 3 ---
             "Centennial Puzzle" | "CentennialPuzzle" => {
-                state.player.set_status("CentennialPuzzleReady", 1);
+                state.player.set_status(sk::CENTENNIAL_PUZZLE_READY, 1);
             }
 
             // --- ArtOfWar: if no attacks played, +1 energy next turn ---
             "Art of War" => {
-                state.player.set_status("ArtOfWarReady", 1);
+                state.player.set_status(sk::ART_OF_WAR_READY, 1);
             }
 
             // --- Twisted Funnel: apply 4 Poison to all enemies ---
             "TwistedFunnel" => {
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status("Poison", 4);
+                        enemy.entity.add_status(sk::POISON, 4);
                     }
                 }
             }
@@ -232,8 +233,8 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- Snecko Eye: draw 2 extra, randomize costs ---
             "Snecko Eye" => {
-                state.player.set_status("SneckoEye", 1);
-                state.player.set_status("BagOfPrepDraw", 2);
+                state.player.set_status(sk::SNECKO_EYE, 1);
+                state.player.set_status(sk::BAG_OF_PREP_DRAW, 2);
             }
 
             // --- Ancient Tea Set: +2 energy on first turn if rest last room ---
@@ -262,8 +263,8 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             "Sling" => {
                 // Elite detection would be Python-side
                 // Stub: if sling_elite flag is set
-                if state.player.status("SlingElite") > 0 {
-                    state.player.add_status("Strength", 2);
+                if state.player.status(sk::SLING_ELITE) > 0 {
+                    state.player.add_status(sk::STRENGTH, 2);
                 }
             }
 
@@ -286,7 +287,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             // --- Preserved Insect: if elite fight, weaken strongest enemy ---
             "PreservedInsect" => {
                 // Elite detection Python-side; flag handled externally
-                if state.player.status("PreservedInsectElite") > 0 {
+                if state.player.status(sk::PRESERVED_INSECT_ELITE) > 0 {
                     // Find enemy with most HP
                     if let Some(idx) = state.enemies.iter()
                         .enumerate()
@@ -303,38 +304,38 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- Neow's Lament: first 3 combats, enemies start at 1 HP ---
             "NeowsBlessing" => {
-                let counter = state.player.status("NeowsLamentCounter");
+                let counter = state.player.status(sk::NEOWS_LAMENT_COUNTER);
                 if counter > 0 {
                     for enemy in &mut state.enemies {
                         if enemy.is_alive() {
                             enemy.entity.hp = 1;
                         }
                     }
-                    state.player.set_status("NeowsLamentCounter", counter - 1);
+                    state.player.set_status(sk::NEOWS_LAMENT_COUNTER, counter - 1);
                 }
             }
 
             // --- Du-Vu Doll: +1 Strength per curse in deck ---
             "Du-Vu Doll" => {
-                let curse_count = state.player.status("DuVuDollCurses");
+                let curse_count = state.player.status(sk::DU_VU_DOLL_CURSES);
                 if curse_count > 0 {
-                    state.player.add_status("Strength", curse_count);
+                    state.player.add_status(sk::STRENGTH, curse_count);
                 }
             }
 
             // --- Girya: Strength from rest site lifting ---
             "Girya" => {
-                let lift_count = state.player.status("GiryaCounter");
+                let lift_count = state.player.status(sk::GIRYA_COUNTER);
                 if lift_count > 0 {
-                    state.player.add_status("Strength", lift_count);
+                    state.player.add_status(sk::STRENGTH, lift_count);
                 }
             }
 
             // --- Red Skull: +3 Strength when HP <= 50% ---
             "Red Skull" => {
                 if state.player.hp <= state.player.max_hp / 2 {
-                    state.player.add_status("Strength", 3);
-                    state.player.set_status("RedSkullActive", 1);
+                    state.player.add_status(sk::STRENGTH, 3);
+                    state.player.set_status(sk::RED_SKULL_ACTIVE, 1);
                 }
             }
 
@@ -363,9 +364,9 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- Orange Pellets: play ATK+SKL+POW to clear debuffs ---
             "OrangePellets" => {
-                state.player.set_status("OPAttack", 0);
-                state.player.set_status("OPSkill", 0);
-                state.player.set_status("OPPower", 0);
+                state.player.set_status(sk::OP_ATTACK, 0);
+                state.player.set_status(sk::OP_SKILL, 0);
+                state.player.set_status(sk::OP_POWER, 0);
             }
 
             // --- Enchiridion: random Power into hand ---
@@ -479,39 +480,39 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 /// Called after energy reset and before card draw.
 pub fn apply_turn_start_relics(state: &mut CombatState) {
     // Lantern: +1 energy on turn 1
-    if state.turn == 1 && state.player.status("LanternReady") > 0 {
+    if state.turn == 1 && state.player.status(sk::LANTERN_READY) > 0 {
         state.energy += 1;
-        state.player.set_status("LanternReady", 0);
+        state.player.set_status(sk::LANTERN_READY, 0);
     }
 
     // Bag of Preparation / Ring of the Snake: extra draw on turn 1
     if state.turn == 1 {
-        let extra_draw = state.player.status("BagOfPrepDraw");
+        let extra_draw = state.player.status(sk::BAG_OF_PREP_DRAW);
         if extra_draw > 0 {
-            state.player.set_status("TurnStartExtraDraw", extra_draw);
-            state.player.set_status("BagOfPrepDraw", 0);
+            state.player.set_status(sk::TURN_START_EXTRA_DRAW, extra_draw);
+            state.player.set_status(sk::BAG_OF_PREP_DRAW, 0);
         }
     }
 
     // Happy Flower: every 3rd turn, +1 energy
     if state.has_relic("Happy Flower") {
-        let counter = state.player.status("HappyFlowerCounter") + 1;
+        let counter = state.player.status(sk::HAPPY_FLOWER_COUNTER) + 1;
         if counter >= 3 {
             state.energy += 1;
-            state.player.set_status("HappyFlowerCounter", 0);
+            state.player.set_status(sk::HAPPY_FLOWER_COUNTER, 0);
         } else {
-            state.player.set_status("HappyFlowerCounter", counter);
+            state.player.set_status(sk::HAPPY_FLOWER_COUNTER, counter);
         }
     }
 
     // Incense Burner: every 6th turn, gain 1 Intangible
     if state.has_relic("Incense Burner") || state.has_relic("IncenseBurner") {
-        let counter = state.player.status("IncenseBurnerCounter") + 1;
+        let counter = state.player.status(sk::INCENSE_BURNER_COUNTER) + 1;
         if counter >= 6 {
-            state.player.add_status("Intangible", 1);
-            state.player.set_status("IncenseBurnerCounter", 0);
+            state.player.add_status(sk::INTANGIBLE, 1);
+            state.player.set_status(sk::INCENSE_BURNER_COUNTER, 0);
         } else {
-            state.player.set_status("IncenseBurnerCounter", counter);
+            state.player.set_status(sk::INCENSE_BURNER_COUNTER, counter);
         }
     }
 
@@ -534,10 +535,10 @@ pub fn apply_turn_start_relics(state: &mut CombatState) {
 
     // Brimstone: +2 Strength to player, +1 Strength to all enemies
     if state.has_relic("Brimstone") {
-        state.player.add_status("Strength", 2);
+        state.player.add_status(sk::STRENGTH, 2);
         for enemy in &mut state.enemies {
             if enemy.is_alive() {
-                enemy.entity.add_status("Strength", 1);
+                enemy.entity.add_status(sk::STRENGTH, 1);
             }
         }
     }
@@ -549,111 +550,111 @@ pub fn apply_turn_start_relics(state: &mut CombatState) {
         if state.mantra >= 10 {
             state.mantra -= 10;
             // Enter Divinity (engine handles this)
-            state.player.set_status("EnterDivinity", 1);
+            state.player.set_status(sk::ENTER_DIVINITY, 1);
         }
     }
 
     // Inserter: every 2nd turn, gain an orb slot
     if state.has_relic("Inserter") {
-        let counter = state.player.status("InserterCounter") + 1;
+        let counter = state.player.status(sk::INSERTER_COUNTER) + 1;
         if counter >= 2 {
-            state.player.set_status("InserterCounter", 0);
+            state.player.set_status(sk::INSERTER_COUNTER, 0);
             // Orb slot increase; tracked as status for MCTS
-            state.player.add_status("OrbSlots", 1);
+            state.player.add_status(sk::ORB_SLOTS, 1);
         } else {
-            state.player.set_status("InserterCounter", counter);
+            state.player.set_status(sk::INSERTER_COUNTER, counter);
         }
     }
 
     // Horn Cleat: on 2nd turn, gain 14 Block (once)
     if state.has_relic("HornCleat") {
-        let counter = state.player.status("HornCleatCounter");
+        let counter = state.player.status(sk::HORN_CLEAT_COUNTER);
         if counter >= 0 && counter < 2 {
             let new_counter = counter + 1;
             if new_counter == 2 {
                 state.player.block += 14;
-                state.player.set_status("HornCleatCounter", -1); // done
+                state.player.set_status(sk::HORN_CLEAT_COUNTER, -1); // done
             } else {
-                state.player.set_status("HornCleatCounter", new_counter);
+                state.player.set_status(sk::HORN_CLEAT_COUNTER, new_counter);
             }
         }
     }
 
     // Captain's Wheel: on 3rd turn, gain 18 Block (once)
     if state.has_relic("CaptainsWheel") {
-        let counter = state.player.status("CaptainsWheelCounter");
+        let counter = state.player.status(sk::CAPTAINS_WHEEL_COUNTER);
         if counter >= 0 && counter < 3 {
             let new_counter = counter + 1;
             if new_counter == 3 {
                 state.player.block += 18;
-                state.player.set_status("CaptainsWheelCounter", -1); // done
+                state.player.set_status(sk::CAPTAINS_WHEEL_COUNTER, -1); // done
             } else {
-                state.player.set_status("CaptainsWheelCounter", new_counter);
+                state.player.set_status(sk::CAPTAINS_WHEEL_COUNTER, new_counter);
             }
         }
     }
 
     // Stone Calendar: on 7th turn, deal 52 damage to all enemies (at end of turn)
     if state.has_relic("StoneCalendar") {
-        let counter = state.player.status("StoneCalendarCounter") + 1;
-        state.player.set_status("StoneCalendarCounter", counter);
+        let counter = state.player.status(sk::STONE_CALENDAR_COUNTER) + 1;
+        state.player.set_status(sk::STONE_CALENDAR_COUNTER, counter);
     }
 
     // Velvet Choker: reset card play counter
     if state.has_relic("Velvet Choker") || state.has_relic("VelvetChoker") {
-        state.player.set_status("VelvetChokerCounter", 0);
+        state.player.set_status(sk::VELVET_CHOKER_COUNTER, 0);
     }
 
     // Pocketwatch: if played <= 3 cards last turn, draw 3 extra
     if state.has_relic("Pocketwatch") {
-        let first_turn = state.player.status("PocketwatchFirstTurn");
+        let first_turn = state.player.status(sk::POCKETWATCH_FIRST_TURN);
         if first_turn > 0 {
-            state.player.set_status("PocketwatchFirstTurn", 0);
+            state.player.set_status(sk::POCKETWATCH_FIRST_TURN, 0);
         } else {
-            let counter = state.player.status("PocketwatchCounter");
+            let counter = state.player.status(sk::POCKETWATCH_COUNTER);
             if counter <= 3 {
-                state.player.set_status("TurnStartExtraDraw",
-                    state.player.status("TurnStartExtraDraw") + 3);
+                state.player.set_status(sk::TURN_START_EXTRA_DRAW,
+                    state.player.status(sk::TURN_START_EXTRA_DRAW) + 3);
             }
         }
-        state.player.set_status("PocketwatchCounter", 0);
+        state.player.set_status(sk::POCKETWATCH_COUNTER, 0);
     }
 
     // Art of War: if no attacks played last turn, +1 energy
     if state.has_relic("Art of War") {
-        let ready = state.player.status("ArtOfWarReady");
+        let ready = state.player.status(sk::ART_OF_WAR_READY);
         if ready > 0 && state.turn > 1 {
             state.energy += 1;
         }
         // Reset: will be set to 0 if attack is played
-        state.player.set_status("ArtOfWarReady", 1);
+        state.player.set_status(sk::ART_OF_WAR_READY, 1);
     }
 
     // Kunai counter reset
     if state.has_relic("Kunai") {
-        state.player.set_status("KunaiCounter", 0);
+        state.player.set_status(sk::KUNAI_COUNTER, 0);
     }
 
     // Shuriken counter reset
     if state.has_relic("Shuriken") {
-        state.player.set_status("ShurikenCounter", 0);
+        state.player.set_status(sk::SHURIKEN_COUNTER, 0);
     }
 
     // Letter Opener counter reset
     if state.has_relic("Letter Opener") {
-        state.player.set_status("LetterOpenerCounter", 0);
+        state.player.set_status(sk::LETTER_OPENER_COUNTER, 0);
     }
 
     // Ornamental Fan counter reset
     if state.has_relic("Ornamental Fan") {
-        state.player.set_status("OrnamentalFanCounter", 0);
+        state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, 0);
     }
 
     // Orange Pellets: reset type tracking
     if state.has_relic("OrangePellets") {
-        state.player.set_status("OPAttack", 0);
-        state.player.set_status("OPSkill", 0);
-        state.player.set_status("OPPower", 0);
+        state.player.set_status(sk::OP_ATTACK, 0);
+        state.player.set_status(sk::OP_SKILL, 0);
+        state.player.set_status(sk::OP_POWER, 0);
     }
 
     // Unceasing Top: draw when hand is empty (handled in engine)
@@ -663,9 +664,9 @@ pub fn apply_turn_start_relics(state: &mut CombatState) {
 
 /// Legacy wrapper for Lantern (backward compat).
 pub fn apply_lantern_turn_start(state: &mut CombatState) {
-    if state.turn == 1 && state.player.status("LanternReady") > 0 {
+    if state.turn == 1 && state.player.status(sk::LANTERN_READY) > 0 {
         state.energy += 1;
-        state.player.set_status("LanternReady", 0);
+        state.player.set_status(sk::LANTERN_READY, 0);
     }
 }
 
@@ -683,40 +684,40 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
 
     // --- Ornamental Fan: gain 4 block every 3 ATTACKS played ---
     if is_attack && state.has_relic("Ornamental Fan") {
-        let counter = state.player.status("OrnamentalFanCounter") + 1;
+        let counter = state.player.status(sk::ORNAMENTAL_FAN_COUNTER) + 1;
         if counter >= 3 {
             state.player.block += 4;
-            state.player.set_status("OrnamentalFanCounter", 0);
+            state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, 0);
         } else {
-            state.player.set_status("OrnamentalFanCounter", counter);
+            state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, counter);
         }
     }
 
     // --- Kunai: every 3 attacks, +1 Dexterity ---
     if is_attack && state.has_relic("Kunai") {
-        let counter = state.player.status("KunaiCounter") + 1;
+        let counter = state.player.status(sk::KUNAI_COUNTER) + 1;
         if counter >= 3 {
-            state.player.add_status("Dexterity", 1);
-            state.player.set_status("KunaiCounter", 0);
+            state.player.add_status(sk::DEXTERITY, 1);
+            state.player.set_status(sk::KUNAI_COUNTER, 0);
         } else {
-            state.player.set_status("KunaiCounter", counter);
+            state.player.set_status(sk::KUNAI_COUNTER, counter);
         }
     }
 
     // --- Shuriken: every 3 attacks, +1 Strength ---
     if is_attack && state.has_relic("Shuriken") {
-        let counter = state.player.status("ShurikenCounter") + 1;
+        let counter = state.player.status(sk::SHURIKEN_COUNTER) + 1;
         if counter >= 3 {
-            state.player.add_status("Strength", 1);
-            state.player.set_status("ShurikenCounter", 0);
+            state.player.add_status(sk::STRENGTH, 1);
+            state.player.set_status(sk::SHURIKEN_COUNTER, 0);
         } else {
-            state.player.set_status("ShurikenCounter", counter);
+            state.player.set_status(sk::SHURIKEN_COUNTER, counter);
         }
     }
 
     // --- Letter Opener: every 3 skills, deal 5 damage to ALL enemies ---
     if is_skill && state.has_relic("Letter Opener") {
-        let counter = state.player.status("LetterOpenerCounter") + 1;
+        let counter = state.player.status(sk::LETTER_OPENER_COUNTER) + 1;
         if counter >= 3 {
             let living = state.living_enemy_indices();
             for idx in living {
@@ -731,32 +732,32 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
                     enemy.entity.hp = 0;
                 }
             }
-            state.player.set_status("LetterOpenerCounter", 0);
+            state.player.set_status(sk::LETTER_OPENER_COUNTER, 0);
         } else {
-            state.player.set_status("LetterOpenerCounter", counter);
+            state.player.set_status(sk::LETTER_OPENER_COUNTER, counter);
         }
     }
 
     // --- Nunchaku: every 10 attacks, +1 energy ---
     if is_attack && state.has_relic("Nunchaku") {
-        let counter = state.player.status("NunchakuCounter") + 1;
+        let counter = state.player.status(sk::NUNCHAKU_COUNTER) + 1;
         if counter >= 10 {
             state.energy += 1;
-            state.player.set_status("NunchakuCounter", 0);
+            state.player.set_status(sk::NUNCHAKU_COUNTER, 0);
         } else {
-            state.player.set_status("NunchakuCounter", counter);
+            state.player.set_status(sk::NUNCHAKU_COUNTER, counter);
         }
     }
 
     // --- Ink Bottle: every 10 cards, draw 1 ---
     if state.has_relic("InkBottle") {
-        let counter = state.player.status("InkBottleCounter") + 1;
+        let counter = state.player.status(sk::INK_BOTTLE_COUNTER) + 1;
         if counter >= 10 {
             // Draw 1 card (set flag for engine)
-            state.player.set_status("InkBottleDraw", 1);
-            state.player.set_status("InkBottleCounter", 0);
+            state.player.set_status(sk::INK_BOTTLE_DRAW, 1);
+            state.player.set_status(sk::INK_BOTTLE_COUNTER, 0);
         } else {
-            state.player.set_status("InkBottleCounter", counter);
+            state.player.set_status(sk::INK_BOTTLE_COUNTER, counter);
         }
     }
 
@@ -764,17 +765,17 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
 
     // --- Velvet Choker: track cards played ---
     if state.has_relic("Velvet Choker") || state.has_relic("VelvetChoker") {
-        state.player.add_status("VelvetChokerCounter", 1);
+        state.player.add_status(sk::VELVET_CHOKER_COUNTER, 1);
     }
 
     // --- Pocketwatch: track cards played ---
     if state.has_relic("Pocketwatch") {
-        state.player.add_status("PocketwatchCounter", 1);
+        state.player.add_status(sk::POCKETWATCH_COUNTER, 1);
     }
 
     // --- Art of War: if attack played, disable bonus ---
     if is_attack && (state.has_relic("Art of War")) {
-        state.player.set_status("ArtOfWarReady", 0);
+        state.player.set_status(sk::ART_OF_WAR_READY, 0);
     }
 
     // --- Bird-Faced Urn: heal 2 when playing a Power ---
@@ -785,13 +786,13 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
     // --- Mummified Hand: when playing a Power, random card in hand costs 0 ---
     if is_power && state.has_relic("Mummified Hand") {
         // Complex card cost manipulation; set flag for engine
-        state.player.set_status("MummifiedHandTrigger", 1);
+        state.player.set_status(sk::MUMMIFIED_HAND_TRIGGER, 1);
     }
 
     // --- Duality (Yang): when playing an Attack, gain 1 Dexterity this turn ---
     if is_attack && state.has_relic("Yang") {
-        state.player.add_status("Dexterity", 1);
-        state.player.add_status("LoseDexterity", 1);
+        state.player.add_status(sk::DEXTERITY, 1);
+        state.player.add_status(sk::LOSE_DEXTERITY, 1);
     }
 
     // --- Necronomicon: first Attack costing 2+ per turn is played twice ---
@@ -800,26 +801,26 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
     // --- Orange Pellets: track card types ---
     if state.has_relic("OrangePellets") {
         if is_attack {
-            state.player.set_status("OPAttack", 1);
+            state.player.set_status(sk::OP_ATTACK, 1);
         } else if is_skill {
-            state.player.set_status("OPSkill", 1);
+            state.player.set_status(sk::OP_SKILL, 1);
         } else if is_power {
-            state.player.set_status("OPPower", 1);
+            state.player.set_status(sk::OP_POWER, 1);
         }
         // If all three types played, remove all debuffs
-        if state.player.status("OPAttack") > 0
-            && state.player.status("OPSkill") > 0
-            && state.player.status("OPPower") > 0
+        if state.player.status(sk::OP_ATTACK) > 0
+            && state.player.status(sk::OP_SKILL) > 0
+            && state.player.status(sk::OP_POWER) > 0
         {
             // Remove debuffs
-            state.player.set_status("Weakened", 0);
-            state.player.set_status("Vulnerable", 0);
-            state.player.set_status("Frail", 0);
-            state.player.set_status("Entangled", 0);
-            state.player.set_status("No Draw", 0);
-            state.player.set_status("OPAttack", 0);
-            state.player.set_status("OPSkill", 0);
-            state.player.set_status("OPPower", 0);
+            state.player.set_status(sk::WEAKENED, 0);
+            state.player.set_status(sk::VULNERABLE, 0);
+            state.player.set_status(sk::FRAIL, 0);
+            state.player.set_status(sk::ENTANGLED, 0);
+            state.player.set_status(sk::NO_DRAW, 0);
+            state.player.set_status(sk::OP_ATTACK, 0);
+            state.player.set_status(sk::OP_SKILL, 0);
+            state.player.set_status(sk::OP_POWER, 0);
         }
     }
 }
@@ -831,12 +832,12 @@ pub fn check_ornamental_fan(state: &mut CombatState) {
         return;
     }
 
-    let counter = state.player.status("OrnamentalFanCounter") + 1;
+    let counter = state.player.status(sk::ORNAMENTAL_FAN_COUNTER) + 1;
     if counter >= 3 {
         state.player.block += 4;
-        state.player.set_status("OrnamentalFanCounter", 0);
+        state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, 0);
     } else {
-        state.player.set_status("OrnamentalFanCounter", counter);
+        state.player.set_status(sk::ORNAMENTAL_FAN_COUNTER, counter);
     }
 }
 
@@ -847,12 +848,12 @@ pub fn check_pen_nib(state: &mut CombatState) -> bool {
         return false;
     }
 
-    let counter = state.player.status("PenNibCounter");
+    let counter = state.player.status(sk::PEN_NIB_COUNTER);
     if counter >= 9 {
-        state.player.set_status("PenNibCounter", 0);
+        state.player.set_status(sk::PEN_NIB_COUNTER, 0);
         true
     } else {
-        state.player.set_status("PenNibCounter", counter + 1);
+        state.player.set_status(sk::PEN_NIB_COUNTER, counter + 1);
         false
     }
 }
@@ -862,7 +863,7 @@ pub fn velvet_choker_can_play(state: &CombatState) -> bool {
     if !state.has_relic("Velvet Choker") && !state.has_relic("VelvetChoker") {
         return true;
     }
-    state.player.status("VelvetChokerCounter") < 6
+    state.player.status(sk::VELVET_CHOKER_COUNTER) < 6
 }
 
 // ==========================================================================
@@ -886,8 +887,8 @@ pub fn apply_turn_end_relics(state: &mut CombatState) {
 
     // Stone Calendar: on exactly the 7th turn, deal 52 damage to all enemies (once)
     if state.has_relic("StoneCalendar") {
-        if state.player.status("StoneCalendarCounter") == 7
-            && state.player.status("StoneCalendarFired") == 0
+        if state.player.status(sk::STONE_CALENDAR_COUNTER) == 7
+            && state.player.status(sk::STONE_CALENDAR_FIRED) == 0
         {
             let living = state.living_enemy_indices();
             for idx in living {
@@ -902,14 +903,14 @@ pub fn apply_turn_end_relics(state: &mut CombatState) {
                     enemy.entity.hp = 0;
                 }
             }
-            state.player.set_status("StoneCalendarFired", 1);
+            state.player.set_status(sk::STONE_CALENDAR_FIRED, 1);
         }
     }
 
     // Frozen Core: if empty orb slot, channel Frost (Defect)
     if state.has_relic("FrozenCore") {
         // Orb handling is Python-side; set flag
-        state.player.set_status("FrozenCoreTrigger", 1);
+        state.player.set_status(sk::FROZEN_CORE_TRIGGER, 1);
     }
 
     // Nilry's Codex: discover a card at end of turn (complex; Python handles)

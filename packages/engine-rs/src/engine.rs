@@ -19,6 +19,7 @@ use crate::powers;
 use crate::relics;
 use crate::state::{CombatState, EnemyCombatState, PyCombatState, Stance};
 use crate::status_effects;
+use crate::status_keys::sk;
 
 /// Combat phase enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -188,7 +189,7 @@ impl CombatEngine {
         self.state.last_card_type = None;
 
         // Reset per-turn statuses
-        self.state.player.set_status("Wave of the Hand", 0);
+        self.state.player.set_status(sk::WAVE_OF_THE_HAND, 0);
 
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);
@@ -204,8 +205,8 @@ impl CombatEngine {
         // Block decay — Calipers retains up to 15, Barricade retains all
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
         if self.state.turn > 1 {
-            let barricade = self.state.player.status("Barricade") > 0;
-            let blur = self.state.player.status("Blur") > 0;
+            let barricade = self.state.player.status(sk::BARRICADE) > 0;
+            let blur = self.state.player.status(sk::BLUR) > 0;
             if barricade || blur {
                 // Keep all block
             } else {
@@ -215,27 +216,27 @@ impl CombatEngine {
         }
 
         // LoseStrength/LoseDexterity at end of previous turn
-        let lose_str = self.state.player.status("LoseStrength");
+        let lose_str = self.state.player.status(sk::LOSE_STRENGTH);
         if lose_str > 0 {
-            self.state.player.add_status("Strength", -lose_str);
-            self.state.player.set_status("LoseStrength", 0);
+            self.state.player.add_status(sk::STRENGTH, -lose_str);
+            self.state.player.set_status(sk::LOSE_STRENGTH, 0);
         }
-        let lose_dex = self.state.player.status("LoseDexterity");
+        let lose_dex = self.state.player.status(sk::LOSE_DEXTERITY);
         if lose_dex > 0 {
-            self.state.player.add_status("Dexterity", -lose_dex);
-            self.state.player.set_status("LoseDexterity", 0);
+            self.state.player.add_status(sk::DEXTERITY, -lose_dex);
+            self.state.player.set_status(sk::LOSE_DEXTERITY, 0);
         }
 
         // Deva Form: gain energy at start of turn (increasing)
-        let deva_form = self.state.player.status("DevaForm");
+        let deva_form = self.state.player.status(sk::DEVA_FORM);
         if deva_form > 0 {
             self.state.energy += deva_form;
             // Increase for next turn
-            self.state.player.set_status("DevaForm", deva_form + 1);
+            self.state.player.set_status(sk::DEVA_FORM, deva_form + 1);
         }
 
         // Devotion: gain Mantra at start of turn
-        let devotion = self.state.player.status("Devotion");
+        let devotion = self.state.player.status(sk::DEVOTION);
         if devotion > 0 {
             self.gain_mantra(devotion);
         }
@@ -244,7 +245,7 @@ impl CombatEngine {
         self.apply_orb_start_of_turn();
 
         // BattleHymn: add Smite(s) to hand at start of turn
-        let battle_hymn = self.state.player.status("BattleHymn");
+        let battle_hymn = self.state.player.status(sk::BATTLE_HYMN);
         if battle_hymn > 0 {
             for _ in 0..battle_hymn {
                 let smite_id = self.temp_card_id("Smite");
@@ -264,7 +265,7 @@ impl CombatEngine {
         }
 
         // Clear Entangled (only lasts one turn)
-        self.state.player.set_status("Entangled", 0);
+        self.state.player.set_status(sk::ENTANGLED, 0);
 
         // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
@@ -277,13 +278,13 @@ impl CombatEngine {
         powers::apply_plated_armor(&mut self.state.player);
 
         // Like Water: if in Calm, gain block
-        let like_water = self.state.player.status("Like Water");
+        let like_water = self.state.player.status(sk::LIKE_WATER);
         if like_water > 0 && self.state.stance == Stance::Calm {
             self.state.player.block += like_water;
         }
 
         // Study: add Insight to draw pile
-        let study = self.state.player.status("Study");
+        let study = self.state.player.status(sk::STUDY);
         if study > 0 {
             for _ in 0..study {
                 let insight_id = self.temp_card_id("Insight");
@@ -292,7 +293,7 @@ impl CombatEngine {
         }
 
         // Omega: deal damage to all living enemies
-        let omega = self.state.player.status("OmegaPower");
+        let omega = self.state.player.status(sk::OMEGA);
         if omega > 0 {
             let living = self.state.living_enemy_indices();
             for idx in living {
@@ -358,16 +359,16 @@ impl CombatEngine {
         }
 
         // Player poison tick (before enemy turns)
-        let player_poison = self.state.player.status("Poison");
+        let player_poison = self.state.player.status(sk::POISON);
         if player_poison > 0 {
-            let intangible = self.state.player.status("Intangible") > 0;
+            let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
             let tungsten_rod = self.state.has_relic("Tungsten Rod");
             let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
             self.state.player.hp -= hp_loss;
             self.state.total_damage_taken += hp_loss;
             // Decrement poison by 1
             let new_poison = player_poison - 1;
-            self.state.player.set_status("Poison", new_poison);
+            self.state.player.set_status(sk::POISON, new_poison);
 
             if self.state.player.hp <= 0 {
                 // Check Fairy in a Bottle
@@ -408,9 +409,9 @@ impl CombatEngine {
         }
 
         // Decrement player Intangible
-        let intangible = self.state.player.status("Intangible");
+        let intangible = self.state.player.status(sk::INTANGIBLE);
         if intangible > 0 {
-            self.state.player.set_status("Intangible", intangible - 1);
+            self.state.player.set_status(sk::INTANGIBLE, intangible - 1);
         }
 
         // Check combat end
@@ -441,7 +442,7 @@ impl CombatEngine {
         }
 
         // Entangled: can't play attacks
-        if self.state.player.status("Entangled") > 0 && card.card_type == CardType::Attack {
+        if self.state.player.status(sk::ENTANGLED) > 0 && card.card_type == CardType::Attack {
             return false;
         }
 
@@ -482,7 +483,7 @@ impl CombatEngine {
         }
 
         // NextAttackFree: next attack costs 0
-        if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
             return 0;
         }
 
@@ -539,9 +540,9 @@ impl CombatEngine {
         if card.card_type != CardType::Attack {
             for enemy in &mut self.state.enemies {
                 if enemy.is_alive() {
-                    let enrage = enemy.entity.status("Enrage");
+                    let enrage = enemy.entity.status(sk::ENRAGE);
                     if enrage > 0 {
-                        enemy.entity.add_status("Strength", enrage);
+                        enemy.entity.add_status(sk::STRENGTH, enrage);
                     }
                 }
             }
@@ -585,7 +586,7 @@ impl CombatEngine {
             if self.state.enemies[ei].is_alive() {
                 let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
                 if bod > 0 {
-                    let intangible = self.state.player.status("Intangible") > 0;
+                    let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
                     let has_torii = self.state.has_relic("Torii");
                     let has_tungsten = self.state.has_relic("Tungsten Rod");
                     let result = damage::calculate_incoming_damage(
@@ -618,7 +619,7 @@ impl CombatEngine {
             if self.state.enemies[ei].is_alive() {
                 let triggered = powers::increment_time_warp(&mut self.state.enemies[ei].entity);
                 if triggered {
-                    self.state.enemies[ei].entity.add_status("Strength", 2);
+                    self.state.enemies[ei].entity.add_status(sk::STRENGTH, 2);
                     self.end_turn();
                     return;
                 }
@@ -635,8 +636,8 @@ impl CombatEngine {
         }
 
         // Consume NextAttackFree after playing an attack
-        if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
-            self.state.player.set_status("NextAttackFree", 0);
+        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
+            self.state.player.set_status(sk::NEXT_ATTACK_FREE, 0);
         }
 
         // Power card: install status effect instead of going to discard
@@ -679,203 +680,203 @@ impl CombatEngine {
             match *effect {
                 "on_wrath_draw" => {
                     // Rushdown: draw cards when entering Wrath
-                    let current = self.state.player.status("Rushdown");
+                    let current = self.state.player.status(sk::RUSHDOWN);
                     self.state
                         .player
-                        .set_status("Rushdown", current + card.base_magic.max(2));
+                        .set_status(sk::RUSHDOWN, current + card.base_magic.max(2));
                 }
                 "on_stance_change_block" => {
                     // MentalFortress: gain block on any stance change
-                    let current = self.state.player.status("MentalFortress");
+                    let current = self.state.player.status(sk::MENTAL_FORTRESS);
                     self.state
                         .player
-                        .set_status("MentalFortress", current + card.base_magic);
+                        .set_status(sk::MENTAL_FORTRESS, current + card.base_magic);
                 }
                 "battle_hymn" => {
                     // BattleHymn: at start of turn, add Smite(s) to hand
-                    let current = self.state.player.status("BattleHymn");
+                    let current = self.state.player.status(sk::BATTLE_HYMN);
                     self.state
                         .player
-                        .set_status("BattleHymn", current + card.base_magic.max(1));
+                        .set_status(sk::BATTLE_HYMN, current + card.base_magic.max(1));
                 }
                 "like_water" => {
                     // LikeWater: at end of turn, if in Calm, gain block
-                    let current = self.state.player.status("Like Water");
+                    let current = self.state.player.status(sk::LIKE_WATER);
                     self.state
                         .player
-                        .set_status("Like Water", current + card.base_magic.max(1));
+                        .set_status(sk::LIKE_WATER, current + card.base_magic.max(1));
                 }
                 "on_scry_block" => {
                     // Nirvana: gain block on Scry
-                    let current = self.state.player.status("Nirvana");
+                    let current = self.state.player.status(sk::NIRVANA);
                     self.state
                         .player
-                        .set_status("Nirvana", current + card.base_magic.max(1));
+                        .set_status(sk::NIRVANA, current + card.base_magic.max(1));
                 }
                 "study" => {
                     // Study: at end of turn, add Insight to draw
-                    let current = self.state.player.status("Study");
+                    let current = self.state.player.status(sk::STUDY);
                     self.state
                         .player
-                        .set_status("Study", current + card.base_magic.max(1));
+                        .set_status(sk::STUDY, current + card.base_magic.max(1));
                 }
                 "deva_form" => {
                     // DevaForm: at start of turn, gain energy (increasing)
-                    let current = self.state.player.status("DevaForm");
+                    let current = self.state.player.status(sk::DEVA_FORM);
                     self.state
                         .player
-                        .set_status("DevaForm", current + card.base_magic.max(1));
+                        .set_status(sk::DEVA_FORM, current + card.base_magic.max(1));
                 }
                 "devotion" => {
                     // Devotion: at start of turn, gain Mantra
-                    let current = self.state.player.status("Devotion");
+                    let current = self.state.player.status(sk::DEVOTION);
                     self.state
                         .player
-                        .set_status("Devotion", current + card.base_magic.max(1));
+                        .set_status(sk::DEVOTION, current + card.base_magic.max(1));
                 }
                 "establishment" => {
                     // Establishment: retained cards cost 1 less
-                    let current = self.state.player.status("Establishment");
+                    let current = self.state.player.status(sk::ESTABLISHMENT);
                     self.state
                         .player
-                        .set_status("Establishment", current + card.base_magic.max(1));
+                        .set_status(sk::ESTABLISHMENT, current + card.base_magic.max(1));
                 }
                 "fasting" => {
                     // Fasting: gain Str and Dex, lose 1 max energy
                     let amount = card.base_magic.max(1);
-                    self.state.player.add_status("Strength", amount);
-                    self.state.player.add_status("Dexterity", amount);
+                    self.state.player.add_status(sk::STRENGTH, amount);
+                    self.state.player.add_status(sk::DEXTERITY, amount);
                     self.state.max_energy -= 1;
                     self.state.energy = self.state.energy.min(self.state.max_energy);
                 }
                 "master_reality" => {
                     // MasterReality: all temp cards created are upgraded
-                    self.state.player.set_status("MasterReality", 1);
+                    self.state.player.set_status(sk::MASTER_REALITY, 1);
                 }
                 "omega" => {
                     // Omega: deal damage to all enemies at end of turn
-                    let current = self.state.player.status("OmegaPower");
+                    let current = self.state.player.status(sk::OMEGA);
                     self.state
                         .player
-                        .set_status("OmegaPower", current + card.base_magic.max(1));
+                        .set_status(sk::OMEGA, current + card.base_magic.max(1));
                 }
                 "after_image" => {
-                    let current = self.state.player.status("After Image");
-                    self.state.player.set_status("After Image", current + card.base_magic.max(1));
+                    let current = self.state.player.status(sk::AFTER_IMAGE);
+                    self.state.player.set_status(sk::AFTER_IMAGE, current + card.base_magic.max(1));
                 }
                 "draw_on_power_play" => {
-                    let current = self.state.player.status("Heatsink");
-                    self.state.player.set_status("Heatsink", current + card.base_magic.max(1));
+                    let current = self.state.player.status(sk::HEATSINK);
+                    self.state.player.set_status(sk::HEATSINK, current + card.base_magic.max(1));
                 }
                 "channel_lightning_on_power" => {
-                    let current = self.state.player.status("Storm");
-                    self.state.player.set_status("Storm", current + card.base_magic.max(1));
+                    let current = self.state.player.status(sk::STORM);
+                    self.state.player.set_status(sk::STORM, current + card.base_magic.max(1));
                 }
                 "buffer" => {
-                    let current = self.state.player.status("Buffer");
-                    self.state.player.set_status("Buffer", current + card.base_magic.max(1));
+                    let current = self.state.player.status(sk::BUFFER);
+                    self.state.player.set_status(sk::BUFFER, current + card.base_magic.max(1));
                 }
                 "extra_draw_each_turn" => {
-                    let current = self.state.player.status("Draw");
-                    self.state.player.set_status("Draw", current + card.base_magic.max(1));
+                    let current = self.state.player.status(sk::DRAW);
+                    self.state.player.set_status(sk::DRAW, current + card.base_magic.max(1));
                 }
 
                 // ---- Ironclad Powers ----
                 "barricade" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Barricade", amt);
+                    self.state.player.add_status(sk::BARRICADE, amt);
                 }
                 "demon_form" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Demon Form", amt);
+                    self.state.player.add_status(sk::DEMON_FORM, amt);
                 }
                 "dark_embrace" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Dark Embrace", amt);
+                    self.state.player.add_status(sk::DARK_EMBRACE, amt);
                 }
                 "feel_no_pain" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Feel No Pain", amt);
+                    self.state.player.add_status(sk::FEEL_NO_PAIN, amt);
                 }
                 "metallicize" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Metallicize", amt);
+                    self.state.player.add_status(sk::METALLICIZE, amt);
                 }
                 "brutality" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Brutality", amt);
+                    self.state.player.add_status(sk::BRUTALITY, amt);
                 }
                 "combust" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Combust", amt);
+                    self.state.player.add_status(sk::COMBUST, amt);
                 }
                 "evolve" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Evolve", amt);
+                    self.state.player.add_status(sk::EVOLVE, amt);
                 }
                 "fire_breathing" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Fire Breathing", amt);
+                    self.state.player.add_status(sk::FIRE_BREATHING, amt);
                 }
                 "juggernaut" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Juggernaut", amt);
+                    self.state.player.add_status(sk::JUGGERNAUT, amt);
                 }
                 "rupture" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Rupture", amt);
+                    self.state.player.add_status(sk::RUPTURE, amt);
                 }
                 "berserk" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Berserk", amt);
+                    self.state.player.add_status(sk::BERSERK, amt);
                 }
 
                 // ---- Silent Powers ----
                 "noxious_fumes" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Noxious Fumes", amt);
+                    self.state.player.add_status(sk::NOXIOUS_FUMES, amt);
                 }
                 "thousand_cuts" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("A Thousand Cuts", amt);
+                    self.state.player.add_status(sk::THOUSAND_CUTS, amt);
                 }
                 "infinite_blades" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Infinite Blades", amt);
+                    self.state.player.add_status(sk::INFINITE_BLADES, amt);
                 }
                 "envenom" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Envenom", amt);
+                    self.state.player.add_status(sk::ENVENOM, amt);
                 }
                 "accuracy" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Accuracy", amt);
+                    self.state.player.add_status(sk::ACCURACY, amt);
                 }
                 "thorns" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Thorns", amt);
+                    self.state.player.add_status(sk::THORNS, amt);
                 }
                 "tools_of_the_trade" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Tools of the Trade", amt);
+                    self.state.player.add_status(sk::TOOLS_OF_THE_TRADE, amt);
                 }
                 "well_laid_plans" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Well-Laid Plans", amt);
+                    self.state.player.add_status(sk::WELL_LAID_PLANS, amt);
                 }
 
                 // ---- Defect Powers ----
                 "loop_orb" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Loop", amt);
+                    self.state.player.add_status(sk::LOOP, amt);
                 }
                 "hello_world" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Hello World", amt);
+                    self.state.player.add_status(sk::HELLO_WORLD, amt);
                 }
                 "lightning_hits_all" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Electrodynamics", amt);
+                    self.state.player.add_status(sk::ELECTRODYNAMICS, amt);
                 }
                 "gain_orb_slots" => {
                     let slots = card.base_magic.max(1);
@@ -887,19 +888,19 @@ impl CombatEngine {
                 // ---- Colorless Powers ----
                 "sadistic_nature" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Sadistic Nature", amt);
+                    self.state.player.add_status(sk::SADISTIC, amt);
                 }
                 "panache" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Panache", amt);
+                    self.state.player.add_status(sk::PANACHE, amt);
                 }
                 "magnetism" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Magnetism", amt);
+                    self.state.player.add_status(sk::MAGNETISM, amt);
                 }
                 "mayhem" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status("Mayhem", amt);
+                    self.state.player.add_status(sk::MAYHEM, amt);
                 }
 
                 _ => {}
@@ -1141,7 +1142,7 @@ impl CombatEngine {
 
             let is_wrath = self.state.stance == Stance::Wrath;
             let player_vuln = self.state.player.is_vulnerable();
-            let player_intangible = self.state.player.status("Intangible") > 0;
+            let player_intangible = self.state.player.status(sk::INTANGIBLE) > 0;
             let has_torii = self.state.has_relic("Torii");
             let has_tungsten = self.state.has_relic("Tungsten Rod");
 
@@ -1163,10 +1164,10 @@ impl CombatEngine {
                     self.state.total_damage_taken += result.hp_loss;
 
                     // Plated Armor decrements on unblocked HP damage
-                    let plated = self.state.player.status("Plated Armor");
+                    let plated = self.state.player.status(sk::PLATED_ARMOR);
                     if plated > 0 {
                         let new_plated = plated - 1;
-                        self.state.player.set_status("Plated Armor", new_plated);
+                        self.state.player.set_status(sk::PLATED_ARMOR, new_plated);
                     }
                 }
 
@@ -1196,27 +1197,27 @@ impl CombatEngine {
         // Apply move effects
         let effects = self.state.enemies[enemy_idx].move_effects.clone();
         if let Some(&amt) = effects.get("weak") {
-            powers::apply_debuff(&mut self.state.player, "Weakened", amt);
+            powers::apply_debuff(&mut self.state.player, sk::WEAKENED, amt);
         }
         if let Some(&amt) = effects.get("vulnerable") {
-            powers::apply_debuff(&mut self.state.player, "Vulnerable", amt);
+            powers::apply_debuff(&mut self.state.player, sk::VULNERABLE, amt);
         }
         if let Some(&amt) = effects.get("frail") {
-            powers::apply_debuff(&mut self.state.player, "Frail", amt);
+            powers::apply_debuff(&mut self.state.player, sk::FRAIL, amt);
         }
         if let Some(&amt) = effects.get("strength") {
             self.state.enemies[enemy_idx]
                 .entity
-                .add_status("Strength", amt);
+                .add_status(sk::STRENGTH, amt);
         }
         if let Some(&amt) = effects.get("ritual") {
             self.state.enemies[enemy_idx]
                 .entity
-                .set_status("Ritual", amt);
+                .set_status(sk::RITUAL, amt);
         }
         if let Some(&amt) = effects.get("entangle") {
             if amt > 0 {
-                self.state.player.set_status("Entangled", 1);
+                self.state.player.set_status(sk::ENTANGLED, 1);
             }
         }
         if let Some(&amt) = effects.get("slimed") {
@@ -1243,10 +1244,10 @@ impl CombatEngine {
         }
         // Lagavulin Siphon Soul: reduce player Strength and Dexterity
         if let Some(&amt) = effects.get("siphon_str") {
-            self.state.player.add_status("Strength", -(amt));
+            self.state.player.add_status(sk::STRENGTH, -(amt));
         }
         if let Some(&amt) = effects.get("siphon_dex") {
-            self.state.player.add_status("Dexterity", -(amt));
+            self.state.player.add_status(sk::DEXTERITY, -(amt));
         }
 
         // Advance enemy to next move for next turn
@@ -1316,14 +1317,14 @@ impl CombatEngine {
         // -- Power triggers on stance change --
 
         // MentalFortress: gain block on ANY stance change
-        let mental_fortress = self.state.player.status("MentalFortress");
+        let mental_fortress = self.state.player.status(sk::MENTAL_FORTRESS);
         if mental_fortress > 0 {
             self.state.player.block += mental_fortress;
         }
 
         // Rushdown: draw cards when entering Wrath
         if new_stance == Stance::Wrath {
-            let rushdown = self.state.player.status("Rushdown");
+            let rushdown = self.state.player.status(sk::RUSHDOWN);
             if rushdown > 0 {
                 self.draw_cards(rushdown);
             }
@@ -1346,7 +1347,7 @@ impl CombatEngine {
 
     /// Get the ID for a temporary card, upgrading if Master Reality is active.
     pub fn temp_card_id(&self, base_id: &str) -> String {
-        if self.state.player.status("MasterReality") > 0 {
+        if self.state.player.status(sk::MASTER_REALITY) > 0 {
             format!("{}+", base_id)
         } else {
             base_id.to_string()
@@ -1368,7 +1369,7 @@ impl CombatEngine {
         }
 
         // Nirvana: gain block when scrying
-        let nirvana = self.state.player.status("Nirvana");
+        let nirvana = self.state.player.status(sk::NIRVANA);
         if nirvana > 0 {
             self.state.player.block += nirvana;
         }

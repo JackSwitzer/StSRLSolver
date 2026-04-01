@@ -1,6 +1,7 @@
 use crate::state::EntityState;
 use super::debuffs::{decrement_debuffs, decrement_status, apply_lose_strength, apply_lose_dexterity, apply_wraith_form, decrement_intangible, decrement_blur, decrement_lock_on};
 use super::enemy_powers::{apply_regeneration, reset_slow};
+use crate::status_keys::sk;
 
 // Buff-related power trigger functions
 
@@ -19,7 +20,7 @@ use super::enemy_powers::{apply_regeneration, reset_slow};
 /// Returns true if block should NOT be removed at start of turn.
 /// Barricade prevents all block loss; Blur prevents for its duration.
 pub fn should_retain_block(entity: &EntityState) -> bool {
-    entity.status("Barricade") > 0 || entity.status("Blur") > 0
+    entity.status(sk::BARRICADE) > 0 || entity.status(sk::BLUR) > 0
 }
 
 /// Calculate block retained through Calipers (keep up to 15).
@@ -45,7 +46,7 @@ pub fn apply_block_decay(entity: &EntityState, has_calipers: bool) -> i32 {
 /// Debuffs that tick down: Weakened, Vulnerable, Frail.
 
 pub fn apply_metallicize(entity: &mut EntityState) {
-    let metallicize = entity.status("Metallicize");
+    let metallicize = entity.status(sk::METALLICIZE);
     if metallicize > 0 {
         entity.block += metallicize;
     }
@@ -54,7 +55,7 @@ pub fn apply_metallicize(entity: &mut EntityState) {
 /// Apply Plated Armor block gain at end of turn.
 
 pub fn apply_plated_armor(entity: &mut EntityState) {
-    let plated = entity.status("Plated Armor");
+    let plated = entity.status(sk::PLATED_ARMOR);
     if plated > 0 {
         entity.block += plated;
     }
@@ -63,15 +64,15 @@ pub fn apply_plated_armor(entity: &mut EntityState) {
 /// Apply Ritual strength gain at start of enemy turn (not first turn).
 
 pub fn remove_flame_barrier(entity: &mut EntityState) {
-    entity.set_status("Flame Barrier", 0);
+    entity.set_status(sk::FLAME_BARRIER, 0);
 }
 
 /// WrathNextTurn: enter Wrath at start of next turn. Returns true if should enter Wrath.
 
 pub fn check_wrath_next_turn(entity: &mut EntityState) -> bool {
-    let wrath = entity.status("WrathNextTurn");
+    let wrath = entity.status(sk::WRATH_NEXT_TURN);
     if wrath > 0 {
-        entity.set_status("WrathNextTurn", 0);
+        entity.set_status(sk::WRATH_NEXT_TURN, 0);
         return true;
     }
     false
@@ -80,36 +81,36 @@ pub fn check_wrath_next_turn(entity: &mut EntityState) -> bool {
 /// WraithForm: lose N Dexterity at start of turn.
 
 pub fn apply_demon_form(entity: &mut EntityState) {
-    let demon_form = entity.status("Demon Form");
+    let demon_form = entity.status(sk::DEMON_FORM);
     if demon_form > 0 {
-        entity.add_status("Strength", demon_form);
+        entity.add_status(sk::STRENGTH, demon_form);
     }
 }
 
 /// Berserk: gain N energy at start of turn. Returns energy to add.
 
 pub fn apply_berserk(entity: &EntityState) -> i32 {
-    entity.status("Berserk")
+    entity.status(sk::BERSERK)
 }
 
 /// Noxious Fumes: returns the amount of poison to apply to all enemies.
 
 pub fn get_noxious_fumes_amount(entity: &EntityState) -> i32 {
-    entity.status("Noxious Fumes")
+    entity.status(sk::NOXIOUS_FUMES)
 }
 
 /// Brutality: returns the amount of cards to draw (and HP to lose).
 
 pub fn get_brutality_amount(entity: &EntityState) -> i32 {
-    entity.status("Brutality")
+    entity.status(sk::BRUTALITY)
 }
 
 /// DrawCardNextTurn: returns the number of extra cards to draw, then removes the power.
 
 pub fn consume_draw_card_next_turn(entity: &mut EntityState) -> i32 {
-    let amount = entity.status("Draw Card");
+    let amount = entity.status(sk::DRAW_CARD);
     if amount > 0 {
-        entity.set_status("Draw Card", 0);
+        entity.set_status(sk::DRAW_CARD, 0);
     }
     amount
 }
@@ -117,9 +118,9 @@ pub fn consume_draw_card_next_turn(entity: &mut EntityState) -> i32 {
 /// NextTurnBlock: returns the amount of block to gain, then removes the power.
 
 pub fn consume_next_turn_block(entity: &mut EntityState) -> i32 {
-    let amount = entity.status("Next Turn Block");
+    let amount = entity.status(sk::NEXT_TURN_BLOCK);
     if amount > 0 {
-        entity.set_status("Next Turn Block", 0);
+        entity.set_status(sk::NEXT_TURN_BLOCK, 0);
     }
     amount
 }
@@ -127,9 +128,9 @@ pub fn consume_next_turn_block(entity: &mut EntityState) -> i32 {
 /// Energized: returns energy to gain at start of turn, then removes the power.
 
 pub fn consume_energized(entity: &mut EntityState) -> i32 {
-    let amount = entity.status("Energized");
+    let amount = entity.status(sk::ENERGIZED);
     if amount > 0 {
-        entity.set_status("Energized", 0);
+        entity.set_status(sk::ENERGIZED, 0);
     }
     amount
 }
@@ -137,31 +138,31 @@ pub fn consume_energized(entity: &mut EntityState) -> i32 {
 /// Draw power: permanent +draw per turn.
 
 pub fn get_extra_draw(entity: &EntityState) -> i32 {
-    entity.status("Draw")
+    entity.status(sk::DRAW)
 }
 
 /// EnergyDown: returns energy to lose at start of turn.
 
 pub fn get_energy_down(entity: &EntityState) -> i32 {
-    entity.status("EnergyDown")
+    entity.status(sk::ENERGY_DOWN)
 }
 
 /// BattleHymn: returns amount of Smites to add to hand.
 
 pub fn get_battle_hymn_amount(entity: &EntityState) -> i32 {
-    entity.status("BattleHymn")
+    entity.status(sk::BATTLE_HYMN)
 }
 
 /// Devotion: returns amount of Mantra to gain.
 
 pub fn get_devotion_amount(entity: &EntityState) -> i32 {
-    entity.status("Devotion")
+    entity.status(sk::DEVOTION)
 }
 
 /// InfiniteBlades: returns number of Shivs to add (always 1 per stack).
 
 pub fn get_infinite_blades(entity: &EntityState) -> i32 {
-    let amount = entity.status("Infinite Blades");
+    let amount = entity.status(sk::INFINITE_BLADES);
     if amount > 0 { 1 } else { 0 }
 }
 
@@ -172,35 +173,35 @@ pub fn get_infinite_blades(entity: &EntityState) -> i32 {
 /// AfterImage: returns block to gain per card played.
 
 pub fn get_after_image_block(entity: &EntityState) -> i32 {
-    entity.status("After Image")
+    entity.status(sk::AFTER_IMAGE)
 }
 
 /// A Thousand Cuts: returns damage to deal to ALL enemies per card played.
 
 pub fn get_thousand_cuts_damage(entity: &EntityState) -> i32 {
-    entity.status("A Thousand Cuts")
+    entity.status(sk::THOUSAND_CUTS)
 }
 
 /// Rage: returns block to gain when playing an Attack.
 
 pub fn get_rage_block(entity: &EntityState) -> i32 {
-    entity.status("Rage")
+    entity.status(sk::RAGE)
 }
 
 /// BeatOfDeath: returns damage to deal to player per card played.
 
 pub fn check_panache(entity: &mut EntityState) -> i32 {
     // Panache stores remaining count until trigger (starts at 5, decrements)
-    // We use a secondary counter approach: "PanacheCount"
-    if entity.status("Panache") <= 0 {
+    // We use a secondary counter approach: sk::PANACHE_COUNT
+    if entity.status(sk::PANACHE) <= 0 {
         return 0;
     }
-    let count = entity.status("PanacheCount") + 1;
+    let count = entity.status(sk::PANACHE_COUNT) + 1;
     if count >= 5 {
-        entity.set_status("PanacheCount", 0);
-        entity.status("Panache")
+        entity.set_status(sk::PANACHE_COUNT, 0);
+        entity.status(sk::PANACHE)
     } else {
-        entity.set_status("PanacheCount", count);
+        entity.set_status(sk::PANACHE_COUNT, count);
         0
     }
 }
@@ -209,9 +210,9 @@ pub fn check_panache(entity: &mut EntityState) -> i32 {
 /// Decrements the counter.
 
 pub fn consume_double_tap(entity: &mut EntityState) -> bool {
-    let dt = entity.status("Double Tap");
+    let dt = entity.status(sk::DOUBLE_TAP);
     if dt > 0 {
-        entity.set_status("Double Tap", dt - 1);
+        entity.set_status(sk::DOUBLE_TAP, dt - 1);
         return true;
     }
     false
@@ -221,9 +222,9 @@ pub fn consume_double_tap(entity: &mut EntityState) -> bool {
 /// Decrements the counter.
 
 pub fn consume_burst(entity: &mut EntityState) -> bool {
-    let b = entity.status("Burst");
+    let b = entity.status(sk::BURST);
     if b > 0 {
-        entity.set_status("Burst", b - 1);
+        entity.set_status(sk::BURST, b - 1);
         return true;
     }
     false
@@ -232,22 +233,22 @@ pub fn consume_burst(entity: &mut EntityState) -> bool {
 /// Heatsink: returns cards to draw when playing a Power card.
 
 pub fn get_heatsink_draw(entity: &EntityState) -> i32 {
-    entity.status("Heatsink")
+    entity.status(sk::HEATSINK)
 }
 
 /// Storm: returns true if should channel Lightning when playing a Power.
 
 pub fn should_storm_channel(entity: &EntityState) -> bool {
-    entity.status("Storm") > 0
+    entity.status(sk::STORM) > 0
 }
 
 /// Forcefield (Automaton): lose Block per card played.
 /// Returns true if power is present.
 
 pub fn check_forcefield(entity: &mut EntityState) -> bool {
-    let ff = entity.status("Forcefield");
+    let ff = entity.status(sk::FORCEFIELD);
     if ff > 0 {
-        entity.add_status("Forcefield", -1);
+        entity.add_status(sk::FORCEFIELD, -1);
         return true;
     }
     false
@@ -256,7 +257,7 @@ pub fn check_forcefield(entity: &mut EntityState) -> bool {
 /// SkillBurn: returns damage to deal to player when they play a Skill.
 
 pub fn get_skill_burn_damage(entity: &EntityState) -> i32 {
-    entity.status("SkillBurn")
+    entity.status(sk::SKILL_BURN)
 }
 
 // ---------------------------------------------------------------------------
@@ -266,30 +267,30 @@ pub fn get_skill_burn_damage(entity: &EntityState) -> i32 {
 /// Thorns: returns damage to deal back to attacker when hit.
 
 pub fn get_thorns_damage(entity: &EntityState) -> i32 {
-    entity.status("Thorns")
+    entity.status(sk::THORNS)
 }
 
 /// Flame Barrier: returns damage to deal back to attacker when hit.
 
 pub fn get_flame_barrier_damage(entity: &EntityState) -> i32 {
-    entity.status("Flame Barrier")
+    entity.status(sk::FLAME_BARRIER)
 }
 
 /// Plated Armor: decrement by 1 when taking unblocked damage.
 
 pub fn decrement_plated_armor_on_hit(entity: &mut EntityState) {
-    let plated = entity.status("Plated Armor");
+    let plated = entity.status(sk::PLATED_ARMOR);
     if plated > 0 {
-        entity.set_status("Plated Armor", plated - 1);
+        entity.set_status(sk::PLATED_ARMOR, plated - 1);
     }
 }
 
 /// Buffer: returns true if damage should be negated (reduces buffer by 1).
 
 pub fn check_buffer(entity: &mut EntityState) -> bool {
-    let buffer = entity.status("Buffer");
+    let buffer = entity.status(sk::BUFFER);
     if buffer > 0 {
-        entity.set_status("Buffer", buffer - 1);
+        entity.set_status(sk::BUFFER, buffer - 1);
         return true;
     }
     false
@@ -298,22 +299,22 @@ pub fn check_buffer(entity: &mut EntityState) -> bool {
 /// Angry: gain Strength when taking damage.
 
 pub fn get_envenom_amount(entity: &EntityState) -> i32 {
-    entity.status("Envenom")
+    entity.status(sk::ENVENOM)
 }
 
 /// Curiosity: gain Strength when player plays a Power.
 
 pub fn apply_rupture(entity: &mut EntityState) {
-    let rupture = entity.status("Rupture");
+    let rupture = entity.status(sk::RUPTURE);
     if rupture > 0 {
-        entity.add_status("Strength", rupture);
+        entity.add_status(sk::STRENGTH, rupture);
     }
 }
 
 /// StaticDischarge: returns number of Lightning orbs to channel when taking damage.
 
 pub fn get_static_discharge(entity: &EntityState) -> i32 {
-    entity.status("Static Discharge")
+    entity.status(sk::STATIC_DISCHARGE)
 }
 
 // ---------------------------------------------------------------------------
@@ -323,13 +324,13 @@ pub fn get_static_discharge(entity: &EntityState) -> i32 {
 /// DarkEmbrace: returns cards to draw per exhaust.
 
 pub fn get_dark_embrace_draw(entity: &EntityState) -> i32 {
-    entity.status("Dark Embrace")
+    entity.status(sk::DARK_EMBRACE)
 }
 
 /// FeelNoPain: returns block to gain per exhaust.
 
 pub fn get_feel_no_pain_block(entity: &EntityState) -> i32 {
-    entity.status("Feel No Pain")
+    entity.status(sk::FEEL_NO_PAIN)
 }
 
 // ---------------------------------------------------------------------------
@@ -339,13 +340,13 @@ pub fn get_feel_no_pain_block(entity: &EntityState) -> i32 {
 /// Evolve: returns cards to draw when drawing a Status card.
 
 pub fn get_evolve_draw(entity: &EntityState) -> i32 {
-    entity.status("Evolve")
+    entity.status(sk::EVOLVE)
 }
 
 /// FireBreathing: returns damage to deal to all enemies when drawing Status/Curse.
 
 pub fn get_fire_breathing_damage(entity: &EntityState) -> i32 {
-    entity.status("Fire Breathing")
+    entity.status(sk::FIRE_BREATHING)
 }
 
 // ---------------------------------------------------------------------------
@@ -355,19 +356,19 @@ pub fn get_fire_breathing_damage(entity: &EntityState) -> i32 {
 /// MentalFortress: returns block to gain on ANY stance change.
 
 pub fn get_mental_fortress_block(entity: &EntityState) -> i32 {
-    entity.status("MentalFortress")
+    entity.status(sk::MENTAL_FORTRESS)
 }
 
 /// Rushdown: returns cards to draw when entering Wrath.
 
 pub fn get_rushdown_draw(entity: &EntityState) -> i32 {
-    entity.status("Rushdown")
+    entity.status(sk::RUSHDOWN)
 }
 
 /// Nirvana: returns block to gain when scrying.
 
 pub fn get_nirvana_block(entity: &EntityState) -> i32 {
-    entity.status("Nirvana")
+    entity.status(sk::NIRVANA)
 }
 
 // ---------------------------------------------------------------------------
@@ -377,13 +378,13 @@ pub fn get_nirvana_block(entity: &EntityState) -> i32 {
 /// Juggernaut: returns damage to deal to random enemy when gaining block.
 
 pub fn get_juggernaut_damage(entity: &EntityState) -> i32 {
-    entity.status("Juggernaut")
+    entity.status(sk::JUGGERNAUT)
 }
 
 /// WaveOfTheHand: returns Weak amount to apply when gaining block.
 
 pub fn get_wave_of_the_hand_weak(entity: &EntityState) -> i32 {
-    entity.status("Wave of the Hand")
+    entity.status(sk::WAVE_OF_THE_HAND)
 }
 
 // ---------------------------------------------------------------------------
@@ -397,7 +398,7 @@ pub fn modify_damage_give(entity: &EntityState, damage: f64, _is_attack: bool) -
     let mut d = damage;
 
     // DoubleDamage (Phantasmal Killer active)
-    if entity.status("DoubleDamage") > 0 {
+    if entity.status(sk::DOUBLE_DAMAGE) > 0 {
         d *= 2.0;
     }
 
@@ -411,7 +412,7 @@ pub fn modify_damage_give(entity: &EntityState, damage: f64, _is_attack: bool) -
 
 pub fn modify_block(entity: &EntityState, block: f64) -> f64 {
     // NoBlock: can't gain block
-    if entity.status("No Block") > 0 {
+    if entity.status(sk::NO_BLOCK) > 0 {
         return 0.0;
     }
 
@@ -440,7 +441,7 @@ pub fn modify_heal(entity: &EntityState, heal: i32) -> i32 {
 /// Reset Slow stacks at end of round.
 
 pub fn get_combust_effect(entity: &EntityState) -> (i32, i32) {
-    let combust = entity.status("Combust");
+    let combust = entity.status(sk::COMBUST);
     if combust > 0 {
         (1, combust)
     } else {
@@ -455,7 +456,7 @@ pub fn get_combust_effect(entity: &EntityState) -> (i32, i32) {
 /// Omega: returns damage to deal to ALL enemies at end of turn.
 
 pub fn get_omega_damage(entity: &EntityState) -> i32 {
-    entity.status("OmegaPower")
+    entity.status(sk::OMEGA)
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +466,7 @@ pub fn get_omega_damage(entity: &EntityState) -> i32 {
 /// LikeWater: returns block to gain if in Calm stance.
 
 pub fn get_like_water_block(entity: &EntityState) -> i32 {
-    entity.status("Like Water")
+    entity.status(sk::LIKE_WATER)
 }
 
 // ---------------------------------------------------------------------------
@@ -475,7 +476,7 @@ pub fn get_like_water_block(entity: &EntityState) -> i32 {
 /// Regeneration: heal and decrement. Returns HP to heal.
 
 pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
-    entity.set_status("Rage", 0);
+    entity.set_status(sk::RAGE, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -485,8 +486,8 @@ pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
 /// DoubleDamage: consumed after playing an Attack.
 
 pub fn consume_double_damage(entity: &mut EntityState) {
-    if entity.status("DoubleDamage") > 0 {
-        entity.set_status("DoubleDamage", 0);
+    if entity.status(sk::DOUBLE_DAMAGE) > 0 {
+        entity.set_status(sk::DOUBLE_DAMAGE, 0);
     }
 }
 
@@ -497,7 +498,7 @@ pub fn consume_double_damage(entity: &mut EntityState) {
 /// SporeCloud: returns Vulnerable amount to apply to player when this enemy dies.
 
 pub fn has_corruption(entity: &EntityState) -> bool {
-    entity.status("Corruption") > 0
+    entity.status(sk::CORRUPTION) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -507,7 +508,7 @@ pub fn has_corruption(entity: &EntityState) -> bool {
 /// Check if NoSkills prevents playing Skills.
 
 pub fn has_no_skills(entity: &EntityState) -> bool {
-    entity.status("NoSkillsPower") > 0
+    entity.status(sk::NO_SKILLS_POWER) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -517,7 +518,7 @@ pub fn has_no_skills(entity: &EntityState) -> bool {
 /// Check if Confusion is active.
 
 pub fn has_confusion(entity: &EntityState) -> bool {
-    entity.status("Confusion") > 0
+    entity.status(sk::CONFUSION) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -527,7 +528,7 @@ pub fn has_confusion(entity: &EntityState) -> bool {
 /// Check if NoDraw prevents card draw.
 
 pub fn has_no_draw(entity: &EntityState) -> bool {
-    entity.status("No Draw") > 0
+    entity.status(sk::NO_DRAW) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -537,7 +538,7 @@ pub fn has_no_draw(entity: &EntityState) -> bool {
 /// Check if stance changes are blocked.
 
 pub fn cannot_change_stance(entity: &EntityState) -> bool {
-    entity.status("CannotChangeStance") > 0
+    entity.status(sk::CANNOT_CHANGE_STANCE) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -547,9 +548,9 @@ pub fn cannot_change_stance(entity: &EntityState) -> bool {
 /// Check and consume FreeAttack. Returns true if active.
 
 pub fn consume_free_attack(entity: &mut EntityState) -> bool {
-    let fa = entity.status("FreeAttackPower");
+    let fa = entity.status(sk::FREE_ATTACK_POWER);
     if fa > 0 {
-        entity.set_status("FreeAttackPower", fa - 1);
+        entity.set_status(sk::FREE_ATTACK_POWER, fa - 1);
         return true;
     }
     false
@@ -562,13 +563,13 @@ pub fn consume_free_attack(entity: &mut EntityState) -> bool {
 /// Check if Equilibrium retains hand this turn.
 
 pub fn has_equilibrium(entity: &EntityState) -> bool {
-    entity.status("Equilibrium") > 0
+    entity.status(sk::EQUILIBRIUM) > 0
 }
 
 /// Decrement Equilibrium at end of turn.
 
 pub fn decrement_equilibrium(entity: &mut EntityState) {
-    decrement_status(entity, "Equilibrium");
+    decrement_status(entity, sk::EQUILIBRIUM);
 }
 
 // ---------------------------------------------------------------------------
@@ -578,7 +579,7 @@ pub fn decrement_equilibrium(entity: &mut EntityState) {
 /// Study: returns number of Insights to add to draw pile.
 
 pub fn get_study_insights(entity: &EntityState) -> i32 {
-    entity.status("Study")
+    entity.status(sk::STUDY)
 }
 
 // ---------------------------------------------------------------------------
@@ -588,7 +589,7 @@ pub fn get_study_insights(entity: &EntityState) -> i32 {
 /// LiveForever: returns block to gain at end of turn.
 
 pub fn get_live_forever_block(entity: &EntityState) -> i32 {
-    entity.status("LiveForever")
+    entity.status(sk::LIVE_FOREVER)
 }
 
 // ---------------------------------------------------------------------------
@@ -598,7 +599,7 @@ pub fn get_live_forever_block(entity: &EntityState) -> i32 {
 /// Accuracy: returns bonus damage for Shiv cards.
 
 pub fn get_accuracy_bonus(entity: &EntityState) -> i32 {
-    entity.status("Accuracy")
+    entity.status(sk::ACCURACY)
 }
 
 // ---------------------------------------------------------------------------
@@ -608,23 +609,23 @@ pub fn get_accuracy_bonus(entity: &EntityState) -> i32 {
 /// Get current Mark amount on entity.
 
 pub fn get_mark(entity: &EntityState) -> i32 {
-    entity.status("Mark")
+    entity.status(sk::MARK)
 }
 
 // ---------------------------------------------------------------------------
 // Deva Form — escalating energy
 // ---------------------------------------------------------------------------
 
-/// DevaForm energy tracking. Uses "DevaFormEnergy" for the escalating counter.
+/// DevaForm energy tracking. Uses sk::DEVA_FORM_ENERGY for the escalating counter.
 /// Returns energy to gain this turn.
 
 pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
-    let deva = entity.status("DevaForm");
+    let deva = entity.status(sk::DEVA_FORM);
     if deva <= 0 {
         return 0;
     }
-    let energy_counter = entity.status("DevaFormEnergy") + 1;
-    entity.set_status("DevaFormEnergy", energy_counter);
+    let energy_counter = entity.status(sk::DEVA_FORM_ENERGY) + 1;
+    entity.set_status(sk::DEVA_FORM_ENERGY, energy_counter);
     energy_counter
 }
 
@@ -636,7 +637,7 @@ pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
 /// Returns true if the debuff was applied, false if blocked by Artifact.
 
 pub fn should_die_end_of_turn(entity: &EntityState) -> bool {
-    entity.status("EndTurnDeath") > 0
+    entity.status(sk::END_TURN_DEATH) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -675,14 +676,14 @@ pub fn process_start_of_turn(entity: &mut EntityState) -> StartOfTurnResult {
     remove_flame_barrier(entity);
 
     // WraithForm: lose Dexterity
-    let wraith = entity.status("Wraith Form");
+    let wraith = entity.status(sk::WRAITH_FORM);
     if wraith > 0 {
         apply_wraith_form(entity);
         result.wraith_form_dex_loss = true;
     }
 
     // Demon Form
-    let demon = entity.status("Demon Form");
+    let demon = entity.status(sk::DEMON_FORM);
     if demon > 0 {
         apply_demon_form(entity);
         result.demon_form_strength = true;
@@ -752,10 +753,10 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
     let mut result = EndOfTurnResult::default();
 
     // Metallicize
-    result.metallicize_block = entity.status("Metallicize");
+    result.metallicize_block = entity.status(sk::METALLICIZE);
 
     // Plated Armor
-    result.plated_armor_block = entity.status("Plated Armor");
+    result.plated_armor_block = entity.status(sk::PLATED_ARMOR);
 
     // Omega
     result.omega_damage = get_omega_damage(entity);
