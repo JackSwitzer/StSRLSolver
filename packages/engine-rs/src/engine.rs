@@ -281,6 +281,7 @@ impl CombatEngine {
 
         // Discard hand — Runic Pyramid keeps entire hand, else respect Retain + Ethereal
         let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
+        let mut ethereal_exhausted = 0i32;
         if relics::has_runic_pyramid(&self.state) {
             // Runic Pyramid: keep all cards except ethereal (which exhaust)
             let hand = std::mem::take(&mut self.state.hand);
@@ -289,6 +290,7 @@ impl CombatEngine {
                 let card = self.card_registry.get_or_default(&card_id);
                 if card.effects.contains(&"ethereal") {
                     self.state.exhaust_pile.push(card_id);
+                    ethereal_exhausted += 1;
                 } else {
                     kept.push(card_id);
                 }
@@ -304,11 +306,17 @@ impl CombatEngine {
                     retained.push(card_id);
                 } else if card.effects.contains(&"ethereal") {
                     self.state.exhaust_pile.push(card_id);
+                    ethereal_exhausted += 1;
                 } else {
                     self.state.discard_pile.push(card_id);
                 }
             }
             self.state.hand = retained;
+        }
+
+        // Trigger exhaust hooks for ethereal cards exhausted at end of turn
+        for _ in 0..ethereal_exhausted {
+            self.trigger_on_exhaust();
         }
 
         // ---- End-of-turn power triggers ----
@@ -516,6 +524,85 @@ impl CombatEngine {
         // All on-card-play relic effects (Fan, Kunai, Shuriken, Nunchaku, etc.)
         relics::on_card_played(&mut self.state, card.card_type);
 
+        // ---- Power hooks on card play ----
+
+        // After Image: gain block per card played
+        let after_image_block = powers::get_after_image_block(&self.state.player);
+        if after_image_block > 0 {
+            self.state.player.block += after_image_block;
+        }
+
+        // A Thousand Cuts: deal damage to ALL living enemies per card played
+        let thousand_cuts_dmg = powers::get_thousand_cuts_damage(&self.state.player);
+        if thousand_cuts_dmg > 0 {
+            let living = self.state.living_enemy_indices();
+            for idx in living {
+                self.deal_damage_to_enemy(idx, thousand_cuts_dmg);
+            }
+        }
+
+        // Rage: gain block when playing an Attack
+        if card.card_type == CardType::Attack {
+            let rage_block = powers::get_rage_block(&self.state.player);
+            if rage_block > 0 {
+                self.state.player.block += rage_block;
+            }
+        }
+
+        // Beat of Death: enemies with this power deal damage to player per card played
+        for ei in 0..self.state.enemies.len() {
+            if self.state.enemies[ei].is_alive() {
+                let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
+                if bod > 0 {
+                    let intangible = self.state.player.status("Intangible") > 0;
+                    let has_torii = self.state.has_relic("Torii");
+                    let has_tungsten = self.state.has_relic("Tungsten Rod");
+                    let result = damage::calculate_incoming_damage(
+                        bod,
+                        self.state.player.block,
+                        self.state.stance == Stance::Wrath,
+                        self.state.player.is_vulnerable(),
+                        intangible,
+                        has_torii,
+                        has_tungsten,
+                    );
+                    self.state.player.block = result.block_remaining;
+                    if result.hp_loss > 0 {
+                        self.state.player.hp -= result.hp_loss;
+                        self.state.total_damage_taken += result.hp_loss;
+                    }
+                }
+            }
+        }
+
+        // Slow: increment counter on enemies with Slow power
+        for ei in 0..self.state.enemies.len() {
+            if self.state.enemies[ei].is_alive() {
+                powers::increment_slow(&mut self.state.enemies[ei].entity);
+            }
+        }
+
+        // TimeWarp: increment card counter; at 12 end turn + enemy gains Strength
+        for ei in 0..self.state.enemies.len() {
+            if self.state.enemies[ei].is_alive() {
+                let triggered = powers::increment_time_warp(&mut self.state.enemies[ei].entity);
+                if triggered {
+                    self.state.enemies[ei].entity.add_status("Strength", 2);
+                    self.end_turn();
+                    return;
+                }
+            }
+        }
+
+        // Panache: every 5 cards played, deal damage to all enemies
+        let panache_dmg = powers::check_panache(&mut self.state.player);
+        if panache_dmg > 0 {
+            let living = self.state.living_enemy_indices();
+            for idx in living {
+                self.deal_damage_to_enemy(idx, panache_dmg);
+            }
+        }
+
         // Consume NextAttackFree after playing an attack
         if card.card_type == CardType::Attack && self.state.player.status("NextAttackFree") > 0 {
             self.state.player.set_status("NextAttackFree", 0);
@@ -530,6 +617,7 @@ impl CombatEngine {
             // (already handled in execute_card_effects, don't double-add)
         } else if card.exhaust {
             self.state.exhaust_pile.push(card_id.clone());
+            self.trigger_on_exhaust();
         } else {
             self.state.discard_pile.push(card_id.clone());
         }
@@ -1116,6 +1204,80 @@ impl CombatEngine {
                 self.state.hand.push(card);
             }
         }
+    }
+
+    // =======================================================================
+    // Exhaust Hooks
+    // =======================================================================
+
+    /// Trigger all on-exhaust power and relic hooks.
+    pub fn trigger_on_exhaust(&mut self) {
+        // Feel No Pain: gain block per exhaust
+        let fnp = powers::get_feel_no_pain_block(&self.state.player);
+        if fnp > 0 {
+            self.state.player.block += fnp;
+        }
+
+        // Dark Embrace: draw 1 card per exhaust
+        let de = powers::get_dark_embrace_draw(&self.state.player);
+        if de > 0 {
+            self.draw_cards(de);
+        }
+
+        // Dead Branch (relic): add a random card to hand on exhaust
+        if relics::dead_branch_on_exhaust(&self.state) {
+            let temp_card = self.temp_card_id("Strike");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(temp_card);
+            }
+        }
+    }
+
+    // =======================================================================
+    // Orb Channel / Evoke (public API for card_effects)
+    // =======================================================================
+
+    /// Channel an orb. If slots are full, evokes the front orb first.
+    pub fn channel_orb(&mut self, orb_type: crate::orbs::OrbType) {
+        let focus = self.state.player.focus();
+        let evoke_effect = self.state.orb_slots.channel(orb_type, focus);
+        self.apply_evoke_effect(evoke_effect);
+    }
+
+    /// Evoke the front orb.
+    pub fn evoke_front_orb(&mut self) {
+        let focus = self.state.player.focus();
+        let effect = self.state.orb_slots.evoke_front(focus);
+        self.apply_evoke_effect(effect);
+    }
+
+    /// Evoke the front orb N times.
+    pub fn evoke_front_orb_n(&mut self, n: usize) {
+        let focus = self.state.player.focus();
+        let effects = self.state.orb_slots.evoke_front_n(n, focus);
+        for effect in effects {
+            self.apply_evoke_effect(effect);
+            if self.state.combat_over {
+                return;
+            }
+        }
+    }
+
+    /// Evoke all orbs.
+    pub fn evoke_all_orbs(&mut self) {
+        let focus = self.state.player.focus();
+        let effects = self.state.orb_slots.evoke_all(focus);
+        for effect in effects {
+            self.apply_evoke_effect(effect);
+            if self.state.combat_over {
+                return;
+            }
+        }
+    }
+
+    /// Initialize Defect orb slots (3 by default).
+    pub fn init_defect_orbs(&mut self, num_slots: usize) {
+        self.state.orb_slots = crate::orbs::OrbSlots::new(num_slots);
     }
 
     // =======================================================================
