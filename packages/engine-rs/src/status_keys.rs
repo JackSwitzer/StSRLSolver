@@ -171,6 +171,7 @@ pub mod sk {
     pub const THRESHOLD_REACHED: &str = "ThresholdReached";
     pub const SKILL_BURN: &str = "SkillBurn";
     pub const FORCEFIELD: &str = "Forcefield";
+    pub const FLIGHT: &str = "Flight";
     pub const BLUR: &str = "Blur";
     pub const LOCK_ON: &str = "Lock-On";
 

@@ -97,6 +97,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
         let hits = enemy.move_hits;
         for _ in 0..hits {
+            // Buffer: negate the entire hit and decrement Buffer
+            let buffer = engine.state.player.status(sk::BUFFER);
+            if buffer > 0 {
+                engine.state.player.set_status(sk::BUFFER, buffer - 1);
+                continue;
+            }
+
             let result = damage::calculate_incoming_damage(
                 per_hit_base,
                 engine.state.player.block,
@@ -118,6 +125,36 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     let new_plated = plated - 1;
                     engine.state.player.set_status(sk::PLATED_ARMOR, new_plated);
                 }
+
+                // Static Discharge: channel Lightning when taking unblocked damage
+                let static_discharge = engine.state.player.status(sk::STATIC_DISCHARGE);
+                for _ in 0..static_discharge {
+                    let focus = engine.state.player.focus();
+                    let evoke_effect = engine.state.orb_slots.channel(
+                        crate::orbs::OrbType::Lightning,
+                        focus,
+                    );
+                    match evoke_effect {
+                        crate::orbs::EvokeEffect::LightningDamage(dmg) => {
+                            let living = engine.state.living_enemy_indices();
+                            if let Some(&target) = living.first() {
+                                let e = &mut engine.state.enemies[target];
+                                let blocked_e = e.entity.block.min(dmg);
+                                let hp_dmg_e = dmg - blocked_e;
+                                e.entity.block -= blocked_e;
+                                e.entity.hp -= hp_dmg_e;
+                                engine.state.total_damage_dealt += hp_dmg_e;
+                                if e.entity.hp <= 0 {
+                                    e.entity.hp = 0;
+                                }
+                            }
+                        }
+                        crate::orbs::EvokeEffect::FrostBlock(blk) => {
+                            engine.state.player.block += blk;
+                        }
+                        _ => {}
+                    }
+                }
             }
 
             if engine.state.player.hp <= 0 {
@@ -133,6 +170,40 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
             if engine.state.player.is_dead() {
                 return;
+            }
+        }
+
+        // Thorns: deal Thorns damage back to the attacking enemy
+        let thorns = engine.state.player.status(sk::THORNS);
+        if thorns > 0 {
+            let e = &mut engine.state.enemies[enemy_idx];
+            let blocked_t = e.entity.block.min(thorns);
+            let hp_dmg_t = thorns - blocked_t;
+            e.entity.block -= blocked_t;
+            e.entity.hp -= hp_dmg_t;
+            engine.state.total_damage_dealt += hp_dmg_t;
+            if e.entity.hp <= 0 {
+                e.entity.hp = 0;
+            }
+            if hp_dmg_t > 0 {
+                on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
+            }
+        }
+
+        // Flame Barrier: deal FlameBarrier damage back to the attacking enemy
+        let flame_barrier = engine.state.player.status(sk::FLAME_BARRIER);
+        if flame_barrier > 0 {
+            let e = &mut engine.state.enemies[enemy_idx];
+            let blocked_f = e.entity.block.min(flame_barrier);
+            let hp_dmg_f = flame_barrier - blocked_f;
+            e.entity.block -= blocked_f;
+            e.entity.hp -= hp_dmg_f;
+            engine.state.total_damage_dealt += hp_dmg_f;
+            if e.entity.hp <= 0 {
+                e.entity.hp = 0;
+            }
+            if hp_dmg_f > 0 {
+                on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
             }
         }
     }
@@ -377,6 +448,14 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         }
         _ => {}
     }
+
+    // Angry: enemy gains Strength when damaged
+    let angry = engine.state.enemies[enemy_idx].entity.status(sk::ANGRY);
+    if angry > 0 {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sk::STRENGTH, angry);
+    }
 }
 
 /// Handle Time Eater card count and other enemy on-card-played triggers.
@@ -386,7 +465,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
 /// Time Eater ends the player's turn and gains Strength.
 ///
 /// Returns `true` if the player's turn should end (Time Warp triggered).
-pub fn on_player_card_played(engine: &mut CombatEngine) -> bool {
+pub fn on_player_card_played(engine: &mut CombatEngine, card_type: crate::cards::CardType) -> bool {
     let mut end_turn = false;
 
     for i in 0..engine.state.enemies.len() {
@@ -398,6 +477,16 @@ pub fn on_player_card_played(engine: &mut CombatEngine) -> bool {
         if powers::increment_time_warp(&mut engine.state.enemies[i].entity) {
             engine.state.enemies[i].entity.add_status(sk::STRENGTH, 2);
             end_turn = true;
+        }
+
+        // Curiosity: enemy gains Strength when player plays a Power card
+        if card_type == crate::cards::CardType::Power {
+            let curiosity = engine.state.enemies[i].entity.status(sk::CURIOSITY);
+            if curiosity > 0 {
+                engine.state.enemies[i]
+                    .entity
+                    .add_status(sk::STRENGTH, curiosity);
+            }
         }
     }
 
