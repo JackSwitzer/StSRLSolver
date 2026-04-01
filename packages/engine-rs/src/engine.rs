@@ -515,6 +515,14 @@ impl CombatEngine {
             self.state.attacks_played_this_turn += 1;
         }
 
+        // ---- Java onUseCard hooks (fire BEFORE card effects resolve) ----
+
+        // After Image: gain block per card played (Java: onUseCard)
+        let after_image_block = powers::get_after_image_block(&self.state.player);
+        if after_image_block > 0 {
+            self.state.player.block += after_image_block;
+        }
+
         // Execute effects (last_card_type refers to card played BEFORE this one)
         crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
 
@@ -552,13 +560,8 @@ impl CombatEngine {
         // All on-card-play relic effects (Fan, Kunai, Shuriken, Nunchaku, etc.)
         relics::on_card_played(&mut self.state, card.card_type);
 
-        // ---- Power hooks on card play ----
-
-        // After Image: gain block per card played
-        let after_image_block = powers::get_after_image_block(&self.state.player);
-        if after_image_block > 0 {
-            self.state.player.block += after_image_block;
-        }
+        // ---- Power hooks on card play (AFTER effects) ----
+        // Note: After Image and Beat of Death fire BEFORE effects (Java onUseCard order)
 
         // A Thousand Cuts: deal damage to ALL living enemies per card played
         let thousand_cuts_dmg = powers::get_thousand_cuts_damage(&self.state.player);
@@ -577,7 +580,7 @@ impl CombatEngine {
             }
         }
 
-        // Beat of Death: enemies with this power deal damage to player per card played
+        // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
         for ei in 0..self.state.enemies.len() {
             if self.state.enemies[ei].is_alive() {
                 let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
