@@ -603,8 +603,8 @@ mod defect_card_java_parity_tests {
     defect_test!(process_start_of_turn_handles_power_helpers, {
         let mut entity = crate::state::EntityState::new(50, 50);
         entity.set_status("Energized", 2);
-        entity.set_status("Draw Card", 1);
-        entity.set_status("Next Turn Block", 4);
+        entity.set_status("DrawCard", 1);
+        entity.set_status("NextTurnBlock", 4);
         entity.set_status("BattleHymn", 3);
         entity.set_status("Devotion", 2);
         entity.set_status("Draw", 1);
@@ -620,9 +620,9 @@ mod defect_card_java_parity_tests {
     defect_test!(process_end_of_turn_handles_power_helpers, {
         let mut entity = crate::state::EntityState::new(50, 50);
         entity.set_status("Metallicize", 4);
-        entity.set_status("Plated Armor", 3);
-        entity.set_status("OmegaPower", 5);
-        entity.set_status("Like Water", 2);
+        entity.set_status("PlatedArmor", 3);
+        entity.set_status("Omega", 5);
+        entity.set_status("LikeWater", 2);
         let result = process_end_of_turn(&mut entity, true);
         assert_eq!(result.metallicize_block, 4);
         assert_eq!(result.plated_armor_block, 3);

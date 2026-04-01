@@ -199,7 +199,7 @@ fn card_effect_vector(card_id: &str, registry: &CardRegistry) -> [f32; 18] {
 const POWER_IDS: &[&str] = &[
     "Strength", "Dexterity", "Vulnerable", "Weakened", "Frail",
     "MentalFortress", "Rushdown", "Vigor", "Mantra",
-    "Plated Armor", "Metallicize", "Thorns", "Ritual",
+    "PlatedArmor", "Metallicize", "Thorns", "Ritual",
     "Retain", "Artifact", "Intangible", "Barricade",
     "Rage", "Anger", "Regeneration",
 ];

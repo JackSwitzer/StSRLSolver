@@ -225,7 +225,7 @@ pub fn apply_potion_scaled(
 
         "EssenceOfSteel" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Plated Armor", potency);
+            state.player.add_status("PlatedArmor", potency);
             true
         }
 
@@ -548,7 +548,7 @@ mod tests {
     fn test_essence_of_steel() {
         let mut state = make_test_state();
         apply_potion(&mut state, "EssenceOfSteel", -1);
-        assert_eq!(state.player.status("Plated Armor"), 4);
+        assert_eq!(state.player.status("PlatedArmor"), 4);
     }
 
     #[test]

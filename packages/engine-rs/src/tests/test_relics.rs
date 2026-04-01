@@ -41,7 +41,7 @@ mod relic_tests {
 
     // ---- Thread and Needle ----
     #[test] fn thread_needle_plated_4() {
-        assert_eq!(state_with("Thread and Needle").player.status("Plated Armor"), 4);
+        assert_eq!(state_with("Thread and Needle").player.status("PlatedArmor"), 4);
     }
 
     // ---- Anchor ----

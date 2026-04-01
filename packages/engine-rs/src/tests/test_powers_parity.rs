@@ -53,7 +53,7 @@ mod power_java_parity_tests {
         assert_eq!(PowerId::Rushdown.key(), "Rushdown");
         assert_eq!(PowerId::MentalFortress.key(), "MentalFortress");
         assert_eq!(PowerId::DevaForm.key(), "DevaForm");
-        assert_eq!(PowerId::Omega.key(), "OmegaPower");
+        assert_eq!(PowerId::Omega.key(), "Omega");
         assert_eq!(PowerId::Vigor.key(), "Vigor");
     }
 
@@ -65,36 +65,36 @@ mod power_java_parity_tests {
             (PowerId::Artifact, "Artifact"),
             (PowerId::Barricade, "Barricade"),
             (PowerId::Metallicize, "Metallicize"),
-            (PowerId::PlatedArmor, "Plated Armor"),
+            (PowerId::PlatedArmor, "PlatedArmor"),
             (PowerId::Ritual, "Ritual"),
             (PowerId::Curiosity, "Curiosity"),
-            (PowerId::ModeShift, "Mode Shift"),
+            (PowerId::ModeShift, "ModeShift"),
             (PowerId::Invincible, "Invincible"),
             (PowerId::Split, "Split"),
-            (PowerId::TimeWarp, "Time Warp"),
-            (PowerId::SporeCloud, "Spore Cloud"),
-            (PowerId::DemonForm, "Demon Form"),
-            (PowerId::FeelNoPain, "Feel No Pain"),
-            (PowerId::FireBreathing, "Fire Breathing"),
+            (PowerId::TimeWarp, "TimeWarp"),
+            (PowerId::SporeCloud, "SporeCloud"),
+            (PowerId::DemonForm, "DemonForm"),
+            (PowerId::FeelNoPain, "FeelNoPain"),
+            (PowerId::FireBreathing, "FireBreathing"),
             (PowerId::Rage, "Rage"),
-            (PowerId::NoxiousFumes, "Noxious Fumes"),
-            (PowerId::AfterImage, "After Image"),
+            (PowerId::NoxiousFumes, "NoxiousFumes"),
+            (PowerId::AfterImage, "AfterImage"),
             (PowerId::Focus, "Focus"),
             (PowerId::Loop, "Loop"),
             (PowerId::BattleHymn, "BattleHymn"),
             (PowerId::Establishment, "Establishment"),
-            (PowerId::LikeWater, "Like Water"),
+            (PowerId::LikeWater, "LikeWater"),
             (PowerId::Nirvana, "Nirvana"),
-            (PowerId::Omega, "OmegaPower"),
-            (PowerId::WaveOfTheHand, "Wave of the Hand"),
+            (PowerId::Omega, "Omega"),
+            (PowerId::WaveOfTheHand, "WaveOfTheHand"),
             (PowerId::DevaForm, "DevaForm"),
             (PowerId::EndTurnDeath, "EndTurnDeath"),
             (PowerId::EnergyDown, "EnergyDown"),
             (PowerId::CannotChangeStance, "CannotChangeStance"),
             (PowerId::Blur, "Blur"),
             (PowerId::DoubleDamage, "DoubleDamage"),
-            (PowerId::WraithForm, "Wraith Form"),
-            (PowerId::BeatOfDeath, "Beat of Death"),
+            (PowerId::WraithForm, "WraithForm"),
+            (PowerId::BeatOfDeath, "BeatOfDeath"),
             (PowerId::Growth, "Growth"),
             (PowerId::Forcefield, "Forcefield"),
             (PowerId::TheBomb, "TheBomb"),
@@ -114,19 +114,19 @@ mod power_java_parity_tests {
     assert_power_def!(intangible_def_matches_java, "Intangible", power_type => PowerType::Buff, is_turn_based => true, on_turn_end => true, modify_damage_receive => true);
     assert_power_def!(barricade_def_matches_java, "Barricade", power_type => PowerType::Buff, stackable => false);
     assert_power_def!(metallicize_def_matches_java, "Metallicize", power_type => PowerType::Buff, on_turn_end => true);
-    assert_power_def!(plated_armor_def_matches_java, "Plated Armor", power_type => PowerType::Buff, on_turn_end => true, on_attacked => true);
+    assert_power_def!(plated_armor_def_matches_java, "PlatedArmor", power_type => PowerType::Buff, on_turn_end => true, on_attacked => true);
     assert_power_def!(ritual_def_matches_java, "Ritual", power_type => PowerType::Buff, on_turn_end => true);
     assert_power_def!(double_damage_def_matches_java, "DoubleDamage", power_type => PowerType::Buff, modify_damage_give => true);
     assert_power_def!(rage_def_matches_java, "Rage", power_type => PowerType::Buff, on_use_card => true, on_turn_end => true);
-    assert_power_def!(noxious_fumes_def_matches_java, "Noxious Fumes", power_type => PowerType::Buff, on_turn_start_post_draw => true);
-    assert_power_def!(after_image_def_matches_java, "After Image", power_type => PowerType::Buff, on_use_card => true);
+    assert_power_def!(noxious_fumes_def_matches_java, "NoxiousFumes", power_type => PowerType::Buff, on_turn_start_post_draw => true);
+    assert_power_def!(after_image_def_matches_java, "AfterImage", power_type => PowerType::Buff, on_use_card => true);
     assert_power_def!(accuracy_def_matches_java, "Accuracy", power_type => PowerType::Buff, modify_damage_give => true);
-    assert_power_def!(phantasmal_killer_def_matches_java, "Phantasmal Killer", power_type => PowerType::Buff, on_turn_start_post_draw => true, modify_damage_give => true);
+    assert_power_def!(phantasmal_killer_def_matches_java, "PhantasmalKiller", power_type => PowerType::Buff, on_turn_start_post_draw => true, modify_damage_give => true);
     assert_power_def!(focus_def_matches_java, "Focus", power_type => PowerType::Buff, can_go_negative => true);
     assert_power_def!(lock_on_def_matches_java, "Lock-On", power_type => PowerType::Debuff, is_turn_based => true, on_end_of_round => true);
     assert_power_def!(storm_def_matches_java, "Storm", power_type => PowerType::Buff, on_use_card => true);
     assert_power_def!(heatsink_def_matches_java, "Heatsink", power_type => PowerType::Buff, on_use_card => true);
-    assert_power_def!(static_discharge_def_matches_java, "Static Discharge", power_type => PowerType::Buff, on_hp_lost => true);
+    assert_power_def!(static_discharge_def_matches_java, "StaticDischarge", power_type => PowerType::Buff, on_hp_lost => true);
     assert_power_def!(loop_def_matches_java, "Loop", power_type => PowerType::Buff, on_turn_start => true);
     assert_power_def!(equilibrium_def_matches_java, "Equilibrium", power_type => PowerType::Buff, on_turn_end => true);
     assert_power_def!(rushdown_def_matches_java, "Rushdown", power_type => PowerType::Buff, on_change_stance => true);
@@ -134,11 +134,11 @@ mod power_java_parity_tests {
     assert_power_def!(battle_hymn_def_matches_java, "BattleHymn", power_type => PowerType::Buff, on_turn_start => true);
     assert_power_def!(devotion_def_matches_java, "Devotion", power_type => PowerType::Buff, on_turn_start_post_draw => true);
     assert_power_def!(establishment_def_matches_java, "Establishment", power_type => PowerType::Buff, on_turn_end => true);
-    assert_power_def!(like_water_def_matches_java, "Like Water", power_type => PowerType::Buff, on_turn_end => true);
+    assert_power_def!(like_water_def_matches_java, "LikeWater", power_type => PowerType::Buff, on_turn_end => true);
     assert_power_def!(nirvana_def_matches_java, "Nirvana", power_type => PowerType::Buff, on_scry => true);
-    assert_power_def!(omega_def_matches_java, "OmegaPower", power_type => PowerType::Buff, on_turn_end => true);
+    assert_power_def!(omega_def_matches_java, "Omega", power_type => PowerType::Buff, on_turn_end => true);
     assert_power_def!(study_def_matches_java, "Study", power_type => PowerType::Buff, on_turn_end => true);
-    assert_power_def!(wave_of_the_hand_def_matches_java, "Wave of the Hand", power_type => PowerType::Buff, on_gained_block => true);
+    assert_power_def!(wave_of_the_hand_def_matches_java, "WaveOfTheHand", power_type => PowerType::Buff, on_gained_block => true);
     assert_power_def!(vigor_def_matches_java, "Vigor", power_type => PowerType::Buff);
     assert_power_def!(deva_form_def_matches_java, "DevaForm", power_type => PowerType::Buff, on_energy_recharge => true);
     assert_power_def!(live_forever_def_matches_java, "LiveForever", power_type => PowerType::Buff, on_turn_end => true);
@@ -149,17 +149,17 @@ mod power_java_parity_tests {
     assert_power_def!(cannot_change_stance_def_matches_java, "CannotChangeStance", power_type => PowerType::Debuff);
     assert_power_def!(mark_def_matches_java, "Mark", power_type => PowerType::Debuff);
     assert_power_def!(blur_def_matches_java, "Blur", power_type => PowerType::Buff, on_end_of_round => true);
-    assert_power_def!(draw_card_next_turn_def_matches_java, "Draw Card", power_type => PowerType::Buff);
+    assert_power_def!(draw_card_next_turn_def_matches_java, "DrawCard", power_type => PowerType::Buff);
     assert_power_def!(draw_power_def_matches_java, "Draw", power_type => PowerType::Buff);
     assert_power_def!(energized_def_matches_java, "Energized", power_type => PowerType::Buff);
-    assert_power_def!(next_turn_block_def_matches_java, "Next Turn Block", power_type => PowerType::Buff);
-    assert_power_def!(no_block_def_matches_java, "No Block", power_type => PowerType::Debuff, on_end_of_round => true);
-    assert_power_def!(no_draw_def_matches_java, "No Draw", power_type => PowerType::Debuff);
+    assert_power_def!(next_turn_block_def_matches_java, "NextTurnBlock", power_type => PowerType::Buff);
+    assert_power_def!(no_block_def_matches_java, "NoBlock", power_type => PowerType::Debuff, on_end_of_round => true);
+    assert_power_def!(no_draw_def_matches_java, "NoDraw", power_type => PowerType::Debuff);
     assert_power_def!(confusion_def_matches_java, "Confusion", power_type => PowerType::Debuff);
     assert_power_def!(panache_def_matches_java, "Panache", power_type => PowerType::Buff);
     assert_power_def!(burst_def_matches_java, "Burst", power_type => PowerType::Buff);
-    assert_power_def!(wraith_form_def_matches_java, "Wraith Form", power_type => PowerType::Debuff, can_go_negative => true, on_turn_end => true);
-    assert_power_def!(beat_of_death_def_matches_java, "Beat of Death", power_type => PowerType::Buff, on_after_use_card => true);
+    assert_power_def!(wraith_form_def_matches_java, "WraithForm", power_type => PowerType::Debuff, can_go_negative => true, on_turn_end => true);
+    assert_power_def!(beat_of_death_def_matches_java, "BeatOfDeath", power_type => PowerType::Buff, on_after_use_card => true);
     assert_power_def!(growth_def_matches_java, "Growth", power_type => PowerType::Buff, on_end_of_round => true);
     assert_power_def!(magnetism_def_matches_java, "Magnetism", power_type => PowerType::Buff, on_turn_start_post_draw => true);
     assert_power_def!(skill_burn_def_matches_java, "SkillBurn", power_type => PowerType::Buff, on_after_use_card => true);
@@ -238,10 +238,10 @@ mod power_java_parity_tests {
     #[test]
     fn power_amount_getters_match_java() {
         let mut e = entity();
-        e.set_status("After Image", 2);
+        e.set_status("AfterImage", 2);
         e.set_status("Rage", 3);
-        e.set_status("A Thousand Cuts", 4);
-        e.set_status("Noxious Fumes", 5);
+        e.set_status("ThousandCuts", 4);
+        e.set_status("NoxiousFumes", 5);
         e.set_status("BattleHymn", 1);
         e.set_status("Devotion", 2);
         e.set_status("Rushdown", 2);
@@ -251,15 +251,15 @@ mod power_java_parity_tests {
         e.set_status("LiveForever", 4);
         e.set_status("Accuracy", 3);
         e.set_status("Mark", 7);
-        e.set_status("Dark Embrace", 1);
-        e.set_status("Feel No Pain", 5);
+        e.set_status("DarkEmbrace", 1);
+        e.set_status("FeelNoPain", 5);
         e.set_status("Evolve", 2);
-        e.set_status("Fire Breathing", 6);
+        e.set_status("FireBreathing", 6);
         e.set_status("Heatsink", 3);
         e.set_status("SkillBurn", 9);
         e.set_status("Envenom", 4);
         e.set_status("Juggernaut", 6);
-        e.set_status("Wave of the Hand", 1);
+        e.set_status("WaveOfTheHand", 1);
 
         assert_eq!(get_after_image_block(&e), 2);
         assert_eq!(get_rage_block(&e), 3);
@@ -293,19 +293,19 @@ mod power_java_parity_tests {
         e.set_status("EnergyDown", 2);
         e.set_status("BattleHymn", 1);
         e.set_status("Devotion", 4);
-        e.set_status("Infinite Blades", 1);
+        e.set_status("InfiniteBlades", 1);
         e.set_status("Storm", 1);
         e.set_status("Heatsink", 2);
-        e.set_status("Static Discharge", 3);
+        e.set_status("StaticDischarge", 3);
         e.set_status("Focus", 5);
         e.set_status("Lock-On", 1);
         e.set_status("Magnetism", 6);
         e.set_status("Regrow", 7);
-        e.set_status("Spore Cloud", 2);
-        e.set_status("Beat of Death", 9);
+        e.set_status("SporeCloud", 2);
+        e.set_status("BeatOfDeath", 9);
         e.set_status("Forcefield", 4);
         e.set_status("SkillBurn", 8);
-        e.set_status("Noxious Fumes", 3);
+        e.set_status("NoxiousFumes", 3);
         e.set_status("Envenom", 2);
         e.set_status("LiveForever", 6);
         e.set_status("Study", 4);
@@ -339,11 +339,11 @@ mod power_java_parity_tests {
         e.set_status("Nirvana", 3);
         e.set_status("Rushdown", 2);
         e.set_status("MentalFortress", 4);
-        e.set_status("Like Water", 5);
-        e.set_status("Wave of the Hand", 1);
+        e.set_status("LikeWater", 5);
+        e.set_status("WaveOfTheHand", 1);
         e.set_status("Establishment", 1);
         e.set_status("Vigor", 6);
-        e.set_status("OmegaPower", 18);
+        e.set_status("Omega", 18);
 
         assert_eq!(get_nirvana_block(&e), 3);
         assert_eq!(get_rushdown_draw(&e), 2);
@@ -360,23 +360,23 @@ mod power_java_parity_tests {
         e.set_status("Dexterity", 4);
         e.set_status("LoseStrength", 2);
         e.set_status("LoseDexterity", 1);
-        e.set_status("Wraith Form", 2);
-        e.set_status("Demon Form", 3);
+        e.set_status("WraithForm", 2);
+        e.set_status("DemonForm", 3);
         e.set_status("Berserk", 4);
-        e.set_status("Noxious Fumes", 2);
+        e.set_status("NoxiousFumes", 2);
         e.set_status("Brutality", 1);
-        e.set_status("Draw Card", 3);
-        e.set_status("Next Turn Block", 7);
+        e.set_status("DrawCard", 3);
+        e.set_status("NextTurnBlock", 7);
         e.set_status("Energized", 2);
         e.set_status("EnergyDown", 1);
         e.set_status("WrathNextTurn", 1);
         e.set_status("BattleHymn", 2);
         e.set_status("Devotion", 3);
-        e.set_status("Infinite Blades", 1);
+        e.set_status("InfiniteBlades", 1);
         e.set_status("Draw", 4);
         e.set_status("DevaForm", 1);
         e.set_status("DevaFormEnergy", 0);
-        e.set_status("Flame Barrier", 2);
+        e.set_status("FlameBarrier", 2);
 
         let result = process_start_of_turn(&mut e);
 
@@ -397,9 +397,9 @@ mod power_java_parity_tests {
         assert_eq!(e.dexterity(), 1);
         assert_eq!(e.status("LoseStrength"), 0);
         assert_eq!(e.status("LoseDexterity"), 0);
-        assert_eq!(e.status("Flame Barrier"), 0);
-        assert_eq!(e.status("Draw Card"), 0);
-        assert_eq!(e.status("Next Turn Block"), 0);
+        assert_eq!(e.status("FlameBarrier"), 0);
+        assert_eq!(e.status("DrawCard"), 0);
+        assert_eq!(e.status("NextTurnBlock"), 0);
         assert_eq!(e.status("Energized"), 0);
         assert_eq!(e.status("EnergyDown"), 1);
         assert_eq!(e.status("WrathNextTurn"), 0);
@@ -410,9 +410,9 @@ mod power_java_parity_tests {
     fn end_of_turn_dispatch_matches_java() {
         let mut e = entity();
         e.set_status("Metallicize", 4);
-        e.set_status("Plated Armor", 6);
-        e.set_status("OmegaPower", 9);
-        e.set_status("Like Water", 5);
+        e.set_status("PlatedArmor", 6);
+        e.set_status("Omega", 9);
+        e.set_status("LikeWater", 5);
         e.set_status("Combust", 5);
         e.set_status("Regeneration", 7);
         e.set_status("LiveForever", 4);
@@ -483,7 +483,7 @@ mod power_java_parity_tests {
         assert!(!cannot_change_stance(&e));
 
         e.set_status("NoSkillsPower", 1);
-        e.set_status("No Draw", 1);
+        e.set_status("NoDraw", 1);
         e.set_status("Confusion", 1);
         e.set_status("CannotChangeStance", 1);
         assert!(has_no_skills(&e));
@@ -511,12 +511,12 @@ mod power_java_parity_tests {
         apply_metallicize(&mut e);
         assert_eq!(e.block, 24);
 
-        e.set_status("Plated Armor", 6);
+        e.set_status("PlatedArmor", 6);
         apply_plated_armor(&mut e);
         assert_eq!(e.block, 30);
 
         e.set_status("Thorns", 3);
-        e.set_status("Flame Barrier", 5);
+        e.set_status("FlameBarrier", 5);
         e.set_status("Buffer", 1);
         assert_eq!(get_thorns_damage(&e), 3);
         assert_eq!(get_flame_barrier_damage(&e), 5);
@@ -527,7 +527,7 @@ mod power_java_parity_tests {
         assert_eq!(apply_invincible_cap(&mut e, 20), 12);
         assert_eq!(e.status("Invincible"), 0);
 
-        e.set_status("Mode Shift", 20);
+        e.set_status("ModeShift", 20);
         assert!(!apply_mode_shift_damage(&mut e, 10));
         assert!(apply_mode_shift_damage(&mut e, 10));
     }
@@ -538,12 +538,12 @@ mod power_java_parity_tests {
         e.set_status("Ritual", 3);
         e.set_status("GenericStrengthUp", 2);
         e.set_status("Regeneration", 7);
-        e.set_status("Beat of Death", 2);
-        e.set_status("Static Discharge", 3);
-        e.set_status("Spore Cloud", 2);
+        e.set_status("BeatOfDeath", 2);
+        e.set_status("StaticDischarge", 3);
+        e.set_status("SporeCloud", 2);
         e.set_status("Slow", 5);
         e.set_status("TimeWarpActive", 1);
-        e.set_status("Time Warp", 11);
+        e.set_status("TimeWarp", 11);
         e.set_status("Forcefield", 2);
 
         apply_ritual(&mut e);
@@ -560,7 +560,7 @@ mod power_java_parity_tests {
         increment_slow(&mut e);
         assert_eq!(e.status("Slow"), 6);
         assert!(increment_time_warp(&mut e));
-        assert_eq!(e.status("Time Warp"), 0);
+        assert_eq!(e.status("TimeWarp"), 0);
 
         assert!(check_forcefield(&mut e));
         assert_eq!(e.status("Forcefield"), 1);
@@ -569,24 +569,24 @@ mod power_java_parity_tests {
     #[test]
     fn consume_helpers_match_java() {
         let mut e = entity();
-        e.set_status("Draw Card", 2);
-        e.set_status("Next Turn Block", 4);
+        e.set_status("DrawCard", 2);
+        e.set_status("NextTurnBlock", 4);
         e.set_status("Energized", 3);
         e.set_status("FreeAttackPower", 1);
-        e.set_status("Double Tap", 1);
+        e.set_status("DoubleTap", 1);
         e.set_status("Burst", 1);
         e.set_status("Equilibrium", 2);
 
         assert_eq!(consume_draw_card_next_turn(&mut e), 2);
-        assert_eq!(e.status("Draw Card"), 0);
+        assert_eq!(e.status("DrawCard"), 0);
         assert_eq!(consume_next_turn_block(&mut e), 4);
-        assert_eq!(e.status("Next Turn Block"), 0);
+        assert_eq!(e.status("NextTurnBlock"), 0);
         assert_eq!(consume_energized(&mut e), 3);
         assert_eq!(e.status("Energized"), 0);
         assert!(consume_free_attack(&mut e));
         assert_eq!(e.status("FreeAttackPower"), 0);
         assert!(consume_double_tap(&mut e));
-        assert_eq!(e.status("Double Tap"), 0);
+        assert_eq!(e.status("DoubleTap"), 0);
         assert!(consume_burst(&mut e));
         assert_eq!(e.status("Burst"), 0);
         assert!(has_equilibrium(&e));
@@ -598,7 +598,7 @@ mod power_java_parity_tests {
     fn damage_and_heal_modifiers_match_java() {
         let mut e = entity();
         e.set_status("DoubleDamage", 1);
-        e.set_status("No Block", 1);
+        e.set_status("NoBlock", 1);
         e.set_status("Slow", 2);
         e.set_status("Intangible", 1);
 
@@ -724,9 +724,9 @@ mod power_java_parity_tests {
         // Beat of Death: deals damage after each card played
         // Clear all accumulated block and set up clean state
         engine.state.player.block = 0;
-        engine.state.player.set_status("After Image", 0); // disable to isolate Beat of Death
+        engine.state.player.set_status("AfterImage", 0); // disable to isolate Beat of Death
         engine.state.enemies[0].entity.hp = 200;
-        engine.state.enemies[0].entity.set_status("Beat of Death", 2);
+        engine.state.enemies[0].entity.set_status("BeatOfDeath", 2);
         let hp_before = engine.state.player.hp;
         ensure_in_hand(&mut engine, "Strike_P");
         assert!(play_on_enemy(&mut engine, "Strike_P", 0));
@@ -737,8 +737,8 @@ mod power_java_parity_tests {
     #[test]
     fn exhaust_powers_match_java_on_engine() {
         let mut engine = make_engine(&["Strike_P"; 12], 100, 0);
-        engine.state.player.set_status("Feel No Pain", 2);
-        engine.state.player.set_status("Dark Embrace", 1);
+        engine.state.player.set_status("FeelNoPain", 2);
+        engine.state.player.set_status("DarkEmbrace", 1);
         ensure_in_hand(&mut engine, "Miracle");
         let hand_before = engine.state.hand.len();
         assert!(play_self(&mut engine, "Miracle"));
@@ -752,11 +752,11 @@ mod power_java_parity_tests {
         let mut engine = make_engine(&["Strike_P"; 12], 100, 0);
         ensure_in_hand(&mut engine, "WaveOfTheHand");
         assert!(play_self(&mut engine, "WaveOfTheHand"));
-        assert_eq!(engine.state.player.status("Wave of the Hand"), 1);
+        assert_eq!(engine.state.player.status("WaveOfTheHand"), 1);
 
         ensure_in_hand(&mut engine, "WaveOfTheHand+");
         assert!(play_self(&mut engine, "WaveOfTheHand+"));
-        assert_eq!(engine.state.player.status("Wave of the Hand"), 3);
+        assert_eq!(engine.state.player.status("WaveOfTheHand"), 3);
     }
 
     #[test]
@@ -779,15 +779,15 @@ mod power_java_parity_tests {
     fn status_restrictions_and_misc_helpers_match_java() {
         let mut e = entity();
         e.set_status("NoSkillsPower", 1);
-        e.set_status("No Draw", 1);
+        e.set_status("NoDraw", 1);
         e.set_status("Confusion", 1);
         e.set_status("CannotChangeStance", 1);
         e.set_status("FreeAttackPower", 1);
         e.set_status("Equilibrium", 2);
-        e.set_status("Draw Card", 2);
-        e.set_status("Next Turn Block", 4);
+        e.set_status("DrawCard", 2);
+        e.set_status("NextTurnBlock", 4);
         e.set_status("Energized", 3);
-        e.set_status("Double Tap", 1);
+        e.set_status("DoubleTap", 1);
         e.set_status("Burst", 1);
         e.set_status("EnergyDown", 1);
 
@@ -876,11 +876,11 @@ mod power_java_parity_tests {
         assert_eq!(apply_invincible_cap(&mut e, 2), 2);
         assert_eq!(e.status("Invincible"), 3);
 
-        e.set_status("Mode Shift", 14);
+        e.set_status("ModeShift", 14);
         assert!(!apply_mode_shift_damage(&mut e, 13));
-        assert_eq!(e.status("Mode Shift"), 1);
+        assert_eq!(e.status("ModeShift"), 1);
         assert!(apply_mode_shift_damage(&mut e, 1));
-        assert_eq!(e.status("Mode Shift"), 0);
+        assert_eq!(e.status("ModeShift"), 0);
 
         e.set_status("Buffer", 2);
         assert!(check_buffer(&mut e));
@@ -891,7 +891,7 @@ mod power_java_parity_tests {
     fn turn_based_damage_and_block_scalars_match_java() {
         let mut e = entity();
         e.set_status("DoubleDamage", 1);
-        e.set_status("No Block", 1);
+        e.set_status("NoBlock", 1);
         e.set_status("Slow", 3);
         e.set_status("Intangible", 1);
 
@@ -907,13 +907,13 @@ mod power_java_parity_tests {
         e.set_status("Ritual", 3);
         e.set_status("GenericStrengthUp", 2);
         e.set_status("Growth", 4);
-        e.set_status("Beat of Death", 5);
-        e.set_status("Spore Cloud", 2);
+        e.set_status("BeatOfDeath", 5);
+        e.set_status("SporeCloud", 2);
         e.set_status("Regrow", 7);
         e.set_status("TheBomb", 30);
         e.set_status("TheBombTurns", 2);
         e.set_status("TimeWarpActive", 1);
-        e.set_status("Time Warp", 11);
+        e.set_status("TimeWarp", 11);
 
         apply_ritual(&mut e);
         apply_generic_strength_up(&mut e);
@@ -932,22 +932,22 @@ mod power_java_parity_tests {
         let mut e = entity();
         e.set_status("LoseStrength", 4);
         e.set_status("LoseDexterity", 2);
-        e.set_status("Wraith Form", 3);
-        e.set_status("Demon Form", 5);
+        e.set_status("WraithForm", 3);
+        e.set_status("DemonForm", 5);
         e.set_status("Berserk", 2);
         e.set_status("Brutality", 1);
-        e.set_status("Draw Card", 3);
-        e.set_status("Next Turn Block", 7);
+        e.set_status("DrawCard", 3);
+        e.set_status("NextTurnBlock", 7);
         e.set_status("Energized", 4);
         e.set_status("EnergyDown", 1);
         e.set_status("WrathNextTurn", 1);
         e.set_status("BattleHymn", 2);
         e.set_status("Devotion", 3);
-        e.set_status("Infinite Blades", 1);
+        e.set_status("InfiniteBlades", 1);
         e.set_status("Metallicize", 5);
-        e.set_status("Plated Armor", 6);
-        e.set_status("OmegaPower", 8);
-        e.set_status("Like Water", 4);
+        e.set_status("PlatedArmor", 6);
+        e.set_status("Omega", 8);
+        e.set_status("LikeWater", 4);
         e.set_status("Combust", 9);
         e.set_status("Regeneration", 7);
         e.set_status("LiveForever", 6);
@@ -1027,11 +1027,11 @@ mod power_java_parity_tests {
     #[test]
     fn consume_helpers_and_equilibrium_match_java() {
         let mut e = entity();
-        e.set_status("Draw Card", 2);
-        e.set_status("Next Turn Block", 4);
+        e.set_status("DrawCard", 2);
+        e.set_status("NextTurnBlock", 4);
         e.set_status("Energized", 3);
         e.set_status("FreeAttackPower", 1);
-        e.set_status("Double Tap", 1);
+        e.set_status("DoubleTap", 1);
         e.set_status("Burst", 1);
         e.set_status("Equilibrium", 2);
 
@@ -1053,8 +1053,8 @@ mod power_java_parity_tests {
         e.set_status("Dexterity", 6);
         e.set_status("LoseStrength", 3);
         e.set_status("LoseDexterity", 2);
-        e.set_status("Wraith Form", 4);
-        e.set_status("Demon Form", 5);
+        e.set_status("WraithForm", 4);
+        e.set_status("DemonForm", 5);
 
         apply_lose_strength(&mut e);
         apply_lose_dexterity(&mut e);
@@ -1073,7 +1073,7 @@ mod power_java_parity_tests {
         e.set_status("DevaForm", 1);
         e.set_status("BattleHymn", 2);
         e.set_status("Study", 3);
-        e.set_status("Like Water", 4);
+        e.set_status("LikeWater", 4);
         e.set_status("MentalFortress", 5);
 
         assert_eq!(apply_deva_form(&mut e), 1);
@@ -1088,7 +1088,7 @@ mod power_java_parity_tests {
     fn exploit_and_damage_modifiers_match_java() {
         let mut e = entity();
         e.set_status("DoubleDamage", 1);
-        e.set_status("No Block", 1);
+        e.set_status("NoBlock", 1);
         e.set_status("Slow", 2);
         e.set_status("Intangible", 1);
 
@@ -1104,7 +1104,7 @@ mod power_java_parity_tests {
         e.set_status("Focus", 2);
         e.set_status("Storm", 1);
         e.set_status("Heatsink", 3);
-        e.set_status("Static Discharge", 4);
+        e.set_status("StaticDischarge", 4);
         e.set_status("Loop", 1);
         e.set_status("Electro", 1);
         e.set_status("Equilibrium", 2);
@@ -1156,9 +1156,9 @@ mod power_java_parity_tests {
 
     #[test]
     fn static_discharge_and_electro_registry_entries_are_present() {
-        let static_discharge = get_power_def("Static Discharge").unwrap();
+        let static_discharge = get_power_def("StaticDischarge").unwrap();
         let electro = get_power_def("Electro").unwrap();
-        assert_eq!(static_discharge.id, "Static Discharge");
+        assert_eq!(static_discharge.id, "StaticDischarge");
         assert!(static_discharge.on_hp_lost);
         assert_eq!(electro.id, "Electro");
         assert!(!electro.stackable);

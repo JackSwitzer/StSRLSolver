@@ -1525,13 +1525,13 @@ mod combat_engine_p0_p1_regression {
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
-        e.state.player.set_status("Plated Armor", 4);
+        e.state.player.set_status("PlatedArmor", 4);
         e.state.player.block = 0;
 
         e.execute_action(&Action::EndTurn);
 
         // After taking unblocked damage, Plated Armor should decrement
-        assert_eq!(e.state.player.status("Plated Armor"), 3,
+        assert_eq!(e.state.player.status("PlatedArmor"), 3,
             "Plated Armor should decrement by 1 after taking unblocked HP damage");
     }
 
@@ -1541,13 +1541,13 @@ mod combat_engine_p0_p1_regression {
         let mut e = make_engine(deck, "JawWorm", 100, 5, 1);
         e.start_combat();
 
-        e.state.player.set_status("Plated Armor", 4);
+        e.state.player.set_status("PlatedArmor", 4);
         e.state.player.block = 20; // More than enough to block
 
         e.execute_action(&Action::EndTurn);
 
         // Fully blocked = no HP loss = Plated Armor should NOT decrement
-        assert_eq!(e.state.player.status("Plated Armor"), 4,
+        assert_eq!(e.state.player.status("PlatedArmor"), 4,
             "Plated Armor should NOT decrement when damage is fully blocked");
     }
 
@@ -2061,7 +2061,7 @@ mod effect_handler_tests {
         // The block from LikeWater is applied at end of turn. After enemy turn and debuff decay,
         // start_player_turn resets block. So we need to check DURING end of turn.
         // For now, just verify the status is set.
-        assert_eq!(e.state.player.status("Like Water"), 5);
+        assert_eq!(e.state.player.status("LikeWater"), 5);
     }
 
     // ===== 23. Install Power: Devotion =====
@@ -2250,7 +2250,7 @@ mod effect_handler_tests {
         let deck = vec!["Defend_P".to_string(); 15];
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        e.state.player.set_status("OmegaPower", 50);
+        e.state.player.set_status("Omega", 50);
         let enemy_hp_before = e.state.enemies[0].entity.hp;
         e.execute_action(&Action::EndTurn);
         // Omega should have dealt 50 damage at end of turn
@@ -2302,7 +2302,7 @@ mod effect_handler_tests {
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WaveOfTheHand", -1);
-        assert_eq!(e.state.player.status("Wave of the Hand"), 1,
+        assert_eq!(e.state.player.status("WaveOfTheHand"), 1,
             "Wave of the Hand should set status");
     }
 

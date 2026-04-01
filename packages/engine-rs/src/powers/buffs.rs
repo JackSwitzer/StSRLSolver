@@ -848,9 +848,9 @@ mod tests {
     fn test_power_id_key_roundtrip() {
         assert_eq!(PowerId::Strength.key(), "Strength");
         assert_eq!(PowerId::Weakened.key(), "Weakened");
-        assert_eq!(PowerId::DemonForm.key(), "Demon Form");
+        assert_eq!(PowerId::DemonForm.key(), "DemonForm");
         assert_eq!(PowerId::MentalFortress.key(), "MentalFortress");
-        assert_eq!(PowerId::Omega.key(), "OmegaPower");
+        assert_eq!(PowerId::Omega.key(), "Omega");
     }
 
     // -- Debuff decrement tests --
@@ -907,7 +907,7 @@ mod tests {
     #[test]
     fn test_plated_armor() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Plated Armor", 6);
+        entity.set_status("PlatedArmor", 6);
 
         apply_plated_armor(&mut entity);
         assert_eq!(entity.block, 6);
@@ -988,7 +988,7 @@ mod tests {
     #[test]
     fn test_demon_form() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Demon Form", 3);
+        entity.set_status("DemonForm", 3);
 
         apply_demon_form(&mut entity);
         assert_eq!(entity.strength(), 3);
@@ -1030,7 +1030,7 @@ mod tests {
     #[test]
     fn test_flame_barrier() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Flame Barrier", 7);
+        entity.set_status("FlameBarrier", 7);
 
         assert_eq!(get_flame_barrier_damage(&entity), 7);
 
@@ -1043,7 +1043,7 @@ mod tests {
     #[test]
     fn test_after_image() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("After Image", 2);
+        entity.set_status("AfterImage", 2);
         assert_eq!(get_after_image_block(&entity), 2);
     }
 
@@ -1052,10 +1052,10 @@ mod tests {
     #[test]
     fn test_double_tap() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Double Tap", 1);
+        entity.set_status("DoubleTap", 1);
 
         assert!(consume_double_tap(&mut entity));
-        assert_eq!(entity.status("Double Tap"), 0);
+        assert_eq!(entity.status("DoubleTap"), 0);
         assert!(!consume_double_tap(&mut entity));
     }
 
@@ -1081,7 +1081,7 @@ mod tests {
             assert!(!increment_time_warp(&mut entity));
         }
         assert!(increment_time_warp(&mut entity));
-        assert_eq!(entity.status("Time Warp"), 0); // resets
+        assert_eq!(entity.status("TimeWarp"), 0); // resets
     }
 
     // -- Slow tests --
@@ -1114,13 +1114,13 @@ mod tests {
     #[test]
     fn test_mode_shift() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Mode Shift", 10);
+        entity.set_status("ModeShift", 10);
 
         assert!(!apply_mode_shift_damage(&mut entity, 5));
-        assert_eq!(entity.status("Mode Shift"), 5);
+        assert_eq!(entity.status("ModeShift"), 5);
 
         assert!(apply_mode_shift_damage(&mut entity, 5));
-        assert_eq!(entity.status("Mode Shift"), 0);
+        assert_eq!(entity.status("ModeShift"), 0);
     }
 
     // -- Fading tests --
@@ -1141,12 +1141,12 @@ mod tests {
     #[test]
     fn test_process_start_of_turn() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Demon Form", 2);
-        entity.set_status("Noxious Fumes", 3);
+        entity.set_status("DemonForm", 2);
+        entity.set_status("NoxiousFumes", 3);
         entity.set_status("Energized", 2);
         entity.set_status("LoseStrength", 1);
-        entity.set_status("Wraith Form", 1);
-        entity.set_status("Flame Barrier", 5);
+        entity.set_status("WraithForm", 1);
+        entity.set_status("FlameBarrier", 5);
 
         let result = process_start_of_turn(&mut entity);
 
@@ -1166,15 +1166,15 @@ mod tests {
         assert_eq!(entity.dexterity(), -1);
 
         // Flame Barrier removed
-        assert_eq!(entity.status("Flame Barrier"), 0);
+        assert_eq!(entity.status("FlameBarrier"), 0);
     }
 
     #[test]
     fn test_process_end_of_turn() {
         let mut entity = EntityState::new(50, 50);
         entity.set_status("Metallicize", 4);
-        entity.set_status("Plated Armor", 3);
-        entity.set_status("OmegaPower", 50);
+        entity.set_status("PlatedArmor", 3);
+        entity.set_status("Omega", 50);
         entity.set_status("Rage", 5);
         entity.set_status("Combust", 7);
 
@@ -1193,7 +1193,7 @@ mod tests {
     #[test]
     fn test_like_water_in_calm() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Like Water", 5);
+        entity.set_status("LikeWater", 5);
 
         let result_calm = process_end_of_turn(&mut entity, true);
         assert_eq!(result_calm.like_water_block, 5);

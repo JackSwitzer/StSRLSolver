@@ -171,7 +171,7 @@ mod relic_java_parity_tests {
     #[test]
     fn thread_and_needle_grants_four_plated_armor() {
         let state = start_with("Thread and Needle");
-        assert_eq!(state.player.status("Plated Armor"), 4);
+        assert_eq!(state.player.status("PlatedArmor"), 4);
     }
 
     #[test]
@@ -761,7 +761,7 @@ mod relic_java_parity_tests {
         state.player.set_status("Vulnerable", 2);
         state.player.set_status("Frail", 2);
         state.player.set_status("Entangled", 1);
-        state.player.set_status("No Draw", 1);
+        state.player.set_status("NoDraw", 1);
         on_card_played(&mut state, CardType::Attack);
         on_card_played(&mut state, CardType::Skill);
         on_card_played(&mut state, CardType::Power);
@@ -769,7 +769,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.player.status("Vulnerable"), 0);
         assert_eq!(state.player.status("Frail"), 0);
         assert_eq!(state.player.status("Entangled"), 0);
-        assert_eq!(state.player.status("No Draw"), 0);
+        assert_eq!(state.player.status("NoDraw"), 0);
     }
 
     #[test]

@@ -117,7 +117,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("Thread and Needle".to_string());
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.player.status("Plated Armor"), 4);
+        assert_eq!(state.player.status("PlatedArmor"), 4);
     }
 
     #[test]

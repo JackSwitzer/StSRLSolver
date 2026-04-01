@@ -61,7 +61,7 @@ mod power_tests {
     }
     #[test] fn plated_armor_gain() {
         let mut e = entity();
-        e.set_status("Plated Armor", 6);
+        e.set_status("PlatedArmor", 6);
         apply_plated_armor(&mut e);
         assert_eq!(e.block, 6);
     }

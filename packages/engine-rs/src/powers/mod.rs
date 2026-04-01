@@ -191,12 +191,12 @@ impl PowerId {
             PowerId::Buffer => "Buffer",
             PowerId::Barricade => "Barricade",
             PowerId::Metallicize | PowerId::MetallicizePlayer => "Metallicize",
-            PowerId::PlatedArmor => "Plated Armor",
+            PowerId::PlatedArmor => "PlatedArmor",
             PowerId::Ritual => "Ritual",
             PowerId::Anger => "Angry",
             PowerId::Enrage => "Enrage",
             PowerId::Curiosity => "Curiosity",
-            PowerId::ModeShift => "Mode Shift",
+            PowerId::ModeShift => "ModeShift",
             PowerId::Split => "Split",
             PowerId::Fading => "Fading",
             PowerId::Invincible => "Invincible",
@@ -207,18 +207,18 @@ impl PowerId {
             PowerId::Resurrect => "Resurrect",
             PowerId::StrikeUp => "StrikeUp",
             PowerId::SlowPower => "Slow",
-            PowerId::TimeWarp => "Time Warp",
-            PowerId::SporeCloud => "Spore Cloud",
+            PowerId::TimeWarp => "TimeWarp",
+            PowerId::SporeCloud => "SporeCloud",
             PowerId::Thievery => "Thievery",
 
-            PowerId::DemonForm => "Demon Form",
-            PowerId::FlameBarrier => "Flame Barrier",
+            PowerId::DemonForm => "DemonForm",
+            PowerId::FlameBarrier => "FlameBarrier",
             PowerId::Brutality => "Brutality",
-            PowerId::DarkEmbrace => "Dark Embrace",
-            PowerId::DoubleTap => "Double Tap",
+            PowerId::DarkEmbrace => "DarkEmbrace",
+            PowerId::DoubleTap => "DoubleTap",
             PowerId::Evolve => "Evolve",
-            PowerId::FeelNoPain => "Feel No Pain",
-            PowerId::FireBreathing => "Fire Breathing",
+            PowerId::FeelNoPain => "FeelNoPain",
+            PowerId::FireBreathing => "FireBreathing",
             PowerId::Juggernaut => "Juggernaut",
             PowerId::Rupture => "Rupture",
             PowerId::Berserk => "Berserk",
@@ -228,26 +228,26 @@ impl PowerId {
             PowerId::Rage => "Rage",
             PowerId::Reaper | PowerId::BurningBlood => "BurningBlood",
 
-            PowerId::NoxiousFumes => "Noxious Fumes",
+            PowerId::NoxiousFumes => "NoxiousFumes",
             PowerId::Envenom => "Envenom",
-            PowerId::AfterImage => "After Image",
+            PowerId::AfterImage => "AfterImage",
             PowerId::Accuracy => "Accuracy",
-            PowerId::AThousandCuts => "A Thousand Cuts",
-            PowerId::InfiniteBlades => "Infinite Blades",
-            PowerId::Tools => "Tools of the Trade",
+            PowerId::AThousandCuts => "ThousandCuts",
+            PowerId::InfiniteBlades => "InfiniteBlades",
+            PowerId::Tools => "ToolsOfTheTrade",
             PowerId::Nightmare => "Nightmare",
-            PowerId::PhantasmalKiller => "Phantasmal Killer",
+            PowerId::PhantasmalKiller => "PhantasmalKiller",
             PowerId::Sadistic => "Sadistic",
 
             PowerId::Focus => "Focus",
             PowerId::LockOn => "Lock-On",
-            PowerId::CreativeAI => "Creative AI",
+            PowerId::CreativeAI => "CreativeAI",
             PowerId::Storm => "Storm",
             PowerId::Heatsink => "Heatsink",
-            PowerId::StaticDischarge => "Static Discharge",
+            PowerId::StaticDischarge => "StaticDischarge",
             PowerId::Electro => "Electro",
             PowerId::Loop => "Loop",
-            PowerId::HelloWorld => "Hello World",
+            PowerId::HelloWorld => "HelloWorld",
             PowerId::Equilibrium => "Equilibrium",
 
             PowerId::Rushdown => "Rushdown",
@@ -256,11 +256,11 @@ impl PowerId {
             PowerId::Devotion => "Devotion",
             PowerId::Establishment => "Establishment",
             PowerId::Foresight => "Foresight",
-            PowerId::LikeWater => "Like Water",
+            PowerId::LikeWater => "LikeWater",
             PowerId::Nirvana => "Nirvana",
-            PowerId::Omega => "OmegaPower",
+            PowerId::Omega => "Omega",
             PowerId::Study => "Study",
-            PowerId::WaveOfTheHand => "Wave of the Hand",
+            PowerId::WaveOfTheHand => "WaveOfTheHand",
             PowerId::Vigor => "Vigor",
             PowerId::Mantra => "Mantra",
             PowerId::BlockReturn => "BlockReturn",
@@ -279,22 +279,22 @@ impl PowerId {
 
             PowerId::Blur => "Blur",
             PowerId::ConservePower => "Conserve",
-            PowerId::DrawCardNextTurn => "Draw Card",
+            PowerId::DrawCardNextTurn => "DrawCard",
             PowerId::DrawPower => "Draw",
             PowerId::DoubleDamage => "DoubleDamage",
             PowerId::EnergizedPower => "Energized",
-            PowerId::NextTurnBlock => "Next Turn Block",
-            PowerId::PenNib => "Pen Nib",
+            PowerId::NextTurnBlock => "NextTurnBlock",
+            PowerId::PenNib => "PenNib",
             PowerId::Rebound => "Rebound",
-            PowerId::NoBlock => "No Block",
-            PowerId::NoDraw => "No Draw",
+            PowerId::NoBlock => "NoBlock",
+            PowerId::NoDraw => "NoDraw",
             PowerId::Entangle => "Entangled",
             PowerId::Confusion => "Confusion",
             PowerId::Panache | PowerId::PanachePower => "Panache",
             PowerId::Burst => "Burst",
-            PowerId::WraithForm => "Wraith Form",
+            PowerId::WraithForm => "WraithForm",
 
-            PowerId::BeatOfDeath => "Beat of Death",
+            PowerId::BeatOfDeath => "BeatOfDeath",
             PowerId::Growth => "Growth",
             PowerId::Magnetism => "Magnetism",
             PowerId::SkillBurn => "SkillBurn",
@@ -496,8 +496,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_turn_end: true,
             ..Default::default()
         },
-        "Plated Armor" => PowerDef {
-            id: "Plated Armor",
+        "PlatedArmor" => PowerDef {
+            id: "PlatedArmor",
             power_type: PowerType::Buff,
             on_turn_end: true,
             on_attacked: true, // decrements when taking unblocked damage
@@ -527,8 +527,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_use_card: true, // gains Strength when player plays a Power
             ..Default::default()
         },
-        "Mode Shift" => PowerDef {
-            id: "Mode Shift",
+        "ModeShift" => PowerDef {
+            id: "ModeShift",
             power_type: PowerType::Buff,
             on_hp_lost: true, // tracks damage taken
             ..Default::default()
@@ -601,14 +601,14 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             modify_damage_receive: true, // +10% per stack
             ..Default::default()
         },
-        "Time Warp" => PowerDef {
-            id: "Time Warp",
+        "TimeWarp" => PowerDef {
+            id: "TimeWarp",
             power_type: PowerType::Buff,
             on_after_use_card: true, // counts cards, at 12 ends turn + gives Str
             ..Default::default()
         },
-        "Spore Cloud" => PowerDef {
-            id: "Spore Cloud",
+        "SporeCloud" => PowerDef {
+            id: "SporeCloud",
             power_type: PowerType::Buff,
             on_death: true, // applies Vulnerable to player
             ..Default::default()
@@ -623,14 +623,14 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         // ===================================================================
         // Ironclad Powers
         // ===================================================================
-        "Demon Form" => PowerDef {
-            id: "Demon Form",
+        "DemonForm" => PowerDef {
+            id: "DemonForm",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // gain Strength
             ..Default::default()
         },
-        "Flame Barrier" => PowerDef {
-            id: "Flame Barrier",
+        "FlameBarrier" => PowerDef {
+            id: "FlameBarrier",
             power_type: PowerType::Buff,
             on_attacked: true,     // deal damage back to attacker
             on_turn_start: true,   // removed at start of next turn
@@ -642,14 +642,14 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_turn_start_post_draw: true, // lose 1 HP, draw 1 card
             ..Default::default()
         },
-        "Dark Embrace" => PowerDef {
-            id: "Dark Embrace",
+        "DarkEmbrace" => PowerDef {
+            id: "DarkEmbrace",
             power_type: PowerType::Buff,
             on_exhaust: true, // draw 1 card per exhaust
             ..Default::default()
         },
-        "Double Tap" => PowerDef {
-            id: "Double Tap",
+        "DoubleTap" => PowerDef {
+            id: "DoubleTap",
             power_type: PowerType::Buff,
             on_use_card: true, // play next Attack twice
             ..Default::default()
@@ -660,14 +660,14 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_card_draw: true, // draw cards when drawing a Status
             ..Default::default()
         },
-        "Feel No Pain" => PowerDef {
-            id: "Feel No Pain",
+        "FeelNoPain" => PowerDef {
+            id: "FeelNoPain",
             power_type: PowerType::Buff,
             on_exhaust: true, // gain block per exhaust
             ..Default::default()
         },
-        "Fire Breathing" => PowerDef {
-            id: "Fire Breathing",
+        "FireBreathing" => PowerDef {
+            id: "FireBreathing",
             power_type: PowerType::Buff,
             on_card_draw: true, // deal damage when drawing Status/Curse
             ..Default::default()
@@ -721,8 +721,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         // ===================================================================
         // Silent Powers
         // ===================================================================
-        "Noxious Fumes" => PowerDef {
-            id: "Noxious Fumes",
+        "NoxiousFumes" => PowerDef {
+            id: "NoxiousFumes",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // poison all enemies
             ..Default::default()
@@ -733,8 +733,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_attack: true, // apply 1 Poison on unblocked attack damage
             ..Default::default()
         },
-        "After Image" => PowerDef {
-            id: "After Image",
+        "AfterImage" => PowerDef {
+            id: "AfterImage",
             power_type: PowerType::Buff,
             on_use_card: true, // gain block per card played
             ..Default::default()
@@ -746,26 +746,26 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             modify_damage_give: true,
             ..Default::default()
         },
-        "A Thousand Cuts" => PowerDef {
-            id: "A Thousand Cuts",
+        "ThousandCuts" => PowerDef {
+            id: "ThousandCuts",
             power_type: PowerType::Buff,
             on_use_card: true, // deal damage to ALL enemies per card played
             ..Default::default()
         },
-        "Infinite Blades" => PowerDef {
-            id: "Infinite Blades",
+        "InfiniteBlades" => PowerDef {
+            id: "InfiniteBlades",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // add Shiv to hand
             ..Default::default()
         },
-        "Tools of the Trade" => PowerDef {
-            id: "Tools of the Trade",
+        "ToolsOfTheTrade" => PowerDef {
+            id: "ToolsOfTheTrade",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // draw 1, discard 1
             ..Default::default()
         },
-        "Phantasmal Killer" => PowerDef {
-            id: "Phantasmal Killer",
+        "PhantasmalKiller" => PowerDef {
+            id: "PhantasmalKiller",
             power_type: PowerType::Buff,
             // Next turn: double damage
             on_turn_start_post_draw: true,
@@ -803,8 +803,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             // Orbs deal 50% more damage to this enemy
             ..Default::default()
         },
-        "Creative AI" => PowerDef {
-            id: "Creative AI",
+        "CreativeAI" => PowerDef {
+            id: "CreativeAI",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // add random Power to hand
             ..Default::default()
@@ -821,8 +821,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_use_card: true, // draw when playing a Power
             ..Default::default()
         },
-        "Static Discharge" => PowerDef {
-            id: "Static Discharge",
+        "StaticDischarge" => PowerDef {
+            id: "StaticDischarge",
             power_type: PowerType::Buff,
             on_hp_lost: true, // channel Lightning when taking unblocked damage
             ..Default::default()
@@ -840,8 +840,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_turn_start: true, // trigger passive of first orb again
             ..Default::default()
         },
-        "Hello World" => PowerDef {
-            id: "Hello World",
+        "HelloWorld" => PowerDef {
+            id: "HelloWorld",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // add random Common to hand
             ..Default::default()
@@ -892,8 +892,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_turn_start_post_draw: true, // Scry
             ..Default::default()
         },
-        "Like Water" => PowerDef {
-            id: "Like Water",
+        "LikeWater" => PowerDef {
+            id: "LikeWater",
             power_type: PowerType::Buff,
             on_turn_end: true, // gain block if in Calm
             ..Default::default()
@@ -904,8 +904,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_scry: true, // gain block when scrying
             ..Default::default()
         },
-        "OmegaPower" => PowerDef {
-            id: "OmegaPower",
+        "Omega" => PowerDef {
+            id: "Omega",
             power_type: PowerType::Buff,
             on_turn_end: true, // deal damage to ALL enemies
             ..Default::default()
@@ -916,8 +916,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_turn_end: true, // shuffle Insight into draw pile
             ..Default::default()
         },
-        "Wave of the Hand" => PowerDef {
-            id: "Wave of the Hand",
+        "WaveOfTheHand" => PowerDef {
+            id: "WaveOfTheHand",
             power_type: PowerType::Buff,
             on_gained_block: true, // apply Weak when gaining block
             ..Default::default()
@@ -1032,8 +1032,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             stackable: false,
             ..Default::default()
         },
-        "Draw Card" => PowerDef {
-            id: "Draw Card",
+        "DrawCard" => PowerDef {
+            id: "DrawCard",
             power_type: PowerType::Buff,
             is_turn_based: true,
             on_turn_start_post_draw: true, // draw extra cards next turn
@@ -1051,14 +1051,14 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_energy_recharge: true, // gain extra energy next turn
             ..Default::default()
         },
-        "Next Turn Block" => PowerDef {
-            id: "Next Turn Block",
+        "NextTurnBlock" => PowerDef {
+            id: "NextTurnBlock",
             power_type: PowerType::Buff,
             on_turn_start_post_draw: true, // gain block at start of next turn
             ..Default::default()
         },
-        "Pen Nib" => PowerDef {
-            id: "Pen Nib",
+        "PenNib" => PowerDef {
+            id: "PenNib",
             power_type: PowerType::Buff,
             modify_damage_give: true, // double next attack
             on_use_card: true,
@@ -1070,15 +1070,15 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_use_card: true, // next card goes on top of draw pile
             ..Default::default()
         },
-        "No Block" => PowerDef {
-            id: "No Block",
+        "NoBlock" => PowerDef {
+            id: "NoBlock",
             power_type: PowerType::Debuff,
             modify_block: true,
             on_end_of_round: true,
             ..Default::default()
         },
-        "No Draw" => PowerDef {
-            id: "No Draw",
+        "NoDraw" => PowerDef {
+            id: "NoDraw",
             power_type: PowerType::Debuff,
             stackable: false,
             ..Default::default()
@@ -1109,8 +1109,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             on_use_card: true, // next Skill played twice
             ..Default::default()
         },
-        "Wraith Form" => PowerDef {
-            id: "Wraith Form",
+        "WraithForm" => PowerDef {
+            id: "WraithForm",
             power_type: PowerType::Debuff,
             can_go_negative: true,
             on_turn_end: true, // lose 1 Dexterity each turn
@@ -1120,8 +1120,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
         // ===================================================================
         // Enemy-specific / Boss Powers
         // ===================================================================
-        "Beat of Death" => PowerDef {
-            id: "Beat of Death",
+        "BeatOfDeath" => PowerDef {
+            id: "BeatOfDeath",
             power_type: PowerType::Buff,
             on_after_use_card: true, // deal damage to player per card played
             ..Default::default()

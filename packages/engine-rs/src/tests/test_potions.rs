@@ -132,7 +132,7 @@ mod potion_tests {
     #[test] fn essence_plated_4() {
         let mut s = state();
         apply_potion(&mut s, "EssenceOfSteel", -1);
-        assert_eq!(s.player.status("Plated Armor"), 4);
+        assert_eq!(s.player.status("PlatedArmor"), 4);
     }
 
     // ---- Liquid Bronze ----
