@@ -1360,17 +1360,24 @@ impl CombatEngine {
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
         let enemy = &mut self.state.enemies[enemy_idx];
 
+        // Slow: enemies with Slow take 10% more damage per card played this turn
+        let slow_mult = powers::slow_damage_multiplier(&enemy.entity);
+        let damage_after_slow = (damage as f64 * slow_mult) as i32;
+
         // Flight: halve incoming damage while Flight > 0, decrement per hit
         let flight = enemy.entity.status(sk::FLIGHT);
         let effective_damage = if flight > 0 {
             enemy.entity.set_status(sk::FLIGHT, flight - 1);
-            (damage as f64 * 0.5) as i32
+            (damage_after_slow as f64 * 0.5) as i32
         } else {
-            damage
+            damage_after_slow
         };
 
-        let blocked = enemy.entity.block.min(effective_damage);
-        let hp_damage = effective_damage - blocked;
+        // Invincible: cap total HP loss per turn (Heart, Donu, Deca)
+        let capped_damage = powers::apply_invincible_cap_tracked(&mut enemy.entity, effective_damage);
+
+        let blocked = enemy.entity.block.min(capped_damage);
+        let hp_damage = capped_damage - blocked;
         enemy.entity.block -= blocked;
         enemy.entity.hp -= hp_damage;
         self.state.total_damage_dealt += hp_damage;

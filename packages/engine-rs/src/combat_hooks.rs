@@ -23,8 +23,42 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Block decays at start of enemy turn
         engine.state.enemies[i].entity.block = 0;
 
+        // Reset Invincible per-turn damage tracker
+        powers::reset_invincible_damage_taken(&mut engine.state.enemies[i].entity);
+
         // Metallicize: enemy gains block
         powers::apply_metallicize(&mut engine.state.enemies[i].entity);
+
+        // Enemy Regeneration: heal HP and decrement (Darkling, Heart buff)
+        let max_hp = engine.state.enemies[i].entity.max_hp;
+        powers::apply_enemy_regeneration(&mut engine.state.enemies[i].entity, max_hp);
+
+        // Growth: gain Strength + Block each turn (Awakened One phase 2, etc.)
+        powers::apply_growth(&mut engine.state.enemies[i].entity);
+
+        // Fading: decrement counter, kill enemy at 0 (summoned Gremlins)
+        let faded = powers::tick_fading(&mut engine.state.enemies[i].entity);
+        if faded {
+            engine.state.enemies[i].entity.hp = 0;
+            continue;
+        }
+
+        // TheBomb: decrement turns, detonate on 0 dealing damage to player
+        let bomb_dmg = powers::tick_the_bomb(&mut engine.state.enemies[i].entity);
+        if bomb_dmg > 0 {
+            let intangible = engine.state.player.status(sk::INTANGIBLE) > 0;
+            let has_tungsten = engine.state.has_relic("Tungsten Rod");
+            let hp_loss = damage::apply_hp_loss(bomb_dmg, intangible, has_tungsten);
+            engine.state.player.hp -= hp_loss;
+            engine.state.total_damage_taken += hp_loss;
+            if engine.state.player.is_dead() {
+                engine.state.player.hp = 0;
+                engine.state.combat_over = true;
+                engine.state.player_won = false;
+                engine.phase = CombatPhase::CombatOver;
+                return;
+            }
+        }
 
         // Poison tick — route through on_enemy_damaged so boss hooks fire
         let poison_dmg = powers::tick_poison(&mut engine.state.enemies[i].entity);

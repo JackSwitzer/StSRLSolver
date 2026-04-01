@@ -118,6 +118,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let weak_paper_crane = engine.state.has_relic("Paper Crane");
         let stance_mult = engine.state.stance.outgoing_mult();
 
+        // DoubleDamage (Phantasmal Killer, Double Damage potion): consume and double
+        let double_damage = engine.state.player.status(sk::DOUBLE_DAMAGE) > 0;
+        if double_damage {
+            let dd = engine.state.player.status(sk::DOUBLE_DAMAGE);
+            engine.state.player.set_status(sk::DOUBLE_DAMAGE, dd - 1);
+        }
+
         match card.target {
             CardTarget::Enemy => {
                 if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
@@ -132,7 +139,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         player_weak,
                         weak_paper_crane,
                         pen_nib_active,
-                        false, // double_damage
+                        double_damage,
                         stance_mult,
                         enemy_vuln,
                         vuln_paper_frog,
@@ -174,7 +181,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         player_weak,
                         weak_paper_crane,
                         pen_nib_active,
-                        false, // double_damage
+                        double_damage,
                         stance_mult,
                         enemy_vuln,
                         vuln_paper_frog,
