@@ -207,22 +207,24 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState) {
-    // Spawn Orbs -> Flail (7x2) -> ... -> Hyper Beam (45) -> Stunned -> repeat
+    let fd = { let v = enemy.entity.status("FlailDmg"); if v > 0 { v } else { 7 } };
+    let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 45 } };
+    let sa = { let v = enemy.entity.status("StrAmt"); if v > 0 { v } else { 3 } };
+    let ba = { let v = enemy.entity.status("BlockAmt"); if v > 0 { v } else { 9 } };
     if last_move(enemy, move_ids::BA_SPAWN_ORBS) || last_move(enemy, move_ids::BA_STUNNED) || last_move(enemy, move_ids::BA_BOOST) {
-        enemy.set_move(move_ids::BA_FLAIL, 7, 2, 0);
+        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
     } else if last_move(enemy, move_ids::BA_FLAIL) {
-        // After enough Flails, Hyper Beam
         let turns = enemy.move_history.len();
         if turns >= 4 {
-            enemy.set_move(move_ids::BA_HYPER_BEAM, 45, 1, 0);
+            enemy.set_move(move_ids::BA_HYPER_BEAM, bd, 1, 0);
         } else {
-            enemy.set_move(move_ids::BA_BOOST, 0, 0, 9);
-            enemy.move_effects.insert("strength".to_string(), 3);
+            enemy.set_move(move_ids::BA_BOOST, 0, 0, ba);
+            enemy.move_effects.insert("strength".to_string(), sa);
         }
     } else if last_move(enemy, move_ids::BA_HYPER_BEAM) {
         enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
     } else {
-        enemy.set_move(move_ids::BA_FLAIL, 7, 2, 0);
+        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
     }
 }
 
@@ -301,21 +303,22 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_collector(enemy: &mut EnemyCombatState) {
-    // Spawn -> Mega Debuff -> Fireball (18) cycle with Buff (+3 Str, 15 block) and Revive
+    let fd = { let v = enemy.entity.status("FireballDmg"); if v > 0 { v } else { 18 } };
+    let sa = { let v = enemy.entity.status("StrAmt"); if v > 0 { v } else { 3 } };
+    let ba = { let v = enemy.entity.status("BlockAmt"); if v > 0 { v } else { 15 } };
     let turns = enemy.move_history.len();
-    if turns == 1 {
-        // After Spawn: Mega Debuff (Vuln 3, Weak 3, Frail 3)
+    if turns == 4 && !enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF) {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
         enemy.move_effects.insert("vulnerable".to_string(), 3);
         enemy.move_effects.insert("weak".to_string(), 3);
         enemy.move_effects.insert("frail".to_string(), 3);
     } else if last_two_moves(enemy, move_ids::COLL_FIREBALL) {
-        enemy.set_move(move_ids::COLL_BUFF, 0, 0, 15);
-        enemy.move_effects.insert("strength".to_string(), 3);
-    } else if last_move(enemy, move_ids::COLL_BUFF) {
-        enemy.set_move(move_ids::COLL_FIREBALL, 18, 1, 0);
+        enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
+        enemy.move_effects.insert("strength".to_string(), sa);
+    } else if last_move(enemy, move_ids::COLL_BUFF) || last_move(enemy, move_ids::COLL_MEGA_DEBUFF) {
+        enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     } else {
-        enemy.set_move(move_ids::COLL_FIREBALL, 18, 1, 0);
+        enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     }
 }
 

@@ -346,7 +346,8 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState) {
     // Circle -> isAttacking=true -> Beam -> isAttacking=false -> repeat.
     // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
     if last_move(enemy, move_ids::DONU_CIRCLE) {
-        enemy.set_move(move_ids::DONU_BEAM, 10, 2, 0);
+        let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 10 } };
+        enemy.set_move(move_ids::DONU_BEAM, bd, 2, 0);
     } else {
         enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
         enemy.move_effects.insert("strength".to_string(), 3);
@@ -360,7 +361,8 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::DECA_BEAM) {
         enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
     } else {
-        enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
+        let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 10 } };
+        enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);
         enemy.move_effects.insert("daze".to_string(), 2);
     }
 }
