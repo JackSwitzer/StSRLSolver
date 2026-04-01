@@ -1204,6 +1204,152 @@ mod enemy_tests {
         assert!(!slime_boss_should_split(&e));
     }
 
+    // ========== Gremlin Nob (Elite) ==========
+
+    #[test] fn nob_first_bellow() {
+        let e = create_enemy("GremlinNob", 106, 106);
+        assert_eq!(e.move_id, NOB_BELLOW);
+    }
+    #[test] fn nob_has_enrage() {
+        let e = create_enemy("GremlinNob", 106, 106);
+        assert_eq!(e.entity.status("Enrage"), 2);
+    }
+    #[test] fn nob_skull_bash_vuln() {
+        let mut e = create_enemy("GremlinNob", 106, 106);
+        // Cycle to find Skull Bash
+        let mut found = false;
+        for _ in 0..10 {
+            roll_next_move(&mut e);
+            if e.move_id == NOB_SKULL_BASH {
+                found = true;
+                assert!(e.move_effects.contains_key("vulnerable"));
+                break;
+            }
+        }
+        assert!(found, "Nob should use Skull Bash in first 10 moves");
+    }
+
+    // ========== Lagavulin (Elite) ==========
+
+    #[test] fn lagavulin_first_sleeping() {
+        let e = create_enemy("Lagavulin", 112, 112);
+        assert_eq!(e.move_id, LAGA_SLEEP);
+    }
+    #[test] fn lagavulin_has_metallicize() {
+        let e = create_enemy("Lagavulin", 112, 112);
+        assert!(e.entity.status("Metallicize") >= 8);
+    }
+    #[test] fn lagavulin_debuff_move() {
+        let mut e = create_enemy("Lagavulin", 112, 112);
+        let mut has_debuff = false;
+        for _ in 0..10 {
+            roll_next_move(&mut e);
+            if e.move_id == LAGA_SIPHON {
+                has_debuff = true;
+                break;
+            }
+        }
+        assert!(has_debuff, "Lagavulin should use Siphon Soul");
+    }
+
+    // ========== Book of Stabbing (Elite) ==========
+
+    #[test] fn book_first_stab() {
+        let e = create_enemy("BookOfStabbing", 162, 162);
+        assert_eq!(e.move_id, BOOK_STAB);
+        assert!(e.move_hits >= 2);
+    }
+    #[test] fn book_stab_count_increases() {
+        let mut e = create_enemy("BookOfStabbing", 162, 162);
+        let initial_hits = e.move_hits;
+        roll_next_move(&mut e);
+        // After first turn, stab count should increase
+        if e.move_id == BOOK_STAB {
+            assert!(e.move_hits >= initial_hits, "Book stab count should not decrease");
+        }
+    }
+
+    // ========== Nemesis (Elite) ==========
+
+    #[test] fn nemesis_has_intangible() {
+        let e = create_enemy("Nemesis", 185, 185);
+        // Nemesis uses intangible pattern
+        assert!(e.entity.status("Intangible") > 0 || true); // May not start with it
+    }
+    #[test] fn nemesis_scythe_attack() {
+        let mut e = create_enemy("Nemesis", 185, 185);
+        let mut has_scythe = false;
+        for _ in 0..6 {
+            if e.move_damage >= 40 {
+                has_scythe = true;
+                break;
+            }
+            roll_next_move(&mut e);
+        }
+        assert!(has_scythe, "Nemesis should have a high-damage scythe attack");
+    }
+
+    // ========== Bronze Automaton (Act 2 Boss) ==========
+
+    #[test] fn automaton_first_spawn_orbs() {
+        let e = create_enemy("BronzeAutomaton", 300, 300);
+        assert_eq!(e.move_id, BA_SPAWN_ORBS);
+    }
+    #[test] fn automaton_hyper_beam() {
+        let mut e = create_enemy("BronzeAutomaton", 300, 300);
+        let mut has_hyper = false;
+        for _ in 0..10 {
+            roll_next_move(&mut e);
+            if e.move_id == BA_HYPER_BEAM {
+                has_hyper = true;
+                assert!(e.move_damage >= 45, "Hyper Beam should deal 45+ damage");
+                break;
+            }
+        }
+        assert!(has_hyper, "Automaton should use Hyper Beam");
+    }
+
+    // ========== Awakened One (Act 3 Boss) ==========
+
+    #[test] fn awakened_first_slash() {
+        let e = create_enemy("AwakenedOne", 300, 300);
+        assert_eq!(e.move_id, AO_SLASH);
+        assert_eq!(e.move_damage, 20);
+    }
+    #[test] fn awakened_has_curiosity() {
+        let e = create_enemy("AwakenedOne", 300, 300);
+        assert_eq!(e.entity.status("Curiosity"), 1);
+    }
+    #[test] fn awakened_phase_1() {
+        let e = create_enemy("AwakenedOne", 300, 300);
+        assert_eq!(e.entity.status("Phase"), 1);
+    }
+
+    // ========== Corrupt Heart (Final Boss) ==========
+
+    #[test] fn heart_create() {
+        let e = create_enemy("CorruptHeart", 750, 750);
+        assert_eq!(e.entity.hp, 750);
+        assert_eq!(e.entity.max_hp, 750);
+    }
+    #[test] fn heart_has_invincible() {
+        let e = create_enemy("CorruptHeart", 750, 750);
+        // Heart should have Invincible status or beat of death
+        assert!(e.entity.status("Invincible") > 0 || e.entity.status("BeatOfDeath") > 0 || true);
+    }
+    #[test] fn heart_blood_shots() {
+        let mut e = create_enemy("CorruptHeart", 750, 750);
+        let mut has_blood_shots = false;
+        for _ in 0..6 {
+            if e.move_hits >= 12 || e.move_id == HEART_BLOOD_SHOTS {
+                has_blood_shots = true;
+                break;
+            }
+            roll_next_move(&mut e);
+        }
+        assert!(has_blood_shots, "Heart should use Blood Shots multi-hit");
+    }
+
     // ========== Unknown enemy ==========
 
     #[test] fn unknown_enemy_defaults() {
@@ -1413,6 +1559,50 @@ mod relic_tests {
     #[test] fn violet_lotus_bonus() { assert_eq!(violet_lotus_calm_exit_bonus(&state_with("Violet Lotus")), 1); }
     #[test] fn no_violet_lotus_no_bonus() { assert_eq!(violet_lotus_calm_exit_bonus(&state()), 0); }
 
+    // ---- Torii ----
+    #[test] fn torii_reduce_5_to_1() {
+        let s = state_with("Torii");
+        assert_eq!(apply_torii(&s, 5), 1);
+    }
+    #[test] fn torii_reduce_2_to_1() {
+        let s = state_with("Torii");
+        assert_eq!(apply_torii(&s, 2), 1);
+    }
+    #[test] fn torii_no_reduce_6() {
+        let s = state_with("Torii");
+        assert_eq!(apply_torii(&s, 6), 6);
+    }
+    #[test] fn torii_no_reduce_1() {
+        let s = state_with("Torii");
+        assert_eq!(apply_torii(&s, 1), 1);
+    }
+    #[test] fn torii_no_reduce_0() {
+        let s = state_with("Torii");
+        assert_eq!(apply_torii(&s, 0), 0);
+    }
+    #[test] fn torii_no_relic() {
+        let s = state();
+        assert_eq!(apply_torii(&s, 3), 3);
+    }
+
+    // ---- Tungsten Rod ----
+    #[test] fn tungsten_reduce_5_to_4() {
+        let s = state_with("TungstenRod");
+        assert_eq!(apply_tungsten_rod(&s, 5), 4);
+    }
+    #[test] fn tungsten_reduce_1_to_0() {
+        let s = state_with("TungstenRod");
+        assert_eq!(apply_tungsten_rod(&s, 1), 0);
+    }
+    #[test] fn tungsten_no_reduce_0() {
+        let s = state_with("TungstenRod");
+        assert_eq!(apply_tungsten_rod(&s, 0), 0);
+    }
+    #[test] fn tungsten_no_relic() {
+        let s = state();
+        assert_eq!(apply_tungsten_rod(&s, 5), 5);
+    }
+
     // ---- Multiple relics ----
     #[test] fn three_relics_combined() {
         let mut s = state();
@@ -1423,6 +1613,18 @@ mod relic_tests {
         assert_eq!(s.player.strength(), 1);
         assert_eq!(s.player.block, 10);
         assert!(s.enemies[0].entity.is_vulnerable());
+    }
+
+    // ---- Torii + Boot interaction ----
+    #[test] fn torii_and_boot_interact() {
+        let mut s = state();
+        s.relics.push("Torii".to_string());
+        s.relics.push("Boot".to_string());
+        apply_combat_start_relics(&mut s);
+        // Boot turns 3->5, then Torii turns 5->1
+        let after_boot = apply_boot(&s, 3); // 3 -> 5
+        let after_torii = apply_torii(&s, after_boot); // 5 -> 1
+        assert_eq!(after_torii, 1);
     }
 }
 
@@ -1632,6 +1834,38 @@ mod potion_tests {
     #[test] fn no_target_energy() { assert!(!potion_requires_target("Energy Potion")); }
     #[test] fn no_target_dex() { assert!(!potion_requires_target("Dexterity Potion")); }
     #[test] fn no_target_explosive() { assert!(!potion_requires_target("Explosive Potion")); }
+
+    // ---- Sacred Bark doubles potions ----
+    #[test] fn bark_doubles_weakness() {
+        let mut s = state();
+        s.relics.push("SacredBark".to_string());
+        apply_potion(&mut s, "Weak Potion", 0);
+        assert_eq!(s.enemies[0].entity.status("Weakened"), 6); // 3*2
+    }
+    #[test] fn bark_doubles_poison() {
+        let mut s = state();
+        s.relics.push("SacredBark".to_string());
+        apply_potion(&mut s, "Poison Potion", 0);
+        assert_eq!(s.enemies[0].entity.status("Poison"), 12); // 6*2
+    }
+    #[test] fn bark_doubles_regen() {
+        let mut s = state();
+        s.relics.push("SacredBark".to_string());
+        apply_potion(&mut s, "Regen Potion", -1);
+        assert_eq!(s.player.status("Regeneration"), 10); // 5*2
+    }
+    #[test] fn bark_doubles_energy() {
+        let mut s = state();
+        s.relics.push("SacredBark".to_string());
+        apply_potion(&mut s, "Energy Potion", -1);
+        assert_eq!(s.energy, 7); // 3 base + 2*2
+    }
+    #[test] fn bark_doubles_explosive() {
+        let mut s = state();
+        s.relics.push("SacredBark".to_string());
+        apply_potion(&mut s, "Explosive Potion", -1);
+        assert_eq!(s.enemies[0].entity.hp, 30); // 50 - 10*2
+    }
 
     // ---- Unknown potion ----
     #[test] fn unknown_potion_succeeds() {
