@@ -174,7 +174,13 @@ impl EnemyCombatState {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.entity.hp > 0 && !self.is_escaping
+        // RebirthPending enemies are "alive" for enemy turn processing
+        (self.entity.hp > 0 || self.entity.status("RebirthPending") > 0) && !self.is_escaping
+    }
+
+    /// Returns true if this enemy can be targeted by the player (alive and not mid-rebirth).
+    pub fn is_targetable(&self) -> bool {
+        self.entity.hp > 0 && !self.is_escaping && self.entity.status("RebirthPending") == 0
     }
 
     pub fn is_attacking(&self) -> bool {
@@ -293,7 +299,7 @@ impl CombatState {
     }
 
     pub fn is_victory(&self) -> bool {
-        self.enemies.iter().all(|e| e.entity.is_dead())
+        self.enemies.iter().all(|e| e.entity.is_dead() && e.entity.status("RebirthPending") == 0)
     }
 
     pub fn is_defeat(&self) -> bool {
@@ -309,6 +315,16 @@ impl CombatState {
             .iter()
             .enumerate()
             .filter(|(_, e)| e.is_alive())
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    /// Indices of enemies that can be targeted by the player (alive and not mid-rebirth).
+    pub fn targetable_enemy_indices(&self) -> Vec<usize> {
+        self.enemies
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.is_targetable())
             .map(|(i, _)| i)
             .collect()
     }

@@ -196,18 +196,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.player.add_status("Dexterity", -(amt));
     }
 
-    // Champ Anger / Time Eater Haste: remove all debuffs from this enemy
+    // Champ Anger / Time Eater Haste: remove ALL debuffs from this enemy
+    // Uses PowerDef registry to identify debuffs rather than a hardcoded list
     if effects.get("remove_debuffs").copied().unwrap_or(0) > 0 {
         let debuff_keys: Vec<String> = engine.state.enemies[enemy_idx]
             .entity
             .statuses
             .keys()
             .filter(|k| {
-                matches!(
-                    k.as_str(),
-                    "Weakened" | "Vulnerable" | "Frail" | "Poison" | "Slow"
-                    | "Hex" | "Constricted" | "Mark" | "Choked"
-                )
+                crate::powers::get_power_def(k)
+                    .map(|def| def.power_type == crate::powers::PowerType::Debuff)
+                    .unwrap_or(false)
             })
             .cloned()
             .collect();
@@ -262,14 +261,12 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             }
         }
         "AwakenedOne" | "Awakened One" => {
-            // Phase 1 death triggers rebirth intent first (not instant heal).
+            // Phase 1 death triggers rebirth — body stays at 0 HP and untargetable
+            // until next enemy turn when rebirth executes (heal to full, phase 2).
             let phase = engine.state.enemies[enemy_idx].entity.status("Phase");
             if phase == 1 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
-                // Keep alive at 0 HP and mark rebirth pending — actual heal happens next enemy turn
                 engine.state.enemies[enemy_idx].entity.hp = 0;
                 engine.state.enemies[enemy_idx].entity.set_status("RebirthPending", 1);
-                // Force alive so the enemy turn loop processes this enemy
-                engine.state.enemies[enemy_idx].entity.hp = 1;
             }
         }
         "Champ" => {

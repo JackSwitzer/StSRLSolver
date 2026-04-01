@@ -4516,9 +4516,9 @@ mod effect_handler_tests {
             hp_before, e.state.player.hp);
     }
 
-    // #5: End-of-turn order: relics fire before status cards + Runic Pyramid discards status
+    // #5: Runic Pyramid keeps ALL cards in hand including Status/Curse (only Ethereal exhausts)
     #[test]
-    fn runic_pyramid_discards_status_and_curse_cards() {
+    fn runic_pyramid_keeps_status_and_curse_cards() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let deck = vec!["Strike_P".to_string(); 10];
@@ -4526,18 +4526,16 @@ mod effect_handler_tests {
         let mut e = CombatEngine::new(state, 42);
         e.state.relics.push("Runic Pyramid".to_string());
         e.start_combat();
-        // Add Burn and Doubt (status/curse) to hand
+        // Add Burn (status) and Doubt (status) to hand
         e.state.hand.push("Burn".to_string());
         e.state.hand.push("Doubt".to_string());
-        let hand_before = e.state.hand.len();
         e.execute_action(&Action::EndTurn);
-        // After end turn, status/curse cards should have been discarded despite Runic Pyramid
-        // Normal cards should be retained
+        // Runic Pyramid keeps ALL cards including Status/Curse
         let has_burn = e.state.hand.iter().any(|c| c == "Burn");
         let has_doubt = e.state.hand.iter().any(|c| c == "Doubt");
-        assert!(!has_burn, "Burn should be discarded even with Runic Pyramid");
-        assert!(!has_doubt, "Doubt should be discarded even with Runic Pyramid");
-        // Non-status cards should still be in hand (Runic Pyramid keeps them)
+        assert!(has_burn, "Burn should be kept in hand with Runic Pyramid");
+        assert!(has_doubt, "Doubt should be kept in hand with Runic Pyramid");
+        // Normal cards should also still be in hand
         assert!(e.state.hand.iter().any(|c| c.starts_with("Strike")),
             "Normal cards should be retained by Runic Pyramid");
     }

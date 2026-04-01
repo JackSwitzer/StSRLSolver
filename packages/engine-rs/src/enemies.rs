@@ -1777,10 +1777,13 @@ fn roll_awakened_one(enemy: &mut EnemyCombatState) {
 pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status("Phase", 2);
     enemy.entity.set_status("Curiosity", 0);
-    // Remove all debuffs
+    // Remove all debuffs using PowerDef registry
     let debuffs: Vec<String> = enemy.entity.statuses.keys()
-        .filter(|k| matches!(k.as_str(), "Weakened" | "Vulnerable" | "Frail" | "Poison"
-            | "Slow" | "Hex" | "Constricted" | "Mark" | "Choked"))
+        .filter(|k| {
+            crate::powers::get_power_def(k)
+                .map(|def| def.power_type == crate::powers::PowerType::Debuff)
+                .unwrap_or(false)
+        })
         .cloned()
         .collect();
     for debuff in debuffs {

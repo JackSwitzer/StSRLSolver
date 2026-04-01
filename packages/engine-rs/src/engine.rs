@@ -81,7 +81,7 @@ impl CombatEngine {
         }
 
         let mut actions = Vec::new();
-        let living = self.state.living_enemy_indices();
+        let living = self.state.targetable_enemy_indices();
 
         // Card plays
         for (hand_idx, card_id) in self.state.hand.iter().enumerate() {
@@ -310,11 +310,12 @@ impl CombatEngine {
             return;
         }
 
-        // 4. Discard hand — Runic Pyramid keeps hand, but status/curse cards self-discard
+        // 4. Discard hand — Runic Pyramid keeps ALL cards in hand (including Status/Curse).
+        //    Only Ethereal cards exhaust at end of turn regardless of Runic Pyramid.
         let explicitly_retained = std::mem::take(&mut self.state.retained_cards);
         let mut ethereal_exhausted = 0i32;
         if relics::has_runic_pyramid(&self.state) {
-            // Runic Pyramid: keep all cards except ethereal (exhaust) and status/curse (discard after trigger)
+            // Runic Pyramid: keep ALL cards except ethereal (which exhaust)
             let hand = std::mem::take(&mut self.state.hand);
             let mut kept = Vec::new();
             for card_id in hand {
@@ -322,11 +323,6 @@ impl CombatEngine {
                 if card.effects.contains(&"ethereal") {
                     self.state.exhaust_pile.push(card_id);
                     ethereal_exhausted += 1;
-                } else if card.card_type == crate::cards::CardType::Status
-                    || card.card_type == crate::cards::CardType::Curse
-                {
-                    // Status and Curse cards discard even with Runic Pyramid
-                    self.state.discard_pile.push(card_id);
                 } else {
                     kept.push(card_id);
                 }

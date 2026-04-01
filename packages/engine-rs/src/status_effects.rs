@@ -37,15 +37,20 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
             } else {
                 2 // Decay fallback
             };
-            // Burn/Decay deal damage, not HP loss — Block absorbs first
-            let blocked = state.player.block.min(raw);
-            let mut hp_damage = raw - blocked;
+            // Correct order: Intangible cap BEFORE block absorption (matches calculate_incoming_damage)
+            let mut dmg = raw;
+
+            // 1. Intangible caps total damage to 1
+            if intangible && dmg > 1 {
+                dmg = 1;
+            }
+
+            // 2. Block absorption
+            let blocked = state.player.block.min(dmg);
+            let mut hp_damage = dmg - blocked;
             state.player.block -= blocked;
 
-            // Apply Intangible (cap unblocked to 1) and Tungsten Rod (-1)
-            if intangible && hp_damage > 1 {
-                hp_damage = 1;
-            }
+            // 3. Tungsten Rod (-1 HP loss)
             if tungsten && hp_damage > 0 {
                 hp_damage = (hp_damage - 1).max(0);
             }
