@@ -15,6 +15,7 @@ pub mod combat_hooks;
 pub mod damage;
 pub mod enemies;
 pub mod engine;
+pub mod events;
 pub mod map;
 pub mod obs;
 pub mod orbs;

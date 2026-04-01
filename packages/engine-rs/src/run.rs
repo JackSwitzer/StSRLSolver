@@ -257,164 +257,9 @@ const ACT4_BOSSES: &[&str] = &["CorruptHeart"];
 // Event definitions
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventDef {
-    pub name: String,
-    pub options: Vec<EventOption>,
-}
+// Events are defined in the events module
+use crate::events::{EventDef, EventEffect, EventOption, events_for_act};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventOption {
-    pub text: String,
-    pub effect: EventEffect,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EventEffect {
-    /// Gain/lose HP (negative = lose)
-    Hp(i32),
-    /// Gain/lose gold
-    Gold(i32),
-    /// Gain a random card
-    GainCard,
-    /// Remove a random curse/status from deck
-    RemoveCard,
-    /// Gain a random relic
-    GainRelic,
-    /// Gain max HP
-    MaxHp(i32),
-    /// Take damage and gain gold
-    DamageAndGold(i32, i32),
-    /// Nothing (leave)
-    Nothing,
-    /// Upgrade a random card
-    UpgradeCard,
-    /// Golden Idol: lose 25% max HP, gain 300 gold
-    GoldenIdolTake,
-}
-
-fn act1_events() -> Vec<EventDef> {
-    vec![
-        EventDef {
-            name: "Big Fish".to_string(),
-            options: vec![
-                EventOption { text: "Eat (heal 5 HP)".into(), effect: EventEffect::Hp(5) },
-                EventOption { text: "Banana (gain 2 max HP)".into(), effect: EventEffect::MaxHp(2) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Golden Idol".to_string(),
-            options: vec![
-                EventOption { text: "Take (gain 300 gold, lose 25% max HP)".into(), effect: EventEffect::GoldenIdolTake },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Scrap Ooze".to_string(),
-            options: vec![
-                EventOption { text: "Reach inside (take 3 dmg, gain relic)".into(), effect: EventEffect::DamageAndGold(-3, 0) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Shining Light".to_string(),
-            options: vec![
-                EventOption { text: "Enter (upgrade 2 cards, take 10 dmg)".into(), effect: EventEffect::DamageAndGold(-10, 0) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Living Wall".to_string(),
-            options: vec![
-                EventOption { text: "Upgrade (upgrade a card)".into(), effect: EventEffect::UpgradeCard },
-                EventOption { text: "Remove (remove a card)".into(), effect: EventEffect::RemoveCard },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-    ]
-}
-
-fn act2_events() -> Vec<EventDef> {
-    vec![
-        EventDef {
-            name: "Forgotten Altar".to_string(),
-            options: vec![
-                EventOption { text: "Offer (lose 5 HP, gain golden idol)".into(), effect: EventEffect::Hp(-5) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Council of Ghosts".to_string(),
-            options: vec![
-                EventOption { text: "Accept (gain 5 Apparitions, lose max HP)".into(), effect: EventEffect::MaxHp(-5) },
-                EventOption { text: "Refuse".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Masked Bandits".to_string(),
-            options: vec![
-                EventOption { text: "Pay (lose all gold)".into(), effect: EventEffect::Gold(-999) },
-                EventOption { text: "Fight".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Knowing Skull".to_string(),
-            options: vec![
-                EventOption { text: "Ask for gold (gain 90 gold, lose 10% HP)".into(), effect: EventEffect::DamageAndGold(-6, 90) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Vampires".to_string(),
-            options: vec![
-                EventOption { text: "Accept (remove Strikes, gain Bites)".into(), effect: EventEffect::RemoveCard },
-                EventOption { text: "Refuse".into(), effect: EventEffect::Nothing },
-            ],
-        },
-    ]
-}
-
-fn act3_events() -> Vec<EventDef> {
-    vec![
-        EventDef {
-            name: "Mysterious Sphere".to_string(),
-            options: vec![
-                EventOption { text: "Open (gain relic, fight)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Mind Bloom".to_string(),
-            options: vec![
-                EventOption { text: "I am War (fight Act 1 boss, gain rare relic)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "I am Awake (upgrade all, lose ability to heal)".into(), effect: EventEffect::UpgradeCard },
-                EventOption { text: "I am Rich (gain 999 gold)".into(), effect: EventEffect::Gold(999) },
-            ],
-        },
-        EventDef {
-            name: "Tomb of Lord Red Mask".to_string(),
-            options: vec![
-                EventOption { text: "Don the mask (gain Red Mask)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Sensory Stone".to_string(),
-            options: vec![
-                EventOption { text: "Focus (gain a card)".into(), effect: EventEffect::GainCard },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-        EventDef {
-            name: "Secret Portal".to_string(),
-            options: vec![
-                EventOption { text: "Enter (skip to boss)".into(), effect: EventEffect::Nothing },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
-            ],
-        },
-    ]
-}
 
 // ---------------------------------------------------------------------------
 // Shop state
@@ -1289,11 +1134,7 @@ impl RunEngine {
     // =======================================================================
 
     fn enter_event(&mut self) {
-        let events = match self.run_state.act {
-            2 => act2_events(),
-            3 => act3_events(),
-            _ => act1_events(),
-        };
+        let events = events_for_act(self.run_state.act);
         let idx = self.rng.gen_range(0..events.len());
         self.current_event = Some(events[idx].clone());
         self.phase = RunPhase::Event;
