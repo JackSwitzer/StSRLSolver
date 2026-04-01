@@ -1233,6 +1233,31 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
+    // ---- Next-turn energy (Conserve Battery, Outmaneuver, Flying Knee) ----
+    if card.effects.contains(&"next_turn_energy") {
+        engine.state.player.add_status(sk::ENERGIZED, card.base_magic);
+    }
+
+    // ---- Next-turn block (Dodge and Roll) ----
+    if card.effects.contains(&"next_turn_block") {
+        engine.state.player.add_status(sk::NEXT_TURN_BLOCK, card.base_magic);
+    }
+
+    // ---- Draw next turn (Predator) ----
+    if card.effects.contains(&"draw_next_turn") {
+        engine.state.player.add_status(sk::DRAW_CARD, card.base_magic);
+    }
+
+    // ---- Double Tap: next Attack played twice ----
+    if card.effects.contains(&"double_tap") {
+        engine.state.player.set_status(sk::DOUBLE_TAP, card.base_magic.max(1));
+    }
+
+    // ---- Burst: next Skill played twice ----
+    if card.effects.contains(&"burst") {
+        engine.state.player.set_status(sk::BURST, card.base_magic.max(1));
+    }
+
     // ---- Second Wind: exhaust all non-attack cards in hand, gain block per exhaust ----
     if card.effects.contains(&"second_wind") {
         let registry = crate::cards::CardRegistry::new();
