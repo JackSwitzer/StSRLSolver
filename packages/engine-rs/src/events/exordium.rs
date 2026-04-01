@@ -39,6 +39,49 @@ pub fn act1_events() -> Vec<EventDef> {
                 EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
             ],
         },
+        EventDef {
+            name: "The Cleric".to_string(),
+            options: vec![
+                EventOption { text: "Heal (pay 35 gold, heal 25% max HP)".into(), effect: EventEffect::Gold(-35) },
+                EventOption { text: "Purify (pay 50 gold, remove a card)".into(), effect: EventEffect::RemoveCard },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Dead Adventurer".to_string(),
+            options: vec![
+                EventOption { text: "Search (risk elite fight, gain gold/relic)".into(), effect: EventEffect::DamageAndGold(0, 30) },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "Golden Wing".to_string(),
+            options: vec![
+                EventOption { text: "Pray (take 7 dmg, remove a card)".into(), effect: EventEffect::RemoveCard },
+                EventOption { text: "Attack (gain 50-80 gold if strong card)".into(), effect: EventEffect::Gold(65) },
+                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+            ],
+        },
+        EventDef {
+            name: "World of Goop".to_string(),
+            options: vec![
+                EventOption { text: "Gather gold (gain 75 gold, take 11 dmg)".into(), effect: EventEffect::DamageAndGold(-11, 75) },
+                EventOption { text: "Leave (lose some gold)".into(), effect: EventEffect::Gold(-35) },
+            ],
+        },
+        EventDef {
+            name: "Mushrooms".to_string(),
+            options: vec![
+                EventOption { text: "Stomp (fight, gain Odd Mushroom relic)".into(), effect: EventEffect::GainRelic },
+                EventOption { text: "Eat (heal 25% max HP, gain Parasite curse)".into(), effect: EventEffect::Hp(0) },
+            ],
+        },
+        EventDef {
+            name: "Liars Game".to_string(),
+            options: vec![
+                EventOption { text: "Agree (gain 175 gold, gain Doubt curse)".into(), effect: EventEffect::Gold(175) },
+                EventOption { text: "Disagree".into(), effect: EventEffect::Nothing },
+            ],
+        },
     ]
 }
-
