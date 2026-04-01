@@ -94,6 +94,10 @@ impl EntityState {
         *self.statuses.get("Dexterity").unwrap_or(&0)
     }
 
+    pub fn focus(&self) -> i32 {
+        *self.statuses.get("Focus").unwrap_or(&0)
+    }
+
     pub fn is_weak(&self) -> bool {
         self.statuses.get("Weakened").copied().unwrap_or(0) > 0
     }

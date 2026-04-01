@@ -12,6 +12,8 @@ use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
 use crate::combat_hooks;
 use crate::damage;
+use crate::enemies;
+use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
 use crate::relics;
@@ -238,6 +240,9 @@ impl CombatEngine {
             self.gain_mantra(devotion);
         }
 
+        // ---- Start-of-turn orb passives (Plasma) ----
+        self.apply_orb_start_of_turn();
+
         // BattleHymn: add Smite(s) to hand at start of turn
         let battle_hymn = self.state.player.status("BattleHymn");
         if battle_hymn > 0 {
@@ -334,6 +339,12 @@ impl CombatEngine {
             for idx in living {
                 self.deal_damage_to_enemy(idx, omega);
             }
+        }
+
+        // ---- End-of-turn orb passives ----
+        self.apply_orb_end_of_turn();
+        if self.state.combat_over {
+            return;
         }
 
         // Player poison tick (before enemy turns)
@@ -690,6 +701,285 @@ impl CombatEngine {
                 self.state.player.hp = 0;
             }
         }
+    }
+
+    // =======================================================================
+    // Orb Effects
+    // =======================================================================
+
+    /// Pick a random living enemy index using the combat RNG.
+    fn random_living_enemy(&mut self) -> Option<usize> {
+        let living = self.state.living_enemy_indices();
+        if living.is_empty() {
+            return None;
+        }
+        if living.len() == 1 {
+            return Some(living[0]);
+        }
+        let roll = self.rng.random(living.len() as i32 - 1) as usize;
+        Some(living[roll])
+    }
+
+    /// Pick the living enemy with the lowest HP.
+    fn lowest_hp_enemy(&self) -> Option<usize> {
+        let living = self.state.living_enemy_indices();
+        living
+            .iter()
+            .copied()
+            .min_by_key(|&i| self.state.enemies[i].entity.hp)
+    }
+
+    /// Apply a single evoke effect to the game state.
+    fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
+        match effect {
+            EvokeEffect::LightningDamage(dmg) => {
+                if let Some(idx) = self.random_living_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            EvokeEffect::FrostBlock(block) => {
+                self.state.player.block += block;
+            }
+            EvokeEffect::DarkDamage(dmg) => {
+                if let Some(idx) = self.lowest_hp_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            EvokeEffect::PlasmaEnergy(energy) => {
+                self.state.energy += energy;
+            }
+            EvokeEffect::None => {}
+        }
+    }
+
+    /// Apply a single passive effect to the game state.
+    fn apply_passive_effect(&mut self, effect: PassiveEffect) {
+        match effect {
+            PassiveEffect::LightningDamage(dmg) => {
+                if let Some(idx) = self.random_living_enemy() {
+                    self.deal_damage_to_enemy(idx, dmg);
+                }
+            }
+            PassiveEffect::FrostBlock(block) => {
+                self.state.player.block += block;
+            }
+            PassiveEffect::PlasmaEnergy(energy) => {
+                self.state.energy += energy;
+            }
+            PassiveEffect::None => {}
+        }
+    }
+
+    /// Trigger orb end-of-turn passives and apply their effects.
+    fn apply_orb_end_of_turn(&mut self) {
+        if !self.state.orb_slots.has_orbs() {
+            return;
+        }
+        let focus = self.state.player.focus();
+        let effects = self.state.orb_slots.trigger_end_of_turn_passives(focus);
+        for effect in effects {
+            self.apply_passive_effect(effect);
+            if self.state.player.is_dead() || self.check_combat_end() {
+                return;
+            }
+        }
+    }
+
+    /// Trigger orb start-of-turn passives (Plasma) and apply their effects.
+    fn apply_orb_start_of_turn(&mut self) {
+        if !self.state.orb_slots.has_orbs() {
+            return;
+        }
+        let effects = self.state.orb_slots.trigger_start_of_turn_passives();
+        for effect in effects {
+            self.apply_passive_effect(effect);
+        }
+    }
+
+    // =======================================================================
+    // Enemy Turns
+    // =======================================================================
+
+    fn do_enemy_turns(&mut self) {
+        self.phase = CombatPhase::EnemyTurn;
+
+        let num_enemies = self.state.enemies.len();
+        for i in 0..num_enemies {
+            if !self.state.enemies[i].is_alive() {
+                continue;
+            }
+
+            // Block decays at start of enemy turn
+            self.state.enemies[i].entity.block = 0;
+
+            // Metallicize: enemy gains block
+            powers::apply_metallicize(&mut self.state.enemies[i].entity);
+
+            // Poison tick
+            let poison_dmg = powers::tick_poison(&mut self.state.enemies[i].entity);
+            if poison_dmg > 0 {
+                self.state.total_damage_dealt += poison_dmg;
+                if self.state.enemies[i].entity.is_dead() {
+                    self.state.enemies[i].entity.hp = 0;
+                    continue;
+                }
+            }
+
+            // Ritual strength gain (not first turn)
+            if !self.state.enemies[i].first_turn {
+                powers::apply_ritual(&mut self.state.enemies[i].entity);
+            }
+
+            // Execute enemy move
+            self.execute_enemy_move(i);
+
+            // Check player death
+            if self.state.player.is_dead() {
+                self.state.player.hp = 0;
+                self.state.combat_over = true;
+                self.state.player_won = false;
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+
+            // Mark first turn complete
+            self.state.enemies[i].first_turn = false;
+        }
+    }
+
+    fn execute_enemy_move(&mut self, enemy_idx: usize) {
+        let enemy = &self.state.enemies[enemy_idx];
+        if enemy.move_id == -1 {
+            return;
+        }
+
+        // Attack
+        if enemy.move_damage > 0 {
+            let enemy_strength = enemy.entity.strength();
+            let enemy_weak = enemy.entity.is_weak();
+            let base_damage = enemy.move_damage + enemy_strength;
+
+            // Apply Weak to enemy's attack
+            let mut damage_f = base_damage as f64;
+            if enemy_weak {
+                damage_f *= damage::WEAK_MULT;
+            }
+
+            // Floor the per-hit base (before stance/vuln/intangible)
+            let per_hit_base = (damage_f as i32).max(0);
+
+            let is_wrath = self.state.stance == Stance::Wrath;
+            let player_vuln = self.state.player.is_vulnerable();
+            let player_intangible = self.state.player.status("Intangible") > 0;
+            let has_torii = self.state.has_relic("Torii");
+            let has_tungsten = self.state.has_relic("Tungsten Rod");
+
+            let hits = enemy.move_hits;
+            for _ in 0..hits {
+                let result = damage::calculate_incoming_damage(
+                    per_hit_base,
+                    self.state.player.block,
+                    is_wrath,
+                    player_vuln,
+                    player_intangible,
+                    has_torii,
+                    has_tungsten,
+                );
+
+                self.state.player.block = result.block_remaining;
+                if result.hp_loss > 0 {
+                    self.state.player.hp -= result.hp_loss;
+                    self.state.total_damage_taken += result.hp_loss;
+
+                    // Plated Armor decrements on unblocked HP damage
+                    let plated = self.state.player.status("Plated Armor");
+                    if plated > 0 {
+                        let new_plated = plated - 1;
+                        self.state.player.set_status("Plated Armor", new_plated);
+                    }
+                }
+
+                if self.state.player.hp <= 0 {
+                    // Check Fairy in a Bottle
+                    let revive_hp = potions::check_fairy_revive(&self.state);
+                    if revive_hp > 0 {
+                        potions::consume_fairy(&mut self.state);
+                        self.state.player.hp = revive_hp;
+                    } else {
+                        self.state.player.hp = 0;
+                    }
+                }
+
+                if self.state.player.is_dead() {
+                    return;
+                }
+            }
+        }
+
+        // Block
+        if self.state.enemies[enemy_idx].move_block > 0 {
+            let block = self.state.enemies[enemy_idx].move_block;
+            self.state.enemies[enemy_idx].entity.block += block;
+        }
+
+        // Apply move effects
+        let effects = self.state.enemies[enemy_idx].move_effects.clone();
+        if let Some(&amt) = effects.get("weak") {
+            powers::apply_debuff(&mut self.state.player, "Weakened", amt);
+        }
+        if let Some(&amt) = effects.get("vulnerable") {
+            powers::apply_debuff(&mut self.state.player, "Vulnerable", amt);
+        }
+        if let Some(&amt) = effects.get("frail") {
+            powers::apply_debuff(&mut self.state.player, "Frail", amt);
+        }
+        if let Some(&amt) = effects.get("strength") {
+            self.state.enemies[enemy_idx]
+                .entity
+                .add_status("Strength", amt);
+        }
+        if let Some(&amt) = effects.get("ritual") {
+            self.state.enemies[enemy_idx]
+                .entity
+                .set_status("Ritual", amt);
+        }
+        if let Some(&amt) = effects.get("entangle") {
+            if amt > 0 {
+                self.state.player.set_status("Entangled", 1);
+            }
+        }
+        if let Some(&amt) = effects.get("slimed") {
+            // Add Slimed cards to discard pile
+            for _ in 0..amt {
+                self.state.discard_pile.push("Slimed".to_string());
+            }
+        }
+        if let Some(&amt) = effects.get("daze") {
+            // Add Daze cards to discard pile
+            for _ in 0..amt {
+                self.state.discard_pile.push("Daze".to_string());
+            }
+        }
+        if let Some(&amt) = effects.get("burn") {
+            for _ in 0..amt {
+                self.state.discard_pile.push("Burn".to_string());
+            }
+        }
+        if let Some(&amt) = effects.get("burn+") {
+            for _ in 0..amt {
+                self.state.discard_pile.push("Burn".to_string());
+            }
+        }
+        // Lagavulin Siphon Soul: reduce player Strength and Dexterity
+        if let Some(&amt) = effects.get("siphon_str") {
+            self.state.player.add_status("Strength", -(amt));
+        }
+        if let Some(&amt) = effects.get("siphon_dex") {
+            self.state.player.add_status("Dexterity", -(amt));
+        }
+
+        // Advance enemy to next move for next turn
+        enemies::roll_next_move(&mut self.state.enemies[enemy_idx]);
     }
 
     // =======================================================================
