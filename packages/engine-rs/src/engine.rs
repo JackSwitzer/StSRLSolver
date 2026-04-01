@@ -730,7 +730,7 @@ impl CombatEngine {
     }
 
     /// Apply a single evoke effect to the game state.
-    fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
+    pub(crate) fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
         match effect {
             EvokeEffect::LightningDamage(dmg) => {
                 if let Some(idx) = self.random_living_enemy() {

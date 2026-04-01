@@ -6,6 +6,7 @@
 use crate::cards::{CardDef, CardTarget, CardType};
 use crate::damage;
 use crate::engine::CombatEngine;
+use crate::orbs::{self, OrbType};
 use crate::powers;
 use crate::state::Stance;
 
@@ -13,6 +14,15 @@ use crate::state::Stance;
 ///
 /// Called from `CombatEngine::play_card()` after energy payment and hand removal.
 pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: &str, target_idx: i32) {
+    // ---- X-cost: consume all remaining energy as X value ----
+    let x_value = if card.cost == -1 {
+        let x = engine.state.energy;
+        engine.state.energy = 0;
+        x
+    } else {
+        0
+    };
+
     // ---- Pen Nib check (before damage) ----
     let pen_nib_active = if card.card_type == CardType::Attack {
         crate::relics::check_pen_nib(&mut engine.state)
@@ -38,14 +48,35 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         0
     };
 
+    // ---- Body Slam: damage = current player block ----
+    let body_slam_damage = if card.effects.contains(&"damage_equals_block") {
+        engine.state.player.block
+    } else {
+        -1
+    };
+
+    // ---- Grand Finale: only deal damage if draw pile is empty ----
+    let grand_finale_blocked = card.effects.contains(&"only_empty_draw")
+        && !engine.state.draw_pile.is_empty();
+
     // ---- Damage ----
-    // Track damage dealt for Wallop (block_from_damage)
+    // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
     let mut enemy_killed = false;
 
-    if card.base_damage >= 0 {
+    if !grand_finale_blocked && (card.base_damage >= 0 || body_slam_damage >= 0) {
+        let effective_base_damage = if body_slam_damage >= 0 {
+            body_slam_damage
+        } else {
+            card.base_damage
+        };
+
         let is_multi_hit = card.effects.contains(&"multi_hit");
-        let hits = if is_multi_hit && card.base_magic > 0 {
+
+        // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
+        let hits = if card.effects.contains(&"x_cost") && card.cost == -1 {
+            x_value
+        } else if is_multi_hit && card.base_magic > 0 {
             card.base_magic
         } else {
             1
@@ -64,7 +95,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                     let enemy_intangible = engine.state.enemies[tidx].entity.status("Intangible") > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
-                        card.base_damage + brilliance_bonus,
+                        effective_base_damage + brilliance_bonus,
                         player_strength,
                         vigor,
                         player_weak,
@@ -83,8 +114,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         let enemy_block_before = engine.state.enemies[tidx].entity.block;
                         let enemy_hp_before = engine.state.enemies[tidx].entity.hp;
                         engine.deal_damage_to_enemy(tidx, dmg);
-                        // Track unblocked damage for Wallop
-                        let _blocked = enemy_block_before.min(dmg);
+                        // Track unblocked damage for Wallop / Reaper
                         let hp_dmg = dmg - enemy_block_before.min(dmg);
                         total_unblocked_damage += (enemy_hp_before - engine.state.enemies[tidx].entity.hp).max(0);
                         // BlockReturn only triggers on actual HP damage
@@ -107,7 +137,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                     let enemy_intangible = engine.state.enemies[enemy_idx].entity.status("Intangible") > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
-                        card.base_damage + brilliance_bonus,
+                        effective_base_damage + brilliance_bonus,
                         player_strength,
                         vigor,
                         player_weak,
@@ -127,7 +157,6 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         engine.deal_damage_to_enemy(enemy_idx, dmg);
                         total_unblocked_damage += (enemy_hp_before - engine.state.enemies[enemy_idx].entity.hp).max(0);
                         if block_return > 0 {
-                            let _blocked = enemy_block_before.min(dmg);
                             let hp_dmg = dmg - enemy_block_before.min(dmg);
                             if hp_dmg > 0 || enemy_hp_before > engine.state.enemies[enemy_idx].entity.hp {
                                 engine.state.player.block += block_return;
@@ -149,12 +178,33 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         engine.state.player.block += total_unblocked_damage;
     }
 
+    // ---- Reaper: heal for total unblocked damage dealt to all enemies ----
+    if card.effects.contains(&"reaper") {
+        if total_unblocked_damage > 0 {
+            engine.state.player.hp = (engine.state.player.hp + total_unblocked_damage)
+                .min(engine.state.player.max_hp);
+        }
+    }
+
+    // ---- Feed: if enemy killed, gain max HP ----
+    if card.effects.contains(&"feed") && enemy_killed {
+        let hp_gain = card.base_magic.max(3);
+        engine.state.player.max_hp += hp_gain;
+        engine.state.player.hp += hp_gain;
+    }
+
     // ---- Block ----
     if card.base_block >= 0 {
+        // Reinforced Body (block_x_times): gain base_block X times
+        let block_multiplier = if card.effects.contains(&"block_x_times") {
+            x_value
+        } else {
+            1
+        };
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let block = damage::calculate_block(card.base_block, dex, frail);
-        engine.state.player.block += block;
+        engine.state.player.block += block * block_multiplier;
     }
 
     // ---- Spirit Shield: gain block per card in hand ----
@@ -319,12 +369,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                 .entity
                 .add_status("Mark", mark_amount);
         }
-        // Deal damage to ALL enemies equal to their Mark
         let living = engine.state.living_enemy_indices();
         for idx in living {
             let mark = engine.state.enemies[idx].entity.status("Mark");
             if mark > 0 {
-                // Mark damage ignores block (HP loss)
                 engine.state.enemies[idx].entity.hp -= mark;
                 engine.state.total_damage_dealt += mark;
                 if engine.state.enemies[idx].entity.hp <= 0 {
@@ -347,9 +395,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-    // ---- Lesson Learned: if enemy dies, upgrade a random card in draw/discard ----
+    // ---- Lesson Learned: if enemy dies, upgrade a random card ----
     if card.effects.contains(&"lesson_learned") && enemy_killed {
-        // Find a non-upgraded card and upgrade it
         let mut upgraded = false;
         for card_id in engine.state.draw_pile.iter_mut() {
             if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
@@ -444,11 +491,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-    // ---- Meditate: return cards from discard to hand (MCTS approximation) ----
+    // ---- Meditate: return cards from discard to hand ----
     if card.effects.contains(&"meditate") {
         let count = card.base_magic.max(1) as usize;
-        // Move best cards from discard to hand (simplified: take from end)
-        // Returned cards are retained through end-of-turn discard.
         for _ in 0..count {
             if engine.state.discard_pile.is_empty() {
                 break;
@@ -463,12 +508,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-    // ---- Wave of the Hand: apply WaveOfTheHand status ----
+    // ---- Wave of the Hand ----
     if card.effects.contains(&"wave_of_the_hand") {
         engine.state.player.add_status("WaveOfTheHand", card.base_magic.max(1));
     }
 
-    // ---- Foreign Influence: MCTS approximation, add a random Smite ----
+    // ---- Foreign Influence: MCTS approximation ----
     if card.effects.contains(&"foreign_influence") {
         let smite_id = engine.temp_card_id("Smite");
         if engine.state.hand.len() < 10 {
@@ -478,8 +523,6 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Conjure Blade: create Expunger with X hits ----
     if card.effects.contains(&"conjure_blade") {
-        let x_value = engine.state.energy;
-        engine.state.energy = 0;
         let expunger_id = engine.temp_card_id("Expunger");
         if x_value > 0 && engine.state.hand.len() < 10 {
             engine.state.hand.push(expunger_id);
@@ -487,12 +530,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         }
     }
 
-    // ---- Omniscience: MCTS approximation — draw top card and play it ----
+    // ---- Omniscience: MCTS approximation ----
     if card.effects.contains(&"omniscience") {
         engine.draw_cards(2);
     }
 
-    // ---- Wish: MCTS approximation — gain Strength (most useful option) ----
+    // ---- Wish: MCTS approximation ----
     if card.effects.contains(&"wish") {
         let amount = card.base_magic.max(1);
         engine.state.player.add_status("Strength", amount);
@@ -511,5 +554,338 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Swivel: next_attack_free ----
     if card.effects.contains(&"next_attack_free") {
         engine.state.player.set_status("NextAttackFree", 1);
+    }
+
+    // ====================================================================
+    // Ironclad / Silent — newly implemented effects
+    // ====================================================================
+
+    // ---- Limit Break: double current Strength ----
+    if card.effects.contains(&"double_strength") {
+        let current_str = engine.state.player.strength();
+        if current_str > 0 {
+            engine.state.player.add_status("Strength", current_str);
+        }
+    }
+
+    // ---- Catalyst: double target's Poison ----
+    if card.effects.contains(&"catalyst_double") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let current_poison = engine.state.enemies[tidx].entity.status("Poison");
+            if current_poison > 0 {
+                engine.state.enemies[tidx].entity.set_status("Poison", current_poison * 2);
+            }
+        }
+    }
+
+    // ---- Catalyst+: triple target's Poison ----
+    if card.effects.contains(&"catalyst_triple") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let current_poison = engine.state.enemies[tidx].entity.status("Poison");
+            if current_poison > 0 {
+                engine.state.enemies[tidx].entity.set_status("Poison", current_poison * 3);
+            }
+        }
+    }
+
+    // ---- Bullet Time: cards cost 0, no more draw this turn ----
+    if card.effects.contains(&"bullet_time") {
+        engine.state.player.set_status("BulletTime", 1);
+        engine.state.player.set_status("NoDraw", 1);
+    }
+
+    // ---- Malaise: apply X Weak + X Strength Down (X-cost) ----
+    if card.effects.contains(&"malaise") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let amount = x_value + card.base_magic.max(0);
+            if amount > 0 {
+                powers::apply_debuff(
+                    &mut engine.state.enemies[tidx].entity,
+                    "Weakened",
+                    amount,
+                );
+                let current_str = engine.state.enemies[tidx].entity.strength();
+                engine.state.enemies[tidx].entity.set_status("Strength", current_str - amount);
+            }
+        }
+    }
+
+    // ---- Doppelganger: next turn draw X + gain X energy (X-cost) ----
+    if card.effects.contains(&"doppelganger") {
+        let amount = x_value + card.base_magic.max(0);
+        if amount > 0 {
+            engine.state.player.add_status("DoppelgangerDraw", amount);
+            engine.state.player.add_status("DoppelgangerEnergy", amount);
+        }
+    }
+
+    // ---- Corruption: all Skills cost 0 + exhaust on play ----
+    if card.effects.contains(&"corruption") {
+        engine.state.player.set_status("Corruption", 1);
+    }
+
+    // ---- Wraith Form: gain Intangible, -1 Dex per turn ----
+    if card.effects.contains(&"wraith_form") {
+        let intangible_turns = card.base_magic.max(2);
+        engine.state.player.add_status("Intangible", intangible_turns);
+        engine.state.player.add_status("WraithForm", 1);
+    }
+
+    // ---- Echo Form: first card each turn played twice ----
+    if card.effects.contains(&"echo_form") {
+        engine.state.player.add_status("EchoForm", 1);
+    }
+
+    // ---- Creative AI: add random Power to hand each turn ----
+    if card.effects.contains(&"creative_ai") {
+        engine.state.player.add_status("CreativeAI", card.base_magic.max(1));
+    }
+
+    // ====================================================================
+    // Defect orb effects
+    // ====================================================================
+
+    // ---- Channel Lightning ----
+    if card.effects.contains(&"channel_lightning") {
+        let count = card.base_magic.max(1);
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Lightning, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Channel Frost ----
+    if card.effects.contains(&"channel_frost") {
+        let count = card.base_magic.max(1);
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Frost, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Channel Dark ----
+    if card.effects.contains(&"channel_dark") {
+        let count = card.base_magic.max(1);
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Dark, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Channel Plasma ----
+    if card.effects.contains(&"channel_plasma") {
+        let count = card.base_magic.max(1);
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Plasma, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Channel Frost per enemy (Chill) ----
+    if card.effects.contains(&"channel_frost_per_enemy") {
+        let count = engine.state.living_enemy_indices().len() as i32;
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Frost, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Evoke orb (Dualcast) ----
+    {
+        let evoke_count = card.effects.iter().filter(|&&e| e == "evoke_orb").count();
+        if evoke_count > 0 {
+            let focus = engine.state.player.focus();
+            for _ in 0..evoke_count {
+                let effect = engine.state.orb_slots.evoke_front(focus);
+                engine.apply_evoke_effect(effect);
+            }
+        }
+    }
+
+    // ---- Gain Focus ----
+    if card.effects.contains(&"gain_focus") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Focus", amount);
+    }
+
+    // ---- Lose orb slot (Consume) ----
+    if card.effects.contains(&"lose_orb_slot") {
+        let focus = engine.state.player.focus();
+        let evoke = engine.state.orb_slots.remove_slot(focus);
+        engine.apply_evoke_effect(evoke);
+    }
+
+    // ---- Tempest: channel X Lightning (X-cost) ----
+    if card.effects.contains(&"channel_lightning_x") {
+        let count = x_value;
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Lightning, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Tempest+: channel X+1 Lightning (X-cost) ----
+    if card.effects.contains(&"channel_lightning_x_plus_1") {
+        let count = x_value + 1;
+        let focus = engine.state.player.focus();
+        for _ in 0..count {
+            let evoke = engine.state.orb_slots.channel(OrbType::Lightning, focus);
+            engine.apply_evoke_effect(evoke);
+        }
+    }
+
+    // ---- Multi-Cast: evoke front orb X times (X-cost) ----
+    if card.effects.contains(&"evoke_orb_x") {
+        let count = x_value;
+        let focus = engine.state.player.focus();
+        let effects = engine.state.orb_slots.evoke_front_n(count as usize, focus);
+        for effect in effects {
+            engine.apply_evoke_effect(effect);
+        }
+    }
+
+    // ---- Multi-Cast+: evoke front orb X+1 times (X-cost) ----
+    if card.effects.contains(&"evoke_orb_x_plus_1") {
+        let count = x_value + 1;
+        let focus = engine.state.player.focus();
+        let effects = engine.state.orb_slots.evoke_front_n(count as usize, focus);
+        for effect in effects {
+            engine.apply_evoke_effect(effect);
+        }
+    }
+
+    // ---- Trigger Dark passive (Darkness+) ----
+    if card.effects.contains(&"trigger_dark_passive") {
+        let focus = engine.state.player.focus();
+        for orb in engine.state.orb_slots.slots.iter_mut() {
+            if orb.orb_type == OrbType::Dark {
+                let gain = (orb.base_passive + focus).max(0);
+                orb.evoke_amount += gain;
+            }
+        }
+    }
+
+    // ---- Double Energy ----
+    if card.effects.contains(&"double_energy") {
+        engine.state.energy *= 2;
+    }
+
+    // ---- Add random Power to hand (White Noise) ----
+    if card.effects.contains(&"add_random_power") {
+        let power_id = engine.temp_card_id("Defragment");
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(power_id);
+        }
+    }
+
+    // ---- Gain Artifact ----
+    if card.effects.contains(&"gain_artifact") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Artifact", amount);
+    }
+
+    // ---- Apply Vulnerable to target (Beam Cell) ----
+    if card.effects.contains(&"apply_vulnerable") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Vulnerable",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Weak (Undo) ----
+    if card.effects.contains(&"apply_weak") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Weakened",
+                amount,
+            );
+        }
+    }
+
+    // ---- Reprogram: lose Focus, gain Str + Dex ----
+    if card.effects.contains(&"reprogram") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Focus", -amount);
+        engine.state.player.add_status("Strength", amount);
+        engine.state.player.add_status("Dexterity", amount);
+    }
+
+    // ---- Damage per orb (Barrage) ----
+    if card.effects.contains(&"damage_per_orb") {
+        let orb_count = engine.state.orb_slots.occupied_count() as i32;
+        if orb_count > 1 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let player_strength = engine.state.player.strength();
+            let player_weak = engine.state.player.is_weak();
+            let stance_mult = engine.state.stance.outgoing_mult();
+            let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+            let dmg = damage::calculate_damage(
+                card.base_damage,
+                player_strength + vigor,
+                player_weak,
+                stance_mult,
+                enemy_vuln,
+                false,
+            );
+            for _ in 0..(orb_count - 1) {
+                if engine.state.enemies[tidx].entity.is_dead() {
+                    break;
+                }
+                engine.deal_damage_to_enemy(tidx, dmg);
+            }
+        }
+    }
+
+    // ---- Draw per unique orb (Compile Driver) ----
+    if card.effects.contains(&"draw_per_unique_orb") {
+        let mut types = std::collections::HashSet::new();
+        for orb in &engine.state.orb_slots.slots {
+            if !orb.is_empty() {
+                types.insert(orb.orb_type);
+            }
+        }
+        let draw_count = types.len() as i32;
+        if draw_count > 0 {
+            engine.draw_cards(draw_count);
+        }
+    }
+
+    // ---- Fission: remove all orbs, gain energy + draw per orb ----
+    if card.effects.contains(&"fission") {
+        let orb_count = engine.state.orb_slots.occupied_count() as i32;
+        engine.state.orb_slots.slots = vec![orbs::Orb::new(OrbType::Empty); engine.state.orb_slots.max_slots];
+        if orb_count > 0 {
+            engine.state.energy += orb_count;
+            engine.draw_cards(orb_count);
+        }
+    }
+
+    // ---- Fission+: evoke all orbs, gain energy + draw per orb ----
+    if card.effects.contains(&"fission_evoke") {
+        let orb_count = engine.state.orb_slots.occupied_count() as i32;
+        let focus = engine.state.player.focus();
+        let effects = engine.state.orb_slots.evoke_all(focus);
+        for effect in effects {
+            engine.apply_evoke_effect(effect);
+        }
+        if orb_count > 0 {
+            engine.state.energy += orb_count;
+            engine.draw_cards(orb_count);
+        }
     }
 }
