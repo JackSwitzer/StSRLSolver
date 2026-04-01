@@ -1130,7 +1130,7 @@ mod power_java_parity_tests {
 
     #[test]
     fn storm_and_heatsink_trigger_on_power_play() {
-        let mut engine = make_engine(&["Defend_P", "Strike_P", "Strike_P", "Strike_P"], 100, 0);
+        let mut engine = make_engine(&["Strike_P", "Strike_P", "Strike_P", "Strike_P"], 100, 0);
         engine.init_defect_orbs(3);
         engine.state.player.set_status("Storm", 1);
         engine.state.player.set_status("Heatsink", 1);
