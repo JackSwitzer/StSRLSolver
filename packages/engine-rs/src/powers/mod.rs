@@ -237,7 +237,7 @@ impl PowerId {
             PowerId::Tools => "ToolsOfTheTrade",
             PowerId::Nightmare => "Nightmare",
             PowerId::PhantasmalKiller => "PhantasmalKiller",
-            PowerId::Sadistic => "Sadistic",
+            PowerId::Sadistic => "SadisticNature",
 
             PowerId::Focus => "Focus",
             PowerId::LockOn => "Lock-On",
@@ -772,8 +772,8 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
             modify_damage_give: true,
             ..Default::default()
         },
-        "Sadistic" => PowerDef {
-            id: "Sadistic",
+        "SadisticNature" => PowerDef {
+            id: "SadisticNature",
             power_type: PowerType::Buff,
             on_apply_power: true, // deal damage when applying debuff
             ..Default::default()
@@ -1269,6 +1269,7 @@ pub use buffs::get_combust_effect;
 pub use buffs::get_omega_damage;
 pub use buffs::get_like_water_block;
 pub use buffs::remove_rage_end_of_turn;
+pub use buffs::apply_double_damage;
 pub use buffs::consume_double_damage;
 pub use buffs::has_corruption;
 pub use buffs::has_no_skills;
@@ -1301,6 +1302,9 @@ pub use debuffs::decrement_lock_on;
 pub use debuffs::apply_debuff;
 pub use debuffs::apply_debuff_with_sadistic;
 pub use debuffs::apply_invincible_cap;
+pub use debuffs::apply_invincible_cap_tracked;
+pub use debuffs::reset_invincible_damage_taken;
+pub use debuffs::slow_damage_multiplier;
 pub use debuffs::apply_mode_shift_damage;
 
 pub use enemy_powers::apply_ritual;
@@ -1318,3 +1322,6 @@ pub use enemy_powers::decrement_the_bomb;
 pub use enemy_powers::apply_regeneration;
 pub use enemy_powers::get_regrow_heal;
 pub use enemy_powers::get_spore_cloud_vulnerable;
+pub use enemy_powers::tick_fading;
+pub use enemy_powers::tick_the_bomb;
+pub use enemy_powers::apply_enemy_regeneration;

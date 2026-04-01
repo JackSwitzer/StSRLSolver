@@ -919,7 +919,7 @@ mod power_java_parity_tests {
         apply_generic_strength_up(&mut e);
         apply_growth(&mut e);
         assert_eq!(e.strength(), 9);
-        assert_eq!(e.dexterity(), 4);
+        assert_eq!(e.block, 4); // Growth adds Block, not Dexterity (Java parity)
         assert_eq!(get_beat_of_death_damage(&e), 5);
         assert_eq!(get_spore_cloud_vulnerable(&e), 2);
         assert_eq!(get_regrow_heal(&e), 7);

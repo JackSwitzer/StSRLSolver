@@ -213,6 +213,11 @@ impl CombatEngine {
                 let retained = relics::calipers_block_retention(&self.state, self.state.player.block);
                 self.state.player.block = retained;
             }
+            // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
+            if blur {
+                let blur_val = self.state.player.status(sk::BLUR);
+                self.state.player.set_status(sk::BLUR, (blur_val - 1).max(0));
+            }
         }
 
         // LoseStrength/LoseDexterity at end of previous turn
@@ -602,6 +607,13 @@ impl CombatEngine {
                     return;
                 }
             }
+        }
+
+        // Player Regeneration: heal and decrement (Java: RegenerationPower.atEndOfTurn)
+        let regen = self.state.player.status(sk::REGENERATION);
+        if regen > 0 {
+            self.state.player.hp = (self.state.player.hp + regen).min(self.state.player.max_hp);
+            self.state.player.add_status(sk::REGENERATION, -1);
         }
 
         // Player poison tick (before enemy turns)
@@ -1009,6 +1021,34 @@ impl CombatEngine {
             crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
         }
 
+        // Double Tap: replay next Attack (Java: DoubleTapPower.onUseCard)
+        if card.card_type == CardType::Attack && !self.state.combat_over {
+            let dt = self.state.player.status(sk::DOUBLE_TAP);
+            if dt > 0 {
+                self.state.player.add_status(sk::DOUBLE_TAP, -1);
+                crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+            }
+        }
+
+        // Burst: replay next Skill (Java: BurstPower.onUseCard)
+        if card.card_type == CardType::Skill && !self.state.combat_over {
+            let burst = self.state.player.status(sk::BURST);
+            if burst > 0 {
+                self.state.player.add_status(sk::BURST, -1);
+                crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
+            }
+        }
+
+        // Wave of the Hand: apply Weak to all enemies when player gains block (Java: WaveOfTheHandPower.onGainedBlock)
+        let woth = self.state.player.status(sk::WAVE_OF_THE_HAND);
+        if woth > 0 && card.base_block > 0 && !self.state.combat_over {
+            for ei in 0..self.state.enemies.len() {
+                if self.state.enemies[ei].is_alive() {
+                    powers::apply_debuff(&mut self.state.enemies[ei].entity, sk::WEAKENED, woth);
+                }
+            }
+        }
+
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
@@ -1337,6 +1377,11 @@ impl CombatEngine {
 
         if enemy.entity.hp <= 0 {
             enemy.entity.hp = 0;
+            // SporeCloud: apply Vulnerable to player on death (Java: SporeCloudPower.onDeath)
+            let spore = enemy.entity.status(sk::SPORE_CLOUD);
+            if spore > 0 {
+                powers::apply_debuff(&mut self.state.player, sk::VULNERABLE, spore);
+            }
         }
 
         // Boss damage hooks

@@ -100,13 +100,14 @@ pub fn decrement_explosive(entity: &mut EntityState) -> i32 {
     0
 }
 
-/// Growth: gain Strength and Dexterity at end of round.
+/// Growth: gain Strength and Block at end of round.
+/// In the Java source, Growth adds Strength and Block (not Dexterity).
 
 pub fn apply_growth(entity: &mut EntityState) {
     let growth = entity.status(sk::GROWTH);
     if growth > 0 {
         entity.add_status(sk::STRENGTH, growth);
-        entity.add_status(sk::DEXTERITY, growth); // Growth also adds Dex in Java? No, just in Nemesis. Check specific enemies.
+        entity.block += growth;
     }
 }
 
@@ -146,6 +147,8 @@ pub fn decrement_the_bomb(entity: &mut EntityState) -> (bool, i32) {
 /// Combust: lose 1 HP, deal N damage to all enemies.
 /// Returns (hp_loss, damage_per_enemy).
 
+/// Regeneration: heal HP and decrement stacks. Returns amount healed.
+/// The simple variant returns the heal amount without applying it.
 pub fn apply_regeneration(entity: &mut EntityState) -> i32 {
     let regen = entity.status(sk::REGENERATION);
     if regen > 0 {
@@ -153,6 +156,15 @@ pub fn apply_regeneration(entity: &mut EntityState) -> i32 {
         return regen;
     }
     0
+}
+
+/// Enemy Regeneration: heal HP capped at max_hp, decrement stacks.
+pub fn apply_enemy_regeneration(entity: &mut EntityState, max_hp: i32) {
+    let regen = entity.status(sk::REGENERATION);
+    if regen > 0 {
+        entity.hp = (entity.hp + regen).min(max_hp);
+        entity.add_status(sk::REGENERATION, -1);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -173,5 +185,44 @@ pub fn get_regrow_heal(entity: &EntityState) -> i32 {
 
 pub fn get_spore_cloud_vulnerable(entity: &EntityState) -> i32 {
     entity.status(sk::SPORE_CLOUD)
+}
+
+// ---------------------------------------------------------------------------
+// Fading (enemy death countdown)
+// ---------------------------------------------------------------------------
+
+/// Fading: decrement at end of turn. Returns true if entity should die.
+pub fn tick_fading(entity: &mut EntityState) -> bool {
+    let fading = entity.status(sk::FADING);
+    if fading > 0 {
+        let new_val = fading - 1;
+        entity.set_status(sk::FADING, new_val);
+        if new_val <= 0 {
+            return true; // enemy should die
+        }
+    }
+    false
+}
+
+// ---------------------------------------------------------------------------
+// TheBomb countdown (standalone helper)
+// ---------------------------------------------------------------------------
+
+/// TheBomb: decrement counter. Returns damage to deal to player (0 if not yet).
+pub fn tick_the_bomb(entity: &mut EntityState) -> i32 {
+    let bomb = entity.status(sk::THE_BOMB);
+    if bomb > 0 {
+        let turns = entity.status(sk::THE_BOMB_TURNS);
+        if turns > 1 {
+            entity.set_status(sk::THE_BOMB_TURNS, turns - 1);
+            0
+        } else {
+            entity.set_status(sk::THE_BOMB, 0);
+            entity.set_status(sk::THE_BOMB_TURNS, 0);
+            bomb // return damage to deal to player
+        }
+    } else {
+        0
+    }
 }
 

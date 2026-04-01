@@ -483,11 +483,23 @@ pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
 // DoubleDamage consumption
 // ---------------------------------------------------------------------------
 
-/// DoubleDamage: consumed after playing an Attack.
+/// DoubleDamage: check and consume one stack. Returns doubled damage if active,
+/// otherwise returns the base damage unchanged. Decrements by 1 per attack.
+pub fn apply_double_damage(entity: &mut EntityState, base_damage: i32) -> i32 {
+    let dd = entity.status(sk::DOUBLE_DAMAGE);
+    if dd > 0 {
+        entity.set_status(sk::DOUBLE_DAMAGE, dd - 1);
+        base_damage * 2
+    } else {
+        base_damage
+    }
+}
 
+/// DoubleDamage: consumed after playing an Attack (legacy zero-out).
 pub fn consume_double_damage(entity: &mut EntityState) {
-    if entity.status(sk::DOUBLE_DAMAGE) > 0 {
-        entity.set_status(sk::DOUBLE_DAMAGE, 0);
+    let dd = entity.status(sk::DOUBLE_DAMAGE);
+    if dd > 0 {
+        entity.set_status(sk::DOUBLE_DAMAGE, dd - 1);
     }
 }
 

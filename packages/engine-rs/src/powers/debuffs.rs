@@ -161,7 +161,8 @@ pub fn apply_debuff_with_sadistic(
 // ---------------------------------------------------------------------------
 
 /// Invincible: cap total damage this turn. Returns capped damage.
-/// The `amount` field tracks remaining damage allowed.
+/// The `Invincible` status value tracks remaining damage allowed this turn.
+/// Call `reset_invincible` at start of each turn to restore the cap.
 
 pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i32 {
     let inv = entity.status(sk::INVINCIBLE);
@@ -175,6 +176,41 @@ pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i
         }
     }
     incoming_damage
+}
+
+/// Invincible: per-turn cap using a separate damage-taken tracker.
+/// Leaves the INVINCIBLE cap itself unchanged so it persists across turns.
+/// Reset via `reset_invincible_damage_taken` at start of each turn.
+pub fn apply_invincible_cap_tracked(entity: &mut EntityState, raw_damage: i32) -> i32 {
+    let cap = entity.status(sk::INVINCIBLE);
+    if cap <= 0 {
+        return raw_damage;
+    }
+    let taken_this_turn = entity.status(sk::INVINCIBLE_DAMAGE_TAKEN);
+    let remaining = (cap - taken_this_turn).max(0);
+    let capped = raw_damage.min(remaining);
+    entity.set_status(sk::INVINCIBLE_DAMAGE_TAKEN, taken_this_turn + capped);
+    capped
+}
+
+/// Reset Invincible per-turn damage tracking. Call at start of each turn.
+pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
+    entity.set_status(sk::INVINCIBLE_DAMAGE_TAKEN, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Slow damage multiplier
+// ---------------------------------------------------------------------------
+
+/// Slow: returns the damage multiplier for an entity with Slow stacks.
+/// Each stack adds +10% damage taken.
+pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
+    let slow = entity.status(sk::SLOW);
+    if slow > 0 {
+        1.0 + (slow as f64 * 0.10)
+    } else {
+        1.0
+    }
 }
 
 // ---------------------------------------------------------------------------

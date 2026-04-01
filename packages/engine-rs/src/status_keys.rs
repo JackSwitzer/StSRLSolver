@@ -148,6 +148,7 @@ pub mod sk {
     pub const SHARP_HIDE: &str = "SharpHide";
     pub const MODE_SHIFT: &str = "ModeShift";
     pub const INVINCIBLE: &str = "Invincible";
+    pub const INVINCIBLE_DAMAGE_TAKEN: &str = "InvincibleDamageTaken";
     pub const MALLEABLE: &str = "Malleable";
     pub const REACTIVE: &str = "Reactive";
     pub const SLOW: &str = "Slow";

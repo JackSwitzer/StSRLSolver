@@ -171,39 +171,39 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.player.is_dead() {
                 return;
             }
-        }
 
-        // Thorns: deal Thorns damage back to the attacking enemy
-        let thorns = engine.state.player.status(sk::THORNS);
-        if thorns > 0 {
-            let e = &mut engine.state.enemies[enemy_idx];
-            let blocked_t = e.entity.block.min(thorns);
-            let hp_dmg_t = thorns - blocked_t;
-            e.entity.block -= blocked_t;
-            e.entity.hp -= hp_dmg_t;
-            engine.state.total_damage_dealt += hp_dmg_t;
-            if e.entity.hp <= 0 {
-                e.entity.hp = 0;
+            // Thorns: deal Thorns damage back per hit (Java: ThornsPower.onAttacked)
+            let thorns = engine.state.player.status(sk::THORNS);
+            if thorns > 0 && engine.state.enemies[enemy_idx].is_alive() {
+                let e = &mut engine.state.enemies[enemy_idx];
+                let blocked_t = e.entity.block.min(thorns);
+                let hp_dmg_t = thorns - blocked_t;
+                e.entity.block -= blocked_t;
+                e.entity.hp -= hp_dmg_t;
+                engine.state.total_damage_dealt += hp_dmg_t;
+                if e.entity.hp <= 0 {
+                    e.entity.hp = 0;
+                }
+                if hp_dmg_t > 0 {
+                    on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
+                }
             }
-            if hp_dmg_t > 0 {
-                on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
-            }
-        }
 
-        // Flame Barrier: deal FlameBarrier damage back to the attacking enemy
-        let flame_barrier = engine.state.player.status(sk::FLAME_BARRIER);
-        if flame_barrier > 0 {
-            let e = &mut engine.state.enemies[enemy_idx];
-            let blocked_f = e.entity.block.min(flame_barrier);
-            let hp_dmg_f = flame_barrier - blocked_f;
-            e.entity.block -= blocked_f;
-            e.entity.hp -= hp_dmg_f;
-            engine.state.total_damage_dealt += hp_dmg_f;
-            if e.entity.hp <= 0 {
-                e.entity.hp = 0;
-            }
-            if hp_dmg_f > 0 {
-                on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
+            // Flame Barrier: deal FlameBarrier damage back per hit (Java: FlameBarrierPower.onAttacked)
+            let flame_barrier = engine.state.player.status(sk::FLAME_BARRIER);
+            if flame_barrier > 0 && engine.state.enemies[enemy_idx].is_alive() {
+                let e = &mut engine.state.enemies[enemy_idx];
+                let blocked_f = e.entity.block.min(flame_barrier);
+                let hp_dmg_f = flame_barrier - blocked_f;
+                e.entity.block -= blocked_f;
+                e.entity.hp -= hp_dmg_f;
+                engine.state.total_damage_dealt += hp_dmg_f;
+                if e.entity.hp <= 0 {
+                    e.entity.hp = 0;
+                }
+                if hp_dmg_f > 0 {
+                    on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
+                }
             }
         }
     }
