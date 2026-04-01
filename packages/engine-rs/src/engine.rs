@@ -779,6 +779,129 @@ impl CombatEngine {
                     let current = self.state.player.status("Draw");
                     self.state.player.set_status("Draw", current + card.base_magic.max(1));
                 }
+
+                // ---- Ironclad Powers ----
+                "barricade" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Barricade", amt);
+                }
+                "demon_form" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Demon Form", amt);
+                }
+                "dark_embrace" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Dark Embrace", amt);
+                }
+                "feel_no_pain" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Feel No Pain", amt);
+                }
+                "metallicize" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Metallicize", amt);
+                }
+                "brutality" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Brutality", amt);
+                }
+                "combust" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Combust", amt);
+                }
+                "evolve" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Evolve", amt);
+                }
+                "fire_breathing" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Fire Breathing", amt);
+                }
+                "juggernaut" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Juggernaut", amt);
+                }
+                "rupture" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Rupture", amt);
+                }
+                "berserk" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Berserk", amt);
+                }
+
+                // ---- Silent Powers ----
+                "noxious_fumes" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Noxious Fumes", amt);
+                }
+                "thousand_cuts" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("A Thousand Cuts", amt);
+                }
+                "infinite_blades" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Infinite Blades", amt);
+                }
+                "envenom" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Envenom", amt);
+                }
+                "accuracy" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Accuracy", amt);
+                }
+                "thorns" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Thorns", amt);
+                }
+                "tools_of_the_trade" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Tools of the Trade", amt);
+                }
+                "well_laid_plans" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Well-Laid Plans", amt);
+                }
+
+                // ---- Defect Powers ----
+                "loop_orb" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Loop", amt);
+                }
+                "hello_world" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Hello World", amt);
+                }
+                "lightning_hits_all" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Electrodynamics", amt);
+                }
+                "gain_orb_slots" => {
+                    let slots = card.base_magic.max(1);
+                    for _ in 0..slots {
+                        self.state.orb_slots.add_slot();
+                    }
+                }
+
+                // ---- Colorless Powers ----
+                "sadistic_nature" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Sadistic Nature", amt);
+                }
+                "panache" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Panache", amt);
+                }
+                "magnetism" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Magnetism", amt);
+                }
+                "mayhem" => {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status("Mayhem", amt);
+                }
+
                 _ => {}
             }
         }
