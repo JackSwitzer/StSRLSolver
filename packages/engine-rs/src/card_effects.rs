@@ -563,6 +563,61 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // Ironclad / Silent — newly implemented effects
     // ====================================================================
 
+    // ---- Apply Vulnerable to single target (Bash, Terror, etc.) ----
+    if card.effects.contains(&"vulnerable") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Vulnerable",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Vulnerable to ALL enemies (Thunderclap, etc.) ----
+    if card.effects.contains(&"vulnerable_all") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            powers::apply_debuff(
+                &mut engine.state.enemies[idx].entity,
+                "Vulnerable",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Weak to single target (Clothesline, Neutralize, etc.) ----
+    if card.effects.contains(&"weak") {
+        if target_idx >= 0 && (target_idx as uгрупа) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            powers::apply_debuff(
+                &mut engine.state.enemies[target_idx as usize].entity,
+                "Weakened",
+                amount,
+            );
+        }
+    }
+
+    // ---- Apply Weak to ALL enemies ----
+    if card.effects.contains(&"weak_all") {
+        let amount = card.base_magic.max(1);
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            powers::apply_debuff(
+                &mut engine.state.enemies[idx].entity,
+                "Weakened",
+                amount,
+            );
+        }
+    }
+
+    // ---- Gain exactly 1 energy (Adrenaline) ----
+    if card.effects.contains(&"gain_energy_1") {
+        engine.state.energy += 1;
+    }
+
     // ---- Limit Break: double current Strength ----
     if card.effects.contains(&"double_strength") {
         let current_str = engine.state.player.strength();
@@ -717,6 +772,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"gain_focus") {
         let amount = card.base_magic.max(1);
         engine.state.player.add_status("Focus", amount);
+    }
+
+    // ---- Lose Focus (Hyperbeam) ----
+    if card.effects.contains(&"lose_focus") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status("Focus", -amount);
     }
 
     // ---- Lose orb slot (Consume) ----
@@ -889,6 +950,48 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         if orb_count > 0 {
             engine.state.energy += orb_count;
             engine.draw_cards(orb_count);
+        }
+    }
+
+    // ---- Energy on Kill (Sunder) ----
+    if card.effects.contains(&"energy_on_kill") && enemy_killed {
+        engine.state.energy += 3;
+    }
+
+    // ---- Return zero-cost cards from discard to hand (All For One) ----
+    if card.effects.contains(&"return_zero_cost_from_discard") {
+        let registry = crate::cards::CardRegistry::new();
+        let mut returned = Vec::new();
+        engine.state.discard_pile.retain(|card_id| {
+            if let Some(def) = registry.get(card_id) {
+                if def.cost == 0 && engine.state.hand.len() + returned.len() < 10 {
+                    returned.push(card_id.clone());
+                    return false;
+                }
+            }
+            true
+        });
+        engine.state.hand.extend(returned);
+    }
+
+    // ---- Reboot: shuffle hand+discard into draw, draw base_magic cards ----
+    if card.effects.contains(&"reboot") {
+        let draw_count = card.base_magic.max(4);
+        let hand_cards: Vec<String> = engine.state.hand.drain(..).collect();
+        engine.state.draw_pile.extend(hand_cards);
+        let discard_cards: Vec<String> = engine.state.discard_pile.drain(..).collect();
+        engine.state.draw_pile.extend(discard_cards);
+        engine.draw_cards(draw_count);
+    }
+
+    // ---- Seek: tutor base_magic cards from draw pile to hand ----
+    if card.effects.contains(&"seek") {
+        let count = card.base_magic.max(1) as usize;
+        let to_move = count.min(engine.state.draw_pile.len()).min(10 - engine.state.hand.len());
+        for _ in 0..to_move {
+            if let Some(card_id) = engine.state.draw_pile.pop() {
+                engine.state.hand.push(card_id);
+            }
         }
     }
 }
