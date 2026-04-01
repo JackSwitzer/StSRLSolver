@@ -502,11 +502,22 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
         "Champ" => {
-            // First turn: always Defensive Stance or Face Slap
+            // Java: complex RNG-based move pattern. First turn determined by RNG.
+            // Damage: A4+ slash=18 slap=14, else slash=16 slap=12. Execute always 10x2.
+            // Str: A19=4, A4+=3, else 2. Forge: A19=7/20, A9+=6/18, else 5/15.
+            // Face Slap gives Frail 2 + Vulnerable 2 (Java).
+            // For MCTS: deterministic pattern starting with Face Slap.
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, 12, 1, 0);
             enemy.move_effects.insert("frail".to_string(), 2);
+            enemy.move_effects.insert("vulnerable".to_string(), 2);
             enemy.entity.set_status("NumTurns", 0);
             enemy.entity.set_status("ThresholdReached", 0);
+            enemy.entity.set_status("StrAmt", 2);
+            enemy.entity.set_status("ForgeAmt", 5);
+            enemy.entity.set_status("BlockAmt", 15);
+            enemy.entity.set_status("ForgeTimes", 0);
+            enemy.entity.set_status("SlashDmg", 16);
+            enemy.entity.set_status("SlapDmg", 12);
         }
         "TheCollector" | "Collector" => {
             // First turn: Spawn (summon TorchHeads)
@@ -541,9 +552,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("TurnCount", 0);
         }
         "WrithingMass" | "Writhing Mass" => {
-            // First turn: random attack. Use Multi Hit (7x3)
+            // First turn: random attack. Use Multi Hit as default.
+            // Reactive power: changes intent when hit. Malleable power: gains block when hit.
+            // A2: 38/9/16/12, else 32/7/15/10
+            // For MCTS deterministic: use Multi Hit as first move
             enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
             enemy.entity.set_status("Reactive", 1);
+            enemy.entity.set_status("Malleable", 1);
+            enemy.entity.set_status("UsedMegaDebuff", 0);
         }
         "SpireGrowth" | "Spire Growth" => {
             // Has Constrict. First turn: Quick Tackle (16)
@@ -557,19 +573,31 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("TurnCount", 1);
         }
         "Transient" => {
-            // Escalating damage. Starts at 30, +10 each turn. Dies after 5 turns.
+            // Escalating damage. A2: starts at 40, else 30. +10 each turn.
+            // Fading: A17 = 6 turns, else 5 turns. Has Shifting power (reduces all damage to block).
+            // startingDeathDmg stored as status for escalation.
             enemy.set_move(move_ids::TRANSIENT_ATTACK, 30, 1, 0);
             enemy.entity.set_status("AttackCount", 0);
+            enemy.entity.set_status("StartingDmg", 30);
+            enemy.entity.set_status("Shifting", 1);
         }
         "GiantHead" | "Giant Head" => {
-            // Countdown to It Is Time. Glare/Count cycle for 5 turns.
+            // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
+            // startingDeathDmg: A3+ = 40, else 30. Has Slow power.
+            // First getMove decrements count, so first turn is count=4 (or 3 at A18).
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
-            enemy.entity.set_status("Countdown", 5);
+            enemy.entity.set_status("Count", 5);
+            enemy.entity.set_status("StartingDeathDmg", 30);
+            enemy.entity.set_status("Slow", 1);
         }
         "Nemesis" => {
-            // Intangible every other turn. First turn: Tri Attack (6x3)
+            // Intangible cycling — gains Intangible every turn in takeTurn if not already present.
+            // First move: 50% Tri Attack (fireDmg x3), 50% Burn (3 burns, 5 at A18).
+            // Deterministic MCTS: use Tri Attack as default first move.
+            // fireDmg: A3+ = 7, else 6. Scythe always 45.
             enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
             enemy.entity.set_status("ScytheCooldown", 0);
+            enemy.entity.set_status("FirstMove", 1);
         }
         "Reptomancer" => {
             // First turn: Spawn daggers
@@ -581,11 +609,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.move_effects.insert("wound".to_string(), 1);
         }
         "AwakenedOne" | "Awakened One" => {
-            // Phase 1. Curiosity: gains 1 Str when player plays a Power.
-            // First turn: Slash (20 damage)
+            // Phase 1. Curiosity: gains Str when player plays a Power (A19: 2, else 1).
+            // Regen: A19 = 15, else 10. A4: starts with +2 Str.
+            // First turn always Slash (20 damage). Has Unawakened power.
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
             enemy.entity.set_status("Curiosity", 1);
             enemy.entity.set_status("Phase", 1);
+            enemy.entity.set_status("Regenerate", 10);
+            enemy.entity.set_status("FirstTurn", 0); // already set first move
         }
         "Donu" => {
             // Alternates: Beam (10x2) and Circle of Protection (+3 Str to both)
@@ -594,23 +625,33 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("Artifact", 2);
         }
         "Deca" => {
-            // Alternates: Beam (10x2 + Daze) and Square of Protection (16 block)
-            enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
+            // Java: Deca starts with isAttacking=true, so first getMove picks Beam.
+            // Beam (10x2 + 2 Daze), Square (16 block). A4+ beam=12. A19 artifact=3 + plated armor.
+            enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
+            enemy.move_effects.insert("daze".to_string(), 2);
             enemy.entity.set_status("Artifact", 2);
         }
         "TimeEater" | "Time Eater" => {
-            // After player plays 12 cards: Haste (heal to 50%, cleanse, +2 Str).
-            // First turn: Reverberate (7x3)
+            // After player plays 12 cards: Haste (heal to 50%, cleanse).
+            // A4: reverb=8, headSlam=32. Else reverb=7, headSlam=26.
+            // Has Time Warp power. Head Slam applies draw reduction.
+            // Ripple: 20 block + Vuln 1 + Weak 1. A19 also Frail 1.
+            // A19: Head Slam also adds 2 Slimed.
             enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
             enemy.entity.set_status("CardCount", 0);
+            enemy.entity.set_status("UsedHaste", 0);
+            enemy.entity.set_status("ReverbDmg", 7);
+            enemy.entity.set_status("HeadSlamDmg", 26);
         }
 
         // =================================================================
         // Act 4 — The Ending
         // =================================================================
         "SpireShield" | "Spire Shield" => {
-            // 3-move cycle. First turn: Bash (14 dmg + -1 Str) or Fortify (30 block)
-            enemy.set_move(move_ids::SHIELD_BASH, 14, 1, 0);
+            // 3-move cycle. First turn: Bash or Fortify (50/50 in Java).
+            // Bash: 12 (A3+ = 14). Smash: 34 (A3+ = 38). Fortify: 30 block.
+            // Bash applies -1 Str or -1 Focus (random if player has orbs).
+            enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
             enemy.move_effects.insert("strength_down".to_string(), 1);
             enemy.entity.set_status("MoveCount", 0);
         }
@@ -622,7 +663,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("SkewerCount", 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
-            // First turn: Debilitate (apply Vulnerable 2, Weak 2, Frail 2)
+            // First turn: Debilitate (Vuln 2, Weak 2, Frail 2 + status cards to draw pile).
+            // A4: echo=45, bloodHits=15. Else echo=40, bloodHits=12.
+            // A9: HP=800. A19: invincible=200, beatOfDeath=2.
+            // Buff cycle: +2 Str + [Artifact 2, +1 BeatOfDeath, PainfulStabs, +10 Str, +50 Str]
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.move_effects.insert("vulnerable".to_string(), 2);
             enemy.move_effects.insert("weak".to_string(), 2);
@@ -631,6 +675,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status("BeatOfDeath", 1);
             enemy.entity.set_status("MoveCount", 0);
             enemy.entity.set_status("BloodHitCount", 12);
+            enemy.entity.set_status("EchoDmg", 40);
+            enemy.entity.set_status("BuffCount", 0);
+            enemy.entity.set_status("IsFirstMove", 1);
         }
 
         _ => {
@@ -1029,40 +1076,40 @@ pub fn guardian_switch_to_offensive(enemy: &mut EnemyCombatState) {
 fn roll_hexaghost(enemy: &mut EnemyCombatState) {
     let moves_done = enemy.move_history.len();
 
+    // Java: orbActiveCount tracks the cycle position (0-6).
+    // After Activate (first turn): Divider on turn 2, then orbActiveCount-based cycle.
+    // Cycle: Sear(0), Tackle(1), Sear(2), Inflame(3), Tackle(4), Sear(5), Inferno(6->reset).
+    // orbActiveCount resets to 0 after Inferno (Deactivate all orbs).
+    // A4+: fireTackleDmg=6, infernoDmg=3. Else 5, 2.
+    // A19: strAmount=3, searBurnCount=2. Else 2, 1.
     match moves_done {
         1 => {
-            // After Activate: Divider. Damage = player_hp / 12 + 1, hit 6 times.
+            // After Activate: Divider. Damage = player_hp / 12 + 1 (integer division), hit 6 times.
             // Use 7 as default (80hp / 12 + 1 = 7.67 -> 7)
             enemy.set_move(move_ids::HEX_DIVIDER, 7, 6, 0);
         }
         _ => {
-            let pattern_turn = (moves_done - 2) % 7;
-            match pattern_turn {
-                0 => {
+            // orbActiveCount-based: starts at 0 after Divider, increments with each orb-activating move
+            let orb_count = (moves_done - 2) % 7;
+            match orb_count {
+                0 | 2 | 5 => {
+                    // Sear: 6 damage + burn cards (searBurnCount, default 1)
                     enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
                     enemy.move_effects.insert("burn".to_string(), 1);
                 }
-                1 => {
+                1 | 4 => {
+                    // Fire Tackle: fireTackleDmg x2 (A4+ = 6, else 5)
                     enemy.set_move(move_ids::HEX_TACKLE, 5, 2, 0);
                 }
-                2 => {
-                    enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
-                    enemy.move_effects.insert("burn".to_string(), 1);
-                }
                 3 => {
+                    // Inflame: 12 block + strAmount Str (A19 = 3, else 2)
                     enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
                     enemy.move_effects.insert("strength".to_string(), 2);
                 }
-                4 => {
-                    enemy.set_move(move_ids::HEX_TACKLE, 5, 2, 0);
-                }
-                5 => {
-                    enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
-                    enemy.move_effects.insert("burn".to_string(), 1);
-                }
                 _ => {
+                    // Inferno: infernoDmg x6 (A4+ = 3, else 2) + upgrade all burns
                     enemy.set_move(move_ids::HEX_INFERNO, 2, 6, 0);
-                    enemy.move_effects.insert("burn+".to_string(), 3);
+                    enemy.move_effects.insert("burn_upgrade".to_string(), 1);
                 }
             }
         }
@@ -1070,7 +1117,8 @@ fn roll_hexaghost(enemy: &mut EnemyCombatState) {
 }
 
 /// Set Hexaghost Divider damage based on player HP.
-/// Formula: ceil(player_hp / 12 + 1) per hit, 6 hits.
+/// Java formula: `d = AbstractDungeon.player.currentHealth / 12 + 1`
+/// This is integer division, no ceiling. Per hit = player_hp / 12 + 1, 6 hits.
 pub fn hexaghost_set_divider(enemy: &mut EnemyCombatState, player_hp: i32) {
     let per_hit = player_hp / 12 + 1;
     enemy.set_move(move_ids::HEX_DIVIDER, per_hit, 6, 0);
@@ -1331,48 +1379,62 @@ fn roll_champ(enemy: &mut EnemyCombatState) {
     let num_turns = enemy.entity.status("NumTurns") + 1;
     enemy.entity.set_status("NumTurns", num_turns);
 
-    let threshold_reached = enemy.entity.hp <= enemy.entity.max_hp / 2;
+    let str_amt = enemy.entity.status("StrAmt").max(2);
+    let _forge_amt = enemy.entity.status("ForgeAmt").max(5);
+    let _block_amt = enemy.entity.status("BlockAmt").max(15);
+    let slash_dmg = enemy.entity.status("SlashDmg").max(16);
+    let slap_dmg = enemy.entity.status("SlapDmg").max(12);
 
-    // Phase 2: Anger (remove debuffs, +Str, Metallicize) then Execute spam
-    if threshold_reached && enemy.entity.status("ThresholdReached") == 0 {
+    let threshold_reached_now = enemy.entity.hp <= enemy.entity.max_hp / 2;
+
+    // Phase 2 trigger: Anger (remove debuffs, gain 3*strAmt Str)
+    if threshold_reached_now && enemy.entity.status("ThresholdReached") == 0 {
         enemy.entity.set_status("ThresholdReached", 1);
         enemy.set_move(move_ids::CHAMP_ANGER, 0, 0, 0);
-        enemy.move_effects.insert("metallicize".to_string(), 5);
-        enemy.move_effects.insert("strength".to_string(), 2);
+        // Java: Anger gives 3*strAmt Strength (not strAmt)
+        enemy.move_effects.insert("strength".to_string(), str_amt * 3);
+        enemy.move_effects.insert("remove_debuffs".to_string(), 1);
         return;
     }
+
+    // Phase 2: Execute spam
     if enemy.entity.status("ThresholdReached") > 0 {
-        // Phase 2: Execute (10x2) and Heavy Slash (18)
+        // Java: Execute (10x2) every turn if threshold reached.
+        // Uses lastMove and lastMoveBefore to check.
         if !last_move(enemy, move_ids::CHAMP_EXECUTE) {
             enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
         } else {
-            enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, 18, 1, 0);
+            enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
         }
         return;
     }
 
-    // Phase 1: cycle through moves
-    if last_move(enemy, move_ids::CHAMP_FACE_SLAP) {
-        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, 18, 1, 0);
-    } else if last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
-        // Gloat or Defensive Stance
-        if num_turns <= 3 {
-            enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
-            enemy.move_effects.insert("strength".to_string(), 2);
-        } else {
-            enemy.set_move(move_ids::CHAMP_DEFENSIVE, 0, 0, 15);
-            enemy.move_effects.insert("metallicize".to_string(), 5);
-        }
-    } else if last_move(enemy, move_ids::CHAMP_GLOAT) || last_move(enemy, move_ids::CHAMP_DEFENSIVE) {
+    // Phase 1: Java uses numTurns==4 for Taunt, then RNG-based selection.
+    // Deterministic MCTS: simplified cycle.
+    if num_turns == 4 {
+        // Taunt at turn 4 (Java)
         enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
         enemy.move_effects.insert("vulnerable".to_string(), 2);
         enemy.move_effects.insert("weak".to_string(), 2);
-    } else if last_move(enemy, move_ids::CHAMP_TAUNT) {
-        enemy.set_move(move_ids::CHAMP_FACE_SLAP, 12, 1, 0);
+        enemy.entity.set_status("NumTurns", 0);
+        return;
+    }
+
+    if last_move(enemy, move_ids::CHAMP_FACE_SLAP) || last_move(enemy, move_ids::CHAMP_TAUNT) {
+        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
+    } else if last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
+        // Gloat (gain strAmt Str)
+        enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
+        enemy.move_effects.insert("strength".to_string(), str_amt);
+    } else if last_move(enemy, move_ids::CHAMP_GLOAT) || last_move(enemy, move_ids::CHAMP_DEFENSIVE) {
+        enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
+        // Java: Face Slap gives Frail 2 + Vulnerable 2
         enemy.move_effects.insert("frail".to_string(), 2);
+        enemy.move_effects.insert("vulnerable".to_string(), 2);
     } else {
-        enemy.set_move(move_ids::CHAMP_FACE_SLAP, 12, 1, 0);
+        enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
         enemy.move_effects.insert("frail".to_string(), 2);
+        enemy.move_effects.insert("vulnerable".to_string(), 2);
     }
 }
 
@@ -1469,19 +1531,55 @@ fn roll_exploder(enemy: &mut EnemyCombatState) {
 }
 
 fn roll_writhing_mass(enemy: &mut EnemyCombatState) {
-    // Rotates through moves. Has Reactive power (changes intent when hit).
-    // Deterministic for MCTS: cycle Big Hit -> Multi -> Attack+Block -> Attack+Debuff
+    // Java: RNG-based move selection with anti-repeat. Has Reactive power (rerolls on hit).
+    // Moves: Big Hit (32/38 A2), Multi (7/9 A2 x3), Attack+Block (15/16 A2 + block=same),
+    //         Attack+Debuff (10/12 A2 + Weak 2 + Vuln 2), Mega Debuff (Parasite card, once only).
+    // Deterministic MCTS: cycle through common moves, skip Mega Debuff.
+    // Base damage values (non-A2): 32, 7x3, 15+15block, 10+Weak2+Vuln2
     if last_move(enemy, move_ids::WM_MULTI_HIT) {
-        enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 10);
+        enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
     } else if last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
         enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
         enemy.move_effects.insert("weak".to_string(), 2);
+        enemy.move_effects.insert("vulnerable".to_string(), 2);
     } else if last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
         enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
     } else if last_move(enemy, move_ids::WM_BIG_HIT) {
         enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
     } else {
         enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
+    }
+}
+
+/// WrithingMass: Reactive power triggers re-roll when hit. Call this when WM takes damage.
+pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState) {
+    // Java: getMove() is called again with a new random number when hit.
+    // For MCTS: advance to a different move than current.
+    let current = enemy.move_id;
+    // Pick the next move in cycle that isn't the current one
+    let next = match current {
+        x if x == move_ids::WM_BIG_HIT => move_ids::WM_MULTI_HIT,
+        x if x == move_ids::WM_MULTI_HIT => move_ids::WM_ATTACK_BLOCK,
+        x if x == move_ids::WM_ATTACK_BLOCK => move_ids::WM_ATTACK_DEBUFF,
+        x if x == move_ids::WM_ATTACK_DEBUFF => move_ids::WM_BIG_HIT,
+        _ => move_ids::WM_MULTI_HIT,
+    };
+    enemy.move_effects.clear();
+    match next {
+        x if x == move_ids::WM_BIG_HIT => {
+            enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
+        }
+        x if x == move_ids::WM_MULTI_HIT => {
+            enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
+        }
+        x if x == move_ids::WM_ATTACK_BLOCK => {
+            enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
+        }
+        _ => {
+            enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
+            enemy.move_effects.insert("weak".to_string(), 2);
+            enemy.move_effects.insert("vulnerable".to_string(), 2);
+        }
     }
 }
 
@@ -1523,8 +1621,11 @@ fn roll_maw(enemy: &mut EnemyCombatState) {
 fn roll_transient(enemy: &mut EnemyCombatState) {
     let count = enemy.entity.status("AttackCount") + 1;
     enemy.entity.set_status("AttackCount", count);
-    // Escalating: 30 + 10 * count
-    let dmg = 30 + count * 10;
+    // Java: damage list pre-computed as startingDeathDmg + count*10
+    // startingDeathDmg = 30 (A2+ = 40). count increments in takeTurn.
+    let starting_dmg = enemy.entity.status("StartingDmg");
+    let base = if starting_dmg > 0 { starting_dmg } else { 30 };
+    let dmg = base + count * 10;
     enemy.set_move(move_ids::TRANSIENT_ATTACK, dmg, 1, 0);
 }
 
@@ -1533,54 +1634,76 @@ fn roll_transient(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 fn roll_giant_head(enemy: &mut EnemyCombatState) {
-    let countdown = enemy.entity.status("Countdown");
+    // Java: count starts at 5 (A18: 4). Decremented in getMove each call.
+    // When count <= 1: It Is Time mode. Damage = startingDeathDmg - count*5
+    // (count goes negative: -1, -2, etc., capped at -6).
+    // Before count <= 1: alternate Glare (Weak 1) and Count (13 dmg).
+    let count = enemy.entity.status("Count");
+    let starting_death_dmg = {
+        let v = enemy.entity.status("StartingDeathDmg");
+        if v > 0 { v } else { 30 }
+    };
 
-    if countdown <= 0 {
-        // It Is Time! Escalating damage: starts at 30, +5 per use
-        let uses = enemy.entity.status("ItIsTimeUses");
-        let dmg = 30 + uses * 5;
-        enemy.entity.set_status("ItIsTimeUses", uses + 1);
+    if count <= 1 {
+        // It Is Time mode
+        let new_count = if count > -6 { count - 1 } else { count };
+        enemy.entity.set_status("Count", new_count);
+        let dmg = starting_death_dmg - new_count * 5;
         enemy.set_move(move_ids::GH_IT_IS_TIME, dmg, 1, 0);
     } else {
-        enemy.entity.set_status("Countdown", countdown - 1);
-        // Alternate Glare (Weak 1) and Count (13 dmg)
-        if last_two_moves(enemy, move_ids::GH_COUNT) {
+        let new_count = count - 1;
+        enemy.entity.set_status("Count", new_count);
+        // Alternate Glare and Count with anti-repeat (lastTwoMoves)
+        if last_two_moves(enemy, move_ids::GH_GLARE) {
+            enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
+        } else if last_two_moves(enemy, move_ids::GH_COUNT) {
             enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
             enemy.move_effects.insert("weak".to_string(), 1);
         } else if last_move(enemy, move_ids::GH_GLARE) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         } else {
+            // Default: Count (attack)
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         }
     }
 }
 
 fn roll_nemesis(enemy: &mut EnemyCombatState) {
-    let cooldown = enemy.entity.status("ScytheCooldown");
+    // Java: scytheCooldown decremented FIRST in getMove, then pattern checked.
+    // Intangible applied every turn in takeTurn if not already present (not just Scythe).
+    // fireDmg default = 6 (A3+ = 7). Scythe always 45.
+    // Burn count: 3 (A18+ = 5).
+    let cooldown = enemy.entity.status("ScytheCooldown") - 1;
+    enemy.entity.set_status("ScytheCooldown", cooldown.max(0));
 
-    if cooldown > 0 {
-        enemy.entity.set_status("ScytheCooldown", cooldown - 1);
+    let fire_dmg = 6; // base; caller should adjust for A3+ (7)
+
+    // Java getMove: first move handled separately
+    let first_move = enemy.entity.status("FirstMove") > 0;
+    if first_move {
+        enemy.entity.set_status("FirstMove", 0);
+        // 50/50: Tri Attack or Burn. Deterministic: Tri Attack.
+        enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
+        return;
     }
 
-    // Pattern: Tri Attack / Burn / Scythe (45, goes Intangible after)
-    if last_move(enemy, move_ids::NEM_SCYTHE) {
-        // After Scythe: Intangible, then Tri Attack or Burn
+    // Deterministic MCTS pattern matching Java probabilities:
+    // Scythe when off cooldown and haven't used recently,
+    // otherwise alternate Tri Attack and Burn with anti-repeat.
+    if cooldown <= 0 && !last_move(enemy, move_ids::NEM_SCYTHE) {
+        enemy.set_move(move_ids::NEM_SCYTHE, 45, 1, 0);
         enemy.entity.set_status("ScytheCooldown", 2);
-        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
-        enemy.move_effects.insert("burn".to_string(), 3);
-    } else if cooldown <= 0 && !last_move(enemy, move_ids::NEM_SCYTHE) {
-        // Scythe when off cooldown
-        if enemy.move_history.len() >= 2 {
-            enemy.set_move(move_ids::NEM_SCYTHE, 45, 1, 0);
-            enemy.entity.set_status("Intangible", 1);
-        } else {
-            enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
-        }
     } else if last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
         enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
         enemy.move_effects.insert("burn".to_string(), 3);
+    } else if last_move(enemy, move_ids::NEM_BURN) {
+        enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
+    } else if last_move(enemy, move_ids::NEM_SCYTHE) {
+        // After Scythe: prefer Burn or Tri Attack
+        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
+        enemy.move_effects.insert("burn".to_string(), 3);
     } else {
-        enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
+        enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
     }
 }
 
@@ -1615,23 +1738,34 @@ fn roll_awakened_one(enemy: &mut EnemyCombatState) {
     let phase = enemy.entity.status("Phase");
 
     if phase == 1 {
-        // Phase 1: Slash (20) / Soul Strike (6x4)
-        if last_move(enemy, move_ids::AO_SLASH) || last_two_moves(enemy, move_ids::AO_SLASH) {
+        // Phase 1: Java getMove uses RNG < 25 for Soul Strike, else Slash.
+        // Anti-repeat: can't use Soul Strike twice in a row, can't Slash 3 in a row.
+        // Deterministic MCTS: alternate Slash and Soul Strike.
+        if last_move(enemy, move_ids::AO_SLASH) {
             enemy.set_move(move_ids::AO_SOUL_STRIKE, 6, 4, 0);
+        } else if last_move(enemy, move_ids::AO_SOUL_STRIKE) || last_two_moves(enemy, move_ids::AO_SLASH) {
+            enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
         } else {
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
         }
-        // Check for death -> Rebirth handled externally
     } else {
-        // Phase 2: Dark Echo (40) / Sludge (18 + Slimed) / Tackle (10x3)
+        // Phase 2: Dark Echo (40), Sludge (18 + Void card), Tackle (10x3).
+        // Java: firstTurn of P2 = Dark Echo. Then RNG < 50 for Sludge, else Tackle.
+        // Anti-repeat: Sludge can't be used 3 in a row, Tackle can't be used 3 in a row.
+        // Sludge adds a Void card to draw pile (not Slimed!).
         if last_move(enemy, move_ids::AO_DARK_ECHO) {
             enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.move_effects.insert("slimed".to_string(), 1);
-        } else if last_move(enemy, move_ids::AO_SLUDGE) || last_two_moves(enemy, move_ids::AO_SLUDGE) {
+            enemy.move_effects.insert("void".to_string(), 1);
+        } else if last_two_moves(enemy, move_ids::AO_SLUDGE) {
             enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
-        } else if last_move(enemy, move_ids::AO_TACKLE) || last_two_moves(enemy, move_ids::AO_TACKLE) {
+        } else if last_two_moves(enemy, move_ids::AO_TACKLE) {
             enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.move_effects.insert("slimed".to_string(), 1);
+            enemy.move_effects.insert("void".to_string(), 1);
+        } else if last_move(enemy, move_ids::AO_SLUDGE) {
+            enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
+        } else if last_move(enemy, move_ids::AO_TACKLE) {
+            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+            enemy.move_effects.insert("void".to_string(), 1);
         } else {
             enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
         }
@@ -1650,7 +1784,9 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
 }
 
 fn roll_donu(enemy: &mut EnemyCombatState) {
-    // Alternate: Circle of Protection (+3 Str to both) and Beam (10x2)
+    // Java: isAttacking flag toggles. Donu starts with isAttacking=false.
+    // Circle -> isAttacking=true -> Beam -> isAttacking=false -> repeat.
+    // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
     if last_move(enemy, move_ids::DONU_CIRCLE) {
         enemy.set_move(move_ids::DONU_BEAM, 10, 2, 0);
     } else {
@@ -1660,30 +1796,54 @@ fn roll_donu(enemy: &mut EnemyCombatState) {
 }
 
 fn roll_deca(enemy: &mut EnemyCombatState) {
-    // Alternate: Square of Protection (16 block) and Beam (10x2 + 2 Daze)
-    if last_move(enemy, move_ids::DECA_SQUARE) {
+    // Java: Deca starts with isAttacking=true, alternates.
+    // Beam (beamDmg x2 + 2 Daze) then Square (16 block, A19 also +3 Plated Armor).
+    // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
+    if last_move(enemy, move_ids::DECA_BEAM) {
+        enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
+    } else {
         enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
         enemy.move_effects.insert("daze".to_string(), 2);
-    } else {
-        enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
     }
 }
 
 fn roll_time_eater(enemy: &mut EnemyCombatState) {
-    // Reverberate (7x3), Head Slam (26 + Slimed), Ripple (20 block + Vuln+Weak+Frail 1)
-    // Haste at 50% HP: heal, cleanse, +2 Str
+    // Java: Haste triggered when HP < maxHP/2 (once only).
+    // Haste: remove debuffs, heal to 50%, A19 also gains headSlamDmg block.
+    // Reverberate (reverbDmg x3), Head Slam (headSlamDmg + draw reduction, A19 + 2 Slimed),
+    // Ripple (20 block + Vuln 1 + Weak 1, A19 also Frail 1).
+    let reverb_dmg = {
+        let v = enemy.entity.status("ReverbDmg");
+        if v > 0 { v } else { 7 }
+    };
+    let head_slam_dmg = {
+        let v = enemy.entity.status("HeadSlamDmg");
+        if v > 0 { v } else { 26 }
+    };
+
+    // Check for Haste trigger
+    if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status("UsedHaste") == 0 {
+        enemy.entity.set_status("UsedHaste", 1);
+        enemy.set_move(move_ids::TE_HASTE, 0, 0, 0);
+        enemy.move_effects.insert("remove_debuffs".to_string(), 1);
+        enemy.move_effects.insert("heal_to_half".to_string(), 1);
+        return;
+    }
+
+    // Pattern: RNG-based in Java, deterministic for MCTS.
+    // Reverberate can't be used 3 in a row, Head Slam can't repeat, Ripple can't repeat.
     if last_move(enemy, move_ids::TE_HASTE) || last_two_moves(enemy, move_ids::TE_REVERBERATE) {
-        enemy.set_move(move_ids::TE_HEAD_SLAM, 26, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 1);
+        enemy.set_move(move_ids::TE_HEAD_SLAM, head_slam_dmg, 1, 0);
+        // Head Slam: draw reduction (not Slimed). A19 also adds 2 Slimed.
+        enemy.move_effects.insert("draw_reduction".to_string(), 1);
     } else if last_move(enemy, move_ids::TE_HEAD_SLAM) {
         enemy.set_move(move_ids::TE_RIPPLE, 0, 0, 20);
         enemy.move_effects.insert("vulnerable".to_string(), 1);
         enemy.move_effects.insert("weak".to_string(), 1);
-        enemy.move_effects.insert("frail".to_string(), 1);
     } else if last_move(enemy, move_ids::TE_RIPPLE) {
-        enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
+        enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
     } else {
-        enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
+        enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
     }
 }
 
@@ -1692,43 +1852,48 @@ fn roll_time_eater(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 fn roll_spire_shield(enemy: &mut EnemyCombatState) {
-    let mc = enemy.entity.status("MoveCount") + 1;
-    enemy.entity.set_status("MoveCount", mc);
+    // Java: moveCount % 3 cycle. moveCount post-incremented.
+    // Bash: A3+ = 14, else 12. Smash: A3+ = 38, else 34.
+    // Fortify: 30 block to ALL monsters. Smash: A18 gains 99 block, else damage-dealt block.
+    let mc = enemy.entity.status("MoveCount");
 
-    // 3-move cycle: (Bash/Fortify), (Bash/Fortify), Smash
     match mc % 3 {
-        1 => {
-            // Bash (14 dmg, -1 Str) or Fortify (30 block)
-            if last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
-            } else {
-                enemy.set_move(move_ids::SHIELD_BASH, 14, 1, 0);
+        0 => {
+            // 50/50 Fortify or Bash. Deterministic: Bash if not last, else Fortify.
+            if !last_move(enemy, move_ids::SHIELD_BASH) {
+                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
                 enemy.move_effects.insert("strength_down".to_string(), 1);
+            } else {
+                enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
             }
         }
-        2 => {
+        1 => {
+            // The other of Bash/Fortify
             if !last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_BASH, 14, 1, 0);
+                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
                 enemy.move_effects.insert("strength_down".to_string(), 1);
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
             }
         }
         _ => {
-            // Smash (34 dmg + block equal to damage dealt)
+            // Smash (34 dmg + block)
             enemy.set_move(move_ids::SHIELD_SMASH, 34, 1, 0);
         }
     }
+    enemy.entity.set_status("MoveCount", mc + 1);
 }
 
 fn roll_spire_spear(enemy: &mut EnemyCombatState) {
-    let mc = enemy.entity.status("MoveCount") + 1;
-    enemy.entity.set_status("MoveCount", mc);
-    let skewer_count = enemy.entity.status("SkewerCount");
+    // Java: moveCount % 3, post-incremented.
+    // A3+: burnStrikeDmg=6, skewerCount=4. Else 5, 3. Skewer always 10 per hit.
+    // Burn Strike: A18 adds burns to draw pile, else discard.
+    let mc = enemy.entity.status("MoveCount");
+    let skewer_count = enemy.entity.status("SkewerCount").max(3);
 
-    // 3-move cycle: (Burn Strike/Piercer), Skewer, (Piercer/Burn Strike)
     match mc % 3 {
-        1 => {
+        0 => {
+            // Burn Strike or Piercer
             if !last_move(enemy, move_ids::SPEAR_BURN_STRIKE) {
                 enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
                 enemy.move_effects.insert("burn".to_string(), 2);
@@ -1737,41 +1902,70 @@ fn roll_spire_spear(enemy: &mut EnemyCombatState) {
                 enemy.move_effects.insert("strength".to_string(), 2);
             }
         }
-        2 => {
+        1 => {
+            // Skewer: 10 x skewerCount
             enemy.set_move(move_ids::SPEAR_SKEWER, 10, skewer_count, 0);
         }
         _ => {
-            enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
-            enemy.move_effects.insert("strength".to_string(), 2);
+            // 50/50 Piercer or Burn Strike
+            if !last_move(enemy, move_ids::SPEAR_PIERCER) {
+                enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
+                enemy.move_effects.insert("strength".to_string(), 2);
+            } else {
+                enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
+                enemy.move_effects.insert("burn".to_string(), 2);
+            }
         }
     }
+    enemy.entity.set_status("MoveCount", mc + 1);
 }
 
 fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
-    let mc = enemy.entity.status("MoveCount") + 1;
-    enemy.entity.set_status("MoveCount", mc);
-    let blood_count = enemy.entity.status("BloodHitCount");
+    // Java: isFirstMove handled separately. Then moveCount % 3 cycle.
+    // moveCount incremented AFTER getMove (post-increment).
+    let is_first = enemy.entity.status("IsFirstMove") > 0;
+    if is_first {
+        // After Debilitate: moveCount starts at 0
+        enemy.entity.set_status("IsFirstMove", 0);
+    }
 
-    // 3-move cycle: Attack (Blood or Echo), Attack (the other), Buff (+Str, +Beat of Death)
+    let mc = enemy.entity.status("MoveCount");
+    let blood_count = enemy.entity.status("BloodHitCount").max(12);
+    let echo_dmg = enemy.entity.status("EchoDmg").max(40);
+
+    // Java: 3-move cycle. moveCount % 3:
+    // 0: 50/50 Blood Shots or Echo
+    // 1: whichever wasn't used in slot 0 (anti-repeat)
+    // 2: Buff (+2 Str + escalating buff based on buffCount)
     match mc % 3 {
-        1 => {
-            // Blood Shots (2 x 12) or Echo (40)
+        0 => {
+            // Deterministic: Blood Shots first
             enemy.set_move(move_ids::HEART_BLOOD_SHOTS, 2, blood_count, 0);
         }
-        2 => {
+        1 => {
+            // Use the other attack
             if !last_move(enemy, move_ids::HEART_ECHO) {
-                enemy.set_move(move_ids::HEART_ECHO, 40, 1, 0);
+                enemy.set_move(move_ids::HEART_ECHO, echo_dmg, 1, 0);
             } else {
                 enemy.set_move(move_ids::HEART_BLOOD_SHOTS, 2, blood_count, 0);
             }
         }
         _ => {
-            // Buff: +2 Strength, +1 Beat of Death
+            // Buff: +2 Str + escalating buff (Artifact 2, +1 BeatOfDeath, PainfulStabs, +10 Str, +50 Str)
+            let buff_count = enemy.entity.status("BuffCount");
             enemy.set_move(move_ids::HEART_BUFF, 0, 0, 0);
             enemy.move_effects.insert("strength".to_string(), 2);
-            enemy.move_effects.insert("beat_of_death".to_string(), 1);
+            match buff_count {
+                0 => { enemy.move_effects.insert("artifact".to_string(), 2); }
+                1 => { enemy.move_effects.insert("beat_of_death".to_string(), 1); }
+                2 => { enemy.move_effects.insert("painful_stabs".to_string(), 1); }
+                3 => { enemy.move_effects.insert("strength_bonus".to_string(), 10); }
+                _ => { enemy.move_effects.insert("strength_bonus".to_string(), 50); }
+            }
+            enemy.entity.set_status("BuffCount", buff_count + 1);
         }
     }
+    enemy.entity.set_status("MoveCount", mc + 1);
 }
 
 // =========================================================================
@@ -2125,11 +2319,14 @@ mod tests {
         let mut enemy = create_enemy("Champ", 420, 420);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
         assert_eq!(enemy.move_damage, 12);
+        // Java: Face Slap gives Frail 2 + Vulnerable 2
+        assert_eq!(enemy.move_effects.get("frail"), Some(&2));
+        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
 
         // Phase 1 cycle
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
-        assert_eq!(enemy.move_damage, 18);
+        assert_eq!(enemy.move_damage, 16); // base (non-A4) slash dmg
 
         // Trigger phase 2 at half HP
         enemy.entity.hp = 200;
@@ -2162,7 +2359,7 @@ mod tests {
         assert_eq!(enemy.entity.status("Phase"), 1);
         assert_eq!(enemy.entity.status("Curiosity"), 1);
 
-        // Phase 1 cycle
+        // Phase 1 cycle: Slash -> Soul Strike
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
         assert_eq!(enemy.move_damage, 6);
@@ -2174,6 +2371,11 @@ mod tests {
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(enemy.move_damage, 40);
+
+        // Phase 2: Dark Echo -> Sludge (adds Void, not Slimed)
+        roll_next_move(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
+        assert_eq!(enemy.move_effects.get("void"), Some(&1));
     }
 
     #[test]
@@ -2188,9 +2390,10 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
         roll_next_move(&mut enemy);
-        // After two reverberates: Head Slam
+        // After two reverberates: Head Slam (gives draw_reduction, not slimed)
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage, 26);
+        assert_eq!(enemy.move_effects.get("draw_reduction"), Some(&1));
     }
 
     #[test]
@@ -2205,13 +2408,14 @@ mod tests {
         assert_eq!(donu.move_hits, 2);
 
         let mut deca = create_enemy("Deca", 250, 250);
-        assert_eq!(deca.move_id, move_ids::DECA_SQUARE);
-        assert_eq!(deca.move_block, 16);
-
-        roll_next_move(&mut deca);
+        // Java: Deca starts with isAttacking=true -> first move is Beam
         assert_eq!(deca.move_id, move_ids::DECA_BEAM);
         assert_eq!(deca.move_damage, 10);
         assert_eq!(deca.move_effects.get("daze"), Some(&2));
+
+        roll_next_move(&mut deca);
+        assert_eq!(deca.move_id, move_ids::DECA_SQUARE);
+        assert_eq!(deca.move_block, 16);
     }
 
     #[test]
@@ -2219,16 +2423,17 @@ mod tests {
         let mut enemy = create_enemy("GiantHead", 500, 500);
         assert_eq!(enemy.move_id, move_ids::GH_COUNT);
         assert_eq!(enemy.move_damage, 13);
-        assert_eq!(enemy.entity.status("Countdown"), 5);
+        assert_eq!(enemy.entity.status("Count"), 5);
 
-        // Count down turns
+        // Roll moves. Count decrements each roll. After count reaches 1, It Is Time.
+        // Count starts at 5, so after 4 rolls we should be in It Is Time territory.
         for _ in 0..5 {
             roll_next_move(&mut enemy);
         }
 
         // Should eventually hit It Is Time
-        let countdown = enemy.entity.status("Countdown");
-        assert!(countdown == 0 || enemy.move_id == move_ids::GH_IT_IS_TIME);
+        let count = enemy.entity.status("Count");
+        assert!(count <= 0 || enemy.move_id == move_ids::GH_IT_IS_TIME);
     }
 
     #[test]
@@ -2288,39 +2493,43 @@ mod tests {
         assert_eq!(enemy.entity.status("BeatOfDeath"), 1);
         assert_eq!(enemy.entity.status("BloodHitCount"), 12);
 
-        // After Debilitate: Blood Shots
+        // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
         assert_eq!(enemy.move_damage, 2);
         assert_eq!(enemy.move_hits, 12);
 
-        // Then Echo or Blood Shots
+        // moveCount=1, 1%3=1 -> Echo (since last wasn't Echo)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
         assert_eq!(enemy.move_damage, 40);
 
-        // Then Buff
+        // moveCount=2, 2%3=2 -> Buff (first buff: +2 Str + Artifact 2)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
         assert_eq!(enemy.move_effects.get("strength"), Some(&2));
-        assert_eq!(enemy.move_effects.get("beat_of_death"), Some(&1));
+        assert_eq!(enemy.move_effects.get("artifact"), Some(&2));
     }
 
     #[test]
     fn test_spire_shield_boss() {
         let mut enemy = create_enemy("SpireShield", 110, 110);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
-        assert_eq!(enemy.move_damage, 14);
+        // Base damage: 12 (A3+ = 14)
+        assert_eq!(enemy.move_damage, 12);
         assert_eq!(enemy.move_effects.get("strength_down"), Some(&1));
 
-        roll_next_move(&mut enemy); // mc=1: Fortify (since last was Bash)
+        // mc=0 -> 0%3=0: Fortify (since last was Bash)
+        roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
         assert_eq!(enemy.move_block, 30);
 
-        roll_next_move(&mut enemy); // mc=2: Bash (since last was Fortify)
+        // mc=1 -> 1%3=1: Bash (since last was Fortify)
+        roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
 
-        roll_next_move(&mut enemy); // mc=3 -> 3%3=0: Smash
+        // mc=2 -> 2%3=2: Smash
+        roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
         assert_eq!(enemy.move_damage, 34);
     }
@@ -2333,10 +2542,12 @@ mod tests {
         assert_eq!(enemy.move_hits, 2);
         assert_eq!(enemy.entity.status("SkewerCount"), 3);
 
-        roll_next_move(&mut enemy); // mc=1, 1%3=1: Piercer (since last was BurnStrike)
+        // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
+        roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
 
-        roll_next_move(&mut enemy); // mc=2, 2%3=2: Skewer
+        // mc=1 -> 1%3=1: Skewer
+        roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
         assert_eq!(enemy.move_damage, 10);
         assert_eq!(enemy.move_hits, 3);
