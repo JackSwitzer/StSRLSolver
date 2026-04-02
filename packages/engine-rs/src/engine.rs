@@ -783,10 +783,10 @@ impl CombatEngine {
 
         // ---- Java onUseCard hooks (fire BEFORE card effects resolve) ----
 
-        // After Image: gain block per card played (Java: onUseCard)
-        let after_image_block = powers::get_after_image_block(&self.state.player);
-        if after_image_block > 0 {
-            self.state.player.block += after_image_block;
+        // AfterImage: gain block per card played (via hook dispatch, pre-effects)
+        let pre_fx = powers::hooks::dispatch_on_card_played_pre(&self.state.player);
+        if pre_fx.block_gain > 0 {
+            self.state.player.block += pre_fx.block_gain;
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
@@ -883,12 +883,10 @@ impl CombatEngine {
             }
         }
 
-        // Rage: gain block when playing an Attack
-        if card.card_type == CardType::Attack {
-            let rage_block = powers::get_rage_block(&self.state.player);
-            if rage_block > 0 {
-                self.state.player.block += rage_block;
-            }
+        // Rage: gain block when playing an Attack (via hook dispatch, post-effects)
+        let post_fx = powers::hooks::dispatch_on_card_played_post(&self.state.player, card.card_type == CardType::Attack);
+        if post_fx.block_gain > 0 {
+            self.state.player.block += post_fx.block_gain;
         }
 
         // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
@@ -1710,20 +1708,14 @@ impl CombatEngine {
 
         self.state.stance = new_stance;
 
-        // -- Power triggers on stance change --
-
-        // MentalFortress: gain block on ANY stance change
-        let mental_fortress = self.state.player.status(sk::MENTAL_FORTRESS);
-        if mental_fortress > 0 {
-            self.state.player.block += mental_fortress;
+        // -- Power triggers on stance change (via hook dispatch) --
+        let entering_wrath = new_stance == Stance::Wrath;
+        let sfx = powers::hooks::dispatch_on_stance_change(&self.state.player, entering_wrath);
+        if sfx.block_gain > 0 {
+            self.state.player.block += sfx.block_gain;
         }
-
-        // Rushdown: draw cards when entering Wrath
-        if new_stance == Stance::Wrath {
-            let rushdown = self.state.player.status(sk::RUSHDOWN);
-            if rushdown > 0 {
-                self.draw_cards(rushdown);
-            }
+        if sfx.draw > 0 {
+            self.draw_cards(sfx.draw);
         }
     }
 
@@ -1792,16 +1784,13 @@ impl CombatEngine {
 
     /// Trigger all on-exhaust power and relic hooks.
     pub fn trigger_on_exhaust(&mut self) {
-        // Feel No Pain: gain block per exhaust
-        let fnp = powers::get_feel_no_pain_block(&self.state.player);
-        if fnp > 0 {
-            self.state.player.block += fnp;
+        // Power hooks via dispatch (FeelNoPain block, DarkEmbrace draw)
+        let efx = powers::hooks::dispatch_on_exhaust(&self.state.player);
+        if efx.block_gain > 0 {
+            self.state.player.block += efx.block_gain;
         }
-
-        // Dark Embrace: draw 1 card per exhaust
-        let de = powers::get_dark_embrace_draw(&self.state.player);
-        if de > 0 {
-            self.draw_cards(de);
+        if efx.draw > 0 {
+            self.draw_cards(efx.draw);
         }
 
         // Dead Branch (relic): add a random card to hand on exhaust

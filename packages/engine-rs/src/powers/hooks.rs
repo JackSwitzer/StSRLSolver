@@ -191,10 +191,15 @@ static TURN_END_HOOKS: &[(&str, TurnEndHookFn)] = &[
     // damage and orb passives in the original Java order. Kept inline in engine.rs.
 ];
 
-// ---- On Card Played hooks ----
+// ---- On Card Played hooks (pre-effects: Java onUseCard) ----
 
-static ON_CARD_PLAYED_HOOKS: &[(&str, OnCardPlayedHookFn)] = &[
+static ON_CARD_PLAYED_PRE_HOOKS: &[(&str, OnCardPlayedHookFn)] = &[
     (sk::AFTER_IMAGE, hook_play_after_image),
+];
+
+// ---- On Card Played hooks (post-effects: Java onAfterUseCard) ----
+
+static ON_CARD_PLAYED_POST_HOOKS: &[(&str, OnCardPlayedHookFn)] = &[
     (sk::RAGE, hook_play_rage),
 ];
 
@@ -260,10 +265,24 @@ pub fn dispatch_turn_end(entity: &mut EntityState, in_calm: bool) -> TurnEndEffe
     out
 }
 
-/// Dispatch on-card-played hooks. `is_attack` filters Rage (attack-only).
-pub fn dispatch_on_card_played(entity: &EntityState, is_attack: bool) -> OnCardPlayedEffect {
+/// Dispatch pre-effects card-played hooks (AfterImage — Java onUseCard).
+pub fn dispatch_on_card_played_pre(entity: &EntityState) -> OnCardPlayedEffect {
     let mut out = OnCardPlayedEffect::default();
-    for &(key, hook_fn) in ON_CARD_PLAYED_HOOKS {
+    for &(key, hook_fn) in ON_CARD_PLAYED_PRE_HOOKS {
+        let amt = entity.status(key);
+        if amt > 0 {
+            let effect = hook_fn(amt, entity);
+            out.merge(effect);
+        }
+    }
+    out
+}
+
+/// Dispatch post-effects card-played hooks (Rage — Java onAfterUseCard).
+/// `is_attack` filters Rage (attack-only).
+pub fn dispatch_on_card_played_post(entity: &EntityState, is_attack: bool) -> OnCardPlayedEffect {
+    let mut out = OnCardPlayedEffect::default();
+    for &(key, hook_fn) in ON_CARD_PLAYED_POST_HOOKS {
         let amt = entity.status(key);
         if amt > 0 {
             // Rage only fires on Attacks
