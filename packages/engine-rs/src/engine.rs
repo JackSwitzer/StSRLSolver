@@ -232,25 +232,23 @@ impl CombatEngine {
             self.state.player.set_status(sk::LOSE_DEXTERITY, 0);
         }
 
-        // Deva Form: gain energy at start of turn (increasing)
-        let deva_form = self.state.player.status(sk::DEVA_FORM);
-        if deva_form > 0 {
-            self.state.energy += deva_form;
-            // Increase for next turn
-            self.state.player.set_status(sk::DEVA_FORM, deva_form + 1);
-        }
+        // === POWER HOOKS: start of turn ===
+        // Dispatch collects all power effects; engine applies them in correct order.
+        // Hooks that mutate entity directly (DemonForm/Strength, WraithForm/Dex) do so
+        // inside the hook fn. One-shot hooks (Doppelganger, EnterDivinity) clear themselves.
+        let fx = powers::hooks::dispatch_turn_start(&mut self.state.player);
+
+        // Pre-draw: energy from hooks (DevaForm, Berserk, DoppelgangerEnergy)
+        self.state.energy += fx.energy + fx.doppelganger_energy;
 
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
-        // BattleHymn: add Smite(s) to hand at start of turn
-        let battle_hymn = self.state.player.status(sk::BATTLE_HYMN);
-        if battle_hymn > 0 {
-            for _ in 0..battle_hymn {
-                let smite_id = self.temp_card_id("Smite");
-                if self.state.hand.len() < 10 {
-                    self.state.hand.push(smite_id);
-                }
+        // Pre-draw: add temp cards to hand (BattleHymn smites)
+        for _ in 0..fx.add_smites {
+            let smite_id = self.temp_card_id("Smite");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(smite_id);
             }
         }
 
@@ -272,86 +270,62 @@ impl CombatEngine {
             self.state.player.set_status(sk::INK_BOTTLE_DRAW, 0);
         }
 
-        // ---- Start-of-turn power consumptions (after draw) ----
+        // ---- Post-draw power effects ----
 
-        // Devotion: gain Mantra at start of turn (Java: atStartOfTurnPostDraw)
-        let devotion = self.state.player.status(sk::DEVOTION);
-        if devotion > 0 {
-            self.gain_mantra(devotion);
-        }
-
-        // WraithForm: lose 1 Dexterity each turn
-        let wf = self.state.player.status(sk::WRAITH_FORM);
-        if wf > 0 {
-            self.state.player.add_status(sk::DEXTERITY, -1);
+        // Devotion: gain Mantra (Java: atStartOfTurnPostDraw)
+        if fx.mantra_gain > 0 {
+            self.gain_mantra(fx.mantra_gain);
         }
 
         // CreativeAI: add random Power card to hand (MCTS: add "Smite")
-        if self.state.player.status(sk::CREATIVE_AI) > 0 && self.state.hand.len() < 10 {
-            let smite_id = self.temp_card_id("Smite");
-            self.state.hand.push(smite_id);
-        }
-
-        // DoppelgangerDraw: consume extra draws at turn start
-        let dd = self.state.player.status(sk::DOPPELGANGER_DRAW);
-        if dd > 0 {
-            self.draw_cards(dd);
-            self.state.player.set_status(sk::DOPPELGANGER_DRAW, 0);
-        }
-
-        // DoppelgangerEnergy: consume extra energy at turn start
-        let de = self.state.player.status(sk::DOPPELGANGER_ENERGY);
-        if de > 0 {
-            self.state.energy += de;
-            self.state.player.set_status(sk::DOPPELGANGER_ENERGY, 0);
-        }
-
-        // Magnetism: add random card to hand (MCTS: add "Strike")
-        if self.state.player.status(sk::MAGNETISM) > 0 && self.state.hand.len() < 10 {
-            let strike_id = self.temp_card_id("Strike");
-            self.state.hand.push(strike_id);
-        }
-
-        // EnterDivinity (Damaru relic): enter Divinity stance, then clear flag
-        if self.state.player.status(sk::ENTER_DIVINITY) > 0 {
-            self.change_stance(Stance::Divinity);
-            self.state.player.set_status(sk::ENTER_DIVINITY, 0);
-        }
-
-        // Mayhem: add top card of draw pile to hand (simplified from auto-play)
-        let mayhem = self.state.player.status(sk::MAYHEM);
-        if mayhem > 0 {
-            for _ in 0..mayhem {
-                if self.state.hand.len() < 10 {
-                    if let Some(card_id) = self.state.draw_pile.pop() {
-                        self.state.hand.push(card_id);
-                    }
-                }
+        for _ in 0..fx.add_creative_ai_cards {
+            if self.state.hand.len() < 10 {
+                let smite_id = self.temp_card_id("Smite");
+                self.state.hand.push(smite_id);
             }
         }
 
-        // DemonForm: gain Strength each turn
-        let demon_form = self.state.player.status(sk::DEMON_FORM);
-        if demon_form > 0 {
-            self.state.player.add_status(sk::STRENGTH, demon_form);
+        // DoppelgangerDraw: consume extra draws
+        if fx.doppelganger_draw > 0 {
+            self.draw_cards(fx.doppelganger_draw);
+        }
+
+        // Magnetism + HelloWorld: add Strikes to hand
+        for _ in 0..fx.add_strikes {
+            if self.state.hand.len() < 10 {
+                let strike_id = self.temp_card_id("Strike");
+                self.state.hand.push(strike_id);
+            }
+        }
+
+        // EnterDivinity (Damaru relic)
+        if fx.enter_divinity {
+            self.change_stance(Stance::Divinity);
+        }
+
+        // Mayhem: add top card(s) of draw pile to hand
+        for _ in 0..fx.mayhem_draw {
+            if self.state.hand.len() < 10 {
+                if let Some(card_id) = self.state.draw_pile.pop() {
+                    self.state.hand.push(card_id);
+                }
+            }
         }
 
         // NoxiousFumes: apply Poison to all living enemies
-        let noxious_fumes = self.state.player.status(sk::NOXIOUS_FUMES);
-        if noxious_fumes > 0 {
+        if fx.poison_all_enemies > 0 {
             for ei in 0..self.state.enemies.len() {
                 if self.state.enemies[ei].is_alive() {
-                    self.state.enemies[ei].entity.add_status(sk::POISON, noxious_fumes);
+                    self.state.enemies[ei].entity.add_status(sk::POISON, fx.poison_all_enemies);
                 }
             }
         }
 
-        // Brutality: draw cards and lose HP each turn
-        let brutality = self.state.player.status(sk::BRUTALITY);
-        if brutality > 0 {
-            self.draw_cards(brutality);
-            self.state.player.hp -= brutality;
-            self.state.total_damage_taken += brutality;
+        // Brutality: draw + HP loss (draw from hook, HP loss applied here)
+        if fx.hp_loss > 0 {
+            self.draw_cards(fx.draw);
+            self.state.player.hp -= fx.hp_loss;
+            self.state.total_damage_taken += fx.hp_loss;
             if self.state.player.hp <= 0 {
                 self.state.player.hp = 0;
                 self.state.combat_over = true;
@@ -361,40 +335,18 @@ impl CombatEngine {
             }
         }
 
-        // Berserk: gain energy each turn
-        let berserk = self.state.player.status(sk::BERSERK);
-        if berserk > 0 {
-            self.state.energy += berserk;
-        }
-
-        // InfiniteBlades: add a Shiv to hand each turn
-        let infinite_blades = self.state.player.status(sk::INFINITE_BLADES);
-        if infinite_blades > 0 {
-            for _ in 0..infinite_blades {
-                let shiv_id = self.temp_card_id("Shiv");
-                if self.state.hand.len() < 10 {
-                    self.state.hand.push(shiv_id);
-                }
+        // InfiniteBlades: add Shivs to hand
+        for _ in 0..fx.add_shivs {
+            let shiv_id = self.temp_card_id("Shiv");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(shiv_id);
             }
         }
 
-        // HelloWorld: add a random common card to hand (MCTS: add Strike)
-        let hello_world = self.state.player.status(sk::HELLO_WORLD);
-        if hello_world > 0 {
-            for _ in 0..hello_world {
-                let strike_id = self.temp_card_id("Strike");
-                if self.state.hand.len() < 10 {
-                    self.state.hand.push(strike_id);
-                }
-            }
-        }
-
-        // ToolsOfTheTrade: draw cards then discard random cards
-        let tools = self.state.player.status(sk::TOOLS_OF_THE_TRADE);
-        if tools > 0 {
-            self.draw_cards(tools);
-            // Discard random cards from hand
-            for _ in 0..tools {
+        // ToolsOfTheTrade: draw then discard (discard needs RNG, handled inline)
+        if fx.tools_of_the_trade_draw > 0 {
+            self.draw_cards(fx.tools_of_the_trade_draw);
+            for _ in 0..fx.tools_of_the_trade_discard {
                 if !self.state.hand.is_empty() {
                     let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
                     let discarded = self.state.hand.remove(idx);
@@ -417,40 +369,33 @@ impl CombatEngine {
         // 1. End-of-turn relic triggers
         relics::apply_turn_end_relics(&mut self.state);
 
-        // 2. End-of-turn power triggers
-        // Metallicize, Plated Armor
-        powers::apply_metallicize(&mut self.state.player);
-        powers::apply_plated_armor(&mut self.state.player);
+        // 2. End-of-turn power triggers (via hook dispatch)
+        let in_calm = self.state.stance == Stance::Calm;
+        let efx = powers::hooks::dispatch_turn_end(&mut self.state.player, in_calm);
 
-        // Like Water: if in Calm, gain block
-        let like_water = self.state.player.status(sk::LIKE_WATER);
-        if like_water > 0 && self.state.stance == Stance::Calm {
-            self.state.player.block += like_water;
+        // Block gains (Metallicize, PlatedArmor, LikeWater)
+        if efx.block_gain > 0 {
+            self.state.player.block += efx.block_gain;
         }
 
-        // Study: add Insight to draw pile
-        let study = self.state.player.status(sk::STUDY);
-        if study > 0 {
-            for _ in 0..study {
-                let insight_id = self.temp_card_id("Insight");
-                self.state.draw_pile.push(insight_id);
-            }
+        // Study: add Insight(s) to draw pile
+        for _ in 0..efx.add_insights {
+            let insight_id = self.temp_card_id("Insight");
+            self.state.draw_pile.push(insight_id);
         }
 
         // Omega: deal damage to all living enemies
-        let omega = self.state.player.status(sk::OMEGA);
-        if omega > 0 {
+        if efx.omega_damage > 0 {
             let living = self.state.living_enemy_indices();
             for idx in living {
-                self.deal_damage_to_enemy(idx, omega);
+                self.deal_damage_to_enemy(idx, efx.omega_damage);
             }
         }
 
-        // Combust: lose 1 HP, deal damage to all living enemies
-        let combust = self.state.player.status(sk::COMBUST);
-        if combust > 0 {
-            self.state.player.hp -= 1;
-            self.state.total_damage_taken += 1;
+        // Combust: lose HP first (death check), then deal damage to all enemies
+        if efx.combust_hp_loss > 0 {
+            self.state.player.hp -= efx.combust_hp_loss;
+            self.state.total_damage_taken += efx.combust_hp_loss;
             if self.state.player.hp <= 0 {
                 self.state.player.hp = 0;
                 self.state.combat_over = true;
@@ -460,19 +405,12 @@ impl CombatEngine {
             }
             let living = self.state.living_enemy_indices();
             for idx in living {
-                self.deal_damage_to_enemy(idx, combust);
+                self.deal_damage_to_enemy(idx, efx.combust_damage);
             }
         }
 
-        // Rage: clear at end of turn
-        self.state.player.set_status(sk::RAGE, 0);
-
-        // TempStrength: remove temporary Strength at end of turn
-        let temp_str = self.state.player.status(sk::TEMP_STRENGTH);
-        if temp_str > 0 {
-            self.state.player.add_status(sk::STRENGTH, -temp_str);
-            self.state.player.set_status(sk::TEMP_STRENGTH, 0);
-        }
+        // TempStrength revert and Rage clear are handled inside the hook fns
+        // NOTE: Regeneration stays inline (fires after Constricted/orb passives)
 
         // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
         for ei in 0..self.state.enemies.len() {

@@ -61,23 +61,21 @@ impl TurnStartEffect {
 #[derive(Debug, Default)]
 pub struct TurnEndEffect {
     pub block_gain: i32,
-    pub damage_all_enemies: i32,
-    pub hp_loss: i32,
+    pub omega_damage: i32,
+    pub combust_damage: i32,
+    pub combust_hp_loss: i32,
     pub add_insights: i32,
-    pub heal: i32,
     pub clear_rage: bool,
-    pub temp_strength_revert: i32,
 }
 
 impl TurnEndEffect {
     pub fn merge(&mut self, other: Self) {
         self.block_gain += other.block_gain;
-        self.damage_all_enemies += other.damage_all_enemies;
-        self.hp_loss += other.hp_loss;
+        self.omega_damage += other.omega_damage;
+        self.combust_damage += other.combust_damage;
+        self.combust_hp_loss += other.combust_hp_loss;
         self.add_insights += other.add_insights;
-        self.heal += other.heal;
         self.clear_rage = self.clear_rage || other.clear_rage;
-        self.temp_strength_revert += other.temp_strength_revert;
     }
 }
 
@@ -189,7 +187,8 @@ static TURN_END_HOOKS: &[(&str, TurnEndHookFn)] = &[
     (sk::COMBUST, hook_end_combust),
     (sk::RAGE, hook_end_rage),
     (sk::TEMP_STRENGTH, hook_end_temp_strength),
-    (sk::REGENERATION, hook_end_regeneration),
+    // NOTE: Regeneration is intentionally NOT here. It fires AFTER Constricted
+    // damage and orb passives in the original Java order. Kept inline in engine.rs.
 ];
 
 // ---- On Card Played hooks ----
@@ -437,12 +436,12 @@ fn hook_end_study(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
 }
 
 fn hook_end_omega(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
-    TurnEndEffect { damage_all_enemies: amt, ..Default::default() }
+    TurnEndEffect { omega_damage: amt, ..Default::default() }
 }
 
 fn hook_end_combust(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
     // Combust: lose 1 HP, deal damage to all enemies
-    TurnEndEffect { damage_all_enemies: amt, hp_loss: 1, ..Default::default() }
+    TurnEndEffect { combust_damage: amt, combust_hp_loss: 1, ..Default::default() }
 }
 
 fn hook_end_rage(_amt: i32, entity: &mut EntityState) -> TurnEndEffect {
@@ -457,11 +456,7 @@ fn hook_end_temp_strength(amt: i32, entity: &mut EntityState) -> TurnEndEffect {
     TurnEndEffect::default()
 }
 
-fn hook_end_regeneration(amt: i32, entity: &mut EntityState) -> TurnEndEffect {
-    // Heal and decrement
-    entity.add_status(sk::REGENERATION, -1);
-    TurnEndEffect { heal: amt, ..Default::default() }
-}
+// NOTE: Regeneration is kept inline in engine.rs (fires after Constricted/orb passives)
 
 // ===========================================================================
 // Hook Implementations — On Card Played
