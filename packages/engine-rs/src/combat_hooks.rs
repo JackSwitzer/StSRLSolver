@@ -26,29 +26,41 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Reset Invincible per-turn damage tracker
         powers::reset_invincible_damage_taken(&mut engine.state.enemies[i].entity);
 
-        // Metallicize: enemy gains block
-        powers::apply_metallicize(&mut engine.state.enemies[i].entity);
+        // === POWER HOOKS: enemy turn start (via dispatch) ===
+        let is_first = engine.state.enemies[i].first_turn;
+        let efx = powers::hooks::dispatch_enemy_turn_start(
+            &mut engine.state.enemies[i].entity,
+            is_first,
+        );
 
-        // Enemy Regeneration: heal HP and decrement (Darkling, Heart buff)
-        let max_hp = engine.state.enemies[i].entity.max_hp;
-        powers::apply_enemy_regeneration(&mut engine.state.enemies[i].entity, max_hp);
+        // Metallicize block
+        if efx.block_gain > 0 {
+            engine.state.enemies[i].entity.block += efx.block_gain;
+        }
 
-        // Growth: gain Strength + Block each turn (Awakened One phase 2, etc.)
-        powers::apply_growth(&mut engine.state.enemies[i].entity);
+        // Regeneration heal (capped at max_hp)
+        if efx.heal > 0 {
+            let max_hp = engine.state.enemies[i].entity.max_hp;
+            engine.state.enemies[i].entity.hp =
+                (engine.state.enemies[i].entity.hp + efx.heal).min(max_hp);
+        }
 
-        // Fading: decrement counter, kill enemy at 0 (summoned Gremlins)
-        let faded = powers::tick_fading(&mut engine.state.enemies[i].entity);
-        if faded {
+        // Growth block (Strength already applied inside hook)
+        if efx.block_from_growth > 0 {
+            engine.state.enemies[i].entity.block += efx.block_from_growth;
+        }
+
+        // Fading: die at 0
+        if efx.faded {
             engine.state.enemies[i].entity.hp = 0;
             continue;
         }
 
-        // TheBomb: decrement turns, detonate on 0 dealing damage to player
-        let bomb_dmg = powers::tick_the_bomb(&mut engine.state.enemies[i].entity);
-        if bomb_dmg > 0 {
+        // TheBomb: detonate dealing damage to player
+        if efx.bomb_damage > 0 {
             let intangible = engine.state.player.status(sk::INTANGIBLE) > 0;
             let has_tungsten = engine.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(bomb_dmg, intangible, has_tungsten);
+            let hp_loss = damage::apply_hp_loss(efx.bomb_damage, intangible, has_tungsten);
             engine.state.player.hp -= hp_loss;
             engine.state.total_damage_taken += hp_loss;
             if engine.state.player.is_dead() {
@@ -60,11 +72,10 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             }
         }
 
-        // Poison tick — route through on_enemy_damaged so boss hooks fire
+        // Poison tick — kept inline (complex death check + boss hooks)
         let poison_dmg = powers::tick_poison(&mut engine.state.enemies[i].entity);
         if poison_dmg > 0 {
             engine.state.total_damage_dealt += poison_dmg;
-            // Trigger boss hooks for poison damage (Guardian, SlimeBoss, etc.)
             on_enemy_damaged(engine, i, poison_dmg);
             if engine.state.enemies[i].entity.is_dead() {
                 engine.state.enemies[i].entity.hp = 0;
@@ -72,10 +83,7 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             }
         }
 
-        // Ritual strength gain (not first turn)
-        if !engine.state.enemies[i].first_turn {
-            powers::apply_ritual(&mut engine.state.enemies[i].entity);
-        }
+        // Ritual strength already applied inside hook (skipped on first turn)
 
         // Execute enemy move
         execute_enemy_move(engine, i);
