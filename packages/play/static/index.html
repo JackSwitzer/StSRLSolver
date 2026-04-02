@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slay the Spire - Play GUI</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+
+/* Top Bar */
+#topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #16213e; border-bottom: 1px solid #333; flex-wrap: wrap; }
+#topbar input, #topbar select { background: #0f3460; color: #e0e0e0; border: 1px solid #444; padding: 6px 10px; border-radius: 4px; font-size: 14px; }
+#topbar input { width: 120px; }
+#topbar select { width: 80px; }
+.btn { background: #e94560; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.btn:hover { background: #c73e54; }
+.btn:disabled { background: #555; cursor: not-allowed; }
+.btn-secondary { background: #0f3460; }
+.btn-secondary:hover { background: #1a4a8a; }
+#seed-display { color: #aaa; font-size: 13px; margin-left: auto; }
+#action-counter { color: #888; font-size: 13px; }
+
+/* Layout */
+#main { display: flex; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+#game-panel { flex: 1; min-width: 0; }
+#side-panel { width: 320px; flex-shrink: 0; }
+
+/* Game Info */
+#game-info { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.info-card { background: #16213e; border-radius: 8px; padding: 10px 14px; border: 1px solid #333; }
+.info-card .label { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+.info-card .value { font-size: 18px; font-weight: 700; }
+.hp-bar-outer { width: 160px; height: 10px; background: #333; border-radius: 5px; margin-top: 4px; }
+.hp-bar-inner { height: 100%; background: #e94560; border-radius: 5px; transition: width 0.3s; }
+
+/* Phase content */
+#phase-content { background: #16213e; border-radius: 8px; padding: 16px; border: 1px solid #333; margin-bottom: 16px; min-height: 200px; }
+.phase-title { font-size: 14px; text-transform: uppercase; color: #e94560; font-weight: 700; margin-bottom: 12px; letter-spacing: 1px; }
+
+/* Enemies */
+.enemies-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.enemy-card { background: #0f3460; border-radius: 8px; padding: 12px; border: 1px solid #444; min-width: 140px; flex: 1; max-width: 220px; }
+.enemy-card.dead { opacity: 0.4; }
+.enemy-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #ff6b6b; }
+.enemy-hp { font-size: 13px; color: #aaa; }
+.enemy-block { font-size: 12px; color: #4ecdc4; margin-top: 2px; }
+.enemy-intent { font-size: 12px; color: #ffd93d; margin-top: 4px; }
+.enemy-statuses { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+/* Hand */
+.hand-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.card-btn { background: #1a1a40; border: 2px solid #444; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: #e0e0e0; min-width: 100px; text-align: center; transition: all 0.15s; }
+.card-btn:hover { border-color: #e94560; background: #2a1a40; transform: translateY(-2px); }
+.card-btn .card-name { font-weight: 700; }
+.card-btn .card-cost { font-size: 11px; color: #ffd93d; }
+.card-btn.type-attack { border-color: #e94560; }
+.card-btn.type-skill { border-color: #4ecdc4; }
+.card-btn.type-power { border-color: #ffd93d; }
+.card-btn.type-status { border-color: #888; }
+.card-btn.type-curse { border-color: #8b0000; }
+
+/* Target selection overlay */
+#target-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; }
+#target-overlay.active { display: flex; }
+#target-box { background: #16213e; border-radius: 12px; padding: 24px; border: 2px solid #e94560; max-width: 500px; text-align: center; }
+#target-box h3 { margin-bottom: 16px; color: #e94560; }
+.target-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.target-btn { background: #0f3460; border: 1px solid #e94560; color: #e0e0e0; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.target-btn:hover { background: #e94560; }
+
+/* Combat stats row */
+.combat-stats { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; color: #aaa; flex-wrap: wrap; }
+.combat-stat { background: #0f3460; padding: 4px 10px; border-radius: 4px; }
+.combat-stat b { color: #e0e0e0; }
+
+/* Potions row */
+.potions-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.potion-pill { background: #2a1a40; border: 1px solid #555; border-radius: 16px; padding: 4px 12px; font-size: 12px; color: #4ecdc4; }
+.potion-pill.empty { color: #555; }
+
+/* Relics row */
+.relics-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.relic-pill { background: #1a2a1a; border: 1px solid #555; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #aaa; }
+
+/* Stance badge */
+.stance-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-weight: 700; font-size: 12px; }
+.stance-wrath { background: #8b0000; color: #ff6b6b; }
+.stance-calm { background: #003366; color: #4ecdc4; }
+.stance-divinity { background: #6b3fa0; color: #ffd93d; }
+
+/* Action list (fallback) */
+#action-list { background: #16213e; border-radius: 8px; padding: 16px; border: 1px solid #333; }
+#action-list h3 { font-size: 13px; text-transform: uppercase; color: #888; margin-bottom: 10px; }
+.action-btn { display: block; width: 100%; text-align: left; background: #0f3460; border: 1px solid #333; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 6px; transition: all 0.1s; }
+.action-btn:hover { background: #1a5a9e; border-color: #e94560; }
+.action-btn .action-idx { color: #e94560; font-weight: 700; margin-right: 8px; }
+
+/* Reward / Event / Shop cards */
+.choice-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+.choice-card { background: #0f3460; border: 2px solid #444; border-radius: 8px; padding: 14px; cursor: pointer; min-width: 120px; flex: 1; max-width: 200px; text-align: center; transition: all 0.15s; }
+.choice-card:hover { border-color: #e94560; transform: translateY(-2px); }
+.choice-card .card-id { font-weight: 700; font-size: 14px; color: #e0e0e0; }
+.choice-card .card-meta { font-size: 12px; color: #888; margin-top: 4px; }
+
+/* Keys display */
+.keys-row { display: flex; gap: 8px; font-size: 13px; }
+.key-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-block; vertical-align: middle; }
+.key-icon.ruby { background: #e94560; }
+.key-icon.emerald { background: #4ecdc4; }
+.key-icon.sapphire { background: #4a90d9; }
+.key-icon.missing { background: #333; }
+
+/* Deck viewer */
+#deck-viewer { margin-top: 16px; }
+.deck-toggle { background: none; border: 1px solid #444; color: #888; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.deck-toggle:hover { color: #e0e0e0; border-color: #888; }
+.deck-cards { display: none; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.deck-cards.open { display: flex; }
+.deck-card { background: #0f3460; padding: 2px 8px; border-radius: 4px; font-size: 11px; color: #aaa; }
+
+/* Map visualization */
+.map-paths { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.map-path-btn { background: #0f3460; border: 2px solid #444; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; color: #e0e0e0; transition: all 0.15s; }
+.map-path-btn:hover { border-color: #e94560; background: #1a3a6e; }
+
+/* Shop items */
+.shop-section { margin-bottom: 16px; }
+.shop-section h4 { color: #ffd93d; font-size: 13px; margin-bottom: 8px; }
+.shop-item { background: #0f3460; border: 1px solid #333; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+.shop-item.purchased { opacity: 0.4; }
+.shop-price { color: #ffd93d; font-weight: 700; }
+
+/* No game state */
+.no-game { text-align: center; padding: 60px 20px; color: #555; }
+.no-game h2 { font-size: 24px; margin-bottom: 12px; color: #888; }
+
+/* Game over */
+.game-over-banner { text-align: center; padding: 30px; }
+.game-over-banner h2 { font-size: 28px; margin-bottom: 8px; }
+.game-over-banner.won h2 { color: #4ecdc4; }
+.game-over-banner.lost h2 { color: #e94560; }
+
+@media (max-width: 900px) {
+  #main { flex-direction: column; }
+  #side-panel { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <input id="seed-input" type="text" placeholder="Seed" value="TEST123">
+  <select id="asc-select">
+    <option value="0">A0</option><option value="1">A1</option><option value="2">A2</option>
+    <option value="3">A3</option><option value="4">A4</option><option value="5">A5</option>
+    <option value="6">A6</option><option value="7">A7</option><option value="8">A8</option>
+    <option value="9">A9</option><option value="10">A10</option><option value="11">A11</option>
+    <option value="12">A12</option><option value="13">A13</option><option value="14">A14</option>
+    <option value="15">A15</option><option value="16">A16</option><option value="17">A17</option>
+    <option value="18">A18</option><option value="19">A19</option><option value="20" selected>A20</option>
+  </select>
+  <select id="char-select">
+    <option value="Watcher" selected>Watcher</option>
+    <option value="Ironclad">Ironclad</option>
+    <option value="Silent">Silent</option>
+    <option value="Defect">Defect</option>
+  </select>
+  <button class="btn" onclick="startNewGame()">New Game</button>
+  <button class="btn btn-secondary" id="undo-btn" onclick="doUndo()" disabled>Undo</button>
+  <span id="seed-display"></span>
+  <span id="action-counter"></span>
+</div>
+
+<!-- Target selection overlay -->
+<div id="target-overlay" onclick="cancelTarget(event)">
+  <div id="target-box">
+    <h3 id="target-title">Select Target</h3>
+    <div id="target-btns" class="target-btns"></div>
+    <button class="btn btn-secondary" style="margin-top:12px" onclick="cancelTarget()">Cancel</button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div id="main">
+  <div id="game-panel">
+    <div id="game-info"></div>
+    <div id="phase-content">
+      <div class="no-game">
+        <h2>Slay the Spire</h2>
+        <p>Enter a seed and click New Game to start.</p>
+      </div>
+    </div>
+    <div id="deck-viewer"></div>
+  </div>
+  <div id="side-panel">
+    <div id="action-list">
+      <h3>Actions</h3>
+      <div id="action-btns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let STATE = null;        // latest server response
+let pendingCardAction = null; // action dict needing target selection
+
+// ============================================================
+// API helpers
+// ============================================================
+async function api(method, path, body) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+async function startNewGame() {
+  const seed = document.getElementById("seed-input").value || "TEST123";
+  const asc = parseInt(document.getElementById("asc-select").value);
+  const char = document.getElementById("char-select").value;
+  STATE = await api("POST", "/api/new_game", { seed, ascension: asc, character: char });
+  render();
+}
+
+async function doAction(actionDict) {
+  STATE = await api("POST", "/api/action", actionDict);
+  render();
+}
+
+async function doUndo() {
+  STATE = await api("GET", "/api/undo");
+  render();
+}
+
+// ============================================================
+// Card + targeting helpers
+// ============================================================
+function cardNeedsTarget(cardId, actions) {
+  // Check if there are multiple play_card actions for this card index
+  // with different target_index values
+  const cardActions = actions.filter(a =>
+    a.type === "play_card" && a.params && a.params.card_index !== undefined
+  );
+  return false; // handled via action grouping
+}
+
+function findCardActions(cardIndex) {
+  if (!STATE) return [];
+  return STATE.actions.filter(a =>
+    a.type === "play_card" && a.params && a.params.card_index === cardIndex
+  );
+}
+
+function showTargetOverlay(cardIndex, cardName) {
+  const actions = findCardActions(cardIndex);
+  if (actions.length === 1) {
+    doAction(actions[0]);
+    return;
+  }
+  // Multiple targets: show overlay
+  const obs = STATE.observation;
+  const enemies = (obs.combat && obs.combat.enemies) || [];
+  const box = document.getElementById("target-btns");
+  document.getElementById("target-title").textContent = "Target for: " + cardName;
+  box.innerHTML = "";
+  for (const a of actions) {
+    const ti = a.params.target_index;
+    let name = "Enemy " + ti;
+    if (ti !== undefined && enemies[ti]) {
+      name = enemies[ti].id + " (HP: " + enemies[ti].hp + ")";
+    }
+    const btn = document.createElement("button");
+    btn.className = "target-btn";
+    btn.textContent = name;
+    btn.onclick = () => { hideTarget(); doAction(a); };
+    box.appendChild(btn);
+  }
+  document.getElementById("target-overlay").classList.add("active");
+}
+
+function hideTarget() {
+  document.getElementById("target-overlay").classList.remove("active");
+}
+
+function cancelTarget(e) {
+  if (!e || e.target === document.getElementById("target-overlay")) hideTarget();
+}
+
+// ============================================================
+// Render
+// ============================================================
+function render() {
+  if (!STATE || !STATE.observation) {
+    renderNoGame();
+    return;
+  }
+  const obs = STATE.observation;
+  const phase = obs.phase;
+
+  // Top bar updates
+  document.getElementById("seed-display").textContent = STATE.seed ? "Seed: " + STATE.seed : "";
+  document.getElementById("action-counter").textContent = "Actions: " + (STATE.action_count || 0);
+  document.getElementById("undo-btn").disabled = !STATE.can_undo;
+
+  renderGameInfo(obs);
+  renderPhaseContent(obs, phase);
+  renderActionList();
+  renderDeckViewer(obs);
+}
+
+function renderNoGame() {
+  document.getElementById("game-info").innerHTML = "";
+  document.getElementById("phase-content").innerHTML = '<div class="no-game"><h2>Slay the Spire</h2><p>Enter a seed and click New Game to start.</p></div>';
+  document.getElementById("action-btns").innerHTML = "";
+  document.getElementById("deck-viewer").innerHTML = "";
+}
+
+function renderGameInfo(obs) {
+  const run = obs.run || {};
+  const combat = obs.combat;
+  const hp = run.current_hp || 0;
+  const maxHp = run.max_hp || 1;
+  const hpPct = Math.round((hp / maxHp) * 100);
+  const keys = run.keys || {};
+
+  let html = '';
+  html += infoCard("Floor", "Act " + (run.act || 1) + " - F" + (run.floor || 0));
+  html += infoCard("Phase", obs.phase || "?");
+  html += '<div class="info-card"><div class="label">HP</div><div class="value">' + hp + ' / ' + maxHp + '</div><div class="hp-bar-outer"><div class="hp-bar-inner" style="width:' + hpPct + '%"></div></div></div>';
+  html += infoCard("Gold", run.gold || 0);
+
+  if (combat) {
+    html += infoCard("Energy", combat.energy + " / " + combat.max_energy);
+    html += infoCard("Turn", combat.turn || 1);
+    if (combat.stance && combat.stance !== "Neutral") {
+      const sc = combat.stance.toLowerCase();
+      html += '<div class="info-card"><div class="label">Stance</div><span class="stance-badge stance-' + sc + '">' + combat.stance + '</span></div>';
+    }
+  }
+
+  // Keys
+  html += '<div class="info-card"><div class="label">Keys</div><div class="keys-row">';
+  html += '<span class="key-icon ' + (keys.ruby ? "ruby" : "missing") + '"></span>';
+  html += '<span class="key-icon ' + (keys.emerald ? "emerald" : "missing") + '"></span>';
+  html += '<span class="key-icon ' + (keys.sapphire ? "sapphire" : "missing") + '"></span>';
+  html += '</div></div>';
+
+  document.getElementById("game-info").innerHTML = html;
+}
+
+function infoCard(label, value) {
+  return '<div class="info-card"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
+}
+
+function renderPhaseContent(obs, phase) {
+  const el = document.getElementById("phase-content");
+
+  if (STATE.game_over) {
+    const won = obs.run && obs.run.current_hp > 0 && (obs.run.floor >= 55 || obs.phase === "complete");
+    el.innerHTML = '<div class="game-over-banner ' + (won ? "won" : "lost") + '"><h2>' +
+      (won ? "VICTORY" : "DEFEATED") + '</h2><p>Floor ' + (obs.run ? obs.run.floor : "?") +
+      ' | HP: ' + (obs.run ? obs.run.current_hp : 0) + '</p></div>';
+    return;
+  }
+
+  if (phase === "combat") renderCombat(el, obs);
+  else if (phase === "map") renderMap(el, obs);
+  else if (phase === "reward" || phase === "boss_reward") renderRewards(el, obs);
+  else if (phase === "event") renderEvent(el, obs);
+  else if (phase === "shop") renderShop(el, obs);
+  else if (phase === "rest") renderRest(el, obs);
+  else if (phase === "treasure") renderTreasure(el, obs);
+  else if (phase === "neow") renderNeow(el, obs);
+  else el.innerHTML = '<div class="phase-title">' + phase + '</div><p>Phase rendering not implemented.</p>';
+}
+
+// ============================================================
+// Combat rendering
+// ============================================================
+function renderCombat(el, obs) {
+  const c = obs.combat;
+  if (!c) { el.innerHTML = '<p>No combat data</p>'; return; }
+
+  let html = '<div class="phase-title">Combat - Turn ' + c.turn + '</div>';
+
+  // Enemies
+  html += '<div class="enemies-row">';
+  for (let i = 0; i < c.enemies.length; i++) {
+    const e = c.enemies[i];
+    const dead = e.hp <= 0;
+    html += '<div class="enemy-card' + (dead ? " dead" : "") + '">';
+    html += '<div class="enemy-name">' + esc(e.id) + '</div>';
+    html += '<div class="enemy-hp">HP: ' + e.hp + ' / ' + e.max_hp + '</div>';
+    if (e.block > 0) html += '<div class="enemy-block">Block: ' + e.block + '</div>';
+    html += renderIntent(e);
+    html += renderStatuses(e.statuses);
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Player block + statuses
+  html += '<div class="combat-stats">';
+  if (c.player.block > 0) html += '<span class="combat-stat"><b>Block:</b> ' + c.player.block + '</span>';
+  html += '<span class="combat-stat"><b>Draw:</b> ' + (c.draw_pile ? c.draw_pile.length : 0) + '</span>';
+  html += '<span class="combat-stat"><b>Discard:</b> ' + (c.discard_pile ? c.discard_pile.length : 0) + '</span>';
+  html += '<span class="combat-stat"><b>Exhaust:</b> ' + (c.exhaust_pile ? c.exhaust_pile.length : 0) + '</span>';
+  if (c.mantra > 0) html += '<span class="combat-stat"><b>Mantra:</b> ' + c.mantra + '</span>';
+  html += '</div>';
+
+  // Player statuses
+  if (c.player.statuses && Object.keys(c.player.statuses).length > 0) {
+    html += '<div style="margin-bottom:12px;font-size:12px;color:#aaa">Statuses: ' + formatStatuses(c.player.statuses) + '</div>';
+  }
+
+  // Potions
+  const potions = (obs.run && obs.run.potions) || [];
+  if (potions.length > 0) {
+    html += '<div class="potions-row">';
+    for (let i = 0; i < potions.length; i++) {
+      const p = potions[i];
+      html += '<span class="potion-pill' + (!p || p === "empty" || p === "" ? " empty" : "") + '">' +
+        (p && p !== "empty" && p !== "" ? esc(p) : "Empty") + '</span>';
+    }
+    html += '</div>';
+  }
+
+  // Hand
+  html += '<div class="phase-title" style="font-size:12px;margin-top:8px">Hand</div>';
+  html += '<div class="hand-row">';
+  const hand = c.hand || [];
+  const cardCosts = c.card_costs || {};
+  for (let i = 0; i < hand.length; i++) {
+    const cardId = hand[i];
+    const cardActions = findCardActions(i);
+    const playable = cardActions.length > 0;
+    const cost = cardCosts[cardId];
+    const typeClass = getCardTypeClass(cardId);
+    html += '<div class="card-btn ' + typeClass + '" ' +
+      (playable ? 'onclick="showTargetOverlay(' + i + ',\'' + esc(cardId) + '\')" style="cursor:pointer"' : 'style="opacity:0.5;cursor:default"') + '>';
+    html += '<div class="card-name">' + esc(cardId) + '</div>';
+    if (cost !== undefined && cost !== null) html += '<div class="card-cost">[' + cost + ']</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function renderIntent(e) {
+  let intent = '';
+  if (e.move_damage && e.move_damage > 0) {
+    const hits = e.move_hits || 1;
+    intent = hits > 1 ? e.move_damage + 'x' + hits : '' + e.move_damage;
+    intent = 'ATK ' + intent;
+  } else if (e.move_block && e.move_block > 0) {
+    intent = 'DEF ' + e.move_block;
+  } else if (e.move_id) {
+    intent = esc(e.move_id);
+  }
+  if (e.move_effects && Object.keys(e.move_effects).length > 0) {
+    const fx = Object.entries(e.move_effects).map(([k,v]) => k + ':' + v).join(', ');
+    intent += (intent ? ' + ' : '') + fx;
+  }
+  return intent ? '<div class="enemy-intent">' + intent + '</div>' : '';
+}
+
+function renderStatuses(statuses) {
+  if (!statuses || Object.keys(statuses).length === 0) return '';
+  return '<div class="enemy-statuses">' + formatStatuses(statuses) + '</div>';
+}
+
+function formatStatuses(statuses) {
+  return Object.entries(statuses).map(([k,v]) => esc(k) + ':' + v).join(', ');
+}
+
+function getCardTypeClass(cardId) {
+  const id = cardId.toLowerCase().replace('+', '');
+  // Known attacks
+  const attacks = ['strike', 'eruption', 'bowling bash', 'conclude', 'crush joints',
+    'cut through fate', 'empty fist', 'flurry of blows', 'flying sleeves',
+    'follow-up', 'just lucky', 'reach heaven', 'sash whip', 'signature move',
+    'talk to the hand', 'tantrum', 'wallop', 'weave', 'wheel kick',
+    'windmill strike', 'wreath of flame', 'ragnarok', 'lesson learned',
+    'brilliance', 'carve reality'];
+  const skills = ['defend', 'vigilance', 'crescendo', 'tranquility', 'third eye',
+    'protect', 'wave of the hand', 'evaluate', 'fasting', 'halt',
+    'inner peace', 'like water', 'meditate', 'nirvana', 'perseverance',
+    'pray', 'prostrate', 'sanctity', 'swivel', 'vault', 'wish',
+    'worship', 'empty body', 'empty mind', 'fear no evil', 'foreign influence',
+    'judgment', 'scrawl', 'simmering fury', 'spirit shield', 'blasphemy',
+    'deus ex machina', 'safety', 'omniscience', 'devotion', 'establishment',
+    'alpha', 'beta', 'omega', 'deceive reality'];
+  const powers = ['master reality', 'study', 'battle hymn', 'devotion', 'foresight',
+    'mental fortress', 'rushdown', 'wave of the hand'];
+  if (id.includes('curse') || id === 'injury' || id === 'doubt' || id === 'shame' ||
+      id === 'regret' || id === 'writhe' || id === 'pain' || id === 'decay' ||
+      id === 'parasite' || id === 'normality' || id === 'clumsy') return 'type-curse';
+  if (id === 'wound' || id === 'dazed' || id === 'slimed' || id === 'void' || id === 'burn') return 'type-status';
+  // Rough heuristic: check known lists, default based on suffix presence
+  for (const a of attacks) { if (id.includes(a)) return 'type-attack'; }
+  for (const s of skills) { if (id.includes(s)) return 'type-skill'; }
+  for (const p of powers) { if (id.includes(p)) return 'type-power'; }
+  return '';
+}
+
+// ============================================================
+// Map rendering
+// ============================================================
+function renderMap(el, obs) {
+  const mapData = obs.map || {};
+  const paths = mapData.available_paths || [];
+  let html = '<div class="phase-title">Map Navigation</div>';
+  html += '<p style="color:#aaa;margin-bottom:12px">Choose your path:</p>';
+  html += '<div class="map-paths">';
+
+  // Find the matching path_choice actions
+  const pathActions = STATE.actions.filter(a => a.type === "path_choice");
+  for (let i = 0; i < pathActions.length; i++) {
+    const a = pathActions[i];
+    const nodeIdx = a.params.node_index;
+    let label = "Path " + nodeIdx;
+    if (paths[nodeIdx]) {
+      const p = paths[nodeIdx];
+      label = (p.room_type || "?") + " (x:" + p.x + ")";
+    } else if (paths[i]) {
+      const p = paths[i];
+      label = (p.room_type || "?") + " (x:" + p.x + ")";
+    }
+    html += '<button class="map-path-btn" onclick=\'doAction(' + JSON.stringify(a) + ')\'>' + esc(label) + '</button>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Rewards rendering
+// ============================================================
+function renderRewards(el, obs) {
+  const reward = obs.reward || {};
+  const phase = obs.phase;
+  let html = '<div class="phase-title">' + (phase === "boss_reward" ? "Boss Rewards" : "Combat Rewards") + '</div>';
+
+  // Gold
+  if (reward.gold && !reward.gold.claimed) {
+    const goldAction = STATE.actions.find(a => a.type === "claim_gold");
+    if (goldAction) {
+      html += '<div style="margin-bottom:12px"><button class="action-btn" onclick=\'doAction(' +
+        JSON.stringify(goldAction) + ')\'>Claim ' + reward.gold.amount + ' Gold</button></div>';
+    }
+  }
+
+  // Potion
+  if (reward.potion && !reward.potion.claimed && !reward.potion.skipped) {
+    const potionAction = STATE.actions.find(a => a.type === "claim_potion");
+    const skipAction = STATE.actions.find(a => a.type === "skip_potion");
+    html += '<div style="margin-bottom:12px">';
+    if (potionAction) html += '<button class="action-btn" onclick=\'doAction(' + JSON.stringify(potionAction) + ')\'>Take ' + esc(reward.potion.id) + '</button>';
+    if (skipAction) html += '<button class="action-btn" onclick=\'doAction(' + JSON.stringify(skipAction) + ')\'>Skip Potion</button>';
+    html += '</div>';
+  }
+
+  // Relic
+  if (reward.relic && !reward.relic.claimed) {
+    const relicAction = STATE.actions.find(a => a.type === "claim_relic");
+    if (relicAction) {
+      html += '<div style="margin-bottom:12px"><button class="action-btn" onclick=\'doAction(' +
+        JSON.stringify(relicAction) + ')\'>Claim ' + esc(reward.relic.id) + '</button></div>';
+    }
+  }
+
+  // Emerald key
+  if (reward.emerald_key && reward.emerald_key.available && !reward.emerald_key.claimed) {
+    const keyAction = STATE.actions.find(a => a.type === "claim_emerald_key");
+    const skipKey = STATE.actions.find(a => a.type === "skip_emerald_key");
+    html += '<div style="margin-bottom:12px">';
+    if (keyAction) html += '<button class="action-btn" onclick=\'doAction(' + JSON.stringify(keyAction) + ')\'>Take Emerald Key</button>';
+    if (skipKey) html += '<button class="action-btn" onclick=\'doAction(' + JSON.stringify(skipKey) + ')\'>Skip Emerald Key</button>';
+    html += '</div>';
+  }
+
+  // Card rewards
+  if (reward.card_rewards && reward.card_rewards.length > 0) {
+    for (let ri = 0; ri < reward.card_rewards.length; ri++) {
+      const cr = reward.card_rewards[ri];
+      if (cr.claimed_index >= 0 || cr.skipped || cr.singing_bowl_used) continue;
+      html += '<div style="margin-bottom:12px"><div style="color:#aaa;font-size:12px;margin-bottom:6px">Card Reward ' + (ri + 1) + ':</div>';
+      html += '<div class="choice-grid">';
+      for (let ci = 0; ci < cr.cards.length; ci++) {
+        const card = cr.cards[ci];
+        const name = card.id + (card.upgraded ? "+" : "");
+        const pickAction = STATE.actions.find(a =>
+          a.type === "pick_card" && a.params &&
+          a.params.card_reward_index === ri && a.params.card_index === ci
+        );
+        if (pickAction) {
+          html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(pickAction) + ')\'>' +
+            '<div class="card-id">' + esc(name) + '</div>' +
+            (card.rarity ? '<div class="card-meta">' + card.rarity + '</div>' : '') + '</div>';
+        }
+      }
+      // Skip
+      const skipAction = STATE.actions.find(a => a.type === "skip_card" && a.params && a.params.card_reward_index === ri);
+      if (skipAction) {
+        html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(skipAction) + ')\'><div class="card-id">Skip</div></div>';
+      }
+      // Singing bowl
+      const bowlAction = STATE.actions.find(a => a.type === "singing_bowl" && a.params && a.params.card_reward_index === ri);
+      if (bowlAction) {
+        html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(bowlAction) + ')\'><div class="card-id">Singing Bowl (+2 HP)</div></div>';
+      }
+      html += '</div></div>';
+    }
+  }
+
+  // Boss relics
+  if (reward.boss_relics && reward.boss_relics.relics && reward.boss_relics.chosen_index < 0) {
+    html += '<div style="margin-bottom:12px"><div style="color:#aaa;font-size:12px;margin-bottom:6px">Boss Relic:</div>';
+    html += '<div class="choice-grid">';
+    for (let i = 0; i < reward.boss_relics.relics.length; i++) {
+      const relicId = reward.boss_relics.relics[i];
+      const action = STATE.actions.find(a => a.type === "pick_boss_relic" && a.params && a.params.relic_index === i);
+      if (action) {
+        html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(action) + ')\'><div class="card-id">' + esc(relicId) + '</div></div>';
+      }
+    }
+    const skipBoss = STATE.actions.find(a => a.type === "skip_boss_relic");
+    if (skipBoss) {
+      html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(skipBoss) + ')\'><div class="card-id">Skip</div></div>';
+    }
+    html += '</div></div>';
+  }
+
+  // Proceed
+  const proceed = STATE.actions.find(a => a.type === "proceed_from_rewards");
+  if (proceed) {
+    html += '<div style="margin-top:16px"><button class="btn" onclick=\'doAction(' + JSON.stringify(proceed) + ')\'>Proceed</button></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Event rendering
+// ============================================================
+function renderEvent(el, obs) {
+  const ev = obs.event || {};
+  let html = '<div class="phase-title">Event: ' + esc(ev.event_id || "Unknown") + '</div>';
+  if (ev.choices && ev.choices.length > 0) {
+    html += '<div class="choice-grid">';
+    for (const ch of ev.choices) {
+      const action = STATE.actions.find(a =>
+        a.type === "event_choice" && a.params && a.params.choice_index === ch.choice_index
+      );
+      if (action) {
+        html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(action) + ')\'>' +
+          '<div class="card-id">' + esc(ch.label) + '</div>' +
+          (ch.requires_card_selection ? '<div class="card-meta">Requires card selection</div>' : '') +
+          '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Shop rendering
+// ============================================================
+function renderShop(el, obs) {
+  const shop = obs.shop || {};
+  let html = '<div class="phase-title">Shop</div>';
+
+  const goldAvail = (obs.run && obs.run.gold) || 0;
+  html += '<div style="margin-bottom:12px;color:#ffd93d">Gold: ' + goldAvail + '</div>';
+
+  // Cards
+  const allCards = (shop.colored_cards || []).concat(shop.colorless_cards || []);
+  if (allCards.length > 0) {
+    html += '<div class="shop-section"><h4>Cards</h4>';
+    for (const c of allCards) {
+      const purchased = c.purchased;
+      const name = c.id + (c.upgraded ? "+" : "");
+      const buyAction = STATE.actions.find(a =>
+        a.type === "buy_card" && a.label && a.label.includes(name.split('+')[0])
+      );
+      html += '<div class="shop-item' + (purchased ? " purchased" : "") + '">' +
+        '<span>' + esc(name) + '</span><span class="shop-price">' + c.price + 'g</span>';
+      if (!purchased && buyAction) {
+        html += '<button class="btn" style="padding:4px 10px;font-size:12px" onclick=\'doAction(' + JSON.stringify(buyAction) + ')\'>Buy</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Relics
+  if (shop.relics && shop.relics.length > 0) {
+    html += '<div class="shop-section"><h4>Relics</h4>';
+    for (const r of shop.relics) {
+      const buyAction = STATE.actions.find(a =>
+        a.type === "buy_relic" && a.label && a.label.includes("relic")
+      );
+      html += '<div class="shop-item' + (r.purchased ? " purchased" : "") + '">' +
+        '<span>' + esc(r.id) + '</span><span class="shop-price">' + r.price + 'g</span>';
+      if (!r.purchased) {
+        const relicBuy = STATE.actions.find(a => a.type === "buy_relic");
+        if (relicBuy) html += '<button class="btn" style="padding:4px 10px;font-size:12px" onclick=\'doAction(' + JSON.stringify(relicBuy) + ')\'>Buy</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Potions
+  if (shop.potions && shop.potions.length > 0) {
+    html += '<div class="shop-section"><h4>Potions</h4>';
+    for (const p of shop.potions) {
+      const buyAction = STATE.actions.find(a => a.type === "buy_potion");
+      html += '<div class="shop-item' + (p.purchased ? " purchased" : "") + '">' +
+        '<span>' + esc(p.id) + '</span><span class="shop-price">' + p.price + 'g</span>';
+      if (!p.purchased && buyAction) {
+        html += '<button class="btn" style="padding:4px 10px;font-size:12px" onclick=\'doAction(' + JSON.stringify(buyAction) + ')\'>Buy</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Purge
+  if (shop.purge_available) {
+    const purgeAction = STATE.actions.find(a => a.type === "remove_card");
+    html += '<div class="shop-section"><h4>Card Removal</h4>';
+    html += '<div class="shop-item"><span>Remove a card</span><span class="shop-price">' + shop.purge_cost + 'g</span></div>';
+    html += '</div>';
+  }
+
+  // Leave
+  const leaveAction = STATE.actions.find(a => a.type === "leave_shop");
+  if (leaveAction) {
+    html += '<div style="margin-top:16px"><button class="btn btn-secondary" onclick=\'doAction(' + JSON.stringify(leaveAction) + ')\'>Leave Shop</button></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Rest rendering
+// ============================================================
+function renderRest(el, obs) {
+  let html = '<div class="phase-title">Rest Site</div>';
+  html += '<div class="choice-grid">';
+  for (const a of STATE.actions) {
+    let label = a.label || a.type;
+    html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(a) + ')\'>' +
+      '<div class="card-id">' + esc(label) + '</div></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Treasure rendering
+// ============================================================
+function renderTreasure(el, obs) {
+  let html = '<div class="phase-title">Treasure Room</div>';
+  html += '<div class="choice-grid">';
+  for (const a of STATE.actions) {
+    html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(a) + ')\'>' +
+      '<div class="card-id">' + esc(a.label || a.type) + '</div></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Neow rendering
+// ============================================================
+function renderNeow(el, obs) {
+  let html = '<div class="phase-title">Neow\'s Blessing</div>';
+  html += '<p style="color:#aaa;margin-bottom:12px">Choose a blessing to begin your run:</p>';
+  html += '<div class="choice-grid">';
+  for (const a of STATE.actions) {
+    html += '<div class="choice-card" onclick=\'doAction(' + JSON.stringify(a) + ')\'>' +
+      '<div class="card-id">' + esc(a.label || a.type) + '</div></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Action list (fallback - always shown in side panel)
+// ============================================================
+function renderActionList() {
+  const el = document.getElementById("action-btns");
+  if (!STATE || !STATE.actions) { el.innerHTML = '<p style="color:#555">No actions available</p>'; return; }
+
+  let html = '';
+  for (let i = 0; i < STATE.actions.length; i++) {
+    const a = STATE.actions[i];
+    const label = a.label || a.type || "Action " + i;
+    html += '<button class="action-btn" onclick=\'doAction(' + JSON.stringify(a).replace(/'/g, "\\'") + ')\'>' +
+      '<span class="action-idx">' + (i + 1) + '</span>' + esc(label) + '</button>';
+  }
+  el.innerHTML = html;
+}
+
+// ============================================================
+// Deck viewer
+// ============================================================
+function renderDeckViewer(obs) {
+  const el = document.getElementById("deck-viewer");
+  if (!obs.run || !obs.run.deck) { el.innerHTML = ""; return; }
+
+  const deck = obs.run.deck;
+  let html = '<button class="deck-toggle" onclick="toggleDeck()">Deck (' + deck.length + ')</button>';
+  html += '<div class="deck-cards" id="deck-cards-list">';
+  for (const c of deck) {
+    const name = c.id + (c.upgraded ? "+" : "");
+    html += '<span class="deck-card">' + esc(name) + '</span>';
+  }
+  html += '</div>';
+
+  // Relics
+  if (obs.run.relics && obs.run.relics.length > 0) {
+    html += '<div class="relics-row" style="margin-top:8px">';
+    for (const r of obs.run.relics) {
+      html += '<span class="relic-pill">' + esc(r.id) + '</span>';
+    }
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function toggleDeck() {
+  const el = document.getElementById("deck-cards-list");
+  if (el) el.classList.toggle("open");
+}
+
+// ============================================================
+// Keyboard shortcuts
+// ============================================================
+document.addEventListener("keydown", function(e) {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+
+  // Number keys 1-9 map to action indices
+  const num = parseInt(e.key);
+  if (num >= 1 && num <= 9 && STATE && STATE.actions && STATE.actions[num - 1]) {
+    e.preventDefault();
+    doAction(STATE.actions[num - 1]);
+    return;
+  }
+  // 0 = action 10
+  if (e.key === "0" && STATE && STATE.actions && STATE.actions[9]) {
+    e.preventDefault();
+    doAction(STATE.actions[9]);
+    return;
+  }
+  // z = undo
+  if (e.key === "z" && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    doUndo();
+    return;
+  }
+  // n = new game
+  if (e.key === "n" && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    startNewGame();
+    return;
+  }
+  // e = end turn (combat)
+  if (e.key === "e" && STATE && STATE.observation && STATE.observation.phase === "combat") {
+    const endTurn = STATE.actions.find(a => a.type === "end_turn");
+    if (endTurn) {
+      e.preventDefault();
+      doAction(endTurn);
+    }
+  }
+  // Escape to close target overlay
+  if (e.key === "Escape") {
+    hideTarget();
+  }
+});
+
+// ============================================================
+// Utility
+// ============================================================
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  const d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+// Load initial state on page load
+(async function() {
+  try {
+    STATE = await api("GET", "/api/state");
+    render();
+  } catch(e) { /* no game yet */ }
+})();
+</script>
+</body>
+</html>
