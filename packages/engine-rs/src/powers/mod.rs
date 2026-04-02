@@ -1213,6 +1213,7 @@ pub fn get_power_def(key: &str) -> Option<PowerDef> {
     Some(def)
 }
 
+pub mod hooks;
 mod buffs;
 mod debuffs;
 mod enemy_powers;
