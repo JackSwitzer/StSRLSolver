@@ -12,6 +12,8 @@ pub mod actions;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
+pub mod ids;
+pub mod status_ids;
 pub mod damage;
 pub mod enemies;
 pub mod engine;
