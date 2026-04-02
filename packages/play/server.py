@@ -1,9 +1,8 @@
 """
-Lightweight web GUI server for playing Slay the Spire via the engine.
+Lightweight web GUI server for playing Slay the Spire via the RUST engine.
 
-Run with: uv run uvicorn packages.play.server:app --host 0.0.0.0 --port 8421
+Run with: bash scripts/play_gui.sh
 """
-
 from __future__ import annotations
 
 import os
@@ -16,124 +15,104 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
 
-# Ensure project root is on the path so engine imports work.
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
-
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Slay the Spire Play GUI")
+app = FastAPI(title="Slay the Spire Play GUI (Rust Engine)")
 
 # ---------------------------------------------------------------------------
 # Game state (single-player, single-session)
 # ---------------------------------------------------------------------------
 
-runner = None
-action_history: List[Dict[str, Any]] = []
+engine = None  # sts_engine.StSEngine instance
+action_history: List[int] = []  # action IDs (ints)
 current_seed: str = ""
 current_ascension: int = 20
-current_character: str = "Watcher"
 
 
-def _lookup_card_cost(card_id: str) -> int:
-    """Look up a card's energy cost from the card registry."""
-    try:
-        from packages.engine.content.cards import get_card
-        base_id = card_id.rstrip("+")
-        upgraded = card_id.endswith("+")
-        card = get_card(base_id, upgraded=upgraded)
-        return card.cost
-    except Exception:
-        return -1
+def _rust_state_to_frontend(state: dict) -> dict:
+    """Reshape Rust engine state dict into the format the frontend expects.
 
+    Rust returns flat keys (hp, gold, floor, combat, deck, relics, potions).
+    Frontend expects obs.run.{hp, gold, ...} and obs.phase as lowercase.
+    """
+    # Phase mapping: Rust uses short names, frontend expects lowercase
+    phase_map = {
+        "map": "map", "combat": "combat", "card_reward": "reward",
+        "shop": "shop", "event": "event", "campfire": "rest",
+        "game_over": "game_over", "treasure": "treasure",
+    }
+    phase = phase_map.get(state.get("phase", ""), state.get("phase", ""))
 
-def _enrich_actions(actions: List[Dict[str, Any]], obs: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Add human-readable labels to actions where the engine gives generic ones."""
-    phase = obs.get("phase", "")
+    # Build obs.run (the frontend reads obs.run.*)
+    run = {
+        "current_hp": state.get("hp", 0),
+        "max_hp": state.get("max_hp", 0),
+        "gold": state.get("gold", 0),
+        "floor": state.get("floor", 0),
+        "act": state.get("act", 1),
+        "deck": state.get("deck", []),
+        "relics": state.get("relics", []),
+        "potions": state.get("potions", []),
+        "seed": state.get("seed", ""),
+    }
 
-    # Neow: replace "Neow choice N" with blessing description
-    if phase == "neow" and runner and runner.neow_blessings:
-        for a in actions:
-            if a.get("type") == "neow_choice":
-                idx = a.get("params", {}).get("choice_index", -1)
-                if 0 <= idx < len(runner.neow_blessings):
-                    b = runner.neow_blessings[idx]
-                    desc = b.description
-                    if b.drawback_description:
-                        desc += " (cost: " + b.drawback_description + ")"
-                    a["label"] = desc
+    obs = {"phase": phase, "run": run}
 
-    # Combat: replace "Play card N" with actual card name + cost
-    if phase == "combat" and obs.get("combat"):
-        hand = obs["combat"].get("hand", [])
-        card_costs = obs["combat"].get("card_costs", {})
-        for a in actions:
-            if a.get("type") == "play_card":
-                params = a.get("params", {})
-                ci = params.get("card_index", -1)
-                if 0 <= ci < len(hand):
-                    card_id = hand[ci]
-                    cost = card_costs.get(card_id)
-                    if cost is None:
-                        cost = _lookup_card_cost(card_id)
-                    ti = params.get("target_index")
-                    enemies = obs["combat"].get("enemies", [])
-                    target_str = ""
-                    if ti is not None and 0 <= ti < len(enemies):
-                        target_str = " -> " + enemies[ti].get("id", "?")
-                    a["label"] = card_id + " [" + str(cost) + "]" + target_str
-            elif a.get("type") == "use_potion":
-                params = a.get("params", {})
-                slot = params.get("potion_slot", -1)
-                potions = (obs.get("run") or {}).get("potions", [])
-                if 0 <= slot < len(potions) and potions[slot]:
-                    a["label"] = "Use " + potions[slot]
+    # Combat state
+    if "combat" in state and state["combat"]:
+        c = state["combat"]
+        enemies = []
+        for e in (c.get("enemies") or []):
+            enemies.append({
+                "id": e.get("name", e.get("id", "?")),
+                "name": e.get("name", "?"),
+                "hp": e.get("hp", 0),
+                "max_hp": e.get("max_hp", 0),
+                "block": e.get("block", 0),
+                "alive": e.get("alive", True),
+                "move_damage": e.get("move_damage", 0),
+                "move_hits": e.get("move_hits", 0),
+                "move_block": e.get("move_block", 0),
+                "statuses": e.get("statuses", {}),
+            })
+        obs["combat"] = {
+            "player": {
+                "hp": state.get("hp", 0),
+                "max_hp": state.get("max_hp", 0),
+                "block": c.get("block", 0),
+                "energy": c.get("energy", 0),
+                "max_energy": c.get("max_energy", 3),
+                "statuses": c.get("player_statuses", {}),
+            },
+            "hand": c.get("hand", []),
+            "enemies": enemies,
+            "draw_pile_count": c.get("draw_pile_size", 0),
+            "discard_pile_count": c.get("discard_pile_size", 0),
+            "exhaust_pile_count": c.get("exhaust_pile_size", 0),
+            "stance": c.get("stance", "Neutral"),
+            "turn": c.get("turn", 0),
+            "card_costs": {},  # Rust doesn't track per-card cost overrides yet
+        }
 
-    # Map: replace "Path to node N" with room type
-    if phase == "map" and obs.get("map"):
-        paths = obs["map"].get("available_paths", [])
-        for a in actions:
-            if a.get("type") == "path_choice":
-                ni = a.get("params", {}).get("node_index", -1)
-                if 0 <= ni < len(paths):
-                    p = paths[ni]
-                    room = p.get("room_type", "?")
-                    a["label"] = room + " (x:" + str(p.get("x", "?")) + ")"
+    # Card rewards
+    if "card_rewards" in state:
+        obs["reward"] = {"card_rewards": [{"cards": [{"id": c} for c in state["card_rewards"]]}]}
 
-    # Rewards: enrich card pick labels
-    if phase in ("reward", "boss_reward") and obs.get("reward"):
-        card_rewards = obs["reward"].get("card_rewards", [])
-        for a in actions:
-            if a.get("type") == "pick_card":
-                params = a.get("params", {})
-                ri = params.get("card_reward_index", 0)
-                ci = params.get("card_index", 0)
-                if 0 <= ri < len(card_rewards):
-                    cards = card_rewards[ri].get("cards", [])
-                    if 0 <= ci < len(cards):
-                        c = cards[ci]
-                        name = c["id"] + ("+" if c.get("upgraded") else "")
-                        a["label"] = "Pick " + name
+    # Shop
+    if "shop" in state and state["shop"]:
+        obs["shop"] = state["shop"]
 
-    # Rest: enrich smith labels with card name
-    if phase == "rest":
-        deck = (obs.get("run") or {}).get("deck", [])
-        for a in actions:
-            if a.get("type") == "smith":
-                ci = a.get("params", {}).get("card_index", -1)
-                if 0 <= ci < len(deck):
-                    c = deck[ci]
-                    a["label"] = "Upgrade " + c["id"]
+    # Event
+    if "event_options" in state:
+        obs["event"] = {"options": list(range(state["event_options"]))}
 
-    return actions
+    return obs
 
 
 def _get_state_response() -> Dict[str, Any]:
-    """Build the JSON response from the current runner state."""
-    if runner is None:
+    """Build the JSON response from the current Rust engine state."""
+    if engine is None:
         return {
-            "error": "No game started",
             "observation": None,
             "actions": [],
             "seed": "",
@@ -142,10 +121,24 @@ def _get_state_response() -> Dict[str, Any]:
             "action_count": 0,
         }
 
-    obs = runner.get_observation(profile="human")
-    actions = runner.get_available_action_dicts()
-    actions = _enrich_actions(actions, obs)
-    game_over = runner.game_over or not actions
+    state = engine.get_state()
+    obs = _rust_state_to_frontend(state)
+
+    # Actions: Rust returns ActionInfo objects, convert to dicts
+    action_infos = engine.get_legal_actions()
+    actions = []
+    for ai in action_infos:
+        actions.append({
+            "id": ai.id,
+            "type": ai.action_type,
+            "label": ai.description or ai.name,
+            "name": ai.name,
+            "card_name": ai.card_name,
+            "target": ai.target,
+            "description": ai.description,
+        })
+
+    game_over = state.get("done", False) or not actions
 
     return {
         "observation": obs,
@@ -163,20 +156,13 @@ def _get_state_response() -> Dict[str, Any]:
 
 @app.post("/api/new_game")
 async def new_game(body: dict) -> Dict[str, Any]:
-    global runner, action_history, current_seed, current_ascension, current_character
-    from packages.engine.game import GameRunner
+    global engine, action_history, current_seed, current_ascension
+    import sts_engine
 
     current_seed = body.get("seed", "TEST123")
     current_ascension = int(body.get("ascension", 20))
-    current_character = body.get("character", "Watcher")
 
-    runner = GameRunner(
-        seed=current_seed,
-        ascension=current_ascension,
-        character=current_character,
-        skip_neow=False,
-        verbose=False,
-    )
+    engine = sts_engine.StSEngine(current_seed, current_ascension)
     action_history = []
     return _get_state_response()
 
@@ -187,44 +173,37 @@ async def get_state() -> Dict[str, Any]:
 
 
 @app.post("/api/action")
-async def take_action(action_dict: dict) -> Dict[str, Any]:
-    global runner, action_history
-    if runner is None:
+async def take_action(body: dict) -> Dict[str, Any]:
+    global engine, action_history
+    if engine is None:
         return _get_state_response()
 
-    action_history.append(action_dict)
+    action_id = body.get("id")
+    if action_id is None:
+        return {**_get_state_response(), "action_error": "No action id provided"}
+
+    action_history.append(action_id)
     try:
-        runner.take_action_dict(action_dict)
+        engine.step(action_id)
     except Exception as exc:
-        # Roll back the failed action from history
         action_history.pop()
-        return {
-            **_get_state_response(),
-            "action_error": str(exc),
-        }
+        return {**_get_state_response(), "action_error": str(exc)}
     return _get_state_response()
 
 
 @app.get("/api/undo")
 async def undo() -> Dict[str, Any]:
-    global runner, action_history
+    global engine, action_history
     if not action_history:
         return _get_state_response()
 
     action_history.pop()
 
-    # Replay from scratch with the same seed
-    from packages.engine.game import GameRunner
-
-    runner = GameRunner(
-        seed=current_seed,
-        ascension=current_ascension,
-        character=current_character,
-        skip_neow=False,
-        verbose=False,
-    )
-    for a in action_history:
-        runner.take_action_dict(a)
+    # Replay from scratch
+    import sts_engine
+    engine = sts_engine.StSEngine(current_seed, current_ascension)
+    for aid in action_history:
+        engine.step(aid)
 
     return _get_state_response()
 
@@ -243,10 +222,6 @@ async def index():
 
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
-
-# ---------------------------------------------------------------------------
-# Entrypoint
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8421)
