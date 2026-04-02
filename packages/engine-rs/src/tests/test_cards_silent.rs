@@ -4,6 +4,7 @@ mod silent_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/green/*.java
 
     use crate::actions::Action;
+    use crate::status_ids::sid;
     use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::tests::support::*;
 
@@ -394,7 +395,7 @@ mod silent_card_java_parity_tests {
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Neutralize", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, hp - 3);
-        assert_eq!(engine.state.enemies[0].entity.status("Weakened"), 1);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
     }
 
     #[test]
@@ -432,7 +433,7 @@ mod silent_card_java_parity_tests {
         let mut engine = engine_with(vec!["Sucker Punch".to_string(); 8], 40, 0);
         ensure_in_hand(&mut engine, "Sucker Punch");
         assert!(play_on_enemy(&mut engine, "Sucker Punch", 0));
-        assert_eq!(engine.state.enemies[0].entity.status("Weakened"), 1);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
     }
 
     #[test]
@@ -441,7 +442,7 @@ mod silent_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Leg Sweep");
         assert!(play_on_enemy(&mut engine, "Leg Sweep", 0));
         assert_eq!(engine.state.player.block, 11);
-        assert_eq!(engine.state.enemies[0].entity.status("Weakened"), 2);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 2);
     }
 
     #[test]
@@ -467,20 +468,20 @@ mod silent_card_java_parity_tests {
     #[test]
     fn catalyst_doubles_poison() {
         let mut engine = engine_with(vec!["Catalyst".to_string(); 8], 40, 0);
-        engine.state.enemies[0].entity.set_status("Poison", 5);
+        engine.state.enemies[0].entity.set_status(sid::POISON, 5);
         ensure_in_hand(&mut engine, "Catalyst");
         assert!(play_on_enemy(&mut engine, "Catalyst", 0));
-        assert_eq!(engine.state.enemies[0].entity.status("Poison"), 10);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 10);
         assert!(engine.state.exhaust_pile.iter().any(|c| c == "Catalyst"));
     }
 
     #[test]
     fn catalyst_plus_triples_poison() {
         let mut engine = engine_with(vec!["Catalyst+".to_string(); 8], 40, 0);
-        engine.state.enemies[0].entity.set_status("Poison", 5);
+        engine.state.enemies[0].entity.set_status(sid::POISON, 5);
         ensure_in_hand(&mut engine, "Catalyst+");
         assert!(play_on_enemy(&mut engine, "Catalyst+", 0));
-        assert_eq!(engine.state.enemies[0].entity.status("Poison"), 15);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 15);
     }
 
     #[test]
@@ -488,7 +489,7 @@ mod silent_card_java_parity_tests {
         let mut engine = engine_with(vec!["Terror".to_string(); 8], 40, 0);
         ensure_in_hand(&mut engine, "Terror");
         assert!(play_on_enemy(&mut engine, "Terror", 0));
-        assert_eq!(engine.state.enemies[0].entity.status("Vulnerable"), 99);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 99);
         assert!(engine.state.exhaust_pile.iter().any(|c| c == "Terror"));
     }
 
@@ -558,8 +559,8 @@ mod silent_card_java_parity_tests {
         let mut engine = engine_with(vec!["Bullet Time".to_string(); 8], 40, 0);
         ensure_in_hand(&mut engine, "Bullet Time");
         assert!(play_self(&mut engine, "Bullet Time"));
-        assert_eq!(engine.state.player.status("BulletTime"), 1);
-        assert_eq!(engine.state.player.status("NoDraw"), 1);
+        assert_eq!(engine.state.player.status(sid::BULLET_TIME), 1);
+        assert_eq!(engine.state.player.status(sid::NO_DRAW), 1);
     }
 
     #[test]
@@ -568,19 +569,19 @@ mod silent_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Doppelganger");
         engine.state.energy = 3;
         assert!(play_self(&mut engine, "Doppelganger"));
-        assert_eq!(engine.state.player.status("DoppelgangerDraw"), 3);
-        assert_eq!(engine.state.player.status("DoppelgangerEnergy"), 3);
+        assert_eq!(engine.state.player.status(sid::DOPPELGANGER_DRAW), 3);
+        assert_eq!(engine.state.player.status(sid::DOPPELGANGER_ENERGY), 3);
         assert!(engine.state.exhaust_pile.iter().any(|c| c == "Doppelganger"));
     }
 
     #[test]
     fn malaise_applies_weak_and_strength_down() {
         let mut engine = engine_with(vec!["Malaise".to_string(); 8], 40, 0);
-        engine.state.enemies[0].entity.set_status("Strength", 4);
+        engine.state.enemies[0].entity.set_status(sid::STRENGTH, 4);
         ensure_in_hand(&mut engine, "Malaise");
         engine.state.energy = 3;
         assert!(play_on_enemy(&mut engine, "Malaise", 0));
-        assert_eq!(engine.state.enemies[0].entity.status("Weakened"), 3);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 3);
         assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     }
 
@@ -589,8 +590,8 @@ mod silent_card_java_parity_tests {
         let mut engine = engine_with(vec!["Wraith Form".to_string(); 8], 40, 0);
         ensure_in_hand(&mut engine, "Wraith Form");
         assert!(play_self(&mut engine, "Wraith Form"));
-        assert_eq!(engine.state.player.status("Intangible"), 2);
-        assert_eq!(engine.state.player.status("WraithForm"), 1);
+        assert_eq!(engine.state.player.status(sid::INTANGIBLE), 2);
+        assert_eq!(engine.state.player.status(sid::WRAITH_FORM), 1);
     }
 
     #[test]

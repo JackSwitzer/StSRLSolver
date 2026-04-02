@@ -85,6 +85,7 @@ mod relic_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/relics/TeardropLocket.java
 
     use crate::cards::CardType;
+    use crate::status_ids::sid;
     use crate::relics::*;
     use crate::state::{CombatState, EnemyCombatState, Stance};
 
@@ -146,20 +147,20 @@ mod relic_java_parity_tests {
     #[test]
     fn data_disk_grants_one_focus() {
         let state = start_with("Data Disk");
-        assert_eq!(state.player.status("Focus"), 1);
+        assert_eq!(state.player.status(sid::FOCUS), 1);
     }
 
     #[test]
     fn akabeko_grants_eight_vigor() {
         let state = start_with("Akabeko");
-        assert_eq!(state.player.status("Vigor"), 8);
+        assert_eq!(state.player.status(sid::VIGOR), 8);
     }
 
     #[test]
     fn bag_of_marbles_hits_every_enemy() {
         let state = start_with("Bag of Marbles");
         assert!(state.enemies.iter().all(|e| e.entity.is_vulnerable()));
-        assert_eq!(state.enemies[0].entity.status("Vulnerable"), 1);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 1);
     }
 
     #[test]
@@ -171,13 +172,13 @@ mod relic_java_parity_tests {
     #[test]
     fn thread_and_needle_grants_four_plated_armor() {
         let state = start_with("Thread and Needle");
-        assert_eq!(state.player.status("PlatedArmor"), 4);
+        assert_eq!(state.player.status(sid::PLATED_ARMOR), 4);
     }
 
     #[test]
     fn bronze_scales_grants_three_thorns() {
         let state = start_with("Bronze Scales");
-        assert_eq!(state.player.status("Thorns"), 3);
+        assert_eq!(state.player.status(sid::THORNS), 3);
     }
 
     #[test]
@@ -198,13 +199,13 @@ mod relic_java_parity_tests {
     #[test]
     fn clockwork_souvenir_grants_artifact_one() {
         let state = start_with("Clockwork Souvenir");
-        assert_eq!(state.player.status("Artifact"), 1);
+        assert_eq!(state.player.status(sid::ARTIFACT), 1);
     }
 
     #[test]
     fn fossilized_helix_grants_buffer_one() {
         let state = start_with("Fossilized Helix");
-        assert_eq!(state.player.status("Buffer"), 1);
+        assert_eq!(state.player.status(sid::BUFFER), 1);
     }
 
     #[test]
@@ -218,7 +219,7 @@ mod relic_java_parity_tests {
     fn mutagenic_strength_adds_three_strength_and_loses_it_later() {
         let state = start_with("MutagenicStrength");
         assert_eq!(state.player.strength(), 3);
-        assert_eq!(state.player.status("LoseStrength"), 3);
+        assert_eq!(state.player.status(sid::LOSE_STRENGTH), 3);
     }
 
     #[test]
@@ -247,16 +248,16 @@ mod relic_java_parity_tests {
     fn bag_of_preparation_sets_turn_one_extra_draw() {
         let mut state = start_with("Bag of Preparation");
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 2);
-        assert_eq!(state.player.status("BagOfPrepDraw"), 0);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 2);
+        assert_eq!(state.player.status(sid::BAG_OF_PREP_DRAW), 0);
     }
 
     #[test]
     fn ring_of_the_snake_sets_turn_one_extra_draw() {
         let mut state = start_with("Ring of the Snake");
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 2);
-        assert_eq!(state.player.status("BagOfPrepDraw"), 0);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 2);
+        assert_eq!(state.player.status(sid::BAG_OF_PREP_DRAW), 0);
     }
 
     #[test]
@@ -268,117 +269,117 @@ mod relic_java_parity_tests {
     #[test]
     fn pen_nib_initializes_counter() {
         let state = start_with("Pen Nib");
-        assert_eq!(state.player.status("PenNibCounter"), 0);
+        assert_eq!(state.player.status(sid::PEN_NIB_COUNTER), 0);
     }
 
     #[test]
     fn ornamental_fan_initializes_counter() {
         let state = start_with("Ornamental Fan");
-        assert_eq!(state.player.status("OrnamentalFanCounter"), 0);
+        assert_eq!(state.player.status(sid::ORNAMENTAL_FAN_COUNTER), 0);
     }
 
     #[test]
     fn kunai_initializes_counter() {
         let state = start_with("Kunai");
-        assert_eq!(state.player.status("KunaiCounter"), 0);
+        assert_eq!(state.player.status(sid::KUNAI_COUNTER), 0);
     }
 
     #[test]
     fn shuriken_initializes_counter() {
         let state = start_with("Shuriken");
-        assert_eq!(state.player.status("ShurikenCounter"), 0);
+        assert_eq!(state.player.status(sid::SHURIKEN_COUNTER), 0);
     }
 
     #[test]
     fn letter_opener_initializes_counter() {
         let state = start_with("Letter Opener");
-        assert_eq!(state.player.status("LetterOpenerCounter"), 0);
+        assert_eq!(state.player.status(sid::LETTER_OPENER_COUNTER), 0);
     }
 
     #[test]
     fn happy_flower_initializes_counter() {
         let state = start_with("Happy Flower");
-        assert_eq!(state.player.status("HappyFlowerCounter"), 0);
+        assert_eq!(state.player.status(sid::HAPPY_FLOWER_COUNTER), 0);
     }
 
     #[test]
     fn incense_burner_initializes_counter() {
         let state = start_with("Incense Burner");
-        assert_eq!(state.player.status("IncenseBurnerCounter"), 0);
+        assert_eq!(state.player.status(sid::INCENSE_BURNER_COUNTER), 0);
     }
 
     #[test]
     fn horn_cleat_initializes_counter() {
         let state = start_with("HornCleat");
-        assert_eq!(state.player.status("HornCleatCounter"), 0);
+        assert_eq!(state.player.status(sid::HORN_CLEAT_COUNTER), 0);
     }
 
     #[test]
     fn captains_wheel_initializes_counter() {
         let state = start_with("CaptainsWheel");
-        assert_eq!(state.player.status("CaptainsWheelCounter"), 0);
+        assert_eq!(state.player.status(sid::CAPTAINS_WHEEL_COUNTER), 0);
     }
 
     #[test]
     fn stone_calendar_initializes_counter() {
         let state = start_with("StoneCalendar");
-        assert_eq!(state.player.status("StoneCalendarCounter"), 0);
+        assert_eq!(state.player.status(sid::STONE_CALENDAR_COUNTER), 0);
     }
 
     #[test]
     fn velvet_choker_initializes_counter() {
         let state = start_with("Velvet Choker");
-        assert_eq!(state.player.status("VelvetChokerCounter"), 0);
+        assert_eq!(state.player.status(sid::VELVET_CHOKER_COUNTER), 0);
     }
 
     #[test]
     fn pocketwatch_initializes_counter() {
         let state = start_with("Pocketwatch");
-        assert_eq!(state.player.status("PocketwatchCounter"), 0);
-        assert_eq!(state.player.status("PocketwatchFirstTurn"), 1);
+        assert_eq!(state.player.status(sid::POCKETWATCH_COUNTER), 0);
+        assert_eq!(state.player.status(sid::POCKETWATCH_FIRST_TURN), 1);
     }
 
     #[test]
     fn violet_lotus_sets_flag() {
         let state = start_with("Violet Lotus");
-        assert_eq!(state.player.status("VioletLotus"), 1);
+        assert_eq!(state.player.status(sid::VIOLET_LOTUS), 1);
     }
 
     #[test]
     fn emotion_chip_sets_flag() {
         let state = start_with("EmotionChip");
-        assert_eq!(state.player.status("EmotionChipReady"), 1);
+        assert_eq!(state.player.status(sid::EMOTION_CHIP_READY), 1);
     }
 
     #[test]
     fn centennial_puzzle_sets_flag() {
         let state = start_with("CentennialPuzzle");
-        assert_eq!(state.player.status("CentennialPuzzleReady"), 1);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_READY), 1);
     }
 
     #[test]
     fn art_of_war_sets_flag() {
         let state = start_with("Art of War");
-        assert_eq!(state.player.status("ArtOfWarReady"), 1);
+        assert_eq!(state.player.status(sid::ART_OF_WAR_READY), 1);
     }
 
     #[test]
     fn twisted_funnel_applies_four_poison() {
         let state = start_with("TwistedFunnel");
-        assert_eq!(state.enemies[0].entity.status("Poison"), 4);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 4);
     }
 
     #[test]
     fn snecko_eye_sets_draw_and_cost_flag() {
         let state = start_with("Snecko Eye");
-        assert_eq!(state.player.status("SneckoEye"), 1);
-        assert_eq!(state.player.status("BagOfPrepDraw"), 2);
+        assert_eq!(state.player.status(sid::SNECKO_EYE), 1);
+        assert_eq!(state.player.status(sid::BAG_OF_PREP_DRAW), 2);
     }
 
     #[test]
     fn sling_elite_flag_grants_two_strength() {
         let mut state = base_state();
-        state.player.set_status("SlingElite", 1);
+        state.player.set_status(sid::SLING_ELITE, 1);
         state.relics.push("Sling".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.player.strength(), 2);
@@ -389,7 +390,7 @@ mod relic_java_parity_tests {
         let e1 = EnemyCombatState::new("JawWorm", 20, 20);
         let e2 = EnemyCombatState::new("Cultist", 40, 40);
         let mut state = state_with_enemies("PreservedInsect", vec![e1, e2]);
-        state.player.set_status("PreservedInsectElite", 1);
+        state.player.set_status(sid::PRESERVED_INSECT_ELITE, 1);
         apply_combat_start_relics(&mut state);
         assert_eq!(state.enemies[0].entity.hp, 20);
         assert_eq!(state.enemies[1].entity.hp, 30);
@@ -399,17 +400,17 @@ mod relic_java_parity_tests {
     fn neows_blessing_sets_enemies_to_one_hp() {
         let mut state = base_state();
         state.relics.push("NeowsBlessing".to_string());
-        state.player.set_status("NeowsLamentCounter", 3);
+        state.player.set_status(sid::NEOWS_LAMENT_COUNTER, 3);
         apply_combat_start_relics(&mut state);
         assert_eq!(state.enemies[0].entity.hp, 1);
-        assert_eq!(state.player.status("NeowsLamentCounter"), 2);
+        assert_eq!(state.player.status(sid::NEOWS_LAMENT_COUNTER), 2);
     }
 
     #[test]
     fn du_vu_doll_grants_strength_per_curse() {
         let mut state = base_state();
         state.relics.push("Du-Vu Doll".to_string());
-        state.player.set_status("DuVuDollCurses", 4);
+        state.player.set_status(sid::DU_VU_DOLL_CURSES, 4);
         apply_combat_start_relics(&mut state);
         assert_eq!(state.player.strength(), 4);
     }
@@ -418,7 +419,7 @@ mod relic_java_parity_tests {
     fn girya_grants_strength_per_lift() {
         let mut state = base_state();
         state.relics.push("Girya".to_string());
-        state.player.set_status("GiryaCounter", 2);
+        state.player.set_status(sid::GIRYA_COUNTER, 2);
         apply_combat_start_relics(&mut state);
         assert_eq!(state.player.strength(), 2);
     }
@@ -430,7 +431,7 @@ mod relic_java_parity_tests {
         state.relics.push("Red Skull".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.player.strength(), 3);
-        assert_eq!(state.player.status("RedSkullActive"), 1);
+        assert_eq!(state.player.status(sid::RED_SKULL_ACTIVE), 1);
     }
 
     #[test]
@@ -442,14 +443,14 @@ mod relic_java_parity_tests {
     #[test]
     fn orange_pellets_clears_type_tracking_at_combat_start() {
         let mut state = base_state();
-        state.player.set_status("OPAttack", 1);
-        state.player.set_status("OPSkill", 1);
-        state.player.set_status("OPPower", 1);
+        state.player.set_status(sid::OP_ATTACK, 1);
+        state.player.set_status(sid::OP_SKILL, 1);
+        state.player.set_status(sid::OP_POWER, 1);
         state.relics.push("OrangePellets".to_string());
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.player.status("OPAttack"), 0);
-        assert_eq!(state.player.status("OPSkill"), 0);
-        assert_eq!(state.player.status("OPPower"), 0);
+        assert_eq!(state.player.status(sid::OP_ATTACK), 0);
+        assert_eq!(state.player.status(sid::OP_SKILL), 0);
+        assert_eq!(state.player.status(sid::OP_POWER), 0);
     }
 
     #[test]
@@ -467,21 +468,21 @@ mod relic_java_parity_tests {
         let mut state = start_with("Lantern");
         turn_start(&mut state, 1);
         assert_eq!(state.energy, 4);
-        assert_eq!(state.player.status("LanternReady"), 0);
+        assert_eq!(state.player.status(sid::LANTERN_READY), 0);
     }
 
     #[test]
     fn bag_of_preparation_grants_two_extra_draw_on_first_turn() {
         let mut state = start_with("Bag of Preparation");
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 2);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 2);
     }
 
     #[test]
     fn ring_of_the_snake_grants_two_extra_draw_on_first_turn() {
         let mut state = start_with("Ring of the Snake");
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 2);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 2);
     }
 
     #[test]
@@ -493,7 +494,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.energy, 3);
         turn_start(&mut state, 3);
         assert_eq!(state.energy, 4);
-        assert_eq!(state.player.status("HappyFlowerCounter"), 0);
+        assert_eq!(state.player.status(sid::HAPPY_FLOWER_COUNTER), 0);
     }
 
     #[test]
@@ -501,11 +502,11 @@ mod relic_java_parity_tests {
         let mut state = start_with("Incense Burner");
         for turn in 1..=5 {
             turn_start(&mut state, turn);
-            assert_eq!(state.player.status("Intangible"), 0);
+            assert_eq!(state.player.status(sid::INTANGIBLE), 0);
         }
         turn_start(&mut state, 6);
-        assert_eq!(state.player.status("Intangible"), 1);
-        assert_eq!(state.player.status("IncenseBurnerCounter"), 0);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 1);
+        assert_eq!(state.player.status(sid::INCENSE_BURNER_COUNTER), 0);
     }
 
     #[test]
@@ -544,34 +545,34 @@ mod relic_java_parity_tests {
         turn_start(&mut state, 2);
         assert_eq!(state.mantra, 0);
         assert_eq!(state.mantra_gained, 1);
-        assert_eq!(state.player.status("EnterDivinity"), 1);
+        assert_eq!(state.player.status(sid::ENTER_DIVINITY), 1);
     }
 
     #[test]
     fn inserter_adds_orb_slot_on_second_turn() {
         let mut state = start_with("Inserter");
-        state.player.set_status("InserterCounter", 1);
+        state.player.set_status(sid::INSERTER_COUNTER, 1);
         turn_start(&mut state, 2);
-        assert_eq!(state.player.status("OrbSlots"), 1);
-        assert_eq!(state.player.status("InserterCounter"), 0);
+        assert_eq!(state.player.status(sid::ORB_SLOTS), 1);
+        assert_eq!(state.player.status(sid::INSERTER_COUNTER), 0);
     }
 
     #[test]
     fn horn_cleat_grants_fourteen_block_on_second_turn() {
         let mut state = start_with("HornCleat");
-        state.player.set_status("HornCleatCounter", 1);
+        state.player.set_status(sid::HORN_CLEAT_COUNTER, 1);
         turn_start(&mut state, 2);
         assert_eq!(state.player.block, 14);
-        assert_eq!(state.player.status("HornCleatCounter"), -1);
+        assert_eq!(state.player.status(sid::HORN_CLEAT_COUNTER), -1);
     }
 
     #[test]
     fn captains_wheel_grants_eighteen_block_on_third_turn() {
         let mut state = start_with("CaptainsWheel");
-        state.player.set_status("CaptainsWheelCounter", 2);
+        state.player.set_status(sid::CAPTAINS_WHEEL_COUNTER, 2);
         turn_start(&mut state, 3);
         assert_eq!(state.player.block, 18);
-        assert_eq!(state.player.status("CaptainsWheelCounter"), -1);
+        assert_eq!(state.player.status(sid::CAPTAINS_WHEEL_COUNTER), -1);
     }
 
     #[test]
@@ -580,7 +581,7 @@ mod relic_java_parity_tests {
             "StoneCalendar",
             vec![EnemyCombatState::new("JawWorm", 80, 80)],
         );
-        state.player.set_status("StoneCalendarCounter", 7);
+        state.player.set_status(sid::STONE_CALENDAR_COUNTER, 7);
         let hp = state.enemies[0].entity.hp;
         turn_end(&mut state, 7);
         assert_eq!(state.enemies[0].entity.hp, hp - 52);
@@ -592,27 +593,27 @@ mod relic_java_parity_tests {
     #[test]
     fn pocketwatch_adds_three_draw_when_short_turn() {
         let mut state = start_with("Pocketwatch");
-        state.player.set_status("PocketwatchFirstTurn", 0);
-        state.player.set_status("PocketwatchCounter", 3);
+        state.player.set_status(sid::POCKETWATCH_FIRST_TURN, 0);
+        state.player.set_status(sid::POCKETWATCH_COUNTER, 3);
         turn_start(&mut state, 2);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 3);
-        assert_eq!(state.player.status("PocketwatchCounter"), 0);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 3);
+        assert_eq!(state.player.status(sid::POCKETWATCH_COUNTER), 0);
     }
 
     #[test]
     fn art_of_war_grants_energy_after_attackless_turn() {
         let mut state = start_with("Art of War");
-        state.player.set_status("ArtOfWarReady", 1);
+        state.player.set_status(sid::ART_OF_WAR_READY, 1);
         turn_start(&mut state, 2);
         assert_eq!(state.energy, 4);
-        assert_eq!(state.player.status("ArtOfWarReady"), 1);
+        assert_eq!(state.player.status(sid::ART_OF_WAR_READY), 1);
     }
 
     #[test]
     fn art_of_war_clears_on_attack_play() {
         let mut state = start_with("Art of War");
         on_card_played(&mut state, CardType::Attack);
-        assert_eq!(state.player.status("ArtOfWarReady"), 0);
+        assert_eq!(state.player.status(sid::ART_OF_WAR_READY), 0);
     }
 
     #[test]
@@ -624,7 +625,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.player.dexterity(), 0);
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.dexterity(), 1);
-        assert_eq!(state.player.status("KunaiCounter"), 0);
+        assert_eq!(state.player.status(sid::KUNAI_COUNTER), 0);
     }
 
     #[test]
@@ -636,7 +637,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.player.strength(), 0);
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.strength(), 1);
-        assert_eq!(state.player.status("ShurikenCounter"), 0);
+        assert_eq!(state.player.status(sid::SHURIKEN_COUNTER), 0);
     }
 
     #[test]
@@ -662,7 +663,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.energy, 3);
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.energy, 4);
-        assert_eq!(state.player.status("NunchakuCounter"), 0);
+        assert_eq!(state.player.status(sid::NUNCHAKU_COUNTER), 0);
     }
 
     #[test]
@@ -671,10 +672,10 @@ mod relic_java_parity_tests {
         for _ in 0..9 {
             on_card_played(&mut state, CardType::Attack);
         }
-        assert_eq!(state.player.status("InkBottleDraw"), 0);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_DRAW), 0);
         on_card_played(&mut state, CardType::Attack);
-        assert_eq!(state.player.status("InkBottleDraw"), 1);
-        assert_eq!(state.player.status("InkBottleCounter"), 0);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_DRAW), 1);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_COUNTER), 0);
     }
 
     #[test]
@@ -697,15 +698,15 @@ mod relic_java_parity_tests {
     fn frozen_core_sets_trigger_flag_at_turn_end() {
         let mut state = start_with("FrozenCore");
         turn_end(&mut state, 1);
-        assert_eq!(state.player.status("FrozenCoreTrigger"), 1);
+        assert_eq!(state.player.status(sid::FROZEN_CORE_TRIGGER), 1);
     }
 
     #[test]
     fn velvet_choker_allows_six_cards_but_not_seven() {
         let mut state = start_with("Velvet Choker");
-        state.player.set_status("VelvetChokerCounter", 5);
+        state.player.set_status(sid::VELVET_CHOKER_COUNTER, 5);
         assert!(velvet_choker_can_play(&state));
-        state.player.set_status("VelvetChokerCounter", 6);
+        state.player.set_status(sid::VELVET_CHOKER_COUNTER, 6);
         assert!(!velvet_choker_can_play(&state));
     }
 
@@ -718,7 +719,7 @@ mod relic_java_parity_tests {
         assert_eq!(state.player.block, 0);
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.block, 4);
-        assert_eq!(state.player.status("OrnamentalFanCounter"), 0);
+        assert_eq!(state.player.status(sid::ORNAMENTAL_FAN_COUNTER), 0);
     }
 
     #[test]
@@ -728,7 +729,7 @@ mod relic_java_parity_tests {
             assert!(!check_pen_nib(&mut state));
         }
         assert!(check_pen_nib(&mut state));
-        assert_eq!(state.player.status("PenNibCounter"), 0);
+        assert_eq!(state.player.status(sid::PEN_NIB_COUNTER), 0);
     }
 
     #[test]
@@ -743,7 +744,7 @@ mod relic_java_parity_tests {
     fn mummified_hand_sets_flag_on_power_play() {
         let mut state = start_with("Mummified Hand");
         on_card_played(&mut state, CardType::Power);
-        assert_eq!(state.player.status("MummifiedHandTrigger"), 1);
+        assert_eq!(state.player.status(sid::MUMMIFIED_HAND_TRIGGER), 1);
     }
 
     #[test]
@@ -751,25 +752,25 @@ mod relic_java_parity_tests {
         let mut state = start_with("Yang");
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.dexterity(), 1);
-        assert_eq!(state.player.status("LoseDexterity"), 1);
+        assert_eq!(state.player.status(sid::LOSE_DEXTERITY), 1);
     }
 
     #[test]
     fn orange_pellets_clears_debuffs_after_attack_skill_power() {
         let mut state = start_with("OrangePellets");
-        state.player.set_status("Weakened", 2);
-        state.player.set_status("Vulnerable", 2);
-        state.player.set_status("Frail", 2);
-        state.player.set_status("Entangled", 1);
-        state.player.set_status("NoDraw", 1);
+        state.player.set_status(sid::WEAKENED, 2);
+        state.player.set_status(sid::VULNERABLE, 2);
+        state.player.set_status(sid::FRAIL, 2);
+        state.player.set_status(sid::ENTANGLED, 1);
+        state.player.set_status(sid::NO_DRAW, 1);
         on_card_played(&mut state, CardType::Attack);
         on_card_played(&mut state, CardType::Skill);
         on_card_played(&mut state, CardType::Power);
-        assert_eq!(state.player.status("Weakened"), 0);
-        assert_eq!(state.player.status("Vulnerable"), 0);
-        assert_eq!(state.player.status("Frail"), 0);
-        assert_eq!(state.player.status("Entangled"), 0);
-        assert_eq!(state.player.status("NoDraw"), 0);
+        assert_eq!(state.player.status(sid::WEAKENED), 0);
+        assert_eq!(state.player.status(sid::VULNERABLE), 0);
+        assert_eq!(state.player.status(sid::FRAIL), 0);
+        assert_eq!(state.player.status(sid::ENTANGLED), 0);
+        assert_eq!(state.player.status(sid::NO_DRAW), 0);
     }
 
     #[test]
@@ -823,7 +824,7 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("HandDrill".to_string());
         hand_drill_on_block_break(&mut state, 0);
-        assert_eq!(state.enemies[0].entity.status("Vulnerable"), 2);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 2);
     }
 
     #[test]
@@ -949,19 +950,19 @@ mod relic_java_parity_tests {
     fn necronomicon_reset_clears_flag() {
         let mut state = base_state();
         state.relics.push("Necronomicon".to_string());
-        state.player.set_status("NecronomiconUsed", 1);
+        state.player.set_status(sid::NECRONOMICON_USED, 1);
         necronomicon_reset(&mut state);
-        assert_eq!(state.player.status("NecronomiconUsed"), 0);
+        assert_eq!(state.player.status(sid::NECRONOMICON_USED), 0);
     }
 
     #[test]
     fn on_hp_loss_centennial_puzzle_sets_draw_flag() {
         let mut state = base_state();
         state.relics.push("Centennial Puzzle".to_string());
-        state.player.set_status("CentennialPuzzleReady", 1);
+        state.player.set_status(sid::CENTENNIAL_PUZZLE_READY, 1);
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("CentennialPuzzleReady"), 0);
-        assert_eq!(state.player.status("CentennialPuzzleDraw"), 3);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_READY), 0);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_DRAW), 3);
     }
 
     #[test]
@@ -969,7 +970,7 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("Self Forming Clay".to_string());
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("NextTurnBlock"), 3);
+        assert_eq!(state.player.status(sid::NEXT_TURN_BLOCK), 3);
     }
 
     #[test]
@@ -977,7 +978,7 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("Runic Cube".to_string());
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("RunicCubeDraw"), 1);
+        assert_eq!(state.player.status(sid::RUNIC_CUBE_DRAW), 1);
     }
 
     #[test]
@@ -987,7 +988,7 @@ mod relic_java_parity_tests {
         state.relics.push("Red Skull".to_string());
         on_hp_loss(&mut state, 5);
         assert_eq!(state.player.strength(), 3);
-        assert_eq!(state.player.status("RedSkullActive"), 1);
+        assert_eq!(state.player.status(sid::RED_SKULL_ACTIVE), 1);
     }
 
     #[test]
@@ -995,7 +996,7 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("EmotionChip".to_string());
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("EmotionChipTrigger"), 1);
+        assert_eq!(state.player.status(sid::EMOTION_CHIP_TRIGGER), 1);
     }
 
     #[test]
@@ -1003,12 +1004,12 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("Sundial".to_string());
         on_shuffle(&mut state);
-        assert_eq!(state.player.status("SundialCounter"), 1);
+        assert_eq!(state.player.status(sid::SUNDIAL_COUNTER), 1);
         on_shuffle(&mut state);
-        assert_eq!(state.player.status("SundialCounter"), 2);
+        assert_eq!(state.player.status(sid::SUNDIAL_COUNTER), 2);
         on_shuffle(&mut state);
         assert_eq!(state.energy, 5);
-        assert_eq!(state.player.status("SundialCounter"), 0);
+        assert_eq!(state.player.status(sid::SUNDIAL_COUNTER), 0);
     }
 
     #[test]
@@ -1026,16 +1027,16 @@ mod relic_java_parity_tests {
         let energy = state.energy;
         on_enemy_death(&mut state, 0);
         assert_eq!(state.energy, energy + 1);
-        assert_eq!(state.player.status("GremlinHornDraw"), 1);
+        assert_eq!(state.player.status(sid::GREMLIN_HORN_DRAW), 1);
     }
 
     #[test]
     fn on_enemy_death_the_specimen_transfers_poison() {
         let mut state = two_enemy_state();
         state.relics.push("The Specimen".to_string());
-        state.enemies[0].entity.add_status("Poison", 5);
+        state.enemies[0].entity.add_status(sid::POISON, 5);
         on_enemy_death(&mut state, 0);
-        assert_eq!(state.enemies[1].entity.status("Poison"), 5);
+        assert_eq!(state.enemies[1].entity.status(sid::POISON), 5);
     }
 
     #[test]
@@ -1082,17 +1083,17 @@ mod relic_java_parity_tests {
 
     extra_case!(data_disk_compact_name, {
         let state = start_with("DataDisk");
-        assert_eq!(state.player.status("Focus"), 1);
+        assert_eq!(state.player.status(sid::FOCUS), 1);
     });
 
     extra_case!(clockwork_souvenir_compact_name, {
         let state = start_with("ClockworkSouvenir");
-        assert_eq!(state.player.status("Artifact"), 1);
+        assert_eq!(state.player.status(sid::ARTIFACT), 1);
     });
 
     extra_case!(fossilized_helix_compact_name, {
         let state = start_with("FossilizedHelix");
-        assert_eq!(state.player.status("Buffer"), 1);
+        assert_eq!(state.player.status(sid::BUFFER), 1);
     });
 
     extra_case!(philosopher_stone_compact_name, {
@@ -1260,10 +1261,10 @@ mod relic_java_parity_tests {
     extra_case!(on_hp_loss_zero_damage_no_triggers, {
         let mut state = base_state();
         state.relics.push("Centennial Puzzle".to_string());
-        state.player.set_status("CentennialPuzzleReady", 1);
+        state.player.set_status(sid::CENTENNIAL_PUZZLE_READY, 1);
         on_hp_loss(&mut state, 0);
-        assert_eq!(state.player.status("CentennialPuzzleReady"), 1);
-        assert_eq!(state.player.status("CentennialPuzzleDraw"), 0);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_READY), 1);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_DRAW), 0);
     });
 
     extra_case!(on_shuffle_no_relic_no_effect, {
@@ -1279,7 +1280,7 @@ mod relic_java_parity_tests {
         let mut state = two_enemy_state();
         state.relics.push("The Specimen".to_string());
         on_enemy_death(&mut state, 0);
-        assert_eq!(state.enemies[1].entity.status("Poison"), 0);
+        assert_eq!(state.enemies[1].entity.status(sid::POISON), 0);
     });
 
     extra_case!(on_victory_meat_above_half_no_heal, {
@@ -1301,7 +1302,7 @@ mod relic_java_parity_tests {
         for turn in 1..=5 {
             turn_start(&mut state, turn);
         }
-        assert_eq!(state.player.status("Intangible"), 0);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 0);
     });
 
     extra_case!(horn_cleat_turn1_no_block, {
@@ -1312,31 +1313,31 @@ mod relic_java_parity_tests {
 
     extra_case!(captains_wheel_turn2_no_block, {
         let mut state = start_with("CaptainsWheel");
-        state.player.set_status("CaptainsWheelCounter", 1);
+        state.player.set_status(sid::CAPTAINS_WHEEL_COUNTER, 1);
         turn_start(&mut state, 2);
         assert_eq!(state.player.block, 0);
     });
 
     extra_case!(pocketwatch_first_turn_no_bonus, {
         let mut state = start_with("Pocketwatch");
-        state.player.set_status("PocketwatchFirstTurn", 1);
+        state.player.set_status(sid::POCKETWATCH_FIRST_TURN, 1);
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("TurnStartExtraDraw"), 0);
-        assert_eq!(state.player.status("PocketwatchFirstTurn"), 0);
+        assert_eq!(state.player.status(sid::TURN_START_EXTRA_DRAW), 0);
+        assert_eq!(state.player.status(sid::POCKETWATCH_FIRST_TURN), 0);
     });
 
     extra_case!(art_of_war_turn1_no_energy, {
         let mut state = start_with("Art of War");
-        state.player.set_status("ArtOfWarReady", 1);
+        state.player.set_status(sid::ART_OF_WAR_READY, 1);
         turn_start(&mut state, 1);
         assert_eq!(state.energy, 3);
     });
 
     extra_case!(inserter_turn1_no_orb_slot, {
         let mut state = start_with("Inserter");
-        state.player.set_status("InserterCounter", 0);
+        state.player.set_status(sid::INSERTER_COUNTER, 0);
         turn_start(&mut state, 1);
-        assert_eq!(state.player.status("OrbSlots"), 0);
+        assert_eq!(state.player.status(sid::ORB_SLOTS), 0);
     });
 
     extra_case!(kunai_six_attacks_two_dex, {
@@ -1379,7 +1380,7 @@ mod relic_java_parity_tests {
         for _ in 0..9 {
             on_card_played(&mut state, CardType::Attack);
         }
-        assert_eq!(state.player.status("InkBottleDraw"), 0);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_DRAW), 0);
     });
 
     extra_case!(orichalcum_with_block_no_bonus, {
@@ -1399,7 +1400,7 @@ mod relic_java_parity_tests {
     extra_case!(stone_calendar_sixth_end_no_fire, {
         let mut state = base_state();
         state.relics.push("StoneCalendar".to_string());
-        state.player.set_status("StoneCalendarCounter", 6);
+        state.player.set_status(sid::STONE_CALENDAR_COUNTER, 6);
         let hp = state.enemies[0].entity.hp;
         turn_end(&mut state, 6);
         assert_eq!(state.enemies[0].entity.hp, hp);
@@ -1407,13 +1408,13 @@ mod relic_java_parity_tests {
 
     extra_case!(velvet_choker_counter_five_allowed, {
         let mut state = start_with("Velvet Choker");
-        state.player.set_status("VelvetChokerCounter", 5);
+        state.player.set_status(sid::VELVET_CHOKER_COUNTER, 5);
         assert!(velvet_choker_can_play(&state));
     });
 
     extra_case!(velvet_choker_counter_six_blocked, {
         let mut state = start_with("Velvet Choker");
-        state.player.set_status("VelvetChokerCounter", 6);
+        state.player.set_status(sid::VELVET_CHOKER_COUNTER, 6);
         assert!(!velvet_choker_can_play(&state));
     });
 
@@ -1434,7 +1435,7 @@ mod relic_java_parity_tests {
     extra_case!(mummified_hand_non_power_no_flag, {
         let mut state = start_with("Mummified Hand");
         on_card_played(&mut state, CardType::Skill);
-        assert_eq!(state.player.status("MummifiedHandTrigger"), 0);
+        assert_eq!(state.player.status(sid::MUMMIFIED_HAND_TRIGGER), 0);
     });
 
     extra_case!(yang_skill_no_dex, {
@@ -1445,9 +1446,9 @@ mod relic_java_parity_tests {
 
     extra_case!(orange_pellets_one_type_does_not_clear, {
         let mut state = start_with("OrangePellets");
-        state.player.set_status("Weakened", 1);
+        state.player.set_status(sid::WEAKENED, 1);
         on_card_played(&mut state, CardType::Attack);
-        assert_eq!(state.player.status("Weakened"), 1);
+        assert_eq!(state.player.status(sid::WEAKENED), 1);
     });
 
     extra_case!(charons_ashes_no_relic_no_damage, {
@@ -1480,7 +1481,7 @@ mod relic_java_parity_tests {
     extra_case!(hand_drill_no_relic_no_vuln, {
         let mut state = base_state();
         hand_drill_on_block_break(&mut state, 0);
-        assert_eq!(state.enemies[0].entity.status("Vulnerable"), 0);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 0);
     });
 
     extra_case!(on_shuffle_sundial_first_no_energy, {
@@ -1524,30 +1525,30 @@ mod relic_java_parity_tests {
     extra_case!(centennial_puzzle_zero_damage_no_flag, {
         let mut state = base_state();
         state.relics.push("Centennial Puzzle".to_string());
-        state.player.set_status("CentennialPuzzleReady", 1);
+        state.player.set_status(sid::CENTENNIAL_PUZZLE_READY, 1);
         on_hp_loss(&mut state, 0);
-        assert_eq!(state.player.status("CentennialPuzzleReady"), 1);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_READY), 1);
     });
 
     extra_case!(self_forming_clay_zero_damage_no_flag, {
         let mut state = base_state();
         state.relics.push("Self Forming Clay".to_string());
         on_hp_loss(&mut state, 0);
-        assert_eq!(state.player.status("NextTurnBlock"), 0);
+        assert_eq!(state.player.status(sid::NEXT_TURN_BLOCK), 0);
     });
 
     extra_case!(runic_cube_zero_damage_no_flag, {
         let mut state = base_state();
         state.relics.push("Runic Cube".to_string());
         on_hp_loss(&mut state, 0);
-        assert_eq!(state.player.status("RunicCubeDraw"), 0);
+        assert_eq!(state.player.status(sid::RUNIC_CUBE_DRAW), 0);
     });
 
     extra_case!(emotion_chip_zero_damage_no_flag, {
         let mut state = base_state();
         state.relics.push("EmotionChip".to_string());
         on_hp_loss(&mut state, 0);
-        assert_eq!(state.player.status("EmotionChipTrigger"), 0);
+        assert_eq!(state.player.status(sid::EMOTION_CHIP_TRIGGER), 0);
     });
 
     extra_case!(burning_blood_on_victory, {

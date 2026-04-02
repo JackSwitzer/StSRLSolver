@@ -5,6 +5,7 @@
 //! the most common/expected move pattern for fast simulation.
 
 use crate::state::EnemyCombatState;
+use crate::status_ids::sid;
 
 
 pub mod act1;
@@ -337,15 +338,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "FungiBeast" => {
             enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
-            enemy.entity.set_status("SporeCloud", 2);
+            enemy.entity.set_status(sid::SPORE_CLOUD, 2);
         }
         "FuzzyLouseNormal" | "RedLouse" => {
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
-            enemy.entity.set_status("CurlUp", 5);
+            enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "FuzzyLouseDefensive" | "GreenLouse" => {
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
-            enemy.entity.set_status("CurlUp", 5);
+            enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "SlaverBlue" | "BlueSlaver" => {
             enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
@@ -400,12 +401,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "GremlinNob" | "Gremlin Nob" => {
             enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
-            enemy.entity.set_status("Enrage", 2);
+            enemy.entity.set_status(sid::ENRAGE, 2);
         }
         "Lagavulin" => {
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
-            enemy.entity.set_status("Metallicize", 8);
-            enemy.entity.set_status("SleepTurns", 3);
+            enemy.entity.set_status(sid::METALLICIZE, 8);
+            enemy.entity.set_status(sid::SLEEP_TURNS, 3);
         }
         "Sentry" => {
             enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
@@ -413,27 +414,27 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "TheGuardian" => {
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
             if hp >= 250 {
-                enemy.entity.set_status("ModeShift", 40);
-                enemy.entity.set_status("FierceBashDmg", 36);
-                enemy.entity.set_status("RollDmg", 10);
+                enemy.entity.set_status(sid::MODE_SHIFT, 40);
+                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 36);
+                enemy.entity.set_status(sid::ROLL_DMG, 10);
             } else {
-                enemy.entity.set_status("ModeShift", 30);
-                enemy.entity.set_status("FierceBashDmg", 32);
-                enemy.entity.set_status("RollDmg", 9);
+                enemy.entity.set_status(sid::MODE_SHIFT, 30);
+                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 32);
+                enemy.entity.set_status(sid::ROLL_DMG, 9);
             }
         }
         "Hexaghost" => {
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
             if hp >= 264 {
-                enemy.entity.set_status("StrAmt", 3);
-                enemy.entity.set_status("SearBurnCount", 2);
-                enemy.entity.set_status("FireTackleDmg", 6);
-                enemy.entity.set_status("InfernoDmg", 3);
+                enemy.entity.set_status(sid::STR_AMT, 3);
+                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 2);
+                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 6);
+                enemy.entity.set_status(sid::INFERNO_DMG, 3);
             } else {
-                enemy.entity.set_status("StrAmt", 2);
-                enemy.entity.set_status("SearBurnCount", 1);
-                enemy.entity.set_status("FireTackleDmg", 5);
-                enemy.entity.set_status("InfernoDmg", 2);
+                enemy.entity.set_status(sid::STR_AMT, 2);
+                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
+                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
+                enemy.entity.set_status(sid::INFERNO_DMG, 2);
             }
         }
         "SlimeBoss" => {
@@ -455,17 +456,17 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Byrd" => {
             // Starts flying with Flight power. First turn: Peck (1x5)
             enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
-            enemy.entity.set_status("Flight", 3);
+            enemy.entity.set_status(sid::FLIGHT, 3);
         }
         "Shelled Parasite" | "ShelledParasite" => {
             // Has Plated Armor 14. First turn: Double Strike (6x2)
             enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
-            enemy.entity.set_status("PlatedArmor", 14);
+            enemy.entity.set_status(sid::PLATED_ARMOR, 14);
         }
         "SnakePlant" => {
             // Has Malleable. First turn: Chomp (7x3)
             enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
-            enemy.entity.set_status("Malleable", 1);
+            enemy.entity.set_status(sid::MALLEABLE, 1);
         }
         "Centurion" => {
             // First turn: Fury (6x3) or Slash (12)
@@ -478,7 +479,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "BookOfStabbing" | "Book of Stabbing" => {
             // Multi-stab. Starts with stabCount=1, increases each turn
             enemy.set_move(move_ids::BOOK_STAB, 6, 2, 0);
-            enemy.entity.set_status("StabCount", 2);
+            enemy.entity.set_status(sid::STAB_COUNT, 2);
         }
         "GremlinLeader" | "Gremlin Leader" => {
             // First turn: Rally (summon gremlins)
@@ -514,17 +515,17 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "BronzeAutomaton" | "Bronze Automaton" => {
             enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
             if hp >= 320 {
-                enemy.entity.set_status("FlailDmg", 8);
-                enemy.entity.set_status("BeamDmg", 50);
-                enemy.entity.set_status("StrAmt", 4);
-                enemy.entity.set_status("BlockAmt", 12);
+                enemy.entity.set_status(sid::FLAIL_DMG, 8);
+                enemy.entity.set_status(sid::BEAM_DMG, 50);
+                enemy.entity.set_status(sid::STR_AMT, 4);
+                enemy.entity.set_status(sid::BLOCK_AMT, 12);
             } else {
-                enemy.entity.set_status("FlailDmg", 7);
-                enemy.entity.set_status("BeamDmg", 45);
-                enemy.entity.set_status("StrAmt", 3);
-                enemy.entity.set_status("BlockAmt", 9);
+                enemy.entity.set_status(sid::FLAIL_DMG, 7);
+                enemy.entity.set_status(sid::BEAM_DMG, 45);
+                enemy.entity.set_status(sid::STR_AMT, 3);
+                enemy.entity.set_status(sid::BLOCK_AMT, 9);
             }
-            enemy.entity.set_status("Artifact", 3);
+            enemy.entity.set_status(sid::ARTIFACT, 3);
         }
         "BronzeOrb" | "Bronze Orb" => {
             // First turn: Stasis (steal card from hand)
@@ -544,25 +545,25 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
             enemy.move_effects.insert("frail".to_string(), 2);
             enemy.move_effects.insert("vulnerable".to_string(), 2);
-            enemy.entity.set_status("NumTurns", 0);
-            enemy.entity.set_status("ThresholdReached", 0);
-            enemy.entity.set_status("StrAmt", str_amt);
-            enemy.entity.set_status("ForgeAmt", forge_amt);
-            enemy.entity.set_status("BlockAmt", block_amt);
-            enemy.entity.set_status("ForgeTimes", 0);
-            enemy.entity.set_status("SlashDmg", slash_dmg);
-            enemy.entity.set_status("SlapDmg", slap_dmg);
+            enemy.entity.set_status(sid::NUM_TURNS, 0);
+            enemy.entity.set_status(sid::THRESHOLD_REACHED, 0);
+            enemy.entity.set_status(sid::STR_AMT, str_amt);
+            enemy.entity.set_status(sid::FORGE_AMT, forge_amt);
+            enemy.entity.set_status(sid::BLOCK_AMT, block_amt);
+            enemy.entity.set_status(sid::FORGE_TIMES, 0);
+            enemy.entity.set_status(sid::SLASH_DMG, slash_dmg);
+            enemy.entity.set_status(sid::SLAP_DMG, slap_dmg);
         }
         "TheCollector" | "Collector" => {
             enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
             if hp >= 300 {
-                enemy.entity.set_status("FireballDmg", 21);
-                enemy.entity.set_status("StrAmt", 4);
-                enemy.entity.set_status("BlockAmt", 18);
+                enemy.entity.set_status(sid::FIREBALL_DMG, 21);
+                enemy.entity.set_status(sid::STR_AMT, 4);
+                enemy.entity.set_status(sid::BLOCK_AMT, 18);
             } else {
-                enemy.entity.set_status("FireballDmg", 18);
-                enemy.entity.set_status("StrAmt", 3);
-                enemy.entity.set_status("BlockAmt", 15);
+                enemy.entity.set_status(sid::FIREBALL_DMG, 18);
+                enemy.entity.set_status(sid::STR_AMT, 3);
+                enemy.entity.set_status(sid::BLOCK_AMT, 15);
             }
         }
 
@@ -581,7 +582,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Spiker" => {
             // Has Thorns 3. First turn: attack (7 damage)
             enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
-            enemy.entity.set_status("Thorns", 3);
+            enemy.entity.set_status(sid::THORNS, 3);
         }
         "Repulsor" => {
             // Mostly Daze (add Daze cards). First turn: Daze
@@ -591,7 +592,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Exploder" => {
             // 3-turn timer: Attack -> Unknown -> Explode (30 damage)
             enemy.set_move(move_ids::EXPLODER_ATTACK, 9, 1, 0);
-            enemy.entity.set_status("TurnCount", 0);
+            enemy.entity.set_status(sid::TURN_COUNT, 0);
         }
         "WrithingMass" | "Writhing Mass" => {
             // First turn: random attack. Use Multi Hit as default.
@@ -599,9 +600,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // A2: 38/9/16/12, else 32/7/15/10
             // For MCTS deterministic: use Multi Hit as first move
             enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
-            enemy.entity.set_status("Reactive", 1);
-            enemy.entity.set_status("Malleable", 1);
-            enemy.entity.set_status("UsedMegaDebuff", 0);
+            enemy.entity.set_status(sid::REACTIVE, 1);
+            enemy.entity.set_status(sid::MALLEABLE, 1);
+            enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
         }
         "SpireGrowth" | "Spire Growth" => {
             // Has Constrict. First turn: Quick Tackle (16)
@@ -612,25 +613,25 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
             enemy.move_effects.insert("weak".to_string(), 3);
             enemy.move_effects.insert("frail".to_string(), 3);
-            enemy.entity.set_status("TurnCount", 1);
+            enemy.entity.set_status(sid::TURN_COUNT, 1);
         }
         "Transient" => {
             // Escalating damage. A2: starts at 40, else 30. +10 each turn.
             // Fading: A17 = 6 turns, else 5 turns. Has Shifting power (reduces all damage to block).
             // startingDeathDmg stored as status for escalation.
             enemy.set_move(move_ids::TRANSIENT_ATTACK, 30, 1, 0);
-            enemy.entity.set_status("AttackCount", 0);
-            enemy.entity.set_status("StartingDmg", 30);
-            enemy.entity.set_status("Shifting", 1);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 30);
+            enemy.entity.set_status(sid::SHIFTING, 1);
         }
         "GiantHead" | "Giant Head" => {
             // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
             // startingDeathDmg: A3+ = 40, else 30. Has Slow power.
             // First getMove decrements count, so first turn is count=4 (or 3 at A18).
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
-            enemy.entity.set_status("Count", 5);
-            enemy.entity.set_status("StartingDeathDmg", 30);
-            enemy.entity.set_status("Slow", 1);
+            enemy.entity.set_status(sid::COUNT, 5);
+            enemy.entity.set_status(sid::STARTING_DEATH_DMG, 30);
+            enemy.entity.set_status(sid::SLOW, 1);
         }
         "Nemesis" => {
             // Intangible cycling — gains Intangible every turn in takeTurn if not already present.
@@ -638,8 +639,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Deterministic MCTS: use Tri Attack as default first move.
             // fireDmg: A3+ = 7, else 6. Scythe always 45.
             enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
-            enemy.entity.set_status("ScytheCooldown", 0);
-            enemy.entity.set_status("FirstMove", 1);
+            enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 0);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
         }
         "Reptomancer" => {
             // First turn: Spawn daggers
@@ -655,37 +656,37 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Regen: A19 = 15, else 10. A4: starts with +2 Str.
             // First turn always Slash (20 damage). Has Unawakened power.
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
-            enemy.entity.set_status("Phase", 1);
-            enemy.entity.set_status("FirstTurn", 0);
+            enemy.entity.set_status(sid::PHASE, 1);
+            enemy.entity.set_status(sid::FIRST_TURN, 0);
             if hp >= 320 {
-                enemy.entity.set_status("Curiosity", 2);
-                enemy.entity.set_status("Regenerate", 15);
-                enemy.entity.set_status("Strength", 2);
+                enemy.entity.set_status(sid::CURIOSITY, 2);
+                enemy.entity.set_status(sid::REGENERATE, 15);
+                enemy.entity.set_status(sid::STRENGTH, 2);
             } else {
-                enemy.entity.set_status("Curiosity", 1);
-                enemy.entity.set_status("Regenerate", 10);
+                enemy.entity.set_status(sid::CURIOSITY, 1);
+                enemy.entity.set_status(sid::REGENERATE, 10);
             }
         }
         "Donu" => {
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
             enemy.move_effects.insert("strength".to_string(), 3);
-            if hp >= 265 { enemy.entity.set_status("Artifact", 3); enemy.entity.set_status("BeamDmg", 12); }
-            else { enemy.entity.set_status("Artifact", 2); enemy.entity.set_status("BeamDmg", 10); }
+            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); enemy.entity.set_status(sid::BEAM_DMG, 12); }
+            else { enemy.entity.set_status(sid::ARTIFACT, 2); enemy.entity.set_status(sid::BEAM_DMG, 10); }
         }
         "Deca" => {
             let bdmg = if hp >= 265 { 12 } else { 10 };
             enemy.set_move(move_ids::DECA_BEAM, bdmg, 2, 0);
             enemy.move_effects.insert("daze".to_string(), 2);
-            if hp >= 265 { enemy.entity.set_status("Artifact", 3); } else { enemy.entity.set_status("Artifact", 2); }
-            enemy.entity.set_status("BeamDmg", bdmg);
+            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); } else { enemy.entity.set_status(sid::ARTIFACT, 2); }
+            enemy.entity.set_status(sid::BEAM_DMG, bdmg);
         }
         "TimeEater" | "Time Eater" => {
             let (rd, hsd) = if hp >= 480 { (8, 32) } else { (7, 26) };
             enemy.set_move(move_ids::TE_REVERBERATE, rd, 3, 0);
-            enemy.entity.set_status("CardCount", 0);
-            enemy.entity.set_status("UsedHaste", 0);
-            enemy.entity.set_status("ReverbDmg", rd);
-            enemy.entity.set_status("HeadSlamDmg", hsd);
+            enemy.entity.set_status(sid::CARD_COUNT, 0);
+            enemy.entity.set_status(sid::USED_HASTE, 0);
+            enemy.entity.set_status(sid::REVERB_DMG, rd);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, hsd);
         }
 
         // =================================================================
@@ -697,33 +698,33 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Bash applies -1 Str or -1 Focus (random if player has orbs).
             enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
             enemy.move_effects.insert("strength_down".to_string(), 1);
-            enemy.entity.set_status("MoveCount", 0);
+            enemy.entity.set_status(sid::MOVE_COUNT, 0);
         }
         "SpireSpear" | "Spire Spear" => {
             // 3-move cycle. First turn: Burn Strike (5x2 + Burns)
             enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
             enemy.move_effects.insert("burn".to_string(), 2);
-            enemy.entity.set_status("MoveCount", 0);
-            enemy.entity.set_status("SkewerCount", 3);
+            enemy.entity.set_status(sid::MOVE_COUNT, 0);
+            enemy.entity.set_status(sid::SKEWER_COUNT, 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.move_effects.insert("vulnerable".to_string(), 2);
             enemy.move_effects.insert("weak".to_string(), 2);
             enemy.move_effects.insert("frail".to_string(), 2);
-            enemy.entity.set_status("MoveCount", 0);
-            enemy.entity.set_status("BuffCount", 0);
-            enemy.entity.set_status("IsFirstMove", 1);
+            enemy.entity.set_status(sid::MOVE_COUNT, 0);
+            enemy.entity.set_status(sid::BUFF_COUNT, 0);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
             if hp >= 800 {
-                enemy.entity.set_status("Invincible", 200);
-                enemy.entity.set_status("BeatOfDeath", 2);
-                enemy.entity.set_status("BloodHitCount", 15);
-                enemy.entity.set_status("EchoDmg", 45);
+                enemy.entity.set_status(sid::INVINCIBLE, 200);
+                enemy.entity.set_status(sid::BEAT_OF_DEATH, 2);
+                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 15);
+                enemy.entity.set_status(sid::ECHO_DMG, 45);
             } else {
-                enemy.entity.set_status("Invincible", 300);
-                enemy.entity.set_status("BeatOfDeath", 1);
-                enemy.entity.set_status("BloodHitCount", 12);
-                enemy.entity.set_status("EchoDmg", 40);
+                enemy.entity.set_status(sid::INVINCIBLE, 300);
+                enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
+                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
+                enemy.entity.set_status(sid::ECHO_DMG, 40);
             }
         }
 
@@ -974,12 +975,12 @@ mod tests {
     #[test]
     fn test_guardian_mode_shift() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
-        assert_eq!(enemy.entity.status("ModeShift"), 30);
+        assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 30);
 
         let shifted = guardian_check_mode_shift(&mut enemy, 30);
         assert!(shifted);
-        assert_eq!(enemy.entity.status("SharpHide"), 3);
-        assert_eq!(enemy.entity.status("ModeShift"), 40);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
+        assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 40);
 
         assert_eq!(enemy.move_id, move_ids::GUARD_ROLL_ATTACK);
 
@@ -1078,17 +1079,17 @@ mod tests {
     #[test]
     fn test_louse_curl_up() {
         let enemy = create_enemy("RedLouse", 12, 12);
-        assert_eq!(enemy.entity.status("CurlUp"), 5);
+        assert_eq!(enemy.entity.status(sid::CURL_UP), 5);
     }
 
     #[test]
     fn test_guardian_switch_to_offensive() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut enemy, 30);
-        assert_eq!(enemy.entity.status("SharpHide"), 3);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
 
         guardian_switch_to_offensive(&mut enemy);
-        assert_eq!(enemy.entity.status("SharpHide"), 0);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
     }
 
@@ -1138,7 +1139,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
         assert_eq!(enemy.move_damage, 1);
         assert_eq!(enemy.move_hits, 5);
-        assert_eq!(enemy.entity.status("Flight"), 3);
+        assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
@@ -1173,7 +1174,7 @@ mod tests {
         // Roll: stab count increments
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        let new_count = enemy.entity.status("StabCount");
+        let new_count = enemy.entity.status(sid::STAB_COUNT);
         assert!(new_count >= 3);
     }
 
@@ -1239,8 +1240,8 @@ mod tests {
         let mut enemy = create_enemy("AwakenedOne", 300, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         assert_eq!(enemy.move_damage, 20);
-        assert_eq!(enemy.entity.status("Phase"), 1);
-        assert_eq!(enemy.entity.status("Curiosity"), 1);
+        assert_eq!(enemy.entity.status(sid::PHASE), 1);
+        assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
 
         // Phase 1 cycle: Slash -> Soul Strike
         roll_next_move(&mut enemy);
@@ -1250,7 +1251,7 @@ mod tests {
 
         // Trigger rebirth
         awakened_one_rebirth(&mut enemy);
-        assert_eq!(enemy.entity.status("Phase"), 2);
+        assert_eq!(enemy.entity.status(sid::PHASE), 2);
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(enemy.move_damage, 40);
@@ -1283,7 +1284,7 @@ mod tests {
     fn test_donu_deca_boss() {
         let mut donu = create_enemy("Donu", 250, 250);
         assert_eq!(donu.move_id, move_ids::DONU_CIRCLE);
-        assert_eq!(donu.entity.status("Artifact"), 2);
+        assert_eq!(donu.entity.status(sid::ARTIFACT), 2);
 
         roll_next_move(&mut donu);
         assert_eq!(donu.move_id, move_ids::DONU_BEAM);
@@ -1306,7 +1307,7 @@ mod tests {
         let mut enemy = create_enemy("GiantHead", 500, 500);
         assert_eq!(enemy.move_id, move_ids::GH_COUNT);
         assert_eq!(enemy.move_damage, 13);
-        assert_eq!(enemy.entity.status("Count"), 5);
+        assert_eq!(enemy.entity.status(sid::COUNT), 5);
 
         // Roll moves. Count decrements each roll. After count reaches 1, It Is Time.
         // Count starts at 5, so after 4 rolls we should be in It Is Time territory.
@@ -1315,7 +1316,7 @@ mod tests {
         }
 
         // Should eventually hit It Is Time
-        let count = enemy.entity.status("Count");
+        let count = enemy.entity.status(sid::COUNT);
         assert!(count <= 0 || enemy.move_id == move_ids::GH_IT_IS_TIME);
     }
 
@@ -1372,9 +1373,9 @@ mod tests {
     fn test_corrupt_heart_boss() {
         let mut enemy = create_enemy("CorruptHeart", 750, 750);
         assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
-        assert_eq!(enemy.entity.status("Invincible"), 300);
-        assert_eq!(enemy.entity.status("BeatOfDeath"), 1);
-        assert_eq!(enemy.entity.status("BloodHitCount"), 12);
+        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 300);
+        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
+        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
 
         // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
         roll_next_move(&mut enemy);
@@ -1423,7 +1424,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);
         assert_eq!(enemy.move_damage, 5);
         assert_eq!(enemy.move_hits, 2);
-        assert_eq!(enemy.entity.status("SkewerCount"), 3);
+        assert_eq!(enemy.entity.status(sid::SKEWER_COUNT), 3);
 
         // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
         roll_next_move(&mut enemy);

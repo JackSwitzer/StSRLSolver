@@ -9,7 +9,7 @@ use crate::engine::CombatEngine;
 use crate::orbs::{self, OrbType};
 use crate::powers;
 use crate::state::Stance;
-use crate::status_keys::sk;
+use crate::status_ids::sid;
 
 /// Execute all effects for a card that was just played.
 ///
@@ -33,9 +33,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Vigor (consumed on first attack hit) ----
     let vigor = if card.card_type == CardType::Attack {
-        let v = engine.state.player.status(sk::VIGOR);
+        let v = engine.state.player.status(sid::VIGOR);
         if v > 0 {
-            engine.state.player.set_status(sk::VIGOR, 0);
+            engine.state.player.set_status(sid::VIGOR, 0);
         }
         v
     } else {
@@ -104,7 +104,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
         let hits = if card_id == "Expunger" || card_id == "Expunger+" {
             // Expunger hits = X from Conjure Blade (stored in ExpungerHits status)
-            engine.state.player.status(sk::EXPUNGER_HITS).max(1)
+            engine.state.player.status(sid::EXPUNGER_HITS).max(1)
         } else if card.effects.contains(&"x_cost") && card.cost == -1 {
             x_value
         } else if is_multi_hit && card.base_magic > 0 {
@@ -119,10 +119,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let stance_mult = engine.state.stance.outgoing_mult();
 
         // DoubleDamage (Phantasmal Killer, Double Damage potion): consume and double
-        let double_damage = engine.state.player.status(sk::DOUBLE_DAMAGE) > 0;
+        let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
         if double_damage {
-            let dd = engine.state.player.status(sk::DOUBLE_DAMAGE);
-            engine.state.player.set_status(sk::DOUBLE_DAMAGE, dd - 1);
+            let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
+            engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
         }
 
         match card.target {
@@ -130,7 +130,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                 if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
                     let tidx = target_idx as usize;
                     let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-                    let enemy_intangible = engine.state.enemies[tidx].entity.status(sk::INTANGIBLE) > 0;
+                    let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
                         effective_base_damage + brilliance_bonus,
@@ -147,7 +147,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         enemy_intangible,
                     );
                     // Talk to the Hand: player gains block per hit ONLY on HP damage
-                    let block_return = engine.state.enemies[tidx].entity.status(sk::BLOCK_RETURN);
+                    let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
                     for _ in 0..hits {
                         let enemy_block_before = engine.state.enemies[tidx].entity.block;
                         let enemy_hp_before = engine.state.enemies[tidx].entity.hp;
@@ -172,7 +172,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                 let living = engine.state.living_enemy_indices();
                 for enemy_idx in living {
                     let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                    let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sk::INTANGIBLE) > 0;
+                    let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
                         effective_base_damage + brilliance_bonus,
@@ -188,7 +188,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         false, // flight
                         enemy_intangible,
                     );
-                    let block_return = engine.state.enemies[enemy_idx].entity.status(sk::BLOCK_RETURN);
+                    let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
                     for _ in 0..hits {
                         let enemy_hp_before = engine.state.enemies[enemy_idx].entity.hp;
                         let enemy_block_before = engine.state.enemies[enemy_idx].entity.block;
@@ -296,7 +296,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Vigor (Wreath of Flame) ----
     if card.effects.contains(&"vigor") && card.base_magic > 0 {
-        engine.state.player.add_status(sk::VIGOR, card.base_magic);
+        engine.state.player.add_status(sid::VIGOR, card.base_magic);
     }
 
     // ---- Inner Peace: if in Calm, draw 3; else enter Calm ----
@@ -340,7 +340,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                 let vuln_amount = card.base_magic.max(1);
                 engine.state.enemies[target_idx as usize]
                     .entity
-                    .add_status(sk::VULNERABLE, vuln_amount);
+                    .add_status(sid::VULNERABLE, vuln_amount);
             }
         }
     }
@@ -352,7 +352,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                 let weak_amount = card.base_magic.max(1);
                 powers::apply_debuff(
                     &mut engine.state.enemies[target_idx as usize].entity,
-                    sk::WEAKENED,
+                    sid::WEAKENED,
                     weak_amount,
                 );
             }
@@ -372,7 +372,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             engine.state.enemies[target_idx as usize]
                 .entity
-                .add_status(sk::BLOCK_RETURN, amount);
+                .add_status(sid::BLOCK_RETURN, amount);
         }
     }
 
@@ -406,11 +406,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let mark_amount = card.base_magic.max(1);
             engine.state.enemies[target_idx as usize]
                 .entity
-                .add_status(sk::MARK, mark_amount);
+                .add_status(sid::MARK, mark_amount);
         }
         let living = engine.state.living_enemy_indices();
         for idx in living {
-            let mark = engine.state.enemies[idx].entity.status(sk::MARK);
+            let mark = engine.state.enemies[idx].entity.status(sid::MARK);
             if mark > 0 {
                 // Pressure Points deals HP loss equal to Mark — bypasses block entirely
                 engine.state.enemies[idx].entity.hp -= mark;
@@ -524,7 +524,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             for idx in living {
                 powers::apply_debuff(
                     &mut engine.state.enemies[idx].entity,
-                    sk::VULNERABLE,
+                    sid::VULNERABLE,
                     vuln_amount,
                 );
             }
@@ -552,12 +552,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Wave of the Hand ----
     if card.effects.contains(&"wave_of_the_hand") {
-        engine.state.player.add_status(sk::WAVE_OF_THE_HAND, card.base_magic.max(1));
+        engine.state.player.add_status(sid::WAVE_OF_THE_HAND, card.base_magic.max(1));
     }
 
     // ---- Rage: gain block when playing Attacks this turn ----
     if card.effects.contains(&"rage") {
-        engine.state.player.add_status(sk::RAGE, card.base_magic.max(1));
+        engine.state.player.add_status(sid::RAGE, card.base_magic.max(1));
     }
 
     // ---- Foreign Influence: MCTS approximation ----
@@ -573,7 +573,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let expunger_id = engine.temp_card_id("Expunger");
         if x_value > 0 && engine.state.hand.len() < 10 {
             engine.state.hand.push(expunger_id);
-            engine.state.player.set_status(sk::EXPUNGER_HITS, x_value);
+            engine.state.player.set_status(sid::EXPUNGER_HITS, x_value);
         }
     }
 
@@ -585,7 +585,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Wish: MCTS approximation ----
     if card.effects.contains(&"wish") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::STRENGTH, amount);
+        engine.state.player.add_status(sid::STRENGTH, amount);
     }
 
     // ---- Blasphemy: die_next_turn flag ----
@@ -600,7 +600,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Swivel: next_attack_free ----
     if card.effects.contains(&"next_attack_free") {
-        engine.state.player.set_status(sk::NEXT_ATTACK_FREE, 1);
+        engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
     }
 
     // ====================================================================
@@ -613,7 +613,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             powers::apply_debuff(
                 &mut engine.state.enemies[target_idx as usize].entity,
-                sk::VULNERABLE,
+                sid::VULNERABLE,
                 amount,
             );
         }
@@ -626,7 +626,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         for idx in living {
             powers::apply_debuff(
                 &mut engine.state.enemies[idx].entity,
-                sk::VULNERABLE,
+                sid::VULNERABLE,
                 amount,
             );
         }
@@ -638,7 +638,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             powers::apply_debuff(
                 &mut engine.state.enemies[target_idx as usize].entity,
-                sk::WEAKENED,
+                sid::WEAKENED,
                 amount,
             );
         }
@@ -651,7 +651,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         for idx in living {
             powers::apply_debuff(
                 &mut engine.state.enemies[idx].entity,
-                sk::WEAKENED,
+                sid::WEAKENED,
                 amount,
             );
         }
@@ -666,7 +666,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"double_strength") {
         let current_str = engine.state.player.strength();
         if current_str > 0 {
-            engine.state.player.add_status(sk::STRENGTH, current_str);
+            engine.state.player.add_status(sid::STRENGTH, current_str);
         }
     }
 
@@ -674,9 +674,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"catalyst_double") {
         if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let tidx = target_idx as usize;
-            let current_poison = engine.state.enemies[tidx].entity.status(sk::POISON);
+            let current_poison = engine.state.enemies[tidx].entity.status(sid::POISON);
             if current_poison > 0 {
-                engine.state.enemies[tidx].entity.set_status(sk::POISON, current_poison * 2);
+                engine.state.enemies[tidx].entity.set_status(sid::POISON, current_poison * 2);
             }
         }
     }
@@ -685,17 +685,17 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"catalyst_triple") {
         if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
             let tidx = target_idx as usize;
-            let current_poison = engine.state.enemies[tidx].entity.status(sk::POISON);
+            let current_poison = engine.state.enemies[tidx].entity.status(sid::POISON);
             if current_poison > 0 {
-                engine.state.enemies[tidx].entity.set_status(sk::POISON, current_poison * 3);
+                engine.state.enemies[tidx].entity.set_status(sid::POISON, current_poison * 3);
             }
         }
     }
 
     // ---- Bullet Time: cards cost 0, no more draw this turn ----
     if card.effects.contains(&"bullet_time") {
-        engine.state.player.set_status(sk::BULLET_TIME, 1);
-        engine.state.player.set_status(sk::NO_DRAW, 1);
+        engine.state.player.set_status(sid::BULLET_TIME, 1);
+        engine.state.player.set_status(sid::NO_DRAW, 1);
     }
 
     // ---- Malaise: apply X Weak + X Strength Down (X-cost) ----
@@ -706,11 +706,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             if amount > 0 {
                 powers::apply_debuff(
                     &mut engine.state.enemies[tidx].entity,
-                    sk::WEAKENED,
+                    sid::WEAKENED,
                     amount,
                 );
                 let current_str = engine.state.enemies[tidx].entity.strength();
-                engine.state.enemies[tidx].entity.set_status(sk::STRENGTH, current_str - amount);
+                engine.state.enemies[tidx].entity.set_status(sid::STRENGTH, current_str - amount);
             }
         }
     }
@@ -719,31 +719,31 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"doppelganger") {
         let amount = x_value + card.base_magic.max(0);
         if amount > 0 {
-            engine.state.player.add_status(sk::DOPPELGANGER_DRAW, amount);
-            engine.state.player.add_status(sk::DOPPELGANGER_ENERGY, amount);
+            engine.state.player.add_status(sid::DOPPELGANGER_DRAW, amount);
+            engine.state.player.add_status(sid::DOPPELGANGER_ENERGY, amount);
         }
     }
 
     // ---- Corruption: all Skills cost 0 + exhaust on play ----
     if card.effects.contains(&"corruption") {
-        engine.state.player.set_status(sk::CORRUPTION, 1);
+        engine.state.player.set_status(sid::CORRUPTION, 1);
     }
 
     // ---- Wraith Form: gain Intangible, -1 Dex per turn ----
     if card.effects.contains(&"wraith_form") {
         let intangible_turns = card.base_magic.max(2);
-        engine.state.player.add_status(sk::INTANGIBLE, intangible_turns);
-        engine.state.player.add_status(sk::WRAITH_FORM, 1);
+        engine.state.player.add_status(sid::INTANGIBLE, intangible_turns);
+        engine.state.player.add_status(sid::WRAITH_FORM, 1);
     }
 
     // ---- Echo Form: first card each turn played twice ----
     if card.effects.contains(&"echo_form") {
-        engine.state.player.add_status(sk::ECHO_FORM, 1);
+        engine.state.player.add_status(sid::ECHO_FORM, 1);
     }
 
     // ---- Creative AI: add random Power to hand each turn ----
     if card.effects.contains(&"creative_ai") {
-        engine.state.player.add_status(sk::CREATIVE_AI, card.base_magic.max(1));
+        engine.state.player.add_status(sid::CREATIVE_AI, card.base_magic.max(1));
     }
 
     // ====================================================================
@@ -815,13 +815,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Gain Focus ----
     if card.effects.contains(&"gain_focus") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::FOCUS, amount);
+        engine.state.player.add_status(sid::FOCUS, amount);
     }
 
     // ---- Lose Focus (Hyperbeam) ----
     if card.effects.contains(&"lose_focus") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::FOCUS, -amount);
+        engine.state.player.add_status(sid::FOCUS, -amount);
     }
 
     // ---- Lose orb slot (Consume) ----
@@ -898,7 +898,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Gain Artifact ----
     if card.effects.contains(&"gain_artifact") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::ARTIFACT, amount);
+        engine.state.player.add_status(sid::ARTIFACT, amount);
     }
 
     // ---- Apply Vulnerable to target (Beam Cell) ----
@@ -907,7 +907,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             powers::apply_debuff(
                 &mut engine.state.enemies[target_idx as usize].entity,
-                sk::VULNERABLE,
+                sid::VULNERABLE,
                 amount,
             );
         }
@@ -919,7 +919,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             powers::apply_debuff(
                 &mut engine.state.enemies[target_idx as usize].entity,
-                sk::WEAKENED,
+                sid::WEAKENED,
                 amount,
             );
         }
@@ -928,9 +928,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Reprogram: lose Focus, gain Str + Dex ----
     if card.effects.contains(&"reprogram") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::FOCUS, -amount);
-        engine.state.player.add_status(sk::STRENGTH, amount);
-        engine.state.player.add_status(sk::DEXTERITY, amount);
+        engine.state.player.add_status(sid::FOCUS, -amount);
+        engine.state.player.add_status(sid::STRENGTH, amount);
+        engine.state.player.add_status(sid::DEXTERITY, amount);
     }
 
     // ---- Damage per orb (Barrage) ----
@@ -1049,7 +1049,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             engine.state.enemies[target_idx as usize]
                 .entity
-                .add_status(sk::POISON, amount);
+                .add_status(sid::POISON, amount);
         }
     }
 
@@ -1058,7 +1058,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let amount = card.base_magic.max(1);
         let living = engine.state.living_enemy_indices();
         for idx in living {
-            engine.state.enemies[idx].entity.add_status(sk::POISON, amount);
+            engine.state.enemies[idx].entity.add_status(sid::POISON, amount);
         }
     }
 
@@ -1102,27 +1102,27 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Thorns: apply Thorns to self (Caltrops) ----
     if card.effects.contains(&"thorns") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::THORNS, amount);
+        engine.state.player.add_status(sid::THORNS, amount);
     }
 
     // ---- Gain Strength (Inflame) ----
     if card.effects.contains(&"gain_strength") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::STRENGTH, amount);
+        engine.state.player.add_status(sid::STRENGTH, amount);
     }
 
     // ---- Temp Strength: gain Strength this turn, lose at end (Flex) ----
     if card.effects.contains(&"temp_strength") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::STRENGTH, amount);
+        engine.state.player.add_status(sid::STRENGTH, amount);
         // Track temporary strength to remove at end of turn
-        engine.state.player.add_status(sk::TEMP_STRENGTH, amount);
+        engine.state.player.add_status(sid::TEMP_STRENGTH, amount);
     }
 
     // ---- Gain Dexterity (Footwork) ----
     if card.effects.contains(&"gain_dexterity") {
         let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sk::DEXTERITY, amount);
+        engine.state.player.add_status(sid::DEXTERITY, amount);
     }
 
     // ---- Reduce Strength: target enemy loses Strength (Disarm) ----
@@ -1131,7 +1131,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let amount = card.base_magic.max(1);
             let tidx = target_idx as usize;
             let current = engine.state.enemies[tidx].entity.strength();
-            engine.state.enemies[tidx].entity.set_status(sk::STRENGTH, current - amount);
+            engine.state.enemies[tidx].entity.set_status(sid::STRENGTH, current - amount);
         }
     }
 
@@ -1141,9 +1141,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let living = engine.state.living_enemy_indices();
         for idx in living {
             let current = engine.state.enemies[idx].entity.strength();
-            engine.state.enemies[idx].entity.set_status(sk::STRENGTH, current - amount);
+            engine.state.enemies[idx].entity.set_status(sid::STRENGTH, current - amount);
             // Track for restoration at end of turn
-            engine.state.enemies[idx].entity.add_status(sk::TEMP_STRENGTH_LOSS, amount);
+            engine.state.enemies[idx].entity.add_status(sid::TEMP_STRENGTH_LOSS, amount);
         }
     }
 
@@ -1161,7 +1161,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Intangible: gain Intangible (Apparition/Ghostly) ----
     if card.effects.contains(&"intangible") {
-        engine.state.player.add_status(sk::INTANGIBLE, 1);
+        engine.state.player.add_status(sid::INTANGIBLE, 1);
     }
 
     // ---- Exhaust Choose: player chooses N cards from hand to exhaust (MCTS: random) ----
@@ -1196,7 +1196,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let tidx = target_idx as usize;
             if engine.state.enemies[tidx].is_attacking() {
                 let amount = card.base_magic.max(1);
-                engine.state.player.add_status(sk::STRENGTH, amount);
+                engine.state.player.add_status(sid::STRENGTH, amount);
             }
         }
     }
@@ -1215,7 +1215,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let weak_paper_crane = engine.state.has_relic("Paper Crane");
             let stance_mult = engine.state.stance.outgoing_mult();
             let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-            let enemy_intangible = engine.state.enemies[tidx].entity.status(sk::INTANGIBLE) > 0;
+            let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
             let vuln_paper_frog = engine.state.has_relic("Paper Frog");
             let dmg = damage::calculate_damage_full(
                 card.base_damage,
@@ -1242,27 +1242,27 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Next-turn energy (Conserve Battery, Outmaneuver, Flying Knee) ----
     if card.effects.contains(&"next_turn_energy") {
-        engine.state.player.add_status(sk::ENERGIZED, card.base_magic);
+        engine.state.player.add_status(sid::ENERGIZED, card.base_magic);
     }
 
     // ---- Next-turn block (Dodge and Roll) ----
     if card.effects.contains(&"next_turn_block") {
-        engine.state.player.add_status(sk::NEXT_TURN_BLOCK, card.base_magic);
+        engine.state.player.add_status(sid::NEXT_TURN_BLOCK, card.base_magic);
     }
 
     // ---- Draw next turn (Predator) ----
     if card.effects.contains(&"draw_next_turn") {
-        engine.state.player.add_status(sk::DRAW_CARD, card.base_magic);
+        engine.state.player.add_status(sid::DRAW_CARD, card.base_magic);
     }
 
     // ---- Double Tap: next Attack played twice ----
     if card.effects.contains(&"double_tap") {
-        engine.state.player.set_status(sk::DOUBLE_TAP, card.base_magic.max(1));
+        engine.state.player.set_status(sid::DOUBLE_TAP, card.base_magic.max(1));
     }
 
     // ---- Burst: next Skill played twice ----
     if card.effects.contains(&"burst") {
-        engine.state.player.set_status(sk::BURST, card.base_magic.max(1));
+        engine.state.player.set_status(sid::BURST, card.base_magic.max(1));
     }
 
     // ---- Second Wind: exhaust all non-attack cards in hand, gain block per exhaust ----

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod engine_integration_tests {
     use crate::engine::*;
+    use crate::status_ids::sid;
     use crate::actions::Action;
     use crate::state::*;
 
@@ -278,7 +279,7 @@ mod engine_integration_tests {
         ensure_in_hand(&mut e, "Adaptation");
         ensure_in_hand(&mut e, "Eruption");
         play_self(&mut e, "Adaptation");
-        assert_eq!(e.state.player.status("Rushdown"), 2);
+        assert_eq!(e.state.player.status(sid::RUSHDOWN), 2);
         let hand_before = e.state.hand.len();
         play(&mut e, "Eruption");
         assert_eq!(e.state.stance, Stance::Wrath);
@@ -293,7 +294,7 @@ mod engine_integration_tests {
             100, 0,
         );
         play_self(&mut e, "MentalFortress");
-        assert_eq!(e.state.player.status("MentalFortress"), 4);
+        assert_eq!(e.state.player.status(sid::MENTAL_FORTRESS), 4);
         play(&mut e, "Eruption");
         assert_eq!(e.state.player.block, 4);
     }
@@ -314,7 +315,7 @@ mod engine_integration_tests {
         e.phase = CombatPhase::PlayerTurn;
         play_self(&mut e, "MentalFortress");  // cost 1, energy 4
         play_self(&mut e, "MentalFortress+"); // cost 1, energy 3
-        assert_eq!(e.state.player.status("MentalFortress"), 10);
+        assert_eq!(e.state.player.status(sid::MENTAL_FORTRESS), 10);
         play(&mut e, "Eruption+"); // cost 1, energy 2, enters Wrath -> MF triggers
         assert_eq!(e.state.player.block, 10);
     }
@@ -324,20 +325,20 @@ mod engine_integration_tests {
         let mut e = engine_with(
             vec!["Strike_P".to_string(); 5], 100, 0,
         );
-        e.state.player.set_status("Vigor", 8);
+        e.state.player.set_status(sid::VIGOR, 8);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 14); // 6+8
-        assert_eq!(e.state.player.status("Vigor"), 0);
+        assert_eq!(e.state.player.status(sid::VIGOR), 0);
     }
 
     #[test] fn vigor_not_consumed_on_skill() {
         let mut e = engine_with(
             vec!["Defend_P".to_string(); 5], 100, 0,
         );
-        e.state.player.set_status("Vigor", 8);
+        e.state.player.set_status(sid::VIGOR, 8);
         play_self(&mut e, "Defend_P");
-        assert_eq!(e.state.player.status("Vigor"), 8);
+        assert_eq!(e.state.player.status(sid::VIGOR), 8);
     }
 
     // ---- Entangle clears at end of turn ----
@@ -345,9 +346,9 @@ mod engine_integration_tests {
         let mut e = engine_with(
             vec!["Strike_P".to_string(); 5], 100, 5,
         );
-        e.state.player.set_status("Entangled", 1);
+        e.state.player.set_status(sid::ENTANGLED, 1);
         e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.player.status("Entangled"), 0);
+        assert_eq!(e.state.player.status(sid::ENTANGLED), 0);
     }
 
     // ---- TalkToTheHand exhausts ----
@@ -505,7 +506,7 @@ mod engine_integration_tests {
     // ---- Strength affects all attacks ----
     #[test] fn strength_all_attacks() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
-        e.state.player.set_status("Strength", 5);
+        e.state.player.set_status(sid::STRENGTH, 5);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 11);
@@ -514,7 +515,7 @@ mod engine_integration_tests {
     // ---- Dexterity affects all block ----
     #[test] fn dexterity_all_block() {
         let mut e = engine_with(vec!["Defend_P".to_string(); 5], 100, 0);
-        e.state.player.set_status("Dexterity", 3);
+        e.state.player.set_status(sid::DEXTERITY, 3);
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 8); // 5+3
     }
@@ -522,7 +523,7 @@ mod engine_integration_tests {
     // ---- Frail reduces block ----
     #[test] fn frail_reduces_block() {
         let mut e = engine_with(vec!["Defend_P".to_string(); 5], 100, 0);
-        e.state.player.set_status("Frail", 2);
+        e.state.player.set_status(sid::FRAIL, 2);
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 3); // 5*0.75=3.75->3
     }
@@ -530,7 +531,7 @@ mod engine_integration_tests {
     // ---- Weak reduces attack ----
     #[test] fn weak_reduces_attack() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
-        e.state.player.set_status("Weakened", 2);
+        e.state.player.set_status(sid::WEAKENED, 2);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 4); // 6*0.75=4.5->4
@@ -572,18 +573,18 @@ mod engine_integration_tests {
     // ---- LoseStrength applied at turn start ----
     #[test] fn lose_strength_at_turn_start() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
-        e.state.player.set_status("Strength", 5);
-        e.state.player.set_status("LoseStrength", 5);
+        e.state.player.set_status(sid::STRENGTH, 5);
+        e.state.player.set_status(sid::LOSE_STRENGTH, 5);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.player.strength(), 0);
-        assert_eq!(e.state.player.status("LoseStrength"), 0);
+        assert_eq!(e.state.player.status(sid::LOSE_STRENGTH), 0);
     }
 
     // ---- LoseDexterity applied at turn start ----
     #[test] fn lose_dexterity_at_turn_start() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
-        e.state.player.set_status("Dexterity", 5);
-        e.state.player.set_status("LoseDexterity", 5);
+        e.state.player.set_status(sid::DEXTERITY, 5);
+        e.state.player.set_status(sid::LOSE_DEXTERITY, 5);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.player.dexterity(), 0);
     }
@@ -611,7 +612,7 @@ mod engine_integration_tests {
     #[test] fn eruption_wrath_to_wrath_no_change() {
         let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
         e.state.stance = Stance::Wrath;
-        e.state.player.set_status("MentalFortress", 4);
+        e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let block_before = e.state.player.block;
         play(&mut e, "Eruption");
         // Wrath -> Wrath is no change, MentalFortress should NOT trigger
@@ -621,7 +622,7 @@ mod engine_integration_tests {
     // ---- Strength + Wrath on Eruption ----
     #[test] fn eruption_str_wrath() {
         let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
-        e.state.player.set_status("Strength", 3);
+        e.state.player.set_status(sid::STRENGTH, 3);
         // Eruption enters Wrath. Damage calc: (9+3)*1.0 = 12 (Neutral during play)
         // Stance changes AFTER effects.
         let hp = e.state.enemies[0].entity.hp;
@@ -660,9 +661,9 @@ mod engine_integration_tests {
     // ---- Debuffs decrement on enemies too ----
     #[test] fn enemy_debuffs_decrement() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
-        e.state.enemies[0].entity.set_status("Weakened", 2);
+        e.state.enemies[0].entity.set_status(sid::WEAKENED, 2);
         e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies[0].entity.status("Weakened"), 1);
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 1);
     }
 
     // ---- Turn counter increments ----
@@ -735,7 +736,7 @@ mod engine_integration_tests {
         e.state.stance = Stance::Wrath;
         e.state.relics.push("Pen Nib".to_string());
         // Set counter to 9 so next attack triggers
-        e.state.player.set_status("PenNibCounter", 9);
+        e.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
         // 6 * 2.0 (wrath) = 12, * 2 (pen nib) = 24
@@ -746,7 +747,7 @@ mod engine_integration_tests {
     #[test] fn vuln_wrath_incoming() {
         let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 10);
         e.state.stance = Stance::Wrath;
-        e.state.player.set_status("Vulnerable", 2);
+        e.state.player.set_status(sid::VULNERABLE, 2);
         let hp = e.state.player.hp;
         e.execute_action(&Action::EndTurn);
         // 10 * 2.0 (wrath) * 1.5 (vuln) = 30
@@ -803,7 +804,7 @@ mod engine_integration_tests {
     #[test] fn calm_to_wrath_via_eruption() {
         let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
         e.state.stance = Stance::Calm;
-        e.state.player.set_status("MentalFortress", 4);
+        e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let en = e.state.energy;
         play(&mut e, "Eruption");
         // Cost 2, Calm exit +2, net 0. MentalFortress fires once (Calm->Wrath)
@@ -822,8 +823,8 @@ mod engine_integration_tests {
         );
         ensure_in_hand(&mut e, "Eruption");
         while e.state.draw_pile.len() < 2 { e.state.draw_pile.push("Defend_P".to_string()); }
-        e.state.player.set_status("Rushdown", 2);
-        e.state.player.set_status("MentalFortress", 4);
+        e.state.player.set_status(sid::RUSHDOWN, 2);
+        e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let hs = e.state.hand.len();
         play(&mut e, "Eruption");
         // MF: +4 block, Rushdown: +2 draw
@@ -900,6 +901,7 @@ mod engine_integration_tests {
 #[cfg(test)]
 mod bugfix_regression_tests {
     use crate::actions::Action;
+    use crate::status_ids::sid;
     use crate::cards::CardRegistry;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};
@@ -1039,7 +1041,7 @@ mod bugfix_regression_tests {
         play_self(&mut e, "Defend_P");
         // Now play CrushJoints — should apply Vulnerable
         play(&mut e, "CrushJoints");
-        let vuln = e.state.enemies[0].entity.status("Vulnerable");
+        let vuln = e.state.enemies[0].entity.status(sid::VULNERABLE);
         assert!(vuln > 0, "CrushJoints should apply Vulnerable after a Skill, got {}", vuln);
     }
 
@@ -1054,7 +1056,7 @@ mod bugfix_regression_tests {
         play(&mut e, "Strike_P");
         // CrushJoints should NOT apply Vulnerable
         play(&mut e, "CrushJoints");
-        let vuln = e.state.enemies[0].entity.status("Vulnerable");
+        let vuln = e.state.enemies[0].entity.status(sid::VULNERABLE);
         assert_eq!(vuln, 0, "CrushJoints should not apply Vulnerable after an Attack");
     }
 
@@ -1095,7 +1097,7 @@ mod bugfix_regression_tests {
             100, 10,
         );
         play(&mut e, "TalkToTheHand");
-        let br = e.state.enemies[0].entity.status("BlockReturn");
+        let br = e.state.enemies[0].entity.status(sid::BLOCK_RETURN);
         assert!(br > 0, "TalkToTheHand should apply BlockReturn status");
     }
 
@@ -1107,7 +1109,7 @@ mod bugfix_regression_tests {
             100, 0,
         );
         play(&mut e, "TalkToTheHand");
-        let br = e.state.enemies[0].entity.status("BlockReturn");
+        let br = e.state.enemies[0].entity.status(sid::BLOCK_RETURN);
         assert!(br > 0);
         // Player attacks marked enemy — should gain block
         let block_before = e.state.player.block;
@@ -1256,6 +1258,7 @@ mod bugfix_regression_tests {
 mod combat_engine_p0_p1_regression {
     use crate::actions::Action;
     use crate::engine::CombatEngine;
+    use crate::status_ids::sid;
     use crate::enemies;
     use crate::state::{CombatState, EnemyCombatState};
 
@@ -1293,7 +1296,7 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Apply poison to player and give enough block to absorb enemy attack
-        e.state.player.set_status("Poison", 5);
+        e.state.player.set_status(sid::POISON, 5);
         e.state.player.block = 100; // Block all enemy damage
         let hp_before = e.state.player.hp;
 
@@ -1304,7 +1307,7 @@ mod combat_engine_p0_p1_regression {
         assert_eq!(e.state.player.hp, hp_before - 5,
             "Player should take exactly 5 poison damage (enemy blocked)");
         // Poison decrements by 1
-        assert_eq!(e.state.player.status("Poison"), 4,
+        assert_eq!(e.state.player.status(sid::POISON), 4,
             "Poison should decrement to 4");
     }
 
@@ -1317,7 +1320,7 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        e.state.player.set_status("Poison", 5);
+        e.state.player.set_status(sid::POISON, 5);
         e.execute_action(&Action::EndTurn);
 
         assert!(e.state.combat_over, "Combat should be over");
@@ -1333,7 +1336,7 @@ mod combat_engine_p0_p1_regression {
         let mut e = make_engine(deck, "JawWorm", 100, 30, 1);
         e.start_combat();
 
-        e.state.player.set_status("Intangible", 1);
+        e.state.player.set_status(sid::INTANGIBLE, 1);
         let hp_before = e.state.player.hp;
 
         e.execute_action(&Action::EndTurn);
@@ -1395,7 +1398,7 @@ mod combat_engine_p0_p1_regression {
         }
 
         // Guardian should have shifted to defensive mode
-        assert!(e.state.enemies[0].entity.status("SharpHide") > 0,
+        assert!(e.state.enemies[0].entity.status(sid::SHARP_HIDE) > 0,
             "Guardian should have entered defensive mode (SharpHide > 0)");
     }
 
@@ -1470,9 +1473,9 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Lagavulin starts sleeping with Metallicize
-        assert!(e.state.enemies[0].entity.status("SleepTurns") > 0,
+        assert!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS) > 0,
             "Lagavulin should start with SleepTurns > 0");
-        assert!(e.state.enemies[0].entity.status("Metallicize") > 0,
+        assert!(e.state.enemies[0].entity.status(sid::METALLICIZE) > 0,
             "Lagavulin should start with Metallicize while sleeping");
     }
 
@@ -1487,9 +1490,9 @@ mod combat_engine_p0_p1_regression {
         // Attack Lagavulin — should wake it up
         play_card(&mut e, "Strike_P", 0);
 
-        assert_eq!(e.state.enemies[0].entity.status("SleepTurns"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 0,
             "Lagavulin should wake up when damaged");
-        assert_eq!(e.state.enemies[0].entity.status("Metallicize"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 0,
             "Lagavulin should lose Metallicize when woken");
     }
 
@@ -1506,7 +1509,7 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Set counter to 9 so next attack triggers Pen Nib
-        e.state.player.set_status("PenNibCounter", 9);
+        e.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
 
         let hp_before = e.state.enemies[0].entity.hp;
         play_card(&mut e, "Strike_P", 0);
@@ -1525,13 +1528,13 @@ mod combat_engine_p0_p1_regression {
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
-        e.state.player.set_status("PlatedArmor", 4);
+        e.state.player.set_status(sid::PLATED_ARMOR, 4);
         e.state.player.block = 0;
 
         e.execute_action(&Action::EndTurn);
 
         // After taking unblocked damage, Plated Armor should decrement
-        assert_eq!(e.state.player.status("PlatedArmor"), 3,
+        assert_eq!(e.state.player.status(sid::PLATED_ARMOR), 3,
             "Plated Armor should decrement by 1 after taking unblocked HP damage");
     }
 
@@ -1541,13 +1544,13 @@ mod combat_engine_p0_p1_regression {
         let mut e = make_engine(deck, "JawWorm", 100, 5, 1);
         e.start_combat();
 
-        e.state.player.set_status("PlatedArmor", 4);
+        e.state.player.set_status(sid::PLATED_ARMOR, 4);
         e.state.player.block = 20; // More than enough to block
 
         e.execute_action(&Action::EndTurn);
 
         // Fully blocked = no HP loss = Plated Armor should NOT decrement
-        assert_eq!(e.state.player.status("PlatedArmor"), 4,
+        assert_eq!(e.state.player.status(sid::PLATED_ARMOR), 4,
             "Plated Armor should NOT decrement when damage is fully blocked");
     }
 
@@ -1559,7 +1562,7 @@ mod combat_engine_p0_p1_regression {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 50; // Enough block to absorb Strike damage
-        enemy.entity.set_status("BlockReturn", 3);
+        enemy.entity.set_status(sid::BLOCK_RETURN, 3);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -1579,7 +1582,7 @@ mod combat_engine_p0_p1_regression {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 0;
-        enemy.entity.set_status("BlockReturn", 3);
+        enemy.entity.set_status(sid::BLOCK_RETURN, 3);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -1644,6 +1647,7 @@ mod effect_handler_tests {
     use crate::actions::Action;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState, Stance};
+    use crate::status_ids::sid;
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
         if !engine.state.hand.contains(&card_id.to_string()) {
@@ -1744,7 +1748,7 @@ mod effect_handler_tests {
         let hp_before = e.state.enemies[0].entity.hp;
         play_card(&mut e, "PressurePoints", 0);
         // Should apply 8 Mark, then deal 8 damage to all marked
-        assert_eq!(e.state.enemies[0].entity.status("Mark"), 8);
+        assert_eq!(e.state.enemies[0].entity.status(sid::MARK), 8);
         assert_eq!(e.state.enemies[0].entity.hp, hp_before - 8);
     }
 
@@ -1757,7 +1761,7 @@ mod effect_handler_tests {
         let hp_after_first = e.state.enemies[0].entity.hp;
         play_card(&mut e, "PressurePoints", 0);
         // Second play: adds 8 more Mark (total 16), deals 16 damage
-        assert_eq!(e.state.enemies[0].entity.status("Mark"), 16);
+        assert_eq!(e.state.enemies[0].entity.status(sid::MARK), 16);
         assert_eq!(e.state.enemies[0].entity.hp, hp_after_first - 16);
     }
 
@@ -1794,7 +1798,7 @@ mod effect_handler_tests {
         play_card(&mut e, "Strike_P", 0);
         // Now play SashWhip — should apply Weak
         play_card(&mut e, "SashWhip", 0);
-        assert!(e.state.enemies[0].entity.status("Weakened") >= 1,
+        assert!(e.state.enemies[0].entity.status(sid::WEAKENED) >= 1,
             "SashWhip should apply Weak when last card was an Attack");
     }
 
@@ -1931,7 +1935,7 @@ mod effect_handler_tests {
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WreathOfFlame", -1);
-        assert_eq!(e.state.player.status("Vigor"), 5,
+        assert_eq!(e.state.player.status(sid::VIGOR), 5,
             "Wreath of Flame should grant 5 Vigor");
     }
 
@@ -2035,7 +2039,7 @@ mod effect_handler_tests {
             e.state.hand.push("BattleHymn".to_string());
         }
         play_card(&mut e, "BattleHymn", -1);
-        assert_eq!(e.state.player.status("BattleHymn"), 1);
+        assert_eq!(e.state.player.status(sid::BATTLE_HYMN), 1);
         // End turn, start next turn
         e.execute_action(&Action::EndTurn);
         assert!(e.state.hand.iter().any(|c| c.starts_with("Smite")),
@@ -2061,7 +2065,7 @@ mod effect_handler_tests {
         // The block from LikeWater is applied at end of turn. After enemy turn and debuff decay,
         // start_player_turn resets block. So we need to check DURING end of turn.
         // For now, just verify the status is set.
-        assert_eq!(e.state.player.status("LikeWater"), 5);
+        assert_eq!(e.state.player.status(sid::LIKE_WATER), 5);
     }
 
     // ===== 23. Install Power: Devotion =====
@@ -2075,7 +2079,7 @@ mod effect_handler_tests {
             e.state.hand.push("Devotion".to_string());
         }
         play_card(&mut e, "Devotion", -1);
-        assert_eq!(e.state.player.status("Devotion"), 2);
+        assert_eq!(e.state.player.status(sid::DEVOTION), 2);
         e.execute_action(&Action::EndTurn);
         // Turn 2: Devotion should have added 2 mantra
         assert_eq!(e.state.mantra_gained, 2,
@@ -2093,13 +2097,13 @@ mod effect_handler_tests {
             e.state.hand.push("DevaForm".to_string());
         }
         play_card(&mut e, "DevaForm", -1);
-        assert_eq!(e.state.player.status("DevaForm"), 1);
+        assert_eq!(e.state.player.status(sid::DEVA_FORM), 1);
         e.execute_action(&Action::EndTurn);
         // Turn 2: should have 3 (base) + 1 (DevaForm) = 4 energy
         assert_eq!(e.state.energy, 4,
             "DevaForm should grant 1 extra energy on turn 2");
         // Status should have increased for next turn
-        assert_eq!(e.state.player.status("DevaForm"), 2);
+        assert_eq!(e.state.player.status(sid::DEVA_FORM), 2);
     }
 
     // ===== 25. Install Power: Fasting =====
@@ -2128,7 +2132,7 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "MasterReality");
         ensure_in_hand(&mut e, "CarveReality");
         play_card(&mut e, "MasterReality", -1);
-        assert_eq!(e.state.player.status("MasterReality"), 1);
+        assert_eq!(e.state.player.status(sid::MASTER_REALITY), 1);
         // Now play Carve Reality — should create Smite+
         play_card(&mut e, "CarveReality", 0);
         assert!(e.state.hand.iter().any(|c| c == "Smite+"),
@@ -2167,7 +2171,7 @@ mod effect_handler_tests {
             e.state.hand.push("Establishment".to_string());
         }
         play_card(&mut e, "Establishment", -1);
-        assert_eq!(e.state.player.status("Establishment"), 1,
+        assert_eq!(e.state.player.status(sid::ESTABLISHMENT), 1,
             "Establishment should set status");
     }
 
@@ -2181,14 +2185,14 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Swivel");
         ensure_in_hand(&mut e, "Strike_P");
         play_card(&mut e, "Swivel", -1);
-        assert_eq!(e.state.player.status("NextAttackFree"), 1);
+        assert_eq!(e.state.player.status(sid::NEXT_ATTACK_FREE), 1);
         let energy_before = e.state.energy;
         play_card(&mut e, "Strike_P", 0);
         // Strike normally costs 1, but NextAttackFree should make it 0
         assert_eq!(e.state.energy, energy_before,
             "Next attack after Swivel should cost 0 energy");
         // Status should be consumed
-        assert_eq!(e.state.player.status("NextAttackFree"), 0);
+        assert_eq!(e.state.player.status(sid::NEXT_ATTACK_FREE), 0);
     }
 
     // ===== 30. Burn: end_turn_damage =====
@@ -2250,7 +2254,7 @@ mod effect_handler_tests {
         let deck = vec!["Defend_P".to_string(); 15];
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        e.state.player.set_status("Omega", 50);
+        e.state.player.set_status(sid::OMEGA, 50);
         let enemy_hp_before = e.state.enemies[0].entity.hp;
         e.execute_action(&Action::EndTurn);
         // Omega should have dealt 50 damage at end of turn
@@ -2269,7 +2273,7 @@ mod effect_handler_tests {
         if !e.state.hand.contains(&"CutThroughFate".to_string()) {
             e.state.hand.push("CutThroughFate".to_string());
         }
-        e.state.player.set_status("Nirvana", 4);
+        e.state.player.set_status(sid::NIRVANA, 4);
         let block_before = e.state.player.block;
         play_card(&mut e, "CutThroughFate", 0);
         // CutThroughFate scries 2, Nirvana gives 4 block per scry trigger
@@ -2302,7 +2306,7 @@ mod effect_handler_tests {
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WaveOfTheHand", -1);
-        assert_eq!(e.state.player.status("WaveOfTheHand"), 1,
+        assert_eq!(e.state.player.status(sid::WAVE_OF_THE_HAND), 1,
             "Wave of the Hand should set status");
     }
 
@@ -2370,7 +2374,7 @@ mod effect_handler_tests {
         use crate::enemies;
 
         let mut ao = enemies::create_enemy("AwakenedOne", 100, 300);
-        ao.entity.set_status("Phase", 1);
+        ao.entity.set_status(sid::PHASE, 1);
         ao.set_move(1, 10, 1, 0);
         let deck = vec!["Strike_P".to_string(); 10];
         let state = CombatState::new(80, 80, vec![ao], deck, 3);
@@ -2379,7 +2383,7 @@ mod effect_handler_tests {
         // Deal lethal damage
         e.deal_damage_to_enemy(0, 200);
         // Should NOT be at full HP instantly — rebirth is pending
-        assert_eq!(e.state.enemies[0].entity.status("RebirthPending"), 1,
+        assert_eq!(e.state.enemies[0].entity.status(sid::REBIRTH_PENDING), 1,
             "AwakenedOne should have RebirthPending flag set");
         assert!(e.state.enemies[0].entity.hp < e.state.enemies[0].entity.max_hp,
             "AwakenedOne should NOT be at full HP before rebirth executes");
@@ -2392,7 +2396,7 @@ mod effect_handler_tests {
 
         // SlimeBoss at 75 HP (>50%), poison=5 will bring to 70 (=50%)
         let mut boss = enemies::create_enemy("SlimeBoss", 75, 140);
-        boss.entity.set_status("Poison", 5);
+        boss.entity.set_status(sid::POISON, 5);
         boss.set_move(1, 0, 0, 0);
         let deck = vec!["Strike_P".to_string(); 10];
         let state = CombatState::new(80, 80, vec![boss], deck, 3);
@@ -2509,9 +2513,9 @@ mod effect_handler_tests {
         use crate::combat_hooks;
 
         let mut champ = enemies::create_enemy("Champ", 100, 420);
-        champ.entity.set_status("Weakened", 3);
-        champ.entity.set_status("Vulnerable", 2);
-        champ.entity.set_status("Poison", 5);
+        champ.entity.set_status(sid::WEAKENED, 3);
+        champ.entity.set_status(sid::VULNERABLE, 2);
+        champ.entity.set_status(sid::POISON, 5);
         // Set up Anger move with remove_debuffs effect
         champ.set_move(1, 0, 0, 0);
         champ.move_effects.insert("remove_debuffs".to_string(), 1);
@@ -2523,13 +2527,13 @@ mod effect_handler_tests {
         e.start_combat();
         // Execute enemy turns (will run the move with remove_debuffs)
         combat_hooks::do_enemy_turns(&mut e);
-        assert_eq!(e.state.enemies[0].entity.status("Weakened"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 0,
             "Champ should have Weakened removed");
-        assert_eq!(e.state.enemies[0].entity.status("Vulnerable"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::VULNERABLE), 0,
             "Champ should have Vulnerable removed");
-        assert_eq!(e.state.enemies[0].entity.status("Poison"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::POISON), 0,
             "Champ should have Poison removed");
-        assert_eq!(e.state.enemies[0].entity.status("Strength"), 6,
+        assert_eq!(e.state.enemies[0].entity.status(sid::STRENGTH), 6,
             "Champ should have gained Strength");
     }
 
@@ -2543,7 +2547,7 @@ mod effect_handler_tests {
         te.set_move(1, 0, 0, 0);
         te.move_effects.insert("heal_to_half".to_string(), 1);
         te.move_effects.insert("remove_debuffs".to_string(), 1);
-        te.entity.set_status("Weakened", 3);
+        te.entity.set_status(sid::WEAKENED, 3);
 
         let deck = vec!["Strike_P".to_string(); 10];
         let state = CombatState::new(80, 80, vec![te], deck, 3);
@@ -2552,7 +2556,7 @@ mod effect_handler_tests {
         combat_hooks::do_enemy_turns(&mut e);
         assert_eq!(e.state.enemies[0].entity.hp, 240,
             "Time Eater should heal to half max HP (480/2 = 240)");
-        assert_eq!(e.state.enemies[0].entity.status("Weakened"), 0,
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 0,
             "Time Eater should have debuffs removed");
     }
 }

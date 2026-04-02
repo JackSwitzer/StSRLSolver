@@ -1,7 +1,7 @@
 use crate::state::EntityState;
 use super::debuffs::{decrement_debuffs, decrement_status, apply_lose_strength, apply_lose_dexterity, apply_wraith_form, decrement_intangible, decrement_blur, decrement_lock_on};
 use super::enemy_powers::{apply_regeneration, reset_slow};
-use crate::status_keys::sk;
+use crate::status_ids::sid;
 
 // Buff-related power trigger functions
 
@@ -20,7 +20,7 @@ use crate::status_keys::sk;
 /// Returns true if block should NOT be removed at start of turn.
 /// Barricade prevents all block loss; Blur prevents for its duration.
 pub fn should_retain_block(entity: &EntityState) -> bool {
-    entity.status(sk::BARRICADE) > 0 || entity.status(sk::BLUR) > 0
+    entity.status(sid::BARRICADE) > 0 || entity.status(sid::BLUR) > 0
 }
 
 /// Calculate block retained through Calipers (keep up to 15).
@@ -46,7 +46,7 @@ pub fn apply_block_decay(entity: &EntityState, has_calipers: bool) -> i32 {
 /// Debuffs that tick down: Weakened, Vulnerable, Frail.
 
 pub fn apply_metallicize(entity: &mut EntityState) {
-    let metallicize = entity.status(sk::METALLICIZE);
+    let metallicize = entity.status(sid::METALLICIZE);
     if metallicize > 0 {
         entity.block += metallicize;
     }
@@ -55,7 +55,7 @@ pub fn apply_metallicize(entity: &mut EntityState) {
 /// Apply Plated Armor block gain at end of turn.
 
 pub fn apply_plated_armor(entity: &mut EntityState) {
-    let plated = entity.status(sk::PLATED_ARMOR);
+    let plated = entity.status(sid::PLATED_ARMOR);
     if plated > 0 {
         entity.block += plated;
     }
@@ -64,15 +64,15 @@ pub fn apply_plated_armor(entity: &mut EntityState) {
 /// Apply Ritual strength gain at start of enemy turn (not first turn).
 
 pub fn remove_flame_barrier(entity: &mut EntityState) {
-    entity.set_status(sk::FLAME_BARRIER, 0);
+    entity.set_status(sid::FLAME_BARRIER, 0);
 }
 
 /// WrathNextTurn: enter Wrath at start of next turn. Returns true if should enter Wrath.
 
 pub fn check_wrath_next_turn(entity: &mut EntityState) -> bool {
-    let wrath = entity.status(sk::WRATH_NEXT_TURN);
+    let wrath = entity.status(sid::WRATH_NEXT_TURN);
     if wrath > 0 {
-        entity.set_status(sk::WRATH_NEXT_TURN, 0);
+        entity.set_status(sid::WRATH_NEXT_TURN, 0);
         return true;
     }
     false
@@ -81,36 +81,36 @@ pub fn check_wrath_next_turn(entity: &mut EntityState) -> bool {
 /// WraithForm: lose N Dexterity at start of turn.
 
 pub fn apply_demon_form(entity: &mut EntityState) {
-    let demon_form = entity.status(sk::DEMON_FORM);
+    let demon_form = entity.status(sid::DEMON_FORM);
     if demon_form > 0 {
-        entity.add_status(sk::STRENGTH, demon_form);
+        entity.add_status(sid::STRENGTH, demon_form);
     }
 }
 
 /// Berserk: gain N energy at start of turn. Returns energy to add.
 
 pub fn apply_berserk(entity: &EntityState) -> i32 {
-    entity.status(sk::BERSERK)
+    entity.status(sid::BERSERK)
 }
 
 /// Noxious Fumes: returns the amount of poison to apply to all enemies.
 
 pub fn get_noxious_fumes_amount(entity: &EntityState) -> i32 {
-    entity.status(sk::NOXIOUS_FUMES)
+    entity.status(sid::NOXIOUS_FUMES)
 }
 
 /// Brutality: returns the amount of cards to draw (and HP to lose).
 
 pub fn get_brutality_amount(entity: &EntityState) -> i32 {
-    entity.status(sk::BRUTALITY)
+    entity.status(sid::BRUTALITY)
 }
 
 /// DrawCardNextTurn: returns the number of extra cards to draw, then removes the power.
 
 pub fn consume_draw_card_next_turn(entity: &mut EntityState) -> i32 {
-    let amount = entity.status(sk::DRAW_CARD);
+    let amount = entity.status(sid::DRAW_CARD);
     if amount > 0 {
-        entity.set_status(sk::DRAW_CARD, 0);
+        entity.set_status(sid::DRAW_CARD, 0);
     }
     amount
 }
@@ -118,9 +118,9 @@ pub fn consume_draw_card_next_turn(entity: &mut EntityState) -> i32 {
 /// NextTurnBlock: returns the amount of block to gain, then removes the power.
 
 pub fn consume_next_turn_block(entity: &mut EntityState) -> i32 {
-    let amount = entity.status(sk::NEXT_TURN_BLOCK);
+    let amount = entity.status(sid::NEXT_TURN_BLOCK);
     if amount > 0 {
-        entity.set_status(sk::NEXT_TURN_BLOCK, 0);
+        entity.set_status(sid::NEXT_TURN_BLOCK, 0);
     }
     amount
 }
@@ -128,9 +128,9 @@ pub fn consume_next_turn_block(entity: &mut EntityState) -> i32 {
 /// Energized: returns energy to gain at start of turn, then removes the power.
 
 pub fn consume_energized(entity: &mut EntityState) -> i32 {
-    let amount = entity.status(sk::ENERGIZED);
+    let amount = entity.status(sid::ENERGIZED);
     if amount > 0 {
-        entity.set_status(sk::ENERGIZED, 0);
+        entity.set_status(sid::ENERGIZED, 0);
     }
     amount
 }
@@ -138,31 +138,31 @@ pub fn consume_energized(entity: &mut EntityState) -> i32 {
 /// Draw power: permanent +draw per turn.
 
 pub fn get_extra_draw(entity: &EntityState) -> i32 {
-    entity.status(sk::DRAW)
+    entity.status(sid::DRAW)
 }
 
 /// EnergyDown: returns energy to lose at start of turn.
 
 pub fn get_energy_down(entity: &EntityState) -> i32 {
-    entity.status(sk::ENERGY_DOWN)
+    entity.status(sid::ENERGY_DOWN)
 }
 
 /// BattleHymn: returns amount of Smites to add to hand.
 
 pub fn get_battle_hymn_amount(entity: &EntityState) -> i32 {
-    entity.status(sk::BATTLE_HYMN)
+    entity.status(sid::BATTLE_HYMN)
 }
 
 /// Devotion: returns amount of Mantra to gain.
 
 pub fn get_devotion_amount(entity: &EntityState) -> i32 {
-    entity.status(sk::DEVOTION)
+    entity.status(sid::DEVOTION)
 }
 
 /// InfiniteBlades: returns number of Shivs to add (always 1 per stack).
 
 pub fn get_infinite_blades(entity: &EntityState) -> i32 {
-    let amount = entity.status(sk::INFINITE_BLADES);
+    let amount = entity.status(sid::INFINITE_BLADES);
     if amount > 0 { 1 } else { 0 }
 }
 
@@ -173,35 +173,35 @@ pub fn get_infinite_blades(entity: &EntityState) -> i32 {
 /// AfterImage: returns block to gain per card played.
 
 pub fn get_after_image_block(entity: &EntityState) -> i32 {
-    entity.status(sk::AFTER_IMAGE)
+    entity.status(sid::AFTER_IMAGE)
 }
 
 /// A Thousand Cuts: returns damage to deal to ALL enemies per card played.
 
 pub fn get_thousand_cuts_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::THOUSAND_CUTS)
+    entity.status(sid::THOUSAND_CUTS)
 }
 
 /// Rage: returns block to gain when playing an Attack.
 
 pub fn get_rage_block(entity: &EntityState) -> i32 {
-    entity.status(sk::RAGE)
+    entity.status(sid::RAGE)
 }
 
 /// BeatOfDeath: returns damage to deal to player per card played.
 
 pub fn check_panache(entity: &mut EntityState) -> i32 {
     // Panache stores remaining count until trigger (starts at 5, decrements)
-    // We use a secondary counter approach: sk::PANACHE_COUNT
-    if entity.status(sk::PANACHE) <= 0 {
+    // We use a secondary counter approach: sid::PANACHE_COUNT
+    if entity.status(sid::PANACHE) <= 0 {
         return 0;
     }
-    let count = entity.status(sk::PANACHE_COUNT) + 1;
+    let count = entity.status(sid::PANACHE_COUNT) + 1;
     if count >= 5 {
-        entity.set_status(sk::PANACHE_COUNT, 0);
-        entity.status(sk::PANACHE)
+        entity.set_status(sid::PANACHE_COUNT, 0);
+        entity.status(sid::PANACHE)
     } else {
-        entity.set_status(sk::PANACHE_COUNT, count);
+        entity.set_status(sid::PANACHE_COUNT, count);
         0
     }
 }
@@ -210,9 +210,9 @@ pub fn check_panache(entity: &mut EntityState) -> i32 {
 /// Decrements the counter.
 
 pub fn consume_double_tap(entity: &mut EntityState) -> bool {
-    let dt = entity.status(sk::DOUBLE_TAP);
+    let dt = entity.status(sid::DOUBLE_TAP);
     if dt > 0 {
-        entity.set_status(sk::DOUBLE_TAP, dt - 1);
+        entity.set_status(sid::DOUBLE_TAP, dt - 1);
         return true;
     }
     false
@@ -222,9 +222,9 @@ pub fn consume_double_tap(entity: &mut EntityState) -> bool {
 /// Decrements the counter.
 
 pub fn consume_burst(entity: &mut EntityState) -> bool {
-    let b = entity.status(sk::BURST);
+    let b = entity.status(sid::BURST);
     if b > 0 {
-        entity.set_status(sk::BURST, b - 1);
+        entity.set_status(sid::BURST, b - 1);
         return true;
     }
     false
@@ -233,22 +233,22 @@ pub fn consume_burst(entity: &mut EntityState) -> bool {
 /// Heatsink: returns cards to draw when playing a Power card.
 
 pub fn get_heatsink_draw(entity: &EntityState) -> i32 {
-    entity.status(sk::HEATSINK)
+    entity.status(sid::HEATSINK)
 }
 
 /// Storm: returns true if should channel Lightning when playing a Power.
 
 pub fn should_storm_channel(entity: &EntityState) -> bool {
-    entity.status(sk::STORM) > 0
+    entity.status(sid::STORM) > 0
 }
 
 /// Forcefield (Automaton): lose Block per card played.
 /// Returns true if power is present.
 
 pub fn check_forcefield(entity: &mut EntityState) -> bool {
-    let ff = entity.status(sk::FORCEFIELD);
+    let ff = entity.status(sid::FORCEFIELD);
     if ff > 0 {
-        entity.add_status(sk::FORCEFIELD, -1);
+        entity.add_status(sid::FORCEFIELD, -1);
         return true;
     }
     false
@@ -257,7 +257,7 @@ pub fn check_forcefield(entity: &mut EntityState) -> bool {
 /// SkillBurn: returns damage to deal to player when they play a Skill.
 
 pub fn get_skill_burn_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::SKILL_BURN)
+    entity.status(sid::SKILL_BURN)
 }
 
 // ---------------------------------------------------------------------------
@@ -267,30 +267,30 @@ pub fn get_skill_burn_damage(entity: &EntityState) -> i32 {
 /// Thorns: returns damage to deal back to attacker when hit.
 
 pub fn get_thorns_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::THORNS)
+    entity.status(sid::THORNS)
 }
 
 /// Flame Barrier: returns damage to deal back to attacker when hit.
 
 pub fn get_flame_barrier_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::FLAME_BARRIER)
+    entity.status(sid::FLAME_BARRIER)
 }
 
 /// Plated Armor: decrement by 1 when taking unblocked damage.
 
 pub fn decrement_plated_armor_on_hit(entity: &mut EntityState) {
-    let plated = entity.status(sk::PLATED_ARMOR);
+    let plated = entity.status(sid::PLATED_ARMOR);
     if plated > 0 {
-        entity.set_status(sk::PLATED_ARMOR, plated - 1);
+        entity.set_status(sid::PLATED_ARMOR, plated - 1);
     }
 }
 
 /// Buffer: returns true if damage should be negated (reduces buffer by 1).
 
 pub fn check_buffer(entity: &mut EntityState) -> bool {
-    let buffer = entity.status(sk::BUFFER);
+    let buffer = entity.status(sid::BUFFER);
     if buffer > 0 {
-        entity.set_status(sk::BUFFER, buffer - 1);
+        entity.set_status(sid::BUFFER, buffer - 1);
         return true;
     }
     false
@@ -299,22 +299,22 @@ pub fn check_buffer(entity: &mut EntityState) -> bool {
 /// Angry: gain Strength when taking damage.
 
 pub fn get_envenom_amount(entity: &EntityState) -> i32 {
-    entity.status(sk::ENVENOM)
+    entity.status(sid::ENVENOM)
 }
 
 /// Curiosity: gain Strength when player plays a Power.
 
 pub fn apply_rupture(entity: &mut EntityState) {
-    let rupture = entity.status(sk::RUPTURE);
+    let rupture = entity.status(sid::RUPTURE);
     if rupture > 0 {
-        entity.add_status(sk::STRENGTH, rupture);
+        entity.add_status(sid::STRENGTH, rupture);
     }
 }
 
 /// StaticDischarge: returns number of Lightning orbs to channel when taking damage.
 
 pub fn get_static_discharge(entity: &EntityState) -> i32 {
-    entity.status(sk::STATIC_DISCHARGE)
+    entity.status(sid::STATIC_DISCHARGE)
 }
 
 // ---------------------------------------------------------------------------
@@ -324,13 +324,13 @@ pub fn get_static_discharge(entity: &EntityState) -> i32 {
 /// DarkEmbrace: returns cards to draw per exhaust.
 
 pub fn get_dark_embrace_draw(entity: &EntityState) -> i32 {
-    entity.status(sk::DARK_EMBRACE)
+    entity.status(sid::DARK_EMBRACE)
 }
 
 /// FeelNoPain: returns block to gain per exhaust.
 
 pub fn get_feel_no_pain_block(entity: &EntityState) -> i32 {
-    entity.status(sk::FEEL_NO_PAIN)
+    entity.status(sid::FEEL_NO_PAIN)
 }
 
 // ---------------------------------------------------------------------------
@@ -340,13 +340,13 @@ pub fn get_feel_no_pain_block(entity: &EntityState) -> i32 {
 /// Evolve: returns cards to draw when drawing a Status card.
 
 pub fn get_evolve_draw(entity: &EntityState) -> i32 {
-    entity.status(sk::EVOLVE)
+    entity.status(sid::EVOLVE)
 }
 
 /// FireBreathing: returns damage to deal to all enemies when drawing Status/Curse.
 
 pub fn get_fire_breathing_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::FIRE_BREATHING)
+    entity.status(sid::FIRE_BREATHING)
 }
 
 // ---------------------------------------------------------------------------
@@ -356,19 +356,19 @@ pub fn get_fire_breathing_damage(entity: &EntityState) -> i32 {
 /// MentalFortress: returns block to gain on ANY stance change.
 
 pub fn get_mental_fortress_block(entity: &EntityState) -> i32 {
-    entity.status(sk::MENTAL_FORTRESS)
+    entity.status(sid::MENTAL_FORTRESS)
 }
 
 /// Rushdown: returns cards to draw when entering Wrath.
 
 pub fn get_rushdown_draw(entity: &EntityState) -> i32 {
-    entity.status(sk::RUSHDOWN)
+    entity.status(sid::RUSHDOWN)
 }
 
 /// Nirvana: returns block to gain when scrying.
 
 pub fn get_nirvana_block(entity: &EntityState) -> i32 {
-    entity.status(sk::NIRVANA)
+    entity.status(sid::NIRVANA)
 }
 
 // ---------------------------------------------------------------------------
@@ -378,13 +378,13 @@ pub fn get_nirvana_block(entity: &EntityState) -> i32 {
 /// Juggernaut: returns damage to deal to random enemy when gaining block.
 
 pub fn get_juggernaut_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::JUGGERNAUT)
+    entity.status(sid::JUGGERNAUT)
 }
 
 /// WaveOfTheHand: returns Weak amount to apply when gaining block.
 
 pub fn get_wave_of_the_hand_weak(entity: &EntityState) -> i32 {
-    entity.status(sk::WAVE_OF_THE_HAND)
+    entity.status(sid::WAVE_OF_THE_HAND)
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +398,7 @@ pub fn modify_damage_give(entity: &EntityState, damage: f64, _is_attack: bool) -
     let mut d = damage;
 
     // DoubleDamage (Phantasmal Killer active)
-    if entity.status(sk::DOUBLE_DAMAGE) > 0 {
+    if entity.status(sid::DOUBLE_DAMAGE) > 0 {
         d *= 2.0;
     }
 
@@ -412,7 +412,7 @@ pub fn modify_damage_give(entity: &EntityState, damage: f64, _is_attack: bool) -
 
 pub fn modify_block(entity: &EntityState, block: f64) -> f64 {
     // NoBlock: can't gain block
-    if entity.status(sk::NO_BLOCK) > 0 {
+    if entity.status(sid::NO_BLOCK) > 0 {
         return 0.0;
     }
 
@@ -441,7 +441,7 @@ pub fn modify_heal(entity: &EntityState, heal: i32) -> i32 {
 /// Reset Slow stacks at end of round.
 
 pub fn get_combust_effect(entity: &EntityState) -> (i32, i32) {
-    let combust = entity.status(sk::COMBUST);
+    let combust = entity.status(sid::COMBUST);
     if combust > 0 {
         (1, combust)
     } else {
@@ -456,7 +456,7 @@ pub fn get_combust_effect(entity: &EntityState) -> (i32, i32) {
 /// Omega: returns damage to deal to ALL enemies at end of turn.
 
 pub fn get_omega_damage(entity: &EntityState) -> i32 {
-    entity.status(sk::OMEGA)
+    entity.status(sid::OMEGA)
 }
 
 // ---------------------------------------------------------------------------
@@ -466,7 +466,7 @@ pub fn get_omega_damage(entity: &EntityState) -> i32 {
 /// LikeWater: returns block to gain if in Calm stance.
 
 pub fn get_like_water_block(entity: &EntityState) -> i32 {
-    entity.status(sk::LIKE_WATER)
+    entity.status(sid::LIKE_WATER)
 }
 
 // ---------------------------------------------------------------------------
@@ -476,7 +476,7 @@ pub fn get_like_water_block(entity: &EntityState) -> i32 {
 /// Regeneration: heal and decrement. Returns HP to heal.
 
 pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
-    entity.set_status(sk::RAGE, 0);
+    entity.set_status(sid::RAGE, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -486,9 +486,9 @@ pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
 /// DoubleDamage: check and consume one stack. Returns doubled damage if active,
 /// otherwise returns the base damage unchanged. Decrements by 1 per attack.
 pub fn apply_double_damage(entity: &mut EntityState, base_damage: i32) -> i32 {
-    let dd = entity.status(sk::DOUBLE_DAMAGE);
+    let dd = entity.status(sid::DOUBLE_DAMAGE);
     if dd > 0 {
-        entity.set_status(sk::DOUBLE_DAMAGE, dd - 1);
+        entity.set_status(sid::DOUBLE_DAMAGE, dd - 1);
         base_damage * 2
     } else {
         base_damage
@@ -497,9 +497,9 @@ pub fn apply_double_damage(entity: &mut EntityState, base_damage: i32) -> i32 {
 
 /// DoubleDamage: consumed after playing an Attack (legacy zero-out).
 pub fn consume_double_damage(entity: &mut EntityState) {
-    let dd = entity.status(sk::DOUBLE_DAMAGE);
+    let dd = entity.status(sid::DOUBLE_DAMAGE);
     if dd > 0 {
-        entity.set_status(sk::DOUBLE_DAMAGE, dd - 1);
+        entity.set_status(sid::DOUBLE_DAMAGE, dd - 1);
     }
 }
 
@@ -510,7 +510,7 @@ pub fn consume_double_damage(entity: &mut EntityState) {
 /// SporeCloud: returns Vulnerable amount to apply to player when this enemy dies.
 
 pub fn has_corruption(entity: &EntityState) -> bool {
-    entity.status(sk::CORRUPTION) > 0
+    entity.status(sid::CORRUPTION) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -520,7 +520,7 @@ pub fn has_corruption(entity: &EntityState) -> bool {
 /// Check if NoSkills prevents playing Skills.
 
 pub fn has_no_skills(entity: &EntityState) -> bool {
-    entity.status(sk::NO_SKILLS_POWER) > 0
+    entity.status(sid::NO_SKILLS_POWER) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -530,7 +530,7 @@ pub fn has_no_skills(entity: &EntityState) -> bool {
 /// Check if Confusion is active.
 
 pub fn has_confusion(entity: &EntityState) -> bool {
-    entity.status(sk::CONFUSION) > 0
+    entity.status(sid::CONFUSION) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +540,7 @@ pub fn has_confusion(entity: &EntityState) -> bool {
 /// Check if NoDraw prevents card draw.
 
 pub fn has_no_draw(entity: &EntityState) -> bool {
-    entity.status(sk::NO_DRAW) > 0
+    entity.status(sid::NO_DRAW) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -550,7 +550,7 @@ pub fn has_no_draw(entity: &EntityState) -> bool {
 /// Check if stance changes are blocked.
 
 pub fn cannot_change_stance(entity: &EntityState) -> bool {
-    entity.status(sk::CANNOT_CHANGE_STANCE) > 0
+    entity.status(sid::CANNOT_CHANGE_STANCE) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -560,9 +560,9 @@ pub fn cannot_change_stance(entity: &EntityState) -> bool {
 /// Check and consume FreeAttack. Returns true if active.
 
 pub fn consume_free_attack(entity: &mut EntityState) -> bool {
-    let fa = entity.status(sk::FREE_ATTACK_POWER);
+    let fa = entity.status(sid::FREE_ATTACK_POWER);
     if fa > 0 {
-        entity.set_status(sk::FREE_ATTACK_POWER, fa - 1);
+        entity.set_status(sid::FREE_ATTACK_POWER, fa - 1);
         return true;
     }
     false
@@ -575,13 +575,13 @@ pub fn consume_free_attack(entity: &mut EntityState) -> bool {
 /// Check if Equilibrium retains hand this turn.
 
 pub fn has_equilibrium(entity: &EntityState) -> bool {
-    entity.status(sk::EQUILIBRIUM) > 0
+    entity.status(sid::EQUILIBRIUM) > 0
 }
 
 /// Decrement Equilibrium at end of turn.
 
 pub fn decrement_equilibrium(entity: &mut EntityState) {
-    decrement_status(entity, sk::EQUILIBRIUM);
+    decrement_status(entity, sid::EQUILIBRIUM);
 }
 
 // ---------------------------------------------------------------------------
@@ -591,7 +591,7 @@ pub fn decrement_equilibrium(entity: &mut EntityState) {
 /// Study: returns number of Insights to add to draw pile.
 
 pub fn get_study_insights(entity: &EntityState) -> i32 {
-    entity.status(sk::STUDY)
+    entity.status(sid::STUDY)
 }
 
 // ---------------------------------------------------------------------------
@@ -601,7 +601,7 @@ pub fn get_study_insights(entity: &EntityState) -> i32 {
 /// LiveForever: returns block to gain at end of turn.
 
 pub fn get_live_forever_block(entity: &EntityState) -> i32 {
-    entity.status(sk::LIVE_FOREVER)
+    entity.status(sid::LIVE_FOREVER)
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +611,7 @@ pub fn get_live_forever_block(entity: &EntityState) -> i32 {
 /// Accuracy: returns bonus damage for Shiv cards.
 
 pub fn get_accuracy_bonus(entity: &EntityState) -> i32 {
-    entity.status(sk::ACCURACY)
+    entity.status(sid::ACCURACY)
 }
 
 // ---------------------------------------------------------------------------
@@ -621,23 +621,23 @@ pub fn get_accuracy_bonus(entity: &EntityState) -> i32 {
 /// Get current Mark amount on entity.
 
 pub fn get_mark(entity: &EntityState) -> i32 {
-    entity.status(sk::MARK)
+    entity.status(sid::MARK)
 }
 
 // ---------------------------------------------------------------------------
 // Deva Form — escalating energy
 // ---------------------------------------------------------------------------
 
-/// DevaForm energy tracking. Uses sk::DEVA_FORM_ENERGY for the escalating counter.
+/// DevaForm energy tracking. Uses sid::DEVA_FORM_ENERGY for the escalating counter.
 /// Returns energy to gain this turn.
 
 pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
-    let deva = entity.status(sk::DEVA_FORM);
+    let deva = entity.status(sid::DEVA_FORM);
     if deva <= 0 {
         return 0;
     }
-    let energy_counter = entity.status(sk::DEVA_FORM_ENERGY) + 1;
-    entity.set_status(sk::DEVA_FORM_ENERGY, energy_counter);
+    let energy_counter = entity.status(sid::DEVA_FORM_ENERGY) + 1;
+    entity.set_status(sid::DEVA_FORM_ENERGY, energy_counter);
     energy_counter
 }
 
@@ -649,7 +649,7 @@ pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
 /// Returns true if the debuff was applied, false if blocked by Artifact.
 
 pub fn should_die_end_of_turn(entity: &EntityState) -> bool {
-    entity.status(sk::END_TURN_DEATH) > 0
+    entity.status(sid::END_TURN_DEATH) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -688,14 +688,14 @@ pub fn process_start_of_turn(entity: &mut EntityState) -> StartOfTurnResult {
     remove_flame_barrier(entity);
 
     // WraithForm: lose Dexterity
-    let wraith = entity.status(sk::WRAITH_FORM);
+    let wraith = entity.status(sid::WRAITH_FORM);
     if wraith > 0 {
         apply_wraith_form(entity);
         result.wraith_form_dex_loss = true;
     }
 
     // Demon Form
-    let demon = entity.status(sk::DEMON_FORM);
+    let demon = entity.status(sid::DEMON_FORM);
     if demon > 0 {
         apply_demon_form(entity);
         result.demon_form_strength = true;
@@ -765,10 +765,10 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
     let mut result = EndOfTurnResult::default();
 
     // Metallicize
-    result.metallicize_block = entity.status(sk::METALLICIZE);
+    result.metallicize_block = entity.status(sid::METALLICIZE);
 
     // Plated Armor
-    result.plated_armor_block = entity.status(sk::PLATED_ARMOR);
+    result.plated_armor_block = entity.status(sid::PLATED_ARMOR);
 
     // Omega
     result.omega_damage = get_omega_damage(entity);
@@ -870,15 +870,15 @@ mod tests {
     #[test]
     fn test_decrement_debuffs() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Weakened", 2);
-        entity.set_status("Vulnerable", 1);
-        entity.set_status("Frail", 3);
+        entity.set_status(sid::WEAKENED, 2);
+        entity.set_status(sid::VULNERABLE, 1);
+        entity.set_status(sid::FRAIL, 3);
 
         decrement_debuffs(&mut entity);
 
-        assert_eq!(entity.status("Weakened"), 1);
-        assert_eq!(entity.status("Vulnerable"), 0);
-        assert_eq!(entity.status("Frail"), 2);
+        assert_eq!(entity.status(sid::WEAKENED), 1);
+        assert_eq!(entity.status(sid::VULNERABLE), 0);
+        assert_eq!(entity.status(sid::FRAIL), 2);
     }
 
     // -- Poison tests --
@@ -886,23 +886,23 @@ mod tests {
     #[test]
     fn test_tick_poison() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Poison", 5);
+        entity.set_status(sid::POISON, 5);
 
         let dmg = tick_poison(&mut entity);
         assert_eq!(dmg, 5);
         assert_eq!(entity.hp, 45);
-        assert_eq!(entity.status("Poison"), 4);
+        assert_eq!(entity.status(sid::POISON), 4);
     }
 
     #[test]
     fn test_tick_poison_removed_at_zero() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Poison", 1);
+        entity.set_status(sid::POISON, 1);
 
         let dmg = tick_poison(&mut entity);
         assert_eq!(dmg, 1);
-        assert_eq!(entity.status("Poison"), 0);
-        assert!(!entity.statuses.contains_key("Poison"));
+        assert_eq!(entity.status(sid::POISON), 0);
+        assert!(!entity.statuses.contains_key(&sid::POISON));
     }
 
     // -- Metallicize / Plated Armor tests --
@@ -910,7 +910,7 @@ mod tests {
     #[test]
     fn test_metallicize() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Metallicize", 4);
+        entity.set_status(sid::METALLICIZE, 4);
 
         apply_metallicize(&mut entity);
         assert_eq!(entity.block, 4);
@@ -919,7 +919,7 @@ mod tests {
     #[test]
     fn test_plated_armor() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("PlatedArmor", 6);
+        entity.set_status(sid::PLATED_ARMOR, 6);
 
         apply_plated_armor(&mut entity);
         assert_eq!(entity.block, 6);
@@ -930,7 +930,7 @@ mod tests {
     #[test]
     fn test_ritual() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Ritual", 3);
+        entity.set_status(sid::RITUAL, 3);
 
         apply_ritual(&mut entity);
         assert_eq!(entity.strength(), 3);
@@ -945,21 +945,21 @@ mod tests {
     #[test]
     fn test_artifact_blocks_debuff() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Artifact", 1);
+        entity.set_status(sid::ARTIFACT, 1);
 
-        let applied = apply_debuff(&mut entity, "Weakened", 2);
+        let applied = apply_debuff(&mut entity, sid::WEAKENED, 2);
         assert!(!applied);
-        assert_eq!(entity.status("Weakened"), 0);
-        assert_eq!(entity.status("Artifact"), 0);
+        assert_eq!(entity.status(sid::WEAKENED), 0);
+        assert_eq!(entity.status(sid::ARTIFACT), 0);
     }
 
     #[test]
     fn test_debuff_without_artifact() {
         let mut entity = EntityState::new(50, 50);
 
-        let applied = apply_debuff(&mut entity, "Weakened", 2);
+        let applied = apply_debuff(&mut entity, sid::WEAKENED, 2);
         assert!(applied);
-        assert_eq!(entity.status("Weakened"), 2);
+        assert_eq!(entity.status(sid::WEAKENED), 2);
     }
 
     // -- Block decay tests --
@@ -968,7 +968,7 @@ mod tests {
     fn test_barricade_retains_block() {
         let mut entity = EntityState::new(50, 50);
         entity.block = 10;
-        entity.set_status("Barricade", 1);
+        entity.set_status(sid::BARRICADE, 1);
         assert!(should_retain_block(&entity));
         assert_eq!(apply_block_decay(&entity, false), 10);
     }
@@ -977,7 +977,7 @@ mod tests {
     fn test_blur_retains_block() {
         let mut entity = EntityState::new(50, 50);
         entity.block = 10;
-        entity.set_status("Blur", 1);
+        entity.set_status(sid::BLUR, 1);
         assert!(should_retain_block(&entity));
     }
 
@@ -1000,7 +1000,7 @@ mod tests {
     #[test]
     fn test_demon_form() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("DemonForm", 3);
+        entity.set_status(sid::DEMON_FORM, 3);
 
         apply_demon_form(&mut entity);
         assert_eq!(entity.strength(), 3);
@@ -1014,13 +1014,13 @@ mod tests {
     #[test]
     fn test_buffer_blocks_damage() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Buffer", 2);
+        entity.set_status(sid::BUFFER, 2);
 
         assert!(check_buffer(&mut entity));
-        assert_eq!(entity.status("Buffer"), 1);
+        assert_eq!(entity.status(sid::BUFFER), 1);
 
         assert!(check_buffer(&mut entity));
-        assert_eq!(entity.status("Buffer"), 0);
+        assert_eq!(entity.status(sid::BUFFER), 0);
 
         assert!(!check_buffer(&mut entity));
     }
@@ -1033,7 +1033,7 @@ mod tests {
         assert_eq!(get_thorns_damage(&entity), 0);
 
         let mut entity2 = EntityState::new(50, 50);
-        entity2.set_status("Thorns", 3);
+        entity2.set_status(sid::THORNS, 3);
         assert_eq!(get_thorns_damage(&entity2), 3);
     }
 
@@ -1042,7 +1042,7 @@ mod tests {
     #[test]
     fn test_flame_barrier() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("FlameBarrier", 7);
+        entity.set_status(sid::FLAME_BARRIER, 7);
 
         assert_eq!(get_flame_barrier_damage(&entity), 7);
 
@@ -1055,7 +1055,7 @@ mod tests {
     #[test]
     fn test_after_image() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("AfterImage", 2);
+        entity.set_status(sid::AFTER_IMAGE, 2);
         assert_eq!(get_after_image_block(&entity), 2);
     }
 
@@ -1064,20 +1064,20 @@ mod tests {
     #[test]
     fn test_double_tap() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("DoubleTap", 1);
+        entity.set_status(sid::DOUBLE_TAP, 1);
 
         assert!(consume_double_tap(&mut entity));
-        assert_eq!(entity.status("DoubleTap"), 0);
+        assert_eq!(entity.status(sid::DOUBLE_TAP), 0);
         assert!(!consume_double_tap(&mut entity));
     }
 
     #[test]
     fn test_burst() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Burst", 2);
+        entity.set_status(sid::BURST, 2);
 
         assert!(consume_burst(&mut entity));
-        assert_eq!(entity.status("Burst"), 1);
+        assert_eq!(entity.status(sid::BURST), 1);
         assert!(consume_burst(&mut entity));
         assert!(!consume_burst(&mut entity));
     }
@@ -1087,13 +1087,13 @@ mod tests {
     #[test]
     fn test_time_warp_countdown() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("TimeWarpActive", 1);
+        entity.set_status(sid::TIME_WARP_ACTIVE, 1);
 
         for _ in 0..11 {
             assert!(!increment_time_warp(&mut entity));
         }
         assert!(increment_time_warp(&mut entity));
-        assert_eq!(entity.status("TimeWarp"), 0); // resets
+        assert_eq!(entity.status(sid::TIME_WARP), 0); // resets
     }
 
     // -- Slow tests --
@@ -1101,7 +1101,7 @@ mod tests {
     #[test]
     fn test_slow_damage_modification() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Slow", 3);
+        entity.set_status(sid::SLOW, 3);
 
         let modified = modify_damage_receive(&entity, 10.0);
         assert!((modified - 13.0).abs() < 0.01); // 10 * 1.3 = 13
@@ -1112,13 +1112,13 @@ mod tests {
     #[test]
     fn test_invincible_cap() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Invincible", 200);
+        entity.set_status(sid::INVINCIBLE, 200);
 
         assert_eq!(apply_invincible_cap(&mut entity, 50), 50);
-        assert_eq!(entity.status("Invincible"), 150);
+        assert_eq!(entity.status(sid::INVINCIBLE), 150);
 
         assert_eq!(apply_invincible_cap(&mut entity, 200), 150);
-        assert_eq!(entity.status("Invincible"), 0);
+        assert_eq!(entity.status(sid::INVINCIBLE), 0);
     }
 
     // -- ModeShift tests --
@@ -1126,13 +1126,13 @@ mod tests {
     #[test]
     fn test_mode_shift() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("ModeShift", 10);
+        entity.set_status(sid::MODE_SHIFT, 10);
 
         assert!(!apply_mode_shift_damage(&mut entity, 5));
-        assert_eq!(entity.status("ModeShift"), 5);
+        assert_eq!(entity.status(sid::MODE_SHIFT), 5);
 
         assert!(apply_mode_shift_damage(&mut entity, 5));
-        assert_eq!(entity.status("ModeShift"), 0);
+        assert_eq!(entity.status(sid::MODE_SHIFT), 0);
     }
 
     // -- Fading tests --
@@ -1140,10 +1140,10 @@ mod tests {
     #[test]
     fn test_fading_countdown() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Fading", 2);
+        entity.set_status(sid::FADING, 2);
 
         assert!(!decrement_fading(&mut entity));
-        assert_eq!(entity.status("Fading"), 1);
+        assert_eq!(entity.status(sid::FADING), 1);
 
         assert!(decrement_fading(&mut entity));
     }
@@ -1153,12 +1153,12 @@ mod tests {
     #[test]
     fn test_process_start_of_turn() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("DemonForm", 2);
-        entity.set_status("NoxiousFumes", 3);
-        entity.set_status("Energized", 2);
-        entity.set_status("LoseStrength", 1);
-        entity.set_status("WraithForm", 1);
-        entity.set_status("FlameBarrier", 5);
+        entity.set_status(sid::DEMON_FORM, 2);
+        entity.set_status(sid::NOXIOUS_FUMES, 3);
+        entity.set_status(sid::ENERGIZED, 2);
+        entity.set_status(sid::LOSE_STRENGTH, 1);
+        entity.set_status(sid::WRAITH_FORM, 1);
+        entity.set_status(sid::FLAME_BARRIER, 5);
 
         let result = process_start_of_turn(&mut entity);
 
@@ -1171,24 +1171,24 @@ mod tests {
 
         // Energized consumed
         assert_eq!(result.extra_energy, 2);
-        assert_eq!(entity.status("Energized"), 0);
+        assert_eq!(entity.status(sid::ENERGIZED), 0);
 
         // WraithForm
         assert!(result.wraith_form_dex_loss);
         assert_eq!(entity.dexterity(), -1);
 
         // Flame Barrier removed
-        assert_eq!(entity.status("FlameBarrier"), 0);
+        assert_eq!(entity.status(sid::FLAME_BARRIER), 0);
     }
 
     #[test]
     fn test_process_end_of_turn() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Metallicize", 4);
-        entity.set_status("PlatedArmor", 3);
-        entity.set_status("Omega", 50);
-        entity.set_status("Rage", 5);
-        entity.set_status("Combust", 7);
+        entity.set_status(sid::METALLICIZE, 4);
+        entity.set_status(sid::PLATED_ARMOR, 3);
+        entity.set_status(sid::OMEGA, 50);
+        entity.set_status(sid::RAGE, 5);
+        entity.set_status(sid::COMBUST, 7);
 
         let result = process_end_of_turn(&mut entity, false);
 
@@ -1199,13 +1199,13 @@ mod tests {
         assert_eq!(result.combust_damage, 7);
 
         // Rage removed
-        assert_eq!(entity.status("Rage"), 0);
+        assert_eq!(entity.status(sid::RAGE), 0);
     }
 
     #[test]
     fn test_like_water_in_calm() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("LikeWater", 5);
+        entity.set_status(sid::LIKE_WATER, 5);
 
         let result_calm = process_end_of_turn(&mut entity, true);
         assert_eq!(result_calm.like_water_block, 5);
@@ -1219,7 +1219,7 @@ mod tests {
     #[test]
     fn test_double_damage_modifier() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("DoubleDamage", 1);
+        entity.set_status(sid::DOUBLE_DAMAGE, 1);
 
         let modified = modify_damage_give(&entity, 10.0, true);
         assert!((modified - 20.0).abs() < 0.01);
@@ -1228,7 +1228,7 @@ mod tests {
     #[test]
     fn test_intangible_caps_damage() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Intangible", 1);
+        entity.set_status(sid::INTANGIBLE, 1);
 
         let modified = modify_damage_receive(&entity, 100.0);
         assert!((modified - 1.0).abs() < 0.01);
@@ -1240,7 +1240,7 @@ mod tests {
     fn test_corruption_flag() {
         let mut entity = EntityState::new(50, 50);
         assert!(!has_corruption(&entity));
-        entity.set_status("Corruption", 1);
+        entity.set_status(sid::CORRUPTION, 1);
         assert!(has_corruption(&entity));
     }
 
@@ -1248,7 +1248,7 @@ mod tests {
     fn test_no_skills_flag() {
         let mut entity = EntityState::new(50, 50);
         assert!(!has_no_skills(&entity));
-        entity.set_status("NoSkillsPower", 1);
+        entity.set_status(sid::NO_SKILLS_POWER, 1);
         assert!(has_no_skills(&entity));
     }
 
@@ -1256,7 +1256,7 @@ mod tests {
     fn test_cannot_change_stance() {
         let mut entity = EntityState::new(50, 50);
         assert!(!cannot_change_stance(&entity));
-        entity.set_status("CannotChangeStance", 1);
+        entity.set_status(sid::CANNOT_CHANGE_STANCE, 1);
         assert!(cannot_change_stance(&entity));
     }
 
@@ -1265,7 +1265,7 @@ mod tests {
     #[test]
     fn test_panache_triggers_every_5() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Panache", 10);
+        entity.set_status(sid::PANACHE, 10);
 
         for _ in 0..4 {
             assert_eq!(check_panache(&mut entity), 0);
@@ -1284,7 +1284,7 @@ mod tests {
     #[test]
     fn test_deva_form_escalating() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("DevaForm", 1);
+        entity.set_status(sid::DEVA_FORM, 1);
 
         assert_eq!(apply_deva_form(&mut entity), 1);
         assert_eq!(apply_deva_form(&mut entity), 2);
@@ -1297,18 +1297,18 @@ mod tests {
     fn test_sadistic_on_debuff() {
         let mut entity = EntityState::new(50, 50);
 
-        let (applied, sadistic_dmg) = apply_debuff_with_sadistic(&mut entity, "Weakened", 1, 5);
+        let (applied, sadistic_dmg) = apply_debuff_with_sadistic(&mut entity, sid::WEAKENED, 1, 5);
         assert!(applied);
         assert_eq!(sadistic_dmg, 5);
-        assert_eq!(entity.status("Weakened"), 1);
+        assert_eq!(entity.status(sid::WEAKENED), 1);
     }
 
     #[test]
     fn test_sadistic_blocked_by_artifact() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Artifact", 1);
+        entity.set_status(sid::ARTIFACT, 1);
 
-        let (applied, sadistic_dmg) = apply_debuff_with_sadistic(&mut entity, "Weakened", 1, 5);
+        let (applied, sadistic_dmg) = apply_debuff_with_sadistic(&mut entity, sid::WEAKENED, 1, 5);
         assert!(!applied);
         assert_eq!(sadistic_dmg, 0);
     }
@@ -1318,19 +1318,19 @@ mod tests {
     #[test]
     fn test_process_end_of_round() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status("Weakened", 2);
-        entity.set_status("Vulnerable", 1);
-        entity.set_status("Blur", 1);
-        entity.set_status("Slow", 5);
-        entity.set_status("Lock-On", 2);
+        entity.set_status(sid::WEAKENED, 2);
+        entity.set_status(sid::VULNERABLE, 1);
+        entity.set_status(sid::BLUR, 1);
+        entity.set_status(sid::SLOW, 5);
+        entity.set_status(sid::LOCK_ON, 2);
 
         process_end_of_round(&mut entity);
 
-        assert_eq!(entity.status("Weakened"), 1);
-        assert_eq!(entity.status("Vulnerable"), 0);
-        assert_eq!(entity.status("Blur"), 0);
-        assert_eq!(entity.status("Slow"), 0);
-        assert_eq!(entity.status("Lock-On"), 1);
+        assert_eq!(entity.status(sid::WEAKENED), 1);
+        assert_eq!(entity.status(sid::VULNERABLE), 0);
+        assert_eq!(entity.status(sid::BLUR), 0);
+        assert_eq!(entity.status(sid::SLOW), 0);
+        assert_eq!(entity.status(sid::LOCK_ON), 1);
     }
 }
 

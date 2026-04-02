@@ -1,6 +1,7 @@
 use crate::state::EnemyCombatState;
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::status_ids::sid;
 
 // =========================================================================
 // Act 2 Basic Enemies
@@ -44,7 +45,7 @@ pub(super) fn roll_mugger(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_byrd(enemy: &mut EnemyCombatState) {
-    let is_flying = enemy.entity.status("Flight") > 0;
+    let is_flying = enemy.entity.status(sid::FLIGHT) > 0;
 
     if !is_flying {
         // Grounded: Headbutt then Fly Up
@@ -52,7 +53,7 @@ pub(super) fn roll_byrd(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::BYRD_HEADBUTT, 3, 1, 0);
         } else {
             enemy.set_move(move_ids::BYRD_FLY_UP, 0, 0, 0);
-            enemy.entity.set_status("Flight", 3);
+            enemy.entity.set_status(sid::FLIGHT, 3);
         }
     } else {
         // Flying: alternate Peck and Swoop
@@ -120,17 +121,17 @@ pub(super) fn roll_mystic(enemy: &mut EnemyCombatState) {
 
 pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState) {
     // Multi-stab with increasing count. Stab count increases each time multi-stab is used.
-    let stab_count = enemy.entity.status("StabCount");
+    let stab_count = enemy.entity.status(sid::STAB_COUNT);
     if last_two_moves(enemy, move_ids::BOOK_STAB) {
         enemy.set_move(move_ids::BOOK_BIG_STAB, 21, 1, 0);
         // Increment stab count on A18+
     } else if last_move(enemy, move_ids::BOOK_BIG_STAB) {
         let new_count = stab_count + 1;
-        enemy.entity.set_status("StabCount", new_count);
+        enemy.entity.set_status(sid::STAB_COUNT, new_count);
         enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
     } else {
         let new_count = stab_count + 1;
-        enemy.entity.set_status("StabCount", new_count);
+        enemy.entity.set_status(sid::STAB_COUNT, new_count);
         enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
     }
 }
@@ -207,10 +208,10 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState) {
-    let fd = { let v = enemy.entity.status("FlailDmg"); if v > 0 { v } else { 7 } };
-    let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 45 } };
-    let sa = { let v = enemy.entity.status("StrAmt"); if v > 0 { v } else { 3 } };
-    let ba = { let v = enemy.entity.status("BlockAmt"); if v > 0 { v } else { 9 } };
+    let fd = { let v = enemy.entity.status(sid::FLAIL_DMG); if v > 0 { v } else { 7 } };
+    let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 45 } };
+    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
+    let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 9 } };
     if last_move(enemy, move_ids::BA_SPAWN_ORBS) || last_move(enemy, move_ids::BA_STUNNED) || last_move(enemy, move_ids::BA_BOOST) {
         enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
     } else if last_move(enemy, move_ids::BA_FLAIL) {
@@ -240,20 +241,20 @@ pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
-    let num_turns = enemy.entity.status("NumTurns") + 1;
-    enemy.entity.set_status("NumTurns", num_turns);
+    let num_turns = enemy.entity.status(sid::NUM_TURNS) + 1;
+    enemy.entity.set_status(sid::NUM_TURNS, num_turns);
 
-    let str_amt = enemy.entity.status("StrAmt").max(2);
-    let _forge_amt = enemy.entity.status("ForgeAmt").max(5);
-    let _block_amt = enemy.entity.status("BlockAmt").max(15);
-    let slash_dmg = enemy.entity.status("SlashDmg").max(16);
-    let slap_dmg = enemy.entity.status("SlapDmg").max(12);
+    let str_amt = enemy.entity.status(sid::STR_AMT).max(2);
+    let _forge_amt = enemy.entity.status(sid::FORGE_AMT).max(5);
+    let _block_amt = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let slash_dmg = enemy.entity.status(sid::SLASH_DMG).max(16);
+    let slap_dmg = enemy.entity.status(sid::SLAP_DMG).max(12);
 
     let threshold_reached_now = enemy.entity.hp <= enemy.entity.max_hp / 2;
 
     // Phase 2 trigger: Anger (remove debuffs, gain 3*strAmt Str)
-    if threshold_reached_now && enemy.entity.status("ThresholdReached") == 0 {
-        enemy.entity.set_status("ThresholdReached", 1);
+    if threshold_reached_now && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
+        enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
         enemy.set_move(move_ids::CHAMP_ANGER, 0, 0, 0);
         // Java: Anger gives 3*strAmt Strength (not strAmt)
         enemy.move_effects.insert("strength".to_string(), str_amt * 3);
@@ -262,7 +263,7 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
     }
 
     // Phase 2: Execute spam
-    if enemy.entity.status("ThresholdReached") > 0 {
+    if enemy.entity.status(sid::THRESHOLD_REACHED) > 0 {
         // Java: Execute (10x2) every turn if threshold reached.
         // Uses lastMove and lastMoveBefore to check.
         if !last_move(enemy, move_ids::CHAMP_EXECUTE) {
@@ -280,7 +281,7 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
         enemy.move_effects.insert("vulnerable".to_string(), 2);
         enemy.move_effects.insert("weak".to_string(), 2);
-        enemy.entity.set_status("NumTurns", 0);
+        enemy.entity.set_status(sid::NUM_TURNS, 0);
         return;
     }
 
@@ -303,9 +304,9 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_collector(enemy: &mut EnemyCombatState) {
-    let fd = { let v = enemy.entity.status("FireballDmg"); if v > 0 { v } else { 18 } };
-    let sa = { let v = enemy.entity.status("StrAmt"); if v > 0 { v } else { 3 } };
-    let ba = { let v = enemy.entity.status("BlockAmt"); if v > 0 { v } else { 15 } };
+    let fd = { let v = enemy.entity.status(sid::FIREBALL_DMG); if v > 0 { v } else { 18 } };
+    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
+    let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 15 } };
     let turns = enemy.move_history.len();
     if turns == 4 && !enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF) {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);

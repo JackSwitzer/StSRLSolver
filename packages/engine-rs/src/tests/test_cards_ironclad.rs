@@ -4,6 +4,7 @@ mod ironclad_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/red/*.java
 
     use crate::actions::Action;
+    use crate::status_ids::sid;
     use crate::tests::support::{
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
         play_card, play_on_enemy, play_self, TEST_SEED, enemy, discard_prefix_count,
@@ -237,7 +238,7 @@ mod ironclad_card_java_parity_tests {
         let hp = e.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut e, "Bash", 0));
         assert_eq!(e.state.enemies[0].entity.hp, hp - 8);
-        assert_eq!(e.state.enemies[0].entity.status("Vulnerable"), 2);
+        assert_eq!(e.state.enemies[0].entity.status(sid::VULNERABLE), 2);
     }
 
     #[test]
@@ -292,7 +293,7 @@ mod ironclad_card_java_parity_tests {
         let hp = e.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut e, "Clothesline", 0));
         assert_eq!(e.state.enemies[0].entity.hp, hp - 12);
-        assert_eq!(e.state.enemies[0].entity.status("Weakened"), 2);
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 2);
     }
 
     #[test]
@@ -342,8 +343,8 @@ mod ironclad_card_java_parity_tests {
             3,
         );
         assert!(play_card(&mut e, "Thunderclap", 0));
-        assert_eq!(e.state.enemies[0].entity.status("Vulnerable"), 1);
-        assert_eq!(e.state.enemies[1].entity.status("Vulnerable"), 1);
+        assert_eq!(e.state.enemies[0].entity.status(sid::VULNERABLE), 1);
+        assert_eq!(e.state.enemies[1].entity.status(sid::VULNERABLE), 1);
         assert_eq!(e.state.enemies[0].entity.hp, 36);
         assert_eq!(e.state.enemies[1].entity.hp, 36);
     }
@@ -407,7 +408,7 @@ mod ironclad_card_java_parity_tests {
     #[test]
     fn limit_break_doubles_strength() {
         let mut e = engine_for(&["Limit Break"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
-        e.state.player.set_status("Strength", 3);
+        e.state.player.set_status(sid::STRENGTH, 3);
         assert!(play_self(&mut e, "Limit Break"));
         assert_eq!(e.state.player.strength(), 6);
     }

@@ -230,8 +230,59 @@ pub mod sid {
     pub const PANACHE_COUNT: StatusId = StatusId(172);
     pub const DEVA_FORM_ENERGY: StatusId = StatusId(173);
 
+    // ==================================================================
+    // Enemy AI tracking (174-220)
+    // ==================================================================
+    pub const ATTACK_COUNT: StatusId = StatusId(174);
+    pub const BEAM_DMG: StatusId = StatusId(175);
+    pub const BLOCK_AMT: StatusId = StatusId(176);
+    pub const BLOOD_HIT_COUNT: StatusId = StatusId(177);
+    pub const BUFF_COUNT: StatusId = StatusId(178);
+    pub const CARD_COUNT: StatusId = StatusId(179);
+    pub const CENTENNIAL_PUZZLE_DRAW: StatusId = StatusId(180);
+    pub const COUNT: StatusId = StatusId(181);
+    pub const DAMAGE_TAKEN_THIS_MODE: StatusId = StatusId(182);
+    pub const DUPLICATION: StatusId = StatusId(183);
+    pub const ECHO_DMG: StatusId = StatusId(184);
+    pub const EMOTION_CHIP_TRIGGER: StatusId = StatusId(185);
+    pub const FIERCE_BASH_DMG: StatusId = StatusId(186);
+    pub const FIRE_TACKLE_DMG: StatusId = StatusId(187);
+    pub const FIREBALL_DMG: StatusId = StatusId(188);
+    pub const FIRST_MOVE: StatusId = StatusId(189);
+    pub const FIRST_TURN: StatusId = StatusId(190);
+    pub const FLAIL_DMG: StatusId = StatusId(191);
+    pub const FORGE_AMT: StatusId = StatusId(192);
+    pub const FORGE_TIMES: StatusId = StatusId(193);
+    pub const GREMLIN_HORN_DRAW: StatusId = StatusId(194);
+    pub const HEAD_SLAM_DMG: StatusId = StatusId(195);
+    pub const INFERNO_DMG: StatusId = StatusId(196);
+    pub const IS_FIRST_MOVE: StatusId = StatusId(197);
+    pub const LIGHTNING_CHANNELED: StatusId = StatusId(198);
+    pub const MOVE_COUNT: StatusId = StatusId(199);
+    pub const NECRONOMICON_USED: StatusId = StatusId(200);
+    pub const NUM_TURNS: StatusId = StatusId(201);
+    pub const POTION_DRAW: StatusId = StatusId(202);
+    pub const REGENERATE: StatusId = StatusId(203);
+    pub const REVERB_DMG: StatusId = StatusId(204);
+    pub const ROLL_DMG: StatusId = StatusId(205);
+    pub const RUNIC_CUBE_DRAW: StatusId = StatusId(206);
+    pub const SCYTHE_COOLDOWN: StatusId = StatusId(207);
+    pub const SEAR_BURN_COUNT: StatusId = StatusId(208);
+    pub const SKEWER_COUNT: StatusId = StatusId(209);
+    pub const SLAP_DMG: StatusId = StatusId(210);
+    pub const SLASH_DMG: StatusId = StatusId(211);
+    pub const STAB_COUNT: StatusId = StatusId(212);
+    pub const STARTING_DEATH_DMG: StatusId = StatusId(213);
+    pub const STARTING_DMG: StatusId = StatusId(214);
+    pub const STR_AMT: StatusId = StatusId(215);
+    pub const SUNDIAL_COUNTER: StatusId = StatusId(216);
+    pub const TURN_COUNT: StatusId = StatusId(217);
+    pub const USED_HASTE: StatusId = StatusId(218);
+    pub const USED_MEGA_DEBUFF: StatusId = StatusId(219);
+    pub const WEAK: StatusId = StatusId(220);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const COUNT: usize = 174;
+    pub const NUM_IDS: usize = 221;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -441,6 +492,54 @@ static STATUS_NAMES: &[&str] = &[
     "MutagenicStrength", // 171
     "PanacheCount",      // 172
     "DevaFormEnergy",    // 173
+    // Enemy AI tracking (174-220)
+    "AttackCount",       // 174
+    "BeamDmg",           // 175
+    "BlockAmt",          // 176
+    "BloodHitCount",     // 177
+    "BuffCount",         // 178
+    "CardCount",         // 179
+    "CentennialPuzzleDraw", // 180
+    "Count",             // 181
+    "DamageTakenThisMode", // 182
+    "Duplication",       // 183
+    "EchoDmg",           // 184
+    "EmotionChipTrigger", // 185
+    "FierceBashDmg",     // 186
+    "FireTackleDmg",     // 187
+    "FireballDmg",       // 188
+    "FirstMove",         // 189
+    "FirstTurn",         // 190
+    "FlailDmg",          // 191
+    "ForgeAmt",          // 192
+    "ForgeTimes",        // 193
+    "GremlinHornDraw",   // 194
+    "HeadSlamDmg",       // 195
+    "InfernoDmg",        // 196
+    "IsFirstMove",       // 197
+    "LightningChanneled", // 198
+    "MoveCount",         // 199
+    "NecronomiconUsed",  // 200
+    "NumTurns",          // 201
+    "PotionDraw",        // 202
+    "Regenerate",        // 203
+    "ReverbDmg",         // 204
+    "RollDmg",           // 205
+    "RunicCubeDraw",     // 206
+    "ScytheCooldown",    // 207
+    "SearBurnCount",     // 208
+    "SkewerCount",       // 209
+    "SlapDmg",           // 210
+    "SlashDmg",          // 211
+    "StabCount",         // 212
+    "StartingDeathDmg",  // 213
+    "StartingDmg",       // 214
+    "StrAmt",            // 215
+    "SundialCounter",    // 216
+    "TurnCount",         // 217
+    "UsedHaste",         // 218
+    "UsedMegaDebuff",    // 219
+    "Weak",              // 220
 ];
 
 #[cfg(test)]
@@ -466,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_names_table_length() {
-        assert_eq!(STATUS_NAMES.len(), sid::COUNT);
+        assert_eq!(STATUS_NAMES.len(), sid::NUM_IDS);
     }
 
     #[test]

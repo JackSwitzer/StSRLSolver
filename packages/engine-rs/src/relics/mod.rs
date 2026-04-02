@@ -14,6 +14,7 @@
 //! - Passive / non-combat: gold, map, shop relics (stub — just track ownership)
 
 
+use crate::status_ids::sid;
 pub mod combat;
 pub mod run;
 
@@ -117,7 +118,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("Thread and Needle".to_string());
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.player.status("PlatedArmor"), 4);
+        assert_eq!(state.player.status(sid::PLATED_ARMOR), 4);
     }
 
     #[test]
@@ -133,7 +134,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("Akabeko".to_string());
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.player.status("Vigor"), 8);
+        assert_eq!(state.player.status(sid::VIGOR), 8);
     }
 
     #[test]
@@ -159,8 +160,8 @@ mod tests {
         let mut state = make_two_enemy_state();
         state.relics.push("TwistedFunnel".to_string());
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.enemies[0].entity.status("Poison"), 4);
-        assert_eq!(state.enemies[1].entity.status("Poison"), 4);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 4);
+        assert_eq!(state.enemies[1].entity.status(sid::POISON), 4);
     }
 
     #[test]
@@ -169,7 +170,7 @@ mod tests {
         state.relics.push("MutagenicStrength".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.player.strength(), 3);
-        assert_eq!(state.player.status("LoseStrength"), 3);
+        assert_eq!(state.player.status(sid::LOSE_STRENGTH), 3);
     }
 
     #[test]
@@ -231,11 +232,11 @@ mod tests {
         state.relics.push("Lantern".to_string());
         state.turn = 0;
         apply_combat_start_relics(&mut state);
-        assert_eq!(state.player.status("LanternReady"), 1);
+        assert_eq!(state.player.status(sid::LANTERN_READY), 1);
         state.turn = 1;
         apply_turn_start_relics(&mut state);
         assert_eq!(state.energy, 4);
-        assert_eq!(state.player.status("LanternReady"), 0);
+        assert_eq!(state.player.status(sid::LANTERN_READY), 0);
     }
 
     #[test]
@@ -288,7 +289,7 @@ mod tests {
             state.turn = turn;
             apply_turn_start_relics(&mut state);
         }
-        assert_eq!(state.player.status("Intangible"), 1);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 1);
     }
 
     #[test]
@@ -427,8 +428,8 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("OrangePellets".to_string());
         apply_combat_start_relics(&mut state);
-        state.player.add_status("Weakened", 3);
-        state.player.add_status("Vulnerable", 2);
+        state.player.add_status(sid::WEAKENED, 3);
+        state.player.add_status(sid::VULNERABLE, 2);
 
         on_card_played(&mut state, CardType::Attack);
         on_card_played(&mut state, CardType::Skill);
@@ -476,7 +477,7 @@ mod tests {
         apply_combat_start_relics(&mut state);
 
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("CentennialPuzzleDraw"), 3);
+        assert_eq!(state.player.status(sid::CENTENNIAL_PUZZLE_DRAW), 3);
 
         // Second hit: no more draws
         on_hp_loss(&mut state, 5);
@@ -488,7 +489,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("Self Forming Clay".to_string());
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("NextTurnBlock"), 3);
+        assert_eq!(state.player.status(sid::NEXT_TURN_BLOCK), 3);
     }
 
     #[test]
@@ -497,11 +498,11 @@ mod tests {
         state.relics.push("Red Skull".to_string());
         state.player.hp = 41; // Above 50%
         on_hp_loss(&mut state, 5);
-        assert_eq!(state.player.status("RedSkullActive"), 0);
+        assert_eq!(state.player.status(sid::RED_SKULL_ACTIVE), 0);
 
         state.player.hp = 39; // Below 50%
         on_hp_loss(&mut state, 1);
-        assert_eq!(state.player.status("RedSkullActive"), 1);
+        assert_eq!(state.player.status(sid::RED_SKULL_ACTIVE), 1);
         assert_eq!(state.player.strength(), 3);
     }
 
@@ -544,10 +545,10 @@ mod tests {
     fn test_the_specimen() {
         let mut state = make_two_enemy_state();
         state.relics.push("The Specimen".to_string());
-        state.enemies[0].entity.add_status("Poison", 5);
+        state.enemies[0].entity.add_status(sid::POISON, 5);
         state.enemies[0].entity.hp = 0; // Kill first
         on_enemy_death(&mut state, 0);
-        assert_eq!(state.enemies[1].entity.status("Poison"), 5);
+        assert_eq!(state.enemies[1].entity.status(sid::POISON), 5);
     }
 
     // --- Combat end tests ---
@@ -657,7 +658,7 @@ mod tests {
         let mut state = make_test_state();
         state.relics.push("HandDrill".to_string());
         hand_drill_on_block_break(&mut state, 0);
-        assert_eq!(state.enemies[0].entity.status("Vulnerable"), 2);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 2);
     }
 
     #[test]
@@ -693,7 +694,7 @@ mod tests {
         state.relics.push("Yang".to_string());
         on_card_played(&mut state, CardType::Attack);
         assert_eq!(state.player.dexterity(), 1);
-        assert_eq!(state.player.status("LoseDexterity"), 1);
+        assert_eq!(state.player.status(sid::LOSE_DEXTERITY), 1);
     }
 
     #[test]
@@ -720,9 +721,9 @@ mod tests {
         for _ in 0..9 {
             on_card_played(&mut state, CardType::Attack);
         }
-        assert_eq!(state.player.status("InkBottleDraw"), 0);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_DRAW), 0);
         on_card_played(&mut state, CardType::Attack);
-        assert_eq!(state.player.status("InkBottleDraw"), 1);
+        assert_eq!(state.player.status(sid::INK_BOTTLE_DRAW), 1);
     }
 
     #[test]

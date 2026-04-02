@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod enemy_tests {
     use crate::enemies::*;
+    use crate::status_ids::sid;
     use crate::enemies::move_ids::*;
 
     // ========== JawWorm ==========
@@ -90,7 +91,7 @@ mod enemy_tests {
     }
     #[test] fn fb_spore_cloud_on_death() {
         let e = create_enemy("FungiBeast", 24, 24);
-        assert_eq!(e.entity.status("SporeCloud"), 2);
+        assert_eq!(e.entity.status(sid::SPORE_CLOUD), 2);
     }
     #[test] fn fb_no_three_bites() {
         let mut e = create_enemy("FungiBeast", 24, 24);
@@ -120,7 +121,7 @@ mod enemy_tests {
     }
     #[test] fn red_louse_curl_up() {
         let e = create_enemy("RedLouse", 12, 12);
-        assert!(e.entity.status("CurlUp") > 0);
+        assert!(e.entity.status(sid::CURL_UP) > 0);
     }
     #[test] fn red_louse_no_three_bites() {
         let mut e = create_enemy("RedLouse", 12, 12);
@@ -143,7 +144,7 @@ mod enemy_tests {
     }
     #[test] fn green_louse_curl_up() {
         let e = create_enemy("GreenLouse", 14, 14);
-        assert!(e.entity.status("CurlUp") > 0);
+        assert!(e.entity.status(sid::CURL_UP) > 0);
     }
     #[test] fn green_louse_spit_web_weak() {
         let mut e = create_enemy("GreenLouse", 14, 14);
@@ -317,7 +318,7 @@ mod enemy_tests {
     }
     #[test] fn guard_mode_shift_threshold() {
         let e = create_enemy("TheGuardian", 240, 240);
-        assert_eq!(e.entity.status("ModeShift"), 30);
+        assert_eq!(e.entity.status(sid::MODE_SHIFT), 30);
     }
     #[test] fn guard_offensive_cycle() {
         let mut e = create_enemy("TheGuardian", 240, 240);
@@ -339,12 +340,12 @@ mod enemy_tests {
         let mut e = create_enemy("TheGuardian", 240, 240);
         assert!(!guardian_check_mode_shift(&mut e, 29));
         assert!(guardian_check_mode_shift(&mut e, 1));
-        assert_eq!(e.entity.status("SharpHide"), 3);
+        assert_eq!(e.entity.status(sid::SHARP_HIDE), 3);
     }
     #[test] fn guard_mode_shift_threshold_increases() {
         let mut e = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut e, 30);
-        assert_eq!(e.entity.status("ModeShift"), 40);
+        assert_eq!(e.entity.status(sid::MODE_SHIFT), 40);
     }
     #[test] fn guard_defensive_cycle() {
         let mut e = create_enemy("TheGuardian", 240, 240);
@@ -359,7 +360,7 @@ mod enemy_tests {
         let mut e = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut e, 30);
         guardian_switch_to_offensive(&mut e);
-        assert_eq!(e.entity.status("SharpHide"), 0);
+        assert_eq!(e.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(e.move_id, GUARD_CHARGING_UP);
     }
 
@@ -455,7 +456,7 @@ mod enemy_tests {
     }
     #[test] fn nob_has_enrage() {
         let e = create_enemy("GremlinNob", 106, 106);
-        assert_eq!(e.entity.status("Enrage"), 2);
+        assert_eq!(e.entity.status(sid::ENRAGE), 2);
     }
     #[test] fn nob_skull_bash_vuln() {
         let mut e = create_enemy("GremlinNob", 106, 106);
@@ -480,7 +481,7 @@ mod enemy_tests {
     }
     #[test] fn lagavulin_has_metallicize() {
         let e = create_enemy("Lagavulin", 112, 112);
-        assert!(e.entity.status("Metallicize") >= 8);
+        assert!(e.entity.status(sid::METALLICIZE) >= 8);
     }
     #[test] fn lagavulin_debuff_move() {
         let mut e = create_enemy("Lagavulin", 112, 112);
@@ -517,7 +518,7 @@ mod enemy_tests {
     #[test] fn nemesis_has_intangible() {
         let e = create_enemy("Nemesis", 185, 185);
         // Nemesis uses intangible pattern
-        assert!(e.entity.status("Intangible") > 0 || true); // May not start with it
+        assert!(e.entity.status(sid::INTANGIBLE) > 0 || true); // May not start with it
     }
     #[test] fn nemesis_scythe_attack() {
         let mut e = create_enemy("Nemesis", 185, 185);
@@ -561,11 +562,11 @@ mod enemy_tests {
     }
     #[test] fn awakened_has_curiosity() {
         let e = create_enemy("AwakenedOne", 300, 300);
-        assert_eq!(e.entity.status("Curiosity"), 1);
+        assert_eq!(e.entity.status(sid::CURIOSITY), 1);
     }
     #[test] fn awakened_phase_1() {
         let e = create_enemy("AwakenedOne", 300, 300);
-        assert_eq!(e.entity.status("Phase"), 1);
+        assert_eq!(e.entity.status(sid::PHASE), 1);
     }
 
     // ========== Corrupt Heart (Final Boss) ==========
@@ -578,7 +579,7 @@ mod enemy_tests {
     #[test] fn heart_has_invincible() {
         let e = create_enemy("CorruptHeart", 750, 750);
         // Heart should have Invincible status or beat of death
-        assert!(e.entity.status("Invincible") > 0 || e.entity.status("BeatOfDeath") > 0 || true);
+        assert!(e.entity.status(sid::INVINCIBLE) > 0 || e.entity.status(sid::BEAT_OF_DEATH) > 0 || true);
     }
     #[test] fn heart_blood_shots() {
         let mut e = create_enemy("CorruptHeart", 750, 750);

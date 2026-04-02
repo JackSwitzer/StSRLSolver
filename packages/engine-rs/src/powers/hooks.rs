@@ -1,13 +1,14 @@
 //! Hook-dispatch power system — static dispatch tables for power triggers.
 //!
 //! Each power declares its hooks in one place. The engine loops the table
-//! instead of scattering `status(sk::THING)` checks across engine.rs.
+//! instead of scattering `status(sid::THING)` checks across engine.rs.
 //!
 //! Effect structs are returned by dispatch functions. The engine applies
 //! the effects after dispatch (draw cards, deal damage, etc.).
 
+use crate::ids::StatusId;
 use crate::state::EntityState;
-use crate::status_keys::sk;
+use crate::status_ids::sid;
 
 // ===========================================================================
 // Effect Structs — one per trigger type
@@ -156,76 +157,76 @@ type EnemyTurnStartHookFn = fn(i32, &mut EntityState) -> EnemyTurnStartEffect;
 
 // ---- Turn Start hooks ----
 
-static TURN_START_HOOKS: &[(&str, TurnStartHookFn)] = &[
-    (sk::DEMON_FORM, hook_demon_form),
-    (sk::NOXIOUS_FUMES, hook_noxious_fumes),
-    (sk::BRUTALITY, hook_brutality),
-    (sk::BERSERK, hook_berserk),
-    (sk::INFINITE_BLADES, hook_infinite_blades),
-    (sk::HELLO_WORLD, hook_hello_world),
-    (sk::BATTLE_HYMN, hook_battle_hymn),
-    (sk::WRAITH_FORM, hook_wraith_form),
-    (sk::CREATIVE_AI, hook_creative_ai),
-    (sk::DEVA_FORM, hook_deva_form),
-    (sk::MAGNETISM, hook_magnetism),
-    (sk::DOPPELGANGER_DRAW, hook_doppelganger_draw),
-    (sk::DOPPELGANGER_ENERGY, hook_doppelganger_energy),
-    (sk::ENTER_DIVINITY, hook_enter_divinity),
-    (sk::MAYHEM, hook_mayhem),
-    (sk::TOOLS_OF_THE_TRADE, hook_tools_of_the_trade),
-    (sk::DEVOTION, hook_devotion),
+static TURN_START_HOOKS: &[(StatusId, TurnStartHookFn)] = &[
+    (sid::DEMON_FORM, hook_demon_form),
+    (sid::NOXIOUS_FUMES, hook_noxious_fumes),
+    (sid::BRUTALITY, hook_brutality),
+    (sid::BERSERK, hook_berserk),
+    (sid::INFINITE_BLADES, hook_infinite_blades),
+    (sid::HELLO_WORLD, hook_hello_world),
+    (sid::BATTLE_HYMN, hook_battle_hymn),
+    (sid::WRAITH_FORM, hook_wraith_form),
+    (sid::CREATIVE_AI, hook_creative_ai),
+    (sid::DEVA_FORM, hook_deva_form),
+    (sid::MAGNETISM, hook_magnetism),
+    (sid::DOPPELGANGER_DRAW, hook_doppelganger_draw),
+    (sid::DOPPELGANGER_ENERGY, hook_doppelganger_energy),
+    (sid::ENTER_DIVINITY, hook_enter_divinity),
+    (sid::MAYHEM, hook_mayhem),
+    (sid::TOOLS_OF_THE_TRADE, hook_tools_of_the_trade),
+    (sid::DEVOTION, hook_devotion),
 ];
 
 // ---- Turn End hooks ----
 
-static TURN_END_HOOKS: &[(&str, TurnEndHookFn)] = &[
-    (sk::METALLICIZE, hook_end_metallicize),
-    (sk::PLATED_ARMOR, hook_end_plated_armor),
-    (sk::LIKE_WATER, hook_end_like_water),
-    (sk::STUDY, hook_end_study),
-    (sk::OMEGA, hook_end_omega),
-    (sk::COMBUST, hook_end_combust),
-    (sk::RAGE, hook_end_rage),
-    (sk::TEMP_STRENGTH, hook_end_temp_strength),
+static TURN_END_HOOKS: &[(StatusId, TurnEndHookFn)] = &[
+    (sid::METALLICIZE, hook_end_metallicize),
+    (sid::PLATED_ARMOR, hook_end_plated_armor),
+    (sid::LIKE_WATER, hook_end_like_water),
+    (sid::STUDY, hook_end_study),
+    (sid::OMEGA, hook_end_omega),
+    (sid::COMBUST, hook_end_combust),
+    (sid::RAGE, hook_end_rage),
+    (sid::TEMP_STRENGTH, hook_end_temp_strength),
     // NOTE: Regeneration is intentionally NOT here. It fires AFTER Constricted
     // damage and orb passives in the original Java order. Kept inline in engine.rs.
 ];
 
 // ---- On Card Played hooks (pre-effects: Java onUseCard) ----
 
-static ON_CARD_PLAYED_PRE_HOOKS: &[(&str, OnCardPlayedHookFn)] = &[
-    (sk::AFTER_IMAGE, hook_play_after_image),
+static ON_CARD_PLAYED_PRE_HOOKS: &[(StatusId, OnCardPlayedHookFn)] = &[
+    (sid::AFTER_IMAGE, hook_play_after_image),
 ];
 
 // ---- On Card Played hooks (post-effects: Java onAfterUseCard) ----
 
-static ON_CARD_PLAYED_POST_HOOKS: &[(&str, OnCardPlayedHookFn)] = &[
-    (sk::RAGE, hook_play_rage),
+static ON_CARD_PLAYED_POST_HOOKS: &[(StatusId, OnCardPlayedHookFn)] = &[
+    (sid::RAGE, hook_play_rage),
 ];
 
 // ---- On Exhaust hooks ----
 
-static ON_EXHAUST_HOOKS: &[(&str, OnExhaustHookFn)] = &[
-    (sk::FEEL_NO_PAIN, hook_exhaust_feel_no_pain),
-    (sk::DARK_EMBRACE, hook_exhaust_dark_embrace),
+static ON_EXHAUST_HOOKS: &[(StatusId, OnExhaustHookFn)] = &[
+    (sid::FEEL_NO_PAIN, hook_exhaust_feel_no_pain),
+    (sid::DARK_EMBRACE, hook_exhaust_dark_embrace),
 ];
 
 // ---- On Stance Change hooks ----
 
-static ON_STANCE_CHANGE_HOOKS: &[(&str, OnStanceChangeHookFn)] = &[
-    (sk::MENTAL_FORTRESS, hook_stance_mental_fortress),
-    (sk::RUSHDOWN, hook_stance_rushdown),
+static ON_STANCE_CHANGE_HOOKS: &[(StatusId, OnStanceChangeHookFn)] = &[
+    (sid::MENTAL_FORTRESS, hook_stance_mental_fortress),
+    (sid::RUSHDOWN, hook_stance_rushdown),
 ];
 
 // ---- Enemy Turn Start hooks ----
 
-static ENEMY_TURN_START_HOOKS: &[(&str, EnemyTurnStartHookFn)] = &[
-    (sk::METALLICIZE, hook_enemy_metallicize),
-    (sk::REGENERATION, hook_enemy_regeneration),
-    (sk::GROWTH, hook_enemy_growth),
-    (sk::FADING, hook_enemy_fading),
-    (sk::THE_BOMB, hook_enemy_the_bomb),
-    (sk::RITUAL, hook_enemy_ritual),
+static ENEMY_TURN_START_HOOKS: &[(StatusId, EnemyTurnStartHookFn)] = &[
+    (sid::METALLICIZE, hook_enemy_metallicize),
+    (sid::REGENERATION, hook_enemy_regeneration),
+    (sid::GROWTH, hook_enemy_growth),
+    (sid::FADING, hook_enemy_fading),
+    (sid::THE_BOMB, hook_enemy_the_bomb),
+    (sid::RITUAL, hook_enemy_ritual),
 ];
 
 // ===========================================================================
@@ -255,7 +256,7 @@ pub fn dispatch_turn_end(entity: &mut EntityState, in_calm: bool) -> TurnEndEffe
         let amt = entity.status(key);
         if amt != 0 {
             // LikeWater needs stance context -- skip if not in Calm
-            if key == sk::LIKE_WATER && !in_calm {
+            if key == sid::LIKE_WATER && !in_calm {
                 continue;
             }
             let effect = hook_fn(amt, entity);
@@ -286,7 +287,7 @@ pub fn dispatch_on_card_played_post(entity: &EntityState, is_attack: bool) -> On
         let amt = entity.status(key);
         if amt > 0 {
             // Rage only fires on Attacks
-            if key == sk::RAGE && !is_attack {
+            if key == sid::RAGE && !is_attack {
                 continue;
             }
             let effect = hook_fn(amt, entity);
@@ -329,7 +330,7 @@ pub fn dispatch_enemy_turn_start(entity: &mut EntityState, is_first_turn: bool) 
         let amt = entity.status(key);
         if amt != 0 {
             // Ritual skips first turn
-            if key == sk::RITUAL && is_first_turn {
+            if key == sid::RITUAL && is_first_turn {
                 continue;
             }
             let effect = hook_fn(amt, entity);
@@ -345,7 +346,7 @@ pub fn dispatch_enemy_turn_start(entity: &mut EntityState, is_first_turn: bool) 
 
 fn hook_demon_form(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // DemonForm: gain Strength each turn (mutate directly)
-    entity.add_status(sk::STRENGTH, amt);
+    entity.add_status(sid::STRENGTH, amt);
     TurnStartEffect::default()
 }
 
@@ -377,7 +378,7 @@ fn hook_battle_hymn(amt: i32, _entity: &mut EntityState) -> TurnStartEffect {
 
 fn hook_wraith_form(_amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // WraithForm: lose 1 Dexterity each turn (mutate directly)
-    entity.add_status(sk::DEXTERITY, -1);
+    entity.add_status(sid::DEXTERITY, -1);
     TurnStartEffect::default()
 }
 
@@ -389,7 +390,7 @@ fn hook_creative_ai(_amt: i32, _entity: &mut EntityState) -> TurnStartEffect {
 fn hook_deva_form(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // DevaForm: gain energy (escalating), then increase for next turn
     let energy = amt;
-    entity.set_status(sk::DEVA_FORM, amt + 1);
+    entity.set_status(sid::DEVA_FORM, amt + 1);
     TurnStartEffect { energy, ..Default::default() }
 }
 
@@ -400,19 +401,19 @@ fn hook_magnetism(_amt: i32, _entity: &mut EntityState) -> TurnStartEffect {
 
 fn hook_doppelganger_draw(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // One-shot: consume after use
-    entity.set_status(sk::DOPPELGANGER_DRAW, 0);
+    entity.set_status(sid::DOPPELGANGER_DRAW, 0);
     TurnStartEffect { doppelganger_draw: amt, ..Default::default() }
 }
 
 fn hook_doppelganger_energy(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // One-shot: consume after use
-    entity.set_status(sk::DOPPELGANGER_ENERGY, 0);
+    entity.set_status(sid::DOPPELGANGER_ENERGY, 0);
     TurnStartEffect { doppelganger_energy: amt, ..Default::default() }
 }
 
 fn hook_enter_divinity(_amt: i32, entity: &mut EntityState) -> TurnStartEffect {
     // Damaru relic flag: enter Divinity stance, then clear
-    entity.set_status(sk::ENTER_DIVINITY, 0);
+    entity.set_status(sid::ENTER_DIVINITY, 0);
     TurnStartEffect { enter_divinity: true, ..Default::default() }
 }
 
@@ -464,14 +465,14 @@ fn hook_end_combust(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
 }
 
 fn hook_end_rage(_amt: i32, entity: &mut EntityState) -> TurnEndEffect {
-    entity.set_status(sk::RAGE, 0);
+    entity.set_status(sid::RAGE, 0);
     TurnEndEffect { clear_rage: true, ..Default::default() }
 }
 
 fn hook_end_temp_strength(amt: i32, entity: &mut EntityState) -> TurnEndEffect {
     // Revert temporary Strength (mutate directly)
-    entity.add_status(sk::STRENGTH, -amt);
-    entity.set_status(sk::TEMP_STRENGTH, 0);
+    entity.add_status(sid::STRENGTH, -amt);
+    entity.set_status(sid::TEMP_STRENGTH, 0);
     TurnEndEffect::default()
 }
 
@@ -528,20 +529,20 @@ fn hook_enemy_metallicize(amt: i32, _entity: &mut EntityState) -> EnemyTurnStart
 
 fn hook_enemy_regeneration(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect {
     // Heal and decrement
-    entity.add_status(sk::REGENERATION, -1);
+    entity.add_status(sid::REGENERATION, -1);
     EnemyTurnStartEffect { heal: amt, ..Default::default() }
 }
 
 fn hook_enemy_growth(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect {
     // Growth: gain Strength AND Block equal to amount
-    entity.add_status(sk::STRENGTH, amt);
+    entity.add_status(sid::STRENGTH, amt);
     EnemyTurnStartEffect { block_from_growth: amt, ..Default::default() }
 }
 
 fn hook_enemy_fading(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect {
     // Fading: decrement counter, die at 0
     let new_val = amt - 1;
-    entity.set_status(sk::FADING, new_val);
+    entity.set_status(sid::FADING, new_val);
     if new_val <= 0 {
         EnemyTurnStartEffect { faded: true, ..Default::default() }
     } else {
@@ -551,9 +552,9 @@ fn hook_enemy_fading(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect
 
 fn hook_enemy_the_bomb(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect {
     // TheBomb: decrement turns counter, detonate on 0
-    let turns = entity.status(sk::THE_BOMB_TURNS);
+    let turns = entity.status(sid::THE_BOMB_TURNS);
     let new_turns = turns - 1;
-    entity.set_status(sk::THE_BOMB_TURNS, new_turns);
+    entity.set_status(sid::THE_BOMB_TURNS, new_turns);
     if new_turns <= 0 {
         EnemyTurnStartEffect { bomb_damage: amt, ..Default::default() }
     } else {
@@ -563,6 +564,6 @@ fn hook_enemy_the_bomb(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffe
 
 fn hook_enemy_ritual(amt: i32, entity: &mut EntityState) -> EnemyTurnStartEffect {
     // Ritual: gain Strength (skipped on first turn, filtered at dispatch level)
-    entity.add_status(sk::STRENGTH, amt);
+    entity.add_status(sid::STRENGTH, amt);
     EnemyTurnStartEffect::default()
 }

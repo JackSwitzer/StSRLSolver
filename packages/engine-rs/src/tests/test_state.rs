@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod state_tests {
     use crate::state::*;
+    use crate::status_ids::sid;
 
     #[test] fn stance_from_str() {
         assert_eq!(Stance::from_str("Wrath"), Stance::Wrath);
@@ -28,20 +29,20 @@ mod state_tests {
         assert!(!e.is_vulnerable());
         assert!(!e.is_frail());
         assert!(!e.is_dead());
-        e.set_status("Strength", 5);
+        e.set_status(sid::STRENGTH, 5);
         assert_eq!(e.strength(), 5);
     }
     #[test] fn entity_add_status() {
         let mut e = EntityState::new(50, 50);
-        e.add_status("Strength", 3);
-        e.add_status("Strength", 2);
+        e.add_status(sid::STRENGTH, 3);
+        e.add_status(sid::STRENGTH, 2);
         assert_eq!(e.strength(), 5);
     }
     #[test] fn entity_set_zero_removes() {
         let mut e = EntityState::new(50, 50);
-        e.set_status("Strength", 5);
-        e.set_status("Strength", 0);
-        assert!(!e.statuses.contains_key("Strength"));
+        e.set_status(sid::STRENGTH, 5);
+        e.set_status(sid::STRENGTH, 0);
+        assert!(!e.statuses.contains_key(&sid::STRENGTH));
     }
     #[test] fn entity_dead_at_zero() {
         let mut e = EntityState::new(50, 50);

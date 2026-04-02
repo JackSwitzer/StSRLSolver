@@ -4,6 +4,7 @@ mod defect_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/blue/*.java
 
     use crate::cards::{CardRegistry, CardType};
+    use crate::status_ids::sid;
     use crate::engine::CombatEngine;
     use crate::orbs::OrbType;
     use crate::powers::{process_end_of_round, process_end_of_turn, process_start_of_turn};
@@ -321,7 +322,7 @@ mod defect_card_java_parity_tests {
         let mut e = filled_engine(&["Beam Cell"], 40, 0);
         ensure_in_hand(&mut e, "Beam Cell");
         play_on_enemy(&mut e, "Beam Cell", 0);
-        assert_eq!(e.state.enemies[0].entity.status("Vulnerable"), 1);
+        assert_eq!(e.state.enemies[0].entity.status(sid::VULNERABLE), 1);
     });
 
     defect_test!(cold_snap_channels_frost, {
@@ -420,7 +421,7 @@ mod defect_card_java_parity_tests {
     defect_test!(hyperbeam_loses_focus, {
         let mut e = filled_engine(&["Hyperbeam"], 40, 0);
         ensure_in_hand(&mut e, "Hyperbeam");
-        e.state.player.set_status("Focus", 4);
+        e.state.player.set_status(sid::FOCUS, 4);
         play_on_enemy(&mut e, "Hyperbeam", 0);
         assert_eq!(e.state.player.focus(), 1);
     });
@@ -455,7 +456,7 @@ mod defect_card_java_parity_tests {
     defect_test!(reprogram_loses_focus_and_gains_stats, {
         let mut e = bare_engine(&["Reprogram"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Reprogram");
-        e.state.player.set_status("Focus", 3);
+        e.state.player.set_status(sid::FOCUS, 3);
         play_self(&mut e, "Reprogram");
         assert_eq!(e.state.player.focus(), 2);
         assert_eq!(e.state.player.strength(), 1);
@@ -501,7 +502,7 @@ mod defect_card_java_parity_tests {
     defect_test!(thunder_strike_scales_with_lightning_channel_count, {
         let mut e = filled_engine(&["Thunder Strike"], 40, 0);
         ensure_in_hand(&mut e, "Thunder Strike");
-        e.state.player.set_status("LightningChanneled", 4);
+        e.state.player.set_status(sid::LIGHTNING_CHANNELED, 4);
         play_on_enemy(&mut e, "Thunder Strike", 0);
         assert!(e.state.enemies[0].entity.hp < 40);
     });
@@ -535,28 +536,28 @@ mod defect_card_java_parity_tests {
         let mut e = bare_engine(&["Buffer"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Buffer");
         play_self(&mut e, "Buffer");
-        assert_eq!(e.state.player.status("Buffer"), 1);
+        assert_eq!(e.state.player.status(sid::BUFFER), 1);
     });
 
     defect_test!(core_surge_grants_artifact, {
         let mut e = filled_engine(&["Core Surge"], 40, 0);
         ensure_in_hand(&mut e, "Core Surge");
         play_on_enemy(&mut e, "Core Surge", 0);
-        assert_eq!(e.state.player.status("Artifact"), 1);
+        assert_eq!(e.state.player.status(sid::ARTIFACT), 1);
     });
 
     defect_test!(creative_ai_installs_power, {
         let mut e = bare_engine(&["Creative AI"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Creative AI");
         play_self(&mut e, "Creative AI");
-        assert_eq!(e.state.player.status("CreativeAI"), 1);
+        assert_eq!(e.state.player.status(sid::CREATIVE_AI), 1);
     });
 
     defect_test!(echo_form_installs_echo_form, {
         let mut e = bare_engine(&["Echo Form"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Echo Form");
         play_self(&mut e, "Echo Form");
-        assert_eq!(e.state.player.status("EchoForm"), 1);
+        assert_eq!(e.state.player.status(sid::ECHO_FORM), 1);
     });
 
     defect_test!(electrodynamics_channels_lightning, {
@@ -571,7 +572,7 @@ mod defect_card_java_parity_tests {
         let mut e = bare_engine(&["Machine Learning"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Machine Learning");
         play_self(&mut e, "Machine Learning");
-        assert_eq!(e.state.player.status("Draw"), 1);
+        assert_eq!(e.state.player.status(sid::DRAW), 1);
     });
 
     defect_test!(rainbow_channels_all_orbs, {
@@ -602,12 +603,12 @@ mod defect_card_java_parity_tests {
 
     defect_test!(process_start_of_turn_handles_power_helpers, {
         let mut entity = crate::state::EntityState::new(50, 50);
-        entity.set_status("Energized", 2);
-        entity.set_status("DrawCard", 1);
-        entity.set_status("NextTurnBlock", 4);
-        entity.set_status("BattleHymn", 3);
-        entity.set_status("Devotion", 2);
-        entity.set_status("Draw", 1);
+        entity.set_status(sid::ENERGIZED, 2);
+        entity.set_status(sid::DRAW_CARD, 1);
+        entity.set_status(sid::NEXT_TURN_BLOCK, 4);
+        entity.set_status(sid::BATTLE_HYMN, 3);
+        entity.set_status(sid::DEVOTION, 2);
+        entity.set_status(sid::DRAW, 1);
         let result = process_start_of_turn(&mut entity);
         assert_eq!(result.extra_energy, 2);
         assert_eq!(result.draw_card_next_turn, 1);
@@ -619,10 +620,10 @@ mod defect_card_java_parity_tests {
 
     defect_test!(process_end_of_turn_handles_power_helpers, {
         let mut entity = crate::state::EntityState::new(50, 50);
-        entity.set_status("Metallicize", 4);
-        entity.set_status("PlatedArmor", 3);
-        entity.set_status("Omega", 5);
-        entity.set_status("LikeWater", 2);
+        entity.set_status(sid::METALLICIZE, 4);
+        entity.set_status(sid::PLATED_ARMOR, 3);
+        entity.set_status(sid::OMEGA, 5);
+        entity.set_status(sid::LIKE_WATER, 2);
         let result = process_end_of_turn(&mut entity, true);
         assert_eq!(result.metallicize_block, 4);
         assert_eq!(result.plated_armor_block, 3);
@@ -632,17 +633,17 @@ mod defect_card_java_parity_tests {
 
     defect_test!(process_end_of_round_clears_debuffs, {
         let mut entity = crate::state::EntityState::new(50, 50);
-        entity.set_status("Weakened", 2);
-        entity.set_status("Vulnerable", 1);
-        entity.set_status("Frail", 1);
-        entity.set_status("Blur", 1);
-        entity.set_status("Lock-On", 2);
+        entity.set_status(sid::WEAKENED, 2);
+        entity.set_status(sid::VULNERABLE, 1);
+        entity.set_status(sid::FRAIL, 1);
+        entity.set_status(sid::BLUR, 1);
+        entity.set_status(sid::LOCK_ON, 2);
         process_end_of_round(&mut entity);
-        assert_eq!(entity.status("Weakened"), 1);
-        assert_eq!(entity.status("Vulnerable"), 0);
-        assert_eq!(entity.status("Frail"), 0);
-        assert_eq!(entity.status("Blur"), 0);
-        assert_eq!(entity.status("Lock-On"), 1);
+        assert_eq!(entity.status(sid::WEAKENED), 1);
+        assert_eq!(entity.status(sid::VULNERABLE), 0);
+        assert_eq!(entity.status(sid::FRAIL), 0);
+        assert_eq!(entity.status(sid::BLUR), 0);
+        assert_eq!(entity.status(sid::LOCK_ON), 1);
     });
 
     defect_test!(orb_passives_and_evokes_match_java_basics, {

@@ -14,6 +14,7 @@
 
 use crate::cards::{CardRegistry, CardType, CardTarget};
 use crate::run::{RunEngine, RunPhase, RunAction};
+use crate::status_ids::sid;
 
 pub const RUN_DIM: usize = 480;
 pub const STATE_DIM: usize = 260;
@@ -196,16 +197,18 @@ fn card_effect_vector(card_id: &str, registry: &CardRegistry) -> [f32; 18] {
 // Power index for combat encoding
 // ---------------------------------------------------------------------------
 
-const POWER_IDS: &[&str] = &[
-    "Strength", "Dexterity", "Vulnerable", "Weakened", "Frail",
-    "MentalFortress", "Rushdown", "Vigor", "Mantra",
-    "PlatedArmor", "Metallicize", "Thorns", "Ritual",
-    "Retain", "Artifact", "Intangible", "Barricade",
-    "Rage", "Anger", "Regeneration",
+use crate::ids::StatusId;
+
+const POWER_STATUS_IDS: &[StatusId] = &[
+    sid::STRENGTH, sid::DEXTERITY, sid::VULNERABLE, sid::WEAKENED, sid::FRAIL,
+    sid::MENTAL_FORTRESS, sid::RUSHDOWN, sid::VIGOR, sid::MANTRA,
+    sid::PLATED_ARMOR, sid::METALLICIZE, sid::THORNS, sid::RITUAL,
+    sid::RETAIN_CARDS, sid::ARTIFACT, sid::INTANGIBLE, sid::BARRICADE,
+    sid::RAGE, sid::ANGRY, sid::REGENERATION,
 ];
 
-fn power_index(name: &str) -> Option<usize> {
-    POWER_IDS.iter().position(|&p| p == name)
+fn power_index(id: StatusId) -> Option<usize> {
+    POWER_STATUS_IDS.iter().position(|&p| p == id)
 }
 
 // ---------------------------------------------------------------------------
@@ -484,8 +487,8 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     off += 1;
 
     // --- Active powers 20 x 2 (40 dims) ---
-    for (name, &amount) in &player.statuses {
-        if let Some(idx) = power_index(name) {
+    for (&status_id, &amount) in &player.statuses {
+        if let Some(idx) = power_index(status_id) {
             if idx < 20 {
                 let base = off + idx * 2;
                 obs[base] = 1.0;
@@ -518,12 +521,12 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
         obs[base + 5] = if enemy.entity.hp > 0 { 1.0 } else { 0.0 };
 
         // Enemy statuses
-        obs[base + 6] = enemy.entity.status("Vulnerable") as f32 / 5.0;
-        obs[base + 7] = enemy.entity.status("Weakened") as f32 / 5.0;
-        obs[base + 8] = enemy.entity.status("Strength") as f32 / 10.0;
-        obs[base + 9] = enemy.entity.status("Ritual") as f32 / 5.0;
-        obs[base + 10] = enemy.entity.status("Artifact") as f32 / 3.0;
-        obs[base + 11] = enemy.entity.status("Intangible") as f32 / 3.0;
+        obs[base + 6] = enemy.entity.status(sid::VULNERABLE) as f32 / 5.0;
+        obs[base + 7] = enemy.entity.status(sid::WEAKENED) as f32 / 5.0;
+        obs[base + 8] = enemy.entity.status(sid::STRENGTH) as f32 / 10.0;
+        obs[base + 9] = enemy.entity.status(sid::RITUAL) as f32 / 5.0;
+        obs[base + 10] = enemy.entity.status(sid::ARTIFACT) as f32 / 3.0;
+        obs[base + 11] = enemy.entity.status(sid::INTANGIBLE) as f32 / 3.0;
     }
     off += 60;
 

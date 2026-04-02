@@ -1,21 +1,22 @@
+use crate::ids::StatusId;
 use crate::state::EntityState;
-use crate::status_keys::sk;
+use crate::status_ids::sid;
 
 // Debuff-related power trigger functions
 
 pub fn decrement_debuffs(entity: &mut EntityState) {
-    decrement_status(entity, sk::WEAKENED);
-    decrement_status(entity, sk::VULNERABLE);
-    decrement_status(entity, sk::FRAIL);
+    decrement_status(entity, sid::WEAKENED);
+    decrement_status(entity, sid::VULNERABLE);
+    decrement_status(entity, sid::FRAIL);
 }
 
 /// Decrement a single status by 1. Remove if it reaches 0.
-pub fn decrement_status(entity: &mut EntityState, key: &str) {
-    if let Some(val) = entity.statuses.get(key).copied() {
+pub fn decrement_status(entity: &mut EntityState, key: StatusId) {
+    if let Some(val) = entity.statuses.get(&key).copied() {
         if val <= 1 {
-            entity.statuses.remove(key);
+            entity.statuses.remove(&key);
         } else {
-            entity.statuses.insert(key.to_string(), val - 1);
+            entity.statuses.insert(key, val - 1);
         }
     }
 }
@@ -28,7 +29,7 @@ pub fn decrement_status(entity: &mut EntityState, key: &str) {
 /// Poison decrements by 1 each tick, removed at 0.
 
 pub fn tick_poison(entity: &mut EntityState) -> i32 {
-    let poison = entity.status(sk::POISON);
+    let poison = entity.status(sid::POISON);
     if poison <= 0 {
         return 0;
     }
@@ -37,7 +38,7 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
     entity.hp -= damage;
 
     let new_poison = poison - 1;
-    entity.set_status(sk::POISON, new_poison);
+    entity.set_status(sid::POISON, new_poison);
 
     damage
 }
@@ -49,29 +50,29 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
 /// Apply Metallicize block gain at end of turn.
 
 pub fn apply_lose_strength(entity: &mut EntityState) {
-    let lose_str = entity.status(sk::LOSE_STRENGTH);
+    let lose_str = entity.status(sid::LOSE_STRENGTH);
     if lose_str > 0 {
-        entity.add_status(sk::STRENGTH, -lose_str);
-        entity.set_status(sk::LOSE_STRENGTH, 0);
+        entity.add_status(sid::STRENGTH, -lose_str);
+        entity.set_status(sid::LOSE_STRENGTH, 0);
     }
 }
 
 /// Apply LoseDexterity at start of turn (undo temporary Dexterity gains).
 
 pub fn apply_lose_dexterity(entity: &mut EntityState) {
-    let lose_dex = entity.status(sk::LOSE_DEXTERITY);
+    let lose_dex = entity.status(sid::LOSE_DEXTERITY);
     if lose_dex > 0 {
-        entity.add_status(sk::DEXTERITY, -lose_dex);
-        entity.set_status(sk::LOSE_DEXTERITY, 0);
+        entity.add_status(sid::DEXTERITY, -lose_dex);
+        entity.set_status(sid::LOSE_DEXTERITY, 0);
     }
 }
 
 /// Remove Flame Barrier at start of turn (it only lasts 1 turn).
 
 pub fn apply_wraith_form(entity: &mut EntityState) {
-    let wraith = entity.status(sk::WRAITH_FORM);
+    let wraith = entity.status(sid::WRAITH_FORM);
     if wraith > 0 {
-        entity.add_status(sk::DEXTERITY, -wraith);
+        entity.add_status(sid::DEXTERITY, -wraith);
     }
 }
 
@@ -81,13 +82,13 @@ pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
     let mut d = damage;
 
     // Slow: +10% per stack
-    let slow = entity.status(sk::SLOW);
+    let slow = entity.status(sid::SLOW);
     if slow > 0 {
         d *= 1.0 + (slow as f64 * 0.1);
     }
 
     // Intangible: cap at 1
-    if entity.status(sk::INTANGIBLE) > 0 && d > 1.0 {
+    if entity.status(sid::INTANGIBLE) > 0 && d > 1.0 {
         d = 1.0;
     }
 
@@ -97,10 +98,10 @@ pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
 /// Modify block amount based on powers.
 
 pub fn decrement_fading(entity: &mut EntityState) -> bool {
-    let fading = entity.status(sk::FADING);
+    let fading = entity.status(sid::FADING);
     if fading > 0 {
         let new_val = fading - 1;
-        entity.set_status(sk::FADING, new_val);
+        entity.set_status(sid::FADING, new_val);
         if new_val <= 0 {
             return true;
         }
@@ -111,28 +112,28 @@ pub fn decrement_fading(entity: &mut EntityState) -> bool {
 /// Explosive countdown. Returns damage to deal when it reaches 0.
 
 pub fn decrement_blur(entity: &mut EntityState) {
-    decrement_status(entity, sk::BLUR);
+    decrement_status(entity, sid::BLUR);
 }
 
 /// Decrement Intangible at end of turn.
 
 pub fn decrement_intangible(entity: &mut EntityState) {
-    decrement_status(entity, sk::INTANGIBLE);
+    decrement_status(entity, sid::INTANGIBLE);
 }
 
 /// Decrement Lock-On at end of round.
 
 pub fn decrement_lock_on(entity: &mut EntityState) {
-    decrement_status(entity, sk::LOCK_ON);
+    decrement_status(entity, sid::LOCK_ON);
 }
 
 /// Reset Invincible at end of round (Champ).
 
-pub fn apply_debuff(entity: &mut EntityState, status: &str, amount: i32) -> bool {
-    let artifact = entity.status(sk::ARTIFACT);
+pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> bool {
+    let artifact = entity.status(sid::ARTIFACT);
     if artifact > 0 {
         // Artifact blocks the debuff and decrements
-        entity.set_status(sk::ARTIFACT, artifact - 1);
+        entity.set_status(sid::ARTIFACT, artifact - 1);
         return false;
     }
 
@@ -144,7 +145,7 @@ pub fn apply_debuff(entity: &mut EntityState, status: &str, amount: i32) -> bool
 
 pub fn apply_debuff_with_sadistic(
     target: &mut EntityState,
-    status: &str,
+    status: StatusId,
     amount: i32,
     source_sadistic: i32,
 ) -> (bool, i32) {
@@ -165,13 +166,13 @@ pub fn apply_debuff_with_sadistic(
 /// Call `reset_invincible` at start of each turn to restore the cap.
 
 pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i32 {
-    let inv = entity.status(sk::INVINCIBLE);
+    let inv = entity.status(sid::INVINCIBLE);
     if inv > 0 {
         if incoming_damage > inv {
-            entity.set_status(sk::INVINCIBLE, 0);
+            entity.set_status(sid::INVINCIBLE, 0);
             return inv;
         } else {
-            entity.set_status(sk::INVINCIBLE, inv - incoming_damage);
+            entity.set_status(sid::INVINCIBLE, inv - incoming_damage);
             return incoming_damage;
         }
     }
@@ -182,20 +183,20 @@ pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i
 /// Leaves the INVINCIBLE cap itself unchanged so it persists across turns.
 /// Reset via `reset_invincible_damage_taken` at start of each turn.
 pub fn apply_invincible_cap_tracked(entity: &mut EntityState, raw_damage: i32) -> i32 {
-    let cap = entity.status(sk::INVINCIBLE);
+    let cap = entity.status(sid::INVINCIBLE);
     if cap <= 0 {
         return raw_damage;
     }
-    let taken_this_turn = entity.status(sk::INVINCIBLE_DAMAGE_TAKEN);
+    let taken_this_turn = entity.status(sid::INVINCIBLE_DAMAGE_TAKEN);
     let remaining = (cap - taken_this_turn).max(0);
     let capped = raw_damage.min(remaining);
-    entity.set_status(sk::INVINCIBLE_DAMAGE_TAKEN, taken_this_turn + capped);
+    entity.set_status(sid::INVINCIBLE_DAMAGE_TAKEN, taken_this_turn + capped);
     capped
 }
 
 /// Reset Invincible per-turn damage tracking. Call at start of each turn.
 pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
-    entity.set_status(sk::INVINCIBLE_DAMAGE_TAKEN, 0);
+    entity.set_status(sid::INVINCIBLE_DAMAGE_TAKEN, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +206,7 @@ pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
 /// Slow: returns the damage multiplier for an entity with Slow stacks.
 /// Each stack adds +10% damage taken.
 pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
-    let slow = entity.status(sk::SLOW);
+    let slow = entity.status(sid::SLOW);
     if slow > 0 {
         1.0 + (slow as f64 * 0.10)
     } else {
@@ -220,14 +221,14 @@ pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
 /// ModeShift: track damage. Returns true if threshold reached.
 
 pub fn apply_mode_shift_damage(entity: &mut EntityState, damage: i32) -> bool {
-    let ms = entity.status(sk::MODE_SHIFT);
+    let ms = entity.status(sid::MODE_SHIFT);
     if ms > 0 {
         let new_val = ms - damage;
         if new_val <= 0 {
-            entity.set_status(sk::MODE_SHIFT, 0);
+            entity.set_status(sid::MODE_SHIFT, 0);
             return true;
         }
-        entity.set_status(sk::MODE_SHIFT, new_val);
+        entity.set_status(sid::MODE_SHIFT, new_val);
     }
     false
 }

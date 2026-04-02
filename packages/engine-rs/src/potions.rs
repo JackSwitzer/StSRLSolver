@@ -9,6 +9,7 @@
 //! with the run's ascension level, or use `apply_potion` for base potency.
 
 use crate::state::CombatState;
+use crate::status_ids::sid;
 
 /// Result of using a potion, for the engine to process.
 pub struct PotionResult {
@@ -124,33 +125,33 @@ pub fn apply_potion_scaled(
 
         "Strength Potion" | "StrengthPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Strength", potency);
+            state.player.add_status(sid::STRENGTH, potency);
             true
         }
 
         "Dexterity Potion" | "DexterityPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Dexterity", potency);
+            state.player.add_status(sid::DEXTERITY, potency);
             true
         }
 
         "Focus Potion" | "FocusPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Focus", potency);
+            state.player.add_status(sid::FOCUS, potency);
             true
         }
 
         "SteroidPotion" | "Flex Potion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Strength", potency);
-            state.player.add_status("LoseStrength", potency);
+            state.player.add_status(sid::STRENGTH, potency);
+            state.player.add_status(sid::LOSE_STRENGTH, potency);
             true
         }
 
         "SpeedPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Dexterity", potency);
-            state.player.add_status("LoseDexterity", potency);
+            state.player.add_status(sid::DEXTERITY, potency);
+            state.player.add_status(sid::LOSE_DEXTERITY, potency);
             true
         }
 
@@ -159,7 +160,7 @@ pub fn apply_potion_scaled(
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
-                    enemy.entity.add_status("Weakened", potency);
+                    enemy.entity.add_status(sid::WEAKENED, potency);
                 }
                 true
             } else {
@@ -172,7 +173,7 @@ pub fn apply_potion_scaled(
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
-                    enemy.entity.add_status("Vulnerable", potency);
+                    enemy.entity.add_status(sid::VULNERABLE, potency);
                 }
                 true
             } else {
@@ -185,7 +186,7 @@ pub fn apply_potion_scaled(
             if target_idx >= 0 && (target_idx as usize) < state.enemies.len() {
                 let enemy = &mut state.enemies[target_idx as usize];
                 if enemy.is_alive() {
-                    enemy.entity.add_status("Poison", potency);
+                    enemy.entity.add_status(sid::POISON, potency);
                 }
                 true
             } else {
@@ -201,61 +202,61 @@ pub fn apply_potion_scaled(
 
         "Swift Potion" | "SwiftPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.set_status("PotionDraw", potency);
+            state.player.set_status(sid::POTION_DRAW, potency);
             true
         }
 
         "SneckoOil" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.set_status("PotionDraw", potency);
+            state.player.set_status(sid::POTION_DRAW, potency);
             true
         }
 
         "Ancient Potion" | "AncientPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Artifact", potency);
+            state.player.add_status(sid::ARTIFACT, potency);
             true
         }
 
         "Regen Potion" | "RegenPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Regeneration", potency);
+            state.player.add_status(sid::REGENERATION, potency);
             true
         }
 
         "EssenceOfSteel" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("PlatedArmor", potency);
+            state.player.add_status(sid::PLATED_ARMOR, potency);
             true
         }
 
         "LiquidBronze" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Thorns", potency);
+            state.player.add_status(sid::THORNS, potency);
             true
         }
 
         "CultistPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Ritual", potency);
+            state.player.add_status(sid::RITUAL, potency);
             true
         }
 
         "HeartOfIron" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Metallicize", potency);
+            state.player.add_status(sid::METALLICIZE, potency);
             true
         }
 
         "GhostInAJar" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Intangible", potency);
+            state.player.add_status(sid::INTANGIBLE, potency);
             true
         }
 
         "DuplicationPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("Duplication", potency);
+            state.player.add_status(sid::DUPLICATION, potency);
             true
         }
 
@@ -320,13 +321,13 @@ pub fn apply_potion_scaled(
         "GamblersBrew" => {
             let hand_size = state.hand.len() as i32;
             state.discard_pile.extend(state.hand.drain(..));
-            state.player.set_status("PotionDraw", hand_size);
+            state.player.set_status(sid::POTION_DRAW, hand_size);
             true
         }
 
         "PotionOfCapacity" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            state.player.add_status("OrbSlots", potency);
+            state.player.add_status(sid::ORB_SLOTS, potency);
             true
         }
 
@@ -475,7 +476,7 @@ mod tests {
     fn test_focus_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Focus Potion", -1);
-        assert_eq!(state.player.status("Focus"), 2);
+        assert_eq!(state.player.status(sid::FOCUS), 2);
     }
 
     #[test]
@@ -483,7 +484,7 @@ mod tests {
         let mut state = make_test_state();
         apply_potion(&mut state, "SteroidPotion", -1);
         assert_eq!(state.player.strength(), 5);
-        assert_eq!(state.player.status("LoseStrength"), 5);
+        assert_eq!(state.player.status(sid::LOSE_STRENGTH), 5);
     }
 
     #[test]
@@ -491,28 +492,28 @@ mod tests {
         let mut state = make_test_state();
         apply_potion(&mut state, "SpeedPotion", -1);
         assert_eq!(state.player.dexterity(), 5);
-        assert_eq!(state.player.status("LoseDexterity"), 5);
+        assert_eq!(state.player.status(sid::LOSE_DEXTERITY), 5);
     }
 
     #[test]
     fn test_weak_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Weak Potion", 0);
-        assert_eq!(state.enemies[0].entity.status("Weakened"), 3);
+        assert_eq!(state.enemies[0].entity.status(sid::WEAKENED), 3);
     }
 
     #[test]
     fn test_fear_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "FearPotion", 0);
-        assert_eq!(state.enemies[0].entity.status("Vulnerable"), 3);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 3);
     }
 
     #[test]
     fn test_poison_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Poison Potion", 0);
-        assert_eq!(state.enemies[0].entity.status("Poison"), 6);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 6);
     }
 
     #[test]
@@ -527,63 +528,63 @@ mod tests {
     fn test_swift_potion_draw() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Swift Potion", -1);
-        assert_eq!(state.player.status("PotionDraw"), 3);
+        assert_eq!(state.player.status(sid::POTION_DRAW), 3);
     }
 
     #[test]
     fn test_ancient_potion_artifact() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Ancient Potion", -1);
-        assert_eq!(state.player.status("Artifact"), 1);
+        assert_eq!(state.player.status(sid::ARTIFACT), 1);
     }
 
     #[test]
     fn test_regen_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "Regen Potion", -1);
-        assert_eq!(state.player.status("Regeneration"), 5);
+        assert_eq!(state.player.status(sid::REGENERATION), 5);
     }
 
     #[test]
     fn test_essence_of_steel() {
         let mut state = make_test_state();
         apply_potion(&mut state, "EssenceOfSteel", -1);
-        assert_eq!(state.player.status("PlatedArmor"), 4);
+        assert_eq!(state.player.status(sid::PLATED_ARMOR), 4);
     }
 
     #[test]
     fn test_liquid_bronze() {
         let mut state = make_test_state();
         apply_potion(&mut state, "LiquidBronze", -1);
-        assert_eq!(state.player.status("Thorns"), 3);
+        assert_eq!(state.player.status(sid::THORNS), 3);
     }
 
     #[test]
     fn test_cultist_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "CultistPotion", -1);
-        assert_eq!(state.player.status("Ritual"), 1);
+        assert_eq!(state.player.status(sid::RITUAL), 1);
     }
 
     #[test]
     fn test_heart_of_iron() {
         let mut state = make_test_state();
         apply_potion(&mut state, "HeartOfIron", -1);
-        assert_eq!(state.player.status("Metallicize"), 6);
+        assert_eq!(state.player.status(sid::METALLICIZE), 6);
     }
 
     #[test]
     fn test_ghost_in_a_jar() {
         let mut state = make_test_state();
         apply_potion(&mut state, "GhostInAJar", -1);
-        assert_eq!(state.player.status("Intangible"), 1);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 1);
     }
 
     #[test]
     fn test_duplication_potion() {
         let mut state = make_test_state();
         apply_potion(&mut state, "DuplicationPotion", -1);
-        assert_eq!(state.player.status("Duplication"), 1);
+        assert_eq!(state.player.status(sid::DUPLICATION), 1);
     }
 
     #[test]
@@ -666,14 +667,14 @@ mod tests {
         apply_potion(&mut state, "GamblersBrew", -1);
         assert!(state.hand.is_empty());
         assert_eq!(state.discard_pile.len(), 3);
-        assert_eq!(state.player.status("PotionDraw"), 3);
+        assert_eq!(state.player.status(sid::POTION_DRAW), 3);
     }
 
     #[test]
     fn test_potion_of_capacity() {
         let mut state = make_test_state();
         apply_potion(&mut state, "PotionOfCapacity", -1);
-        assert_eq!(state.player.status("OrbSlots"), 2);
+        assert_eq!(state.player.status(sid::ORB_SLOTS), 2);
     }
 
     #[test]
@@ -749,14 +750,14 @@ mod tests {
     fn test_a11_weak_potion_reduced() {
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Weak Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.status("Weakened"), 2);
+        assert_eq!(state.enemies[0].entity.status(sid::WEAKENED), 2);
     }
 
     #[test]
     fn test_a11_poison_potion_reduced() {
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Poison Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.status("Poison"), 4);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 4);
     }
 
     #[test]

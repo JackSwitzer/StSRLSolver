@@ -1,6 +1,7 @@
 use crate::state::EnemyCombatState;
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::status_ids::sid;
 
 // =========================================================================
 // Act 1 Basic Enemies
@@ -192,12 +193,12 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
-    let sleep_turns = enemy.entity.status("SleepTurns");
+    let sleep_turns = enemy.entity.status(sid::SLEEP_TURNS);
 
     if sleep_turns > 0 {
-        enemy.entity.set_status("SleepTurns", sleep_turns - 1);
+        enemy.entity.set_status(sid::SLEEP_TURNS, sleep_turns - 1);
         if sleep_turns - 1 <= 0 {
-            enemy.entity.set_status("Metallicize", 0);
+            enemy.entity.set_status(sid::METALLICIZE, 0);
             enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
         } else {
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
@@ -216,8 +217,8 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
 
 /// Wake Lagavulin early (e.g. when player deals damage to it while sleeping).
 pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
-    enemy.entity.set_status("SleepTurns", 0);
-    enemy.entity.set_status("Metallicize", 0);
+    enemy.entity.set_status(sid::SLEEP_TURNS, 0);
+    enemy.entity.set_status(sid::METALLICIZE, 0);
     enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
 }
 
@@ -235,7 +236,7 @@ pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_guardian(enemy: &mut EnemyCombatState) {
-    let is_defensive = enemy.entity.status("SharpHide") > 0;
+    let is_defensive = enemy.entity.status(sid::SHARP_HIDE) > 0;
 
     if is_defensive {
         if last_move(enemy, move_ids::GUARD_ROLL_ATTACK) {
@@ -245,7 +246,7 @@ pub(super) fn roll_guardian(enemy: &mut EnemyCombatState) {
         }
     } else {
         if last_move(enemy, move_ids::GUARD_CHARGING_UP) {
-            let fb = { let v = enemy.entity.status("FierceBashDmg"); if v > 0 { v } else { 32 } };
+            let fb = { let v = enemy.entity.status(sid::FIERCE_BASH_DMG); if v > 0 { v } else { 32 } };
             enemy.set_move(move_ids::GUARD_FIERCE_BASH, fb, 1, 0);
         } else if last_move(enemy, move_ids::GUARD_FIERCE_BASH) {
             enemy.set_move(move_ids::GUARD_VENT_STEAM, 0, 0, 0);
@@ -261,17 +262,17 @@ pub(super) fn roll_guardian(enemy: &mut EnemyCombatState) {
 
 /// Check if Guardian should switch to defensive mode after taking damage.
 pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32) -> bool {
-    let threshold = enemy.entity.status("ModeShift");
+    let threshold = enemy.entity.status(sid::MODE_SHIFT);
     if threshold <= 0 { return false; }
 
-    let current_taken = enemy.entity.status("DamageTakenThisMode") + damage_dealt;
-    enemy.entity.set_status("DamageTakenThisMode", current_taken);
+    let current_taken = enemy.entity.status(sid::DAMAGE_TAKEN_THIS_MODE) + damage_dealt;
+    enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, current_taken);
 
     if current_taken >= threshold {
         let sha = if threshold >= 40 { 4 } else { 3 };
-        enemy.entity.set_status("SharpHide", sha);
-        enemy.entity.set_status("DamageTakenThisMode", 0);
-        enemy.entity.set_status("ModeShift", threshold + 10);
+        enemy.entity.set_status(sid::SHARP_HIDE, sha);
+        enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
+        enemy.entity.set_status(sid::MODE_SHIFT, threshold + 10);
         enemy.set_move(move_ids::GUARD_ROLL_ATTACK, 9, 1, 0);
         enemy.move_history.clear();
         true
@@ -282,8 +283,8 @@ pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32
 
 /// Switch Guardian back to offensive mode.
 pub fn guardian_switch_to_offensive(enemy: &mut EnemyCombatState) {
-    enemy.entity.set_status("SharpHide", 0);
-    enemy.entity.set_status("DamageTakenThisMode", 0);
+    enemy.entity.set_status(sid::SHARP_HIDE, 0);
+    enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
     enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
     enemy.move_history.clear();
 }
@@ -310,23 +311,23 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
                 0 | 2 | 5 => {
                     // Sear: 6 damage + burn cards (searBurnCount, default 1)
                     enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
-                    let sbc = { let v = enemy.entity.status("SearBurnCount"); if v > 0 { v } else { 1 } };
+                    let sbc = { let v = enemy.entity.status(sid::SEAR_BURN_COUNT); if v > 0 { v } else { 1 } };
                     enemy.move_effects.insert("burn".to_string(), sbc);
                 }
                 1 | 4 => {
                     // Fire Tackle: fireTackleDmg x2 (A4+ = 6, else 5)
-                    let ftd = { let v = enemy.entity.status("FireTackleDmg"); if v > 0 { v } else { 5 } };
+                    let ftd = { let v = enemy.entity.status(sid::FIRE_TACKLE_DMG); if v > 0 { v } else { 5 } };
                     enemy.set_move(move_ids::HEX_TACKLE, ftd, 2, 0);
                 }
                 3 => {
                     // Inflame: 12 block + strAmount Str (A19 = 3, else 2)
                     enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
-                    let sa = { let v = enemy.entity.status("StrAmt"); if v > 0 { v } else { 2 } };
+                    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 2 } };
                     enemy.move_effects.insert("strength".to_string(), sa);
                 }
                 _ => {
                     // Inferno: infernoDmg x6 (A4+ = 3, else 2) + upgrade all burns
-                    let idmg = { let v = enemy.entity.status("InfernoDmg"); if v > 0 { v } else { 2 } };
+                    let idmg = { let v = enemy.entity.status(sid::INFERNO_DMG); if v > 0 { v } else { 2 } };
                     enemy.set_move(move_ids::HEX_INFERNO, idmg, 6, 0);
                     enemy.move_effects.insert("burn_upgrade".to_string(), 1);
                 }

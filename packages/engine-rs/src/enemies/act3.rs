@@ -1,6 +1,7 @@
 use crate::state::EnemyCombatState;
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::status_ids::sid;
 
 // =========================================================================
 // Act 3 Basic Enemies
@@ -43,8 +44,8 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState) {
     // Attack (7 dmg) or Buff (+2 Thorns). Anti-repeat.
     if last_move(enemy, move_ids::SPIKER_ATTACK) {
         enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
-        let thorns = enemy.entity.status("Thorns");
-        enemy.entity.set_status("Thorns", thorns + 2);
+        let thorns = enemy.entity.status(sid::THORNS);
+        enemy.entity.set_status(sid::THORNS, thorns + 2);
         enemy.move_effects.insert("thorns".to_string(), 2);
     } else {
         enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
@@ -64,8 +65,8 @@ pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_exploder(enemy: &mut EnemyCombatState) {
-    let count = enemy.entity.status("TurnCount") + 1;
-    enemy.entity.set_status("TurnCount", count);
+    let count = enemy.entity.status(sid::TURN_COUNT) + 1;
+    enemy.entity.set_status(sid::TURN_COUNT, count);
 
     if count >= 3 {
         // Explode! 30 damage and die
@@ -143,8 +144,8 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_maw(enemy: &mut EnemyCombatState) {
-    let turn_count = enemy.entity.status("TurnCount") + 1;
-    enemy.entity.set_status("TurnCount", turn_count);
+    let turn_count = enemy.entity.status(sid::TURN_COUNT) + 1;
+    enemy.entity.set_status(sid::TURN_COUNT, turn_count);
 
     // Roar (first turn), then cycle: NomNom / Slam / Drool(Str)
     if last_move(enemy, move_ids::MAW_SLAM) || last_move(enemy, move_ids::MAW_NOM) {
@@ -164,11 +165,11 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_transient(enemy: &mut EnemyCombatState) {
-    let count = enemy.entity.status("AttackCount") + 1;
-    enemy.entity.set_status("AttackCount", count);
+    let count = enemy.entity.status(sid::ATTACK_COUNT) + 1;
+    enemy.entity.set_status(sid::ATTACK_COUNT, count);
     // Java: damage list pre-computed as startingDeathDmg + count*10
     // startingDeathDmg = 30 (A2+ = 40). count increments in takeTurn.
-    let starting_dmg = enemy.entity.status("StartingDmg");
+    let starting_dmg = enemy.entity.status(sid::STARTING_DMG);
     let base = if starting_dmg > 0 { starting_dmg } else { 30 };
     let dmg = base + count * 10;
     enemy.set_move(move_ids::TRANSIENT_ATTACK, dmg, 1, 0);
@@ -183,21 +184,21 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState) {
     // When count <= 1: It Is Time mode. Damage = startingDeathDmg - count*5
     // (count goes negative: -1, -2, etc., capped at -6).
     // Before count <= 1: alternate Glare (Weak 1) and Count (13 dmg).
-    let count = enemy.entity.status("Count");
+    let count = enemy.entity.status(sid::COUNT);
     let starting_death_dmg = {
-        let v = enemy.entity.status("StartingDeathDmg");
+        let v = enemy.entity.status(sid::STARTING_DEATH_DMG);
         if v > 0 { v } else { 30 }
     };
 
     if count <= 1 {
         // It Is Time mode
         let new_count = if count > -6 { count - 1 } else { count };
-        enemy.entity.set_status("Count", new_count);
+        enemy.entity.set_status(sid::COUNT, new_count);
         let dmg = starting_death_dmg - new_count * 5;
         enemy.set_move(move_ids::GH_IT_IS_TIME, dmg, 1, 0);
     } else {
         let new_count = count - 1;
-        enemy.entity.set_status("Count", new_count);
+        enemy.entity.set_status(sid::COUNT, new_count);
         // Alternate Glare and Count with anti-repeat (lastTwoMoves)
         if last_two_moves(enemy, move_ids::GH_GLARE) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
@@ -218,15 +219,15 @@ pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState) {
     // Intangible applied every turn in takeTurn if not already present (not just Scythe).
     // fireDmg default = 6 (A3+ = 7). Scythe always 45.
     // Burn count: 3 (A18+ = 5).
-    let cooldown = enemy.entity.status("ScytheCooldown") - 1;
-    enemy.entity.set_status("ScytheCooldown", cooldown.max(0));
+    let cooldown = enemy.entity.status(sid::SCYTHE_COOLDOWN) - 1;
+    enemy.entity.set_status(sid::SCYTHE_COOLDOWN, cooldown.max(0));
 
     let fire_dmg = 6; // base; caller should adjust for A3+ (7)
 
     // Java getMove: first move handled separately
-    let first_move = enemy.entity.status("FirstMove") > 0;
+    let first_move = enemy.entity.status(sid::FIRST_MOVE) > 0;
     if first_move {
-        enemy.entity.set_status("FirstMove", 0);
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
         // 50/50: Tri Attack or Burn. Deterministic: Tri Attack.
         enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
         return;
@@ -237,7 +238,7 @@ pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState) {
     // otherwise alternate Tri Attack and Burn with anti-repeat.
     if cooldown <= 0 && !last_move(enemy, move_ids::NEM_SCYTHE) {
         enemy.set_move(move_ids::NEM_SCYTHE, 45, 1, 0);
-        enemy.entity.set_status("ScytheCooldown", 2);
+        enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
     } else if last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
         enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
         enemy.move_effects.insert("burn".to_string(), 3);
@@ -280,7 +281,7 @@ pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState) {
-    let phase = enemy.entity.status("Phase");
+    let phase = enemy.entity.status(sid::PHASE);
 
     if phase == 1 {
         // Phase 1: Java getMove uses RNG < 25 for Soul Strike, else Slash.
@@ -320,16 +321,17 @@ pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState) {
 /// Trigger Awakened One rebirth (Phase 1 -> Phase 2).
 /// Heals to full, removes all debuffs, enters Phase 2.
 pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
-    enemy.entity.set_status("Phase", 2);
-    enemy.entity.set_status("Curiosity", 0);
+    enemy.entity.set_status(sid::PHASE, 2);
+    enemy.entity.set_status(sid::CURIOSITY, 0);
     // Remove all debuffs using PowerDef registry
-    let debuffs: Vec<String> = enemy.entity.statuses.keys()
-        .filter(|k| {
-            crate::powers::get_power_def(k)
+    let debuffs: Vec<crate::ids::StatusId> = enemy.entity.statuses.keys()
+        .filter(|&&k| {
+            let name = crate::status_ids::status_name(k);
+            crate::powers::get_power_def(name)
                 .map(|def| def.power_type == crate::powers::PowerType::Debuff)
                 .unwrap_or(false)
         })
-        .cloned()
+        .copied()
         .collect();
     for debuff in debuffs {
         enemy.entity.statuses.remove(&debuff);
@@ -346,7 +348,7 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState) {
     // Circle -> isAttacking=true -> Beam -> isAttacking=false -> repeat.
     // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
     if last_move(enemy, move_ids::DONU_CIRCLE) {
-        let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 10 } };
+        let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
         enemy.set_move(move_ids::DONU_BEAM, bd, 2, 0);
     } else {
         enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
@@ -361,7 +363,7 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::DECA_BEAM) {
         enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
     } else {
-        let bd = { let v = enemy.entity.status("BeamDmg"); if v > 0 { v } else { 10 } };
+        let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
         enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);
         enemy.move_effects.insert("daze".to_string(), 2);
     }
@@ -373,17 +375,17 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState) {
     // Reverberate (reverbDmg x3), Head Slam (headSlamDmg + draw reduction, A19 + 2 Slimed),
     // Ripple (20 block + Vuln 1 + Weak 1, A19 also Frail 1).
     let reverb_dmg = {
-        let v = enemy.entity.status("ReverbDmg");
+        let v = enemy.entity.status(sid::REVERB_DMG);
         if v > 0 { v } else { 7 }
     };
     let head_slam_dmg = {
-        let v = enemy.entity.status("HeadSlamDmg");
+        let v = enemy.entity.status(sid::HEAD_SLAM_DMG);
         if v > 0 { v } else { 26 }
     };
 
     // Check for Haste trigger
-    if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status("UsedHaste") == 0 {
-        enemy.entity.set_status("UsedHaste", 1);
+    if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status(sid::USED_HASTE) == 0 {
+        enemy.entity.set_status(sid::USED_HASTE, 1);
         enemy.set_move(move_ids::TE_HASTE, 0, 0, 0);
         enemy.move_effects.insert("remove_debuffs".to_string(), 1);
         enemy.move_effects.insert("heal_to_half".to_string(), 1);

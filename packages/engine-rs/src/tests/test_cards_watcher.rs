@@ -4,6 +4,7 @@
 #[cfg(test)]
 mod watcher_card_java_parity_tests {
     use crate::cards::{CardRegistry, CardTarget, CardType};
+    use crate::status_ids::sid;
     use crate::engine::CombatEngine;
     use crate::state::Stance;
     use crate::tests::support::*;
@@ -169,7 +170,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "CrushJoints");
             play_self(&mut engine, "Defend_P");
             play_on_enemy(&mut engine, "CrushJoints", 0);
-            assert_eq!(engine.state.enemies[0].entity.status("Vulnerable"), 1);
+            assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 1);
         }
     );
     watcher_test!(
@@ -310,7 +311,7 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 40, 0);
             ensure_in_hand(&mut engine, "PressurePoints");
             play_on_enemy(&mut engine, "PressurePoints", 0);
-            assert_eq!(engine.state.enemies[0].entity.status("Mark"), 8);
+            assert_eq!(engine.state.enemies[0].entity.status(sid::MARK), 8);
             assert_eq!(engine.state.enemies[0].entity.hp, 32);
         }
     );
@@ -330,7 +331,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "SashWhip");
             play_on_enemy(&mut engine, "Strike_P", 0);
             play_on_enemy(&mut engine, "SashWhip", 0);
-            assert_eq!(engine.state.enemies[0].entity.status("Weakened"), 1);
+            assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
         }
     );
     watcher_test!(
@@ -443,7 +444,7 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "LikeWater");
             play_self(&mut engine, "LikeWater");
-            assert_eq!(engine.state.player.status("LikeWater"), 5);
+            assert_eq!(engine.state.player.status(sid::LIKE_WATER), 5);
         }
     );
     watcher_test!(
@@ -652,7 +653,7 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "WreathOfFlame");
             play_self(&mut engine, "WreathOfFlame");
-            assert_eq!(engine.state.player.status("Vigor"), 5);
+            assert_eq!(engine.state.player.status(sid::VIGOR), 5);
         }
     );
 

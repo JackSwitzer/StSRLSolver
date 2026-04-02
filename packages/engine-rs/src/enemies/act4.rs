@@ -1,6 +1,7 @@
 use crate::state::EnemyCombatState;
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::status_ids::sid;
 
 // =========================================================================
 // Act 4 — The Ending
@@ -10,7 +11,7 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
     // Java: moveCount % 3 cycle. moveCount post-incremented.
     // Bash: A3+ = 14, else 12. Smash: A3+ = 38, else 34.
     // Fortify: 30 block to ALL monsters. Smash: A18 gains 99 block, else damage-dealt block.
-    let mc = enemy.entity.status("MoveCount");
+    let mc = enemy.entity.status(sid::MOVE_COUNT);
 
     match mc % 3 {
         0 => {
@@ -36,15 +37,15 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::SHIELD_SMASH, 34, 1, 0);
         }
     }
-    enemy.entity.set_status("MoveCount", mc + 1);
+    enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
 pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
     // Java: moveCount % 3, post-incremented.
     // A3+: burnStrikeDmg=6, skewerCount=4. Else 5, 3. Skewer always 10 per hit.
     // Burn Strike: A18 adds burns to draw pile, else discard.
-    let mc = enemy.entity.status("MoveCount");
-    let skewer_count = enemy.entity.status("SkewerCount").max(3);
+    let mc = enemy.entity.status(sid::MOVE_COUNT);
+    let skewer_count = enemy.entity.status(sid::SKEWER_COUNT).max(3);
 
     match mc % 3 {
         0 => {
@@ -72,21 +73,21 @@ pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
             }
         }
     }
-    enemy.entity.set_status("MoveCount", mc + 1);
+    enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
 pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
     // Java: isFirstMove handled separately. Then moveCount % 3 cycle.
     // moveCount incremented AFTER getMove (post-increment).
-    let is_first = enemy.entity.status("IsFirstMove") > 0;
+    let is_first = enemy.entity.status(sid::IS_FIRST_MOVE) > 0;
     if is_first {
         // After Debilitate: moveCount starts at 0
-        enemy.entity.set_status("IsFirstMove", 0);
+        enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
     }
 
-    let mc = enemy.entity.status("MoveCount");
-    let blood_count = enemy.entity.status("BloodHitCount").max(12);
-    let echo_dmg = enemy.entity.status("EchoDmg").max(40);
+    let mc = enemy.entity.status(sid::MOVE_COUNT);
+    let blood_count = enemy.entity.status(sid::BLOOD_HIT_COUNT).max(12);
+    let echo_dmg = enemy.entity.status(sid::ECHO_DMG).max(40);
 
     // Java: 3-move cycle. moveCount % 3:
     // 0: 50/50 Blood Shots or Echo
@@ -107,7 +108,7 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
         }
         _ => {
             // Buff: +2 Str + escalating buff (Artifact 2, +1 BeatOfDeath, PainfulStabs, +10 Str, +50 Str)
-            let buff_count = enemy.entity.status("BuffCount");
+            let buff_count = enemy.entity.status(sid::BUFF_COUNT);
             enemy.set_move(move_ids::HEART_BUFF, 0, 0, 0);
             enemy.move_effects.insert("strength".to_string(), 2);
             match buff_count {
@@ -117,9 +118,9 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
                 3 => { enemy.move_effects.insert("strength_bonus".to_string(), 10); }
                 _ => { enemy.move_effects.insert("strength_bonus".to_string(), 50); }
             }
-            enemy.entity.set_status("BuffCount", buff_count + 1);
+            enemy.entity.set_status(sid::BUFF_COUNT, buff_count + 1);
         }
     }
-    enemy.entity.set_status("MoveCount", mc + 1);
+    enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 

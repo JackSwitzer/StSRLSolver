@@ -498,8 +498,9 @@ impl StSEngine {
                     combat.set_item("exhaust_pile_size", cs.exhaust_pile.len())?;
 
                     let statuses = PyDict::new_bound(py);
-                    for (k, v) in &cs.player.statuses {
-                        statuses.set_item(k.as_str(), *v)?;
+                    for (&k, &v) in &cs.player.statuses {
+                        let name = crate::status_ids::status_name(k);
+                        statuses.set_item(name, v)?;
                     }
                     combat.set_item("player_statuses", statuses)?;
 
@@ -517,8 +518,9 @@ impl StSEngine {
                         ed.set_item("move_block", e.move_block)?;
                         ed.set_item("intent_damage", e.total_incoming_damage())?;
                         let es = PyDict::new_bound(py);
-                        for (k, v) in &e.entity.statuses {
-                            es.set_item(k.as_str(), *v)?;
+                        for (&k, &v) in &e.entity.statuses {
+                            let name = crate::status_ids::status_name(k);
+                            es.set_item(name, v)?;
                         }
                         ed.set_item("statuses", es)?;
                         enemies_list.append(ed)?;

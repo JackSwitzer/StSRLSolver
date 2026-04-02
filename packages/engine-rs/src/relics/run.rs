@@ -1,4 +1,5 @@
 use crate::state::CombatState;
+use crate::status_ids::sid;
 
 // ==========================================================================
 // 5. ON HP LOSS — wasHPLost
@@ -13,34 +14,34 @@ pub fn on_hp_loss(state: &mut CombatState, damage: i32) {
 
     // Centennial Puzzle: first time taking damage, draw 3
     if state.has_relic("Centennial Puzzle") || state.has_relic("CentennialPuzzle") {
-        if state.player.status("CentennialPuzzleReady") > 0 {
-            state.player.set_status("CentennialPuzzleReady", 0);
-            state.player.set_status("CentennialPuzzleDraw", 3);
+        if state.player.status(sid::CENTENNIAL_PUZZLE_READY) > 0 {
+            state.player.set_status(sid::CENTENNIAL_PUZZLE_READY, 0);
+            state.player.set_status(sid::CENTENNIAL_PUZZLE_DRAW, 3);
         }
     }
 
     // Self-Forming Clay: next turn gain 3 Block
     if state.has_relic("Self Forming Clay") || state.has_relic("SelfFormingClay") {
-        state.player.add_status("NextTurnBlock", 3);
+        state.player.add_status(sid::NEXT_TURN_BLOCK, 3);
     }
 
     // Runic Cube: draw 1 card when losing HP
     if state.has_relic("Runic Cube") || state.has_relic("RunicCube") {
-        state.player.set_status("RunicCubeDraw", 1);
+        state.player.set_status(sid::RUNIC_CUBE_DRAW, 1);
     }
 
     // Red Skull: if now at <= 50% HP and not already active, +3 Strength
     if state.has_relic("Red Skull") {
-        let active = state.player.status("RedSkullActive");
+        let active = state.player.status(sid::RED_SKULL_ACTIVE);
         if active == 0 && state.player.hp <= state.player.max_hp / 2 {
-            state.player.add_status("Strength", 3);
-            state.player.set_status("RedSkullActive", 1);
+            state.player.add_status(sid::STRENGTH, 3);
+            state.player.set_status(sid::RED_SKULL_ACTIVE, 1);
         }
     }
 
     // Emotion Chip: if took damage, trigger orb passive next turn
     if state.has_relic("Emotion Chip") || state.has_relic("EmotionChip") {
-        state.player.set_status("EmotionChipTrigger", 1);
+        state.player.set_status(sid::EMOTION_CHIP_TRIGGER, 1);
     }
 }
 
@@ -52,12 +53,12 @@ pub fn on_hp_loss(state: &mut CombatState, damage: i32) {
 pub fn on_shuffle(state: &mut CombatState) {
     // Sundial: every 3 shuffles, +2 energy
     if state.has_relic("Sundial") {
-        let counter = state.player.status("SundialCounter") + 1;
+        let counter = state.player.status(sid::SUNDIAL_COUNTER) + 1;
         if counter >= 3 {
             state.energy += 2;
-            state.player.set_status("SundialCounter", 0);
+            state.player.set_status(sid::SUNDIAL_COUNTER, 0);
         } else {
-            state.player.set_status("SundialCounter", counter);
+            state.player.set_status(sid::SUNDIAL_COUNTER, counter);
         }
     }
 
@@ -80,13 +81,13 @@ pub fn on_enemy_death(state: &mut CombatState, _dead_enemy_idx: usize) {
         // Only if other enemies still alive
         if state.enemies.iter().any(|e| e.is_alive()) {
             state.energy += 1;
-            state.player.set_status("GremlinHornDraw", 1);
+            state.player.set_status(sid::GREMLIN_HORN_DRAW, 1);
         }
     }
 
     // The Specimen: transfer Poison from killed enemy to random alive enemy
     if state.has_relic("The Specimen") {
-        let dead_poison = state.enemies[_dead_enemy_idx].entity.status("Poison");
+        let dead_poison = state.enemies[_dead_enemy_idx].entity.status(sid::POISON);
         if dead_poison > 0 {
             // Find first alive enemy
             if let Some(alive_idx) = state.enemies.iter()
@@ -94,7 +95,7 @@ pub fn on_enemy_death(state: &mut CombatState, _dead_enemy_idx: usize) {
                 .find(|(i, e)| *i != _dead_enemy_idx && e.is_alive())
                 .map(|(i, _)| i)
             {
-                state.enemies[alive_idx].entity.add_status("Poison", dead_poison);
+                state.enemies[alive_idx].entity.add_status(sid::POISON, dead_poison);
             }
         }
     }
@@ -234,7 +235,7 @@ pub fn toy_ornithopter_on_potion(state: &mut CombatState) {
 /// Hand Drill: if attack breaks enemy Block, apply 2 Vulnerable.
 pub fn hand_drill_on_block_break(state: &mut CombatState, enemy_idx: usize) {
     if state.has_relic("HandDrill") && enemy_idx < state.enemies.len() {
-        state.enemies[enemy_idx].entity.add_status("Vulnerable", 2);
+        state.enemies[enemy_idx].entity.add_status(sid::VULNERABLE, 2);
     }
 }
 
@@ -324,18 +325,18 @@ pub fn necronomicon_should_trigger(state: &CombatState, card_cost: i32, is_attac
     if !state.has_relic("Necronomicon") {
         return false;
     }
-    is_attack && card_cost >= 2 && state.player.status("NecronomiconUsed") == 0
+    is_attack && card_cost >= 2 && state.player.status(sid::NECRONOMICON_USED) == 0
 }
 
 /// Mark Necronomicon as used for this turn.
 pub fn necronomicon_mark_used(state: &mut CombatState) {
-    state.player.set_status("NecronomiconUsed", 1);
+    state.player.set_status(sid::NECRONOMICON_USED, 1);
 }
 
 /// Reset Necronomicon at turn start.
 pub fn necronomicon_reset(state: &mut CombatState) {
     if state.has_relic("Necronomicon") {
-        state.player.set_status("NecronomiconUsed", 0);
+        state.player.set_status(sid::NECRONOMICON_USED, 0);
     }
 }
 

@@ -14,6 +14,7 @@ mod boss_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
 
     use crate::combat_hooks::do_enemy_turns;
+    use crate::status_ids::sid;
     use crate::engine::CombatEngine;
     use crate::enemies::*;
     use crate::enemies::move_ids;
@@ -40,7 +41,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.max_hp, 240);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
         assert_eq!(enemy.move_block, 9);
-        assert_eq!(enemy.entity.status("ModeShift"), 30);
+        assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 30);
     }
 
     #[test]
@@ -55,19 +56,19 @@ mod boss_java_parity_tests {
     #[test]
     fn guardian_defensive_mode_uses_java_threshold_and_sharp_hide() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
-        enemy.entity.set_status("ModeShift", 40);
+        enemy.entity.set_status(sid::MODE_SHIFT, 40);
 
         let shifted = guardian_check_mode_shift(&mut enemy, 40);
         assert!(shifted);
-        assert_eq!(enemy.entity.status("SharpHide"), 4);
-        assert_eq!(enemy.entity.status("ModeShift"), 50);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 4);
+        assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 50);
     }
 
     #[test]
     fn guardian_switch_back_to_offensive_matches_java() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         guardian_switch_to_offensive(&mut enemy);
-        assert_eq!(enemy.entity.status("SharpHide"), 0);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
         assert_eq!(enemy.move_block, 9);
     }
@@ -244,7 +245,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 320);
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_damage, 8);
-        assert_eq!(enemy.entity.status("Artifact"), 3);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
     }
 
     #[test]
@@ -305,9 +306,9 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_damage, 12);
         assert_eq!(enemy.move_effects.get("frail"), Some(&2));
         assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
-        assert_eq!(enemy.entity.status("StrAmt"), 2);
-        assert_eq!(enemy.entity.status("ForgeAmt"), 5);
-        assert_eq!(enemy.entity.status("BlockAmt"), 15);
+        assert_eq!(enemy.entity.status(sid::STR_AMT), 2);
+        assert_eq!(enemy.entity.status(sid::FORGE_AMT), 5);
+        assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 15);
     }
 
     #[test]
@@ -325,7 +326,7 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CHAMP_TAUNT);
-        assert_eq!(enemy.entity.status("NumTurns"), 0);
+        assert_eq!(enemy.entity.status(sid::NUM_TURNS), 0);
     }
 
     #[test]
@@ -333,9 +334,9 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("Champ", 440, 440);
         assert_eq!(enemy.entity.hp, 440);
         assert_eq!(enemy.move_damage, 14);
-        assert_eq!(enemy.entity.status("StrAmt"), 4);
-        assert_eq!(enemy.entity.status("ForgeAmt"), 7);
-        assert_eq!(enemy.entity.status("BlockAmt"), 20);
+        assert_eq!(enemy.entity.status(sid::STR_AMT), 4);
+        assert_eq!(enemy.entity.status(sid::FORGE_AMT), 7);
+        assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 20);
     }
 
     // ---------------------------------------------------------------------
@@ -349,9 +350,9 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.max_hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         assert_eq!(enemy.move_damage, 20);
-        assert_eq!(enemy.entity.status("Curiosity"), 1);
-        assert_eq!(enemy.entity.status("Phase"), 1);
-        assert_eq!(enemy.entity.status("Regenerate"), 10);
+        assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
+        assert_eq!(enemy.entity.status(sid::PHASE), 1);
+        assert_eq!(enemy.entity.status(sid::REGENERATE), 10);
     }
 
     #[test]
@@ -359,9 +360,9 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("AwakenedOne", 320, 320);
         assert_eq!(enemy.entity.hp, 320);
         assert_eq!(enemy.entity.max_hp, 320);
-        assert_eq!(enemy.entity.status("Curiosity"), 2);
-        assert_eq!(enemy.entity.status("Regenerate"), 15);
-        assert_eq!(enemy.entity.status("Strength"), 2);
+        assert_eq!(enemy.entity.status(sid::CURIOSITY), 2);
+        assert_eq!(enemy.entity.status(sid::REGENERATE), 15);
+        assert_eq!(enemy.entity.status(sid::STRENGTH), 2);
     }
 
     #[test]
@@ -369,12 +370,12 @@ mod boss_java_parity_tests {
         let mut engine = boss_engine("AwakenedOne", 300, 300);
         engine.deal_damage_to_enemy(0, 300);
 
-        assert_eq!(engine.state.enemies[0].entity.status("RebirthPending"), 1);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::REBIRTH_PENDING), 1);
         assert_eq!(engine.state.enemies[0].entity.hp, 0);
 
         do_enemy_turns(&mut engine);
 
-        assert_eq!(engine.state.enemies[0].entity.status("Phase"), 2);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::PHASE), 2);
         assert_eq!(engine.state.enemies[0].entity.hp, 300);
         assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(engine.state.enemies[0].move_damage, 40);
@@ -385,7 +386,7 @@ mod boss_java_parity_tests {
     fn donu_base_hp_and_cycle_matches_java() {
         let mut enemy = create_enemy("Donu", 250, 250);
         assert_eq!(enemy.entity.hp, 250);
-        assert_eq!(enemy.entity.status("Artifact"), 2);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
         assert_eq!(enemy.move_id, move_ids::DONU_CIRCLE);
         assert_eq!(enemy.move_effects.get("strength"), Some(&3));
 
@@ -403,7 +404,7 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("Donu", 265, 265);
         assert_eq!(enemy.entity.hp, 265);
         assert_eq!(enemy.entity.max_hp, 265);
-        assert_eq!(enemy.entity.status("Artifact"), 3);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
@@ -417,7 +418,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_id, move_ids::DECA_BEAM);
         assert_eq!(enemy.move_damage, 10);
         assert_eq!(enemy.move_effects.get("daze"), Some(&2));
-        assert_eq!(enemy.entity.status("Artifact"), 2);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DECA_SQUARE);
@@ -429,7 +430,7 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("Deca", 265, 265);
         assert_eq!(enemy.entity.hp, 265);
         assert_eq!(enemy.entity.max_hp, 265);
-        assert_eq!(enemy.entity.status("Artifact"), 3);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
         assert_eq!(enemy.move_damage, 12);
     }
 
@@ -486,10 +487,10 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
         assert_eq!(enemy.move_effects.get("weak"), Some(&2));
         assert_eq!(enemy.move_effects.get("frail"), Some(&2));
-        assert_eq!(enemy.entity.status("Invincible"), 300);
-        assert_eq!(enemy.entity.status("BeatOfDeath"), 1);
-        assert_eq!(enemy.entity.status("BloodHitCount"), 12);
-        assert_eq!(enemy.entity.status("EchoDmg"), 40);
+        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 300);
+        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
+        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
+        assert_eq!(enemy.entity.status(sid::ECHO_DMG), 40);
     }
 
     #[test]
@@ -497,10 +498,10 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("CorruptHeart", 800, 800);
         assert_eq!(enemy.entity.hp, 800);
         assert_eq!(enemy.entity.max_hp, 800);
-        assert_eq!(enemy.entity.status("Invincible"), 200);
-        assert_eq!(enemy.entity.status("BeatOfDeath"), 2);
-        assert_eq!(enemy.entity.status("BloodHitCount"), 15);
-        assert_eq!(enemy.entity.status("EchoDmg"), 45);
+        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 200);
+        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 2);
+        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 15);
+        assert_eq!(enemy.entity.status(sid::ECHO_DMG), 45);
     }
 
     #[test]

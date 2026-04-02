@@ -5,11 +5,14 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::cards::CardType;
+use crate::ids::StatusId;
 use crate::orbs::OrbSlots;
+use crate::status_ids::sid;
 
 // ---------------------------------------------------------------------------
 // Stance
@@ -70,8 +73,8 @@ pub struct EntityState {
     pub hp: i32,
     pub max_hp: i32,
     pub block: i32,
-    /// All statuses as a flat map: "Strength" -> 3, "Weakened" -> 2, etc.
-    pub statuses: HashMap<String, i32>,
+    /// All statuses as a flat map: StatusId -> value.
+    pub statuses: FxHashMap<StatusId, i32>,
 }
 
 impl EntityState {
@@ -80,34 +83,34 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: HashMap::new(),
+            statuses: FxHashMap::default(),
         }
     }
 
     // -- Convenience accessors (match Python properties) --
 
     pub fn strength(&self) -> i32 {
-        *self.statuses.get("Strength").unwrap_or(&0)
+        self.statuses.get(&sid::STRENGTH).copied().unwrap_or(0)
     }
 
     pub fn dexterity(&self) -> i32 {
-        *self.statuses.get("Dexterity").unwrap_or(&0)
+        self.statuses.get(&sid::DEXTERITY).copied().unwrap_or(0)
     }
 
     pub fn focus(&self) -> i32 {
-        *self.statuses.get("Focus").unwrap_or(&0)
+        self.statuses.get(&sid::FOCUS).copied().unwrap_or(0)
     }
 
     pub fn is_weak(&self) -> bool {
-        self.statuses.get("Weakened").copied().unwrap_or(0) > 0
+        self.statuses.get(&sid::WEAKENED).copied().unwrap_or(0) > 0
     }
 
     pub fn is_vulnerable(&self) -> bool {
-        self.statuses.get("Vulnerable").copied().unwrap_or(0) > 0
+        self.statuses.get(&sid::VULNERABLE).copied().unwrap_or(0) > 0
     }
 
     pub fn is_frail(&self) -> bool {
-        self.statuses.get("Frail").copied().unwrap_or(0) > 0
+        self.statuses.get(&sid::FRAIL).copied().unwrap_or(0) > 0
     }
 
     pub fn is_dead(&self) -> bool {
@@ -115,23 +118,23 @@ impl EntityState {
     }
 
     /// Get a status value, defaulting to 0.
-    pub fn status(&self, key: &str) -> i32 {
-        *self.statuses.get(key).unwrap_or(&0)
+    pub fn status(&self, id: StatusId) -> i32 {
+        self.statuses.get(&id).copied().unwrap_or(0)
     }
 
     /// Set a status value. Removes the key if value is 0.
-    pub fn set_status(&mut self, key: &str, value: i32) {
+    pub fn set_status(&mut self, id: StatusId, value: i32) {
         if value == 0 {
-            self.statuses.remove(key);
+            self.statuses.remove(&id);
         } else {
-            self.statuses.insert(key.to_string(), value);
+            self.statuses.insert(id, value);
         }
     }
 
     /// Add to a status value.
-    pub fn add_status(&mut self, key: &str, amount: i32) {
-        let current = self.status(key);
-        self.set_status(key, current + amount);
+    pub fn add_status(&mut self, id: StatusId, amount: i32) {
+        let current = self.status(id);
+        self.set_status(id, current + amount);
     }
 }
 
@@ -175,12 +178,12 @@ impl EnemyCombatState {
 
     pub fn is_alive(&self) -> bool {
         // RebirthPending enemies are "alive" for enemy turn processing
-        (self.entity.hp > 0 || self.entity.status("RebirthPending") > 0) && !self.is_escaping
+        (self.entity.hp > 0 || self.entity.status(sid::REBIRTH_PENDING) > 0) && !self.is_escaping
     }
 
     /// Returns true if this enemy can be targeted by the player (alive and not mid-rebirth).
     pub fn is_targetable(&self) -> bool {
-        self.entity.hp > 0 && !self.is_escaping && self.entity.status("RebirthPending") == 0
+        self.entity.hp > 0 && !self.is_escaping && self.entity.status(sid::REBIRTH_PENDING) == 0
     }
 
     pub fn is_attacking(&self) -> bool {
@@ -303,7 +306,7 @@ impl CombatState {
     }
 
     pub fn is_victory(&self) -> bool {
-        self.enemies.iter().all(|e| e.entity.is_dead() && e.entity.status("RebirthPending") == 0)
+        self.enemies.iter().all(|e| e.entity.is_dead() && e.entity.status(sid::REBIRTH_PENDING) == 0)
     }
 
     pub fn is_defeat(&self) -> bool {
@@ -388,8 +391,9 @@ impl PyCombatState {
 
         // Player statuses
         let statuses = PyDict::new_bound(py);
-        for (k, v) in &self.inner.player.statuses {
-            statuses.set_item(k.as_str(), *v)?;
+        for (&id, &val) in &self.inner.player.statuses {
+            let name = crate::status_ids::status_name(id);
+            statuses.set_item(name, val)?;
         }
         dict.set_item("player_statuses", statuses)?;
 

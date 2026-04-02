@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod potion_tests {
     use crate::potions::*;
+    use crate::status_ids::sid;
     use crate::state::{CombatState, EnemyCombatState};
 
     fn state() -> CombatState {
@@ -50,7 +51,7 @@ mod potion_tests {
     #[test] fn str_2() { let mut s = state(); apply_potion(&mut s, "Strength Potion", -1); assert_eq!(s.player.strength(), 2); }
     #[test] fn str_stacks() {
         let mut s = state();
-        s.player.set_status("Strength", 3);
+        s.player.set_status(sid::STRENGTH, 3);
         apply_potion(&mut s, "Strength Potion", -1);
         assert_eq!(s.player.strength(), 5);
     }
@@ -65,7 +66,7 @@ mod potion_tests {
     #[test] fn weak_3() {
         let mut s = state();
         apply_potion(&mut s, "Weak Potion", 0);
-        assert_eq!(s.enemies[0].entity.status("Weakened"), 3);
+        assert_eq!(s.enemies[0].entity.status(sid::WEAKENED), 3);
     }
     #[test] fn weak_bad_target() { assert!(!apply_potion(&mut state(), "Weak Potion", 5)); }
 
@@ -73,14 +74,14 @@ mod potion_tests {
     #[test] fn fear_3() {
         let mut s = state();
         apply_potion(&mut s, "FearPotion", 0);
-        assert_eq!(s.enemies[0].entity.status("Vulnerable"), 3);
+        assert_eq!(s.enemies[0].entity.status(sid::VULNERABLE), 3);
     }
 
     // ---- Poison Potion ----
     #[test] fn poison_6() {
         let mut s = state();
         apply_potion(&mut s, "Poison Potion", 0);
-        assert_eq!(s.enemies[0].entity.status("Poison"), 6);
+        assert_eq!(s.enemies[0].entity.status(sid::POISON), 6);
     }
 
     // ---- Explosive Potion ----
@@ -103,7 +104,7 @@ mod potion_tests {
         let mut s = state();
         apply_potion(&mut s, "SteroidPotion", -1);
         assert_eq!(s.player.strength(), 5);
-        assert_eq!(s.player.status("LoseStrength"), 5);
+        assert_eq!(s.player.status(sid::LOSE_STRENGTH), 5);
     }
 
     // ---- Speed Potion ----
@@ -111,42 +112,42 @@ mod potion_tests {
         let mut s = state();
         apply_potion(&mut s, "SpeedPotion", -1);
         assert_eq!(s.player.dexterity(), 5);
-        assert_eq!(s.player.status("LoseDexterity"), 5);
+        assert_eq!(s.player.status(sid::LOSE_DEXTERITY), 5);
     }
 
     // ---- Ancient Potion ----
     #[test] fn ancient_artifact() {
         let mut s = state();
         apply_potion(&mut s, "Ancient Potion", -1);
-        assert_eq!(s.player.status("Artifact"), 1);
+        assert_eq!(s.player.status(sid::ARTIFACT), 1);
     }
 
     // ---- Regen ----
     #[test] fn regen_5() {
         let mut s = state();
         apply_potion(&mut s, "Regen Potion", -1);
-        assert_eq!(s.player.status("Regeneration"), 5);
+        assert_eq!(s.player.status(sid::REGENERATION), 5);
     }
 
     // ---- Essence of Steel ----
     #[test] fn essence_plated_4() {
         let mut s = state();
         apply_potion(&mut s, "EssenceOfSteel", -1);
-        assert_eq!(s.player.status("PlatedArmor"), 4);
+        assert_eq!(s.player.status(sid::PLATED_ARMOR), 4);
     }
 
     // ---- Liquid Bronze ----
     #[test] fn bronze_thorns_3() {
         let mut s = state();
         apply_potion(&mut s, "LiquidBronze", -1);
-        assert_eq!(s.player.status("Thorns"), 3);
+        assert_eq!(s.player.status(sid::THORNS), 3);
     }
 
     // ---- Cultist Potion ----
     #[test] fn cultist_ritual_1() {
         let mut s = state();
         apply_potion(&mut s, "CultistPotion", -1);
-        assert_eq!(s.player.status("Ritual"), 1);
+        assert_eq!(s.player.status(sid::RITUAL), 1);
     }
 
     // ---- Bottled Miracle ----
@@ -206,19 +207,19 @@ mod potion_tests {
         let mut s = state();
         s.relics.push("SacredBark".to_string());
         apply_potion(&mut s, "Weak Potion", 0);
-        assert_eq!(s.enemies[0].entity.status("Weakened"), 6); // 3*2
+        assert_eq!(s.enemies[0].entity.status(sid::WEAKENED), 6); // 3*2
     }
     #[test] fn bark_doubles_poison() {
         let mut s = state();
         s.relics.push("SacredBark".to_string());
         apply_potion(&mut s, "Poison Potion", 0);
-        assert_eq!(s.enemies[0].entity.status("Poison"), 12); // 6*2
+        assert_eq!(s.enemies[0].entity.status(sid::POISON), 12); // 6*2
     }
     #[test] fn bark_doubles_regen() {
         let mut s = state();
         s.relics.push("SacredBark".to_string());
         apply_potion(&mut s, "Regen Potion", -1);
-        assert_eq!(s.player.status("Regeneration"), 10); // 5*2
+        assert_eq!(s.player.status(sid::REGENERATION), 10); // 5*2
     }
     #[test] fn bark_doubles_energy() {
         let mut s = state();

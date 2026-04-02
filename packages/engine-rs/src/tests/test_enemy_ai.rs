@@ -7,6 +7,7 @@ mod enemy_ai_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/*.java
 
     use crate::enemies::*;
+    use crate::status_ids::sid;
     use crate::enemies::move_ids;
     use crate::map::{DungeonMap, MapNode, RoomType};
     use crate::run::{RunAction, RunEngine, RunPhase};
@@ -48,8 +49,9 @@ mod enemy_ai_java_parity_tests {
         }
     }
 
-    fn expect_status(enemy: &EnemyCombatState, key: &str, value: i32) {
-        assert_eq!(enemy.entity.status(key), value, "{} status {}", enemy.id, key);
+    fn expect_status(enemy: &EnemyCombatState, key: crate::ids::StatusId, value: i32) {
+        let name = crate::status_ids::status_name(key);
+        assert_eq!(enemy.entity.status(key), value, "{} status {}", enemy.id, name);
     }
 
     fn expect_one_of(enemy: &EnemyCombatState, allowed: &[i32]) {
@@ -108,15 +110,15 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("FungiBeast", 22);
         expect_move(&e, move_ids::FB_BITE, 6, 1, 0, &[]);
-        expect_status(&e, "SporeCloud", 2);
+        expect_status(&e, sid::SPORE_CLOUD, 2);
 
         let e = make("RedLouse", 12);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
-        expect_status(&e, "CurlUp", 5);
+        expect_status(&e, sid::CURL_UP, 5);
 
         let e = make("GreenLouse", 14);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
-        expect_status(&e, "CurlUp", 5);
+        expect_status(&e, sid::CURL_UP, 5);
 
         let e = make("SlaverBlue", 46);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
@@ -180,12 +182,12 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("GremlinNob", 106);
         expect_move(&e, move_ids::NOB_BELLOW, 0, 0, 0, &[]);
-        expect_status(&e, "Enrage", 2);
+        expect_status(&e, sid::ENRAGE, 2);
 
         let e = make("Lagavulin", 109);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
-        expect_status(&e, "Metallicize", 8);
-        expect_status(&e, "SleepTurns", 3);
+        expect_status(&e, sid::METALLICIZE, 8);
+        expect_status(&e, sid::SLEEP_TURNS, 3);
 
         let e = make("Sentry", 38);
         expect_move(&e, move_ids::SENTRY_BOLT, 9, 1, 0, &[]);
@@ -327,14 +329,14 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Lagavulin", 109);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
-        expect_status(&e, "SleepTurns", 2);
+        expect_status(&e, sid::SLEEP_TURNS, 2);
         roll_times(&mut e, 1);
-        expect_status(&e, "SleepTurns", 1);
+        expect_status(&e, sid::SLEEP_TURNS, 1);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::LAGA_ATTACK, 18, 1, 0, &[]);
         lagavulin_wake_up(&mut e);
         expect_move(&e, move_ids::LAGA_ATTACK, 18, 1, 0, &[]);
-        expect_status(&e, "SleepTurns", 0);
+        expect_status(&e, sid::SLEEP_TURNS, 0);
 
         let mut e = make("Sentry", 38);
         roll_times(&mut e, 1);
@@ -353,15 +355,15 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Byrd", 25);
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
-        expect_status(&e, "Flight", 3);
+        expect_status(&e, sid::FLIGHT, 3);
 
         let e = make("ShelledParasite", 68);
         expect_move(&e, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
-        expect_status(&e, "PlatedArmor", 14);
+        expect_status(&e, sid::PLATED_ARMOR, 14);
 
         let e = make("SnakePlant", 75);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
-        expect_status(&e, "Malleable", 1);
+        expect_status(&e, sid::MALLEABLE, 1);
 
         let e = make("Centurion", 76);
         expect_move(&e, move_ids::CENT_FURY, 6, 3, 0, &[]);
@@ -374,7 +376,7 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("BookOfStabbing", 160);
         expect_move(&e, move_ids::BOOK_STAB, 6, 2, 0, &[]);
-        expect_status(&e, "StabCount", 2);
+        expect_status(&e, sid::STAB_COUNT, 2);
 
         let e = make("GremlinLeader", 140);
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
@@ -477,12 +479,12 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("BookOfStabbing", 160);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BOOK_STAB, 6, 3, 0, &[]);
-        expect_status(&e, "StabCount", 3);
+        expect_status(&e, sid::STAB_COUNT, 3);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BOOK_BIG_STAB, 21, 1, 0, &[]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BOOK_STAB, 6, 4, 0, &[]);
-        expect_status(&e, "StabCount", 4);
+        expect_status(&e, sid::STAB_COUNT, 4);
 
         let mut e = make("GremlinLeader", 140);
         roll_times(&mut e, 1);
@@ -572,19 +574,19 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Spiker", 170);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
-        expect_status(&e, "Thorns", 3);
+        expect_status(&e, sid::THORNS, 3);
 
         let e = make("Repulsor", 29);
         expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[("daze", 2)]);
 
         let e = make("Exploder", 30);
         expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
-        expect_status(&e, "TurnCount", 0);
+        expect_status(&e, sid::TURN_COUNT, 0);
 
         let e = make("WrithingMass", 160);
         expect_move(&e, move_ids::WM_MULTI_HIT, 7, 3, 0, &[]);
-        expect_status(&e, "Reactive", 1);
-        expect_status(&e, "Malleable", 1);
+        expect_status(&e, sid::REACTIVE, 1);
+        expect_status(&e, sid::MALLEABLE, 1);
 
         let e = make("SpireGrowth", 170);
         expect_one_of(&e, &[move_ids::SG_QUICK_TACKLE, move_ids::SG_CONSTRICT]);
@@ -595,23 +597,23 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Maw", 300);
         expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[("weak", 3), ("frail", 3)]);
-        expect_status(&e, "TurnCount", 1);
+        expect_status(&e, sid::TURN_COUNT, 1);
 
         let e = make("Transient", 999);
         expect_move(&e, move_ids::TRANSIENT_ATTACK, 30, 1, 0, &[]);
-        expect_status(&e, "AttackCount", 0);
-        expect_status(&e, "StartingDmg", 30);
-        expect_status(&e, "Shifting", 1);
+        expect_status(&e, sid::ATTACK_COUNT, 0);
+        expect_status(&e, sid::STARTING_DMG, 30);
+        expect_status(&e, sid::SHIFTING, 1);
 
         let e = make("GiantHead", 500);
         expect_move(&e, move_ids::GH_COUNT, 13, 1, 0, &[]);
-        expect_status(&e, "Count", 5);
-        expect_status(&e, "Slow", 1);
+        expect_status(&e, sid::COUNT, 5);
+        expect_status(&e, sid::SLOW, 1);
 
         let e = make("Nemesis", 185);
         expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
-        expect_status(&e, "ScytheCooldown", 0);
-        expect_status(&e, "FirstMove", 1);
+        expect_status(&e, sid::SCYTHE_COOLDOWN, 0);
+        expect_status(&e, sid::FIRST_MOVE, 1);
 
         let e = make("Reptomancer", 190);
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
@@ -643,7 +645,7 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Spiker", 170);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[("thorns", 2)]);
-        expect_status(&e, "Thorns", 5);
+        expect_status(&e, sid::THORNS, 5);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
@@ -707,39 +709,39 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("GiantHead", 500);
         e.move_id = move_ids::GH_GLARE;
         e.move_history = vec![move_ids::GH_GLARE, move_ids::GH_GLARE];
-        e.entity.set_status("Count", 5);
+        e.entity.set_status(sid::COUNT, 5);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GH_COUNT, 13, 1, 0, &[]);
-        expect_status(&e, "Count", 4);
+        expect_status(&e, sid::COUNT, 4);
 
         e.move_id = move_ids::GH_COUNT;
         e.move_history = vec![move_ids::GH_COUNT, move_ids::GH_COUNT];
-        e.entity.set_status("Count", 4);
+        e.entity.set_status(sid::COUNT, 4);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GH_GLARE, 0, 0, 0, &[("weak", 1)]);
-        expect_status(&e, "Count", 3);
+        expect_status(&e, sid::COUNT, 3);
 
-        e.entity.set_status("Count", 1);
+        e.entity.set_status(sid::COUNT, 1);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GH_IT_IS_TIME, 30, 1, 0, &[]);
 
         let mut e = make("Nemesis", 185);
-        e.entity.set_status("FirstMove", 0);
-        e.entity.set_status("ScytheCooldown", 0);
+        e.entity.set_status(sid::FIRST_MOVE, 0);
+        e.entity.set_status(sid::SCYTHE_COOLDOWN, 0);
         e.move_history = vec![move_ids::NEM_TRI_ATTACK];
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::NEM_SCYTHE, 45, 1, 0, &[]);
-        expect_status(&e, "ScytheCooldown", 2);
+        expect_status(&e, sid::SCYTHE_COOLDOWN, 2);
 
         e.move_id = move_ids::NEM_SCYTHE;
         e.move_history = vec![move_ids::NEM_SCYTHE];
-        e.entity.set_status("ScytheCooldown", 2);
+        e.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::NEM_BURN, 0, 0, 0, &[("burn", 3)]);
 
         e.move_id = move_ids::NEM_TRI_ATTACK;
         e.move_history = vec![move_ids::NEM_TRI_ATTACK, move_ids::NEM_TRI_ATTACK];
-        e.entity.set_status("ScytheCooldown", 1);
+        e.entity.set_status(sid::SCYTHE_COOLDOWN, 1);
         roll_times(&mut e, 1);
         assert!(
             matches!(e.move_id, move_ids::NEM_BURN | move_ids::NEM_SCYTHE),
@@ -763,12 +765,12 @@ mod enemy_ai_java_parity_tests {
     fn act4_initial_states_match_java() {
         let e = make("SpireShield", 200);
         expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[("strength_down", 1)]);
-        expect_status(&e, "MoveCount", 0);
+        expect_status(&e, sid::MOVE_COUNT, 0);
 
         let e = make("SpireSpear", 200);
         expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[("burn", 2)]);
-        expect_status(&e, "MoveCount", 0);
-        expect_status(&e, "SkewerCount", 3);
+        expect_status(&e, sid::MOVE_COUNT, 0);
+        expect_status(&e, sid::SKEWER_COUNT, 3);
     }
 
     #[test]

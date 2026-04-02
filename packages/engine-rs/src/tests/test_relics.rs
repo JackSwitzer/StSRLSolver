@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod relic_tests {
     use crate::relics::*;
+    use crate::status_ids::sid;
     use crate::state::{CombatState, EnemyCombatState};
 
     fn state() -> CombatState {
@@ -19,7 +20,7 @@ mod relic_tests {
     #[test] fn vajra_str_1() { assert_eq!(state_with("Vajra").player.strength(), 1); }
     #[test] fn vajra_stacks_with_existing() {
         let mut s = state();
-        s.player.set_status("Strength", 3);
+        s.player.set_status(sid::STRENGTH, 3);
         s.relics.push("Vajra".to_string());
         apply_combat_start_relics(&mut s);
         assert_eq!(s.player.strength(), 4);
@@ -41,18 +42,18 @@ mod relic_tests {
 
     // ---- Thread and Needle ----
     #[test] fn thread_needle_plated_4() {
-        assert_eq!(state_with("Thread and Needle").player.status("PlatedArmor"), 4);
+        assert_eq!(state_with("Thread and Needle").player.status(sid::PLATED_ARMOR), 4);
     }
 
     // ---- Anchor ----
     #[test] fn anchor_10_block() { assert_eq!(state_with("Anchor").player.block, 10); }
 
     // ---- Akabeko ----
-    #[test] fn akabeko_vigor_8() { assert_eq!(state_with("Akabeko").player.status("Vigor"), 8); }
+    #[test] fn akabeko_vigor_8() { assert_eq!(state_with("Akabeko").player.status(sid::VIGOR), 8); }
 
     // ---- Bronze Scales ----
     #[test] fn bronze_scales_thorns_3() {
-        assert_eq!(state_with("Bronze Scales").player.status("Thorns"), 3);
+        assert_eq!(state_with("Bronze Scales").player.status(sid::THORNS), 3);
     }
 
     // ---- Blood Vial ----
@@ -77,17 +78,17 @@ mod relic_tests {
 
     // ---- Clockwork Souvenir ----
     #[test] fn clockwork_artifact_1() {
-        assert_eq!(state_with("ClockworkSouvenir").player.status("Artifact"), 1);
+        assert_eq!(state_with("ClockworkSouvenir").player.status(sid::ARTIFACT), 1);
     }
 
     // ---- Fossilized Helix ----
     #[test] fn helix_buffer_1() {
-        assert_eq!(state_with("FossilizedHelix").player.status("Buffer"), 1);
+        assert_eq!(state_with("FossilizedHelix").player.status(sid::BUFFER), 1);
     }
 
     // ---- Data Disk ----
     #[test] fn data_disk_focus_1() {
-        assert_eq!(state_with("Data Disk").player.status("Focus"), 1);
+        assert_eq!(state_with("Data Disk").player.status(sid::FOCUS), 1);
     }
 
     // ---- Mark of Pain ----
@@ -100,7 +101,7 @@ mod relic_tests {
     // ---- Lantern ----
     #[test] fn lantern_ready() {
         let s = state_with("Lantern");
-        assert_eq!(s.player.status("LanternReady"), 1);
+        assert_eq!(s.player.status(sid::LANTERN_READY), 1);
     }
     #[test] fn lantern_turn1() {
         let mut s = state_with("Lantern");
@@ -118,7 +119,7 @@ mod relic_tests {
         let mut s = state_with("Lantern");
         s.turn = 1;
         apply_lantern_turn_start(&mut s);
-        assert_eq!(s.player.status("LanternReady"), 0);
+        assert_eq!(s.player.status(sid::LANTERN_READY), 0);
     }
 
     // ---- Ornamental Fan ----

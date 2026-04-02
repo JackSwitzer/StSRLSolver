@@ -19,7 +19,7 @@ use crate::powers;
 use crate::relics;
 use crate::state::{CombatState, EnemyCombatState, PyCombatState, Stance};
 use crate::status_effects;
-use crate::status_keys::sk;
+use crate::status_ids::sid;
 
 /// Combat phase enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,7 +189,7 @@ impl CombatEngine {
         self.state.last_card_type = None;
 
         // Reset per-turn statuses
-        self.state.player.set_status(sk::WAVE_OF_THE_HAND, 0);
+        self.state.player.set_status(sid::WAVE_OF_THE_HAND, 0);
 
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);
@@ -205,8 +205,8 @@ impl CombatEngine {
         // Block decay — Calipers retains up to 15, Barricade retains all
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
         if self.state.turn > 1 {
-            let barricade = self.state.player.status(sk::BARRICADE) > 0;
-            let blur = self.state.player.status(sk::BLUR) > 0;
+            let barricade = self.state.player.status(sid::BARRICADE) > 0;
+            let blur = self.state.player.status(sid::BLUR) > 0;
             if barricade || blur {
                 // Keep all block
             } else {
@@ -215,21 +215,21 @@ impl CombatEngine {
             }
             // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
             if blur {
-                let blur_val = self.state.player.status(sk::BLUR);
-                self.state.player.set_status(sk::BLUR, (blur_val - 1).max(0));
+                let blur_val = self.state.player.status(sid::BLUR);
+                self.state.player.set_status(sid::BLUR, (blur_val - 1).max(0));
             }
         }
 
         // LoseStrength/LoseDexterity at end of previous turn
-        let lose_str = self.state.player.status(sk::LOSE_STRENGTH);
+        let lose_str = self.state.player.status(sid::LOSE_STRENGTH);
         if lose_str > 0 {
-            self.state.player.add_status(sk::STRENGTH, -lose_str);
-            self.state.player.set_status(sk::LOSE_STRENGTH, 0);
+            self.state.player.add_status(sid::STRENGTH, -lose_str);
+            self.state.player.set_status(sid::LOSE_STRENGTH, 0);
         }
-        let lose_dex = self.state.player.status(sk::LOSE_DEXTERITY);
+        let lose_dex = self.state.player.status(sid::LOSE_DEXTERITY);
         if lose_dex > 0 {
-            self.state.player.add_status(sk::DEXTERITY, -lose_dex);
-            self.state.player.set_status(sk::LOSE_DEXTERITY, 0);
+            self.state.player.add_status(sid::DEXTERITY, -lose_dex);
+            self.state.player.set_status(sid::LOSE_DEXTERITY, 0);
         }
 
         // === POWER HOOKS: start of turn ===
@@ -253,21 +253,21 @@ impl CombatEngine {
         }
 
         // Draw cards (default 5 + Draw/Machine Learning power)
-        let ml = self.state.player.status(sk::DRAW);
+        let ml = self.state.player.status(sid::DRAW);
         self.draw_cards(5 + ml);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
-        let extra_draw = self.state.player.status(sk::TURN_START_EXTRA_DRAW);
+        let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
         if extra_draw > 0 {
             self.draw_cards(extra_draw);
-            self.state.player.set_status(sk::TURN_START_EXTRA_DRAW, 0);
+            self.state.player.set_status(sid::TURN_START_EXTRA_DRAW, 0);
         }
 
         // InkBottleDraw: one-shot extra draw from Ink Bottle relic trigger
-        let ink_draw = self.state.player.status(sk::INK_BOTTLE_DRAW);
+        let ink_draw = self.state.player.status(sid::INK_BOTTLE_DRAW);
         if ink_draw > 0 {
             self.draw_cards(ink_draw);
-            self.state.player.set_status(sk::INK_BOTTLE_DRAW, 0);
+            self.state.player.set_status(sid::INK_BOTTLE_DRAW, 0);
         }
 
         // ---- Post-draw power effects ----
@@ -316,7 +316,7 @@ impl CombatEngine {
         if fx.poison_all_enemies > 0 {
             for ei in 0..self.state.enemies.len() {
                 if self.state.enemies[ei].is_alive() {
-                    self.state.enemies[ei].entity.add_status(sk::POISON, fx.poison_all_enemies);
+                    self.state.enemies[ei].entity.add_status(sid::POISON, fx.poison_all_enemies);
                 }
             }
         }
@@ -362,7 +362,7 @@ impl CombatEngine {
         }
 
         // Clear Entangled (only lasts one turn)
-        self.state.player.set_status(sk::ENTANGLED, 0);
+        self.state.player.set_status(sid::ENTANGLED, 0);
 
         // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
@@ -415,10 +415,10 @@ impl CombatEngine {
         // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
         for ei in 0..self.state.enemies.len() {
             if self.state.enemies[ei].is_alive() {
-                let tsl = self.state.enemies[ei].entity.status(sk::TEMP_STRENGTH_LOSS);
+                let tsl = self.state.enemies[ei].entity.status(sid::TEMP_STRENGTH_LOSS);
                 if tsl > 0 {
-                    self.state.enemies[ei].entity.add_status(sk::STRENGTH, tsl);
-                    self.state.enemies[ei].entity.set_status(sk::TEMP_STRENGTH_LOSS, 0);
+                    self.state.enemies[ei].entity.add_status(sid::STRENGTH, tsl);
+                    self.state.enemies[ei].entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
                 }
             }
         }
@@ -485,7 +485,7 @@ impl CombatEngine {
         }
 
         // Loop: trigger front orb passive again
-        let loop_count = self.state.player.status(sk::LOOP);
+        let loop_count = self.state.player.status(sid::LOOP);
         if loop_count > 0 && self.state.orb_slots.has_orbs() {
             let focus = self.state.player.focus();
             let front = &mut self.state.orb_slots.slots[0];
@@ -517,16 +517,16 @@ impl CombatEngine {
         }
 
         // FrozenCore: at end of turn, if no orbs channeled, channel 1 Lightning
-        if self.state.player.status(sk::FROZEN_CORE_TRIGGER) > 0 {
+        if self.state.player.status(sid::FROZEN_CORE_TRIGGER) > 0 {
             if self.state.orb_slots.occupied_count() == 0 && self.state.orb_slots.has_orbs() {
                 self.channel_orb(crate::orbs::OrbType::Lightning);
             }
         }
 
         // Constricted: deal Constricted damage to player at end of turn
-        let constricted = self.state.player.status(sk::CONSTRICTED);
+        let constricted = self.state.player.status(sid::CONSTRICTED);
         if constricted > 0 {
-            let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
+            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
             let has_tungsten = self.state.has_relic("Tungsten Rod");
             let hp_loss = damage::apply_hp_loss(constricted, intangible, has_tungsten);
             self.state.player.hp -= hp_loss;
@@ -548,23 +548,23 @@ impl CombatEngine {
         }
 
         // Player Regeneration: heal and decrement (Java: RegenerationPower.atEndOfTurn)
-        let regen = self.state.player.status(sk::REGENERATION);
+        let regen = self.state.player.status(sid::REGENERATION);
         if regen > 0 {
             self.state.player.hp = (self.state.player.hp + regen).min(self.state.player.max_hp);
-            self.state.player.add_status(sk::REGENERATION, -1);
+            self.state.player.add_status(sid::REGENERATION, -1);
         }
 
         // Player poison tick (before enemy turns)
-        let player_poison = self.state.player.status(sk::POISON);
+        let player_poison = self.state.player.status(sid::POISON);
         if player_poison > 0 {
-            let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
+            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
             let tungsten_rod = self.state.has_relic("Tungsten Rod");
             let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
             self.state.player.hp -= hp_loss;
             self.state.total_damage_taken += hp_loss;
             // Decrement poison by 1
             let new_poison = player_poison - 1;
-            self.state.player.set_status(sk::POISON, new_poison);
+            self.state.player.set_status(sid::POISON, new_poison);
 
             if self.state.player.hp <= 0 {
                 // Check Fairy in a Bottle
@@ -605,9 +605,9 @@ impl CombatEngine {
         }
 
         // Decrement player Intangible
-        let intangible = self.state.player.status(sk::INTANGIBLE);
+        let intangible = self.state.player.status(sid::INTANGIBLE);
         if intangible > 0 {
-            self.state.player.set_status(sk::INTANGIBLE, intangible - 1);
+            self.state.player.set_status(sid::INTANGIBLE, intangible - 1);
         }
 
         // Check combat end
@@ -632,7 +632,7 @@ impl CombatEngine {
         }
 
         // Energy check — Confusion: any card could cost 0-3, so playable if energy >= 0
-        if self.state.player.status(sk::CONFUSION) > 0 && card.cost >= 0 {
+        if self.state.player.status(sid::CONFUSION) > 0 && card.cost >= 0 {
             if self.state.energy < 0 {
                 return false;
             }
@@ -644,7 +644,7 @@ impl CombatEngine {
         }
 
         // Entangled: can't play attacks
-        if self.state.player.status(sk::ENTANGLED) > 0 && card.card_type == CardType::Attack {
+        if self.state.player.status(sid::ENTANGLED) > 0 && card.card_type == CardType::Attack {
             return false;
         }
 
@@ -685,30 +685,30 @@ impl CombatEngine {
         }
 
         // NextAttackFree: next attack costs 0
-        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             return 0;
         }
 
         // Corruption: all Skills cost 0
-        if card.card_type == CardType::Skill && self.state.player.status(sk::CORRUPTION) > 0 {
+        if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
 
         // BulletTime: all cards cost 0
-        if self.state.player.status(sk::BULLET_TIME) > 0 {
+        if self.state.player.status(sid::BULLET_TIME) > 0 {
             return 0;
         }
 
         // Confusion/SneckoEye: randomize card costs 0-3
         // MCTS approximation: use deterministic midpoint (1) to avoid RNG in &self method
-        if self.state.player.status(sk::CONFUSION) > 0 {
+        if self.state.player.status(sid::CONFUSION) > 0 {
             return 1;
         }
 
         let mut cost = card.cost;
 
         // Establishment: retained cards cost 1 less per stack
-        let establishment = self.state.player.status(sk::ESTABLISHMENT);
+        let establishment = self.state.player.status(sid::ESTABLISHMENT);
         if establishment > 0 && self.state.retained_cards.contains(&card_id.to_string()) {
             cost = (cost - establishment).max(0);
         }
@@ -725,29 +725,29 @@ impl CombatEngine {
         }
 
         // NextAttackFree: next attack costs 0
-        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             return 0;
         }
 
         // Corruption: all Skills cost 0
-        if card.card_type == CardType::Skill && self.state.player.status(sk::CORRUPTION) > 0 {
+        if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
 
         // BulletTime: all cards cost 0
-        if self.state.player.status(sk::BULLET_TIME) > 0 {
+        if self.state.player.status(sid::BULLET_TIME) > 0 {
             return 0;
         }
 
         // Confusion/SneckoEye: randomize card costs 0-3
-        if self.state.player.status(sk::CONFUSION) > 0 {
+        if self.state.player.status(sid::CONFUSION) > 0 {
             return self.rng.random(3);
         }
 
         let mut cost = card.cost;
 
         // Establishment: retained cards cost 1 less per stack
-        let establishment = self.state.player.status(sk::ESTABLISHMENT);
+        let establishment = self.state.player.status(sid::ESTABLISHMENT);
         if establishment > 0 && self.state.retained_cards.contains(&card_id.to_string()) {
             cost = (cost - establishment).max(0);
         }
@@ -794,17 +794,17 @@ impl CombatEngine {
 
         // Envenom: when Attack deals unblocked damage, apply Poison to target
         // MCTS approximation: apply Envenom Poison to target after every attack card
-        let envenom = self.state.player.status(sk::ENVENOM);
+        let envenom = self.state.player.status(sid::ENVENOM);
         if envenom > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
             let tidx = target_idx as usize;
             if tidx < self.state.enemies.len() && self.state.enemies[tidx].is_alive() {
-                self.state.enemies[tidx].entity.add_status(sk::POISON, envenom);
+                self.state.enemies[tidx].entity.add_status(sid::POISON, envenom);
             }
         }
 
         // Sadistic Nature: deal damage when debuff applied to enemy
         // MCTS approximation: deal Sadistic damage per debuff-applying attack
-        let sadistic = self.state.player.status(sk::SADISTIC);
+        let sadistic = self.state.player.status(sid::SADISTIC);
         if sadistic > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
             // Check if card applies debuffs (Weak, Vulnerable, Poison via effects)
             let applies_debuff = card.effects.iter().any(|e| {
@@ -820,7 +820,7 @@ impl CombatEngine {
         }
 
         // Electrodynamics: when playing an Attack, channel Lightning for each living enemy
-        if card.card_type == CardType::Attack && self.state.player.status(sk::ELECTRODYNAMICS) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::ELECTRODYNAMICS) > 0 {
             let count = self.state.living_enemy_indices().len();
             for _ in 0..count {
                 self.channel_orb(crate::orbs::OrbType::Lightning);
@@ -840,9 +840,9 @@ impl CombatEngine {
         if card.card_type != CardType::Attack {
             for enemy in &mut self.state.enemies {
                 if enemy.is_alive() {
-                    let enrage = enemy.entity.status(sk::ENRAGE);
+                    let enrage = enemy.entity.status(sid::ENRAGE);
                     if enrage > 0 {
-                        enemy.entity.add_status(sk::STRENGTH, enrage);
+                        enemy.entity.add_status(sid::STRENGTH, enrage);
                     }
                 }
             }
@@ -850,7 +850,7 @@ impl CombatEngine {
 
         // Hex: when player plays a non-Attack card, add 1 Daze to draw pile
         if card.card_type != CardType::Attack {
-            let hex = self.state.player.status(sk::HEX);
+            let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
                     self.state.draw_pile.push("Daze".to_string());
@@ -894,7 +894,7 @@ impl CombatEngine {
             if self.state.enemies[ei].is_alive() {
                 let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
                 if bod > 0 {
-                    let intangible = self.state.player.status(sk::INTANGIBLE) > 0;
+                    let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
                     let has_torii = self.state.has_relic("Torii");
                     let has_tungsten = self.state.has_relic("Tungsten Rod");
                     let result = damage::calculate_incoming_damage(
@@ -927,7 +927,7 @@ impl CombatEngine {
             if self.state.enemies[ei].is_alive() {
                 let triggered = powers::increment_time_warp(&mut self.state.enemies[ei].entity);
                 if triggered {
-                    self.state.enemies[ei].entity.add_status(sk::STRENGTH, 2);
+                    self.state.enemies[ei].entity.add_status(sid::STRENGTH, 2);
                     self.end_turn();
                     return;
                 }
@@ -944,13 +944,13 @@ impl CombatEngine {
         }
 
         // Consume NextAttackFree after playing an attack
-        if card.card_type == CardType::Attack && self.state.player.status(sk::NEXT_ATTACK_FREE) > 0 {
-            self.state.player.set_status(sk::NEXT_ATTACK_FREE, 0);
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
+            self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
         }
 
         // EchoForm: replay the first card played this turn
         if self.state.cards_played_this_turn == 1
-            && self.state.player.status(sk::ECHO_FORM) > 0
+            && self.state.player.status(sid::ECHO_FORM) > 0
             && card.card_type != CardType::Power
             && !self.state.combat_over
         {
@@ -959,28 +959,28 @@ impl CombatEngine {
 
         // Double Tap: replay next Attack (Java: DoubleTapPower.onUseCard)
         if card.card_type == CardType::Attack && !self.state.combat_over {
-            let dt = self.state.player.status(sk::DOUBLE_TAP);
+            let dt = self.state.player.status(sid::DOUBLE_TAP);
             if dt > 0 {
-                self.state.player.add_status(sk::DOUBLE_TAP, -1);
+                self.state.player.add_status(sid::DOUBLE_TAP, -1);
                 crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
             }
         }
 
         // Burst: replay next Skill (Java: BurstPower.onUseCard)
         if card.card_type == CardType::Skill && !self.state.combat_over {
-            let burst = self.state.player.status(sk::BURST);
+            let burst = self.state.player.status(sid::BURST);
             if burst > 0 {
-                self.state.player.add_status(sk::BURST, -1);
+                self.state.player.add_status(sid::BURST, -1);
                 crate::card_effects::execute_card_effects(self, &card, &card_id, target_idx);
             }
         }
 
         // Wave of the Hand: apply Weak to all enemies when player gains block (Java: WaveOfTheHandPower.onGainedBlock)
-        let woth = self.state.player.status(sk::WAVE_OF_THE_HAND);
+        let woth = self.state.player.status(sid::WAVE_OF_THE_HAND);
         if woth > 0 && card.base_block > 0 && !self.state.combat_over {
             for ei in 0..self.state.enemies.len() {
                 if self.state.enemies[ei].is_alive() {
-                    powers::apply_debuff(&mut self.state.enemies[ei].entity, sk::WEAKENED, woth);
+                    powers::apply_debuff(&mut self.state.enemies[ei].entity, sid::WEAKENED, woth);
                 }
             }
         }
@@ -1000,7 +1000,7 @@ impl CombatEngine {
             // MummifiedHand: when Power card played, random card in hand costs 0 this turn
             // MCTS approximation: reduce energy cost of cheapest card in hand by setting its cost
             // to 0 is not feasible without per-card cost tracking; grant 1 energy instead
-            if self.state.player.status(sk::MUMMIFIED_HAND_TRIGGER) > 0 && !self.state.hand.is_empty() {
+            if self.state.player.status(sid::MUMMIFIED_HAND_TRIGGER) > 0 && !self.state.hand.is_empty() {
                 self.state.energy += 1;
             }
             // Powers don't go to any pile
@@ -1009,7 +1009,7 @@ impl CombatEngine {
             // (already handled in execute_card_effects, don't double-add)
         } else if card.exhaust
             || (card.card_type == CardType::Skill
-                && self.state.player.status(sk::CORRUPTION) > 0)
+                && self.state.player.status(sid::CORRUPTION) > 0)
         {
             // Corruption: Skills are exhausted instead of discarded
             self.state.exhaust_pile.push(card_id.clone());
@@ -1035,203 +1035,203 @@ impl CombatEngine {
             match *effect {
                 "on_wrath_draw" => {
                     // Rushdown: draw cards when entering Wrath
-                    let current = self.state.player.status(sk::RUSHDOWN);
+                    let current = self.state.player.status(sid::RUSHDOWN);
                     self.state
                         .player
-                        .set_status(sk::RUSHDOWN, current + card.base_magic.max(2));
+                        .set_status(sid::RUSHDOWN, current + card.base_magic.max(2));
                 }
                 "on_stance_change_block" => {
                     // MentalFortress: gain block on any stance change
-                    let current = self.state.player.status(sk::MENTAL_FORTRESS);
+                    let current = self.state.player.status(sid::MENTAL_FORTRESS);
                     self.state
                         .player
-                        .set_status(sk::MENTAL_FORTRESS, current + card.base_magic);
+                        .set_status(sid::MENTAL_FORTRESS, current + card.base_magic);
                 }
                 "battle_hymn" => {
                     // BattleHymn: at start of turn, add Smite(s) to hand
-                    let current = self.state.player.status(sk::BATTLE_HYMN);
+                    let current = self.state.player.status(sid::BATTLE_HYMN);
                     self.state
                         .player
-                        .set_status(sk::BATTLE_HYMN, current + card.base_magic.max(1));
+                        .set_status(sid::BATTLE_HYMN, current + card.base_magic.max(1));
                 }
                 "like_water" => {
                     // LikeWater: at end of turn, if in Calm, gain block
-                    let current = self.state.player.status(sk::LIKE_WATER);
+                    let current = self.state.player.status(sid::LIKE_WATER);
                     self.state
                         .player
-                        .set_status(sk::LIKE_WATER, current + card.base_magic.max(1));
+                        .set_status(sid::LIKE_WATER, current + card.base_magic.max(1));
                 }
                 "on_scry_block" => {
                     // Nirvana: gain block on Scry
-                    let current = self.state.player.status(sk::NIRVANA);
+                    let current = self.state.player.status(sid::NIRVANA);
                     self.state
                         .player
-                        .set_status(sk::NIRVANA, current + card.base_magic.max(1));
+                        .set_status(sid::NIRVANA, current + card.base_magic.max(1));
                 }
                 "study" => {
                     // Study: at end of turn, add Insight to draw
-                    let current = self.state.player.status(sk::STUDY);
+                    let current = self.state.player.status(sid::STUDY);
                     self.state
                         .player
-                        .set_status(sk::STUDY, current + card.base_magic.max(1));
+                        .set_status(sid::STUDY, current + card.base_magic.max(1));
                 }
                 "deva_form" => {
                     // DevaForm: at start of turn, gain energy (increasing)
-                    let current = self.state.player.status(sk::DEVA_FORM);
+                    let current = self.state.player.status(sid::DEVA_FORM);
                     self.state
                         .player
-                        .set_status(sk::DEVA_FORM, current + card.base_magic.max(1));
+                        .set_status(sid::DEVA_FORM, current + card.base_magic.max(1));
                 }
                 "devotion" => {
                     // Devotion: at start of turn, gain Mantra
-                    let current = self.state.player.status(sk::DEVOTION);
+                    let current = self.state.player.status(sid::DEVOTION);
                     self.state
                         .player
-                        .set_status(sk::DEVOTION, current + card.base_magic.max(1));
+                        .set_status(sid::DEVOTION, current + card.base_magic.max(1));
                 }
                 "establishment" => {
                     // Establishment: retained cards cost 1 less
-                    let current = self.state.player.status(sk::ESTABLISHMENT);
+                    let current = self.state.player.status(sid::ESTABLISHMENT);
                     self.state
                         .player
-                        .set_status(sk::ESTABLISHMENT, current + card.base_magic.max(1));
+                        .set_status(sid::ESTABLISHMENT, current + card.base_magic.max(1));
                 }
                 "fasting" => {
                     // Fasting: gain Str and Dex, lose 1 max energy
                     let amount = card.base_magic.max(1);
-                    self.state.player.add_status(sk::STRENGTH, amount);
-                    self.state.player.add_status(sk::DEXTERITY, amount);
+                    self.state.player.add_status(sid::STRENGTH, amount);
+                    self.state.player.add_status(sid::DEXTERITY, amount);
                     self.state.max_energy -= 1;
                     self.state.energy = self.state.energy.min(self.state.max_energy);
                 }
                 "master_reality" => {
                     // MasterReality: all temp cards created are upgraded
-                    self.state.player.set_status(sk::MASTER_REALITY, 1);
+                    self.state.player.set_status(sid::MASTER_REALITY, 1);
                 }
                 "omega" => {
                     // Omega: deal damage to all enemies at end of turn
-                    let current = self.state.player.status(sk::OMEGA);
+                    let current = self.state.player.status(sid::OMEGA);
                     self.state
                         .player
-                        .set_status(sk::OMEGA, current + card.base_magic.max(1));
+                        .set_status(sid::OMEGA, current + card.base_magic.max(1));
                 }
                 "after_image" => {
-                    let current = self.state.player.status(sk::AFTER_IMAGE);
-                    self.state.player.set_status(sk::AFTER_IMAGE, current + card.base_magic.max(1));
+                    let current = self.state.player.status(sid::AFTER_IMAGE);
+                    self.state.player.set_status(sid::AFTER_IMAGE, current + card.base_magic.max(1));
                 }
                 "draw_on_power_play" => {
-                    let current = self.state.player.status(sk::HEATSINK);
-                    self.state.player.set_status(sk::HEATSINK, current + card.base_magic.max(1));
+                    let current = self.state.player.status(sid::HEATSINK);
+                    self.state.player.set_status(sid::HEATSINK, current + card.base_magic.max(1));
                 }
                 "channel_lightning_on_power" => {
-                    let current = self.state.player.status(sk::STORM);
-                    self.state.player.set_status(sk::STORM, current + card.base_magic.max(1));
+                    let current = self.state.player.status(sid::STORM);
+                    self.state.player.set_status(sid::STORM, current + card.base_magic.max(1));
                 }
                 "buffer" => {
-                    let current = self.state.player.status(sk::BUFFER);
-                    self.state.player.set_status(sk::BUFFER, current + card.base_magic.max(1));
+                    let current = self.state.player.status(sid::BUFFER);
+                    self.state.player.set_status(sid::BUFFER, current + card.base_magic.max(1));
                 }
                 "extra_draw_each_turn" => {
-                    let current = self.state.player.status(sk::DRAW);
-                    self.state.player.set_status(sk::DRAW, current + card.base_magic.max(1));
+                    let current = self.state.player.status(sid::DRAW);
+                    self.state.player.set_status(sid::DRAW, current + card.base_magic.max(1));
                 }
 
                 // ---- Ironclad Powers ----
                 "barricade" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::BARRICADE, amt);
+                    self.state.player.add_status(sid::BARRICADE, amt);
                 }
                 "demon_form" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::DEMON_FORM, amt);
+                    self.state.player.add_status(sid::DEMON_FORM, amt);
                 }
                 "dark_embrace" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::DARK_EMBRACE, amt);
+                    self.state.player.add_status(sid::DARK_EMBRACE, amt);
                 }
                 "feel_no_pain" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::FEEL_NO_PAIN, amt);
+                    self.state.player.add_status(sid::FEEL_NO_PAIN, amt);
                 }
                 "metallicize" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::METALLICIZE, amt);
+                    self.state.player.add_status(sid::METALLICIZE, amt);
                 }
                 "brutality" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::BRUTALITY, amt);
+                    self.state.player.add_status(sid::BRUTALITY, amt);
                 }
                 "combust" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::COMBUST, amt);
+                    self.state.player.add_status(sid::COMBUST, amt);
                 }
                 "evolve" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::EVOLVE, amt);
+                    self.state.player.add_status(sid::EVOLVE, amt);
                 }
                 "fire_breathing" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::FIRE_BREATHING, amt);
+                    self.state.player.add_status(sid::FIRE_BREATHING, amt);
                 }
                 "juggernaut" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::JUGGERNAUT, amt);
+                    self.state.player.add_status(sid::JUGGERNAUT, amt);
                 }
                 "rupture" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::RUPTURE, amt);
+                    self.state.player.add_status(sid::RUPTURE, amt);
                 }
                 "berserk" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::BERSERK, amt);
+                    self.state.player.add_status(sid::BERSERK, amt);
                 }
 
                 // ---- Silent Powers ----
                 "noxious_fumes" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::NOXIOUS_FUMES, amt);
+                    self.state.player.add_status(sid::NOXIOUS_FUMES, amt);
                 }
                 "thousand_cuts" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::THOUSAND_CUTS, amt);
+                    self.state.player.add_status(sid::THOUSAND_CUTS, amt);
                 }
                 "infinite_blades" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::INFINITE_BLADES, amt);
+                    self.state.player.add_status(sid::INFINITE_BLADES, amt);
                 }
                 "envenom" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::ENVENOM, amt);
+                    self.state.player.add_status(sid::ENVENOM, amt);
                 }
                 "accuracy" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::ACCURACY, amt);
+                    self.state.player.add_status(sid::ACCURACY, amt);
                 }
                 "thorns" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::THORNS, amt);
+                    self.state.player.add_status(sid::THORNS, amt);
                 }
                 "tools_of_the_trade" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::TOOLS_OF_THE_TRADE, amt);
+                    self.state.player.add_status(sid::TOOLS_OF_THE_TRADE, amt);
                 }
                 "well_laid_plans" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::WELL_LAID_PLANS, amt);
+                    self.state.player.add_status(sid::WELL_LAID_PLANS, amt);
                 }
 
                 // ---- Defect Powers ----
                 "loop_orb" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::LOOP, amt);
+                    self.state.player.add_status(sid::LOOP, amt);
                 }
                 "hello_world" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::HELLO_WORLD, amt);
+                    self.state.player.add_status(sid::HELLO_WORLD, amt);
                 }
                 "lightning_hits_all" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::ELECTRODYNAMICS, amt);
+                    self.state.player.add_status(sid::ELECTRODYNAMICS, amt);
                 }
                 "gain_orb_slots" => {
                     let slots = card.base_magic.max(1);
@@ -1243,19 +1243,19 @@ impl CombatEngine {
                 // ---- Colorless Powers ----
                 "sadistic_nature" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::SADISTIC, amt);
+                    self.state.player.add_status(sid::SADISTIC, amt);
                 }
                 "panache" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::PANACHE, amt);
+                    self.state.player.add_status(sid::PANACHE, amt);
                 }
                 "magnetism" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::MAGNETISM, amt);
+                    self.state.player.add_status(sid::MAGNETISM, amt);
                 }
                 "mayhem" => {
                     let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sk::MAYHEM, amt);
+                    self.state.player.add_status(sid::MAYHEM, amt);
                 }
 
                 _ => {}
@@ -1301,9 +1301,9 @@ impl CombatEngine {
         let damage_after_slow = (damage as f64 * slow_mult) as i32;
 
         // Flight: halve incoming damage while Flight > 0, decrement per hit
-        let flight = enemy.entity.status(sk::FLIGHT);
+        let flight = enemy.entity.status(sid::FLIGHT);
         let effective_damage = if flight > 0 {
-            enemy.entity.set_status(sk::FLIGHT, flight - 1);
+            enemy.entity.set_status(sid::FLIGHT, flight - 1);
             (damage_after_slow as f64 * 0.5) as i32
         } else {
             damage_after_slow
@@ -1321,9 +1321,9 @@ impl CombatEngine {
         if enemy.entity.hp <= 0 {
             enemy.entity.hp = 0;
             // SporeCloud: apply Vulnerable to player on death (Java: SporeCloudPower.onDeath)
-            let spore = enemy.entity.status(sk::SPORE_CLOUD);
+            let spore = enemy.entity.status(sid::SPORE_CLOUD);
             if spore > 0 {
-                powers::apply_debuff(&mut self.state.player, sk::VULNERABLE, spore);
+                powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
             }
         }
 
@@ -1342,9 +1342,9 @@ impl CombatEngine {
 
         // Rupture: gain Strength when taking HP damage
         if hp_damage > 0 {
-            let rupture = self.state.player.status(sk::RUPTURE);
+            let rupture = self.state.player.status(sid::RUPTURE);
             if rupture > 0 {
-                self.state.player.add_status(sk::STRENGTH, rupture);
+                self.state.player.add_status(sid::STRENGTH, rupture);
             }
         }
 
@@ -1527,7 +1527,7 @@ impl CombatEngine {
 
             let is_wrath = self.state.stance == Stance::Wrath;
             let player_vuln = self.state.player.is_vulnerable();
-            let player_intangible = self.state.player.status(sk::INTANGIBLE) > 0;
+            let player_intangible = self.state.player.status(sid::INTANGIBLE) > 0;
             let has_torii = self.state.has_relic("Torii");
             let has_tungsten = self.state.has_relic("Tungsten Rod");
 
@@ -1549,10 +1549,10 @@ impl CombatEngine {
                     self.state.total_damage_taken += result.hp_loss;
 
                     // Plated Armor decrements on unblocked HP damage
-                    let plated = self.state.player.status(sk::PLATED_ARMOR);
+                    let plated = self.state.player.status(sid::PLATED_ARMOR);
                     if plated > 0 {
                         let new_plated = plated - 1;
-                        self.state.player.set_status(sk::PLATED_ARMOR, new_plated);
+                        self.state.player.set_status(sid::PLATED_ARMOR, new_plated);
                     }
                 }
 
@@ -1582,27 +1582,27 @@ impl CombatEngine {
         // Apply move effects
         let effects = self.state.enemies[enemy_idx].move_effects.clone();
         if let Some(&amt) = effects.get("weak") {
-            powers::apply_debuff(&mut self.state.player, sk::WEAKENED, amt);
+            powers::apply_debuff(&mut self.state.player, sid::WEAKENED, amt);
         }
         if let Some(&amt) = effects.get("vulnerable") {
-            powers::apply_debuff(&mut self.state.player, sk::VULNERABLE, amt);
+            powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, amt);
         }
         if let Some(&amt) = effects.get("frail") {
-            powers::apply_debuff(&mut self.state.player, sk::FRAIL, amt);
+            powers::apply_debuff(&mut self.state.player, sid::FRAIL, amt);
         }
         if let Some(&amt) = effects.get("strength") {
             self.state.enemies[enemy_idx]
                 .entity
-                .add_status(sk::STRENGTH, amt);
+                .add_status(sid::STRENGTH, amt);
         }
         if let Some(&amt) = effects.get("ritual") {
             self.state.enemies[enemy_idx]
                 .entity
-                .set_status(sk::RITUAL, amt);
+                .set_status(sid::RITUAL, amt);
         }
         if let Some(&amt) = effects.get("entangle") {
             if amt > 0 {
-                self.state.player.set_status(sk::ENTANGLED, 1);
+                self.state.player.set_status(sid::ENTANGLED, 1);
             }
         }
         if let Some(&amt) = effects.get("slimed") {
@@ -1629,10 +1629,10 @@ impl CombatEngine {
         }
         // Lagavulin Siphon Soul: reduce player Strength and Dexterity
         if let Some(&amt) = effects.get("siphon_str") {
-            self.state.player.add_status(sk::STRENGTH, -(amt));
+            self.state.player.add_status(sid::STRENGTH, -(amt));
         }
         if let Some(&amt) = effects.get("siphon_dex") {
-            self.state.player.add_status(sk::DEXTERITY, -(amt));
+            self.state.player.add_status(sid::DEXTERITY, -(amt));
         }
 
         // Advance enemy to next move for next turn
@@ -1645,12 +1645,12 @@ impl CombatEngine {
 
     pub fn draw_cards(&mut self, count: i32) {
         // NoDraw: skip draw entirely
-        if self.state.player.status(sk::NO_DRAW) > 0 {
+        if self.state.player.status(sid::NO_DRAW) > 0 {
             return;
         }
 
         // DrawReduction: reduce draw count
-        let draw_reduction = self.state.player.status(sk::DRAW_REDUCTION);
+        let draw_reduction = self.state.player.status(sid::DRAW_REDUCTION);
         let actual_count = (count - draw_reduction).max(0);
 
         for _ in 0..actual_count {
@@ -1735,7 +1735,7 @@ impl CombatEngine {
 
     /// Get the ID for a temporary card, upgrading if Master Reality is active.
     pub fn temp_card_id(&self, base_id: &str) -> String {
-        if self.state.player.status(sk::MASTER_REALITY) > 0 {
+        if self.state.player.status(sid::MASTER_REALITY) > 0 {
             format!("{}+", base_id)
         } else {
             base_id.to_string()
@@ -1757,7 +1757,7 @@ impl CombatEngine {
         }
 
         // Nirvana: gain block when scrying
-        let nirvana = self.state.player.status(sk::NIRVANA);
+        let nirvana = self.state.player.status(sid::NIRVANA);
         if nirvana > 0 {
             self.state.player.block += nirvana;
         }
@@ -2386,7 +2386,7 @@ mod tests {
     #[test]
     fn test_vulnerability_increases_damage() {
         let mut state = make_test_state();
-        state.enemies[0].entity.set_status("Vulnerable", 2);
+        state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -2411,7 +2411,7 @@ mod tests {
     #[test]
     fn test_strength_adds_damage() {
         let mut state = make_test_state();
-        state.player.set_status("Strength", 3);
+        state.player.set_status(sid::STRENGTH, 3);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -2436,22 +2436,22 @@ mod tests {
     #[test]
     fn test_debuff_decrement_on_end_round() {
         let mut state = make_test_state();
-        state.player.set_status("Weakened", 2);
-        state.player.set_status("Vulnerable", 1);
+        state.player.set_status(sid::WEAKENED, 2);
+        state.player.set_status(sid::VULNERABLE, 1);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
         engine.execute_action(&Action::EndTurn);
 
         // After one round: Weakened 2->1, Vulnerable 1->removed
-        assert_eq!(engine.state.player.status("Weakened"), 1);
-        assert_eq!(engine.state.player.status("Vulnerable"), 0);
+        assert_eq!(engine.state.player.status(sid::WEAKENED), 1);
+        assert_eq!(engine.state.player.status(sid::VULNERABLE), 0);
     }
 
     #[test]
     fn test_poison_ticks_on_enemies() {
         let mut state = make_test_state();
-        state.enemies[0].entity.set_status("Poison", 5);
+        state.enemies[0].entity.set_status(sid::POISON, 5);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -2462,7 +2462,7 @@ mod tests {
         // Poison deals 5 HP to enemy, then decrements to 4.
         // Enemy also attacks player for 11, but that doesn't affect enemy HP.
         assert_eq!(engine.state.enemies[0].entity.hp, initial_hp - 5);
-        assert_eq!(engine.state.enemies[0].entity.status("Poison"), 4);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 4);
     }
 
     #[test]
@@ -2483,7 +2483,7 @@ mod tests {
     fn test_rushdown_draws_on_wrath_entry() {
         let mut state = make_test_state();
         // Give player Rushdown power (draw 2 on Wrath entry)
-        state.player.set_status("Rushdown", 2);
+        state.player.set_status(sid::RUSHDOWN, 2);
         state.draw_pile = vec![
             "Eruption".to_string(),
             "Strike_P".to_string(),
@@ -2526,7 +2526,7 @@ mod tests {
     fn test_mental_fortress_blocks_on_stance_change() {
         let mut state = make_test_state();
         // Give player MentalFortress power (4 block on stance change)
-        state.player.set_status("MentalFortress", 4);
+        state.player.set_status(sid::MENTAL_FORTRESS, 4);
         state.draw_pile = vec![
             "Eruption".to_string(),
             "Strike_P".to_string(),
@@ -2787,7 +2787,7 @@ mod tests {
     #[test]
     fn test_entangle_prevents_attacks() {
         let mut state = make_test_state();
-        state.player.set_status("Entangled", 1);
+        state.player.set_status(sid::ENTANGLED, 1);
         state.draw_pile = vec![
             "Strike_P".to_string(),
             "Strike_P".to_string(),
@@ -2966,13 +2966,13 @@ mod tests {
             .discard_pile
             .contains(&"MentalFortress".to_string()));
         // MentalFortress status installed
-        assert_eq!(engine.state.player.status("MentalFortress"), 4);
+        assert_eq!(engine.state.player.status(sid::MENTAL_FORTRESS), 4);
     }
 
     #[test]
     fn test_vigor_consumed_on_attack() {
         let mut state = make_test_state();
-        state.player.set_status("Vigor", 8); // Akabeko
+        state.player.set_status(sid::VIGOR, 8); // Akabeko
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -2993,7 +2993,7 @@ mod tests {
         // Strike deals 6 + 8 vigor = 14 damage
         assert_eq!(engine.state.enemies[0].entity.hp, initial_hp - 14);
         // Vigor consumed
-        assert_eq!(engine.state.player.status("Vigor"), 0);
+        assert_eq!(engine.state.player.status(sid::VIGOR), 0);
     }
 
     #[test]
