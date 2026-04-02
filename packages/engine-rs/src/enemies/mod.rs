@@ -536,7 +536,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Always: Tackle (7 damage)
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
-        "Champ" => {
+        "Champ" | "TheChamp" => {
             let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = if hp >= 440 {
                 (18, 14, 4, 7, 20)
             } else {
@@ -787,7 +787,7 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState) {
         "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy),
         "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy),
         "TorchHead" | "Torch Head" => { /* Always Tackle 7 */ }
-        "Champ" => act2::roll_champ(enemy),
+        "Champ" | "TheChamp" => act2::roll_champ(enemy),
         "TheCollector" | "Collector" => act2::roll_collector(enemy),
         // Act 3
         "Darkling" => act3::roll_darkling(enemy),

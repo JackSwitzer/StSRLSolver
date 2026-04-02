@@ -304,7 +304,11 @@ pub fn apply_potion_scaled(
         }
 
         "StancePotion" => {
-            state.stance = crate::state::Stance::Wrath;
+            use crate::state::Stance;
+            match state.stance {
+                Stance::Calm => { state.stance = Stance::Wrath; }
+                _ => { state.stance = Stance::Calm; }
+            }
             true
         }
 
@@ -314,9 +318,84 @@ pub fn apply_potion_scaled(
             true
         }
 
-        "EntropicBrew" | "BlessingOfTheForge" | "Elixir" | "ElixirPotion"
-        | "LiquidMemories" | "DistilledChaosPotion" | "DistilledChaos"
-        | "EssenceOfDarkness" => true,
+        "BlessingOfTheForge" => {
+            // Upgrade ALL cards in hand
+            for card_id in &mut state.hand {
+                if !card_id.ends_with('+') {
+                    card_id.push('+');
+                }
+            }
+            true
+        }
+
+        "Elixir" | "ElixirPotion" => {
+            // Exhaust all cards in hand
+            state.exhaust_pile.extend(state.hand.drain(..));
+            true
+        }
+
+        "LiquidMemories" => {
+            // Return card(s) from discard to hand
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            for _ in 0..potency {
+                if !state.discard_pile.is_empty() && state.hand.len() < 10 {
+                    if let Some(card) = state.discard_pile.pop() {
+                        state.hand.push(card);
+                    }
+                }
+            }
+            true
+        }
+
+        "DistilledChaosPotion" | "DistilledChaos" => {
+            // Play top N cards from draw pile (MCTS: move to hand)
+            let potency = effective_potency(potion_id, ascension, bark_mult);
+            for _ in 0..potency {
+                if !state.draw_pile.is_empty() && state.hand.len() < 10 {
+                    if let Some(card) = state.draw_pile.pop() {
+                        state.hand.push(card);
+                    }
+                }
+            }
+            true
+        }
+
+        "EssenceOfDarkness" => {
+            // Channel Dark orbs equal to orb slot count
+            let slots = state.orb_slots.get_slot_count();
+            for _ in 0..slots {
+                let focus = state.player.focus();
+                state.orb_slots.channel(crate::orbs::OrbType::Dark, focus);
+            }
+            true
+        }
+
+        "EntropicBrew" => {
+            // Fill empty potion slots (MCTS: Block Potion as proxy)
+            for slot in &mut state.potions {
+                if slot.is_empty() {
+                    *slot = "Block Potion".to_string();
+                }
+            }
+            true
+        }
+
+        "AttackPotion" => {
+            if state.hand.len() < 10 { state.hand.push("Strike_P".to_string()); }
+            true
+        }
+        "SkillPotion" => {
+            if state.hand.len() < 10 { state.hand.push("Defend_P".to_string()); }
+            true
+        }
+        "PowerPotion" => {
+            if state.hand.len() < 10 { state.hand.push("Smite".to_string()); }
+            true
+        }
+        "ColorlessPotion" => {
+            if state.hand.len() < 10 { state.hand.push("Strike_P".to_string()); }
+            true
+        }
 
         "GamblersBrew" => {
             let hand_size = state.hand.len() as i32;

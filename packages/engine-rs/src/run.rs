@@ -667,8 +667,16 @@ impl RunEngine {
             pool[idx].iter().map(|s| s.to_string()).collect()
         };
 
+        // Expand composite encounters (DonuAndDeca → two enemies)
+        let expanded: Vec<String> = encounter.iter().flat_map(|id| {
+            match id.as_str() {
+                "DonuAndDeca" => vec!["Donu".to_string(), "Deca".to_string()],
+                _ => vec![id.clone()],
+            }
+        }).collect();
+
         // Create enemies
-        let enemy_states: Vec<EnemyCombatState> = encounter
+        let enemy_states: Vec<EnemyCombatState> = expanded
             .iter()
             .map(|id| {
                 let (hp, max_hp) = self.roll_enemy_hp(id);
