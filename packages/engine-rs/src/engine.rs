@@ -325,13 +325,8 @@ impl CombatEngine {
         // Brutality: draw + HP loss (draw from hook, HP loss applied here)
         if fx.hp_loss > 0 {
             self.draw_cards(fx.draw);
-            self.state.player.hp -= fx.hp_loss;
-            self.state.total_damage_taken += fx.hp_loss;
-            if self.state.player.hp <= 0 {
-                self.state.player.hp = 0;
-                self.state.combat_over = true;
-                self.state.player_won = false;
-                self.phase = CombatPhase::CombatOver;
+            self.player_lose_hp(fx.hp_loss);
+            if self.state.combat_over {
                 return;
             }
         }
@@ -376,7 +371,7 @@ impl CombatEngine {
 
         // Block gains (Metallicize, PlatedArmor, LikeWater)
         if efx.block_gain > 0 {
-            self.state.player.block += efx.block_gain;
+            self.gain_block_player(efx.block_gain);
         }
 
         // Study: add Insight(s) to draw pile
@@ -395,13 +390,8 @@ impl CombatEngine {
 
         // Combust: lose HP first (death check), then deal damage to all enemies
         if efx.combust_hp_loss > 0 {
-            self.state.player.hp -= efx.combust_hp_loss;
-            self.state.total_damage_taken += efx.combust_hp_loss;
-            if self.state.player.hp <= 0 {
-                self.state.player.hp = 0;
-                self.state.combat_over = true;
-                self.state.player_won = false;
-                self.phase = CombatPhase::CombatOver;
+            self.player_lose_hp(efx.combust_hp_loss);
+            if self.state.combat_over {
                 return;
             }
             let living = self.state.living_enemy_indices();
@@ -534,21 +524,9 @@ impl CombatEngine {
             let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
             let has_tungsten = self.state.has_relic("Tungsten Rod");
             let hp_loss = damage::apply_hp_loss(constricted, intangible, has_tungsten);
-            self.state.player.hp -= hp_loss;
-            self.state.total_damage_taken += hp_loss;
-
-            if self.state.player.hp <= 0 {
-                let revive_hp = potions::check_fairy_revive(&self.state);
-                if revive_hp > 0 {
-                    potions::consume_fairy(&mut self.state);
-                    self.state.player.hp = revive_hp;
-                } else {
-                    self.state.player.hp = 0;
-                    self.state.combat_over = true;
-                    self.state.player_won = false;
-                    self.phase = CombatPhase::CombatOver;
-                    return;
-                }
+            self.player_lose_hp(hp_loss);
+            if self.state.combat_over {
+                return;
             }
         }
 
@@ -565,25 +543,12 @@ impl CombatEngine {
             let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
             let tungsten_rod = self.state.has_relic("Tungsten Rod");
             let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
-            self.state.player.hp -= hp_loss;
-            self.state.total_damage_taken += hp_loss;
             // Decrement poison by 1
             let new_poison = player_poison - 1;
             self.state.player.set_status(sid::POISON, new_poison);
-
-            if self.state.player.hp <= 0 {
-                // Check Fairy in a Bottle
-                let revive_hp = potions::check_fairy_revive(&self.state);
-                if revive_hp > 0 {
-                    potions::consume_fairy(&mut self.state);
-                    self.state.player.hp = revive_hp;
-                } else {
-                    self.state.player.hp = 0;
-                    self.state.combat_over = true;
-                    self.state.player_won = false;
-                    self.phase = CombatPhase::CombatOver;
-                    return;
-                }
+            self.player_lose_hp(hp_loss);
+            if self.state.combat_over {
+                return;
             }
         }
 
@@ -792,7 +757,7 @@ impl CombatEngine {
         // AfterImage: gain block per card played (via hook dispatch, pre-effects)
         let pre_fx = powers::hooks::dispatch_on_card_played_pre(&self.state.player);
         if pre_fx.block_gain > 0 {
-            self.state.player.block += pre_fx.block_gain;
+            self.gain_block_player(pre_fx.block_gain);
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
@@ -892,7 +857,7 @@ impl CombatEngine {
         // Rage: gain block when playing an Attack (via hook dispatch, post-effects)
         let post_fx = powers::hooks::dispatch_on_card_played_post(&self.state.player, card.card_type == CardType::Attack);
         if post_fx.block_gain > 0 {
-            self.state.player.block += post_fx.block_gain;
+            self.gain_block_player(post_fx.block_gain);
         }
 
         // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
@@ -981,15 +946,7 @@ impl CombatEngine {
             }
         }
 
-        // Wave of the Hand: apply Weak to all enemies when player gains block (Java: WaveOfTheHandPower.onGainedBlock)
-        let woth = self.state.player.status(sid::WAVE_OF_THE_HAND);
-        if woth > 0 && card.base_block > 0 && !self.state.combat_over {
-            for ei in 0..self.state.enemies.len() {
-                if self.state.enemies[ei].is_alive() {
-                    powers::apply_debuff(&mut self.state.enemies[ei].entity, sid::WEAKENED, woth);
-                }
-            }
-        }
+        // Wave of the Hand is now handled inside gain_block_player() automatically.
 
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
@@ -1296,6 +1253,78 @@ impl CombatEngine {
     }
 
     // =======================================================================
+    // Centralized Mutations
+    // =======================================================================
+
+    /// Centralized player block gain. Fires Juggernaut and Wave of the Hand reactions.
+    /// Callers pass the FINAL computed amount (dexterity/frail already applied).
+    pub fn gain_block_player(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        self.state.player.block += amount;
+
+        // Juggernaut: deal damage to first living enemy equal to block gained
+        let jugg = self.state.player.status(sid::JUGGERNAUT);
+        if jugg > 0 {
+            let targets = self.state.targetable_enemy_indices();
+            if let Some(&target) = targets.first() {
+                self.deal_damage_to_enemy(target, jugg);
+            }
+        }
+
+        // Wave of the Hand: apply Weak to all enemies when gaining block
+        let wave = self.state.player.status(sid::WAVE_OF_THE_HAND);
+        if wave > 0 {
+            for i in 0..self.state.enemies.len() {
+                if self.state.enemies[i].is_targetable() {
+                    powers::apply_debuff(&mut self.state.enemies[i].entity, sid::WEAKENED, wave);
+                }
+            }
+        }
+    }
+
+    /// Centralized player HP loss (bypasses block). Checks fairy revive, fires on_hp_loss relics,
+    /// and triggers Rupture.
+    pub fn player_lose_hp(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        self.state.player.hp -= amount;
+        self.state.total_damage_taken += amount;
+
+        // Fire on_hp_loss relics (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
+        relics::on_hp_loss(&mut self.state, amount);
+
+        // Rupture: gain Strength when losing HP
+        let rupture = self.state.player.status(sid::RUPTURE);
+        if rupture > 0 {
+            self.state.player.add_status(sid::STRENGTH, rupture);
+        }
+
+        // Fairy revive check
+        if self.state.player.hp <= 0 {
+            self.check_fairy_revive();
+        }
+    }
+
+    /// Check and apply fairy revive if available.
+    fn check_fairy_revive(&mut self) {
+        if self.state.player.hp <= 0 {
+            let revive_hp = potions::check_fairy_revive(&self.state);
+            if revive_hp > 0 {
+                potions::consume_fairy(&mut self.state);
+                self.state.player.hp = revive_hp;
+            } else {
+                self.state.player.hp = 0;
+                self.state.combat_over = true;
+                self.state.player_won = false;
+                self.phase = CombatPhase::CombatOver;
+            }
+        }
+    }
+
+    // =======================================================================
     // Damage Dealing / Taking
     // =======================================================================
 
@@ -1324,13 +1353,45 @@ impl CombatEngine {
         enemy.entity.hp -= hp_damage;
         self.state.total_damage_dealt += hp_damage;
 
-        if enemy.entity.hp <= 0 {
-            enemy.entity.hp = 0;
+        // On-hit enemy reactions (only when HP damage dealt)
+        if hp_damage > 0 {
+            // Curl-Up: first time hit, enemy gains block
+            let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
+            if curl_up > 0 {
+                self.state.enemies[enemy_idx].entity.block += curl_up;
+                self.state.enemies[enemy_idx].entity.set_status(sid::CURL_UP, 0);
+            }
+
+            // Malleable: gain escalating block on hit
+            let malleable = self.state.enemies[enemy_idx].entity.status(sid::MALLEABLE);
+            if malleable > 0 {
+                self.state.enemies[enemy_idx].entity.block += malleable;
+                self.state.enemies[enemy_idx].entity.add_status(sid::MALLEABLE, 1);
+            }
+
+            // Sharp Hide: deal retaliation damage to player when attacked
+            let sharp_hide = self.state.enemies[enemy_idx].entity.status(sid::SHARP_HIDE);
+            if sharp_hide > 0 {
+                self.state.player.hp -= sharp_hide;
+                self.state.total_damage_taken += sharp_hide;
+            }
+
+            // Shifting: gain block equal to unblocked damage
+            let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
+            if shifting > 0 {
+                self.state.enemies[enemy_idx].entity.block += hp_damage;
+            }
+        }
+
+        if self.state.enemies[enemy_idx].entity.hp <= 0 {
+            self.state.enemies[enemy_idx].entity.hp = 0;
             // SporeCloud: apply Vulnerable to player on death (Java: SporeCloudPower.onDeath)
-            let spore = enemy.entity.status(sid::SPORE_CLOUD);
+            let spore = self.state.enemies[enemy_idx].entity.status(sid::SPORE_CLOUD);
             if spore > 0 {
                 powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
             }
+            // Fire on_enemy_death relics (Gremlin Horn, The Specimen)
+            relics::on_enemy_death(&mut self.state, enemy_idx);
         }
 
         // Boss damage hooks
@@ -1343,26 +1404,9 @@ impl CombatEngine {
         let blocked = player.block.min(damage);
         let hp_damage = damage - blocked;
         player.block -= blocked;
-        player.hp -= hp_damage;
-        self.state.total_damage_taken += hp_damage;
 
-        // Rupture: gain Strength when taking HP damage
         if hp_damage > 0 {
-            let rupture = self.state.player.status(sid::RUPTURE);
-            if rupture > 0 {
-                self.state.player.add_status(sid::STRENGTH, rupture);
-            }
-        }
-
-        if self.state.player.hp <= 0 {
-            // Check Fairy in a Bottle
-            let revive_hp = potions::check_fairy_revive(&self.state);
-            if revive_hp > 0 {
-                potions::consume_fairy(&mut self.state);
-                self.state.player.hp = revive_hp;
-            } else {
-                self.state.player.hp = 0;
-            }
+            self.player_lose_hp(hp_damage);
         }
     }
 
@@ -1401,7 +1445,7 @@ impl CombatEngine {
                 }
             }
             EvokeEffect::FrostBlock(block) => {
-                self.state.player.block += block;
+                self.gain_block_player(block);
             }
             EvokeEffect::DarkDamage(dmg) => {
                 if let Some(idx) = self.lowest_hp_enemy() {
@@ -1424,7 +1468,7 @@ impl CombatEngine {
                 }
             }
             PassiveEffect::FrostBlock(block) => {
-                self.state.player.block += block;
+                self.gain_block_player(block);
             }
             PassiveEffect::PlasmaEnergy(energy) => {
                 self.state.energy += energy;
@@ -1460,191 +1504,6 @@ impl CombatEngine {
     }
 
     // =======================================================================
-    // Enemy Turns
-    // =======================================================================
-
-    fn do_enemy_turns(&mut self) {
-        self.phase = CombatPhase::EnemyTurn;
-
-        let num_enemies = self.state.enemies.len();
-        for i in 0..num_enemies {
-            if !self.state.enemies[i].is_alive() {
-                continue;
-            }
-
-            // Block decays at start of enemy turn
-            self.state.enemies[i].entity.block = 0;
-
-            // Metallicize: enemy gains block
-            powers::apply_metallicize(&mut self.state.enemies[i].entity);
-
-            // Poison tick
-            let poison_dmg = powers::tick_poison(&mut self.state.enemies[i].entity);
-            if poison_dmg > 0 {
-                self.state.total_damage_dealt += poison_dmg;
-                if self.state.enemies[i].entity.is_dead() {
-                    self.state.enemies[i].entity.hp = 0;
-                    continue;
-                }
-            }
-
-            // Ritual strength gain (not first turn)
-            if !self.state.enemies[i].first_turn {
-                powers::apply_ritual(&mut self.state.enemies[i].entity);
-            }
-
-            // Execute enemy move
-            self.execute_enemy_move(i);
-
-            // Check player death
-            if self.state.player.is_dead() {
-                self.state.player.hp = 0;
-                self.state.combat_over = true;
-                self.state.player_won = false;
-                self.phase = CombatPhase::CombatOver;
-                return;
-            }
-
-            // Mark first turn complete
-            self.state.enemies[i].first_turn = false;
-        }
-    }
-
-    fn execute_enemy_move(&mut self, enemy_idx: usize) {
-        let enemy = &self.state.enemies[enemy_idx];
-        if enemy.move_id == -1 {
-            return;
-        }
-
-        // Attack
-        let move_dmg = enemy.move_damage();
-        if move_dmg > 0 {
-            let enemy_strength = enemy.entity.strength();
-            let enemy_weak = enemy.entity.is_weak();
-            let base_damage = move_dmg + enemy_strength;
-
-            // Apply Weak to enemy's attack
-            let mut damage_f = base_damage as f64;
-            if enemy_weak {
-                damage_f *= damage::WEAK_MULT;
-            }
-
-            // Floor the per-hit base (before stance/vuln/intangible)
-            let per_hit_base = (damage_f as i32).max(0);
-
-            let is_wrath = self.state.stance == Stance::Wrath;
-            let player_vuln = self.state.player.is_vulnerable();
-            let player_intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let has_torii = self.state.has_relic("Torii");
-            let has_tungsten = self.state.has_relic("Tungsten Rod");
-
-            let hits = enemy.move_hits();
-            for _ in 0..hits {
-                let result = damage::calculate_incoming_damage(
-                    per_hit_base,
-                    self.state.player.block,
-                    is_wrath,
-                    player_vuln,
-                    player_intangible,
-                    has_torii,
-                    has_tungsten,
-                );
-
-                self.state.player.block = result.block_remaining;
-                if result.hp_loss > 0 {
-                    self.state.player.hp -= result.hp_loss;
-                    self.state.total_damage_taken += result.hp_loss;
-
-                    // Plated Armor decrements on unblocked HP damage
-                    let plated = self.state.player.status(sid::PLATED_ARMOR);
-                    if plated > 0 {
-                        let new_plated = plated - 1;
-                        self.state.player.set_status(sid::PLATED_ARMOR, new_plated);
-                    }
-                }
-
-                if self.state.player.hp <= 0 {
-                    // Check Fairy in a Bottle
-                    let revive_hp = potions::check_fairy_revive(&self.state);
-                    if revive_hp > 0 {
-                        potions::consume_fairy(&mut self.state);
-                        self.state.player.hp = revive_hp;
-                    } else {
-                        self.state.player.hp = 0;
-                    }
-                }
-
-                if self.state.player.is_dead() {
-                    return;
-                }
-            }
-        }
-
-        // Block
-        let move_blk = self.state.enemies[enemy_idx].move_block();
-        if move_blk > 0 {
-            self.state.enemies[enemy_idx].entity.block += move_blk;
-        }
-
-        // Apply move effects
-        // (delegated to combat_hooks.rs in the primary execute_enemy_move path;
-        //  this legacy path kept for backwards compat with tests that bypass combat_hooks)
-        let effects = self.state.enemies[enemy_idx].move_effects.clone();
-        fn gfx(effects: &smallvec::SmallVec<[(u8, i16); 4]>, id: u8) -> Option<i16> {
-            effects.iter().find(|e| e.0 == id).map(|e| e.1)
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::WEAK) {
-            powers::apply_debuff(&mut self.state.player, sid::WEAKENED, amt as i32);
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::VULNERABLE) {
-            powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, amt as i32);
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::FRAIL) {
-            powers::apply_debuff(&mut self.state.player, sid::FRAIL, amt as i32);
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::STRENGTH) {
-            self.state.enemies[enemy_idx]
-                .entity
-                .add_status(sid::STRENGTH, amt as i32);
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::RITUAL) {
-            self.state.enemies[enemy_idx]
-                .entity
-                .set_status(sid::RITUAL, amt as i32);
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::ENTANGLE) {
-            if amt > 0 {
-                self.state.player.set_status(sid::ENTANGLED, 1);
-            }
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SLIMED) {
-            for _ in 0..amt {
-                self.state.discard_pile.push(self.card_registry.make_card("Slimed"));
-            }
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::DAZE) {
-            for _ in 0..amt {
-                self.state.discard_pile.push(self.card_registry.make_card("Daze"));
-            }
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::BURN) {
-            for _ in 0..amt {
-                self.state.discard_pile.push(self.card_registry.make_card("Burn"));
-            }
-        }
-        // Lagavulin Siphon Soul: reduce player Strength and Dexterity
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SIPHON_STR) {
-            self.state.player.add_status(sid::STRENGTH, -(amt as i32));
-        }
-        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SIPHON_DEX) {
-            self.state.player.add_status(sid::DEXTERITY, -(amt as i32));
-        }
-
-        // Advance enemy to next move for next turn
-        enemies::roll_next_move(&mut self.state.enemies[enemy_idx]);
-    }
-
-    // =======================================================================
     // Draw / Shuffle
     // =======================================================================
 
@@ -1671,6 +1530,8 @@ impl CombatEngine {
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
                 shuffled.shuffle(&mut self.rng);
                 self.state.draw_pile = shuffled;
+                // Fire on_shuffle relics (Sundial, The Abacus)
+                relics::on_shuffle(&mut self.state);
             }
 
             if let Some(card) = self.state.draw_pile.pop() {
@@ -1717,7 +1578,7 @@ impl CombatEngine {
         let entering_wrath = new_stance == Stance::Wrath;
         let sfx = powers::hooks::dispatch_on_stance_change(&self.state.player, entering_wrath);
         if sfx.block_gain > 0 {
-            self.state.player.block += sfx.block_gain;
+            self.gain_block_player(sfx.block_gain);
         }
         if sfx.draw > 0 {
             self.draw_cards(sfx.draw);
@@ -1764,7 +1625,7 @@ impl CombatEngine {
         // Nirvana: gain block when scrying
         let nirvana = self.state.player.status(sid::NIRVANA);
         if nirvana > 0 {
-            self.state.player.block += nirvana;
+            self.gain_block_player(nirvana);
         }
 
         // Weave: return from discard to hand on Scry
@@ -1792,7 +1653,7 @@ impl CombatEngine {
         // Power hooks via dispatch (FeelNoPain block, DarkEmbrace draw)
         let efx = powers::hooks::dispatch_on_exhaust(&self.state.player);
         if efx.block_gain > 0 {
-            self.state.player.block += efx.block_gain;
+            self.gain_block_player(efx.block_gain);
         }
         if efx.draw > 0 {
             self.draw_cards(efx.draw);
@@ -1868,6 +1729,11 @@ impl CombatEngine {
             self.state.combat_over = true;
             self.state.player_won = true;
             self.phase = CombatPhase::CombatOver;
+            // Fire on_victory relics (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
+            let heal = relics::on_victory(&mut self.state);
+            if heal > 0 {
+                self.state.player.hp = (self.state.player.hp + heal).min(self.state.player.max_hp);
+            }
             return true;
         }
 

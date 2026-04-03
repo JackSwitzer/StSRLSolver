@@ -8,6 +8,7 @@ use crate::enemies;
 use crate::engine::{CombatEngine, CombatPhase};
 use crate::potions;
 use crate::powers;
+use crate::relics;
 use crate::state::Stance;
 use crate::status_ids::sid;
 use smallvec::SmallVec;
@@ -164,6 +165,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.player.hp -= result.hp_loss;
                 engine.state.total_damage_taken += result.hp_loss;
 
+                // Fire on_hp_loss relics (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
+                relics::on_hp_loss(&mut engine.state, result.hp_loss);
+
+                // Rupture: gain Strength when losing HP from attack
+                let rupture = engine.state.player.status(sid::RUPTURE);
+                if rupture > 0 {
+                    engine.state.player.add_status(sid::STRENGTH, rupture);
+                }
+
                 // Plated Armor decrements on unblocked HP damage
                 let plated = engine.state.player.status(sid::PLATED_ARMOR);
                 if plated > 0 {
@@ -195,7 +205,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                             }
                         }
                         crate::orbs::EvokeEffect::FrostBlock(blk) => {
-                            engine.state.player.block += blk;
+                            engine.gain_block_player(blk);
                         }
                         _ => {}
                     }
@@ -228,6 +238,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.total_damage_dealt += hp_dmg_t;
                 if e.entity.hp <= 0 {
                     e.entity.hp = 0;
+                    relics::on_enemy_death(&mut engine.state, enemy_idx);
                 }
                 if hp_dmg_t > 0 {
                     on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
@@ -245,6 +256,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.total_damage_dealt += hp_dmg_f;
                 if e.entity.hp <= 0 {
                     e.entity.hp = 0;
+                    relics::on_enemy_death(&mut engine.state, enemy_idx);
                 }
                 if hp_dmg_f > 0 {
                     on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
@@ -499,41 +511,6 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             .entity
             .add_status(sid::STRENGTH, angry);
     }
-}
-
-/// Handle Time Eater card count and other enemy on-card-played triggers.
-///
-/// Called from `play_card()` after a card is played. Increments Time Warp on
-/// all living enemies that have the power. When 12 cards are reached, the
-/// Time Eater ends the player's turn and gains Strength.
-///
-/// Returns `true` if the player's turn should end (Time Warp triggered).
-pub fn on_player_card_played(engine: &mut CombatEngine, card_type: crate::cards::CardType) -> bool {
-    let mut end_turn = false;
-
-    for i in 0..engine.state.enemies.len() {
-        if !engine.state.enemies[i].is_alive() {
-            continue;
-        }
-
-        // Time Warp: count cards, at 12 end turn + enemy gains 2 Strength
-        if powers::increment_time_warp(&mut engine.state.enemies[i].entity) {
-            engine.state.enemies[i].entity.add_status(sid::STRENGTH, 2);
-            end_turn = true;
-        }
-
-        // Curiosity: enemy gains Strength when player plays a Power card
-        if card_type == crate::cards::CardType::Power {
-            let curiosity = engine.state.enemies[i].entity.status(sid::CURIOSITY);
-            if curiosity > 0 {
-                engine.state.enemies[i]
-                    .entity
-                    .add_status(sid::STRENGTH, curiosity);
-            }
-        }
-    }
-
-    end_turn
 }
 
 /// Handle Slime Boss splitting into two smaller slimes.

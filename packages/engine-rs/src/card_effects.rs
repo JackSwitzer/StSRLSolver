@@ -157,7 +157,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         // BlockReturn only triggers on actual HP damage
                         if block_return > 0 {
                             if hp_dmg > 0 || enemy_hp_before > engine.state.enemies[tidx].entity.hp {
-                                engine.state.player.block += block_return;
+                                engine.gain_block_player(block_return);
                             }
                         }
                         if engine.state.enemies[tidx].entity.is_dead() {
@@ -196,7 +196,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         if block_return > 0 {
                             let hp_dmg = dmg - enemy_block_before.min(dmg);
                             if hp_dmg > 0 || enemy_hp_before > engine.state.enemies[enemy_idx].entity.hp {
-                                engine.state.player.block += block_return;
+                                engine.gain_block_player(block_return);
                             }
                         }
                         if engine.state.enemies[enemy_idx].entity.is_dead() {
@@ -212,7 +212,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
 
     // ---- Wallop: gain block equal to unblocked damage dealt ----
     if card.effects.contains(&"block_from_damage") {
-        engine.state.player.block += total_unblocked_damage;
+        engine.gain_block_player(total_unblocked_damage);
     }
 
     // ---- Reaper: heal for total unblocked damage dealt to all enemies ----
@@ -241,7 +241,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let block = damage::calculate_block(card.base_block, dex, frail);
-        engine.state.player.block += block * block_multiplier;
+        engine.gain_block_player(block * block_multiplier);
     }
 
     // ---- Spirit Shield: gain block per card in hand ----
@@ -251,7 +251,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let block = damage::calculate_block(per_card * cards_in_hand, dex, frail);
-        engine.state.player.block += block;
+        engine.gain_block_player(block);
     }
 
     // ---- Halt: extra block in Wrath ----
@@ -260,7 +260,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let extra = damage::calculate_block(card.base_magic, dex, frail);
-            engine.state.player.block += extra;
+            engine.gain_block_player(extra);
         }
     }
 
@@ -1289,7 +1289,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.state.hand = remaining;
         if exhaust_count > 0 {
             let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
-            engine.state.player.block += block;
+            engine.gain_block_player(block);
         }
     }
 }
