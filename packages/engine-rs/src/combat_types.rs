@@ -1,43 +1,7 @@
-//! Core combat types for engine v2.
-//! Entity-based model: player and enemies share the same Entity struct.
+//! Core combat types — CardInstance, Intent, effect bitfields, DamageSource.
 //! All types are Copy-friendly for MCTS cloning.
 
-use smallvec::SmallVec;
 use serde::{Serialize, Deserialize};
-
-// ---------------------------------------------------------------------------
-// Entity — universal character (player AND enemy)
-// ---------------------------------------------------------------------------
-
-/// Universal character. entities[0] = player, entities[1..] = enemies.
-#[derive(Clone, Debug)]
-pub struct Entity {
-    pub hp: i16,
-    pub max_hp: i16,
-    pub block: i16,
-    /// Fixed array indexed by StatusId. Zero = absent.
-    pub statuses: [i16; 64],
-}
-
-impl Entity {
-    pub fn new(hp: i16, max_hp: i16) -> Self {
-        Self { hp, max_hp, block: 0, statuses: [0; 64] }
-    }
-
-    pub fn status(&self, id: u8) -> i16 { self.statuses[id as usize] }
-    pub fn set_status(&mut self, id: u8, val: i16) { self.statuses[id as usize] = val; }
-    pub fn add_status(&mut self, id: u8, amt: i16) { self.statuses[id as usize] += amt; }
-    pub fn is_alive(&self) -> bool { self.hp > 0 }
-    pub fn is_dead(&self) -> bool { self.hp <= 0 }
-
-    // Convenience (StatusId numbers match status_ids.rs)
-    pub fn strength(&self) -> i16 { self.statuses[0] }
-    pub fn dexterity(&self) -> i16 { self.statuses[1] }
-    pub fn focus(&self) -> i16 { self.statuses[2] }
-    pub fn is_weak(&self) -> bool { self.statuses[6] > 0 }
-    pub fn is_vulnerable(&self) -> bool { self.statuses[5] > 0 }
-    pub fn is_frail(&self) -> bool { self.statuses[7] > 0 }
-}
 
 // ---------------------------------------------------------------------------
 // CardInstance — 4 bytes per card, Copy
@@ -170,107 +134,12 @@ pub enum DamageSource {
 }
 
 // ---------------------------------------------------------------------------
-// Stance
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum StanceV2 {
-    Neutral = 0,
-    Wrath = 1,
-    Calm = 2,
-    Divinity = 3,
-}
-
-// ---------------------------------------------------------------------------
-// EnemyMeta — AI state separate from Entity stats
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EnemyMeta {
-    pub enemy_id: u16,
-    pub intent: Intent,
-    pub move_history: SmallVec<[u8; 8]>,
-    pub first_turn: bool,
-    pub escaping: bool,
-}
-
-// ---------------------------------------------------------------------------
-// Combat — full snapshot cloned for MCTS
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug)]
-pub struct Combat {
-    // Entities: [0] = player, [1..] = enemies
-    pub entities: SmallVec<[Entity; 6]>,
-    pub enemy_meta: SmallVec<[EnemyMeta; 5]>,
-
-    // Card piles
-    pub hand: SmallVec<[CardInstance; 10]>,
-    pub draw_pile: Vec<CardInstance>,
-    pub discard_pile: Vec<CardInstance>,
-    pub exhaust_pile: Vec<CardInstance>,
-
-    // Resources
-    pub energy: i8,
-    pub max_energy: i8,
-    pub stance: StanceV2,
-    pub mantra: i16,
-
-    // Relics + potions (compact)
-    pub relics: [u64; 3],   // 192-bit bitfield
-    pub potions: [u8; 5],   // potion IDs, 0=empty
-
-    // Orbs (Defect)
-    pub orb_types: [u8; 5],
-    pub orb_values: [i16; 5],
-    pub orb_count: u8,
-    pub orb_max: u8,
-
-    // Turn tracking
-    pub turn: u16,
-    pub cards_played: u8,
-    pub attacks_played: u8,
-
-    // Flags
-    pub combat_over: bool,
-    pub player_won: bool,
-    pub skip_enemy_turn: bool,
-    pub blasphemy: bool,
-}
-
-// ---------------------------------------------------------------------------
-// CombatLine — MCTS solver output
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug)]
-pub struct CombatLine {
-    pub actions: SmallVec<[u8; 20]>,
-    pub expected_hp_remaining: i16,
-    pub expected_hp_loss: i16,
-    pub potions_used: u8,
-    pub enemies_killed: u8,
-    pub turns: u8,
-    pub confidence: f32,
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn entity_basics() {
-        let mut e = Entity::new(72, 72);
-        assert_eq!(e.hp, 72);
-        assert!(e.is_alive());
-        e.set_status(0, 3);
-        assert_eq!(e.strength(), 3);
-        e.add_status(0, 2);
-        assert_eq!(e.strength(), 5);
-    }
 
     #[test]
     fn card_instance_flags() {
@@ -288,47 +157,9 @@ mod tests {
     }
 
     #[test]
-    fn entity_status_array_size() {
-        assert_eq!(std::mem::size_of::<[i16; 64]>(), 128);
-    }
-
-    #[test]
     fn intent_is_copy() {
         let i = Intent::Attack { damage: 12, hits: 3, effects: fx::WEAK | fx::VULNERABLE };
         let i2 = i; // Copy
         assert_eq!(i, i2);
-    }
-
-    #[test]
-    fn combat_clone() {
-        let mut c = Combat {
-            entities: SmallVec::new(),
-            enemy_meta: SmallVec::new(),
-            hand: SmallVec::new(),
-            draw_pile: Vec::new(),
-            discard_pile: Vec::new(),
-            exhaust_pile: Vec::new(),
-            energy: 3,
-            max_energy: 3,
-            stance: StanceV2::Neutral,
-            mantra: 0,
-            relics: [0; 3],
-            potions: [0; 5],
-            orb_types: [0; 5],
-            orb_values: [0; 5],
-            orb_count: 0,
-            orb_max: 0,
-            turn: 1,
-            cards_played: 0,
-            attacks_played: 0,
-            combat_over: false,
-            player_won: false,
-            skip_enemy_turn: false,
-            blasphemy: false,
-        };
-        c.entities.push(Entity::new(72, 72));
-        let c2 = c.clone();
-        assert_eq!(c2.entities[0].hp, 72);
-        assert_eq!(c2.energy, 3);
     }
 }

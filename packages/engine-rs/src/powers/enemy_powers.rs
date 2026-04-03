@@ -56,47 +56,10 @@ pub fn increment_time_warp(entity: &mut EntityState) -> bool {
     false
 }
 
-/// Panache: tracks cards played, every 5 deals 10 damage to all enemies.
-/// Returns damage to deal (0 or panache amount).
-
-pub fn apply_angry_on_hit(entity: &mut EntityState) {
-    let angry = entity.status(sid::ANGRY);
-    if angry > 0 {
-        entity.add_status(sid::STRENGTH, angry);
-    }
-}
-
-/// Envenom: returns Poison amount to apply when dealing unblocked attack damage.
-
-pub fn apply_curiosity(entity: &mut EntityState) {
-    let curiosity = entity.status(sid::CURIOSITY);
-    if curiosity > 0 {
-        entity.add_status(sid::STRENGTH, curiosity);
-    }
-}
-
-/// Rupture: gain Strength when losing HP from a card.
-
 pub fn reset_slow(entity: &mut EntityState) {
     if entity.status(sid::SLOW) != 0 {
         entity.set_status(sid::SLOW, 0);
     }
-}
-
-/// Decrement Fading. Returns true if entity should die (Fading reaches 0).
-
-pub fn decrement_explosive(entity: &mut EntityState) -> i32 {
-    let explosive = entity.status(sid::EXPLOSIVE);
-    if explosive > 0 {
-        let new_val = explosive - 1;
-        entity.set_status(sid::EXPLOSIVE, new_val);
-        if new_val <= 0 {
-            // Explosive deals its stored damage amount
-            // The damage is stored separately; typically 30-50
-            return 30; // Default bomb damage
-        }
-    }
-    0
 }
 
 /// Growth: gain Strength and Block at end of round.
@@ -107,14 +70,6 @@ pub fn apply_growth(entity: &mut EntityState) {
     if growth > 0 {
         entity.add_status(sid::STRENGTH, growth);
         entity.block += growth;
-    }
-}
-
-/// Decrement Blur at end of round.
-
-pub fn reset_invincible(entity: &mut EntityState, max_amount: i32) {
-    if entity.status(sid::INVINCIBLE) != 0 {
-        entity.set_status(sid::INVINCIBLE, max_amount);
     }
 }
 
@@ -157,15 +112,6 @@ pub fn apply_regeneration(entity: &mut EntityState) -> i32 {
     0
 }
 
-/// Enemy Regeneration: heal HP capped at max_hp, decrement stacks.
-pub fn apply_enemy_regeneration(entity: &mut EntityState, max_hp: i32) {
-    let regen = entity.status(sid::REGENERATION);
-    if regen > 0 {
-        entity.hp = (entity.hp + regen).min(max_hp);
-        entity.add_status(sid::REGENERATION, -1);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Regrow end-of-turn (enemy)
 // ---------------------------------------------------------------------------
@@ -185,43 +131,3 @@ pub fn get_regrow_heal(entity: &EntityState) -> i32 {
 pub fn get_spore_cloud_vulnerable(entity: &EntityState) -> i32 {
     entity.status(sid::SPORE_CLOUD)
 }
-
-// ---------------------------------------------------------------------------
-// Fading (enemy death countdown)
-// ---------------------------------------------------------------------------
-
-/// Fading: decrement at end of turn. Returns true if entity should die.
-pub fn tick_fading(entity: &mut EntityState) -> bool {
-    let fading = entity.status(sid::FADING);
-    if fading > 0 {
-        let new_val = fading - 1;
-        entity.set_status(sid::FADING, new_val);
-        if new_val <= 0 {
-            return true; // enemy should die
-        }
-    }
-    false
-}
-
-// ---------------------------------------------------------------------------
-// TheBomb countdown (standalone helper)
-// ---------------------------------------------------------------------------
-
-/// TheBomb: decrement counter. Returns damage to deal to player (0 if not yet).
-pub fn tick_the_bomb(entity: &mut EntityState) -> i32 {
-    let bomb = entity.status(sid::THE_BOMB);
-    if bomb > 0 {
-        let turns = entity.status(sid::THE_BOMB_TURNS);
-        if turns > 1 {
-            entity.set_status(sid::THE_BOMB_TURNS, turns - 1);
-            0
-        } else {
-            entity.set_status(sid::THE_BOMB, 0);
-            entity.set_status(sid::THE_BOMB_TURNS, 0);
-            bomb // return damage to deal to player
-        }
-    } else {
-        0
-    }
-}
-
