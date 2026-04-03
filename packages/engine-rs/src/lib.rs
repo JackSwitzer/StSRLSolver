@@ -10,6 +10,7 @@
 
 pub mod actions;
 pub mod combat_types;
+pub mod combat_verbs;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
