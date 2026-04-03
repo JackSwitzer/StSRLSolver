@@ -919,9 +919,10 @@ impl CombatEngine {
             self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
         }
 
-        // EchoForm: replay the first card played this turn
-        if self.state.cards_played_this_turn == 1
-            && self.state.player.status(sid::ECHO_FORM) > 0
+        // EchoForm: replay first N cards played this turn (stacking)
+        let echo_count = self.state.player.status(sid::ECHO_FORM);
+        if echo_count > 0
+            && self.state.cards_played_this_turn <= echo_count
             && card.card_type != CardType::Power
             && !self.state.combat_over
         {
@@ -943,6 +944,43 @@ impl CombatEngine {
             if burst > 0 {
                 self.state.player.add_status(sid::BURST, -1);
                 crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+            }
+        }
+
+        // Necronomicon: replay first 2+-cost Attack once per turn
+        if !self.state.combat_over {
+            let is_attack = card.card_type == CardType::Attack;
+            if relics::necronomicon_should_trigger(&self.state, card.cost, is_attack) {
+                relics::necronomicon_mark_used(&mut self.state);
+                crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+            }
+        }
+
+        // Curiosity: Awakened One gains Strength when player plays a Power
+        if card.card_type == CardType::Power {
+            for i in 0..self.state.enemies.len() {
+                let curiosity = self.state.enemies[i].entity.status(sid::CURIOSITY);
+                if curiosity > 0 && self.state.enemies[i].is_alive() {
+                    self.state.enemies[i].entity.add_status(sid::STRENGTH, curiosity);
+                }
+            }
+        }
+
+        // SkillBurn (Book of Stabbing): deal damage to player when playing a Skill
+        if card.card_type == CardType::Skill {
+            for i in 0..self.state.enemies.len() {
+                let sb = self.state.enemies[i].entity.status(sid::SKILL_BURN);
+                if sb > 0 && self.state.enemies[i].is_alive() {
+                    self.player_lose_hp(sb);
+                }
+            }
+        }
+
+        // Forcefield: decrement on enemies after each card play
+        for i in 0..self.state.enemies.len() {
+            let ff = self.state.enemies[i].entity.status(sid::FORCEFIELD);
+            if ff > 0 && self.state.enemies[i].is_alive() {
+                self.state.enemies[i].entity.add_status(sid::FORCEFIELD, -1);
             }
         }
 
@@ -986,6 +1024,11 @@ impl CombatEngine {
         if card.effects.contains(&"end_turn") {
             self.end_turn();
             return;
+        }
+
+        // Unceasing Top: draw when hand is empty
+        while relics::unceasing_top_should_draw(&self.state) {
+            self.draw_cards(1);
         }
 
         // Check combat end after card play
@@ -1517,6 +1560,8 @@ impl CombatEngine {
         let draw_reduction = self.state.player.status(sid::DRAW_REDUCTION);
         let actual_count = (count - draw_reduction).max(0);
 
+        let mut extra_draws = 0i32;
+
         for _ in 0..actual_count {
             if self.state.hand.len() >= 10 {
                 break; // Hand size limit
@@ -1534,9 +1579,34 @@ impl CombatEngine {
                 relics::on_shuffle(&mut self.state);
             }
 
-            if let Some(card) = self.state.draw_pile.pop() {
-                self.state.hand.push(card);
+            if let Some(drawn) = self.state.draw_pile.pop() {
+                self.state.hand.push(drawn);
+
+                // On-draw hooks: check drawn card type
+                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                let card_type = card_def.card_type;
+
+                // Evolve: draw extra cards when drawing a Status
+                let evolve = self.state.player.status(sid::EVOLVE);
+                if evolve > 0 && card_type == CardType::Status {
+                    extra_draws += evolve;
+                }
+
+                // Fire Breathing: damage all enemies when drawing Status or Curse
+                let fire_breathing = self.state.player.status(sid::FIRE_BREATHING);
+                if fire_breathing > 0 && (card_type == CardType::Status || card_type == CardType::Curse) {
+                    for i in 0..self.state.enemies.len() {
+                        if self.state.enemies[i].is_targetable() {
+                            self.deal_damage_to_enemy(i, fire_breathing);
+                        }
+                    }
+                }
             }
+        }
+
+        // Evolve: draw accumulated extra cards (recursive call handles further triggers)
+        if extra_draws > 0 {
+            self.draw_cards(extra_draws);
         }
     }
 
@@ -1658,6 +1728,9 @@ impl CombatEngine {
         if efx.draw > 0 {
             self.draw_cards(efx.draw);
         }
+
+        // Charon's Ashes (relic): deal 3 damage to all enemies on exhaust
+        relics::charons_ashes_on_exhaust(&mut self.state);
 
         // Dead Branch (relic): add a random card to hand on exhaust
         if relics::dead_branch_on_exhaust(&self.state) {
