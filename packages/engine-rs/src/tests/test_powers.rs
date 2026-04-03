@@ -17,7 +17,7 @@ mod power_tests {
         e.set_status(sid::WEAKENED, 1);
         decrement_debuffs(&mut e);
         assert_eq!(e.status(sid::WEAKENED), 0);
-        assert!(!e.statuses.contains_key(&sid::WEAKENED));
+        assert_eq!(e.status(sid::WEAKENED), 0);
     }
     #[test] fn decrement_all_three() {
         let mut e = entity();

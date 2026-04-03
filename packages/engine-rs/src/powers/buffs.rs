@@ -902,7 +902,7 @@ mod tests {
         let dmg = tick_poison(&mut entity);
         assert_eq!(dmg, 1);
         assert_eq!(entity.status(sid::POISON), 0);
-        assert!(!entity.statuses.contains_key(&sid::POISON));
+        assert_eq!(entity.status(sid::POISON), 0);
     }
 
     // -- Metallicize / Plated Armor tests --

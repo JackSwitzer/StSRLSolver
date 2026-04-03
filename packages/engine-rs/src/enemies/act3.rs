@@ -324,17 +324,17 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status(sid::PHASE, 2);
     enemy.entity.set_status(sid::CURIOSITY, 0);
     // Remove all debuffs using PowerDef registry
-    let debuffs: Vec<crate::ids::StatusId> = enemy.entity.statuses.keys()
-        .filter(|&&k| {
-            let name = crate::status_ids::status_name(k);
-            crate::powers::get_power_def(name)
+    for i in 0..256 {
+        if enemy.entity.statuses[i] != 0 {
+            let sid = crate::ids::StatusId(i as u16);
+            let name = crate::status_ids::status_name(sid);
+            if crate::powers::get_power_def(name)
                 .map(|def| def.power_type == crate::powers::PowerType::Debuff)
                 .unwrap_or(false)
-        })
-        .copied()
-        .collect();
-    for debuff in debuffs {
-        enemy.entity.statuses.remove(&debuff);
+            {
+                enemy.entity.statuses[i] = 0;
+            }
+        }
     }
     // Heal to full (second form HP)
     enemy.entity.hp = enemy.entity.max_hp;

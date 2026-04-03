@@ -33,7 +33,7 @@ pub fn get_beat_of_death_damage(entity: &EntityState) -> i32 {
 
 pub fn increment_slow(entity: &mut EntityState) {
     let slow = entity.status(sid::SLOW);
-    if slow >= 0 && entity.statuses.contains_key(&sid::SLOW) {
+    if slow > 0 {
         entity.add_status(sid::SLOW, 1);
     }
 }
@@ -52,8 +52,7 @@ pub fn increment_time_warp(entity: &mut EntityState) -> bool {
         entity.set_status(sid::TIME_WARP, 0);
         return true;
     }
-    // Use insert directly to allow storing intermediate values including 0
-    entity.statuses.insert(sid::TIME_WARP, new_val);
+    entity.set_status(sid::TIME_WARP, new_val);
     false
 }
 
@@ -79,7 +78,7 @@ pub fn apply_curiosity(entity: &mut EntityState) {
 /// Rupture: gain Strength when losing HP from a card.
 
 pub fn reset_slow(entity: &mut EntityState) {
-    if entity.statuses.contains_key(&sid::SLOW) {
+    if entity.status(sid::SLOW) != 0 {
         entity.set_status(sid::SLOW, 0);
     }
 }
@@ -114,7 +113,7 @@ pub fn apply_growth(entity: &mut EntityState) {
 /// Decrement Blur at end of round.
 
 pub fn reset_invincible(entity: &mut EntityState, max_amount: i32) {
-    if entity.statuses.contains_key(&sid::INVINCIBLE) {
+    if entity.status(sid::INVINCIBLE) != 0 {
         entity.set_status(sid::INVINCIBLE, max_amount);
     }
 }

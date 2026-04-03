@@ -313,20 +313,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Champ Anger / Time Eater Haste: remove ALL debuffs from this enemy
     // Uses PowerDef registry to identify debuffs rather than a hardcoded list
     if effects.get("remove_debuffs").copied().unwrap_or(0) > 0 {
-        let debuff_keys: Vec<crate::ids::StatusId> = engine.state.enemies[enemy_idx]
-            .entity
-            .statuses
-            .keys()
-            .filter(|&&k| {
-                let name = crate::status_ids::status_name(k);
-                crate::powers::get_power_def(name)
+        let statuses = &mut engine.state.enemies[enemy_idx].entity.statuses;
+        for i in 0..256 {
+            if statuses[i] != 0 {
+                let sid = crate::ids::StatusId(i as u16);
+                let name = crate::status_ids::status_name(sid);
+                if crate::powers::get_power_def(name)
                     .map(|def| def.power_type == crate::powers::PowerType::Debuff)
                     .unwrap_or(false)
-            })
-            .copied()
-            .collect();
-        for key in debuff_keys {
-            engine.state.enemies[enemy_idx].entity.statuses.remove(&key);
+                {
+                    statuses[i] = 0;
+                }
+            }
         }
     }
 

@@ -487,12 +487,15 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     off += 1;
 
     // --- Active powers 20 x 2 (40 dims) ---
-    for (&status_id, &amount) in &player.statuses {
-        if let Some(idx) = power_index(status_id) {
-            if idx < 20 {
-                let base = off + idx * 2;
-                obs[base] = 1.0;
-                obs[base + 1] = amount as f32 / 10.0;
+    for (i, &val) in player.statuses.iter().enumerate() {
+        if val != 0 {
+            let status_id = crate::ids::StatusId(i as u16);
+            if let Some(idx) = power_index(status_id) {
+                if idx < 20 {
+                    let base = off + idx * 2;
+                    obs[base] = 1.0;
+                    obs[base + 1] = val as f32 / 10.0;
+                }
             }
         }
     }

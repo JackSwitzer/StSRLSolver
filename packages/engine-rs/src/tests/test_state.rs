@@ -42,7 +42,7 @@ mod state_tests {
         let mut e = EntityState::new(50, 50);
         e.set_status(sid::STRENGTH, 5);
         e.set_status(sid::STRENGTH, 0);
-        assert!(!e.statuses.contains_key(&sid::STRENGTH));
+        assert_eq!(e.status(sid::STRENGTH), 0);
     }
     #[test] fn entity_dead_at_zero() {
         let mut e = EntityState::new(50, 50);

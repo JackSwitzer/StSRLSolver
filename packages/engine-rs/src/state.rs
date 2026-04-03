@@ -1,11 +1,10 @@
 //! Combat state types — mirrors packages/engine/state/combat.py.
 //!
-//! Design: all state is owned, Clone for MCTS tree copies. HashMap<String, i32>
-//! for statuses matches the Python dict approach.
+//! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
+//! [i16; 256] array indexed by StatusId for O(1) access and fast cloning.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -68,13 +67,13 @@ impl Stance {
 // EntityState — shared between player and enemies
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EntityState {
     pub hp: i32,
     pub max_hp: i32,
     pub block: i32,
-    /// All statuses as a flat map: StatusId -> value.
-    pub statuses: FxHashMap<StatusId, i32>,
+    /// All statuses as a flat array indexed by StatusId. Zero means absent.
+    pub statuses: [i16; 256],
 }
 
 impl EntityState {
@@ -83,34 +82,34 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: FxHashMap::default(),
+            statuses: [0; 256],
         }
     }
 
     // -- Convenience accessors (match Python properties) --
 
     pub fn strength(&self) -> i32 {
-        self.statuses.get(&sid::STRENGTH).copied().unwrap_or(0)
+        self.statuses[sid::STRENGTH.0 as usize] as i32
     }
 
     pub fn dexterity(&self) -> i32 {
-        self.statuses.get(&sid::DEXTERITY).copied().unwrap_or(0)
+        self.statuses[sid::DEXTERITY.0 as usize] as i32
     }
 
     pub fn focus(&self) -> i32 {
-        self.statuses.get(&sid::FOCUS).copied().unwrap_or(0)
+        self.statuses[sid::FOCUS.0 as usize] as i32
     }
 
     pub fn is_weak(&self) -> bool {
-        self.statuses.get(&sid::WEAKENED).copied().unwrap_or(0) > 0
+        self.statuses[sid::WEAKENED.0 as usize] > 0
     }
 
     pub fn is_vulnerable(&self) -> bool {
-        self.statuses.get(&sid::VULNERABLE).copied().unwrap_or(0) > 0
+        self.statuses[sid::VULNERABLE.0 as usize] > 0
     }
 
     pub fn is_frail(&self) -> bool {
-        self.statuses.get(&sid::FRAIL).copied().unwrap_or(0) > 0
+        self.statuses[sid::FRAIL.0 as usize] > 0
     }
 
     pub fn is_dead(&self) -> bool {
@@ -119,22 +118,18 @@ impl EntityState {
 
     /// Get a status value, defaulting to 0.
     pub fn status(&self, id: StatusId) -> i32 {
-        self.statuses.get(&id).copied().unwrap_or(0)
+        self.statuses[id.0 as usize] as i32
     }
 
-    /// Set a status value. Removes the key if value is 0.
+    /// Set a status value.
     pub fn set_status(&mut self, id: StatusId, value: i32) {
-        if value == 0 {
-            self.statuses.remove(&id);
-        } else {
-            self.statuses.insert(id, value);
-        }
+        self.statuses[id.0 as usize] = value as i16;
     }
 
     /// Add to a status value.
     pub fn add_status(&mut self, id: StatusId, amount: i32) {
-        let current = self.status(id);
-        self.set_status(id, current + amount);
+        let idx = id.0 as usize;
+        self.statuses[idx] = (self.statuses[idx] as i32 + amount) as i16;
     }
 }
 
@@ -142,7 +137,7 @@ impl EntityState {
 // EnemyCombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
@@ -208,7 +203,7 @@ impl EnemyCombatState {
 // CombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CombatState {
     // Player
     pub player: EntityState,
@@ -391,9 +386,11 @@ impl PyCombatState {
 
         // Player statuses
         let statuses = PyDict::new_bound(py);
-        for (&id, &val) in &self.inner.player.statuses {
-            let name = crate::status_ids::status_name(id);
-            statuses.set_item(name, val)?;
+        for (i, &val) in self.inner.player.statuses.iter().enumerate() {
+            if val != 0 {
+                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                statuses.set_item(name, val as i32)?;
+            }
         }
         dict.set_item("player_statuses", statuses)?;
 

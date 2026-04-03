@@ -456,11 +456,11 @@ mod power_java_parity_tests {
         assert_eq!(e.status(sid::WEAKENED), 2);
         assert_eq!(e.status(sid::VULNERABLE), 1);
         assert_eq!(e.status(sid::FRAIL), 0);
-        assert!(!e.statuses.contains_key(&sid::FRAIL));
+        assert_eq!(e.status(sid::FRAIL), 0);
         assert_eq!(e.status(sid::BLUR), 1);
         assert_eq!(e.status(sid::LOCK_ON), 3);
         assert_eq!(e.status(sid::SLOW), 0);
-        assert!(!e.statuses.contains_key(&sid::SLOW));
+        assert_eq!(e.status(sid::SLOW), 0);
     }
 
     #[test]
@@ -835,7 +835,7 @@ mod power_java_parity_tests {
         decrement_debuffs(&mut e);
         assert_eq!(e.status(sid::WEAKENED), 1);
         assert_eq!(e.status(sid::VULNERABLE), 0);
-        assert!(!e.statuses.contains_key(&sid::VULNERABLE));
+        assert_eq!(e.status(sid::VULNERABLE), 0);
         assert_eq!(e.status(sid::FRAIL), 2);
 
         assert_eq!(modify_damage_receive(&e, 10.0), 1.0);
@@ -844,7 +844,7 @@ mod power_java_parity_tests {
         decrement_intangible(&mut e);
         assert_eq!(e.status(sid::BLUR), 1);
         assert_eq!(e.status(sid::LOCK_ON), 0);
-        assert!(!e.statuses.contains_key(&sid::LOCK_ON));
+        assert_eq!(e.status(sid::LOCK_ON), 0);
         assert_eq!(e.status(sid::INTANGIBLE), 0);
         assert!(!decrement_fading(&mut e));
         assert!(decrement_fading(&mut e));
@@ -997,9 +997,9 @@ mod power_java_parity_tests {
 
         assert_eq!(e.status(sid::WEAKENED), 1);
         assert_eq!(e.status(sid::VULNERABLE), 0);
-        assert!(!e.statuses.contains_key(&sid::VULNERABLE));
+        assert_eq!(e.status(sid::VULNERABLE), 0);
         assert_eq!(e.status(sid::FRAIL), 0);
-        assert!(!e.statuses.contains_key(&sid::FRAIL));
+        assert_eq!(e.status(sid::FRAIL), 0);
         assert_eq!(e.status(sid::BLUR), 1);
         assert_eq!(e.status(sid::LOCK_ON), 0);
         assert_eq!(e.status(sid::SLOW), 0);
