@@ -118,6 +118,41 @@ pub mod fx {
     pub const DEX_DOWN: u16       = 1 << 15;
 }
 
+/// Move effect ID constants for EnemyCombatState.move_effects SmallVec.
+pub mod mfx {
+    pub const WEAK: u8 = 0;
+    pub const VULNERABLE: u8 = 1;
+    pub const FRAIL: u8 = 2;
+    pub const STRENGTH: u8 = 3;
+    pub const RITUAL: u8 = 4;
+    pub const ENTANGLE: u8 = 5;
+    pub const SLIMED: u8 = 6;
+    pub const DAZE: u8 = 7;
+    pub const BURN: u8 = 8;
+    pub const BURN_UPGRADE: u8 = 9;
+    pub const SIPHON_STR: u8 = 10;
+    pub const SIPHON_DEX: u8 = 11;
+    pub const REMOVE_DEBUFFS: u8 = 12;
+    pub const HEAL_TO_HALF: u8 = 13;
+    pub const HEAL_FULL: u8 = 14;
+    pub const ARTIFACT: u8 = 15;
+    pub const CONFUSED: u8 = 16;
+    pub const CONSTRICT: u8 = 17;
+    pub const DEX_DOWN: u8 = 18;
+    pub const DRAW_REDUCTION: u8 = 19;
+    pub const HEX: u8 = 20;
+    pub const PAINFUL_STABS: u8 = 21;
+    pub const STASIS: u8 = 22;
+    pub const STRENGTH_BONUS: u8 = 23;
+    pub const STRENGTH_DOWN: u8 = 24;
+    pub const THORNS: u8 = 25;
+    pub const VOID: u8 = 26;
+    pub const WOUND: u8 = 27;
+    pub const BEAT_OF_DEATH: u8 = 28;
+    pub const HEAL: u8 = 29;
+    pub const POISON: u8 = 30;
+}
+
 // ---------------------------------------------------------------------------
 // DamageSource
 // ---------------------------------------------------------------------------

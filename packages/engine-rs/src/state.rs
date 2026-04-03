@@ -6,10 +6,10 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use smallvec::SmallVec;
 
 use crate::cards::CardType;
-use crate::combat_types::CardInstance;
+use crate::combat_types::{CardInstance, Intent, mfx};
 use crate::ids::StatusId;
 use crate::orbs::OrbSlots;
 use crate::status_ids::sid;
@@ -145,11 +145,9 @@ pub struct EnemyCombatState {
     pub name: String,
     /// Current intended move
     pub move_id: i32,
-    pub move_damage: i32,
-    pub move_hits: i32,
-    pub move_block: i32,
-    /// Simple effects map: "weak" -> 2, "vulnerable" -> 1, etc.
-    pub move_effects: HashMap<String, i32>,
+    pub intent: Intent,
+    /// Compact move effects: (MoveEffectId, amount)
+    pub move_effects: SmallVec<[(u8, i16); 4]>,
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
@@ -162,10 +160,8 @@ impl EnemyCombatState {
             id: id.to_string(),
             name: id.to_string(),
             move_id: -1,
-            move_damage: 0,
-            move_hits: 1,
-            move_block: 0,
-            move_effects: HashMap::new(),
+            intent: Intent::Unknown,
+            move_effects: SmallVec::new(),
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
@@ -183,20 +179,88 @@ impl EnemyCombatState {
     }
 
     pub fn is_attacking(&self) -> bool {
-        self.move_damage > 0
+        matches!(self.intent,
+            Intent::Attack { .. } | Intent::AttackBlock { .. } |
+            Intent::AttackBuff { .. } | Intent::AttackDebuff { .. })
     }
 
     pub fn total_incoming_damage(&self) -> i32 {
-        self.move_damage * self.move_hits
+        match self.intent {
+            Intent::Attack { damage, hits, .. } |
+            Intent::AttackBlock { damage, hits, .. } |
+            Intent::AttackBuff { damage, hits, .. } |
+            Intent::AttackDebuff { damage, hits, .. } => {
+                damage as i32 * hits as i32
+            }
+            _ => 0,
+        }
     }
 
-    /// Set the enemy's next move.
+    pub fn move_damage(&self) -> i32 {
+        match self.intent {
+            Intent::Attack { damage, .. } |
+            Intent::AttackBlock { damage, .. } |
+            Intent::AttackBuff { damage, .. } |
+            Intent::AttackDebuff { damage, hits: _, .. } => damage as i32,
+            _ => 0,
+        }
+    }
+
+    pub fn move_hits(&self) -> i32 {
+        match self.intent {
+            Intent::Attack { hits, .. } |
+            Intent::AttackBlock { hits, .. } |
+            Intent::AttackBuff { hits, .. } |
+            Intent::AttackDebuff { hits, .. } => hits as i32,
+            _ => 0,
+        }
+    }
+
+    pub fn move_block(&self) -> i32 {
+        match self.intent {
+            Intent::Block { amount, .. } |
+            Intent::AttackBlock { block: amount, .. } |
+            Intent::DefendBuff { block: amount, .. } => amount as i32,
+            _ => 0,
+        }
+    }
+
+    /// Set the enemy's next move (clears effects).
     pub fn set_move(&mut self, move_id: i32, damage: i32, hits: i32, block: i32) {
         self.move_id = move_id;
-        self.move_damage = damage;
-        self.move_hits = hits;
-        self.move_block = block;
         self.move_effects.clear();
+        // Convert to Intent based on damage/block
+        if damage > 0 && block > 0 {
+            self.intent = Intent::AttackBlock {
+                damage: damage as i16, hits: hits as u8, block: block as i16, effects: 0
+            };
+        } else if damage > 0 {
+            self.intent = Intent::Attack {
+                damage: damage as i16, hits: hits as u8, effects: 0
+            };
+        } else if block > 0 {
+            self.intent = Intent::Block { amount: block as i16, effects: 0 };
+        } else {
+            self.intent = Intent::Buff { effects: 0 };
+        }
+    }
+
+    /// Add a move effect (replaces HashMap insert).
+    pub fn add_effect(&mut self, effect_id: u8, amount: i16) {
+        for entry in self.move_effects.iter_mut() {
+            if entry.0 == effect_id {
+                entry.1 = amount;
+                return;
+            }
+        }
+        self.move_effects.push((effect_id, amount));
+    }
+
+    /// Get a move effect amount (replaces HashMap get).
+    pub fn effect(&self, effect_id: u8) -> Option<i16> {
+        self.move_effects.iter()
+            .find(|e| e.0 == effect_id)
+            .map(|e| e.1)
     }
 }
 
@@ -382,7 +446,7 @@ impl PyCombatState {
             .map(|e| {
                 format!(
                     "{}(hp={}/{}, move_dmg={}, move_hits={})",
-                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage, e.move_hits
+                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage(), e.move_hits()
                 )
             })
             .collect();

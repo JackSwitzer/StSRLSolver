@@ -1517,10 +1517,11 @@ impl CombatEngine {
         }
 
         // Attack
-        if enemy.move_damage > 0 {
+        let move_dmg = enemy.move_damage();
+        if move_dmg > 0 {
             let enemy_strength = enemy.entity.strength();
             let enemy_weak = enemy.entity.is_weak();
-            let base_damage = enemy.move_damage + enemy_strength;
+            let base_damage = move_dmg + enemy_strength;
 
             // Apply Weak to enemy's attack
             let mut damage_f = base_damage as f64;
@@ -1537,7 +1538,7 @@ impl CombatEngine {
             let has_torii = self.state.has_relic("Torii");
             let has_tungsten = self.state.has_relic("Tungsten Rod");
 
-            let hits = enemy.move_hits;
+            let hits = enemy.move_hits();
             for _ in 0..hits {
                 let result = damage::calculate_incoming_damage(
                     per_hit_base,
@@ -1580,65 +1581,63 @@ impl CombatEngine {
         }
 
         // Block
-        if self.state.enemies[enemy_idx].move_block > 0 {
-            let block = self.state.enemies[enemy_idx].move_block;
-            self.state.enemies[enemy_idx].entity.block += block;
+        let move_blk = self.state.enemies[enemy_idx].move_block();
+        if move_blk > 0 {
+            self.state.enemies[enemy_idx].entity.block += move_blk;
         }
 
         // Apply move effects
+        // (delegated to combat_hooks.rs in the primary execute_enemy_move path;
+        //  this legacy path kept for backwards compat with tests that bypass combat_hooks)
         let effects = self.state.enemies[enemy_idx].move_effects.clone();
-        if let Some(&amt) = effects.get("weak") {
-            powers::apply_debuff(&mut self.state.player, sid::WEAKENED, amt);
+        fn gfx(effects: &smallvec::SmallVec<[(u8, i16); 4]>, id: u8) -> Option<i16> {
+            effects.iter().find(|e| e.0 == id).map(|e| e.1)
         }
-        if let Some(&amt) = effects.get("vulnerable") {
-            powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, amt);
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::WEAK) {
+            powers::apply_debuff(&mut self.state.player, sid::WEAKENED, amt as i32);
         }
-        if let Some(&amt) = effects.get("frail") {
-            powers::apply_debuff(&mut self.state.player, sid::FRAIL, amt);
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::VULNERABLE) {
+            powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, amt as i32);
         }
-        if let Some(&amt) = effects.get("strength") {
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::FRAIL) {
+            powers::apply_debuff(&mut self.state.player, sid::FRAIL, amt as i32);
+        }
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::STRENGTH) {
             self.state.enemies[enemy_idx]
                 .entity
-                .add_status(sid::STRENGTH, amt);
+                .add_status(sid::STRENGTH, amt as i32);
         }
-        if let Some(&amt) = effects.get("ritual") {
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::RITUAL) {
             self.state.enemies[enemy_idx]
                 .entity
-                .set_status(sid::RITUAL, amt);
+                .set_status(sid::RITUAL, amt as i32);
         }
-        if let Some(&amt) = effects.get("entangle") {
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::ENTANGLE) {
             if amt > 0 {
                 self.state.player.set_status(sid::ENTANGLED, 1);
             }
         }
-        if let Some(&amt) = effects.get("slimed") {
-            // Add Slimed cards to discard pile
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SLIMED) {
             for _ in 0..amt {
                 self.state.discard_pile.push(self.card_registry.make_card("Slimed"));
             }
         }
-        if let Some(&amt) = effects.get("daze") {
-            // Add Daze cards to discard pile
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::DAZE) {
             for _ in 0..amt {
                 self.state.discard_pile.push(self.card_registry.make_card("Daze"));
             }
         }
-        if let Some(&amt) = effects.get("burn") {
-            for _ in 0..amt {
-                self.state.discard_pile.push(self.card_registry.make_card("Burn"));
-            }
-        }
-        if let Some(&amt) = effects.get("burn+") {
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::BURN) {
             for _ in 0..amt {
                 self.state.discard_pile.push(self.card_registry.make_card("Burn"));
             }
         }
         // Lagavulin Siphon Soul: reduce player Strength and Dexterity
-        if let Some(&amt) = effects.get("siphon_str") {
-            self.state.player.add_status(sid::STRENGTH, -(amt));
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SIPHON_STR) {
+            self.state.player.add_status(sid::STRENGTH, -(amt as i32));
         }
-        if let Some(&amt) = effects.get("siphon_dex") {
-            self.state.player.add_status(sid::DEXTERITY, -(amt));
+        if let Some(amt) = gfx(&effects, crate::combat_types::mfx::SIPHON_DEX) {
+            self.state.player.add_status(sid::DEXTERITY, -(amt as i32));
         }
 
         // Advance enemy to next move for next turn
@@ -1920,8 +1919,7 @@ impl RustCombatEngine {
             .into_iter()
             .map(|(id, hp, max_hp, move_damage, move_hits)| {
                 let mut e = EnemyCombatState::new(&id, hp, max_hp);
-                e.move_damage = move_damage;
-                e.move_hits = move_hits;
+                e.set_move(1, move_damage, move_hits, 0);
                 e
             })
             .collect();
@@ -2030,10 +2028,42 @@ impl RustCombatEngine {
 
     /// Set an enemy move effect (e.g., "weak" -> 2).
     fn set_enemy_move_effect(&mut self, enemy_idx: usize, effect: &str, amount: i32) {
+        use crate::combat_types::mfx;
+        let eid = match effect {
+            "weak" => mfx::WEAK,
+            "vulnerable" => mfx::VULNERABLE,
+            "frail" => mfx::FRAIL,
+            "strength" => mfx::STRENGTH,
+            "ritual" => mfx::RITUAL,
+            "entangle" => mfx::ENTANGLE,
+            "slimed" => mfx::SLIMED,
+            "daze" => mfx::DAZE,
+            "burn" => mfx::BURN,
+            "burn_upgrade" => mfx::BURN_UPGRADE,
+            "siphon_str" => mfx::SIPHON_STR,
+            "siphon_dex" => mfx::SIPHON_DEX,
+            "remove_debuffs" => mfx::REMOVE_DEBUFFS,
+            "heal_to_half" => mfx::HEAL_TO_HALF,
+            "heal" => mfx::HEAL,
+            "artifact" => mfx::ARTIFACT,
+            "confused" => mfx::CONFUSED,
+            "constrict" => mfx::CONSTRICT,
+            "dexterity_down" | "dex_down" => mfx::DEX_DOWN,
+            "draw_reduction" => mfx::DRAW_REDUCTION,
+            "hex" => mfx::HEX,
+            "painful_stabs" => mfx::PAINFUL_STABS,
+            "stasis" => mfx::STASIS,
+            "strength_bonus" => mfx::STRENGTH_BONUS,
+            "strength_down" => mfx::STRENGTH_DOWN,
+            "thorns" => mfx::THORNS,
+            "void" => mfx::VOID,
+            "wound" => mfx::WOUND,
+            "beat_of_death" => mfx::BEAT_OF_DEATH,
+            "poison" => mfx::POISON,
+            _ => return,
+        };
         if enemy_idx < self.engine.state.enemies.len() {
-            self.engine.state.enemies[enemy_idx]
-                .move_effects
-                .insert(effect.to_string(), amount);
+            self.engine.state.enemies[enemy_idx].add_effect(eid, amount as i16);
         }
     }
 
@@ -2289,7 +2319,7 @@ mod tests {
     #[test]
     fn test_player_death_ends_combat() {
         let mut state = make_test_state();
-        state.enemies[0].move_damage = 100; // Lethal damage
+        state.enemies[0].set_move(1, 100, 1, 0); // Lethal damage
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -2690,7 +2720,7 @@ mod tests {
     #[test]
     fn test_fairy_auto_revive() {
         let mut state = make_test_state();
-        state.enemies[0].move_damage = 200; // Lethal damage
+        state.enemies[0].set_move(1, 200, 1, 0); // Lethal damage
         state.potions[0] = "FairyPotion".to_string();
 
         let mut engine = CombatEngine::new(state, 42);
@@ -2707,10 +2737,8 @@ mod tests {
     #[test]
     fn test_enemy_slimed_cards_to_discard() {
         let mut state = make_test_state();
-        state.enemies[0].move_damage = 0;
-        state.enemies[0]
-            .move_effects
-            .insert("slimed".to_string(), 3);
+        state.enemies[0].set_move(1, 0, 0, 0);
+        state.enemies[0].add_effect(crate::combat_types::mfx::SLIMED, 3);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();

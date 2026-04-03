@@ -1,4 +1,5 @@
 use crate::state::EnemyCombatState;
+use crate::combat_types::mfx;
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -29,14 +30,14 @@ pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState) {
     // Alternate: Claw (15) and Laser (10 + Burn)
     if last_two_moves(enemy, move_ids::OW_CLAW) {
         enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-        enemy.move_effects.insert("burn".to_string(), 1);
+        enemy.add_effect(mfx::BURN, 1);
     } else if last_two_moves(enemy, move_ids::OW_LASER) {
         enemy.set_move(move_ids::OW_CLAW, 15, 1, 0);
     } else if last_move(enemy, move_ids::OW_LASER) {
         enemy.set_move(move_ids::OW_CLAW, 15, 1, 0);
     } else {
         enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-        enemy.move_effects.insert("burn".to_string(), 1);
+        enemy.add_effect(mfx::BURN, 1);
     }
 }
 
@@ -46,7 +47,7 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
         let thorns = enemy.entity.status(sid::THORNS);
         enemy.entity.set_status(sid::THORNS, thorns + 2);
-        enemy.move_effects.insert("thorns".to_string(), 2);
+        enemy.add_effect(mfx::THORNS, 2);
     } else {
         enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
     }
@@ -56,11 +57,11 @@ pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState) {
     // Mostly Daze, sometimes Attack (11)
     if last_move(enemy, move_ids::REPULSOR_ATTACK) {
         enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-        enemy.move_effects.insert("daze".to_string(), 2);
+        enemy.add_effect(mfx::DAZE, 2);
     } else {
         // 80% Daze, 20% Attack
         enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-        enemy.move_effects.insert("daze".to_string(), 2);
+        enemy.add_effect(mfx::DAZE, 2);
     }
 }
 
@@ -86,8 +87,8 @@ pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
     } else if last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
         enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
-        enemy.move_effects.insert("weak".to_string(), 2);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::WEAK, 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     } else if last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
         enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
     } else if last_move(enemy, move_ids::WM_BIG_HIT) {
@@ -123,8 +124,8 @@ pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState) {
         }
         _ => {
             enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
-            enemy.move_effects.insert("weak".to_string(), 2);
-            enemy.move_effects.insert("vulnerable".to_string(), 2);
+            enemy.add_effect(mfx::WEAK, 2);
+            enemy.add_effect(mfx::VULNERABLE, 2);
         }
     }
 }
@@ -135,7 +136,7 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
     } else if last_two_moves(enemy, move_ids::SG_QUICK_TACKLE) {
         enemy.set_move(move_ids::SG_CONSTRICT, 0, 0, 0);
-        enemy.move_effects.insert("constrict".to_string(), 10);
+        enemy.add_effect(mfx::CONSTRICT, 10);
     } else if last_move(enemy, move_ids::SG_QUICK_TACKLE) {
         enemy.set_move(move_ids::SG_SMASH, 22, 1, 0);
     } else {
@@ -150,7 +151,7 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState) {
     // Roar (first turn), then cycle: NomNom / Slam / Drool(Str)
     if last_move(enemy, move_ids::MAW_SLAM) || last_move(enemy, move_ids::MAW_NOM) {
         enemy.set_move(move_ids::MAW_DROOL, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     } else if last_move(enemy, move_ids::MAW_DROOL) || last_move(enemy, move_ids::MAW_ROAR) {
         // NomNom: 5 x (turnCount/2) or Slam: 25
         let nom_hits = turn_count / 2;
@@ -204,7 +205,7 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         } else if last_two_moves(enemy, move_ids::GH_COUNT) {
             enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
-            enemy.move_effects.insert("weak".to_string(), 1);
+            enemy.add_effect(mfx::WEAK, 1);
         } else if last_move(enemy, move_ids::GH_GLARE) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         } else {
@@ -241,13 +242,13 @@ pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState) {
         enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
     } else if last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
         enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
-        enemy.move_effects.insert("burn".to_string(), 3);
+        enemy.add_effect(mfx::BURN, 3);
     } else if last_move(enemy, move_ids::NEM_BURN) {
         enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
     } else if last_move(enemy, move_ids::NEM_SCYTHE) {
         // After Scythe: prefer Burn or Tri Attack
         enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
-        enemy.move_effects.insert("burn".to_string(), 3);
+        enemy.add_effect(mfx::BURN, 3);
     } else {
         enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
     }
@@ -257,7 +258,7 @@ pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState) {
     // Spawn -> Snake Strike (13x2 + Weak) -> Big Bite (30) -> cycle
     if last_move(enemy, move_ids::REPTO_SPAWN) {
         enemy.set_move(move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0);
-        enemy.move_effects.insert("weak".to_string(), 1);
+        enemy.add_effect(mfx::WEAK, 1);
     } else if last_move(enemy, move_ids::REPTO_SNAKE_STRIKE) {
         enemy.set_move(move_ids::REPTO_BIG_BITE, 30, 1, 0);
     } else {
@@ -272,7 +273,7 @@ pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::SD_EXPLODE, 25, 1, 0);
     } else {
         enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
-        enemy.move_effects.insert("wound".to_string(), 1);
+        enemy.add_effect(mfx::WOUND, 1);
     }
 }
 
@@ -301,17 +302,17 @@ pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState) {
         // Sludge adds a Void card to draw pile (not Slimed!).
         if last_move(enemy, move_ids::AO_DARK_ECHO) {
             enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.move_effects.insert("void".to_string(), 1);
+            enemy.add_effect(mfx::VOID, 1);
         } else if last_two_moves(enemy, move_ids::AO_SLUDGE) {
             enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
         } else if last_two_moves(enemy, move_ids::AO_TACKLE) {
             enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.move_effects.insert("void".to_string(), 1);
+            enemy.add_effect(mfx::VOID, 1);
         } else if last_move(enemy, move_ids::AO_SLUDGE) {
             enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
         } else if last_move(enemy, move_ids::AO_TACKLE) {
             enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.move_effects.insert("void".to_string(), 1);
+            enemy.add_effect(mfx::VOID, 1);
         } else {
             enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
         }
@@ -352,7 +353,7 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::DONU_BEAM, bd, 2, 0);
     } else {
         enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     }
 }
 
@@ -365,7 +366,7 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState) {
     } else {
         let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
         enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);
-        enemy.move_effects.insert("daze".to_string(), 2);
+        enemy.add_effect(mfx::DAZE, 2);
     }
 }
 
@@ -387,8 +388,8 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState) {
     if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status(sid::USED_HASTE) == 0 {
         enemy.entity.set_status(sid::USED_HASTE, 1);
         enemy.set_move(move_ids::TE_HASTE, 0, 0, 0);
-        enemy.move_effects.insert("remove_debuffs".to_string(), 1);
-        enemy.move_effects.insert("heal_to_half".to_string(), 1);
+        enemy.add_effect(mfx::REMOVE_DEBUFFS, 1);
+        enemy.add_effect(mfx::HEAL_TO_HALF, 1);
         return;
     }
 
@@ -397,11 +398,11 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::TE_HASTE) || last_two_moves(enemy, move_ids::TE_REVERBERATE) {
         enemy.set_move(move_ids::TE_HEAD_SLAM, head_slam_dmg, 1, 0);
         // Head Slam: draw reduction (not Slimed). A19 also adds 2 Slimed.
-        enemy.move_effects.insert("draw_reduction".to_string(), 1);
+        enemy.add_effect(mfx::DRAW_REDUCTION, 1);
     } else if last_move(enemy, move_ids::TE_HEAD_SLAM) {
         enemy.set_move(move_ids::TE_RIPPLE, 0, 0, 20);
-        enemy.move_effects.insert("vulnerable".to_string(), 1);
-        enemy.move_effects.insert("weak".to_string(), 1);
+        enemy.add_effect(mfx::VULNERABLE, 1);
+        enemy.add_effect(mfx::WEAK, 1);
     } else if last_move(enemy, move_ids::TE_RIPPLE) {
         enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
     } else {

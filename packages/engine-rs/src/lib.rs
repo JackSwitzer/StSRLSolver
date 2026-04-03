@@ -521,9 +521,9 @@ impl StSEngine {
                         ed.set_item("max_hp", e.entity.max_hp)?;
                         ed.set_item("block", e.entity.block)?;
                         ed.set_item("alive", e.is_alive())?;
-                        ed.set_item("move_damage", e.move_damage)?;
-                        ed.set_item("move_hits", e.move_hits)?;
-                        ed.set_item("move_block", e.move_block)?;
+                        ed.set_item("move_damage", e.move_damage())?;
+                        ed.set_item("move_hits", e.move_hits())?;
+                        ed.set_item("move_block", e.move_block())?;
                         ed.set_item("intent_damage", e.total_incoming_damage())?;
                         let es = PyDict::new_bound(py);
                         for (i, &val) in e.entity.statuses.iter().enumerate() {

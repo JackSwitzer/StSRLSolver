@@ -531,8 +531,8 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
         obs[base] = enemy.entity.hp as f32 / emax;
         obs[base + 1] = emax / 300.0;
         obs[base + 2] = enemy.entity.block as f32 / 50.0;
-        obs[base + 3] = enemy.move_damage as f32 / 40.0;
-        obs[base + 4] = enemy.move_hits as f32 / 5.0;
+        obs[base + 3] = enemy.move_damage() as f32 / 40.0;
+        obs[base + 4] = enemy.move_hits() as f32 / 5.0;
         obs[base + 5] = if enemy.entity.hp > 0 { 1.0 } else { 0.0 };
 
         // Enemy statuses

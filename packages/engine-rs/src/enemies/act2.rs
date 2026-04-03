@@ -1,4 +1,5 @@
 use crate::state::EnemyCombatState;
+use crate::combat_types::mfx;
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -13,7 +14,7 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState) {
     // After first turn (Poke): use Hex
     if !used_hex {
         enemy.set_move(move_ids::CHOSEN_HEX, 0, 0, 0);
-        enemy.move_effects.insert("hex".to_string(), 1);
+        enemy.add_effect(mfx::HEX, 1);
         return;
     }
     // After Hex: alternate Debilitate/Drain and Zap/Poke
@@ -23,7 +24,7 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState) {
     } else {
         // Debuff turn: Debilitate (10 + Vuln 2) or Drain (Weak 3, +3 Str)
         enemy.set_move(move_ids::CHOSEN_DEBILITATE, 10, 1, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     }
 }
 
@@ -71,10 +72,10 @@ pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState) {
     // Cycle: Double Strike (6x2), Life Suck (10), Fell (18 + Frail 2)
     if last_move(enemy, move_ids::SP_DOUBLE_STRIKE) {
         enemy.set_move(move_ids::SP_LIFE_SUCK, 10, 1, 0);
-        enemy.move_effects.insert("heal".to_string(), 10);
+        enemy.add_effect(mfx::HEAL, 10);
     } else if last_move(enemy, move_ids::SP_LIFE_SUCK) {
         enemy.set_move(move_ids::SP_FELL, 18, 1, 0);
-        enemy.move_effects.insert("frail".to_string(), 2);
+        enemy.add_effect(mfx::FRAIL, 2);
     } else {
         enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
     }
@@ -84,8 +85,8 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState) {
     // 65% Chomp (7x3), 35% Spores (Weak 2 + Frail 2). Anti-repeat.
     if last_two_moves(enemy, move_ids::SNAKE_CHOMP) {
         enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
-        enemy.move_effects.insert("weak".to_string(), 2);
-        enemy.move_effects.insert("frail".to_string(), 2);
+        enemy.add_effect(mfx::WEAK, 2);
+        enemy.add_effect(mfx::FRAIL, 2);
     } else if last_move(enemy, move_ids::SNAKE_SPORES) {
         enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
     } else {
@@ -111,7 +112,7 @@ pub(super) fn roll_mystic(enemy: &mut EnemyCombatState) {
     // Attack (8 dmg), Heal (16 hp to ally), Buff (+2 Str to all allies)
     if last_two_moves(enemy, move_ids::MYSTIC_ATTACK) {
         enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), 2);
+        enemy.add_effect(mfx::STRENGTH, 2);
     } else if last_move(enemy, move_ids::MYSTIC_BUFF) || last_move(enemy, move_ids::MYSTIC_HEAL) {
         enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
     } else {
@@ -140,7 +141,7 @@ pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState) {
     // Rally (summon), Encourage (block + Str to minions), Stab (6x3)
     if last_move(enemy, move_ids::GL_RALLY) {
         enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 6);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     } else if last_move(enemy, move_ids::GL_ENCOURAGE) {
         enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
     } else {
@@ -152,14 +153,14 @@ pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState) {
     // Always Scouring Whip (7 damage + Wound card to discard)
     enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
-    enemy.move_effects.insert("wound".to_string(), 1);
+    enemy.add_effect(mfx::WOUND, 1);
 }
 
 pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
     // Pattern: Initial Block -> Frail Attack -> Big Attack -> Block Attack -> repeat
     if last_move(enemy, move_ids::SPHER_INITIAL_BLOCK) {
         enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0);
-        enemy.move_effects.insert("frail".to_string(), 5);
+        enemy.add_effect(mfx::FRAIL, 5);
     } else if last_move(enemy, move_ids::SPHER_BIG_ATTACK) {
         enemy.set_move(move_ids::SPHER_BLOCK_ATTACK, 10, 1, 15);
     } else if last_move(enemy, move_ids::SPHER_BLOCK_ATTACK) || last_move(enemy, move_ids::SPHER_FRAIL_ATTACK) {
@@ -173,7 +174,7 @@ pub(super) fn roll_snecko(enemy: &mut EnemyCombatState) {
     // First turn: Glare. Then alternate Tail (8 + Vuln 2) and Bite (15)
     if last_move(enemy, move_ids::SNECKO_GLARE) || last_two_moves(enemy, move_ids::SNECKO_BITE) {
         enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     } else {
         enemy.set_move(move_ids::SNECKO_BITE, 15, 1, 0);
     }
@@ -187,7 +188,7 @@ pub(super) fn roll_bear(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::BEAR_LUNGE, 9, 1, 9);
     } else {
         enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
-        enemy.move_effects.insert("dexterity_down".to_string(), 2);
+        enemy.add_effect(mfx::DEX_DOWN, 2);
     }
 }
 
@@ -195,7 +196,7 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState) {
     // Mock -> Agonizing Slash (10 + Weak 2) -> Cross Slash (15) -> cycle
     if last_move(enemy, move_ids::BANDIT_MOCK) {
         enemy.set_move(move_ids::BANDIT_AGONIZE, 10, 1, 0);
-        enemy.move_effects.insert("weak".to_string(), 2);
+        enemy.add_effect(mfx::WEAK, 2);
     } else if last_move(enemy, move_ids::BANDIT_AGONIZE) {
         enemy.set_move(move_ids::BANDIT_CROSS_SLASH, 15, 1, 0);
     } else {
@@ -220,7 +221,7 @@ pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::BA_HYPER_BEAM, bd, 1, 0);
         } else {
             enemy.set_move(move_ids::BA_BOOST, 0, 0, ba);
-            enemy.move_effects.insert("strength".to_string(), sa);
+            enemy.add_effect(mfx::STRENGTH, sa as i16);
         }
     } else if last_move(enemy, move_ids::BA_HYPER_BEAM) {
         enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
@@ -257,8 +258,8 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
         enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
         enemy.set_move(move_ids::CHAMP_ANGER, 0, 0, 0);
         // Java: Anger gives 3*strAmt Strength (not strAmt)
-        enemy.move_effects.insert("strength".to_string(), str_amt * 3);
-        enemy.move_effects.insert("remove_debuffs".to_string(), 1);
+        enemy.add_effect(mfx::STRENGTH, (str_amt * 3) as i16);
+        enemy.add_effect(mfx::REMOVE_DEBUFFS, 1);
         return;
     }
 
@@ -279,8 +280,8 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
     if num_turns == 4 {
         // Taunt at turn 4 (Java)
         enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
-        enemy.move_effects.insert("weak".to_string(), 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
+        enemy.add_effect(mfx::WEAK, 2);
         enemy.entity.set_status(sid::NUM_TURNS, 0);
         return;
     }
@@ -290,16 +291,16 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
     } else if last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
         // Gloat (gain strAmt Str)
         enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), str_amt);
+        enemy.add_effect(mfx::STRENGTH, str_amt as i16);
     } else if last_move(enemy, move_ids::CHAMP_GLOAT) || last_move(enemy, move_ids::CHAMP_DEFENSIVE) {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
         // Java: Face Slap gives Frail 2 + Vulnerable 2
-        enemy.move_effects.insert("frail".to_string(), 2);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::FRAIL, 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     } else {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
-        enemy.move_effects.insert("frail".to_string(), 2);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::FRAIL, 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     }
 }
 
@@ -310,12 +311,12 @@ pub(super) fn roll_collector(enemy: &mut EnemyCombatState) {
     let turns = enemy.move_history.len();
     if turns == 4 && !enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF) {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 3);
-        enemy.move_effects.insert("weak".to_string(), 3);
-        enemy.move_effects.insert("frail".to_string(), 3);
+        enemy.add_effect(mfx::VULNERABLE, 3);
+        enemy.add_effect(mfx::WEAK, 3);
+        enemy.add_effect(mfx::FRAIL, 3);
     } else if last_two_moves(enemy, move_ids::COLL_FIREBALL) {
         enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
-        enemy.move_effects.insert("strength".to_string(), sa);
+        enemy.add_effect(mfx::STRENGTH, sa as i16);
     } else if last_move(enemy, move_ids::COLL_BUFF) || last_move(enemy, move_ids::COLL_MEGA_DEBUFF) {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     } else {

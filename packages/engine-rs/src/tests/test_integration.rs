@@ -2490,8 +2490,8 @@ mod effect_handler_tests {
         champ.entity.set_status(sid::POISON, 5);
         // Set up Anger move with remove_debuffs effect
         champ.set_move(1, 0, 0, 0);
-        champ.move_effects.insert("remove_debuffs".to_string(), 1);
-        champ.move_effects.insert("strength".to_string(), 6);
+        champ.add_effect(crate::combat_types::mfx::REMOVE_DEBUFFS, 1);
+        champ.add_effect(crate::combat_types::mfx::STRENGTH, 6);
 
         let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![champ], deck, 3);
@@ -2517,8 +2517,8 @@ mod effect_handler_tests {
         let mut te = enemies::create_enemy("TimeEater", 100, 480);
         // Set move with heal_to_half effect
         te.set_move(1, 0, 0, 0);
-        te.move_effects.insert("heal_to_half".to_string(), 1);
-        te.move_effects.insert("remove_debuffs".to_string(), 1);
+        te.add_effect(crate::combat_types::mfx::HEAL_TO_HALF, 1);
+        te.add_effect(crate::combat_types::mfx::REMOVE_DEBUFFS, 1);
         te.entity.set_status(sid::WEAKENED, 3);
 
         let deck = make_deck_n("Strike_P", 10);

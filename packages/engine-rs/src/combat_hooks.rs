@@ -2,6 +2,7 @@
 //!
 //! Extracted from engine.rs as a pure refactor.
 
+use crate::combat_types::mfx;
 use crate::damage;
 use crate::enemies;
 use crate::engine::{CombatEngine, CombatPhase};
@@ -9,6 +10,7 @@ use crate::potions;
 use crate::powers;
 use crate::state::Stance;
 use crate::status_ids::sid;
+use smallvec::SmallVec;
 
 /// Execute all enemy turns: block decay, poison ticks, ritual, moves.
 pub fn do_enemy_turns(engine: &mut CombatEngine) {
@@ -117,10 +119,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Attack
-    if enemy.move_damage > 0 {
+    let move_dmg = enemy.move_damage();
+    if move_dmg > 0 {
         let enemy_strength = enemy.entity.strength();
         let enemy_weak = enemy.entity.is_weak();
-        let base_damage = enemy.move_damage + enemy_strength;
+        let base_damage = move_dmg + enemy_strength;
 
         // Apply Weak to enemy's attack
         let mut damage_f = base_damage as f64;
@@ -137,7 +140,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let has_torii = engine.state.has_relic("Torii");
         let has_tungsten = engine.state.has_relic("Tungsten Rod");
 
-        let hits = enemy.move_hits;
+        let hits = enemy.move_hits();
         for _ in 0..hits {
             // Buffer: negate the entire hit and decrement Buffer
             let buffer = engine.state.player.status(sid::BUFFER);
@@ -251,68 +254,67 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Block
-    if engine.state.enemies[enemy_idx].move_block > 0 {
-        let block = engine.state.enemies[enemy_idx].move_block;
-        engine.state.enemies[enemy_idx].entity.block += block;
+    let move_blk = engine.state.enemies[enemy_idx].move_block();
+    if move_blk > 0 {
+        engine.state.enemies[enemy_idx].entity.block += move_blk;
     }
 
     // Apply move effects
-    let effects = engine.state.enemies[enemy_idx].move_effects.clone();
-    if let Some(&amt) = effects.get("weak") {
-        powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, amt);
+    let effects: SmallVec<[(u8, i16); 4]> = engine.state.enemies[enemy_idx].move_effects.clone();
+
+    fn get_fx(effects: &SmallVec<[(u8, i16); 4]>, id: u8) -> Option<i16> {
+        effects.iter().find(|e| e.0 == id).map(|e| e.1)
     }
-    if let Some(&amt) = effects.get("vulnerable") {
-        powers::apply_debuff(&mut engine.state.player, sid::VULNERABLE, amt);
+
+    if let Some(amt) = get_fx(&effects, mfx::WEAK) {
+        powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, amt as i32);
     }
-    if let Some(&amt) = effects.get("frail") {
-        powers::apply_debuff(&mut engine.state.player, sid::FRAIL, amt);
+    if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
+        powers::apply_debuff(&mut engine.state.player, sid::VULNERABLE, amt as i32);
     }
-    if let Some(&amt) = effects.get("strength") {
+    if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
+        powers::apply_debuff(&mut engine.state.player, sid::FRAIL, amt as i32);
+    }
+    if let Some(amt) = get_fx(&effects, mfx::STRENGTH) {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status(sid::STRENGTH, amt);
+            .add_status(sid::STRENGTH, amt as i32);
     }
-    if let Some(&amt) = effects.get("ritual") {
+    if let Some(amt) = get_fx(&effects, mfx::RITUAL) {
         engine.state.enemies[enemy_idx]
             .entity
-            .set_status(sid::RITUAL, amt);
+            .set_status(sid::RITUAL, amt as i32);
     }
-    if let Some(&amt) = effects.get("entangle") {
+    if let Some(amt) = get_fx(&effects, mfx::ENTANGLE) {
         if amt > 0 {
             engine.state.player.set_status(sid::ENTANGLED, 1);
         }
     }
-    if let Some(&amt) = effects.get("slimed") {
+    if let Some(amt) = get_fx(&effects, mfx::SLIMED) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Slimed"));
         }
     }
-    if let Some(&amt) = effects.get("daze") {
+    if let Some(amt) = get_fx(&effects, mfx::DAZE) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Daze"));
         }
     }
-    if let Some(&amt) = effects.get("burn") {
-        for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
-        }
-    }
-    if let Some(&amt) = effects.get("burn+") {
+    if let Some(amt) = get_fx(&effects, mfx::BURN) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
         }
     }
     // Lagavulin Siphon Soul: reduce player Strength and Dexterity
-    if let Some(&amt) = effects.get("siphon_str") {
-        engine.state.player.add_status(sid::STRENGTH, -(amt));
+    if let Some(amt) = get_fx(&effects, mfx::SIPHON_STR) {
+        engine.state.player.add_status(sid::STRENGTH, -(amt as i32));
     }
-    if let Some(&amt) = effects.get("siphon_dex") {
-        engine.state.player.add_status(sid::DEXTERITY, -(amt));
+    if let Some(amt) = get_fx(&effects, mfx::SIPHON_DEX) {
+        engine.state.player.add_status(sid::DEXTERITY, -(amt as i32));
     }
 
     // Champ Anger / Time Eater Haste: remove ALL debuffs from this enemy
-    // Uses PowerDef registry to identify debuffs rather than a hardcoded list
-    if effects.get("remove_debuffs").copied().unwrap_or(0) > 0 {
+    if get_fx(&effects, mfx::REMOVE_DEBUFFS).unwrap_or(0) > 0 {
         let statuses = &mut engine.state.enemies[enemy_idx].entity.statuses;
         for i in 0..256 {
             if statuses[i] != 0 {
@@ -329,65 +331,65 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Time Eater Haste: heal to half max HP
-    if effects.get("heal_to_half").copied().unwrap_or(0) > 0 {
+    if get_fx(&effects, mfx::HEAL_TO_HALF).unwrap_or(0) > 0 {
         let half = engine.state.enemies[enemy_idx].entity.max_hp / 2;
         engine.state.enemies[enemy_idx].entity.hp = half;
     }
 
     // Heal full (Awakened One rebirth, etc.)
-    if effects.get("heal_full").copied().unwrap_or(0) > 0 {
+    if get_fx(&effects, mfx::HEAL_FULL).unwrap_or(0) > 0 {
         engine.state.enemies[enemy_idx].entity.hp =
             engine.state.enemies[enemy_idx].entity.max_hp;
     }
 
     // Artifact: give enemy Artifact stacks
-    if let Some(&amt) = effects.get("artifact") {
+    if let Some(amt) = get_fx(&effects, mfx::ARTIFACT) {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status(sid::ARTIFACT, amt);
+            .add_status(sid::ARTIFACT, amt as i32);
     }
 
     // Burn+: add upgraded Burn cards to player discard
-    if let Some(&amt) = effects.get("burn_upgrade") {
+    if let Some(amt) = get_fx(&effects, mfx::BURN_UPGRADE) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
         }
     }
 
     // Confused: apply Confusion to player
-    if effects.get("confused").copied().unwrap_or(0) > 0 {
+    if get_fx(&effects, mfx::CONFUSED).unwrap_or(0) > 0 {
         engine.state.player.set_status(sid::CONFUSION, 1);
     }
 
     // Constrict: apply Constricted to player
-    if let Some(&amt) = effects.get("constrict") {
-        engine.state.player.add_status(sid::CONSTRICTED, amt);
+    if let Some(amt) = get_fx(&effects, mfx::CONSTRICT) {
+        engine.state.player.add_status(sid::CONSTRICTED, amt as i32);
     }
 
     // Dexterity down: reduce player Dexterity
-    if let Some(&amt) = effects.get("dexterity_down") {
-        engine.state.player.add_status(sid::DEXTERITY, -amt);
+    if let Some(amt) = get_fx(&effects, mfx::DEX_DOWN) {
+        engine.state.player.add_status(sid::DEXTERITY, -(amt as i32));
     }
 
     // Draw Reduction: reduce player draw next turn
-    if let Some(&amt) = effects.get("draw_reduction") {
-        engine.state.player.add_status(sid::DRAW_REDUCTION, amt);
+    if let Some(amt) = get_fx(&effects, mfx::DRAW_REDUCTION) {
+        engine.state.player.add_status(sid::DRAW_REDUCTION, amt as i32);
     }
 
     // Hex: apply Hex to player
-    if let Some(&amt) = effects.get("hex") {
-        engine.state.player.set_status(sid::HEX, amt);
+    if let Some(amt) = get_fx(&effects, mfx::HEX) {
+        engine.state.player.set_status(sid::HEX, amt as i32);
     }
 
     // Painful Stabs: add Wound cards to player discard
-    if let Some(&amt) = effects.get("painful_stabs") {
+    if let Some(amt) = get_fx(&effects, mfx::PAINFUL_STABS) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
         }
     }
 
     // Stasis: steal random card from player hand (simplified: remove from hand)
-    if effects.get("stasis").copied().unwrap_or(0) > 0 {
+    if get_fx(&effects, mfx::STASIS).unwrap_or(0) > 0 {
         if !engine.state.hand.is_empty() {
             let idx = engine.state.hand.len() - 1;
             engine.state.hand.remove(idx);
@@ -395,43 +397,43 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Strength bonus: give enemy Strength
-    if let Some(&amt) = effects.get("strength_bonus") {
+    if let Some(amt) = get_fx(&effects, mfx::STRENGTH_BONUS) {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status(sid::STRENGTH, amt);
+            .add_status(sid::STRENGTH, amt as i32);
     }
 
     // Strength down: reduce player Strength
-    if let Some(&amt) = effects.get("strength_down") {
-        engine.state.player.add_status(sid::STRENGTH, -amt);
+    if let Some(amt) = get_fx(&effects, mfx::STRENGTH_DOWN) {
+        engine.state.player.add_status(sid::STRENGTH, -(amt as i32));
     }
 
     // Thorns: give enemy Thorns
-    if let Some(&amt) = effects.get("thorns") {
+    if let Some(amt) = get_fx(&effects, mfx::THORNS) {
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status(sid::THORNS, amt);
+            .add_status(sid::THORNS, amt as i32);
     }
 
     // Void: add Void card to player draw pile
-    if let Some(&amt) = effects.get("void") {
+    if let Some(amt) = get_fx(&effects, mfx::VOID) {
         for _ in 0..amt {
             engine.state.draw_pile.push(engine.card_registry.make_card("Void"));
         }
     }
 
     // Wound: add Wound cards to player discard
-    if let Some(&amt) = effects.get("wound") {
+    if let Some(amt) = get_fx(&effects, mfx::WOUND) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
         }
     }
 
     // Beat of Death: set Beat of Death power on enemy
-    if let Some(&amt) = effects.get("beat_of_death") {
+    if let Some(amt) = get_fx(&effects, mfx::BEAT_OF_DEATH) {
         engine.state.enemies[enemy_idx]
             .entity
-            .set_status(sid::BEAT_OF_DEATH, amt);
+            .set_status(sid::BEAT_OF_DEATH, amt as i32);
     }
 
     // Advance enemy to next move for next turn
