@@ -17,8 +17,8 @@ mod power_java_parity_tests {
         EntityState::new(50, 50)
     }
 
-    fn deck(cards: &[&str]) -> Vec<String> {
-        cards.iter().map(|c| c.to_string()).collect()
+    fn deck(cards: &[&str]) -> Vec<crate::combat_types::CardInstance> {
+        make_deck(cards)
     }
 
     fn make_engine(cards: &[&str], enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {

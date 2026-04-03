@@ -64,18 +64,19 @@ pub use run::necronomicon_reset;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::CardType;
+    use crate::cards::{CardRegistry, CardType};
     use crate::state::{CombatState, EnemyCombatState};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
-        CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3)
+        CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3)
     }
 
     fn make_two_enemy_state() -> CombatState {
         let e1 = EnemyCombatState::new("JawWorm", 44, 44);
         let e2 = EnemyCombatState::new("Cultist", 50, 50);
-        CombatState::new(80, 80, vec![e1, e2], vec!["Strike_P".to_string(); 5], 3)
+        CombatState::new(80, 80, vec![e1, e2], make_deck_n("Strike_P", 5), 3)
     }
 
     // --- Combat start tests ---
@@ -180,7 +181,8 @@ mod tests {
         state.relics.push("Ninja Scroll".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), 3);
-        assert!(state.hand.iter().all(|c| c == "Shiv"));
+        let reg = CardRegistry::new();
+        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
     }
 
     #[test]
@@ -190,7 +192,8 @@ mod tests {
         let hand_before = state.hand.len();
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), hand_before + 1);
-        assert_eq!(state.hand.last().unwrap(), "Miracle");
+        let reg = CardRegistry::new();
+        assert_eq!(reg.card_name(state.hand.last().unwrap().def_id), "Miracle");
     }
 
     #[test]
@@ -200,7 +203,8 @@ mod tests {
         let initial_draw_size = state.draw_pile.len();
         apply_combat_start_relics(&mut state);
         assert_eq!(state.draw_pile.len(), initial_draw_size + 2);
-        let wound_count = state.draw_pile.iter().filter(|c| *c == "Wound").count();
+        let reg = CardRegistry::new();
+        let wound_count = state.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(wound_count, 2);
     }
 
@@ -463,7 +467,7 @@ mod tests {
     fn test_cloak_clasp() {
         let mut state = make_test_state();
         state.relics.push("CloakClasp".to_string());
-        state.hand = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        state.hand = make_deck(&["a", "b", "c"]);
         apply_turn_end_relics(&mut state);
         assert_eq!(state.player.block, 3);
     }
@@ -629,7 +633,7 @@ mod tests {
         state.relics.push("Unceasing Top".to_string());
         state.hand.clear();
         assert!(unceasing_top_should_draw(&state));
-        state.hand.push("Strike".to_string());
+        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Strike")); };
         assert!(!unceasing_top_should_draw(&state));
     }
 
@@ -701,7 +705,7 @@ mod tests {
     fn test_stone_calendar_turn7() {
         // Use a high-HP enemy so it survives 52 damage
         let enemy = EnemyCombatState::new("Boss", 200, 200);
-        let mut state = CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
+        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
         state.relics.push("StoneCalendar".to_string());
         apply_combat_start_relics(&mut state);
 
@@ -778,7 +782,7 @@ mod tests {
     #[test]
     fn test_stone_calendar_fires_once() {
         let enemy = EnemyCombatState::new("Boss", 200, 200);
-        let mut state = CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
+        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
         state.relics.push("StoneCalendar".to_string());
         apply_combat_start_relics(&mut state);
 

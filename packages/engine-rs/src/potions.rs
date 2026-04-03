@@ -277,20 +277,22 @@ pub fn apply_potion_scaled(
         "FairyPotion" | "Fairy in a Bottle" => false,
 
         "BottledMiracle" => {
+            let registry = crate::cards::CardRegistry::new();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
-                    state.hand.push("Miracle".to_string());
+                    state.hand.push(registry.make_card("Miracle"));
                 }
             }
             true
         }
 
         "CunningPotion" => {
+            let registry = crate::cards::CardRegistry::new();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
-                    state.hand.push("Shiv".to_string());
+                    state.hand.push(registry.make_card("Shiv"));
                 }
             }
             true
@@ -320,10 +322,9 @@ pub fn apply_potion_scaled(
 
         "BlessingOfTheForge" => {
             // Upgrade ALL cards in hand
-            for card_id in &mut state.hand {
-                if !card_id.ends_with('+') {
-                    card_id.push('+');
-                }
+            let registry = crate::cards::CardRegistry::new();
+            for card in &mut state.hand {
+                registry.upgrade_card(card);
             }
             true
         }
@@ -381,19 +382,23 @@ pub fn apply_potion_scaled(
         }
 
         "AttackPotion" => {
-            if state.hand.len() < 10 { state.hand.push("Strike_P".to_string()); }
+            let registry = crate::cards::CardRegistry::new();
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
             true
         }
         "SkillPotion" => {
-            if state.hand.len() < 10 { state.hand.push("Defend_P".to_string()); }
+            let registry = crate::cards::CardRegistry::new();
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend_P")); }
             true
         }
         "PowerPotion" => {
-            if state.hand.len() < 10 { state.hand.push("Smite".to_string()); }
+            let registry = crate::cards::CardRegistry::new();
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Smite")); }
             true
         }
         "ColorlessPotion" => {
-            if state.hand.len() < 10 { state.hand.push("Strike_P".to_string()); }
+            let registry = crate::cards::CardRegistry::new();
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
             true
         }
 
@@ -474,12 +479,14 @@ pub fn consume_fairy(state: &mut CombatState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cards::CardRegistry;
     use crate::state::{CombatState, EnemyCombatState};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
         let mut state =
-            CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3);
+            CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
         state.potions = vec!["".to_string(); 3];
         state
     }
@@ -488,7 +495,7 @@ mod tests {
         let e1 = EnemyCombatState::new("JawWorm", 44, 44);
         let e2 = EnemyCombatState::new("Cultist", 50, 50);
         let mut state =
-            CombatState::new(80, 80, vec![e1, e2], vec!["Strike_P".to_string(); 5], 3);
+            CombatState::new(80, 80, vec![e1, e2], make_deck_n("Strike_P", 5), 3);
         state.potions = vec!["".to_string(); 3];
         state
     }
@@ -710,9 +717,10 @@ mod tests {
         let mut state = make_test_state();
         state.hand.clear();
         apply_potion(&mut state, "BottledMiracle", -1);
+        let reg = CardRegistry::new();
         assert_eq!(state.hand.len(), 2);
-        assert_eq!(state.hand[0], "Miracle");
-        assert_eq!(state.hand[1], "Miracle");
+        assert_eq!(reg.card_name(state.hand[0].def_id), "Miracle");
+        assert_eq!(reg.card_name(state.hand[1].def_id), "Miracle");
     }
 
     #[test]
@@ -720,8 +728,9 @@ mod tests {
         let mut state = make_test_state();
         state.hand.clear();
         apply_potion(&mut state, "CunningPotion", -1);
+        let reg = CardRegistry::new();
         assert_eq!(state.hand.len(), 3);
-        assert!(state.hand.iter().all(|c| c == "Shiv"));
+        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
     }
 
     #[test]
@@ -742,7 +751,7 @@ mod tests {
     #[test]
     fn test_gamblers_brew() {
         let mut state = make_test_state();
-        state.hand = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+        state.hand = make_deck(&["A", "B", "C"]);
         apply_potion(&mut state, "GamblersBrew", -1);
         assert!(state.hand.is_empty());
         assert_eq!(state.discard_pile.len(), 3);

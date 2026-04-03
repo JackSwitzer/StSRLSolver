@@ -390,7 +390,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn neutralize_applies_weak_and_damage() {
-        let mut engine = engine_with(vec!["Neutralize".to_string(); 6], 40, 0);
+        let mut engine = engine_with(make_deck_n("Neutralize", 6), 40, 0);
         ensure_in_hand(&mut engine, "Neutralize");
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Neutralize", 0));
@@ -400,7 +400,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn backflip_blocks_and_draws() {
-        let mut engine = engine_with(vec!["Backflip".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Backflip", 8), 40, 0);
         ensure_in_hand(&mut engine, "Backflip");
         let hand_before = engine.state.hand.len();
         assert!(play_self(&mut engine, "Backflip"));
@@ -410,7 +410,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn quick_slash_draws_one() {
-        let mut engine = engine_with(vec!["Quick Slash".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Quick Slash", 8), 40, 0);
         ensure_in_hand(&mut engine, "Quick Slash");
         let hand_before = engine.state.hand.len();
         let hp = engine.state.enemies[0].entity.hp;
@@ -421,7 +421,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn slice_deals_exact_damage() {
-        let mut engine = engine_with(vec!["Slice".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Slice", 8), 40, 0);
         ensure_in_hand(&mut engine, "Slice");
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Slice", 0));
@@ -430,7 +430,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn sucker_punch_applies_weak() {
-        let mut engine = engine_with(vec!["Sucker Punch".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Sucker Punch", 8), 40, 0);
         ensure_in_hand(&mut engine, "Sucker Punch");
         assert!(play_on_enemy(&mut engine, "Sucker Punch", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
@@ -438,7 +438,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn leg_sweep_blocks_and_weakens() {
-        let mut engine = engine_with(vec!["Leg Sweep".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Leg Sweep", 8), 40, 0);
         ensure_in_hand(&mut engine, "Leg Sweep");
         assert!(play_on_enemy(&mut engine, "Leg Sweep", 0));
         assert_eq!(engine.state.player.block, 11);
@@ -447,7 +447,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn dash_deals_damage_and_block() {
-        let mut engine = engine_with(vec!["Dash".to_string(); 8], 50, 0);
+        let mut engine = engine_with(make_deck_n("Dash", 8), 50, 0);
         ensure_in_hand(&mut engine, "Dash");
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Dash", 0));
@@ -457,7 +457,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn escape_plan_draws_and_blocks() {
-        let mut engine = engine_with(vec!["Escape Plan".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Escape Plan", 8), 40, 0);
         ensure_in_hand(&mut engine, "Escape Plan");
         let hand_before = engine.state.hand.len();
         assert!(play_self(&mut engine, "Escape Plan"));
@@ -467,17 +467,17 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn catalyst_doubles_poison() {
-        let mut engine = engine_with(vec!["Catalyst".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Catalyst", 8), 40, 0);
         engine.state.enemies[0].entity.set_status(sid::POISON, 5);
         ensure_in_hand(&mut engine, "Catalyst");
         assert!(play_on_enemy(&mut engine, "Catalyst", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 10);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Catalyst"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Catalyst"));
     }
 
     #[test]
     fn catalyst_plus_triples_poison() {
-        let mut engine = engine_with(vec!["Catalyst+".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Catalyst+", 8), 40, 0);
         engine.state.enemies[0].entity.set_status(sid::POISON, 5);
         ensure_in_hand(&mut engine, "Catalyst+");
         assert!(play_on_enemy(&mut engine, "Catalyst+", 0));
@@ -486,16 +486,16 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn terror_applies_vulnerable() {
-        let mut engine = engine_with(vec!["Terror".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Terror", 8), 40, 0);
         ensure_in_hand(&mut engine, "Terror");
         assert!(play_on_enemy(&mut engine, "Terror", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 99);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Terror"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Terror"));
     }
 
     #[test]
     fn skewer_spends_all_energy() {
-        let mut engine = engine_with(vec!["Skewer".to_string(); 8], 100, 0);
+        let mut engine = engine_with(make_deck_n("Skewer", 8), 100, 0);
         ensure_in_hand(&mut engine, "Skewer");
         engine.state.energy = 3;
         let hp = engine.state.enemies[0].entity.hp;
@@ -506,7 +506,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn riddle_with_holes_hits_five_times() {
-        let mut engine = engine_with(vec!["Riddle with Holes".to_string(); 8], 100, 0);
+        let mut engine = engine_with(make_deck_n("Riddle with Holes", 8), 100, 0);
         ensure_in_hand(&mut engine, "Riddle with Holes");
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Riddle with Holes", 0));
@@ -520,7 +520,7 @@ mod silent_card_java_parity_tests {
             enemy("B", 40, 40, 1, 0, 1),
             enemy("C", 40, 40, 1, 0, 1),
         ];
-        let mut engine = engine_with_enemies(vec!["All-Out Attack".to_string(); 8], enemies, 3);
+        let mut engine = engine_with_enemies(make_deck_n("All-Out Attack", 8), enemies, 3);
         ensure_in_hand(&mut engine, "All-Out Attack");
         assert!(play_self(&mut engine, "All-Out Attack"));
         assert_eq!(engine.state.enemies[0].entity.hp, 30);
@@ -534,29 +534,29 @@ mod silent_card_java_parity_tests {
             enemy("A", 50, 50, 1, 0, 1),
             enemy("B", 50, 50, 1, 0, 1),
         ];
-        let mut engine = engine_with_enemies(vec!["Die Die Die".to_string(); 8], enemies, 3);
+        let mut engine = engine_with_enemies(make_deck_n("Die Die Die", 8), enemies, 3);
         ensure_in_hand(&mut engine, "Die Die Die");
         assert!(play_self(&mut engine, "Die Die Die"));
         assert_eq!(engine.state.enemies[0].entity.hp, 37);
         assert_eq!(engine.state.enemies[1].entity.hp, 37);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Die Die Die"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Die Die Die"));
     }
 
     #[test]
     fn adrenaline_gains_energy_and_draws() {
-        let mut engine = engine_with(vec!["Adrenaline".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Adrenaline", 8), 40, 0);
         ensure_in_hand(&mut engine, "Adrenaline");
         let energy = engine.state.energy;
         let hand_before = engine.state.hand.len();
         assert!(play_self(&mut engine, "Adrenaline"));
         assert_eq!(engine.state.energy, energy + 1);
         assert_eq!(engine.state.hand.len(), hand_before + 1);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Adrenaline"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Adrenaline"));
     }
 
     #[test]
     fn bullet_time_sets_statuses() {
-        let mut engine = engine_with(vec!["Bullet Time".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Bullet Time", 8), 40, 0);
         ensure_in_hand(&mut engine, "Bullet Time");
         assert!(play_self(&mut engine, "Bullet Time"));
         assert_eq!(engine.state.player.status(sid::BULLET_TIME), 1);
@@ -565,18 +565,18 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn doppelganger_sets_next_turn_bonuses() {
-        let mut engine = engine_with(vec!["Doppelganger".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Doppelganger", 8), 40, 0);
         ensure_in_hand(&mut engine, "Doppelganger");
         engine.state.energy = 3;
         assert!(play_self(&mut engine, "Doppelganger"));
         assert_eq!(engine.state.player.status(sid::DOPPELGANGER_DRAW), 3);
         assert_eq!(engine.state.player.status(sid::DOPPELGANGER_ENERGY), 3);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Doppelganger"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Doppelganger"));
     }
 
     #[test]
     fn malaise_applies_weak_and_strength_down() {
-        let mut engine = engine_with(vec!["Malaise".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Malaise", 8), 40, 0);
         engine.state.enemies[0].entity.set_status(sid::STRENGTH, 4);
         ensure_in_hand(&mut engine, "Malaise");
         engine.state.energy = 3;
@@ -587,7 +587,7 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn wraith_form_sets_intangible() {
-        let mut engine = engine_with(vec!["Wraith Form".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Wraith Form", 8), 40, 0);
         ensure_in_hand(&mut engine, "Wraith Form");
         assert!(play_self(&mut engine, "Wraith Form"));
         assert_eq!(engine.state.player.status(sid::INTANGIBLE), 2);
@@ -597,20 +597,13 @@ mod silent_card_java_parity_tests {
     #[test]
     fn grand_finale_is_blocked_when_draw_pile_is_not_empty() {
         let state = combat_state_with(
-            vec![
-                "Strike_G".to_string(),
-                "Strike_G".to_string(),
-                "Strike_G".to_string(),
-                "Strike_G".to_string(),
-                "Strike_G".to_string(),
-                "Defend_G".to_string(),
-            ],
+            make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Defend_G"]),
             vec![enemy("A", 60, 60, 1, 0, 1)],
             3,
         );
         let mut engine = engine_with_state(state);
         ensure_in_hand(&mut engine, "Grand Finale");
-        let grand_finale_idx = engine.state.hand.iter().position(|card| card == "Grand Finale").expect("Grand Finale should be in hand");
+        let grand_finale_idx = engine.state.hand.iter().position(|card| engine.card_registry.card_name(card.def_id) == "Grand Finale").expect("Grand Finale should be in hand");
         assert!(
             !engine.get_legal_actions().iter().any(|action| matches!(
                 action,
@@ -632,19 +625,19 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn backstab_exhausts_on_play() {
-        let mut engine = engine_with(vec!["Backstab".to_string(); 8], 40, 0);
+        let mut engine = engine_with(make_deck_n("Backstab", 8), 40, 0);
         ensure_in_hand(&mut engine, "Backstab");
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Backstab", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, hp - 11);
-        assert!(engine.state.exhaust_pile.iter().any(|c| c == "Backstab"));
+        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Backstab"));
     }
 
     #[test]
     fn reflex_and_tactician_are_unplayable() {
-        let mut reflex = engine_with(vec!["Reflex".to_string(); 8], 40, 0);
+        let mut reflex = engine_with(make_deck_n("Reflex", 8), 40, 0);
         ensure_in_hand(&mut reflex, "Reflex");
-        let reflex_idx = reflex.state.hand.iter().position(|card| card == "Reflex").expect("Reflex should be in hand");
+        let reflex_idx = reflex.state.hand.iter().position(|card| reflex.card_registry.card_name(card.def_id) == "Reflex").expect("Reflex should be in hand");
         let reflex_count = hand_count(&reflex, "Reflex");
         assert!(
             !reflex.get_legal_actions().iter().any(|action| matches!(
@@ -654,9 +647,9 @@ mod silent_card_java_parity_tests {
         );
         assert_eq!(hand_count(&reflex, "Reflex"), reflex_count);
 
-        let mut tactician = engine_with(vec!["Tactician".to_string(); 8], 40, 0);
+        let mut tactician = engine_with(make_deck_n("Tactician", 8), 40, 0);
         ensure_in_hand(&mut tactician, "Tactician");
-        let tactician_idx = tactician.state.hand.iter().position(|card| card == "Tactician").expect("Tactician should be in hand");
+        let tactician_idx = tactician.state.hand.iter().position(|card| tactician.card_registry.card_name(card.def_id) == "Tactician").expect("Tactician should be in hand");
         let tactician_count = hand_count(&tactician, "Tactician");
         assert!(
             !tactician.get_legal_actions().iter().any(|action| matches!(

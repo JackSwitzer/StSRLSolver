@@ -221,6 +221,17 @@ impl CardRegistry {
     pub fn is_strike(&self, id: u16) -> bool {
         self.strike_flags.get(id as usize).copied().unwrap_or(false)
     }
+
+    /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
+    pub fn upgrade_card(&self, card: &mut CardInstance) {
+        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
+        let name = self.card_name(card.def_id);
+        let upgraded = format!("{}+", name);
+        if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
+            card.def_id = id;
+            card.flags |= CardInstance::FLAG_UPGRADED;
+        }
+    }
 }
 
 impl Default for CardRegistry {

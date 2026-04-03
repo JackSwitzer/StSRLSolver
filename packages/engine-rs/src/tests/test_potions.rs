@@ -3,15 +3,15 @@ mod potion_tests {
     use crate::potions::*;
     use crate::status_ids::sid;
     use crate::state::{CombatState, EnemyCombatState};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn state() -> CombatState {
         let e = EnemyCombatState::new("Test", 50, 50);
-        let mut s = CombatState::new(80, 80, vec![e], vec!["Strike_P".to_string(); 5], 3);
+        let mut s = CombatState::new(80, 80, vec![e], make_deck_n("Strike_P", 5), 3);
         s.potions = vec!["".to_string(); 3];
         s
     }
 
-    // ---- Fire Potion ----
     #[test] fn fire_20_dmg() {
         let mut s = state();
         apply_potion(&mut s, "Fire Potion", 0);
@@ -156,11 +156,12 @@ mod potion_tests {
         s.hand.clear();
         apply_potion(&mut s, "BottledMiracle", -1);
         assert_eq!(s.hand.len(), 2);
-        assert_eq!(s.hand[0], "Miracle");
+        let reg = crate::cards::CardRegistry::new();
+        assert_eq!(reg.card_name(s.hand[0].def_id), "Miracle");
     }
     #[test] fn miracle_respects_hand_limit() {
         let mut s = state();
-        s.hand = vec!["X".to_string(); 9];
+        s.hand = make_deck_n("X", 9);
         apply_potion(&mut s, "BottledMiracle", -1);
         assert_eq!(s.hand.len(), 10);
     }

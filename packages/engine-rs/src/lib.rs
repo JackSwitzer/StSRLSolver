@@ -239,10 +239,11 @@ fn describe_combat_action(
             card_idx,
             target_idx,
         } => {
+            let registry = crate::cards::CardRegistry::new();
             let card_name = state
                 .hand
                 .get(*card_idx)
-                .cloned()
+                .map(|c| registry.card_name(c.def_id).to_string())
                 .unwrap_or_else(|| format!("card_{}", card_idx));
             let target_desc = if *target_idx >= 0 {
                 let enemy_name = state
@@ -493,7 +494,10 @@ impl StSEngine {
                     combat.set_item("mantra", cs.mantra)?;
                     combat.set_item("cards_played_this_turn", cs.cards_played_this_turn)?;
 
-                    let hand = PyList::new_bound(py, &cs.hand);
+                    let hand_names: Vec<String> = cs.hand.iter()
+                        .map(|c| ce.card_registry.card_name(c.def_id).to_string())
+                        .collect();
+                    let hand = PyList::new_bound(py, &hand_names);
                     combat.set_item("hand", hand)?;
                     combat.set_item("draw_pile_size", cs.draw_pile.len())?;
                     combat.set_item("discard_pile_size", cs.discard_pile.len())?;

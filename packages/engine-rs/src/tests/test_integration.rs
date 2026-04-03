@@ -5,7 +5,7 @@ mod engine_integration_tests {
     use crate::actions::Action;
     use crate::state::*;
 
-    fn engine_with(deck: Vec<String>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
+    fn engine_with(deck: Vec<crate::combat_types::CardInstance>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", enemy_hp, enemy_hp);
         enemy.set_move(1, enemy_dmg, 1, 0);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -15,27 +15,37 @@ mod engine_integration_tests {
     }
 
     fn play(e: &mut CombatEngine, card: &str) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: 0 });
         }
     }
 
     fn play_self(e: &mut CombatEngine, card: &str) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: -1 });
         }
     }
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
-        if !engine.state.hand.contains(&card_id.to_string()) {
-            engine.state.hand.push(card_id.to_string());
+        if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == card_id) {
+            engine.state.hand.push(engine.card_registry.make_card(card_id));
         }
+    }
+
+    fn make_deck(names: &[&str]) -> Vec<crate::combat_types::CardInstance> {
+        let reg = crate::cards::CardRegistry::new();
+        names.iter().map(|n| reg.make_card(n)).collect()
+    }
+
+    fn make_deck_n(name: &str, n: usize) -> Vec<crate::combat_types::CardInstance> {
+        let reg = crate::cards::CardRegistry::new();
+        vec![reg.make_card(name); n]
     }
 
     // ---- Eruption in Wrath = double = 9*2=18 ----
     #[test] fn eruption_in_wrath_18() {
         let mut e = engine_with(
-            vec!["Eruption".to_string(); 5],
+            make_deck_n("Eruption", 5),
             100, 0,
         );
         e.state.stance = Stance::Wrath;
@@ -47,7 +57,7 @@ mod engine_integration_tests {
     // ---- Tantrum multi-hit 3x3=9 base ----
     #[test] fn tantrum_3_hits() {
         let mut e = engine_with(
-            vec!["Tantrum".to_string(); 5],
+            make_deck_n("Tantrum", 5),
             100, 0,
         );
         let hp = e.state.enemies[0].entity.hp;
@@ -58,7 +68,7 @@ mod engine_integration_tests {
 
     #[test] fn tantrum_plus_4_hits() {
         let mut e = engine_with(
-            vec!["Tantrum+".to_string(); 5],
+            make_deck_n("Tantrum+", 5),
             100, 0,
         );
         let hp = e.state.enemies[0].entity.hp;
@@ -69,7 +79,7 @@ mod engine_integration_tests {
     // ---- FlyingSleeves 2-hit ----
     #[test] fn flying_sleeves_2_hits() {
         let mut e = engine_with(
-            vec!["FlyingSleeves".to_string(); 5],
+            make_deck_n("FlyingSleeves", 5),
             100, 0,
         );
         let hp = e.state.enemies[0].entity.hp;
@@ -79,7 +89,7 @@ mod engine_integration_tests {
 
     #[test] fn flying_sleeves_plus() {
         let mut e = engine_with(
-            vec!["FlyingSleeves+".to_string(); 5],
+            make_deck_n("FlyingSleeves+", 5),
             100, 0,
         );
         let hp = e.state.enemies[0].entity.hp;
@@ -93,7 +103,7 @@ mod engine_integration_tests {
         enemy2.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80,
             vec![EnemyCombatState::new("E1", 50, 50), enemy2],
-            vec!["Conclude".to_string(); 5], 3);
+            make_deck_n("Conclude", 5), 3);
         state.enemies[0].set_move(1, 0, 0, 0);
         let mut eng = CombatEngine::new(state, 42);
         eng.start_combat();
@@ -105,11 +115,7 @@ mod engine_integration_tests {
     // ---- Conclude discards hand (end_turn) ----
     #[test] fn conclude_ends_turn() {
         let mut e = engine_with(
-            vec!["Conclude".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 // Extra cards in deck so next turn can draw
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -124,9 +130,7 @@ mod engine_integration_tests {
     // ---- CutThroughFate draws cards ----
     #[test] fn cut_through_fate_draws() {
         let mut e = engine_with(
-            vec!["CutThroughFate".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["CutThroughFate", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "CutThroughFate");
@@ -139,9 +143,7 @@ mod engine_integration_tests {
     // ---- WheelKick draws 2 ----
     #[test] fn wheel_kick_draws_2() {
         let mut e = engine_with(
-            vec!["WheelKick".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["WheelKick", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "WheelKick");
@@ -153,7 +155,7 @@ mod engine_integration_tests {
     // ---- Prostrate block + mantra ----
     #[test] fn prostrate_block_and_mantra() {
         let mut e = engine_with(
-            vec!["Prostrate".to_string(); 5], 100, 0,
+            make_deck_n("Prostrate", 5), 100, 0,
         );
         play_self(&mut e, "Prostrate");
         assert_eq!(e.state.player.block, 4);
@@ -163,7 +165,7 @@ mod engine_integration_tests {
     // ---- Prostrate+ gives 3 mantra ----
     #[test] fn prostrate_plus_3_mantra() {
         let mut e = engine_with(
-            vec!["Prostrate+".to_string(); 5], 100, 0,
+            make_deck_n("Prostrate+", 5), 100, 0,
         );
         play_self(&mut e, "Prostrate+");
         assert_eq!(e.state.mantra, 3);
@@ -172,7 +174,7 @@ mod engine_integration_tests {
     // ---- Pray gives 3 mantra ----
     #[test] fn pray_3_mantra() {
         let mut e = engine_with(
-            vec!["Pray".to_string(); 5], 100, 0,
+            make_deck_n("Pray", 5), 100, 0,
         );
         play_self(&mut e, "Pray");
         assert_eq!(e.state.mantra, 3);
@@ -181,7 +183,7 @@ mod engine_integration_tests {
     // ---- 5 Prostrate = Divinity ----
     #[test] fn five_prostrate_divinity() {
         let mut e = engine_with(
-            vec!["Prostrate".to_string(); 10], 100, 0,
+            make_deck_n("Prostrate", 10), 100, 0,
         );
         for _ in 0..5 { play_self(&mut e, "Prostrate"); }
         assert_eq!(e.state.stance, Stance::Divinity);
@@ -190,7 +192,7 @@ mod engine_integration_tests {
     // ---- Halt in Neutral = only base block ----
     #[test] fn halt_neutral_3_block() {
         let mut e = engine_with(
-            vec!["Halt".to_string(); 5], 100, 0,
+            make_deck_n("Halt", 5), 100, 0,
         );
         play_self(&mut e, "Halt");
         assert_eq!(e.state.player.block, 3);
@@ -199,7 +201,7 @@ mod engine_integration_tests {
     // ---- Halt in Wrath = base + magic ----
     #[test] fn halt_wrath_12_block() {
         let mut e = engine_with(
-            vec!["Halt".to_string(); 5], 100, 0,
+            make_deck_n("Halt", 5), 100, 0,
         );
         e.state.stance = Stance::Wrath;
         play_self(&mut e, "Halt");
@@ -209,7 +211,7 @@ mod engine_integration_tests {
     // ---- Halt+ in Wrath = 4 + 14 = 18 ----
     #[test] fn halt_plus_wrath_18_block() {
         let mut e = engine_with(
-            vec!["Halt+".to_string(); 5], 100, 0,
+            make_deck_n("Halt+", 5), 100, 0,
         );
         e.state.stance = Stance::Wrath;
         play_self(&mut e, "Halt+");
@@ -219,18 +221,18 @@ mod engine_integration_tests {
     // ---- Miracle gives energy and exhausts ----
     #[test] fn miracle_energy_exhaust() {
         let mut e = engine_with(
-            vec!["Miracle".to_string(); 5], 100, 0,
+            make_deck_n("Miracle", 5), 100, 0,
         );
         let en = e.state.energy;
         play_self(&mut e, "Miracle");
         assert_eq!(e.state.energy, en + 1);
-        assert!(e.state.exhaust_pile.contains(&"Miracle".to_string()));
+        assert!(e.state.exhaust_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "Miracle"));
     }
 
     // ---- Miracle+ gives 2 energy ----
     #[test] fn miracle_plus_2_energy() {
         let mut e = engine_with(
-            vec!["Miracle+".to_string(); 5], 100, 0,
+            make_deck_n("Miracle+", 5), 100, 0,
         );
         let en = e.state.energy;
         play_self(&mut e, "Miracle+");
@@ -240,7 +242,7 @@ mod engine_integration_tests {
     // ---- EmptyBody enters Neutral with block ----
     #[test] fn empty_body_neutral_block() {
         let mut e = engine_with(
-            vec!["EmptyBody".to_string(); 5], 100, 0,
+            make_deck_n("EmptyBody", 5), 100, 0,
         );
         e.state.stance = Stance::Wrath;
         play_self(&mut e, "EmptyBody");
@@ -251,7 +253,7 @@ mod engine_integration_tests {
     // ---- Flurry 0 cost ----
     #[test] fn flurry_free() {
         let mut e = engine_with(
-            vec!["Flurry".to_string(); 5], 100, 0,
+            make_deck_n("Flurry", 5), 100, 0,
         );
         let en = e.state.energy;
         play(&mut e, "Flurry");
@@ -261,7 +263,7 @@ mod engine_integration_tests {
     // ---- Smite damage ----
     #[test] fn smite_12_damage() {
         let mut e = engine_with(
-            vec!["Smite".to_string(); 5], 100, 0,
+            make_deck_n("Smite", 5), 100, 0,
         );
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Smite");
@@ -271,9 +273,7 @@ mod engine_integration_tests {
     // ---- Rushdown power install + draw on wrath ----
     #[test] fn rushdown_install_and_trigger() {
         let mut e = engine_with(
-            vec!["Adaptation".to_string(), "Eruption".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Defend_P".to_string(), "Defend_P".to_string()],
+            make_deck(&["Adaptation", "Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Adaptation");
@@ -289,8 +289,7 @@ mod engine_integration_tests {
     // ---- MentalFortress install + block on stance change ----
     #[test] fn mental_fortress_install_and_trigger() {
         let mut e = engine_with(
-            vec!["MentalFortress".to_string(), "Eruption".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["MentalFortress", "Eruption", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         play_self(&mut e, "MentalFortress");
@@ -305,11 +304,7 @@ mod engine_integration_tests {
         enemy.set_move(1, 0, 1, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], vec![], 5);
         // Directly set hand to avoid shuffle issues
-        state.hand = vec![
-            "MentalFortress".to_string(),
-            "MentalFortress+".to_string(),
-            "Eruption+".to_string(),
-        ];
+        state.hand = make_deck(&["MentalFortress", "MentalFortress+", "Eruption+"]);
         state.turn = 1;
         let mut e = CombatEngine::new(state, 42);
         e.phase = CombatPhase::PlayerTurn;
@@ -323,7 +318,7 @@ mod engine_integration_tests {
     // ---- Vigor consumed on first attack only ----
     #[test] fn vigor_consumed_on_attack() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(); 5], 100, 0,
+            make_deck_n("Strike_P", 5), 100, 0,
         );
         e.state.player.set_status(sid::VIGOR, 8);
         let hp = e.state.enemies[0].entity.hp;
@@ -334,7 +329,7 @@ mod engine_integration_tests {
 
     #[test] fn vigor_not_consumed_on_skill() {
         let mut e = engine_with(
-            vec!["Defend_P".to_string(); 5], 100, 0,
+            make_deck_n("Defend_P", 5), 100, 0,
         );
         e.state.player.set_status(sid::VIGOR, 8);
         play_self(&mut e, "Defend_P");
@@ -344,7 +339,7 @@ mod engine_integration_tests {
     // ---- Entangle clears at end of turn ----
     #[test] fn entangle_clears_end_turn() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(); 5], 100, 5,
+            make_deck_n("Strike_P", 5), 100, 5,
         );
         e.state.player.set_status(sid::ENTANGLED, 1);
         e.execute_action(&Action::EndTurn);
@@ -354,17 +349,17 @@ mod engine_integration_tests {
     // ---- TalkToTheHand exhausts ----
     #[test] fn talk_hand_exhausts() {
         let mut e = engine_with(
-            vec!["TalkToTheHand".to_string(); 5], 100, 0,
+            make_deck_n("TalkToTheHand", 5), 100, 0,
         );
         play(&mut e, "TalkToTheHand");
-        assert!(e.state.exhaust_pile.contains(&"TalkToTheHand".to_string()));
-        assert!(!e.state.discard_pile.contains(&"TalkToTheHand".to_string()));
+        assert!(e.state.exhaust_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "TalkToTheHand"));
+        assert!(!e.state.discard_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "TalkToTheHand"));
     }
 
     // ---- Calm exit + Violet Lotus ----
     #[test] fn calm_exit_violet_lotus() {
         let mut e = engine_with(
-            vec!["Eruption".to_string(); 5], 100, 0,
+            make_deck_n("Eruption", 5), 100, 0,
         );
         e.state.stance = Stance::Calm;
         e.state.relics.push("Violet Lotus".to_string());
@@ -377,13 +372,11 @@ mod engine_integration_tests {
     // ---- InnerPeace in Calm draws, not in Calm enters Calm ----
     #[test] fn inner_peace_calm_draws() {
         let mut e = engine_with(
-            vec!["InnerPeace".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Defend_P".to_string(), "Defend_P".to_string(), "Defend_P".to_string()],
+            make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "InnerPeace");
-        while e.state.draw_pile.len() < 3 { e.state.draw_pile.push("Defend_P".to_string()); }
+        while e.state.draw_pile.len() < 3 { e.state.draw_pile.push(e.card_registry.make_card("Defend_P")); }
         e.state.stance = Stance::Calm;
         let hs = e.state.hand.len();
         play_self(&mut e, "InnerPeace");
@@ -393,7 +386,7 @@ mod engine_integration_tests {
 
     #[test] fn inner_peace_neutral_enters_calm() {
         let mut e = engine_with(
-            vec!["InnerPeace".to_string(); 5], 100, 0,
+            make_deck_n("InnerPeace", 5), 100, 0,
         );
         play_self(&mut e, "InnerPeace");
         assert_eq!(e.state.stance, Stance::Calm);
@@ -402,7 +395,7 @@ mod engine_integration_tests {
     // ---- Divinity auto-exits turn start ----
     #[test] fn divinity_auto_exit() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(); 10], 100, 5,
+            make_deck_n("Strike_P", 10), 100, 5,
         );
         e.state.stance = Stance::Divinity;
         e.execute_action(&Action::EndTurn);
@@ -412,7 +405,7 @@ mod engine_integration_tests {
     // ---- Mantra -> Divinity gives +3 energy ----
     #[test] fn mantra_divinity_energy() {
         let mut e = engine_with(
-            vec!["Worship".to_string(); 5], 100, 0,
+            make_deck_n("Worship", 5), 100, 0,
         );
         e.state.mantra = 5;
         let en = e.state.energy;
@@ -425,7 +418,7 @@ mod engine_integration_tests {
     // ---- Fairy auto-revive ----
     #[test] fn fairy_revives_on_death() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(); 5], 100, 200,
+            make_deck_n("Strike_P", 5), 100, 200,
         );
         e.state.potions[0] = "FairyPotion".to_string();
         e.execute_action(&Action::EndTurn);
@@ -436,7 +429,7 @@ mod engine_integration_tests {
     // ---- Full combat: kill enemy with strikes ----
     #[test] fn full_combat_kill() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(); 10], 12, 0,
+            make_deck_n("Strike_P", 10), 12, 0,
         );
         play(&mut e, "Strike_P");
         play(&mut e, "Strike_P");
@@ -447,7 +440,7 @@ mod engine_integration_tests {
 
     // ---- Potion targeting in legal actions ----
     #[test] fn fire_potion_targeted_actions() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.potions[0] = "Fire Potion".to_string();
         let actions = e.get_legal_actions();
         let pot: Vec<_> = actions.iter().filter(|a| matches!(a, Action::UsePotion { .. })).collect();
@@ -455,7 +448,7 @@ mod engine_integration_tests {
     }
 
     #[test] fn block_potion_untargeted_action() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.potions[0] = "Block Potion".to_string();
         let actions = e.get_legal_actions();
         let pot: Vec<_> = actions.iter().filter(|a| matches!(a, Action::UsePotion { potion_idx: 0, target_idx: -1 })).collect();
@@ -465,26 +458,24 @@ mod engine_integration_tests {
     // ---- Wound/Daze cannot be played ----
     #[test] fn wound_not_playable() {
         let e = engine_with(
-            vec!["Wound".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Wound", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
         let wound_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.state.hand[*card_idx] == "Wound" } else { false }
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Wound" } else { false }
         }).collect();
         assert!(wound_plays.is_empty());
     }
 
     #[test] fn daze_not_playable() {
         let e = engine_with(
-            vec!["Daze".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Daze", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
         let daze_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.state.hand[*card_idx] == "Daze" } else { false }
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Daze" } else { false }
         }).collect();
         assert!(daze_plays.is_empty());
     }
@@ -492,20 +483,19 @@ mod engine_integration_tests {
     // ---- Slimed can be played (costs 1, exhausts) ----
     #[test] fn slimed_playable_and_exhausts() {
         let e = engine_with(
-            vec!["Slimed".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Slimed", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
         let slimed_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.state.hand[*card_idx] == "Slimed" } else { false }
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Slimed" } else { false }
         }).collect();
         assert!(!slimed_plays.is_empty());
     }
 
     // ---- Strength affects all attacks ----
     #[test] fn strength_all_attacks() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.player.set_status(sid::STRENGTH, 5);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
@@ -514,7 +504,7 @@ mod engine_integration_tests {
 
     // ---- Dexterity affects all block ----
     #[test] fn dexterity_all_block() {
-        let mut e = engine_with(vec!["Defend_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
         e.state.player.set_status(sid::DEXTERITY, 3);
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 8); // 5+3
@@ -522,7 +512,7 @@ mod engine_integration_tests {
 
     // ---- Frail reduces block ----
     #[test] fn frail_reduces_block() {
-        let mut e = engine_with(vec!["Defend_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
         e.state.player.set_status(sid::FRAIL, 2);
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 3); // 5*0.75=3.75->3
@@ -530,7 +520,7 @@ mod engine_integration_tests {
 
     // ---- Weak reduces attack ----
     #[test] fn weak_reduces_attack() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.player.set_status(sid::WEAKENED, 2);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
@@ -539,29 +529,29 @@ mod engine_integration_tests {
 
     // ---- Energy tracking ----
     #[test] fn energy_decreases_on_play() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         assert_eq!(e.state.energy, 3);
         play(&mut e, "Strike_P");
         assert_eq!(e.state.energy, 2);
     }
 
     #[test] fn cannot_play_without_energy() {
-        let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Eruption", 5), 100, 0);
         play(&mut e, "Eruption"); // costs 2
         // Only 1 energy left, can't play another Eruption (cost 2)
         let actions = e.get_legal_actions();
         let eruption_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.state.hand[*card_idx] == "Eruption" } else { false }
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Eruption" } else { false }
         }).collect();
         assert!(eruption_plays.is_empty());
     }
 
     // ---- Hand limit 10 ----
     #[test] fn hand_limit_10() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 20], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 20), 100, 0);
         assert_eq!(e.state.hand.len(), 5); // drew 5
         // Force more draws
-        e.state.draw_pile = vec!["Strike_P".to_string(); 10];
+        e.state.draw_pile = make_deck_n("Strike_P", 10);
         // Manually draw
         for _ in 0..10 {
             if e.state.hand.len() >= 10 { break; }
@@ -572,7 +562,7 @@ mod engine_integration_tests {
 
     // ---- LoseStrength applied at turn start ----
     #[test] fn lose_strength_at_turn_start() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
         e.state.player.set_status(sid::STRENGTH, 5);
         e.state.player.set_status(sid::LOSE_STRENGTH, 5);
         e.execute_action(&Action::EndTurn);
@@ -582,7 +572,7 @@ mod engine_integration_tests {
 
     // ---- LoseDexterity applied at turn start ----
     #[test] fn lose_dexterity_at_turn_start() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
         e.state.player.set_status(sid::DEXTERITY, 5);
         e.state.player.set_status(sid::LOSE_DEXTERITY, 5);
         e.execute_action(&Action::EndTurn);
@@ -591,7 +581,7 @@ mod engine_integration_tests {
 
     // ---- Multi-hit stops on enemy death ----
     #[test] fn multi_hit_stops_on_death() {
-        let mut e = engine_with(vec!["FlyingSleeves".to_string(); 5], 5, 0);
+        let mut e = engine_with(make_deck_n("FlyingSleeves", 5), 5, 0);
         play(&mut e, "FlyingSleeves"); // 4x2 = 8, but enemy has 5 HP
         assert_eq!(e.state.enemies[0].entity.hp, 0);
         assert!(e.state.combat_over);
@@ -599,7 +589,7 @@ mod engine_integration_tests {
 
     // ---- Tantrum in Wrath does double damage ----
     #[test] fn tantrum_wrath_double() {
-        let mut e = engine_with(vec!["Tantrum".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Tantrum", 5), 100, 0);
         // Already entering Wrath via card, but let's start in Wrath
         e.state.stance = Stance::Wrath;
         let hp = e.state.enemies[0].entity.hp;
@@ -610,7 +600,7 @@ mod engine_integration_tests {
 
     // ---- Eruption already in Wrath: no double stance entry ----
     #[test] fn eruption_wrath_to_wrath_no_change() {
-        let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Eruption", 5), 100, 0);
         e.state.stance = Stance::Wrath;
         e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let block_before = e.state.player.block;
@@ -621,7 +611,7 @@ mod engine_integration_tests {
 
     // ---- Strength + Wrath on Eruption ----
     #[test] fn eruption_str_wrath() {
-        let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Eruption", 5), 100, 0);
         e.state.player.set_status(sid::STRENGTH, 3);
         // Eruption enters Wrath. Damage calc: (9+3)*1.0 = 12 (Neutral during play)
         // Stance changes AFTER effects.
@@ -633,7 +623,7 @@ mod engine_integration_tests {
 
     // ---- Block + Defend stack from multiple plays ----
     #[test] fn multiple_defends_stack_block() {
-        let mut e = engine_with(vec!["Defend_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
         play_self(&mut e, "Defend_P");
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 10);
@@ -641,7 +631,7 @@ mod engine_integration_tests {
 
     // ---- Block decays at start of player turn ----
     #[test] fn block_decays_turn_start() {
-        let mut e = engine_with(vec!["Defend_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Defend_P", 10), 100, 5);
         play_self(&mut e, "Defend_P");
         assert_eq!(e.state.player.block, 5);
         e.execute_action(&Action::EndTurn);
@@ -651,7 +641,7 @@ mod engine_integration_tests {
 
     // ---- Enemy block decays at start of enemy turn ----
     #[test] fn enemy_block_decays() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 0);
         e.state.enemies[0].entity.block = 10;
         e.execute_action(&Action::EndTurn);
         // Enemy block decays at start of their turn
@@ -660,7 +650,7 @@ mod engine_integration_tests {
 
     // ---- Debuffs decrement on enemies too ----
     #[test] fn enemy_debuffs_decrement() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
         e.state.enemies[0].entity.set_status(sid::WEAKENED, 2);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 1);
@@ -668,7 +658,7 @@ mod engine_integration_tests {
 
     // ---- Turn counter increments ----
     #[test] fn turn_counter() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
         assert_eq!(e.state.turn, 1);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.turn, 2);
@@ -678,7 +668,7 @@ mod engine_integration_tests {
 
     // ---- Cards played counter ----
     #[test] fn cards_played_counter() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         play(&mut e, "Strike_P");
         play(&mut e, "Strike_P");
         assert_eq!(e.state.cards_played_this_turn, 2);
@@ -688,8 +678,7 @@ mod engine_integration_tests {
     // ---- Attacks played counter ----
     #[test] fn attacks_played_counter() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "Defend_P".to_string(), "Strike_P".to_string(),
-                 "Defend_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
             100, 0,
         );
         play(&mut e, "Strike_P");
@@ -701,7 +690,7 @@ mod engine_integration_tests {
 
     // ---- Counters reset on new turn ----
     #[test] fn counters_reset_new_turn() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 10], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
         play(&mut e, "Strike_P");
         assert_eq!(e.state.cards_played_this_turn, 1);
         e.execute_action(&Action::EndTurn);
@@ -711,7 +700,7 @@ mod engine_integration_tests {
 
     // ---- Empty draw pile + empty discard = no draw ----
     #[test] fn no_cards_no_draw() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 5);
         // Play all cards, discard all, end turn
         for _ in 0..3 { play(&mut e, "Strike_P"); }
         // Now discard and draw piles will be refilled on end turn
@@ -722,7 +711,7 @@ mod engine_integration_tests {
 
     // ---- Relic combat start + potion in same combat ----
     #[test] fn relic_and_potion_combined() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 5);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 5);
         e.state.relics.push("Vajra".to_string());
         crate::relics::apply_combat_start_relics(&mut e.state);
         e.state.potions[0] = "Strength Potion".to_string();
@@ -732,7 +721,7 @@ mod engine_integration_tests {
 
     // ---- Pen Nib doubles in Wrath = 4x ----
     #[test] fn pen_nib_in_wrath() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.stance = Stance::Wrath;
         e.state.relics.push("Pen Nib".to_string());
         // Set counter to 9 so next attack triggers
@@ -745,7 +734,7 @@ mod engine_integration_tests {
 
     // ---- Vulnerable + Wrath incoming = 3x ----
     #[test] fn vuln_wrath_incoming() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 10);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 10);
         e.state.stance = Stance::Wrath;
         e.state.player.set_status(sid::VULNERABLE, 2);
         let hp = e.state.player.hp;
@@ -756,7 +745,7 @@ mod engine_integration_tests {
 
     // ---- EmptyBody exits Wrath ----
     #[test] fn empty_body_exits_wrath() {
-        let mut e = engine_with(vec!["EmptyBody".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("EmptyBody", 5), 100, 0);
         e.state.stance = Stance::Wrath;
         play_self(&mut e, "EmptyBody");
         assert_eq!(e.state.stance, Stance::Neutral);
@@ -764,14 +753,14 @@ mod engine_integration_tests {
 
     // ---- EmptyBody+ gives 11 block ----
     #[test] fn empty_body_plus_11_block() {
-        let mut e = engine_with(vec!["EmptyBody+".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("EmptyBody+", 5), 100, 0);
         play_self(&mut e, "EmptyBody+");
         assert_eq!(e.state.player.block, 11);
     }
 
     // ---- Vigilance+ gives 12 block and enters Calm ----
     #[test] fn vigilance_plus_12_block_calm() {
-        let mut e = engine_with(vec!["Vigilance+".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Vigilance+", 5), 100, 0);
         play_self(&mut e, "Vigilance+");
         assert_eq!(e.state.player.block, 12);
         assert_eq!(e.state.stance, Stance::Calm);
@@ -779,7 +768,7 @@ mod engine_integration_tests {
 
     // ---- Strike+ deals 9 damage ----
     #[test] fn strike_plus_9() {
-        let mut e = engine_with(vec!["Strike_P+".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P+", 5), 100, 0);
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P+");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 9);
@@ -787,14 +776,14 @@ mod engine_integration_tests {
 
     // ---- Defend+ gives 8 block ----
     #[test] fn defend_plus_8() {
-        let mut e = engine_with(vec!["Defend_P+".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Defend_P+", 5), 100, 0);
         play_self(&mut e, "Defend_P+");
         assert_eq!(e.state.player.block, 8);
     }
 
     // ---- Eruption+ costs 1 ----
     #[test] fn eruption_plus_cost_1() {
-        let mut e = engine_with(vec!["Eruption+".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Eruption+", 5), 100, 0);
         let en = e.state.energy;
         play(&mut e, "Eruption+");
         assert_eq!(e.state.energy, en - 1);
@@ -802,7 +791,7 @@ mod engine_integration_tests {
 
     // ---- Calm exit -> Wrath entry in one action (Eruption from Calm) ----
     #[test] fn calm_to_wrath_via_eruption() {
-        let mut e = engine_with(vec!["Eruption".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Eruption", 5), 100, 0);
         e.state.stance = Stance::Calm;
         e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let en = e.state.energy;
@@ -816,13 +805,11 @@ mod engine_integration_tests {
     // ---- Rushdown + MentalFortress combined on Wrath entry ----
     #[test] fn rushdown_and_mf_on_wrath() {
         let mut e = engine_with(
-            vec!["Eruption".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Defend_P".to_string(), "Defend_P".to_string()],
+            make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Eruption");
-        while e.state.draw_pile.len() < 2 { e.state.draw_pile.push("Defend_P".to_string()); }
+        while e.state.draw_pile.len() < 2 { e.state.draw_pile.push(e.card_registry.make_card("Defend_P")); }
         e.state.player.set_status(sid::RUSHDOWN, 2);
         e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let hs = e.state.hand.len();
@@ -834,7 +821,7 @@ mod engine_integration_tests {
 
     // ---- No duplicate EndTurn in legal actions ----
     #[test] fn single_end_turn_action() {
-        let e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         let actions = e.get_legal_actions();
         let end_turns = actions.iter().filter(|a| matches!(a, Action::EndTurn)).count();
         assert_eq!(end_turns, 1);
@@ -842,7 +829,7 @@ mod engine_integration_tests {
 
     // ---- Empty potions don't appear in actions ----
     #[test] fn empty_potions_no_actions() {
-        let e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         let actions = e.get_legal_actions();
         let pots = actions.iter().filter(|a| matches!(a, Action::UsePotion { .. })).count();
         assert_eq!(pots, 0);
@@ -850,7 +837,7 @@ mod engine_integration_tests {
 
     // ---- Mantra overflow (12 mantra = Divinity + 2 leftover) ----
     #[test] fn mantra_overflow() {
-        let mut e = engine_with(vec!["Worship".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Worship", 5), 100, 0);
         e.state.mantra = 7;
         play_self(&mut e, "Worship"); // +5 = 12 -> Divinity, leftover 2
         assert_eq!(e.state.stance, Stance::Divinity);
@@ -859,7 +846,7 @@ mod engine_integration_tests {
 
     // ---- Potion kills enemy -> combat ends ----
     #[test] fn potion_kill_ends_combat() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 15, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 15, 0);
         e.state.potions[0] = "Fire Potion".to_string();
         e.execute_action(&Action::UsePotion { potion_idx: 0, target_idx: 0 });
         assert!(e.state.combat_over);
@@ -875,7 +862,7 @@ mod engine_integration_tests {
 
     // ---- Divinity outgoing damage 3x ----
     #[test] fn divinity_3x_damage() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 0);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
         e.state.stance = Stance::Divinity;
         let hp = e.state.enemies[0].entity.hp;
         play(&mut e, "Strike_P");
@@ -884,7 +871,7 @@ mod engine_integration_tests {
 
     // ---- Divinity does NOT increase incoming damage ----
     #[test] fn divinity_no_incoming_mult() {
-        let mut e = engine_with(vec!["Strike_P".to_string(); 5], 100, 10);
+        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 10);
         e.state.stance = Stance::Divinity;
         let hp = e.state.player.hp;
         e.execute_action(&Action::EndTurn);
@@ -903,18 +890,20 @@ mod bugfix_regression_tests {
     use crate::actions::Action;
     use crate::status_ids::sid;
     use crate::cards::CardRegistry;
+    use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};
     use crate::run::RunAction;
     use crate::{PyRunEngine, COMBAT_BASE};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
-        if !engine.state.hand.contains(&card_id.to_string()) {
-            engine.state.hand.push(card_id.to_string());
+        if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == card_id) {
+            engine.state.hand.push(engine.card_registry.make_card(card_id));
         }
     }
 
-    fn engine_with(deck: Vec<String>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
+    fn engine_with(deck: Vec<crate::combat_types::CardInstance>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", enemy_hp, enemy_hp);
         enemy.set_move(1, enemy_dmg, 1, 0);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -923,7 +912,7 @@ mod bugfix_regression_tests {
         e
     }
 
-    fn engine_multi_enemy(deck: Vec<String>, n_enemies: usize, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
+    fn engine_multi_enemy(deck: Vec<CardInstance>, n_enemies: usize, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
         let mut enemies = Vec::new();
         for _ in 0..n_enemies {
             let mut enemy = EnemyCombatState::new("JawWorm", enemy_hp, enemy_hp);
@@ -937,13 +926,13 @@ mod bugfix_regression_tests {
     }
 
     fn play(e: &mut CombatEngine, card: &str) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: 0 });
         }
     }
 
     fn play_self(e: &mut CombatEngine, card: &str) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: -1 });
         }
     }
@@ -1020,7 +1009,7 @@ mod bugfix_regression_tests {
     fn bowling_bash_extra_hits_with_multiple_enemies() {
         // BowlingBash: damage = base_damage * living_enemy_count
         let mut e = engine_multi_enemy(
-            vec!["BowlingBash".to_string(); 6],
+            make_deck_n("BowlingBash", 6),
             3, 100, 0,
         );
         let hp_before = e.state.enemies[0].entity.hp;
@@ -1033,8 +1022,7 @@ mod bugfix_regression_tests {
     #[test]
     fn crush_joints_vuln_after_skill() {
         let mut e = engine_with(
-            vec!["Defend_P".to_string(), "CrushJoints".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Defend_P", "CrushJoints", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         // Play Defend (Skill) first
@@ -1048,8 +1036,7 @@ mod bugfix_regression_tests {
     #[test]
     fn crush_joints_no_vuln_after_attack() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "CrushJoints".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Strike_P", "CrushJoints", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         // Play Strike (Attack) first
@@ -1063,8 +1050,7 @@ mod bugfix_regression_tests {
     #[test]
     fn follow_up_energy_after_attack() {
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "FollowUp".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Strike_P", "FollowUp", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         // Play Strike (Attack) first
@@ -1078,8 +1064,7 @@ mod bugfix_regression_tests {
     #[test]
     fn follow_up_no_energy_after_skill() {
         let mut e = engine_with(
-            vec!["Defend_P".to_string(), "FollowUp".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Defend_P", "FollowUp", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         play_self(&mut e, "Defend_P");
@@ -1092,8 +1077,7 @@ mod bugfix_regression_tests {
     #[test]
     fn talk_to_the_hand_applies_block_return() {
         let mut e = engine_with(
-            vec!["TalkToTheHand".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["TalkToTheHand", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 10,
         );
         play(&mut e, "TalkToTheHand");
@@ -1104,8 +1088,7 @@ mod bugfix_regression_tests {
     #[test]
     fn block_return_grants_block_on_player_attack() {
         let mut e = engine_with(
-            vec!["TalkToTheHand".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["TalkToTheHand", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         play(&mut e, "TalkToTheHand");
@@ -1121,7 +1104,7 @@ mod bugfix_regression_tests {
     #[test]
     fn ragnarok_hits_random_enemies_multiple_times() {
         let mut e = engine_multi_enemy(
-            vec!["Ragnarok".to_string(); 6],
+            make_deck_n("Ragnarok", 6),
             2, 100, 0,
         );
         let total_hp_before: i32 = e.state.enemies.iter().map(|e| e.entity.hp).sum();
@@ -1142,10 +1125,7 @@ mod bugfix_regression_tests {
     #[test]
     fn conclude_advances_turn_counter() {
         let mut e = engine_with(
-            vec!["Conclude".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -1158,10 +1138,7 @@ mod bugfix_regression_tests {
     fn conclude_triggers_enemy_turn() {
         // With enemy damage > 0, end_turn should cause player damage
         let mut e = engine_with(
-            vec!["Conclude".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 5,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -1176,18 +1153,15 @@ mod bugfix_regression_tests {
     fn retain_card_stays_in_hand() {
         // Smite has "retain" effect
         let mut e = engine_with(
-            vec!["Smite".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Smite", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Smite");
         // Don't play Smite, just end turn
-        assert!(e.state.hand.contains(&"Smite".to_string()));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Smite"));
         e.execute_action(&Action::EndTurn);
         // Smite should still be in hand after end_turn
-        assert!(e.state.hand.contains(&"Smite".to_string()),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Smite"),
             "Retained card (Smite) should stay in hand after end_turn");
     }
 
@@ -1195,19 +1169,18 @@ mod bugfix_regression_tests {
     fn ethereal_card_exhausts_at_end_turn() {
         // Daze has "ethereal" and "unplayable" effects
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string()],
+            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]),
             100, 0,
         );
         // Manually add a Daze to hand
-        e.state.hand.push("Daze".to_string());
-        assert!(e.state.hand.contains(&"Daze".to_string()));
+        e.state.hand.push(e.card_registry.make_card("Daze"));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"));
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
         // Daze should be in exhaust pile, not discard
         assert!(e.state.exhaust_pile.len() > exhaust_before,
             "Ethereal card (Daze) should go to exhaust pile");
-        assert!(!e.state.hand.contains(&"Daze".to_string()),
+        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"),
             "Ethereal card should not remain in hand");
     }
 
@@ -1215,11 +1188,10 @@ mod bugfix_regression_tests {
     fn ascenders_bane_exhausts_at_end_turn() {
         // AscendersBane has "ethereal" and "unplayable"
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string()],
+            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]),
             100, 0,
         );
-        e.state.hand.push("AscendersBane".to_string());
+        e.state.hand.push(e.card_registry.make_card("AscendersBane"));
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
         assert!(e.state.exhaust_pile.len() > exhaust_before,
@@ -1230,11 +1202,7 @@ mod bugfix_regression_tests {
     fn normal_card_not_retained_or_exhausted() {
         // Verify that Strike (no retain/ethereal) does not stay in hand or go to exhaust
         let mut e = engine_with(
-            vec!["Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Defend_P".to_string(),
-                 // Extra cards for next draw
-                 "Strike_P".to_string(), "Strike_P".to_string(), "Strike_P".to_string(),
-                 "Strike_P".to_string(), "Strike_P".to_string()],
+            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
             100, 0,
         );
         let exhaust_before = e.state.exhaust_pile.len();
@@ -1244,7 +1212,7 @@ mod bugfix_regression_tests {
             "Normal cards should not go to exhaust pile");
         // Normal cards should NOT be retained in hand from previous turn
         // (hand now has new cards drawn for next turn)
-        assert!(!e.state.hand.contains(&"Smite".to_string()),
+        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Smite"),
             "No retained-only cards should appear");
     }
 }
@@ -1257,14 +1225,16 @@ mod bugfix_regression_tests {
 #[cfg(test)]
 mod combat_engine_p0_p1_regression {
     use crate::actions::Action;
+    use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::status_ids::sid;
     use crate::enemies;
     use crate::state::{CombatState, EnemyCombatState};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     /// Helper: create engine with specific enemy and deck.
     fn make_engine(
-        deck: Vec<String>,
+        deck: Vec<CardInstance>,
         enemy_id: &str,
         enemy_hp: i32,
         enemy_dmg: i32,
@@ -1279,7 +1249,7 @@ mod combat_engine_p0_p1_regression {
     }
 
     fn play_card(e: &mut CombatEngine, card: &str, target: i32) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: target });
         }
     }
@@ -1288,7 +1258,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn player_poison_ticks_at_end_of_turn() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 6, 1, 0); // JawWorm does 6 damage
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1313,7 +1283,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn player_poison_kills_player() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let state = CombatState::new(3, 80, vec![enemy], deck, 3);
@@ -1332,7 +1302,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_intangible() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 30, 1);
         e.start_combat();
 
@@ -1349,7 +1319,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_torii() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 4, 1);
         e.start_combat();
 
@@ -1366,7 +1336,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_tungsten_rod() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
@@ -1385,7 +1355,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn guardian_mode_shift_triggers_on_damage() {
-        let deck: Vec<String> = (0..10).map(|_| "Strike_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
         let enemy = enemies::create_enemy("TheGuardian", 240, 240);
         let state = CombatState::new(80, 80, vec![enemy], deck, 10);
         let mut e = CombatEngine::new(state, 42);
@@ -1404,7 +1374,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn slime_boss_splits_at_half_hp() {
-        let deck: Vec<String> = (0..20).map(|_| "Strike_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 20);
         let enemy = enemies::create_enemy("SlimeBoss", 140, 140);
         let state = CombatState::new(80, 80, vec![enemy], deck, 50);
         let mut e = CombatEngine::new(state, 42);
@@ -1429,8 +1399,8 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn gremlin_nob_enrage_on_non_attack() {
-        let mut deck: Vec<String> = vec!["Defend_P".to_string(); 5];
-        deck.extend(vec!["Strike_P".to_string(); 5]);
+        let mut deck: Vec<CardInstance> = make_deck_n("Defend_P", 5);
+        deck.extend(make_deck_n("Strike_P", 5));
         let enemy = enemies::create_enemy("GremlinNob", 106, 106);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1448,7 +1418,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn gremlin_nob_no_enrage_on_attack() {
-        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
         let enemy = enemies::create_enemy("GremlinNob", 106, 106);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1466,7 +1436,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn lagavulin_sleeps_then_wakes() {
-        let deck: Vec<String> = vec!["Defend_P".to_string(); 10];
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let enemy = enemies::create_enemy("Lagavulin", 112, 112);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1481,7 +1451,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn lagavulin_wakes_on_damage() {
-        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
         let enemy = enemies::create_enemy("Lagavulin", 112, 112);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1500,7 +1470,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn pen_nib_doubles_damage_via_full_calc() {
-        let deck: Vec<String> = vec!["Strike_P".to_string(); 20];
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 20);
         let mut enemy = EnemyCombatState::new("JawWorm", 200, 200);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 50);
@@ -1524,7 +1494,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn plated_armor_decrements_on_hp_loss() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
@@ -1540,7 +1510,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn plated_armor_not_decremented_when_fully_blocked() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 5, 1);
         e.start_combat();
 
@@ -1558,7 +1528,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn talk_to_the_hand_no_block_when_enemy_blocks() {
-        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 50; // Enough block to absorb Strike damage
@@ -1578,7 +1548,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn talk_to_the_hand_grants_block_on_hp_damage() {
-        let deck: Vec<String> = vec!["Strike_P".to_string(); 10];
+        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 0;
@@ -1600,7 +1570,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn anchor_block_preserved_turn_1() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1615,7 +1585,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn block_resets_normally_on_turn_2() {
-        let deck: Vec<String> = (0..10).map(|_| "Defend_P".to_string()).collect();
+        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1645,24 +1615,26 @@ mod combat_engine_p0_p1_regression {
 #[cfg(test)]
 mod effect_handler_tests {
     use crate::actions::Action;
+    use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState, Stance};
     use crate::status_ids::sid;
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
-        if !engine.state.hand.contains(&card_id.to_string()) {
-            engine.state.hand.push(card_id.to_string());
+        if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == card_id) {
+            engine.state.hand.push(engine.card_registry.make_card(card_id));
         }
     }
 
-    fn make_engine_with_deck(deck: Vec<String>) -> CombatEngine {
+    fn make_engine_with_deck(deck: Vec<CardInstance>) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0); // passive enemy
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         CombatEngine::new(state, 42)
     }
 
-    fn make_engine_with_deck_and_enemy(deck: Vec<String>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
+    fn make_engine_with_deck_and_enemy(deck: Vec<CardInstance>, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
         let mut enemy = EnemyCombatState::new("JawWorm", enemy_hp, enemy_hp);
         enemy.set_move(1, enemy_dmg, 1, 0);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1670,7 +1642,7 @@ mod effect_handler_tests {
     }
 
     #[allow(dead_code)]
-    fn make_engine_multi_enemy(deck: Vec<String>, count: usize) -> CombatEngine {
+    fn make_engine_multi_enemy(deck: Vec<CardInstance>, count: usize) -> CombatEngine {
         let enemies: Vec<EnemyCombatState> = (0..count).map(|_| {
             let mut e = EnemyCombatState::new("JawWorm", 50, 50);
             e.set_move(1, 0, 0, 0);
@@ -1681,7 +1653,7 @@ mod effect_handler_tests {
     }
 
     fn play_card(e: &mut CombatEngine, card: &str, target: i32) {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: target });
         } else {
             panic!("Card '{}' not found in hand: {:?}", card, e.state.hand);
@@ -1690,7 +1662,7 @@ mod effect_handler_tests {
 
     #[allow(dead_code)]
     fn play_card_if_present(e: &mut CombatEngine, card: &str, target: i32) -> bool {
-        if let Some(idx) = e.state.hand.iter().position(|c| c == card) {
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: target });
             true
         } else {
@@ -1701,21 +1673,21 @@ mod effect_handler_tests {
     // ===== 1. Tantrum: shuffle_self_into_draw =====
     #[test]
     fn tantrum_shuffles_into_draw() {
-        let deck = vec!["Tantrum".to_string(); 10];
+        let deck = make_deck_n("Tantrum", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Tantrum", 0);
         // Tantrum goes to draw pile not discard
-        assert!(e.state.discard_pile.iter().all(|c| c != "Tantrum"),
+        assert!(e.state.discard_pile.iter().all(|c| e.card_registry.card_name(c.def_id) != "Tantrum"),
             "Tantrum should NOT be in discard pile");
-        assert!(e.state.draw_pile.iter().any(|c| c == "Tantrum"),
+        assert!(e.state.draw_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "Tantrum"),
             "Tantrum should be in draw pile after play");
     }
 
     // ===== 2. Wallop: block_from_damage =====
     #[test]
     fn wallop_gains_block_from_unblocked_damage() {
-        let deck = vec!["Wallop".to_string(); 10];
+        let deck = make_deck_n("Wallop", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         let block_before = e.state.player.block;
@@ -1730,7 +1702,7 @@ mod effect_handler_tests {
 
     #[test]
     fn wallop_no_block_when_enemy_fully_blocks() {
-        let deck = vec!["Wallop".to_string(); 10];
+        let deck = make_deck_n("Wallop", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         e.state.enemies[0].entity.block = 100; // Enemy has way more block than damage
@@ -1742,7 +1714,7 @@ mod effect_handler_tests {
     // ===== 3. Pressure Points =====
     #[test]
     fn pressure_points_applies_mark_and_damages() {
-        let deck = vec!["PressurePoints".to_string(); 10];
+        let deck = make_deck_n("PressurePoints", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         let hp_before = e.state.enemies[0].entity.hp;
@@ -1754,7 +1726,7 @@ mod effect_handler_tests {
 
     #[test]
     fn pressure_points_stacks_mark() {
-        let deck = vec!["PressurePoints".to_string(); 10];
+        let deck = make_deck_n("PressurePoints", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "PressurePoints", 0);
@@ -1768,7 +1740,7 @@ mod effect_handler_tests {
     // ===== 4. Judgement: instant kill =====
     #[test]
     fn judgement_kills_low_hp_enemy() {
-        let deck = vec!["Judgement".to_string(); 10];
+        let deck = make_deck_n("Judgement", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 25, 0);
         e.start_combat();
         play_card(&mut e, "Judgement", 0);
@@ -1778,7 +1750,7 @@ mod effect_handler_tests {
 
     #[test]
     fn judgement_does_nothing_to_high_hp_enemy() {
-        let deck = vec!["Judgement".to_string(); 10];
+        let deck = make_deck_n("Judgement", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 50, 0);
         e.start_combat();
         let hp_before = e.state.enemies[0].entity.hp;
@@ -1790,8 +1762,8 @@ mod effect_handler_tests {
     // ===== 5. Sash Whip: weak_if_last_attack =====
     #[test]
     fn sash_whip_applies_weak_after_attack() {
-        let mut deck = vec!["Strike_P".to_string(); 5];
-        deck.extend(vec!["SashWhip".to_string(); 5]);
+        let mut deck = make_deck_n("Strike_P", 5);
+        deck.extend(make_deck_n("SashWhip", 5));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         // Play a Strike first (Attack type)
@@ -1805,7 +1777,7 @@ mod effect_handler_tests {
     // ===== 6. Fear No Evil: calm_if_enemy_attacking =====
     #[test]
     fn fear_no_evil_enters_calm_vs_attacking_enemy() {
-        let deck = vec!["FearNoEvil".to_string(); 10];
+        let deck = make_deck_n("FearNoEvil", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 100, 10);
         e.start_combat();
         assert_eq!(e.state.stance, Stance::Neutral);
@@ -1816,7 +1788,7 @@ mod effect_handler_tests {
 
     #[test]
     fn fear_no_evil_no_stance_change_vs_passive() {
-        let deck = vec!["FearNoEvil".to_string(); 10];
+        let deck = make_deck_n("FearNoEvil", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 100, 0);
         e.start_combat();
         play_card(&mut e, "FearNoEvil", 0);
@@ -1827,7 +1799,7 @@ mod effect_handler_tests {
     // ===== 7. Indignation =====
     #[test]
     fn indignation_enters_wrath_from_neutral() {
-        let deck = vec!["Indignation".to_string(); 10];
+        let deck = make_deck_n("Indignation", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Indignation", -1);
@@ -1837,7 +1809,7 @@ mod effect_handler_tests {
 
     #[test]
     fn indignation_applies_vuln_in_wrath() {
-        let deck = vec!["Indignation".to_string(); 10];
+        let deck = make_deck_n("Indignation", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         e.state.stance = Stance::Wrath;
@@ -1849,62 +1821,62 @@ mod effect_handler_tests {
     // ===== 8. Carve Reality: add_smite_to_hand =====
     #[test]
     fn carve_reality_adds_smite() {
-        let deck = vec!["CarveReality".to_string(); 10];
+        let deck = make_deck_n("CarveReality", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "CarveReality", 0);
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Smite")),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Smite")),
             "Carve Reality should add Smite to hand");
     }
 
     // ===== 9. Deceive Reality: add_safety_to_hand =====
     #[test]
     fn deceive_reality_adds_safety() {
-        let deck = vec!["DeceiveReality".to_string(); 10];
+        let deck = make_deck_n("DeceiveReality", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "DeceiveReality", -1);
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Safety")),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Safety")),
             "Deceive Reality should add Safety to hand");
     }
 
     // ===== 10. Evaluate: insight_to_draw =====
     #[test]
     fn evaluate_adds_insight_to_draw() {
-        let deck = vec!["Evaluate".to_string(); 10];
+        let deck = make_deck_n("Evaluate", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Evaluate", -1);
-        assert!(e.state.draw_pile.iter().any(|c| c.starts_with("Insight")),
+        assert!(e.state.draw_pile.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Insight")),
             "Evaluate should add Insight to draw pile");
     }
 
     // ===== 11. Reach Heaven: add_through_violence_to_draw =====
     #[test]
     fn reach_heaven_adds_through_violence() {
-        let deck = vec!["ReachHeaven".to_string(); 10];
+        let deck = make_deck_n("ReachHeaven", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "ReachHeaven", 0);
-        assert!(e.state.draw_pile.iter().any(|c| c.starts_with("ThroughViolence")),
+        assert!(e.state.draw_pile.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("ThroughViolence")),
             "Reach Heaven should add Through Violence to draw pile");
     }
 
     // ===== 12. Alpha: add_beta_to_draw =====
     #[test]
     fn alpha_adds_beta_to_draw() {
-        let deck = vec!["Alpha".to_string(); 10];
+        let deck = make_deck_n("Alpha", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Alpha", -1);
-        assert!(e.state.draw_pile.iter().any(|c| c.starts_with("Beta")),
+        assert!(e.state.draw_pile.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Beta")),
             "Alpha should add Beta to draw pile");
     }
 
     // ===== 13. Spirit Shield: block_per_card_in_hand =====
     #[test]
     fn spirit_shield_gains_block_per_hand_card() {
-        let deck = vec!["SpiritShield".to_string(); 10];
+        let deck = make_deck_n("SpiritShield", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         // Hand has 5 cards. Spirit Shield gives 3 block per card = 3*4 = 12 (4 remaining after playing)
@@ -1917,7 +1889,7 @@ mod effect_handler_tests {
     // ===== 14. Scrawl: draw_to_ten =====
     #[test]
     fn scrawl_draws_to_ten() {
-        let deck = vec!["Scrawl".to_string(); 20];
+        let deck = make_deck_n("Scrawl", 20);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         assert_eq!(e.state.hand.len(), 5);
@@ -1930,8 +1902,8 @@ mod effect_handler_tests {
     // ===== 15. Vigor (Wreath of Flame) =====
     #[test]
     fn wreath_of_flame_grants_vigor() {
-        let mut deck = vec!["WreathOfFlame".to_string(); 5];
-        deck.extend(vec!["Strike_P".to_string(); 5]);
+        let mut deck = make_deck_n("WreathOfFlame", 5);
+        deck.extend(make_deck_n("Strike_P", 5));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WreathOfFlame", -1);
@@ -1942,8 +1914,8 @@ mod effect_handler_tests {
     // ===== 16. Blasphemy: die_next_turn =====
     #[test]
     fn blasphemy_enters_divinity_and_kills_next_turn() {
-        let mut deck = vec!["Blasphemy".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["Blasphemy"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         ensure_in_hand(&mut e, "Blasphemy");
@@ -1962,8 +1934,8 @@ mod effect_handler_tests {
     // ===== 17. Vault: skip_enemy_turn =====
     #[test]
     fn vault_skips_enemy_turn() {
-        let mut deck = vec!["Vault".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 9]);
+        let mut deck = make_deck(&["Vault"]);
+        deck.extend(make_deck_n("Defend_P", 9));
         let mut e = make_engine_with_deck_and_enemy(deck, 100, 20);
         e.start_combat();
         ensure_in_hand(&mut e, "Vault");
@@ -1978,7 +1950,7 @@ mod effect_handler_tests {
     // ===== 18. Wish: grants strength =====
     #[test]
     fn wish_grants_strength() {
-        let deck = vec!["Wish".to_string(); 10];
+        let deck = make_deck_n("Wish", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Wish", -1);
@@ -1989,18 +1961,18 @@ mod effect_handler_tests {
     // ===== 19. Meditate: return cards from discard =====
     #[test]
     fn meditate_returns_card_from_discard() {
-        let mut deck = vec!["Meditate".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["Meditate"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        if !e.state.hand.contains(&"Meditate".to_string()) {
-            e.state.hand.push("Meditate".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Meditate") {
+            e.state.hand.push(e.card_registry.make_card("Meditate"));
         }
         // Put a card in discard
-        e.state.discard_pile.push("WreathOfFlame".to_string());
+        e.state.discard_pile.push(e.card_registry.make_card("WreathOfFlame"));
         play_card(&mut e, "Meditate", -1);
         // Should have returned the card to hand
-        assert!(e.state.hand.iter().any(|c| c == "WreathOfFlame"),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "WreathOfFlame"),
             "Meditate should return a card from discard to hand");
         // Meditate also enters Calm and ends turn
         assert_eq!(e.state.stance, Stance::Calm,
@@ -2010,17 +1982,17 @@ mod effect_handler_tests {
     // ===== 20. Signature Move: only playable if no other attacks in hand =====
     #[test]
     fn signature_move_blocked_with_other_attacks() {
-        let mut deck = vec!["SignatureMove".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["SignatureMove"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         // Should have both SignatureMove and Strikes in hand
-        if e.state.hand.iter().any(|c| c == "SignatureMove") &&
-           e.state.hand.iter().any(|c| c == "Strike_P") {
+        if e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "SignatureMove") &&
+           e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike_P") {
             let actions = e.get_legal_actions();
             let sig_move_action = actions.iter().find(|a| {
                 if let Action::PlayCard { card_idx, .. } = a {
-                    e.state.hand[*card_idx] == "SignatureMove"
+                    e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "SignatureMove"
                 } else { false }
             });
             assert!(sig_move_action.is_none(),
@@ -2031,30 +2003,30 @@ mod effect_handler_tests {
     // ===== 21. Install Power: BattleHymn =====
     #[test]
     fn battle_hymn_adds_smite_each_turn() {
-        let mut deck = vec!["BattleHymn".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["BattleHymn"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        if !e.state.hand.contains(&"BattleHymn".to_string()) {
-            e.state.hand.push("BattleHymn".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "BattleHymn") {
+            e.state.hand.push(e.card_registry.make_card("BattleHymn"));
         }
         play_card(&mut e, "BattleHymn", -1);
         assert_eq!(e.state.player.status(sid::BATTLE_HYMN), 1);
         // End turn, start next turn
         e.execute_action(&Action::EndTurn);
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Smite")),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Smite")),
             "BattleHymn should add Smite to hand at start of turn");
     }
 
     // ===== 22. Install Power: LikeWater =====
     #[test]
     fn like_water_gains_block_in_calm() {
-        let mut deck = vec!["LikeWater".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["LikeWater"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        if !e.state.hand.contains(&"LikeWater".to_string()) {
-            e.state.hand.push("LikeWater".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "LikeWater") {
+            e.state.hand.push(e.card_registry.make_card("LikeWater"));
         }
         play_card(&mut e, "LikeWater", -1);
         e.state.stance = Stance::Calm;
@@ -2071,12 +2043,12 @@ mod effect_handler_tests {
     // ===== 23. Install Power: Devotion =====
     #[test]
     fn devotion_gains_mantra_each_turn() {
-        let mut deck = vec!["Devotion".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["Devotion"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        if !e.state.hand.contains(&"Devotion".to_string()) {
-            e.state.hand.push("Devotion".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Devotion") {
+            e.state.hand.push(e.card_registry.make_card("Devotion"));
         }
         play_card(&mut e, "Devotion", -1);
         assert_eq!(e.state.player.status(sid::DEVOTION), 2);
@@ -2089,12 +2061,12 @@ mod effect_handler_tests {
     // ===== 24. Install Power: DevaForm =====
     #[test]
     fn deva_form_gains_increasing_energy() {
-        let mut deck = vec!["DevaForm".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["DevaForm"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        if !e.state.hand.contains(&"DevaForm".to_string()) {
-            e.state.hand.push("DevaForm".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "DevaForm") {
+            e.state.hand.push(e.card_registry.make_card("DevaForm"));
         }
         play_card(&mut e, "DevaForm", -1);
         assert_eq!(e.state.player.status(sid::DEVA_FORM), 1);
@@ -2109,12 +2081,12 @@ mod effect_handler_tests {
     // ===== 25. Install Power: Fasting =====
     #[test]
     fn fasting_grants_str_dex_loses_energy() {
-        let mut deck = vec!["Fasting".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["Fasting"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        if !e.state.hand.contains(&"Fasting".to_string()) {
-            e.state.hand.push("Fasting".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Fasting") {
+            e.state.hand.push(e.card_registry.make_card("Fasting"));
         }
         play_card(&mut e, "Fasting", -1);
         assert_eq!(e.state.player.strength(), 3, "Fasting should give 3 Strength");
@@ -2125,8 +2097,8 @@ mod effect_handler_tests {
     // ===== 26. Install Power: MasterReality =====
     #[test]
     fn master_reality_upgrades_created_cards() {
-        let mut deck = vec!["MasterReality".to_string()];
-        deck.extend(vec!["CarveReality".to_string(); 9]);
+        let mut deck = make_deck(&["MasterReality"]);
+        deck.extend(make_deck_n("CarveReality", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "MasterReality");
@@ -2135,19 +2107,19 @@ mod effect_handler_tests {
         assert_eq!(e.state.player.status(sid::MASTER_REALITY), 1);
         // Now play Carve Reality — should create Smite+
         play_card(&mut e, "CarveReality", 0);
-        assert!(e.state.hand.iter().any(|c| c == "Smite+"),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Smite+"),
             "Master Reality should upgrade created Smite to Smite+");
     }
 
     // ===== 27. Install Power: Study =====
     #[test]
     fn study_adds_insight_at_end_of_turn() {
-        let mut deck = vec!["Study".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["Study"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        if !e.state.hand.contains(&"Study".to_string()) {
-            e.state.hand.push("Study".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Study") {
+            e.state.hand.push(e.card_registry.make_card("Study"));
         }
         play_card(&mut e, "Study", -1);
         e.execute_action(&Action::EndTurn);
@@ -2155,7 +2127,7 @@ mod effect_handler_tests {
         let insight_count = e.state.draw_pile.iter()
             .chain(e.state.discard_pile.iter())
             .chain(e.state.hand.iter())
-            .filter(|c| c.starts_with("Insight")).count();
+            .filter(|c| e.card_registry.card_name(c.def_id).starts_with("Insight")).count();
         assert!(insight_count >= 1,
             "Study should add Insight to draw pile at end of turn");
     }
@@ -2163,12 +2135,12 @@ mod effect_handler_tests {
     // ===== 28. Install Power: Establishment =====
     #[test]
     fn establishment_is_installed() {
-        let mut deck = vec!["Establishment".to_string()];
-        deck.extend(vec!["Defend_P".to_string(); 14]);
+        let mut deck = make_deck(&["Establishment"]);
+        deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        if !e.state.hand.contains(&"Establishment".to_string()) {
-            e.state.hand.push("Establishment".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Establishment") {
+            e.state.hand.push(e.card_registry.make_card("Establishment"));
         }
         play_card(&mut e, "Establishment", -1);
         assert_eq!(e.state.player.status(sid::ESTABLISHMENT), 1,
@@ -2178,8 +2150,8 @@ mod effect_handler_tests {
     // ===== 29. Swivel: next_attack_free =====
     #[test]
     fn swivel_makes_next_attack_free() {
-        let mut deck = vec!["Swivel".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["Swivel"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "Swivel");
@@ -2198,11 +2170,11 @@ mod effect_handler_tests {
     // ===== 30. Burn: end_turn_damage =====
     #[test]
     fn burn_deals_damage_at_end_of_turn() {
-        let deck = vec!["Defend_P".to_string(); 10];
+        let deck = make_deck_n("Defend_P", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         // Add Burn to hand
-        e.state.hand.push("Burn".to_string());
+        e.state.hand.push(e.card_registry.make_card("Burn"));
         let hp_before = e.state.player.hp;
         e.execute_action(&Action::EndTurn);
         // Burn deals 2 damage at end of turn
@@ -2215,10 +2187,10 @@ mod effect_handler_tests {
     // ===== 31. Doubt: end_turn_weak =====
     #[test]
     fn doubt_applies_weak_at_end_of_turn() {
-        let deck = vec!["Defend_P".to_string(); 10];
+        let deck = make_deck_n("Defend_P", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
-        e.state.hand.push("Doubt".to_string());
+        e.state.hand.push(e.card_registry.make_card("Doubt"));
         e.execute_action(&Action::EndTurn);
         // Doubt applies Weak at end of turn, but debuffs decrement at end of round
         // So Weak may have been decremented. Let's check it was applied.
@@ -2234,8 +2206,8 @@ mod effect_handler_tests {
     // ===== 32. Brilliance: damage_plus_mantra =====
     #[test]
     fn brilliance_deals_extra_damage_from_mantra() {
-        let mut deck = vec!["Brilliance".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["Brilliance"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "Brilliance");
@@ -2251,7 +2223,7 @@ mod effect_handler_tests {
     // ===== 33. Omega: deals damage at end of turn =====
     #[test]
     fn omega_deals_damage_at_end_of_turn() {
-        let deck = vec!["Defend_P".to_string(); 15];
+        let deck = make_deck_n("Defend_P", 15);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         e.state.player.set_status(sid::OMEGA, 50);
@@ -2266,12 +2238,12 @@ mod effect_handler_tests {
     // ===== 34. Nirvana: block on scry =====
     #[test]
     fn nirvana_gains_block_on_scry() {
-        let mut deck = vec!["CutThroughFate".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 14]);
+        let mut deck = make_deck(&["CutThroughFate"]);
+        deck.extend(make_deck_n("Strike_P", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        if !e.state.hand.contains(&"CutThroughFate".to_string()) {
-            e.state.hand.push("CutThroughFate".to_string());
+        if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "CutThroughFate") {
+            e.state.hand.push(e.card_registry.make_card("CutThroughFate"));
         }
         e.state.player.set_status(sid::NIRVANA, 4);
         let block_before = e.state.player.block;
@@ -2284,8 +2256,8 @@ mod effect_handler_tests {
     // ===== 35. Lesson Learned: upgrade on kill =====
     #[test]
     fn lesson_learned_upgrades_card_on_kill() {
-        let mut deck = vec!["LessonLearned".to_string()];
-        deck.extend(vec!["WreathOfFlame".to_string(); 9]);
+        let mut deck = make_deck(&["LessonLearned"]);
+        deck.extend(make_deck_n("WreathOfFlame", 9));
         let mut e = make_engine_with_deck_and_enemy(deck, 5, 0);
         e.start_combat();
         ensure_in_hand(&mut e, "LessonLearned");
@@ -2294,7 +2266,7 @@ mod effect_handler_tests {
         assert!(e.state.enemies[0].entity.is_dead());
         // Should have upgraded a card
         let upgraded_count = e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
-            .filter(|c| c.ends_with('+')).count();
+            .filter(|c| e.card_registry.card_name(c.def_id).ends_with('+')).count();
         assert!(upgraded_count >= 1,
             "Lesson Learned should upgrade a card when killing an enemy");
     }
@@ -2302,7 +2274,7 @@ mod effect_handler_tests {
     // ===== 36. Wave of the Hand =====
     #[test]
     fn wave_of_the_hand_sets_status() {
-        let deck = vec!["WaveOfTheHand".to_string(); 10];
+        let deck = make_deck_n("WaveOfTheHand", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WaveOfTheHand", -1);
@@ -2313,8 +2285,8 @@ mod effect_handler_tests {
     // ===== 37. Conjure Blade: X-cost creates Expunger =====
     #[test]
     fn conjure_blade_creates_expunger() {
-        let mut deck = vec!["ConjureBlade".to_string()];
-        deck.extend(vec!["Strike_P".to_string(); 9]);
+        let mut deck = make_deck(&["ConjureBlade"]);
+        deck.extend(make_deck_n("Strike_P", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "ConjureBlade");
@@ -2323,14 +2295,14 @@ mod effect_handler_tests {
         // Should consume all energy
         assert_eq!(e.state.energy, 0,
             "Conjure Blade should consume all energy");
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Expunger")),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Expunger")),
             "Conjure Blade should add Expunger to hand");
     }
 
     // ===== 38. Mantra tracking for Brilliance =====
     #[test]
     fn mantra_gained_tracks_total() {
-        let deck = vec!["Prostrate".to_string(); 10];
+        let deck = make_deck_n("Prostrate", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Prostrate", -1);
@@ -2350,7 +2322,7 @@ mod effect_handler_tests {
 
         let mut boss = enemies::create_enemy("SlimeBoss", 140, 140);
         boss.set_move(1, 0, 0, 0);
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![boss], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2376,7 +2348,7 @@ mod effect_handler_tests {
         let mut ao = enemies::create_enemy("AwakenedOne", 100, 300);
         ao.entity.set_status(sid::PHASE, 1);
         ao.set_move(1, 10, 1, 0);
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![ao], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2398,7 +2370,7 @@ mod effect_handler_tests {
         let mut boss = enemies::create_enemy("SlimeBoss", 75, 140);
         boss.entity.set_status(sid::POISON, 5);
         boss.set_move(1, 0, 0, 0);
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![boss], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2418,15 +2390,15 @@ mod effect_handler_tests {
 
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
-        let mut deck: Vec<String> = vec!["Burn".to_string(); 5];
-        deck.extend(vec!["Defend_P".to_string(); 5]);
+        let mut deck: Vec<CardInstance> = make_deck_n("Burn", 5);
+        deck.extend(make_deck_n("Defend_P", 5));
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
         // Give player some block
         e.state.player.block = 10;
         // Put Burn in hand
-        e.state.hand.push("Burn".to_string());
+        e.state.hand.push(e.card_registry.make_card("Burn"));
         let hp_before = e.state.player.hp;
         let block_before = e.state.player.block;
         // End turn triggers Burn damage (2) which should hit block first
@@ -2442,22 +2414,22 @@ mod effect_handler_tests {
     fn runic_pyramid_keeps_status_and_curse_cards() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.state.relics.push("Runic Pyramid".to_string());
         e.start_combat();
         // Add Burn (status) and Doubt (status) to hand
-        e.state.hand.push("Burn".to_string());
-        e.state.hand.push("Doubt".to_string());
+        e.state.hand.push(e.card_registry.make_card("Burn"));
+        e.state.hand.push(e.card_registry.make_card("Doubt"));
         e.execute_action(&Action::EndTurn);
         // Runic Pyramid keeps ALL cards including Status/Curse
-        let has_burn = e.state.hand.iter().any(|c| c == "Burn");
-        let has_doubt = e.state.hand.iter().any(|c| c == "Doubt");
+        let has_burn = e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Burn");
+        let has_doubt = e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Doubt");
         assert!(has_burn, "Burn should be kept in hand with Runic Pyramid");
         assert!(has_doubt, "Doubt should be kept in hand with Runic Pyramid");
         // Normal cards should also still be in hand
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Strike")),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Strike")),
             "Normal cards should be retained by Runic Pyramid");
     }
 
@@ -2470,13 +2442,13 @@ mod effect_handler_tests {
         // Actually let's use a simpler X-cost: Brilliance won't work.
         // Use "Omniscience" — no that's not X. Use WheelKick or Scrawl.
         // Let's test with the block on a card that uses x_value for block.
-        let deck = vec!["Protect".to_string(); 10];
+        let deck = make_deck_n("Protect", 10);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.state.relics.push("Chemical X".to_string());
         e.start_combat();
         // We need an actual X-cost card in hand. Let's add one manually.
-        e.state.hand.push("Judgement".to_string()); // Not X-cost. Let's check what X-cost cards exist.
+        e.state.hand.push(e.card_registry.make_card("Judgement")); // Not X-cost. Let's check what X-cost cards exist.
         // Conjure Blade is X-cost. Actually we need to verify the bonus is added.
         // Let's just verify the function returns correct value.
         assert_eq!(crate::relics::chemical_x_bonus(&e.state), 2,
@@ -2492,12 +2464,12 @@ mod effect_handler_tests {
     fn pain_triggers_on_card_play() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
         // Add Pain to hand
-        e.state.hand.push("Pain".to_string());
+        e.state.hand.push(e.card_registry.make_card("Pain"));
         let hp_before = e.state.player.hp;
         // Play a Strike — Pain should deal 1 HP loss per Pain in hand
         play_card(&mut e, "Strike_P", 0);
@@ -2521,7 +2493,7 @@ mod effect_handler_tests {
         champ.move_effects.insert("remove_debuffs".to_string(), 1);
         champ.move_effects.insert("strength".to_string(), 6);
 
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![champ], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2549,7 +2521,7 @@ mod effect_handler_tests {
         te.move_effects.insert("remove_debuffs".to_string(), 1);
         te.entity.set_status(sid::WEAKENED, 3);
 
-        let deck = vec!["Strike_P".to_string(); 10];
+        let deck = make_deck_n("Strike_P", 10);
         let state = CombatState::new(80, 80, vec![te], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();

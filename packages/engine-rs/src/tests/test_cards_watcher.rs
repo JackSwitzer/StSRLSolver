@@ -179,7 +179,7 @@ mod watcher_card_java_parity_tests {
         plus = ("CutThroughFate+", "Cut Through Fate+", 1, 9, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, ["scry", "draw"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "CutThroughFate");
             let hand_before = engine.state.hand.len();
             play_on_enemy(&mut engine, "CutThroughFate", 0);
@@ -270,7 +270,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "Tantrum");
             play_on_enemy(&mut engine, "Tantrum", 0);
             assert_eq!(engine.state.stance, Stance::Wrath);
-            assert!(engine.state.draw_pile.iter().any(|c| c == "Tantrum"));
+            assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Tantrum"));
         }
     );
     watcher_test!(
@@ -294,7 +294,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "Crescendo");
             play_self(&mut engine, "Crescendo");
             assert_eq!(engine.state.stance, Stance::Wrath);
-            assert!(engine.state.exhaust_pile.iter().any(|c| c == "Crescendo"));
+            assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Crescendo"));
         }
     );
     watcher_test!(
@@ -340,12 +340,12 @@ mod watcher_card_java_parity_tests {
         plus = ("ThirdEye+", "Third Eye+", 1, -1, 9, 5, CardType::Skill, CardTarget::SelfTarget, false, None, ["scry"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
             assert_eq!(engine.state.player.block, 7);
             assert_eq!(engine.state.discard_pile.len(), 4);
-            assert!(engine.state.discard_pile.iter().any(|card| card == "ThirdEye"));
+            assert!(engine.state.discard_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "ThirdEye"));
         }
     );
 
@@ -391,7 +391,7 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Calm);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "EmptyMind");
             let hand_before = engine.state.hand.len();
             play_self(&mut engine, "EmptyMind");
@@ -419,7 +419,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "ForeignInfluence");
             play_self(&mut engine, "ForeignInfluence");
             assert_eq!(hand_count(&engine, "Smite"), 1);
-            assert!(engine.state.exhaust_pile.iter().any(|c| c == "ForeignInfluence"));
+            assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ForeignInfluence"));
         }
     );
     watcher_test!(
@@ -429,7 +429,7 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Calm);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string(), "Protect".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship", "Protect"]);
             ensure_in_hand(&mut engine, "InnerPeace");
             let hand_before = engine.state.hand.len();
             play_self(&mut engine, "InnerPeace");
@@ -453,10 +453,10 @@ mod watcher_card_java_parity_tests {
         plus = ("Meditate+", "Meditate+", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.discard_pile = vec!["Strike_P".to_string(), "Defend_P".to_string()];
+            engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
-            assert!(engine.state.hand.iter().any(|c| c == "Defend_P" || c == "Strike_P"));
+            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Defend_P" || n == "Strike_P" }));
         }
     );
     watcher_test!(
@@ -465,7 +465,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Nirvana+", "Nirvana+", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, ["on_scry_block"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "Nirvana");
             play_self(&mut engine, "Nirvana");
             let block_before = engine.state.player.block;
@@ -515,7 +515,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Adaptation+", "Rushdown+", 0, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, ["on_wrath_draw"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = vec!["Strike_P".to_string(), "Defend_P".to_string(), "Worship".to_string()];
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "Adaptation");
             ensure_in_hand(&mut engine, "Eruption");
             play_self(&mut engine, "Adaptation");
@@ -530,18 +530,8 @@ mod watcher_card_java_parity_tests {
         plus = ("Scrawl+", "Scrawl+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, ["draw_to_ten"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.hand = vec!["Scrawl".to_string(), "Strike_P".to_string(), "Defend_P".to_string()];
-            engine.state.draw_pile = vec![
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-                "Strike_P".to_string(),
-            ];
+            engine.state.hand = make_deck(&["Scrawl", "Strike_P", "Defend_P"]);
+            engine.state.draw_pile = make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
             ensure_in_hand(&mut engine, "Scrawl");
             play_self(&mut engine, "Scrawl");
             assert_eq!(engine.state.hand.len(), 10);
@@ -553,14 +543,7 @@ mod watcher_card_java_parity_tests {
         plus = ("SpiritShield+", "Spirit Shield+", 2, -1, -1, 4, CardType::Skill, CardTarget::SelfTarget, false, None, ["block_per_card_in_hand"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.hand = vec![
-                "SpiritShield".to_string(),
-                "Strike_P".to_string(),
-                "Defend_P".to_string(),
-                "Worship".to_string(),
-                "Protect".to_string(),
-                "Prostrate".to_string(),
-            ];
+            engine.state.hand = make_deck(&["SpiritShield", "Strike_P", "Defend_P", "Worship", "Protect", "Prostrate"]);
             play_self(&mut engine, "SpiritShield");
             assert_eq!(engine.state.player.block, 15);
         }
@@ -571,7 +554,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Study+", "Study+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, ["study"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = vec!["Strike_P".to_string(); 5];
+            engine.state.draw_pile = make_deck_n("Strike_P", 5);
             ensure_in_hand(&mut engine, "Study");
             play_self(&mut engine, "Study");
             end_turn(&mut engine);
@@ -642,7 +625,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "ThirdEye");
             play_on_enemy(&mut engine, "Weave", 0);
             play_self(&mut engine, "ThirdEye");
-            assert!(engine.state.hand.iter().any(|c| c == "Weave"));
+            assert!(engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Weave"));
         }
     );
     watcher_test!(
@@ -750,10 +733,10 @@ mod watcher_card_java_parity_tests {
         plus = ("LessonLearned+", "Lesson Learned+", 2, 13, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, ["lesson_learned"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 10, 0);
-            engine.state.draw_pile = vec!["Evaluate".to_string()];
+            engine.state.draw_pile = make_deck(&["Evaluate"]);
             ensure_in_hand(&mut engine, "LessonLearned");
             play_on_enemy(&mut engine, "LessonLearned", 0);
-            assert!(engine.state.draw_pile.iter().any(|c| c == "Evaluate+"));
+            assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Evaluate+"));
         }
     );
     watcher_test!(
@@ -766,7 +749,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "Evaluate");
             play_self(&mut engine, "MasterReality");
             play_self(&mut engine, "Evaluate");
-            assert!(engine.state.draw_pile.iter().any(|c| c == "Insight+"));
+            assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Insight+"));
         }
     );
     watcher_test!(
@@ -775,10 +758,10 @@ mod watcher_card_java_parity_tests {
         plus = ("Meditate+", "Meditate+", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.discard_pile = vec!["Strike_P".to_string(), "Defend_P".to_string()];
+            engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
-            assert!(engine.state.hand.iter().any(|c| c == "Strike_P" || c == "Defend_P"));
+            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Strike_P" || n == "Defend_P" }));
         }
     );
     watcher_test!(
@@ -833,7 +816,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "Tranquility");
             play_self(&mut engine, "Tranquility");
             assert_eq!(engine.state.stance, Stance::Calm);
-            assert!(engine.state.exhaust_pile.iter().any(|c| c == "Tranquility"));
+            assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Tranquility"));
         }
     );
     watcher_test!(

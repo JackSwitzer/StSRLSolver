@@ -284,22 +284,22 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     if let Some(&amt) = effects.get("slimed") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Slimed".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Slimed"));
         }
     }
     if let Some(&amt) = effects.get("daze") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Daze".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Daze"));
         }
     }
     if let Some(&amt) = effects.get("burn") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Burn".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
         }
     }
     if let Some(&amt) = effects.get("burn+") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Burn".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
         }
     }
     // Lagavulin Siphon Soul: reduce player Strength and Dexterity
@@ -350,7 +350,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Burn+: add upgraded Burn cards to player discard
     if let Some(&amt) = effects.get("burn_upgrade") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Burn+".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
         }
     }
 
@@ -382,7 +382,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Painful Stabs: add Wound cards to player discard
     if let Some(&amt) = effects.get("painful_stabs") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Wound".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
         }
     }
 
@@ -416,14 +416,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Void: add Void card to player draw pile
     if let Some(&amt) = effects.get("void") {
         for _ in 0..amt {
-            engine.state.draw_pile.push("Void".to_string());
+            engine.state.draw_pile.push(engine.card_registry.make_card("Void"));
         }
     }
 
     // Wound: add Wound cards to player discard
     if let Some(&amt) = effects.get("wound") {
         for _ in 0..amt {
-            engine.state.discard_pile.push("Wound".to_string());
+            engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
         }
     }
 

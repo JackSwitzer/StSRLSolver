@@ -45,13 +45,13 @@ mod defect_card_java_parity_tests {
     }
 
     fn filled_engine(card_ids: &[&str], enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
-        let mut engine = engine_with(card_ids.iter().map(|s| s.to_string()).collect(), enemy_hp, enemy_dmg);
+        let mut engine = engine_with(make_deck(card_ids), enemy_hp, enemy_dmg);
         force_player_turn(&mut engine);
         engine
     }
 
     fn bare_engine(card_ids: &[&str], enemies: Vec<EnemyCombatState>) -> CombatEngine {
-        let mut engine = engine_without_start(card_ids.iter().map(|s| s.to_string()).collect(), enemies, 3);
+        let mut engine = engine_without_start(make_deck(card_ids), enemies, 3);
         force_player_turn(&mut engine);
         engine
     }
@@ -337,7 +337,7 @@ mod defect_card_java_parity_tests {
 
     defect_test!(compile_driver_draws_per_unique_orb, {
         let mut e = bare_engine(&["Compile Driver"], vec![enemy("JawWorm", 50, 0)]);
-        e.state.draw_pile = vec!["Strike_B".to_string(), "Defend_B".to_string(), "Zap".to_string(), "Cold Snap".to_string()];
+        e.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Cold Snap"]);
         set_orbs(&mut e, &[OrbType::Lightning, OrbType::Frost, OrbType::Dark]);
         ensure_in_hand(&mut e, "Compile Driver");
         let hand_before = e.state.hand.len();
@@ -376,7 +376,7 @@ mod defect_card_java_parity_tests {
         e.state.energy = 4;
         play_self(&mut e, "Double Energy");
         assert_eq!(e.state.energy, 6);
-        assert!(e.state.exhaust_pile.iter().any(|c| c == "Double Energy"));
+        assert!(e.state.exhaust_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "Double Energy"));
     });
 
     defect_test!(fusion_channels_plasma, {
@@ -513,16 +513,16 @@ mod defect_card_java_parity_tests {
         let hand_before = e.state.hand.len();
         play_self(&mut e, "White Noise");
         assert_eq!(e.state.hand.len(), hand_before);
-        assert!(e.state.hand.iter().any(|c| c.starts_with("Defragment")));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Defragment")));
     });
 
     defect_test!(all_for_one_returns_zero_cost_cards_from_discard, {
         let mut e = bare_engine(&["All For One"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "All For One");
-        e.state.discard_pile = vec!["Zap+".to_string(), "Turbo".to_string(), "Strike_B".to_string()];
+        e.state.discard_pile = make_deck(&["Zap+", "Turbo", "Strike_B"]);
         play_on_enemy(&mut e, "All For One", 0);
-        assert!(e.state.hand.iter().any(|c| c == "Zap+"));
-        assert!(e.state.hand.iter().any(|c| c == "Turbo"));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Zap+"));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Turbo"));
     });
 
     defect_test!(biased_cognition_gives_focus, {
@@ -588,7 +588,7 @@ mod defect_card_java_parity_tests {
     defect_test!(reboot_draws_a_fresh_hand, {
         let mut e = bare_engine(&["Reboot"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Reboot");
-        e.state.draw_pile = vec!["Strike_B".to_string(), "Defend_B".to_string(), "Zap".to_string(), "Cold Snap".to_string()];
+        e.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Cold Snap"]);
         play_self(&mut e, "Reboot");
         assert!(e.state.hand.len() >= 4);
     });
@@ -596,7 +596,7 @@ mod defect_card_java_parity_tests {
     defect_test!(seek_is_a_tutor_effect, {
         let mut e = bare_engine(&["Seek"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Seek");
-        e.state.draw_pile = vec!["Zap".to_string(), "Turbo".to_string(), "Defragment".to_string()];
+        e.state.draw_pile = make_deck(&["Zap", "Turbo", "Defragment"]);
         play_self(&mut e, "Seek");
         assert!(!e.state.hand.is_empty());
     });

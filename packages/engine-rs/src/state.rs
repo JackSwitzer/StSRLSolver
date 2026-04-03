@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::cards::CardType;
+use crate::combat_types::CardInstance;
 use crate::ids::StatusId;
 use crate::orbs::OrbSlots;
 use crate::status_ids::sid;
@@ -211,11 +212,11 @@ pub struct CombatState {
     pub max_energy: i32,
     pub stance: Stance,
 
-    // Card piles (card IDs as strings, "Strike+" means upgraded)
-    pub hand: Vec<String>,
-    pub draw_pile: Vec<String>,
-    pub discard_pile: Vec<String>,
-    pub exhaust_pile: Vec<String>,
+    // Card piles (compact CardInstance, 4 bytes each)
+    pub hand: Vec<CardInstance>,
+    pub draw_pile: Vec<CardInstance>,
+    pub discard_pile: Vec<CardInstance>,
+    pub exhaust_pile: Vec<CardInstance>,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
@@ -250,14 +251,14 @@ pub struct CombatState {
     pub relics: Vec<String>,
 
     /// Cards explicitly retained this turn (e.g. by Meditate).
-    /// These survive the end-of-turn discard even without the "retain" effect.
-    pub retained_cards: Vec<String>,
+    /// Now tracked via FLAG_RETAINED on CardInstance; this Vec is kept for Establishment cost tracking.
+    pub retained_cards: Vec<CardInstance>,
 
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
     /// Card replay tracking (Double Tap / Burst). Engine.rs consumes this.
-    pub replay_pending: Option<String>,
+    pub replay_pending: Option<CardInstance>,
 }
 
 impl CombatState {
@@ -266,7 +267,7 @@ impl CombatState {
         player_hp: i32,
         player_max_hp: i32,
         enemies: Vec<EnemyCombatState>,
-        deck: Vec<String>,
+        deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
         Self {
@@ -350,6 +351,7 @@ pub struct PyCombatState {
 impl PyCombatState {
     /// Convert the state to a Python dict for inspection.
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let registry = crate::cards::CardRegistry::new();
         let dict = PyDict::new_bound(py);
         dict.set_item("player_hp", self.inner.player.hp)?;
         dict.set_item("player_max_hp", self.inner.player.max_hp)?;
@@ -362,7 +364,9 @@ impl PyCombatState {
         dict.set_item("player_won", self.inner.player_won)?;
 
         // Hand
-        let hand: Vec<&str> = self.inner.hand.iter().map(|s| s.as_str()).collect();
+        let hand: Vec<String> = self.inner.hand.iter()
+            .map(|c| registry.card_name(c.def_id).to_string())
+            .collect();
         dict.set_item("hand", hand)?;
 
         // Draw/discard sizes

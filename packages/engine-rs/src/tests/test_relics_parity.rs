@@ -88,16 +88,17 @@ mod relic_java_parity_tests {
     use crate::status_ids::sid;
     use crate::relics::*;
     use crate::state::{CombatState, EnemyCombatState, Stance};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn base_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 50, 50);
-        CombatState::new(80, 80, vec![enemy], vec!["Strike_P".to_string(); 5], 3)
+        CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3)
     }
 
     fn two_enemy_state() -> CombatState {
         let e1 = EnemyCombatState::new("JawWorm", 40, 40);
         let e2 = EnemyCombatState::new("Cultist", 50, 50);
-        CombatState::new(80, 80, vec![e1, e2], vec!["Strike_P".to_string(); 5], 3)
+        CombatState::new(80, 80, vec![e1, e2], make_deck_n("Strike_P", 5), 3)
     }
 
     fn state_with_relic(relic: &str) -> CombatState {
@@ -107,7 +108,7 @@ mod relic_java_parity_tests {
     }
 
     fn state_with_enemies(relic: &str, enemies: Vec<EnemyCombatState>) -> CombatState {
-        let mut state = CombatState::new(80, 80, enemies, vec!["Strike_P".to_string(); 5], 3);
+        let mut state = CombatState::new(80, 80, enemies, make_deck_n("Strike_P", 5), 3);
         state.relics.push(relic.to_string());
         state
     }
@@ -128,9 +129,10 @@ mod relic_java_parity_tests {
         apply_turn_end_relics(state);
     }
 
-    fn hand(cards: &[&str]) -> Vec<String> {
-        cards.iter().map(|c| c.to_string()).collect()
+    fn hand(cards: &[&str]) -> Vec<crate::combat_types::CardInstance> {
+        make_deck(cards)
     }
+
 
     #[test]
     fn vajra_grants_one_strength() {
@@ -211,7 +213,8 @@ mod relic_java_parity_tests {
     #[test]
     fn mark_of_pain_adds_two_wounds_to_draw_pile() {
         let state = start_with("Mark of Pain");
-        let wound_count = state.draw_pile.iter().filter(|c| *c == "Wound").count();
+        let reg = crate::cards::CardRegistry::new();
+        let wound_count = state.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(wound_count, 2);
     }
 
@@ -225,7 +228,7 @@ mod relic_java_parity_tests {
     #[test]
     fn pure_water_adds_miracle_to_hand() {
         let state = start_with("PureWater");
-        assert_eq!(state.hand, vec!["Miracle".to_string()]);
+        assert_eq!(state.hand, make_deck(&["Miracle"]));
     }
 
     #[test]
@@ -235,13 +238,14 @@ mod relic_java_parity_tests {
         state.relics.push("HolyWater".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), 10);
-        assert_eq!(state.hand.last().unwrap(), "HolyWater");
+        let reg = crate::cards::CardRegistry::new();
+        assert_eq!(reg.card_name(state.hand.last().unwrap().def_id), "HolyWater");
     }
 
     #[test]
     fn ninja_scroll_adds_three_shivs() {
         let state = start_with("Ninja Scroll");
-        assert_eq!(state.hand, vec!["Shiv".to_string(), "Shiv".to_string(), "Shiv".to_string()]);
+        assert_eq!(state.hand, make_deck(&["Shiv", "Shiv", "Shiv"]));
     }
 
     #[test]
@@ -929,9 +933,9 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("Unceasing Top".to_string());
         state.hand.clear();
-        state.draw_pile.push("Strike_P".to_string());
+        { let reg = crate::cards::CardRegistry::new(); state.draw_pile.push(reg.make_card("Strike_P")); };
         assert!(unceasing_top_should_draw(&state));
-        state.hand.push("Defend_P".to_string());
+        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Defend_P")); };
         assert!(!unceasing_top_should_draw(&state));
     }
 
@@ -1165,8 +1169,8 @@ mod relic_java_parity_tests {
     extra_case!(unceasing_top_nonempty_hand, {
         let mut state = base_state();
         state.relics.push("Unceasing Top".to_string());
-        state.hand.push("Defend_P".to_string());
-        state.draw_pile.push("Strike_P".to_string());
+        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Defend_P")); };
+        { let reg = crate::cards::CardRegistry::new(); state.draw_pile.push(reg.make_card("Strike_P")); };
         assert!(!unceasing_top_should_draw(&state));
     });
 

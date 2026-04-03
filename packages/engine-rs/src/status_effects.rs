@@ -26,8 +26,8 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
     let intangible = state.player.status(sid::INTANGIBLE) > 0;
     let tungsten = state.has_relic("Tungsten Rod") || state.has_relic("TungstenRod");
 
-    for card_id in &hand {
-        let card = card_registry.get_or_default(card_id);
+    for card_inst in &hand {
+        let card = card_registry.card_def_by_id(card_inst.def_id);
 
         // Burn (2), Burn+ (4), Decay (2): end-of-turn DAMAGE (goes through Block)
         if card.effects.contains(&"end_turn_damage") {
@@ -119,10 +119,10 @@ pub fn process_pain_on_card_play(state: &mut CombatState, card_registry: &CardRe
         .hand
         .iter()
         .filter(|c| {
-            let card = card_registry.get_or_default(c);
+            let card = card_registry.card_def_by_id(c.def_id);
             card.effects.contains(&"damage_on_draw")
                 || card.effects.contains(&"damage_on_play")
-                || c.as_str() == "Pain"
+                || card_registry.card_name(c.def_id) == "Pain"
         })
         .count() as i32;
 

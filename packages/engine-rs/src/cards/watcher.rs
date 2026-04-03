@@ -1035,6 +1035,19 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: 2, exhaust: true, enter_stance: None,
             effects: &["gain_energy"],
         });
+        // Holy Water: 0 cost, 5 block, retain, exhaust (from HolyWater relic)
+        insert(cards, CardDef {
+            id: "HolyWater", name: "HolyWater", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 5,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
+        insert(cards, CardDef {
+            id: "HolyWater+", name: "HolyWater+", card_type: CardType::Skill,
+            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 8,
+            base_magic: -1, exhaust: true, enter_stance: None,
+            effects: &["retain"],
+        });
         insert(cards, CardDef {
             id: "Smite", name: "Smite", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 12, base_block: -1,
