@@ -9,6 +9,7 @@
 //! PyO3 bindings expose both engines to Python as `sts_engine`.
 
 pub mod actions;
+pub mod combat_types;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
