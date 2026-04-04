@@ -237,7 +237,7 @@ impl CombatEngine {
         // Dispatch collects all power effects; engine applies them in correct order.
         // Hooks that mutate entity directly (DemonForm/Strength, WraithForm/Dex) do so
         // inside the hook fn. One-shot hooks (Doppelganger, EnterDivinity) clear themselves.
-        let fx = powers::hooks::dispatch_turn_start(&mut self.state.player);
+        let fx = powers::registry::dispatch_turn_start(&mut self.state.player);
 
         // Pre-draw: energy from hooks (DevaForm, Berserk, DoppelgangerEnergy)
         self.state.energy += fx.energy + fx.doppelganger_energy;
@@ -367,7 +367,7 @@ impl CombatEngine {
 
         // 2. End-of-turn power triggers (via hook dispatch)
         let in_calm = self.state.stance == Stance::Calm;
-        let efx = powers::hooks::dispatch_turn_end(&mut self.state.player, in_calm);
+        let efx = powers::registry::dispatch_turn_end(&mut self.state.player, in_calm);
 
         // Block gains (Metallicize, PlatedArmor, LikeWater)
         if efx.block_gain > 0 {
@@ -571,6 +571,11 @@ impl CombatEngine {
         for enemy in &mut self.state.enemies {
             if !enemy.entity.is_dead() {
                 powers::decrement_debuffs(&mut enemy.entity);
+                // Decrement enemy Intangible (Nemesis cycling)
+                let intang = enemy.entity.status(sid::INTANGIBLE);
+                if intang > 0 {
+                    enemy.entity.set_status(sid::INTANGIBLE, intang - 1);
+                }
             }
         }
 
@@ -755,7 +760,7 @@ impl CombatEngine {
         // ---- Java onUseCard hooks (fire BEFORE card effects resolve) ----
 
         // AfterImage: gain block per card played (via hook dispatch, pre-effects)
-        let pre_fx = powers::hooks::dispatch_on_card_played_pre(&self.state.player);
+        let pre_fx = powers::registry::dispatch_on_card_played_pre(&self.state.player);
         if pre_fx.block_gain > 0 {
             self.gain_block_player(pre_fx.block_gain);
         }
@@ -855,7 +860,7 @@ impl CombatEngine {
         }
 
         // Rage: gain block when playing an Attack (via hook dispatch, post-effects)
-        let post_fx = powers::hooks::dispatch_on_card_played_post(&self.state.player, card.card_type == CardType::Attack);
+        let post_fx = powers::registry::dispatch_on_card_played_post(&self.state.player, card.card_type == CardType::Attack);
         if post_fx.block_gain > 0 {
             self.gain_block_player(post_fx.block_gain);
         }
@@ -1036,74 +1041,18 @@ impl CombatEngine {
     }
 
     /// Install a power card as a permanent status effect.
+    /// Uses the unified power registry for tag->StatusId lookup.
     fn install_power(&mut self, card: &CardDef) {
         for effect in card.effects {
+            // Registry lookup: covers ~40 powers with the same pattern
+            if let Some(entry) = powers::registry::lookup_by_tag(effect) {
+                let amt = card.base_magic.max(1);
+                self.state.player.add_status(entry.status_id, amt);
+                continue;
+            }
+            // Special cases that need engine context
             match *effect {
-                "on_wrath_draw" => {
-                    // Rushdown: draw cards when entering Wrath
-                    let current = self.state.player.status(sid::RUSHDOWN);
-                    self.state
-                        .player
-                        .set_status(sid::RUSHDOWN, current + card.base_magic.max(2));
-                }
-                "on_stance_change_block" => {
-                    // MentalFortress: gain block on any stance change
-                    let current = self.state.player.status(sid::MENTAL_FORTRESS);
-                    self.state
-                        .player
-                        .set_status(sid::MENTAL_FORTRESS, current + card.base_magic);
-                }
-                "battle_hymn" => {
-                    // BattleHymn: at start of turn, add Smite(s) to hand
-                    let current = self.state.player.status(sid::BATTLE_HYMN);
-                    self.state
-                        .player
-                        .set_status(sid::BATTLE_HYMN, current + card.base_magic.max(1));
-                }
-                "like_water" => {
-                    // LikeWater: at end of turn, if in Calm, gain block
-                    let current = self.state.player.status(sid::LIKE_WATER);
-                    self.state
-                        .player
-                        .set_status(sid::LIKE_WATER, current + card.base_magic.max(1));
-                }
-                "on_scry_block" => {
-                    // Nirvana: gain block on Scry
-                    let current = self.state.player.status(sid::NIRVANA);
-                    self.state
-                        .player
-                        .set_status(sid::NIRVANA, current + card.base_magic.max(1));
-                }
-                "study" => {
-                    // Study: at end of turn, add Insight to draw
-                    let current = self.state.player.status(sid::STUDY);
-                    self.state
-                        .player
-                        .set_status(sid::STUDY, current + card.base_magic.max(1));
-                }
-                "deva_form" => {
-                    // DevaForm: at start of turn, gain energy (increasing)
-                    let current = self.state.player.status(sid::DEVA_FORM);
-                    self.state
-                        .player
-                        .set_status(sid::DEVA_FORM, current + card.base_magic.max(1));
-                }
-                "devotion" => {
-                    // Devotion: at start of turn, gain Mantra
-                    let current = self.state.player.status(sid::DEVOTION);
-                    self.state
-                        .player
-                        .set_status(sid::DEVOTION, current + card.base_magic.max(1));
-                }
-                "establishment" => {
-                    // Establishment: retained cards cost 1 less
-                    let current = self.state.player.status(sid::ESTABLISHMENT);
-                    self.state
-                        .player
-                        .set_status(sid::ESTABLISHMENT, current + card.base_magic.max(1));
-                }
                 "fasting" => {
-                    // Fasting: gain Str and Dex, lose 1 max energy
                     let amount = card.base_magic.max(1);
                     self.state.player.add_status(sid::STRENGTH, amount);
                     self.state.player.add_status(sid::DEXTERITY, amount);
@@ -1111,133 +1060,7 @@ impl CombatEngine {
                     self.state.energy = self.state.energy.min(self.state.max_energy);
                 }
                 "master_reality" => {
-                    // MasterReality: all temp cards created are upgraded
                     self.state.player.set_status(sid::MASTER_REALITY, 1);
-                }
-                "omega" => {
-                    // Omega: deal damage to all enemies at end of turn
-                    let current = self.state.player.status(sid::OMEGA);
-                    self.state
-                        .player
-                        .set_status(sid::OMEGA, current + card.base_magic.max(1));
-                }
-                "after_image" => {
-                    let current = self.state.player.status(sid::AFTER_IMAGE);
-                    self.state.player.set_status(sid::AFTER_IMAGE, current + card.base_magic.max(1));
-                }
-                "draw_on_power_play" => {
-                    let current = self.state.player.status(sid::HEATSINK);
-                    self.state.player.set_status(sid::HEATSINK, current + card.base_magic.max(1));
-                }
-                "channel_lightning_on_power" => {
-                    let current = self.state.player.status(sid::STORM);
-                    self.state.player.set_status(sid::STORM, current + card.base_magic.max(1));
-                }
-                "buffer" => {
-                    let current = self.state.player.status(sid::BUFFER);
-                    self.state.player.set_status(sid::BUFFER, current + card.base_magic.max(1));
-                }
-                "extra_draw_each_turn" => {
-                    let current = self.state.player.status(sid::DRAW);
-                    self.state.player.set_status(sid::DRAW, current + card.base_magic.max(1));
-                }
-
-                // ---- Ironclad Powers ----
-                "barricade" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::BARRICADE, amt);
-                }
-                "demon_form" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::DEMON_FORM, amt);
-                }
-                "dark_embrace" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::DARK_EMBRACE, amt);
-                }
-                "feel_no_pain" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::FEEL_NO_PAIN, amt);
-                }
-                "metallicize" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::METALLICIZE, amt);
-                }
-                "brutality" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::BRUTALITY, amt);
-                }
-                "combust" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::COMBUST, amt);
-                }
-                "evolve" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::EVOLVE, amt);
-                }
-                "fire_breathing" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::FIRE_BREATHING, amt);
-                }
-                "juggernaut" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::JUGGERNAUT, amt);
-                }
-                "rupture" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::RUPTURE, amt);
-                }
-                "berserk" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::BERSERK, amt);
-                }
-
-                // ---- Silent Powers ----
-                "noxious_fumes" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::NOXIOUS_FUMES, amt);
-                }
-                "thousand_cuts" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::THOUSAND_CUTS, amt);
-                }
-                "infinite_blades" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::INFINITE_BLADES, amt);
-                }
-                "envenom" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::ENVENOM, amt);
-                }
-                "accuracy" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::ACCURACY, amt);
-                }
-                "thorns" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::THORNS, amt);
-                }
-                "tools_of_the_trade" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::TOOLS_OF_THE_TRADE, amt);
-                }
-                "well_laid_plans" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::WELL_LAID_PLANS, amt);
-                }
-
-                // ---- Defect Powers ----
-                "loop_orb" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::LOOP, amt);
-                }
-                "hello_world" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::HELLO_WORLD, amt);
-                }
-                "lightning_hits_all" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::ELECTRODYNAMICS, amt);
                 }
                 "gain_orb_slots" => {
                     let slots = card.base_magic.max(1);
@@ -1245,25 +1068,6 @@ impl CombatEngine {
                         self.state.orb_slots.add_slot();
                     }
                 }
-
-                // ---- Colorless Powers ----
-                "sadistic_nature" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::SADISTIC, amt);
-                }
-                "panache" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::PANACHE, amt);
-                }
-                "magnetism" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::MAGNETISM, amt);
-                }
-                "mayhem" => {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(sid::MAYHEM, amt);
-                }
-
                 _ => {}
             }
         }
@@ -1646,7 +1450,7 @@ impl CombatEngine {
 
         // -- Power triggers on stance change (via hook dispatch) --
         let entering_wrath = new_stance == Stance::Wrath;
-        let sfx = powers::hooks::dispatch_on_stance_change(&self.state.player, entering_wrath);
+        let sfx = powers::registry::dispatch_on_stance_change(&self.state.player, entering_wrath);
         if sfx.block_gain > 0 {
             self.gain_block_player(sfx.block_gain);
         }
@@ -1721,7 +1525,7 @@ impl CombatEngine {
     /// Trigger all on-exhaust power and relic hooks.
     pub fn trigger_on_exhaust(&mut self) {
         // Power hooks via dispatch (FeelNoPain block, DarkEmbrace draw)
-        let efx = powers::hooks::dispatch_on_exhaust(&self.state.player);
+        let efx = powers::registry::dispatch_on_exhaust(&self.state.player);
         if efx.block_gain > 0 {
             self.gain_block_player(efx.block_gain);
         }

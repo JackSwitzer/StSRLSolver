@@ -516,10 +516,11 @@ mod enemy_tests {
 
     // ========== Nemesis (Elite) ==========
 
-    #[test] fn nemesis_has_intangible() {
+    #[test] fn nemesis_intangible_applied_at_turn_start() {
+        // Nemesis doesn't start with Intangible — it's applied at enemy turn start
         let e = create_enemy("Nemesis", 185, 185);
-        // Nemesis uses intangible pattern
-        assert!(e.entity.status(sid::INTANGIBLE) > 0 || true); // May not start with it
+        assert_eq!(e.entity.status(sid::INTANGIBLE), 0,
+            "Nemesis should not start with Intangible (applied per turn)");
     }
     #[test] fn nemesis_scythe_attack() {
         let mut e = create_enemy("Nemesis", 185, 185);

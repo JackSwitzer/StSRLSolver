@@ -29,9 +29,16 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Reset Invincible per-turn damage tracker
         powers::reset_invincible_damage_taken(&mut engine.state.enemies[i].entity);
 
+        // Nemesis: gain Intangible at start of turn if not already present
+        if engine.state.enemies[i].id == "Nemesis"
+            && engine.state.enemies[i].entity.status(sid::INTANGIBLE) <= 0
+        {
+            engine.state.enemies[i].entity.set_status(sid::INTANGIBLE, 1);
+        }
+
         // === POWER HOOKS: enemy turn start (via dispatch) ===
         let is_first = engine.state.enemies[i].first_turn;
-        let efx = powers::hooks::dispatch_enemy_turn_start(
+        let efx = powers::registry::dispatch_enemy_turn_start(
             &mut engine.state.enemies[i].entity,
             is_first,
         );
@@ -332,9 +339,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if statuses[i] != 0 {
                 let sid = crate::ids::StatusId(i as u16);
                 let name = crate::status_ids::status_name(sid);
-                if crate::powers::get_power_def(name)
-                    .map(|def| def.power_type == crate::powers::PowerType::Debuff)
-                    .unwrap_or(false)
+                if crate::powers::registry::is_debuff(name)
                 {
                     statuses[i] = 0;
                 }
@@ -446,6 +451,36 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx]
             .entity
             .set_status(sid::BEAT_OF_DEATH, amt as i32);
+    }
+
+    // Spawn minions for boss spawn moves
+    {
+        use crate::enemies::move_ids;
+        let eid = engine.state.enemies[enemy_idx].id.as_str();
+        let mid = engine.state.enemies[enemy_idx].move_id;
+        match (eid, mid) {
+            ("TheCollector" | "Collector", x) if x == move_ids::COLL_SPAWN => {
+                for _ in 0..2 {
+                    engine.state.enemies.push(enemies::create_enemy("TorchHead", 6, 6));
+                }
+            }
+            ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
+                for _ in 0..2 {
+                    engine.state.enemies.push(enemies::create_enemy("BronzeOrb", 52, 52));
+                }
+            }
+            ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
+                for _ in 0..2 {
+                    engine.state.enemies.push(enemies::create_enemy("SnakeDagger", 22, 22));
+                }
+            }
+            ("GremlinLeader" | "Gremlin Leader", x) if x == move_ids::GL_RALLY => {
+                // Deterministic MCTS: fixed gremlin types
+                engine.state.enemies.push(enemies::create_enemy("GremlinWarrior", 20, 20));
+                engine.state.enemies.push(enemies::create_enemy("GremlinThief", 28, 28));
+            }
+            _ => {}
+        }
     }
 
     // Advance enemy to next move for next turn

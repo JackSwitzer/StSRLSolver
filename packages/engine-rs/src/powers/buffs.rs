@@ -790,39 +790,6 @@ mod tests {
     use super::*;
     use crate::powers::*;
 
-    // -- Power registry tests --
-
-    #[test]
-    fn test_power_def_lookup() {
-        let def = get_power_def("Strength").unwrap();
-        assert_eq!(def.id, "Strength");
-        assert!(def.can_go_negative);
-        assert!(def.modify_damage_give);
-        assert_eq!(def.power_type, PowerType::Buff);
-    }
-
-    #[test]
-    fn test_power_def_debuff() {
-        let def = get_power_def("Weakened").unwrap();
-        assert_eq!(def.power_type, PowerType::Debuff);
-        assert!(def.is_turn_based);
-        assert!(def.on_end_of_round);
-    }
-
-    #[test]
-    fn test_power_def_unknown() {
-        assert!(get_power_def("NonexistentPower").is_none());
-    }
-
-    #[test]
-    fn test_power_id_key_roundtrip() {
-        assert_eq!(PowerId::Strength.key(), "Strength");
-        assert_eq!(PowerId::Weakened.key(), "Weakened");
-        assert_eq!(PowerId::DemonForm.key(), "DemonForm");
-        assert_eq!(PowerId::MentalFortress.key(), "MentalFortress");
-        assert_eq!(PowerId::Omega.key(), "Omega");
-    }
-
     // -- Debuff decrement tests --
 
     #[test]

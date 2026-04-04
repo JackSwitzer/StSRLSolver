@@ -624,6 +624,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 30);
             enemy.entity.set_status(sid::SHIFTING, 1);
+            // Fading: dies after 5 turns (6 at A17+, but Transient always 999hp so use 5)
+            enemy.entity.set_status(sid::FADING, 5);
         }
         "GiantHead" | "Giant Head" => {
             // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
@@ -688,6 +690,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::USED_HASTE, 0);
             enemy.entity.set_status(sid::REVERB_DMG, rd);
             enemy.entity.set_status(sid::HEAD_SLAM_DMG, hsd);
+            enemy.entity.set_status(sid::TIME_WARP_ACTIVE, 1);
         }
 
         // =================================================================
