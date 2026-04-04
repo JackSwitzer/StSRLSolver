@@ -44,7 +44,7 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
 // End-of-turn triggers
 // ---------------------------------------------------------------------------
 
-/// Apply Metallicize block gain at end of turn.
+/// Remove temporary Strength (LoseStrength) at end of turn.
 
 pub fn apply_lose_strength(entity: &mut EntityState) {
     let lose_str = entity.status(sid::LOSE_STRENGTH);
@@ -64,7 +64,7 @@ pub fn apply_lose_dexterity(entity: &mut EntityState) {
     }
 }
 
-/// Remove Flame Barrier at start of turn (it only lasts 1 turn).
+/// Wraith Form: lose N Dexterity per stack each turn.
 
 pub fn apply_wraith_form(entity: &mut EntityState) {
     let wraith = entity.status(sid::WRAITH_FORM);
@@ -73,7 +73,7 @@ pub fn apply_wraith_form(entity: &mut EntityState) {
     }
 }
 
-/// Demon Form: gain N Strength at start of turn.
+/// Modify incoming damage based on Slow and Intangible.
 
 pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
     let mut d = damage;
@@ -92,7 +92,7 @@ pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
     d
 }
 
-/// Modify block amount based on powers.
+/// Decrement Fading by 1. Returns true if entity should die (fading reached 0).
 
 pub fn decrement_fading(entity: &mut EntityState) -> bool {
     let fading = entity.status(sid::FADING);
@@ -106,7 +106,7 @@ pub fn decrement_fading(entity: &mut EntityState) -> bool {
     false
 }
 
-/// Explosive countdown. Returns damage to deal when it reaches 0.
+/// Decrement Blur at end of turn.
 
 pub fn decrement_blur(entity: &mut EntityState) {
     decrement_status(entity, sid::BLUR);
@@ -131,6 +131,16 @@ pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> 
     if artifact > 0 {
         // Artifact blocks the debuff and decrements
         entity.set_status(sid::ARTIFACT, artifact - 1);
+        return false;
+    }
+
+    // Ginger blocks Weak
+    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
+        return false;
+    }
+
+    // Turnip blocks Frail
+    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
         return false;
     }
 

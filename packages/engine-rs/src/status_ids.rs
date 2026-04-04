@@ -185,7 +185,7 @@ pub mod sid {
     pub const LIVE_FOREVER: StatusId = StatusId(131);
 
     // ==================================================================
-    // Relic counters & flags (132-175)
+    // Relic counters & flags (132-173)
     // ==================================================================
     pub const LANTERN_READY: StatusId = StatusId(132);
     pub const BAG_OF_PREP_DRAW: StatusId = StatusId(133);
@@ -280,9 +280,14 @@ pub mod sid {
     pub const USED_HASTE: StatusId = StatusId(218);
     pub const USED_MEGA_DEBUFF: StatusId = StatusId(219);
     pub const WEAK: StatusId = StatusId(220);
+    pub const MYSTIC_HEAL_USED: StatusId = StatusId(221);
+    pub const HAS_GINGER: StatusId = StatusId(222);
+    pub const HAS_TURNIP: StatusId = StatusId(223);
+    pub const HAS_MARK_OF_BLOOM: StatusId = StatusId(224);
+    pub const HAS_MAGIC_FLOWER: StatusId = StatusId(225);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 221;
+    pub const NUM_IDS: usize = 226;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -540,6 +545,11 @@ static STATUS_NAMES: &[&str] = &[
     "UsedHaste",         // 218
     "UsedMegaDebuff",    // 219
     "Weak",              // 220
+    "MysticHealUsed",    // 221
+    "HasGinger",         // 222
+    "HasTurnip",         // 223
+    "HasMarkOfBloom",    // 224
+    "HasMagicFlower",    // 225
 ];
 
 #[cfg(test)]

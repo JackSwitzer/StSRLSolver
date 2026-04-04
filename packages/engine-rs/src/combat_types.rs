@@ -115,6 +115,9 @@ pub mod mfx {
     pub const BEAT_OF_DEATH: u8 = 28;
     pub const HEAL: u8 = 29;
     pub const POISON: u8 = 30;
+    pub const BLOCK_ALL_ALLIES: u8 = 31;
+    pub const HEAL_LOWEST_ALLY: u8 = 32;
+    pub const STRENGTH_ALL_ALLIES: u8 = 33;
 }
 
 // ---------------------------------------------------------------------------

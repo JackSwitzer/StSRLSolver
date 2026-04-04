@@ -533,7 +533,7 @@ impl CombatEngine {
         // Player Regeneration: heal and decrement (Java: RegenerationPower.atEndOfTurn)
         let regen = self.state.player.status(sid::REGENERATION);
         if regen > 0 {
-            self.state.player.hp = (self.state.player.hp + regen).min(self.state.player.max_hp);
+            self.heal_player(regen);
             self.state.player.add_status(sid::REGENERATION, -1);
         }
 
@@ -873,6 +873,7 @@ impl CombatEngine {
                     let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
                     let has_torii = self.state.has_relic("Torii");
                     let has_tungsten = self.state.has_relic("Tungsten Rod");
+                    let has_odd_mushroom = self.state.has_relic("Odd Mushroom");
                     let result = damage::calculate_incoming_damage(
                         bod,
                         self.state.player.block,
@@ -881,6 +882,7 @@ impl CombatEngine {
                         intangible,
                         has_torii,
                         has_tungsten,
+                        has_odd_mushroom,
                     );
                     self.state.player.block = result.block_remaining;
                     if result.hp_loss > 0 {
@@ -1093,6 +1095,9 @@ impl CombatEngine {
         if success {
             // Consume the potion slot
             self.state.potions[potion_idx] = String::new();
+
+            // Toy Ornithopter: heal 5 on potion use
+            relics::toy_ornithopter_on_potion(&mut self.state);
         }
 
         // Check combat end (potions can kill enemies)
@@ -1153,6 +1158,11 @@ impl CombatEngine {
         if self.state.player.hp <= 0 {
             self.check_fairy_revive();
         }
+    }
+
+    /// Centralized healing: delegates to CombatState::heal_player.
+    pub fn heal_player(&mut self, amount: i32) {
+        self.state.heal_player(amount);
     }
 
     /// Check and apply fairy revive if available.
@@ -1609,7 +1619,7 @@ impl CombatEngine {
             // Fire on_victory relics (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
             let heal = relics::on_victory(&mut self.state);
             if heal > 0 {
-                self.state.player.hp = (self.state.player.hp + heal).min(self.state.player.max_hp);
+                self.heal_player(heal);
             }
             return true;
         }

@@ -455,19 +455,21 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
 
+        // Centurion: Fury -> Slash -> Protect -> Fury -> ...
         let mut e = make("Centurion", 76);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
+        expect_move(&e, move_ids::CENT_PROTECT, 0, 0, 15, &[(mfx::BLOCK_ALL_ALLIES, 15)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::CENT_FURY, 6, 3, 0, &[]);
 
+        // Mystic: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> ...
         let mut e = make("Mystic", 48);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
+        expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_LOWEST_ALLY, 16)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
 
@@ -475,7 +477,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
+        expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_LOWEST_ALLY, 16)]);
 
         let mut e = make("BookOfStabbing", 160);
         roll_times(&mut e, 1);
@@ -489,7 +491,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("GremlinLeader", 140);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
+        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 6, &[(mfx::STRENGTH_ALL_ALLIES, 3), (mfx::BLOCK_ALL_ALLIES, 6)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
         roll_times(&mut e, 1);

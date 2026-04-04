@@ -76,7 +76,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             }
             "Blood Vial" => {
                 // Heal 2 HP at combat start
-                state.player.hp = (state.player.hp + 2).min(state.player.max_hp);
+                state.heal_player(2);
             }
             "MutagenicStrength" => {
                 // +3 Strength, -3 at end of turn (temporary)
@@ -238,6 +238,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             // --- Snecko Eye: draw 2 extra, randomize costs ---
             "Snecko Eye" => {
                 state.player.set_status(sid::SNECKO_EYE, 1);
+                state.player.set_status(sid::CONFUSION, 1);
                 state.player.set_status(sid::BAG_OF_PREP_DRAW, 2);
             }
 
@@ -259,7 +260,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                     )
                 });
                 if is_boss {
-                    state.player.hp = (state.player.hp + 25).min(state.player.max_hp);
+                    state.heal_player(25);
                 }
             }
 
@@ -388,6 +389,20 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                 // Complex interaction; Python handles
             }
 
+            // ---- Relic modifier flags (checked in pipelines) ----
+            "Mark of the Bloom" | "MarkOfTheBloom" => {
+                state.player.set_status(sid::HAS_MARK_OF_BLOOM, 1);
+            }
+            "Magic Flower" | "MagicFlower" => {
+                state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+            }
+            "Ginger" => {
+                state.player.set_status(sid::HAS_GINGER, 1);
+            }
+            "Turnip" => {
+                state.player.set_status(sid::HAS_TURNIP, 1);
+            }
+
             // ---- Passive/non-combat relics (stub — track ownership) ----
             // These relics affect shops, map, card rewards, etc.
             "Golden Idol" | "GoldenIdol" |
@@ -436,7 +451,6 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             "Regal Pillow" | "RegalPillow" |
             "Meal Ticket" | "MealTicket" |
             "Darkstone Periapt" | "DarkstonePeriapt" |
-            "Magic Flower" | "MagicFlower" |
             "Membership Card" | "MembershipCard" |
             "The Courier" | "Courier" |
             "Nloth's Gift" | "NlothsGift" |
@@ -457,10 +471,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             "Bloody Idol" | "BloodyIdol" |
             "Meat on the Bone" | "MeatOnTheBone" |
             "Lizard Tail" | "LizardTail" |
-            "Mark of the Bloom" | "MarkOfTheBloom" |
             "Omamori" |
-            "Ginger" |
-            "Turnip" |
             "Toolbox" |
             "Runic Capacitor" | "RunicCapacitor" |
             "Ring of the Serpent" | "RingOfTheSerpent" |
@@ -784,7 +795,7 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
 
     // --- Bird-Faced Urn: heal 2 when playing a Power ---
     if is_power && state.has_relic("Bird Faced Urn") {
-        state.player.hp = (state.player.hp + 2).min(state.player.max_hp);
+        state.heal_player(2);
     }
 
     // --- Mummified Hand: when playing a Power, random card in hand costs 0 ---

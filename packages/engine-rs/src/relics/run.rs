@@ -228,7 +228,7 @@ pub fn tingsha_on_discard(state: &mut CombatState) {
 /// Toy Ornithopter: heal 5 HP whenever a potion is used.
 pub fn toy_ornithopter_on_potion(state: &mut CombatState) {
     if state.has_relic("Toy Ornithopter") || state.has_relic("ToyOrnithopter") {
-        state.player.hp = (state.player.hp + 5).min(state.player.max_hp);
+        state.heal_player(5);
     }
 }
 

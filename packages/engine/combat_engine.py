@@ -2948,3 +2948,5 @@ def create_simple_combat(
     )
 
     return CombatEngine(state)
+
+

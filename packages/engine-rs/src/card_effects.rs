@@ -311,23 +311,34 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     if card.effects.contains(&"damage_per_enemy") {
         let living_count = engine.state.living_enemy_indices().len() as i32;
         if living_count > 1 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
             let player_strength = engine.state.player.strength();
             let player_weak = engine.state.player.is_weak();
+            let weak_pc = engine.state.has_relic("Paper Crane");
             let stance_mult = engine.state.stance.outgoing_mult();
-            let enemy_vuln = engine.state.enemies[target_idx as usize].entity.is_vulnerable();
-            let dmg = damage::calculate_damage(
+            let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+            let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+            let vuln_pf = engine.state.has_relic("Paper Frog");
+            let has_flight = engine.state.enemies[tidx].entity.status(sid::FLIGHT) > 0;
+            let dmg = damage::calculate_damage_full(
                 card.base_damage,
-                player_strength + vigor,
+                player_strength,
+                vigor,
                 player_weak,
+                weak_pc,
+                pen_nib_active,
+                false,
                 stance_mult,
                 enemy_vuln,
-                false,
+                vuln_pf,
+                has_flight,
+                enemy_intangible,
             );
             for _ in 0..(living_count - 1) {
-                if engine.state.enemies[target_idx as usize].entity.is_dead() {
+                if engine.state.enemies[tidx].entity.is_dead() {
                     break;
                 }
-                engine.deal_damage_to_enemy(target_idx as usize, dmg);
+                engine.deal_damage_to_enemy(tidx, dmg);
             }
         }
     }
@@ -379,6 +390,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     if card.effects.contains(&"damage_random_x_times") && card.base_magic > 0 {
         let player_strength = engine.state.player.strength();
         let player_weak = engine.state.player.is_weak();
+        let weak_pc = engine.state.has_relic("Paper Crane");
+        let vuln_pf = engine.state.has_relic("Paper Frog");
         let stance_mult = engine.state.stance.outgoing_mult();
         for _ in 0..card.base_magic {
             let living = engine.state.living_enemy_indices();
@@ -387,13 +400,21 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             }
             let idx = living[engine.rng_gen_range(0..living.len())];
             let enemy_vuln = engine.state.enemies[idx].entity.is_vulnerable();
-            let dmg = damage::calculate_damage(
+            let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
+            let has_flight = engine.state.enemies[idx].entity.status(sid::FLIGHT) > 0;
+            let dmg = damage::calculate_damage_full(
                 card.base_damage,
-                player_strength + vigor,
+                player_strength,
+                vigor,
                 player_weak,
+                weak_pc,
+                pen_nib_active,
+                false,
                 stance_mult,
                 enemy_vuln,
-                false,
+                vuln_pf,
+                has_flight,
+                enemy_intangible,
             );
             engine.deal_damage_to_enemy(idx, dmg);
         }
@@ -1154,13 +1175,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ---- Heal: restore HP (Bandage Up) ----
     if card.effects.contains(&"heal") {
         let amount = card.base_magic.max(1);
-        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
+        engine.heal_player(amount);
     }
 
     // ---- Heal on Play: same as heal (Bite) ----
     if card.effects.contains(&"heal_on_play") {
         let amount = card.base_magic.max(1);
-        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
+        engine.heal_player(amount);
     }
 
     // ---- Intangible: gain Intangible (Apparition/Ghostly) ----

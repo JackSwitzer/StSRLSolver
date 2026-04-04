@@ -95,26 +95,31 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_centurion(enemy: &mut EnemyCombatState) {
-    // Fury (6x3) or Slash (12), with Protect (15 block to ally) when ally alive
-    if last_two_moves(enemy, move_ids::CENT_FURY) {
+    // Cycle: Fury -> Slash -> Protect -> Fury -> ...
+    if last_move(enemy, move_ids::CENT_FURY) {
         enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
-    } else if last_two_moves(enemy, move_ids::CENT_SLASH) {
-        enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
-    } else if last_move(enemy, move_ids::CENT_PROTECT) {
-        enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
+    } else if last_move(enemy, move_ids::CENT_SLASH) {
+        enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 15);
+        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 15);
     } else {
-        // Default: Slash
-        enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
+        enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
     }
 }
 
 pub(super) fn roll_mystic(enemy: &mut EnemyCombatState) {
-    // Attack (8 dmg), Heal (16 hp to ally), Buff (+2 Str to all allies)
+    // Cycle: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> repeat
     if last_two_moves(enemy, move_ids::MYSTIC_ATTACK) {
-        enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
-        enemy.add_effect(mfx::STRENGTH, 2);
-    } else if last_move(enemy, move_ids::MYSTIC_BUFF) || last_move(enemy, move_ids::MYSTIC_HEAL) {
-        enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+        // Alternate Heal / Buff after two attacks
+        let used_heal = enemy.entity.status(sid::MYSTIC_HEAL_USED);
+        if used_heal == 0 {
+            enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
+            enemy.add_effect(mfx::HEAL_LOWEST_ALLY, 16);
+            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 1);
+        } else {
+            enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
+            enemy.add_effect(mfx::STRENGTH, 2);
+            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 0);
+        }
     } else {
         enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
     }
@@ -138,14 +143,14 @@ pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState) {
-    // Rally (summon), Encourage (block + Str to minions), Stab (6x3)
+    // Rally (summon), Encourage (block + Str to all allies), Stab (6x3)
     if last_move(enemy, move_ids::GL_RALLY) {
         enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 6);
-        enemy.add_effect(mfx::STRENGTH, 3);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 6);
     } else if last_move(enemy, move_ids::GL_ENCOURAGE) {
         enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
     } else {
-        // After stab: Rally if minions dead, else Encourage
         enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
     }
 }

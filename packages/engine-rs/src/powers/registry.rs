@@ -354,12 +354,6 @@ pub fn lookup_by_tag(tag: &str) -> Option<&'static PowerRegistryEntry> {
     POWER_REGISTRY.iter().find(|e| !e.tag.is_empty() && e.tag == tag)
 }
 
-/// Find a registry entry by StatusId.
-#[allow(dead_code)]
-pub fn lookup_by_status(status_id: StatusId) -> Option<&'static PowerRegistryEntry> {
-    POWER_REGISTRY.iter().find(|e| e.status_id == status_id)
-}
-
 /// Check if a power name corresponds to a debuff (for enemy debuff clearing).
 pub fn is_debuff(name: &str) -> bool {
     matches!(name,

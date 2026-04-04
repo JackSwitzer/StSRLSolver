@@ -133,10 +133,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let enemy_weak = enemy.entity.is_weak();
         let base_damage = move_dmg + enemy_strength;
 
-        // Apply Weak to enemy's attack
+        // Apply Weak to enemy's attack (Paper Crane: 0.60 instead of 0.75)
         let mut damage_f = base_damage as f64;
         if enemy_weak {
-            damage_f *= damage::WEAK_MULT;
+            let weak_mult = if engine.state.has_relic("Paper Crane") {
+                damage::WEAK_MULT_PAPER_CRANE
+            } else {
+                damage::WEAK_MULT
+            };
+            damage_f *= weak_mult;
         }
 
         // Floor the per-hit base (before stance/vuln/intangible)
@@ -147,6 +152,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let player_intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
         let has_torii = engine.state.has_relic("Torii");
         let has_tungsten = engine.state.has_relic("Tungsten Rod");
+        let has_odd_mushroom = engine.state.has_relic("Odd Mushroom");
 
         let hits = enemy.move_hits();
         for _ in 0..hits {
@@ -165,6 +171,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 player_intangible,
                 has_torii,
                 has_tungsten,
+                has_odd_mushroom,
             );
 
             engine.state.player.block = result.block_remaining;
@@ -451,6 +458,38 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx]
             .entity
             .set_status(sid::BEAT_OF_DEATH, amt as i32);
+    }
+
+    // Cross-enemy effects (Centurion Protect, Mystic Heal, GremlinLeader Encourage)
+    if let Some(amt) = get_fx(&effects, mfx::BLOCK_ALL_ALLIES) {
+        for j in 0..engine.state.enemies.len() {
+            if j != enemy_idx && engine.state.enemies[j].is_alive() {
+                engine.state.enemies[j].entity.block += amt as i32;
+            }
+        }
+    }
+    if let Some(amt) = get_fx(&effects, mfx::HEAL_LOWEST_ALLY) {
+        let mut lowest_idx: Option<usize> = None;
+        let mut lowest_hp = i32::MAX;
+        for j in 0..engine.state.enemies.len() {
+            if j != enemy_idx && engine.state.enemies[j].is_alive()
+                && engine.state.enemies[j].entity.hp < lowest_hp
+            {
+                lowest_idx = Some(j);
+                lowest_hp = engine.state.enemies[j].entity.hp;
+            }
+        }
+        if let Some(idx) = lowest_idx {
+            let e = &mut engine.state.enemies[idx].entity;
+            e.hp = (e.hp + amt as i32).min(e.max_hp);
+        }
+    }
+    if let Some(amt) = get_fx(&effects, mfx::STRENGTH_ALL_ALLIES) {
+        for j in 0..engine.state.enemies.len() {
+            if j != enemy_idx && engine.state.enemies[j].is_alive() {
+                engine.state.enemies[j].entity.add_status(sid::STRENGTH, amt as i32);
+            }
+        }
     }
 
     // Spawn minions for boss spawn moves

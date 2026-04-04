@@ -209,6 +209,7 @@ pub fn apply_potion_scaled(
         "SneckoOil" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.set_status(sid::POTION_DRAW, potency);
+            state.player.set_status(sid::CONFUSION, 1);
             true
         }
 
@@ -263,7 +264,7 @@ pub fn apply_potion_scaled(
         "Blood Potion" | "BloodPotion" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             let heal = (state.player.max_hp * potency) / 100;
-            state.player.hp = (state.player.hp + heal).min(state.player.max_hp);
+            state.heal_player(heal);
             true
         }
 

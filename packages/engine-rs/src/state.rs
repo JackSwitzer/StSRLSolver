@@ -396,6 +396,21 @@ impl CombatState {
     pub fn has_relic(&self, relic_id: &str) -> bool {
         self.relics.iter().any(|r| r == relic_id)
     }
+
+    /// Centralized healing: checks Mark of the Bloom (blocks) and Magic Flower (1.5x).
+    pub fn heal_player(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        if self.player.status(crate::status_ids::sid::HAS_MARK_OF_BLOOM) > 0 {
+            return;
+        }
+        let mut heal = amount;
+        if self.player.status(crate::status_ids::sid::HAS_MAGIC_FLOWER) > 0 {
+            heal = (heal as f64 * 1.5) as i32;
+        }
+        self.player.hp = (self.player.hp + heal).min(self.player.max_hp);
+    }
 }
 
 // ---------------------------------------------------------------------------

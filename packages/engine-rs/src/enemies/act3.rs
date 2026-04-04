@@ -54,12 +54,12 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState) {
-    // Mostly Daze, sometimes Attack (11)
-    if last_move(enemy, move_ids::REPULSOR_ATTACK) {
-        enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-        enemy.add_effect(mfx::DAZE, 2);
+    // Deterministic: Daze x4 -> Attack -> repeat
+    let turn = enemy.entity.status(sid::TURN_COUNT) + 1;
+    enemy.entity.set_status(sid::TURN_COUNT, turn);
+    if turn % 5 == 0 {
+        enemy.set_move(move_ids::REPULSOR_ATTACK, 11, 1, 0);
     } else {
-        // 80% Daze, 20% Attack
         enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
         enemy.add_effect(mfx::DAZE, 2);
     }
@@ -78,11 +78,7 @@ pub(super) fn roll_exploder(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState) {
-    // Java: RNG-based move selection with anti-repeat. Has Reactive power (rerolls on hit).
-    // Moves: Big Hit (32/38 A2), Multi (7/9 A2 x3), Attack+Block (15/16 A2 + block=same),
-    //         Attack+Debuff (10/12 A2 + Weak 2 + Vuln 2), Mega Debuff (Parasite card, once only).
-    // Deterministic MCTS: cycle through common moves, skip Mega Debuff.
-    // Base damage values (non-A2): 32, 7x3, 15+15block, 10+Weak2+Vuln2
+    // Cycle: Multi -> Block -> Debuff -> BigHit -> MegaDebuff(once) -> Multi -> ...
     if last_move(enemy, move_ids::WM_MULTI_HIT) {
         enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
     } else if last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
@@ -92,6 +88,15 @@ pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState) {
     } else if last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
         enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
     } else if last_move(enemy, move_ids::WM_BIG_HIT) {
+        // Use MegaDebuff once after first cycle, then skip
+        if enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0 {
+            enemy.set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
+            enemy.add_effect(mfx::PAINFUL_STABS, 1); // Adds Parasite curse
+            enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+        } else {
+            enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
+        }
+    } else if last_move(enemy, move_ids::WM_MEGA_DEBUFF) {
         enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
     } else {
         enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);

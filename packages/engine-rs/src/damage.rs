@@ -161,6 +161,7 @@ pub fn calculate_incoming_damage(
     intangible: bool,
     torii: bool,
     tungsten_rod: bool,
+    odd_mushroom: bool,
 ) -> IncomingDamageResult {
     let mut final_damage = damage as f64;
 
@@ -169,9 +170,9 @@ pub fn calculate_incoming_damage(
         final_damage *= WRATH_MULT;
     }
 
-    // 2. Vulnerable
+    // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50)
     if vulnerable {
-        final_damage *= VULN_MULT;
+        final_damage *= if odd_mushroom { VULN_MULT_ODD_MUSHROOM } else { VULN_MULT };
     }
 
     // 3. Floor
@@ -350,14 +351,14 @@ mod tests {
 
     #[test]
     fn test_incoming_basic() {
-        let r = calculate_incoming_damage(10, 5, false, false, false, false, false);
+        let r = calculate_incoming_damage(10, 5, false, false, false, false, false, false);
         assert_eq!(r.hp_loss, 5);
         assert_eq!(r.block_remaining, 0);
     }
 
     #[test]
     fn test_incoming_fully_blocked() {
-        let r = calculate_incoming_damage(5, 10, false, false, false, false, false);
+        let r = calculate_incoming_damage(5, 10, false, false, false, false, false, false);
         assert_eq!(r.hp_loss, 0);
         assert_eq!(r.block_remaining, 5);
     }
@@ -365,7 +366,7 @@ mod tests {
     #[test]
     fn test_incoming_wrath() {
         // 10 * 2.0 = 20, - 5 block = 15 hp loss
-        let r = calculate_incoming_damage(10, 5, true, false, false, false, false);
+        let r = calculate_incoming_damage(10, 5, true, false, false, false, false, false);
         assert_eq!(r.hp_loss, 15);
         assert_eq!(r.block_remaining, 0);
     }
@@ -373,41 +374,41 @@ mod tests {
     #[test]
     fn test_incoming_vulnerable() {
         // 10 * 1.5 = 15
-        let r = calculate_incoming_damage(10, 0, false, true, false, false, false);
+        let r = calculate_incoming_damage(10, 0, false, true, false, false, false, false);
         assert_eq!(r.hp_loss, 15);
     }
 
     #[test]
     fn test_incoming_intangible() {
-        let r = calculate_incoming_damage(100, 0, false, false, true, false, false);
+        let r = calculate_incoming_damage(100, 0, false, false, true, false, false, false);
         assert_eq!(r.hp_loss, 1);
     }
 
     #[test]
     fn test_incoming_torii() {
         // 4 unblocked -> 1 (Torii range 2-5)
-        let r = calculate_incoming_damage(4, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(4, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 1);
     }
 
     #[test]
     fn test_incoming_torii_below() {
         // 1 unblocked -> 1 (below Torii range)
-        let r = calculate_incoming_damage(1, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(1, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 1);
     }
 
     #[test]
     fn test_incoming_torii_above() {
         // 10 unblocked -> 10 (above Torii range)
-        let r = calculate_incoming_damage(10, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(10, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 10);
     }
 
     #[test]
     fn test_incoming_tungsten_rod() {
         // 10 - 5 block = 5 hp loss, -1 tungsten = 4
-        let r = calculate_incoming_damage(10, 5, false, false, false, false, true);
+        let r = calculate_incoming_damage(10, 5, false, false, false, false, true, false);
         assert_eq!(r.hp_loss, 4);
     }
 

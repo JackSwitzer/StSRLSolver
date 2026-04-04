@@ -98,14 +98,12 @@ pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState) {
-    if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
+    // Cycle: Spit -> Tackle -> Lick -> Spit -> ...
+    if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
         enemy.set_move(move_ids::AS_TACKLE, 10, 1, 0);
-    } else if last_two_moves(enemy, move_ids::AS_TACKLE) {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-        enemy.add_effect(mfx::SLIMED, 1);
-    } else if last_move(enemy, move_ids::AS_LICK) {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-        enemy.add_effect(mfx::SLIMED, 1);
+    } else if last_move(enemy, move_ids::AS_TACKLE) {
+        enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 1);
     } else {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
         enemy.add_effect(mfx::SLIMED, 1);
@@ -113,14 +111,13 @@ pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState) {
-    if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-        enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
-    } else if last_two_moves(enemy, move_ids::AS_TACKLE) {
+    // Cycle: Tackle -> Spit -> Lick -> Tackle -> ...
+    if last_move(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
         enemy.add_effect(mfx::SLIMED, 2);
-    } else if last_move(enemy, move_ids::AS_LICK) {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
-        enemy.add_effect(mfx::SLIMED, 2);
+    } else if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
+        enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 2);
     } else {
         enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
     }

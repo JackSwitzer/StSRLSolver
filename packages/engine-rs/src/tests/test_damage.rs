@@ -143,59 +143,59 @@ mod damage_tests {
     // ---- Incoming damage ----
 
     #[test] fn incoming_basic() {
-        let r = calculate_incoming_damage(10, 5, false, false, false, false, false);
+        let r = calculate_incoming_damage(10, 5, false, false, false, false, false, false);
         assert_eq!(r.hp_loss, 5);
         assert_eq!(r.block_remaining, 0);
     }
     #[test] fn incoming_full_block() {
-        let r = calculate_incoming_damage(5, 10, false, false, false, false, false);
+        let r = calculate_incoming_damage(5, 10, false, false, false, false, false, false);
         assert_eq!(r.hp_loss, 0);
         assert_eq!(r.block_remaining, 5);
     }
     #[test] fn incoming_wrath() {
-        let r = calculate_incoming_damage(10, 5, true, false, false, false, false);
+        let r = calculate_incoming_damage(10, 5, true, false, false, false, false, false);
         assert_eq!(r.hp_loss, 15);
     }
     #[test] fn incoming_vuln() {
-        let r = calculate_incoming_damage(10, 0, false, true, false, false, false);
+        let r = calculate_incoming_damage(10, 0, false, true, false, false, false, false);
         assert_eq!(r.hp_loss, 15);
     }
     #[test] fn incoming_wrath_vuln() {
         // 10*2.0*1.5 = 30
-        let r = calculate_incoming_damage(10, 0, true, true, false, false, false);
+        let r = calculate_incoming_damage(10, 0, true, true, false, false, false, false);
         assert_eq!(r.hp_loss, 30);
     }
     #[test] fn incoming_intangible() {
-        let r = calculate_incoming_damage(100, 0, false, false, true, false, false);
+        let r = calculate_incoming_damage(100, 0, false, false, true, false, false, false);
         assert_eq!(r.hp_loss, 1);
     }
     #[test] fn incoming_torii_2() {
-        let r = calculate_incoming_damage(2, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(2, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 1);
     }
     #[test] fn incoming_torii_5() {
-        let r = calculate_incoming_damage(5, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(5, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 1);
     }
     #[test] fn incoming_torii_6_no_effect() {
-        let r = calculate_incoming_damage(6, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(6, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 6);
     }
     #[test] fn incoming_torii_1_no_effect() {
-        let r = calculate_incoming_damage(1, 0, false, false, false, true, false);
+        let r = calculate_incoming_damage(1, 0, false, false, false, true, false, false);
         assert_eq!(r.hp_loss, 1);
     }
     #[test] fn incoming_tungsten() {
-        let r = calculate_incoming_damage(10, 5, false, false, false, false, true);
+        let r = calculate_incoming_damage(10, 5, false, false, false, false, true, false);
         assert_eq!(r.hp_loss, 4);
     }
     #[test] fn incoming_tungsten_1hp_becomes_0() {
-        let r = calculate_incoming_damage(1, 0, false, false, false, false, true);
+        let r = calculate_incoming_damage(1, 0, false, false, false, false, true, false);
         assert_eq!(r.hp_loss, 0);
     }
     #[test] fn incoming_intangible_tungsten() {
         // intangible caps to 1, tungsten -1 = 0
-        let r = calculate_incoming_damage(100, 0, false, false, true, false, true);
+        let r = calculate_incoming_damage(100, 0, false, false, true, false, true, false);
         assert_eq!(r.hp_loss, 0);
     }
 
