@@ -64,6 +64,20 @@ impl CombatEngine {
         // Apply combat-start relic effects
         relics::apply_combat_start_relics(&mut self.state);
 
+        // Channel orbs from combat-start relics (need engine context)
+        if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
+            self.channel_orb(crate::orbs::OrbType::Dark);
+            self.state.player.set_status(sid::CHANNEL_DARK_START, 0);
+        }
+        if self.state.player.status(sid::CHANNEL_LIGHTNING_START) > 0 {
+            self.channel_orb(crate::orbs::OrbType::Lightning);
+            self.state.player.set_status(sid::CHANNEL_LIGHTNING_START, 0);
+        }
+        if self.state.player.status(sid::CHANNEL_PLASMA_START) > 0 {
+            self.channel_orb(crate::orbs::OrbType::Plasma);
+            self.state.player.set_status(sid::CHANNEL_PLASMA_START, 0);
+        }
+
         // Shuffle draw pile
         self.state.draw_pile.shuffle(&mut self.rng);
 
@@ -253,9 +267,10 @@ impl CombatEngine {
             }
         }
 
-        // Draw cards (default 5 + Draw/Machine Learning power)
+        // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
         let ml = self.state.player.status(sid::DRAW);
-        self.draw_cards(5 + ml);
+        let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
+        self.draw_cards(5 + ml + serpent);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
         let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
@@ -349,6 +364,12 @@ impl CombatEngine {
                     self.state.discard_pile.push(discarded);
                 }
             }
+        }
+
+        // WarpedTongs: upgrade a random card in hand each turn
+        if self.state.has_relic("WarpedTongs") && !self.state.hand.is_empty() {
+            let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
+            self.card_registry.upgrade_card(&mut self.state.hand[idx]);
         }
     }
 
@@ -511,10 +532,10 @@ impl CombatEngine {
             }
         }
 
-        // FrozenCore: at end of turn, if no orbs channeled, channel 1 Lightning
+        // FrozenCore: at end of turn, if no orbs in slots, channel 1 Frost
         if self.state.player.status(sid::FROZEN_CORE_TRIGGER) > 0 {
-            if self.state.orb_slots.occupied_count() == 0 && self.state.orb_slots.has_orbs() {
-                self.channel_orb(crate::orbs::OrbType::Lightning);
+            if self.state.orb_slots.occupied_count() == 0 {
+                self.channel_orb(crate::orbs::OrbType::Frost);
             }
         }
 
@@ -596,9 +617,19 @@ impl CombatEngine {
     // =======================================================================
 
     fn can_play_card_inst(&self, card: &CardDef, card_inst: CardInstance) -> bool {
-        // Unplayable cards
+        // Unplayable cards -- unless Medical Kit (Status) or Blue Candle (Curse)
         if card.cost == -2 || card.effects.contains(&"unplayable") {
-            return false;
+            if card.card_type == CardType::Status
+                && (self.state.has_relic("Medical Kit") || self.state.has_relic("MedicalKit"))
+            {
+                // Medical Kit: Status cards become playable (exhaust on play, cost 0)
+            } else if card.card_type == CardType::Curse
+                && (self.state.has_relic("Blue Candle") || self.state.has_relic("BlueCandle"))
+            {
+                // Blue Candle: Curse cards become playable (1 HP + exhaust, cost 0)
+            } else {
+                return false;
+            }
         }
 
         // Velvet Choker: max 6 cards per turn
@@ -740,6 +771,34 @@ impl CombatEngine {
         let card_id = self.card_registry.card_name(card_inst.def_id).to_string();
 
         if !self.can_play_card_inst(&card, card_inst) {
+            return;
+        }
+
+        // Medical Kit: Status cards are played for free and exhausted
+        if card.card_type == CardType::Status
+            && (self.state.has_relic("Medical Kit") || self.state.has_relic("MedicalKit"))
+        {
+            self.state.hand.remove(hand_idx);
+            self.state.cards_played_this_turn += 1;
+            self.state.total_cards_played += 1;
+            self.state.exhaust_pile.push(card_inst);
+            self.trigger_on_exhaust();
+            relics::on_card_played(&mut self.state, card.card_type);
+            return;
+        }
+
+        // Blue Candle: Curse cards are played for free, exhaust, and deal 1 HP
+        if card.card_type == CardType::Curse
+            && (self.state.has_relic("Blue Candle") || self.state.has_relic("BlueCandle"))
+        {
+            self.state.hand.remove(hand_idx);
+            self.state.cards_played_this_turn += 1;
+            self.state.total_cards_played += 1;
+            self.state.exhaust_pile.push(card_inst);
+            self.trigger_on_exhaust();
+            self.player_lose_hp(1);
+            relics::on_card_played(&mut self.state, card.card_type);
+            if self.state.combat_over { return; }
             return;
         }
 
@@ -1019,9 +1078,18 @@ impl CombatEngine {
             || (card.card_type == CardType::Skill
                 && self.state.player.status(sid::CORRUPTION) > 0)
         {
-            // Corruption: Skills are exhausted instead of discarded
-            self.state.exhaust_pile.push(card_inst);
-            self.trigger_on_exhaust();
+            // Strange Spoon: 50% chance exhaust -> shuffle into draw pile
+            if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
+                if self.rng.random(1) == 0 {
+                    self.state.draw_pile.push(card_inst);
+                } else {
+                    self.state.exhaust_pile.push(card_inst);
+                    self.trigger_on_exhaust();
+                }
+            } else {
+                self.state.exhaust_pile.push(card_inst);
+                self.trigger_on_exhaust();
+            }
         } else {
             self.state.discard_pile.push(card_inst);
         }
@@ -1165,19 +1233,29 @@ impl CombatEngine {
         self.state.heal_player(amount);
     }
 
-    /// Check and apply fairy revive if available.
+    /// Check and apply revive effects (Fairy in a Bottle, Lizard Tail).
     fn check_fairy_revive(&mut self) {
         if self.state.player.hp <= 0 {
+            // Fairy in a Bottle (potion)
             let revive_hp = potions::check_fairy_revive(&self.state);
             if revive_hp > 0 {
                 potions::consume_fairy(&mut self.state);
                 self.state.player.hp = revive_hp;
-            } else {
-                self.state.player.hp = 0;
-                self.state.combat_over = true;
-                self.state.player_won = false;
-                self.phase = CombatPhase::CombatOver;
+                return;
             }
+            // Lizard Tail (relic): revive at 50% max HP, once per run
+            if (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
+                && self.state.player.status(sid::LIZARD_TAIL_USED) == 0
+            {
+                self.state.player.set_status(sid::LIZARD_TAIL_USED, 1);
+                self.state.player.hp = self.state.player.max_hp / 2;
+                return;
+            }
+            // No revive available
+            self.state.player.hp = 0;
+            self.state.combat_over = true;
+            self.state.player_won = false;
+            self.phase = CombatPhase::CombatOver;
         }
     }
 

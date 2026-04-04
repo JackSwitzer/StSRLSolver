@@ -285,9 +285,15 @@ pub mod sid {
     pub const HAS_TURNIP: StatusId = StatusId(223);
     pub const HAS_MARK_OF_BLOOM: StatusId = StatusId(224);
     pub const HAS_MAGIC_FLOWER: StatusId = StatusId(225);
+    pub const LIZARD_TAIL_USED: StatusId = StatusId(226);
+    pub const CHANNEL_DARK_START: StatusId = StatusId(227);
+    pub const CHANNEL_LIGHTNING_START: StatusId = StatusId(228);
+    pub const CHANNEL_PLASMA_START: StatusId = StatusId(229);
+    pub const RING_OF_SERPENT_DRAW: StatusId = StatusId(230);
+    pub const SLAVERS_COLLAR_ENERGY: StatusId = StatusId(231);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 226;
+    pub const NUM_IDS: usize = 232;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -550,6 +556,12 @@ static STATUS_NAMES: &[&str] = &[
     "HasTurnip",         // 223
     "HasMarkOfBloom",    // 224
     "HasMagicFlower",    // 225
+    "LizardTailUsed",   // 226
+    "ChannelDarkStart",  // 227
+    "ChannelLightningStart", // 228
+    "ChannelPlasmaStart", // 229
+    "RingOfSerpentDraw", // 230
+    "SlaversCollarEnergy", // 231
 ];
 
 #[cfg(test)]

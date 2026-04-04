@@ -299,7 +299,7 @@ pub fn apply_potion_scaled(
             true
         }
 
-        "AttackPotion" | "SkillPotion" | "PowerPotion" | "ColorlessPotion" => true,
+        // Discovery potions: handled below with proxy cards for MCTS
 
         "Ambrosia" => {
             state.stance = crate::state::Stance::Divinity;
@@ -428,13 +428,32 @@ pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -
 }
 
 /// Deal damage to a specific enemy (used by damage potions).
+/// Respects Vulnerable, Intangible, and Invincible.
 fn deal_damage_to_enemy(state: &mut CombatState, idx: usize, dmg: i32) {
     let enemy = &mut state.enemies[idx];
     if !enemy.is_alive() {
         return;
     }
-    let blocked = enemy.entity.block.min(dmg);
-    let hp_damage = dmg - blocked;
+
+    let mut final_dmg = dmg as f64;
+
+    // Vulnerable: potion damage is boosted
+    if enemy.entity.is_vulnerable() {
+        final_dmg *= crate::damage::VULN_MULT;
+    }
+
+    let mut final_dmg_i = final_dmg as i32;
+
+    // Intangible: cap at 1
+    if enemy.entity.status(crate::status_ids::sid::INTANGIBLE) > 0 && final_dmg_i > 1 {
+        final_dmg_i = 1;
+    }
+
+    // Invincible: per-turn cap (e.g. The Heart)
+    final_dmg_i = crate::powers::apply_invincible_cap_tracked(&mut enemy.entity, final_dmg_i);
+
+    let blocked = enemy.entity.block.min(final_dmg_i);
+    let hp_damage = final_dmg_i - blocked;
     enemy.entity.block -= blocked;
     enemy.entity.hp -= hp_damage;
     state.total_damage_dealt += hp_damage;

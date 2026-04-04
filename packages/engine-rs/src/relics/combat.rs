@@ -220,19 +220,19 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                 }
             }
 
-            // --- Symbiotic Virus: channel 1 Dark orb ---
+            // --- Symbiotic Virus: channel 1 Dark orb (deferred to engine) ---
             "Symbiotic Virus" => {
-                // Orbs handled by Python; stub
+                state.player.set_status(sid::CHANNEL_DARK_START, 1);
             }
 
-            // --- Cracked Core: channel 1 Lightning orb ---
+            // --- Cracked Core: channel 1 Lightning orb (deferred to engine) ---
             "Cracked Core" => {
-                // Orbs handled by Python; stub
+                state.player.set_status(sid::CHANNEL_LIGHTNING_START, 1);
             }
 
-            // --- Nuclear Battery: channel 1 Plasma orb ---
+            // --- Nuclear Battery: channel 1 Plasma orb (deferred to engine) ---
             "Nuclear Battery" => {
-                // Orbs handled by Python; stub
+                state.player.set_status(sid::CHANNEL_PLASMA_START, 1);
             }
 
             // --- Snecko Eye: draw 2 extra, randomize costs ---
@@ -381,7 +381,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
 
             // --- WarpedTongs: upgrade random card in hand at turn start ---
             "WarpedTongs" => {
-                // Handled in turn start
+                // Handled in apply_turn_start_relics
             }
 
             // --- GamblingChip: can discard and redraw at start ---
@@ -464,21 +464,51 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             "Tiny Chest" | "TinyChest" |
             "DollysMirror" |
             "WingedGreaves" | "WingBoots" |
-            "SlaversCollar" |
+            // --- Runic Capacitor: +3 orb slots ---
+            "Runic Capacitor" | "RunicCapacitor" => {
+                state.player.add_status(sid::ORB_SLOTS, 3);
+            }
+
+            // --- Ring of the Serpent: +1 draw per turn (Silent upgrade of Ring of the Snake) ---
+            "Ring of the Serpent" | "RingOfTheSerpent" => {
+                state.player.set_status(sid::RING_OF_SERPENT_DRAW, 1);
+            }
+
+            // --- Lizard Tail: revive at 50% HP (tracked via flag) ---
+            "Lizard Tail" | "LizardTail" => {
+                // Mark available (not yet used). Consumed in check_fairy_revive.
+            }
+
+            // --- Slaver's Collar: +3 energy in elite/boss fights ---
+            "Slaver's Collar" | "SlaversCollar" => {
+                if state.player.status(sid::SLAVERS_COLLAR_ENERGY) > 0 {
+                    state.energy += 3;
+                }
+            }
+
+            // --- Medical Kit: status cards become playable (exhaust on play) ---
+            "Medical Kit" | "MedicalKit" => {
+                // Tracked via has_relic check in card playability
+            }
+
+            // --- Blue Candle: curse cards become playable (1 HP + exhaust) ---
+            "Blue Candle" | "BlueCandle" => {
+                // Tracked via has_relic check in card playability
+            }
+
+            // --- Strange Spoon: 50% chance exhaust -> shuffle into draw ---
+            "Strange Spoon" | "StrangeSpoon" => {
+                // Tracked via has_relic check in exhaust logic
+            }
+
             "GoldenEye" |
             "PrismaticShard" |
             "FaceOfCleric" |
             "Bloody Idol" | "BloodyIdol" |
             "Meat on the Bone" | "MeatOnTheBone" |
-            "Lizard Tail" | "LizardTail" |
             "Omamori" |
             "Toolbox" |
-            "Runic Capacitor" | "RunicCapacitor" |
-            "Ring of the Serpent" | "RingOfTheSerpent" |
-            "Hovering Kite" | "HoveringKite" |
-            "Strange Spoon" | "StrangeSpoon" |
-            "Medical Kit" | "MedicalKit" |
-            "Blue Candle" | "BlueCandle" => {
+            "Hovering Kite" | "HoveringKite" => {
                 // Non-combat or complex interactive effects; stub
             }
 
