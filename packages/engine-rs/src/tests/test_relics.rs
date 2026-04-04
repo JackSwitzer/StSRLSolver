@@ -3,10 +3,11 @@ mod relic_tests {
     use crate::relics::*;
     use crate::status_ids::sid;
     use crate::state::{CombatState, EnemyCombatState};
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn state() -> CombatState {
         let e = EnemyCombatState::new("Test", 50, 50);
-        CombatState::new(80, 80, vec![e], vec!["Strike_P".to_string(); 5], 3)
+        CombatState::new(80, 80, vec![e], make_deck_n("Strike_P", 5), 3)
     }
 
     fn state_with(relic: &str) -> CombatState {
@@ -17,6 +18,7 @@ mod relic_tests {
     }
 
     // ---- Vajra ----
+
     #[test] fn vajra_str_1() { assert_eq!(state_with("Vajra").player.strength(), 1); }
     #[test] fn vajra_stacks_with_existing() {
         let mut s = state();
@@ -94,7 +96,8 @@ mod relic_tests {
     // ---- Mark of Pain ----
     #[test] fn mark_of_pain_wounds() {
         let s = state_with("Mark of Pain");
-        let w = s.draw_pile.iter().filter(|c| *c == "Wound").count();
+        let reg = crate::cards::CardRegistry::new();
+        let w = s.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(w, 2);
     }
 

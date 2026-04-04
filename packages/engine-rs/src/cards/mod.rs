@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::combat_types::CardInstance;
+
 mod watcher;
 mod ironclad;
 mod silent;
@@ -79,6 +81,14 @@ impl CardDef {
 #[derive(Clone)]
 pub struct CardRegistry {
     cards: HashMap<&'static str, CardDef>,
+    /// CardDef indexed by numeric u16 card ID (O(1) lookup).
+    id_to_def: Vec<CardDef>,
+    /// String card name -> numeric u16 ID.
+    name_to_id: HashMap<&'static str, u16>,
+    /// Numeric u16 ID -> string card name.
+    id_to_name: Vec<&'static str>,
+    /// Bitset: true if this card ID is a "Strike" variant (for Perfected Strike).
+    strike_flags: Vec<bool>,
 }
 
 
@@ -95,7 +105,35 @@ impl CardRegistry {
         status::register_status(&mut cards);
         temp::register_temp(&mut cards);
 
-        CardRegistry { cards }
+        // --- Build numeric ID mappings ---
+        // Collect all names, sort so base cards come before their "+" upgrades.
+        let mut names: Vec<&'static str> = cards.keys().copied().collect();
+        names.sort_unstable_by(|a, b| {
+            let a_base = a.trim_end_matches('+');
+            let b_base = b.trim_end_matches('+');
+            // Primary: sort by base name alphabetically
+            // Secondary: non-upgraded before upgraded (shorter before longer)
+            a_base.cmp(b_base).then_with(|| a.len().cmp(&b.len()))
+        });
+
+        let count = names.len();
+        let mut id_to_def = Vec::with_capacity(count);
+        let mut name_to_id = HashMap::with_capacity(count);
+        let mut id_to_name = Vec::with_capacity(count);
+        let mut strike_flags = Vec::with_capacity(count);
+
+        for (idx, name) in names.iter().enumerate() {
+            let id = idx as u16;
+            let def = cards[name].clone();
+            id_to_def.push(def);
+            name_to_id.insert(*name, id);
+            id_to_name.push(*name);
+            // Case-insensitive check for "strike" substring
+            let lower = name.to_ascii_lowercase();
+            strike_flags.push(lower.contains("strike"));
+        }
+
+        CardRegistry { cards, id_to_def, name_to_id, id_to_name, strike_flags }
     }
 
     fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
@@ -137,6 +175,62 @@ impl CardRegistry {
     /// Get the base ID (strip "+" suffix).
     pub fn base_id(card_id: &str) -> &str {
         card_id.trim_end_matches('+')
+    }
+
+    // --- Numeric ID lookup methods ---
+
+    /// Look up the numeric u16 ID for a card name. Returns u16::MAX if not found.
+    pub fn card_id(&self, name: &str) -> u16 {
+        self.name_to_id.get(name).copied().unwrap_or(u16::MAX)
+    }
+
+    /// Look up a CardDef by numeric ID. O(1) array index.
+    /// Panics if id is out of range — callers should use IDs from card_id().
+    pub fn card_def_by_id(&self, id: u16) -> &CardDef {
+        &self.id_to_def[id as usize]
+    }
+
+    /// Look up a card's string name by numeric ID.
+    /// Panics if id is out of range.
+    pub fn card_name(&self, id: u16) -> &str {
+        self.id_to_name[id as usize]
+    }
+
+    /// Total number of registered cards.
+    pub fn card_count(&self) -> usize {
+        self.id_to_def.len()
+    }
+
+    /// Create a CardInstance from a string card name.
+    /// Sets def_id to u16::MAX if the name is not found.
+    pub fn make_card(&self, name: &str) -> CardInstance {
+        CardInstance::new(self.card_id(name))
+    }
+
+    /// Create an upgraded CardInstance from a string card name.
+    /// The name should be the base name; this sets the UPGRADED flag.
+    /// For pre-registered upgraded defs (e.g. "Strike_P+"), pass the "+" name
+    /// and the flag is set automatically.
+    pub fn make_card_upgraded(&self, name: &str) -> CardInstance {
+        CardInstance::new(self.card_id(name)).upgraded()
+    }
+
+    /// Returns true if the card at this numeric ID is a Strike variant.
+    /// Useful for Perfected Strike without runtime string operations.
+    /// Returns false for out-of-range IDs.
+    pub fn is_strike(&self, id: u16) -> bool {
+        self.strike_flags.get(id as usize).copied().unwrap_or(false)
+    }
+
+    /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
+    pub fn upgrade_card(&self, card: &mut CardInstance) {
+        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
+        let name = self.card_name(card.def_id);
+        let upgraded = format!("{}+", name);
+        if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
+            card.def_id = id;
+            card.flags |= CardInstance::FLAG_UPGRADED;
+        }
     }
 }
 
@@ -955,5 +1049,103 @@ mod tests {
         assert_card(&reg, "ThroughViolence", 0, 20, -1, -1, CardType::Attack);
         assert_card(&reg, "ThroughViolence+", 0, 30, -1, -1, CardType::Attack);
         assert_has_effect(&reg, "ThroughViolence", "retain");
+    }
+
+    // -----------------------------------------------------------------------
+    // Numeric card ID lookup tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_card_id_roundtrip() {
+        let reg = CardRegistry::new();
+        let id = reg.card_id("Strike_P");
+        assert_ne!(id, u16::MAX, "Strike_P should have a valid ID");
+        assert_eq!(reg.card_name(id), "Strike_P");
+        assert_eq!(reg.card_def_by_id(id).base_damage, 6);
+    }
+
+    #[test]
+    fn test_card_id_unknown_returns_max() {
+        let reg = CardRegistry::new();
+        assert_eq!(reg.card_id("TotallyFakeCard"), u16::MAX);
+    }
+
+    #[test]
+    fn test_card_count_matches_hashmap() {
+        let reg = CardRegistry::new();
+        assert_eq!(reg.card_count(), reg.cards.len());
+        assert!(reg.card_count() > 700, "Should have 700+ cards registered");
+    }
+
+    #[test]
+    fn test_base_and_upgraded_consecutive_ids() {
+        let reg = CardRegistry::new();
+        let base_id = reg.card_id("Strike_P");
+        let upgraded_id = reg.card_id("Strike_P+");
+        assert_ne!(base_id, u16::MAX);
+        assert_ne!(upgraded_id, u16::MAX);
+        // Sorting puts base before upgraded, so upgraded = base + 1
+        assert_eq!(upgraded_id, base_id + 1,
+            "Strike_P+ should be consecutive after Strike_P");
+    }
+
+    #[test]
+    fn test_all_ids_have_matching_defs() {
+        let reg = CardRegistry::new();
+        for id in 0..reg.card_count() as u16 {
+            let name = reg.card_name(id);
+            let def = reg.card_def_by_id(id);
+            assert_eq!(def.id, name, "ID {} name mismatch", id);
+            assert_eq!(reg.card_id(name), id, "Reverse lookup for '{}' failed", name);
+        }
+    }
+
+    #[test]
+    fn test_is_strike() {
+        let reg = CardRegistry::new();
+        assert!(reg.is_strike(reg.card_id("Strike_P")));
+        assert!(reg.is_strike(reg.card_id("Strike_P+")));
+        assert!(reg.is_strike(reg.card_id("Strike_R")));
+        assert!(reg.is_strike(reg.card_id("Perfected Strike")));
+        assert!(reg.is_strike(reg.card_id("Perfected Strike+")));
+        assert!(reg.is_strike(reg.card_id("WindmillStrike")));
+        assert!(reg.is_strike(reg.card_id("Swift Strike")));
+        // Non-strikes
+        assert!(!reg.is_strike(reg.card_id("Defend_P")));
+        assert!(!reg.is_strike(reg.card_id("Eruption")));
+        assert!(!reg.is_strike(reg.card_id("Bash")));
+        // Out-of-range
+        assert!(!reg.is_strike(u16::MAX));
+    }
+
+    #[test]
+    fn test_make_card() {
+        let reg = CardRegistry::new();
+        let card = reg.make_card("Eruption");
+        assert_eq!(card.def_id, reg.card_id("Eruption"));
+        assert!(!card.is_upgraded());
+    }
+
+    #[test]
+    fn test_make_card_upgraded() {
+        let reg = CardRegistry::new();
+        let card = reg.make_card_upgraded("Eruption+");
+        assert_eq!(card.def_id, reg.card_id("Eruption+"));
+        assert!(card.is_upgraded());
+    }
+
+    #[test]
+    fn test_card_def_by_id_matches_get() {
+        let reg = CardRegistry::new();
+        // Every card accessible via get() should match card_def_by_id()
+        for name in ["Strike_P", "Eruption", "Bash", "Neutralize", "Zap", "Apotheosis"] {
+            let by_name = reg.get(name).unwrap();
+            let id = reg.card_id(name);
+            let by_id = reg.card_def_by_id(id);
+            assert_eq!(by_name.id, by_id.id);
+            assert_eq!(by_name.cost, by_id.cost);
+            assert_eq!(by_name.base_damage, by_id.base_damage);
+            assert_eq!(by_name.base_block, by_id.base_block);
+        }
     }
 }

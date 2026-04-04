@@ -7,6 +7,7 @@ mod enemy_ai_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/*.java
 
     use crate::enemies::*;
+    use crate::combat_types::mfx;
     use crate::status_ids::sid;
     use crate::enemies::move_ids;
     use crate::map::{DungeonMap, MapNode, RoomType};
@@ -31,18 +32,18 @@ mod enemy_ai_java_parity_tests {
         damage: i32,
         hits: i32,
         block: i32,
-        effects: &[(&str, i32)],
+        effects: &[(u8, i16)],
     ) {
         assert_eq!(enemy.move_id, move_id, "{} move_id", enemy.id);
-        assert_eq!(enemy.move_damage, damage, "{} move_damage", enemy.id);
-        assert_eq!(enemy.move_hits, hits, "{} move_hits", enemy.id);
-        assert_eq!(enemy.move_block, block, "{} move_block", enemy.id);
+        assert_eq!(enemy.move_damage(), damage, "{} move_damage", enemy.id);
+        assert_eq!(enemy.move_hits(), hits, "{} move_hits", enemy.id);
+        assert_eq!(enemy.move_block(), block, "{} move_block", enemy.id);
         assert_eq!(enemy.move_effects.len(), effects.len(), "{} effect count", enemy.id);
         for (key, value) in effects {
             assert_eq!(
-                enemy.move_effects.get(*key),
-                Some(value),
-                "{} effect {}",
+                enemy.effect(*key),
+                Some(*value),
+                "{} effect {:?}",
                 enemy.id,
                 key
             );
@@ -106,7 +107,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::JW_CHOMP, 11, 1, 0, &[]);
 
         let e = make("Cultist", 50);
-        expect_move(&e, move_ids::CULT_INCANTATION, 0, 0, 0, &[("ritual", 3)]);
+        expect_move(&e, move_ids::CULT_INCANTATION, 0, 0, 0, &[(mfx::RITUAL, 3)]);
 
         let e = make("FungiBeast", 22);
         expect_move(&e, move_ids::FB_BITE, 6, 1, 0, &[]);
@@ -130,27 +131,27 @@ mod enemy_ai_java_parity_tests {
         expect_one_of(&e, &[move_ids::AS_TACKLE, move_ids::AS_LICK]);
         match e.move_id {
             x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 3, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[("weak", 1)]),
+            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]),
         }
 
         let e = make("AcidSlime_M", 28);
         expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
         match e.move_id {
             x if x == move_ids::AS_CORROSIVE_SPIT => {
-                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 7, 1, 0, &[("slimed", 1)])
+                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 7, 1, 0, &[(mfx::SLIMED, 1)])
             }
             x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 10, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[("weak", 1)]),
+            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]),
         }
 
         let e = make("AcidSlime_L", 65);
         expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
         match e.move_id {
             x if x == move_ids::AS_CORROSIVE_SPIT => {
-                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 11, 1, 0, &[("slimed", 2)])
+                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 11, 1, 0, &[(mfx::SLIMED, 2)])
             }
             x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 16, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[("weak", 2)]),
+            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 2)]),
         }
 
         let e = make("SpikeSlime_S", 11);
@@ -166,7 +167,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::LOOTER_MUG, 10, 1, 0, &[]);
 
         let e = make("GremlinFat", 18);
-        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[(mfx::WEAK, 1)]);
 
         let e = make("GremlinThief", 13);
         expect_move(&e, move_ids::GREMLIN_ATTACK, 9, 1, 0, &[]);
@@ -197,7 +198,7 @@ mod enemy_ai_java_parity_tests {
     fn act1_patterns_match_java() {
         let mut e = make("JawWorm", 44);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[("strength", 3)]);
+        expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::JW_THRASH, 7, 1, 5, &[]);
         roll_times(&mut e, 1);
@@ -213,7 +214,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::FB_BITE, 6, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::FB_GROW, 0, 0, 0, &[("strength", 3)]);
+        expect_move(&e, move_ids::FB_GROW, 0, 0, 0, &[(mfx::STRENGTH, 3)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::FB_BITE, 6, 1, 0, &[]);
 
@@ -221,33 +222,33 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::LOUSE_GROW, 0, 0, 0, &[("strength", 3)]);
+        expect_move(&e, move_ids::LOUSE_GROW, 0, 0, 0, &[(mfx::STRENGTH, 3)]);
 
         let mut e = make("GreenLouse", 14);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::LOUSE_SPIT_WEB, 0, 0, 0, &[("weak", 2)]);
+        expect_move(&e, move_ids::LOUSE_SPIT_WEB, 0, 0, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("SlaverBlue", 46);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BS_RAKE, 7, 1, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::BS_RAKE, 7, 1, 0, &[(mfx::WEAK, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
 
         let mut e = make("SlaverRed", 46);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::RS_ENTANGLE, 0, 0, 0, &[("entangle", 1)]);
+        expect_move(&e, move_ids::RS_ENTANGLE, 0, 0, 0, &[(mfx::ENTANGLE, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::RS_STAB, 13, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::RS_SCRAPE, 8, 1, 0, &[("vulnerable", 1)]);
+        expect_move(&e, move_ids::RS_SCRAPE, 8, 1, 0, &[(mfx::VULNERABLE, 1)]);
 
         let mut e = make("AcidSlime_S", 8);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::AS_TACKLE, 3, 1, 0, &[]);
 
@@ -282,7 +283,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SS_TACKLE, 8, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[("frail", 1)]);
+        expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SS_TACKLE, 8, 1, 0, &[]);
 
@@ -290,7 +291,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[("frail", 2)]);
+        expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
 
         let mut e = make("Looter", 44);
         roll_times(&mut e, 1);
@@ -303,7 +304,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("GremlinFat", 18);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[(mfx::WEAK, 1)]);
         let mut e = make("GremlinWizard", 20);
         e.move_id = move_ids::GREMLIN_PROTECT;
         e.move_history = vec![move_ids::GREMLIN_PROTECT, move_ids::GREMLIN_PROTECT];
@@ -324,7 +325,7 @@ mod enemy_ai_java_parity_tests {
         e.move_id = move_ids::NOB_RUSH;
         e.move_history = vec![move_ids::NOB_RUSH, move_ids::NOB_RUSH];
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::NOB_SKULL_BASH, 6, 1, 0, &[("vulnerable", 2)]);
+        expect_move(&e, move_ids::NOB_SKULL_BASH, 6, 1, 0, &[(mfx::VULNERABLE, 2)]);
 
         let mut e = make("Lagavulin", 109);
         roll_times(&mut e, 1);
@@ -340,7 +341,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("Sentry", 38);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SENTRY_BEAM, 9, 1, 0, &[("daze", 2)]);
+        expect_move(&e, move_ids::SENTRY_BEAM, 9, 1, 0, &[(mfx::DAZE, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SENTRY_BOLT, 9, 1, 0, &[]);
     }
@@ -382,16 +383,16 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
 
         let e = make("Taskmaster", 60);
-        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[("wound", 1)]);
+        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
 
         let e = make("SphericGuardian", 135);
         expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40, &[]);
 
         let e = make("Snecko", 114);
-        expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[("confused", 1)]);
+        expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
 
         let e = make("BanditBear", 40);
-        expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[("dexterity_down", 2)]);
+        expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[(mfx::DEX_DOWN, 2)]);
 
         let e = make("BanditLeader", 50);
         expect_move(&e, move_ids::BANDIT_MOCK, 0, 0, 0, &[]);
@@ -403,7 +404,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BA_SPAWN_ORBS, 0, 0, 0, &[]);
 
         let e = make("BronzeOrb", 35);
-        expect_move(&e, move_ids::BO_STASIS, 0, 0, 0, &[("stasis", 1)]);
+        expect_move(&e, move_ids::BO_STASIS, 0, 0, 0, &[(mfx::STASIS, 1)]);
 
         let e = make("TorchHead", 35);
         expect_move(&e, move_ids::TORCH_TACKLE, 7, 1, 0, &[]);
@@ -413,9 +414,9 @@ mod enemy_ai_java_parity_tests {
     fn act2_patterns_match_java() {
         let mut e = make("Chosen", 95);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::CHOSEN_HEX, 0, 0, 0, &[("hex", 1)]);
+        expect_move(&e, move_ids::CHOSEN_HEX, 0, 0, 0, &[(mfx::HEX, 1)]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::CHOSEN_DEBILITATE, 10, 1, 0, &[("vulnerable", 2)]);
+        expect_move(&e, move_ids::CHOSEN_DEBILITATE, 10, 1, 0, &[(mfx::VULNERABLE, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::CHOSEN_ZAP, 18, 1, 0, &[]);
 
@@ -440,9 +441,9 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("ShelledParasite", 68);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SP_LIFE_SUCK, 10, 1, 0, &[("heal", 10)]);
+        expect_move(&e, move_ids::SP_LIFE_SUCK, 10, 1, 0, &[(mfx::HEAL, 10)]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SP_FELL, 18, 1, 0, &[("frail", 2)]);
+        expect_move(&e, move_ids::SP_FELL, 18, 1, 0, &[(mfx::FRAIL, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
 
@@ -450,7 +451,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SNAKE_SPORES, 0, 0, 0, &[("weak", 2), ("frail", 2)]);
+        expect_move(&e, move_ids::SNAKE_SPORES, 0, 0, 0, &[(mfx::WEAK, 2), (mfx::FRAIL, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
 
@@ -466,7 +467,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[("strength", 2)]);
+        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
 
@@ -474,7 +475,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[("strength", 2)]);
+        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
 
         let mut e = make("BookOfStabbing", 160);
         roll_times(&mut e, 1);
@@ -488,7 +489,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("GremlinLeader", 140);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 6, &[("strength", 3)]);
+        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
         roll_times(&mut e, 1);
@@ -496,11 +497,11 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("Taskmaster", 60);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[("wound", 1)]);
+        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
 
         let mut e = make("SphericGuardian", 135);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0, &[("frail", 5)]);
+        expect_move(&e, move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0, &[(mfx::FRAIL, 5)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPHER_BIG_ATTACK, 10, 2, 0, &[]);
         roll_times(&mut e, 1);
@@ -508,7 +509,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("Snecko", 114);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SNECKO_TAIL, 8, 1, 0, &[("vulnerable", 2)]);
+        expect_move(&e, move_ids::SNECKO_TAIL, 8, 1, 0, &[(mfx::VULNERABLE, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNECKO_BITE, 15, 1, 0, &[]);
         roll_times(&mut e, 1);
@@ -520,11 +521,11 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BEAR_LUNGE, 9, 1, 9, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[("dexterity_down", 2)]);
+        expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[(mfx::DEX_DOWN, 2)]);
 
         let mut e = make("BanditLeader", 50);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BANDIT_AGONIZE, 10, 1, 0, &[("weak", 2)]);
+        expect_move(&e, move_ids::BANDIT_AGONIZE, 10, 1, 0, &[(mfx::WEAK, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BANDIT_CROSS_SLASH, 15, 1, 0, &[]);
         roll_times(&mut e, 1);
@@ -538,7 +539,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_FLAIL, 7, 2, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BA_BOOST, 0, 0, 9, &[("strength", 3)]);
+        expect_move(&e, move_ids::BA_BOOST, 0, 0, 9, &[(mfx::STRENGTH, 3)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_FLAIL, 7, 2, 0, &[]);
         roll_times(&mut e, 1);
@@ -568,7 +569,7 @@ mod enemy_ai_java_parity_tests {
         let e = make("OrbWalker", 90);
         expect_one_of(&e, &[move_ids::OW_LASER, move_ids::OW_CLAW]);
         match e.move_id {
-            x if x == move_ids::OW_LASER => expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[("burn", 1)]),
+            x if x == move_ids::OW_LASER => expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN, 1)]),
             _ => expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]),
         }
 
@@ -577,7 +578,7 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::THORNS, 3);
 
         let e = make("Repulsor", 29);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[("daze", 2)]);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE, 2)]);
 
         let e = make("Exploder", 30);
         expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
@@ -592,11 +593,11 @@ mod enemy_ai_java_parity_tests {
         expect_one_of(&e, &[move_ids::SG_QUICK_TACKLE, move_ids::SG_CONSTRICT]);
         match e.move_id {
             x if x == move_ids::SG_QUICK_TACKLE => expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::SG_CONSTRICT, 0, 0, 0, &[("constrict", 10)]),
+            _ => expect_move(&e, move_ids::SG_CONSTRICT, 0, 0, 0, &[(mfx::CONSTRICT, 10)]),
         }
 
         let e = make("Maw", 300);
-        expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[("weak", 3), ("frail", 3)]);
+        expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
         expect_status(&e, sid::TURN_COUNT, 1);
 
         let e = make("Transient", 999);
@@ -619,7 +620,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
 
         let e = make("SnakeDagger", 20);
-        expect_move(&e, move_ids::SD_WOUND, 9, 1, 0, &[("wound", 1)]);
+        expect_move(&e, move_ids::SD_WOUND, 9, 1, 0, &[(mfx::WOUND, 1)]);
     }
 
     #[test]
@@ -638,20 +639,20 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[("burn", 1)]);
+        expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
 
         let mut e = make("Spiker", 170);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[("thorns", 2)]);
+        expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[(mfx::THORNS, 2)]);
         expect_status(&e, sid::THORNS, 5);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
         let mut e = make("Repulsor", 29);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[("daze", 2)]);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE, 2)]);
 
         let mut e = make("Exploder", 30);
         roll_times(&mut e, 1);
@@ -665,7 +666,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0, &[("weak", 2), ("vulnerable", 2)]);
+        expect_move(&e, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0, &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::WM_BIG_HIT, 32, 1, 0, &[]);
         writhing_mass_reactive_reroll(&mut e);
@@ -694,7 +695,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MAW_SLAM, 25, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MAW_DROOL, 0, 0, 0, &[("strength", 3)]);
+        expect_move(&e, move_ids::MAW_DROOL, 0, 0, 0, &[(mfx::STRENGTH, 3)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::MAW_NOM, 5, 2, 0, &[]);
 
@@ -718,7 +719,7 @@ mod enemy_ai_java_parity_tests {
         e.move_history = vec![move_ids::GH_COUNT, move_ids::GH_COUNT];
         e.entity.set_status(sid::COUNT, 4);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GH_GLARE, 0, 0, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::GH_GLARE, 0, 0, 0, &[(mfx::WEAK, 1)]);
         expect_status(&e, sid::COUNT, 3);
 
         e.entity.set_status(sid::COUNT, 1);
@@ -737,7 +738,7 @@ mod enemy_ai_java_parity_tests {
         e.move_history = vec![move_ids::NEM_SCYTHE];
         e.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::NEM_BURN, 0, 0, 0, &[("burn", 3)]);
+        expect_move(&e, move_ids::NEM_BURN, 0, 0, 0, &[(mfx::BURN, 3)]);
 
         e.move_id = move_ids::NEM_TRI_ATTACK;
         e.move_history = vec![move_ids::NEM_TRI_ATTACK, move_ids::NEM_TRI_ATTACK];
@@ -750,7 +751,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("Reptomancer", 190);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[("weak", 1)]);
+        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::REPTO_BIG_BITE, 30, 1, 0, &[]);
         roll_times(&mut e, 1);
@@ -764,11 +765,11 @@ mod enemy_ai_java_parity_tests {
     #[test]
     fn act4_initial_states_match_java() {
         let e = make("SpireShield", 200);
-        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[("strength_down", 1)]);
+        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[(mfx::STRENGTH_DOWN, 1)]);
         expect_status(&e, sid::MOVE_COUNT, 0);
 
         let e = make("SpireSpear", 200);
-        expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[("burn", 2)]);
+        expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[(mfx::BURN, 2)]);
         expect_status(&e, sid::MOVE_COUNT, 0);
         expect_status(&e, sid::SKEWER_COUNT, 3);
     }
@@ -779,17 +780,17 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[("strength_down", 1)]);
+        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[(mfx::STRENGTH_DOWN, 1)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SHIELD_SMASH, 34, 1, 0, &[]);
 
         let mut e = make("SpireSpear", 200);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[("strength", 2)]);
+        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPEAR_SKEWER, 10, 3, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[("strength", 2)]);
+        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
     }
 
     #[test]

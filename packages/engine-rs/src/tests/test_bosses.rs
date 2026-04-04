@@ -14,6 +14,7 @@ mod boss_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
 
     use crate::combat_hooks::do_enemy_turns;
+    use crate::combat_types::mfx;
     use crate::status_ids::sid;
     use crate::engine::CombatEngine;
     use crate::enemies::*;
@@ -40,7 +41,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 240);
         assert_eq!(enemy.entity.max_hp, 240);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
-        assert_eq!(enemy.move_block, 9);
+        assert_eq!(enemy.move_block(), 9);
         assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 30);
     }
 
@@ -50,7 +51,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 250);
         assert_eq!(enemy.entity.max_hp, 250);
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_damage, 36);
+        assert_eq!(enemy.move_damage(), 36);
     }
 
     #[test]
@@ -70,7 +71,7 @@ mod boss_java_parity_tests {
         guardian_switch_to_offensive(&mut enemy);
         assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
-        assert_eq!(enemy.move_block, 9);
+        assert_eq!(enemy.move_block(), 9);
     }
 
     #[test]
@@ -79,21 +80,21 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
-        assert_eq!(enemy.move_damage, 32);
+        assert_eq!(enemy.move_damage(), 32);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
-        assert_eq!(enemy.move_effects.get("weak"), Some(&2));
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
-        assert_eq!(enemy.move_damage, 5);
-        assert_eq!(enemy.move_hits, 4);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 4);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
-        assert_eq!(enemy.move_block, 9);
+        assert_eq!(enemy.move_block(), 9);
     }
 
     #[test]
@@ -117,12 +118,12 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("Hexaghost", 250, 250);
         hexaghost_set_divider(&mut enemy, 80);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 6);
 
         hexaghost_set_divider(&mut enemy, 60);
-        assert_eq!(enemy.move_damage, 6);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.move_hits(), 6);
     }
 
     #[test]
@@ -131,25 +132,25 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
-        assert_eq!(enemy.move_damage, 7);
+        assert_eq!(enemy.move_damage(), 7);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
-        assert_eq!(enemy.move_damage, 6);
-        assert_eq!(enemy.move_effects.get("burn"), Some(&1));
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
-        assert_eq!(enemy.move_damage, 5);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
-        assert_eq!(enemy.move_block, 12);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&2));
+        assert_eq!(enemy.move_block(), 12);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
@@ -159,8 +160,8 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
-        assert_eq!(enemy.move_damage, 2);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_damage(), 2);
+        assert_eq!(enemy.move_hits(), 6);
     }
 
     #[test]
@@ -172,14 +173,14 @@ mod boss_java_parity_tests {
         roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
-        assert_eq!(enemy.move_damage, 6);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.move_hits(), 2);
 
         // Sear(2) -> Inflame(3) -> Tackle(4) -> Sear(5) -> Inferno(6)
         roll_times(&mut enemy, 5);
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
-        assert_eq!(enemy.move_damage, 3);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_damage(), 3);
+        assert_eq!(enemy.move_hits(), 6);
     }
 
     #[test]
@@ -188,12 +189,12 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_effects.get("burn"), Some(&2));
+        assert_eq!(enemy.effect(mfx::BURN), Some(2));
 
         // Sear(0) -> Tackle(1) -> Sear(2) -> Inflame(3)
         roll_times(&mut enemy, 3);
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&3));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
     }
 
     #[test]
@@ -202,7 +203,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 140);
         assert_eq!(enemy.entity.max_hp, 140);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
-        assert_eq!(enemy.move_effects.get("slimed"), Some(&3));
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(3));
     }
 
     #[test]
@@ -244,7 +245,7 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("BronzeAutomaton", 320, 320);
         assert_eq!(enemy.entity.hp, 320);
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_damage, 8);
+        assert_eq!(enemy.move_damage(), 8);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
     }
 
@@ -254,19 +255,19 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BA_BOOST);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&3));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BA_HYPER_BEAM);
-        assert_eq!(enemy.move_damage, 45);
+        assert_eq!(enemy.move_damage(), 45);
     }
 
     #[test]
@@ -290,12 +291,12 @@ mod boss_java_parity_tests {
         roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
-        assert_eq!(enemy.move_damage, 21);
+        assert_eq!(enemy.move_damage(), 21);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
-        assert_eq!(enemy.move_block, 18);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&4));
+        assert_eq!(enemy.move_block(), 18);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(4));
     }
 
     #[test]
@@ -303,9 +304,9 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("Champ", 420, 420);
         assert_eq!(enemy.entity.hp, 420);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
-        assert_eq!(enemy.move_damage, 12);
-        assert_eq!(enemy.move_effects.get("frail"), Some(&2));
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
+        assert_eq!(enemy.move_damage(), 12);
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
         assert_eq!(enemy.entity.status(sid::STR_AMT), 2);
         assert_eq!(enemy.entity.status(sid::FORGE_AMT), 5);
         assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 15);
@@ -333,7 +334,7 @@ mod boss_java_parity_tests {
     fn champ_a4_and_a19_scaling_matches_java_expectations() {
         let enemy = create_enemy("Champ", 440, 440);
         assert_eq!(enemy.entity.hp, 440);
-        assert_eq!(enemy.move_damage, 14);
+        assert_eq!(enemy.move_damage(), 14);
         assert_eq!(enemy.entity.status(sid::STR_AMT), 4);
         assert_eq!(enemy.entity.status(sid::FORGE_AMT), 7);
         assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 20);
@@ -349,7 +350,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.entity.max_hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
-        assert_eq!(enemy.move_damage, 20);
+        assert_eq!(enemy.move_damage(), 20);
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
         assert_eq!(enemy.entity.status(sid::PHASE), 1);
         assert_eq!(enemy.entity.status(sid::REGENERATE), 10);
@@ -378,7 +379,7 @@ mod boss_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.status(sid::PHASE), 2);
         assert_eq!(engine.state.enemies[0].entity.hp, 300);
         assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_DARK_ECHO);
-        assert_eq!(engine.state.enemies[0].move_damage, 40);
+        assert_eq!(engine.state.enemies[0].move_damage(), 40);
         assert!(engine.state.enemies[0].move_history.is_empty());
     }
 
@@ -388,12 +389,12 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 250);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
         assert_eq!(enemy.move_id, move_ids::DONU_CIRCLE);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&3));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
-        assert_eq!(enemy.move_damage, 10);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 10);
+        assert_eq!(enemy.move_hits(), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DONU_CIRCLE);
@@ -408,7 +409,7 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
-        assert_eq!(enemy.move_damage, 12);
+        assert_eq!(enemy.move_damage(), 12);
     }
 
     #[test]
@@ -416,13 +417,13 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("Deca", 250, 250);
         assert_eq!(enemy.entity.hp, 250);
         assert_eq!(enemy.move_id, move_ids::DECA_BEAM);
-        assert_eq!(enemy.move_damage, 10);
-        assert_eq!(enemy.move_effects.get("daze"), Some(&2));
+        assert_eq!(enemy.move_damage(), 10);
+        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::DECA_SQUARE);
-        assert_eq!(enemy.move_block, 16);
+        assert_eq!(enemy.move_block(), 16);
     }
 
     #[test]
@@ -431,7 +432,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 265);
         assert_eq!(enemy.entity.max_hp, 265);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
-        assert_eq!(enemy.move_damage, 12);
+        assert_eq!(enemy.move_damage(), 12);
     }
 
     #[test]
@@ -440,8 +441,8 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 456);
         assert_eq!(enemy.entity.max_hp, 456);
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 3);
     }
 
     #[test]
@@ -449,8 +450,8 @@ mod boss_java_parity_tests {
         let enemy = create_enemy("TimeEater", 480, 480);
         assert_eq!(enemy.entity.hp, 480);
         assert_eq!(enemy.entity.max_hp, 480);
-        assert_eq!(enemy.move_damage, 8);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 8);
+        assert_eq!(enemy.move_hits(), 3);
     }
 
     #[test]
@@ -459,19 +460,19 @@ mod boss_java_parity_tests {
         enemy.entity.hp = 200;
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
-        assert_eq!(enemy.move_effects.get("remove_debuffs"), Some(&1));
-        assert_eq!(enemy.move_effects.get("heal_to_half"), Some(&1));
+        assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
+        assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
-        assert_eq!(enemy.move_damage, 26);
-        assert_eq!(enemy.move_effects.get("draw_reduction"), Some(&1));
+        assert_eq!(enemy.move_damage(), 26);
+        assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
-        assert_eq!(enemy.move_block, 20);
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&1));
-        assert_eq!(enemy.move_effects.get("weak"), Some(&1));
+        assert_eq!(enemy.move_block(), 20);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
     }
 
     // ---------------------------------------------------------------------
@@ -484,9 +485,9 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.hp, 750);
         assert_eq!(enemy.entity.max_hp, 750);
         assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
-        assert_eq!(enemy.move_effects.get("weak"), Some(&2));
-        assert_eq!(enemy.move_effects.get("frail"), Some(&2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
         assert_eq!(enemy.entity.status(sid::INVINCIBLE), 300);
         assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
         assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
@@ -510,17 +511,17 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
-        assert_eq!(enemy.move_damage, 2);
-        assert_eq!(enemy.move_hits, 12);
+        assert_eq!(enemy.move_damage(), 2);
+        assert_eq!(enemy.move_hits(), 12);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
-        assert_eq!(enemy.move_damage, 40);
+        assert_eq!(enemy.move_damage(), 40);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&2));
-        assert_eq!(enemy.move_effects.get("artifact"), Some(&2));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
+        assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);

@@ -118,6 +118,20 @@ fn room_type_action_index(room_type: &str) -> Option<usize> {
 fn card_effect_vector(card_id: &str, registry: &CardRegistry) -> [f32; 18] {
     let mut v = [0.0f32; 18];
     let card = registry.get_or_default(card_id);
+    card_effect_vector_from_def(&card, card_id, &mut v);
+    v
+}
+
+/// Encode a card's static data into an 18-dim effect vector from a CardInstance.
+fn card_effect_vector_inst(card_inst: &crate::combat_types::CardInstance, registry: &CardRegistry) -> [f32; 18] {
+    let mut v = [0.0f32; 18];
+    let card_id = registry.card_name(card_inst.def_id);
+    let card = registry.card_def_by_id(card_inst.def_id);
+    card_effect_vector_from_def(card, card_id, &mut v);
+    v
+}
+
+fn card_effect_vector_from_def(card: &crate::cards::CardDef, _card_id: &str, v: &mut [f32; 18]) {
 
     // [0] energy cost normalized
     v[0] = if card.cost == -1 {
@@ -189,8 +203,6 @@ fn card_effect_vector(card_id: &str, registry: &CardRegistry) -> [f32; 18] {
     if card.card_type == CardType::Power && card.base_magic > 0 {
         v[17] = card.base_magic as f32 / 10.0;
     }
-
-    v
 }
 
 // ---------------------------------------------------------------------------
@@ -487,12 +499,15 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     off += 1;
 
     // --- Active powers 20 x 2 (40 dims) ---
-    for (&status_id, &amount) in &player.statuses {
-        if let Some(idx) = power_index(status_id) {
-            if idx < 20 {
-                let base = off + idx * 2;
-                obs[base] = 1.0;
-                obs[base + 1] = amount as f32 / 10.0;
+    for (i, &val) in player.statuses.iter().enumerate() {
+        if val != 0 {
+            let status_id = crate::ids::StatusId(i as u16);
+            if let Some(idx) = power_index(status_id) {
+                if idx < 20 {
+                    let base = off + idx * 2;
+                    obs[base] = 1.0;
+                    obs[base + 1] = val as f32 / 10.0;
+                }
             }
         }
     }
@@ -500,7 +515,7 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
 
     // --- Hand cards: 10 x 18 (180 dims) ---
     for i in 0..state.hand.len().min(10) {
-        let ev = card_effect_vector(&state.hand[i], &registry);
+        let ev = card_effect_vector_inst(&state.hand[i], &registry);
         let base = off + i * 18;
         for j in 0..18 {
             obs[base + j] = ev[j];
@@ -516,8 +531,8 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
         obs[base] = enemy.entity.hp as f32 / emax;
         obs[base + 1] = emax / 300.0;
         obs[base + 2] = enemy.entity.block as f32 / 50.0;
-        obs[base + 3] = enemy.move_damage as f32 / 40.0;
-        obs[base + 4] = enemy.move_hits as f32 / 5.0;
+        obs[base + 3] = enemy.move_damage() as f32 / 40.0;
+        obs[base + 4] = enemy.move_hits() as f32 / 5.0;
         obs[base + 5] = if enemy.entity.hp > 0 { 1.0 } else { 0.0 };
 
         // Enemy statuses
@@ -540,8 +555,8 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
         let mut draw_blk = 0.0f32;
         let mut draw_stance = 0.0f32;
 
-        for card_id in draw {
-            let ev = card_effect_vector(card_id, &registry);
+        for card_inst in draw {
+            let ev = card_effect_vector_inst(card_inst, &registry);
             if ev[8] > 0.0 { draw_atk += 1.0; }
             if ev[9] > 0.0 { draw_skl += 1.0; }
             draw_dmg += ev[1];
@@ -565,7 +580,7 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     obs[off] = discard.len() as f32 / 30.0;
     if !discard.is_empty() {
         let disc_dmg: f32 = discard.iter()
-            .map(|c| card_effect_vector(c, &registry)[1])
+            .map(|c| card_effect_vector_inst(c, &registry)[1])
             .sum();
         obs[off + 1] = disc_dmg / discard.len().max(1) as f32;
     }

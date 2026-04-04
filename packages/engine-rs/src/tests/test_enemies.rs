@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod enemy_tests {
     use crate::enemies::*;
+    use crate::combat_types::mfx;
     use crate::status_ids::sid;
     use crate::enemies::move_ids::*;
 
@@ -14,23 +15,23 @@ mod enemy_tests {
     #[test] fn jw_first_move_chomp() {
         let e = create_enemy("JawWorm", 44, 44);
         assert_eq!(e.move_id, JW_CHOMP);
-        assert_eq!(e.move_damage, 11);
-        assert_eq!(e.move_hits, 1);
+        assert_eq!(e.move_damage(), 11);
+        assert_eq!(e.move_hits(), 1);
     }
     #[test] fn jw_after_chomp_bellow() {
         let mut e = create_enemy("JawWorm", 44, 44);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, JW_BELLOW);
-        assert_eq!(e.move_block, 6);
-        assert_eq!(*e.move_effects.get("strength").unwrap(), 3);
+        assert_eq!(e.move_block(), 6);
+        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
     #[test] fn jw_after_bellow_thrash() {
         let mut e = create_enemy("JawWorm", 44, 44);
         roll_next_move(&mut e); // -> Bellow
         roll_next_move(&mut e); // -> Thrash
         assert_eq!(e.move_id, JW_THRASH);
-        assert_eq!(e.move_damage, 7);
-        assert_eq!(e.move_block, 5);
+        assert_eq!(e.move_damage(), 7);
+        assert_eq!(e.move_block(), 5);
     }
     #[test] fn jw_after_thrash_chomp() {
         let mut e = create_enemy("JawWorm", 44, 44);
@@ -54,7 +55,7 @@ mod enemy_tests {
     #[test] fn jw_bellow_has_no_damage() {
         let mut e = create_enemy("JawWorm", 44, 44);
         roll_next_move(&mut e); // -> Bellow
-        assert_eq!(e.move_damage, 0);
+        assert_eq!(e.move_damage(), 0);
     }
 
     // ========== Cultist ==========
@@ -62,13 +63,13 @@ mod enemy_tests {
     #[test] fn cult_first_incantation() {
         let e = create_enemy("Cultist", 50, 50);
         assert_eq!(e.move_id, CULT_INCANTATION);
-        assert_eq!(e.move_damage, 0);
+        assert_eq!(e.move_damage(), 0);
     }
     #[test] fn cult_second_dark_strike() {
         let mut e = create_enemy("Cultist", 50, 50);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, CULT_DARK_STRIKE);
-        assert_eq!(e.move_damage, 6);
+        assert_eq!(e.move_damage(), 6);
     }
     #[test] fn cult_always_dark_strike_after() {
         let mut e = create_enemy("Cultist", 50, 50);
@@ -79,7 +80,7 @@ mod enemy_tests {
     }
     #[test] fn cult_ritual_effect() {
         let e = create_enemy("Cultist", 50, 50);
-        assert_eq!(*e.move_effects.get("ritual").unwrap(), 3);
+        assert_eq!(e.effect(mfx::RITUAL).unwrap(), 3);
     }
 
     // ========== FungiBeast ==========
@@ -87,7 +88,7 @@ mod enemy_tests {
     #[test] fn fb_first_bite() {
         let e = create_enemy("FungiBeast", 24, 24);
         assert_eq!(e.move_id, FB_BITE);
-        assert_eq!(e.move_damage, 6);
+        assert_eq!(e.move_damage(), 6);
     }
     #[test] fn fb_spore_cloud_on_death() {
         let e = create_enemy("FungiBeast", 24, 24);
@@ -103,7 +104,7 @@ mod enemy_tests {
         let mut e = create_enemy("FungiBeast", 24, 24);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
-        assert_eq!(*e.move_effects.get("strength").unwrap(), 3);
+        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
     #[test] fn fb_after_grow_bite() {
         let mut e = create_enemy("FungiBeast", 24, 24);
@@ -133,7 +134,7 @@ mod enemy_tests {
         let mut e = create_enemy("RedLouse", 12, 12);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
-        assert_eq!(*e.move_effects.get("strength").unwrap(), 3);
+        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
 
     // ========== Green Louse ==========
@@ -151,7 +152,7 @@ mod enemy_tests {
         roll_next_move(&mut e);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, LOUSE_SPIT_WEB);
-        assert_eq!(*e.move_effects.get("weak").unwrap(), 2);
+        assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
     }
 
     // ========== Blue Slaver ==========
@@ -159,7 +160,7 @@ mod enemy_tests {
     #[test] fn bs_first_stab() {
         let e = create_enemy("SlaverBlue", 48, 48);
         assert_eq!(e.move_id, BS_STAB);
-        assert_eq!(e.move_damage, 12);
+        assert_eq!(e.move_damage(), 12);
     }
     #[test] fn bs_no_three_stabs() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
@@ -171,13 +172,13 @@ mod enemy_tests {
         let mut e = create_enemy("SlaverBlue", 48, 48);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
-        assert_eq!(*e.move_effects.get("weak").unwrap(), 1);
+        assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
     #[test] fn bs_rake_damage() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
-        assert_eq!(e.move_damage, 7);
+        assert_eq!(e.move_damage(), 7);
     }
 
     // ========== Red Slaver ==========
@@ -185,20 +186,20 @@ mod enemy_tests {
     #[test] fn rs_first_stab() {
         let e = create_enemy("SlaverRed", 48, 48);
         assert_eq!(e.move_id, RS_STAB);
-        assert_eq!(e.move_damage, 13);
+        assert_eq!(e.move_damage(), 13);
     }
     #[test] fn rs_entangle_once() {
         let mut e = create_enemy("SlaverRed", 48, 48);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, RS_ENTANGLE);
-        assert_eq!(*e.move_effects.get("entangle").unwrap(), 1);
+        assert_eq!(e.effect(mfx::ENTANGLE).unwrap(), 1);
     }
     #[test] fn rs_scrape_vuln() {
         let mut e = create_enemy("SlaverRed", 48, 48);
         roll_next_move(&mut e); // entangle
         roll_next_move(&mut e); // scrape or stab
         if e.move_id == RS_SCRAPE {
-            assert_eq!(*e.move_effects.get("vulnerable").unwrap(), 1);
+            assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 1);
         }
     }
 
@@ -207,7 +208,7 @@ mod enemy_tests {
     #[test] fn acid_s_first_tackle() {
         let e = create_enemy("AcidSlime_S", 10, 10);
         assert_eq!(e.move_id, AS_TACKLE);
-        assert_eq!(e.move_damage, 3);
+        assert_eq!(e.move_damage(), 3);
     }
     #[test] fn acid_s_alternates() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
@@ -219,7 +220,7 @@ mod enemy_tests {
     #[test] fn acid_s_lick_weak() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
         roll_next_move(&mut e);
-        assert_eq!(*e.move_effects.get("weak").unwrap(), 1);
+        assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
 
     // ========== Acid Slime M ==========
@@ -227,11 +228,11 @@ mod enemy_tests {
     #[test] fn acid_m_first() {
         let e = create_enemy("AcidSlime_M", 28, 28);
         assert_eq!(e.move_id, AS_CORROSIVE_SPIT);
-        assert_eq!(*e.move_effects.get("slimed").unwrap(), 1);
+        assert_eq!(e.effect(mfx::SLIMED).unwrap(), 1);
     }
     #[test] fn acid_m_damage() {
         let e = create_enemy("AcidSlime_M", 28, 28);
-        assert_eq!(e.move_damage, 7);
+        assert_eq!(e.move_damage(), 7);
     }
 
     // ========== Acid Slime L ==========
@@ -239,8 +240,8 @@ mod enemy_tests {
     #[test] fn acid_l_damage() {
         let e = create_enemy("AcidSlime_L", 65, 65);
         assert_eq!(e.move_id, AS_CORROSIVE_SPIT);
-        assert_eq!(e.move_damage, 11);
-        assert_eq!(*e.move_effects.get("slimed").unwrap(), 2);
+        assert_eq!(e.move_damage(), 11);
+        assert_eq!(e.effect(mfx::SLIMED).unwrap(), 2);
     }
 
     // ========== Spike Slime S ==========
@@ -248,7 +249,7 @@ mod enemy_tests {
     #[test] fn spike_s_tackle_only() {
         let e = create_enemy("SpikeSlime_S", 10, 10);
         assert_eq!(e.move_id, SS_TACKLE);
-        assert_eq!(e.move_damage, 5);
+        assert_eq!(e.move_damage(), 5);
     }
     #[test] fn spike_s_stays_tackle() {
         let mut e = create_enemy("SpikeSlime_S", 10, 10);
@@ -261,14 +262,14 @@ mod enemy_tests {
     #[test] fn spike_m_first() {
         let e = create_enemy("SpikeSlime_M", 28, 28);
         assert_eq!(e.move_id, SS_TACKLE);
-        assert_eq!(e.move_damage, 8);
+        assert_eq!(e.move_damage(), 8);
     }
     #[test] fn spike_m_no_three_tackles() {
         let mut e = create_enemy("SpikeSlime_M", 28, 28);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, SS_LICK);
-        assert_eq!(*e.move_effects.get("frail").unwrap(), 1);
+        assert_eq!(e.effect(mfx::FRAIL).unwrap(), 1);
     }
 
     // ========== Spike Slime L ==========
@@ -276,14 +277,14 @@ mod enemy_tests {
     #[test] fn spike_l_first() {
         let e = create_enemy("SpikeSlime_L", 64, 64);
         assert_eq!(e.move_id, SS_TACKLE);
-        assert_eq!(e.move_damage, 16);
+        assert_eq!(e.move_damage(), 16);
     }
     #[test] fn spike_l_frail_2() {
         let mut e = create_enemy("SpikeSlime_L", 64, 64);
         roll_next_move(&mut e);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, SS_LICK);
-        assert_eq!(*e.move_effects.get("frail").unwrap(), 2);
+        assert_eq!(e.effect(mfx::FRAIL).unwrap(), 2);
     }
 
     // ========== Sentry ==========
@@ -291,13 +292,13 @@ mod enemy_tests {
     #[test] fn sentry_first_bolt() {
         let e = create_enemy("Sentry", 38, 38);
         assert_eq!(e.move_id, SENTRY_BOLT);
-        assert_eq!(e.move_damage, 9);
+        assert_eq!(e.move_damage(), 9);
     }
     #[test] fn sentry_alternates_bolt_beam() {
         let mut e = create_enemy("Sentry", 38, 38);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, SENTRY_BEAM);
-        assert_eq!(*e.move_effects.get("daze").unwrap(), 2);
+        assert_eq!(e.effect(mfx::DAZE).unwrap(), 2);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, SENTRY_BOLT);
         roll_next_move(&mut e);
@@ -306,7 +307,7 @@ mod enemy_tests {
     #[test] fn sentry_beam_damage() {
         let mut e = create_enemy("Sentry", 38, 38);
         roll_next_move(&mut e);
-        assert_eq!(e.move_damage, 9);
+        assert_eq!(e.move_damage(), 9);
     }
 
     // ========== The Guardian ==========
@@ -314,7 +315,7 @@ mod enemy_tests {
     #[test] fn guard_first_charging() {
         let e = create_enemy("TheGuardian", 240, 240);
         assert_eq!(e.move_id, GUARD_CHARGING_UP);
-        assert_eq!(e.move_block, 9);
+        assert_eq!(e.move_block(), 9);
     }
     #[test] fn guard_mode_shift_threshold() {
         let e = create_enemy("TheGuardian", 240, 240);
@@ -324,15 +325,15 @@ mod enemy_tests {
         let mut e = create_enemy("TheGuardian", 240, 240);
         roll_next_move(&mut e); // -> Fierce Bash
         assert_eq!(e.move_id, GUARD_FIERCE_BASH);
-        assert_eq!(e.move_damage, 32);
+        assert_eq!(e.move_damage(), 32);
         roll_next_move(&mut e); // -> Vent Steam
         assert_eq!(e.move_id, GUARD_VENT_STEAM);
-        assert_eq!(*e.move_effects.get("weak").unwrap(), 2);
-        assert_eq!(*e.move_effects.get("vulnerable").unwrap(), 2);
+        assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
+        assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 2);
         roll_next_move(&mut e); // -> Whirlwind
         assert_eq!(e.move_id, GUARD_WHIRLWIND);
-        assert_eq!(e.move_damage, 5);
-        assert_eq!(e.move_hits, 4);
+        assert_eq!(e.move_damage(), 5);
+        assert_eq!(e.move_hits(), 4);
         roll_next_move(&mut e); // -> Charging Up
         assert_eq!(e.move_id, GUARD_CHARGING_UP);
     }
@@ -353,8 +354,8 @@ mod enemy_tests {
         assert_eq!(e.move_id, GUARD_ROLL_ATTACK);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, GUARD_TWIN_SLAM);
-        assert_eq!(e.move_hits, 2);
-        assert_eq!(e.move_damage, 8);
+        assert_eq!(e.move_hits(), 2);
+        assert_eq!(e.move_damage(), 8);
     }
     #[test] fn guard_switch_back_to_offensive() {
         let mut e = create_enemy("TheGuardian", 240, 240);
@@ -374,32 +375,32 @@ mod enemy_tests {
         let mut e = create_enemy("Hexaghost", 250, 250);
         roll_next_move(&mut e);
         assert_eq!(e.move_id, HEX_DIVIDER);
-        assert_eq!(e.move_hits, 6);
+        assert_eq!(e.move_hits(), 6);
     }
     #[test] fn hex_full_7_cycle() {
         let mut e = create_enemy("Hexaghost", 250, 250);
         roll_next_move(&mut e); // Divider
         roll_next_move(&mut e); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
-        assert_eq!(e.move_damage, 6);
-        assert_eq!(*e.move_effects.get("burn").unwrap(), 1);
+        assert_eq!(e.move_damage(), 6);
+        assert_eq!(e.effect(mfx::BURN).unwrap(), 1);
         roll_next_move(&mut e); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
-        assert_eq!(e.move_hits, 2);
+        assert_eq!(e.move_hits(), 2);
         roll_next_move(&mut e); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
         roll_next_move(&mut e); // Inflame
         assert_eq!(e.move_id, HEX_INFLAME);
-        assert_eq!(e.move_block, 12);
-        assert_eq!(*e.move_effects.get("strength").unwrap(), 2);
+        assert_eq!(e.move_block(), 12);
+        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 2);
         roll_next_move(&mut e); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
         roll_next_move(&mut e); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
         roll_next_move(&mut e); // Inferno
         assert_eq!(e.move_id, HEX_INFERNO);
-        assert_eq!(e.move_hits, 6);
-        assert_eq!(*e.move_effects.get("burn_upgrade").unwrap(), 1);
+        assert_eq!(e.move_hits(), 6);
+        assert_eq!(e.effect(mfx::BURN_UPGRADE).unwrap(), 1);
     }
     #[test] fn hex_cycle_repeats() {
         let mut e = create_enemy("Hexaghost", 250, 250);
@@ -414,7 +415,7 @@ mod enemy_tests {
     #[test] fn sb_first_sticky() {
         let e = create_enemy("SlimeBoss", 140, 140);
         assert_eq!(e.move_id, SB_STICKY);
-        assert_eq!(*e.move_effects.get("slimed").unwrap(), 3);
+        assert_eq!(e.effect(mfx::SLIMED).unwrap(), 3);
     }
     #[test] fn sb_full_cycle() {
         let mut e = create_enemy("SlimeBoss", 140, 140);
@@ -422,7 +423,7 @@ mod enemy_tests {
         assert_eq!(e.move_id, SB_PREP_SLAM);
         roll_next_move(&mut e); // Slam
         assert_eq!(e.move_id, SB_SLAM);
-        assert_eq!(e.move_damage, 35);
+        assert_eq!(e.move_damage(), 35);
         roll_next_move(&mut e); // Sticky
         assert_eq!(e.move_id, SB_STICKY);
     }
@@ -466,7 +467,7 @@ mod enemy_tests {
             roll_next_move(&mut e);
             if e.move_id == NOB_SKULL_BASH {
                 found = true;
-                assert!(e.move_effects.contains_key("vulnerable"));
+                assert!(e.effect(mfx::VULNERABLE).is_some());
                 break;
             }
         }
@@ -501,30 +502,31 @@ mod enemy_tests {
     #[test] fn book_first_stab() {
         let e = create_enemy("BookOfStabbing", 162, 162);
         assert_eq!(e.move_id, BOOK_STAB);
-        assert!(e.move_hits >= 2);
+        assert!(e.move_hits() >= 2);
     }
     #[test] fn book_stab_count_increases() {
         let mut e = create_enemy("BookOfStabbing", 162, 162);
-        let initial_hits = e.move_hits;
+        let initial_hits = e.move_hits();
         roll_next_move(&mut e);
         // After first turn, stab count should increase
         if e.move_id == BOOK_STAB {
-            assert!(e.move_hits >= initial_hits, "Book stab count should not decrease");
+            assert!(e.move_hits() >= initial_hits, "Book stab count should not decrease");
         }
     }
 
     // ========== Nemesis (Elite) ==========
 
-    #[test] fn nemesis_has_intangible() {
+    #[test] fn nemesis_intangible_applied_at_turn_start() {
+        // Nemesis doesn't start with Intangible — it's applied at enemy turn start
         let e = create_enemy("Nemesis", 185, 185);
-        // Nemesis uses intangible pattern
-        assert!(e.entity.status(sid::INTANGIBLE) > 0 || true); // May not start with it
+        assert_eq!(e.entity.status(sid::INTANGIBLE), 0,
+            "Nemesis should not start with Intangible (applied per turn)");
     }
     #[test] fn nemesis_scythe_attack() {
         let mut e = create_enemy("Nemesis", 185, 185);
         let mut has_scythe = false;
         for _ in 0..6 {
-            if e.move_damage >= 40 {
+            if e.move_damage() >= 40 {
                 has_scythe = true;
                 break;
             }
@@ -546,7 +548,7 @@ mod enemy_tests {
             roll_next_move(&mut e);
             if e.move_id == BA_HYPER_BEAM {
                 has_hyper = true;
-                assert!(e.move_damage >= 45, "Hyper Beam should deal 45+ damage");
+                assert!(e.move_damage() >= 45, "Hyper Beam should deal 45+ damage");
                 break;
             }
         }
@@ -558,7 +560,7 @@ mod enemy_tests {
     #[test] fn awakened_first_slash() {
         let e = create_enemy("AwakenedOne", 300, 300);
         assert_eq!(e.move_id, AO_SLASH);
-        assert_eq!(e.move_damage, 20);
+        assert_eq!(e.move_damage(), 20);
     }
     #[test] fn awakened_has_curiosity() {
         let e = create_enemy("AwakenedOne", 300, 300);
@@ -585,7 +587,7 @@ mod enemy_tests {
         let mut e = create_enemy("CorruptHeart", 750, 750);
         let mut has_blood_shots = false;
         for _ in 0..6 {
-            if e.move_hits >= 12 || e.move_id == HEART_BLOOD_SHOTS {
+            if e.move_hits() >= 12 || e.move_id == HEART_BLOOD_SHOTS {
                 has_blood_shots = true;
                 break;
             }
@@ -598,7 +600,7 @@ mod enemy_tests {
 
     #[test] fn unknown_enemy_defaults() {
         let e = create_enemy("SomeBoss", 100, 100);
-        assert_eq!(e.move_damage, 6);
+        assert_eq!(e.move_damage(), 6);
     }
 
     // ========== Move history tracking ==========

@@ -1,15 +1,15 @@
 //! Combat state types — mirrors packages/engine/state/combat.py.
 //!
-//! Design: all state is owned, Clone for MCTS tree copies. HashMap<String, i32>
-//! for statuses matches the Python dict approach.
+//! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
+//! [i16; 256] array indexed by StatusId for O(1) access and fast cloning.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use smallvec::SmallVec;
 
 use crate::cards::CardType;
+use crate::combat_types::{CardInstance, Intent, mfx};
 use crate::ids::StatusId;
 use crate::orbs::OrbSlots;
 use crate::status_ids::sid;
@@ -68,13 +68,13 @@ impl Stance {
 // EntityState — shared between player and enemies
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EntityState {
     pub hp: i32,
     pub max_hp: i32,
     pub block: i32,
-    /// All statuses as a flat map: StatusId -> value.
-    pub statuses: FxHashMap<StatusId, i32>,
+    /// All statuses as a flat array indexed by StatusId. Zero means absent.
+    pub statuses: [i16; 256],
 }
 
 impl EntityState {
@@ -83,34 +83,34 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: FxHashMap::default(),
+            statuses: [0; 256],
         }
     }
 
     // -- Convenience accessors (match Python properties) --
 
     pub fn strength(&self) -> i32 {
-        self.statuses.get(&sid::STRENGTH).copied().unwrap_or(0)
+        self.statuses[sid::STRENGTH.0 as usize] as i32
     }
 
     pub fn dexterity(&self) -> i32 {
-        self.statuses.get(&sid::DEXTERITY).copied().unwrap_or(0)
+        self.statuses[sid::DEXTERITY.0 as usize] as i32
     }
 
     pub fn focus(&self) -> i32 {
-        self.statuses.get(&sid::FOCUS).copied().unwrap_or(0)
+        self.statuses[sid::FOCUS.0 as usize] as i32
     }
 
     pub fn is_weak(&self) -> bool {
-        self.statuses.get(&sid::WEAKENED).copied().unwrap_or(0) > 0
+        self.statuses[sid::WEAKENED.0 as usize] > 0
     }
 
     pub fn is_vulnerable(&self) -> bool {
-        self.statuses.get(&sid::VULNERABLE).copied().unwrap_or(0) > 0
+        self.statuses[sid::VULNERABLE.0 as usize] > 0
     }
 
     pub fn is_frail(&self) -> bool {
-        self.statuses.get(&sid::FRAIL).copied().unwrap_or(0) > 0
+        self.statuses[sid::FRAIL.0 as usize] > 0
     }
 
     pub fn is_dead(&self) -> bool {
@@ -119,22 +119,18 @@ impl EntityState {
 
     /// Get a status value, defaulting to 0.
     pub fn status(&self, id: StatusId) -> i32 {
-        self.statuses.get(&id).copied().unwrap_or(0)
+        self.statuses[id.0 as usize] as i32
     }
 
-    /// Set a status value. Removes the key if value is 0.
+    /// Set a status value.
     pub fn set_status(&mut self, id: StatusId, value: i32) {
-        if value == 0 {
-            self.statuses.remove(&id);
-        } else {
-            self.statuses.insert(id, value);
-        }
+        self.statuses[id.0 as usize] = value as i16;
     }
 
     /// Add to a status value.
     pub fn add_status(&mut self, id: StatusId, amount: i32) {
-        let current = self.status(id);
-        self.set_status(id, current + amount);
+        let idx = id.0 as usize;
+        self.statuses[idx] = (self.statuses[idx] as i32 + amount) as i16;
     }
 }
 
@@ -142,18 +138,16 @@ impl EntityState {
 // EnemyCombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
     pub name: String,
     /// Current intended move
     pub move_id: i32,
-    pub move_damage: i32,
-    pub move_hits: i32,
-    pub move_block: i32,
-    /// Simple effects map: "weak" -> 2, "vulnerable" -> 1, etc.
-    pub move_effects: HashMap<String, i32>,
+    pub intent: Intent,
+    /// Compact move effects: (MoveEffectId, amount)
+    pub move_effects: SmallVec<[(u8, i16); 4]>,
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
@@ -166,10 +160,8 @@ impl EnemyCombatState {
             id: id.to_string(),
             name: id.to_string(),
             move_id: -1,
-            move_damage: 0,
-            move_hits: 1,
-            move_block: 0,
-            move_effects: HashMap::new(),
+            intent: Intent::Unknown,
+            move_effects: SmallVec::new(),
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
@@ -187,20 +179,88 @@ impl EnemyCombatState {
     }
 
     pub fn is_attacking(&self) -> bool {
-        self.move_damage > 0
+        matches!(self.intent,
+            Intent::Attack { .. } | Intent::AttackBlock { .. } |
+            Intent::AttackBuff { .. } | Intent::AttackDebuff { .. })
     }
 
     pub fn total_incoming_damage(&self) -> i32 {
-        self.move_damage * self.move_hits
+        match self.intent {
+            Intent::Attack { damage, hits, .. } |
+            Intent::AttackBlock { damage, hits, .. } |
+            Intent::AttackBuff { damage, hits, .. } |
+            Intent::AttackDebuff { damage, hits, .. } => {
+                damage as i32 * hits as i32
+            }
+            _ => 0,
+        }
     }
 
-    /// Set the enemy's next move.
+    pub fn move_damage(&self) -> i32 {
+        match self.intent {
+            Intent::Attack { damage, .. } |
+            Intent::AttackBlock { damage, .. } |
+            Intent::AttackBuff { damage, .. } |
+            Intent::AttackDebuff { damage, hits: _, .. } => damage as i32,
+            _ => 0,
+        }
+    }
+
+    pub fn move_hits(&self) -> i32 {
+        match self.intent {
+            Intent::Attack { hits, .. } |
+            Intent::AttackBlock { hits, .. } |
+            Intent::AttackBuff { hits, .. } |
+            Intent::AttackDebuff { hits, .. } => hits as i32,
+            _ => 0,
+        }
+    }
+
+    pub fn move_block(&self) -> i32 {
+        match self.intent {
+            Intent::Block { amount, .. } |
+            Intent::AttackBlock { block: amount, .. } |
+            Intent::DefendBuff { block: amount, .. } => amount as i32,
+            _ => 0,
+        }
+    }
+
+    /// Set the enemy's next move (clears effects).
     pub fn set_move(&mut self, move_id: i32, damage: i32, hits: i32, block: i32) {
         self.move_id = move_id;
-        self.move_damage = damage;
-        self.move_hits = hits;
-        self.move_block = block;
         self.move_effects.clear();
+        // Convert to Intent based on damage/block
+        if damage > 0 && block > 0 {
+            self.intent = Intent::AttackBlock {
+                damage: damage as i16, hits: hits as u8, block: block as i16, effects: 0
+            };
+        } else if damage > 0 {
+            self.intent = Intent::Attack {
+                damage: damage as i16, hits: hits as u8, effects: 0
+            };
+        } else if block > 0 {
+            self.intent = Intent::Block { amount: block as i16, effects: 0 };
+        } else {
+            self.intent = Intent::Buff { effects: 0 };
+        }
+    }
+
+    /// Add a move effect (replaces HashMap insert).
+    pub fn add_effect(&mut self, effect_id: u8, amount: i16) {
+        for entry in self.move_effects.iter_mut() {
+            if entry.0 == effect_id {
+                entry.1 = amount;
+                return;
+            }
+        }
+        self.move_effects.push((effect_id, amount));
+    }
+
+    /// Get a move effect amount (replaces HashMap get).
+    pub fn effect(&self, effect_id: u8) -> Option<i16> {
+        self.move_effects.iter()
+            .find(|e| e.0 == effect_id)
+            .map(|e| e.1)
     }
 }
 
@@ -208,7 +268,7 @@ impl EnemyCombatState {
 // CombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CombatState {
     // Player
     pub player: EntityState,
@@ -216,11 +276,11 @@ pub struct CombatState {
     pub max_energy: i32,
     pub stance: Stance,
 
-    // Card piles (card IDs as strings, "Strike+" means upgraded)
-    pub hand: Vec<String>,
-    pub draw_pile: Vec<String>,
-    pub discard_pile: Vec<String>,
-    pub exhaust_pile: Vec<String>,
+    // Card piles (compact CardInstance, 4 bytes each)
+    pub hand: Vec<CardInstance>,
+    pub draw_pile: Vec<CardInstance>,
+    pub discard_pile: Vec<CardInstance>,
+    pub exhaust_pile: Vec<CardInstance>,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
@@ -255,14 +315,12 @@ pub struct CombatState {
     pub relics: Vec<String>,
 
     /// Cards explicitly retained this turn (e.g. by Meditate).
-    /// These survive the end-of-turn discard even without the "retain" effect.
-    pub retained_cards: Vec<String>,
+    /// Now tracked via FLAG_RETAINED on CardInstance; this Vec is kept for Establishment cost tracking.
+    pub retained_cards: Vec<CardInstance>,
 
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
-    /// Card replay tracking (Double Tap / Burst). Engine.rs consumes this.
-    pub replay_pending: Option<String>,
 }
 
 impl CombatState {
@@ -271,7 +329,7 @@ impl CombatState {
         player_hp: i32,
         player_max_hp: i32,
         enemies: Vec<EnemyCombatState>,
-        deck: Vec<String>,
+        deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
         Self {
@@ -301,7 +359,6 @@ impl CombatState {
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
-            replay_pending: None,
         }
     }
 
@@ -355,6 +412,7 @@ pub struct PyCombatState {
 impl PyCombatState {
     /// Convert the state to a Python dict for inspection.
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let registry = crate::cards::CardRegistry::new();
         let dict = PyDict::new_bound(py);
         dict.set_item("player_hp", self.inner.player.hp)?;
         dict.set_item("player_max_hp", self.inner.player.max_hp)?;
@@ -367,7 +425,9 @@ impl PyCombatState {
         dict.set_item("player_won", self.inner.player_won)?;
 
         // Hand
-        let hand: Vec<&str> = self.inner.hand.iter().map(|s| s.as_str()).collect();
+        let hand: Vec<String> = self.inner.hand.iter()
+            .map(|c| registry.card_name(c.def_id).to_string())
+            .collect();
         dict.set_item("hand", hand)?;
 
         // Draw/discard sizes
@@ -383,7 +443,7 @@ impl PyCombatState {
             .map(|e| {
                 format!(
                     "{}(hp={}/{}, move_dmg={}, move_hits={})",
-                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage, e.move_hits
+                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage(), e.move_hits()
                 )
             })
             .collect();
@@ -391,9 +451,11 @@ impl PyCombatState {
 
         // Player statuses
         let statuses = PyDict::new_bound(py);
-        for (&id, &val) in &self.inner.player.statuses {
-            let name = crate::status_ids::status_name(id);
-            statuses.set_item(name, val)?;
+        for (i, &val) in self.inner.player.statuses.iter().enumerate() {
+            if val != 0 {
+                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                statuses.set_item(name, val as i32)?;
+            }
         }
         dict.set_item("player_statuses", statuses)?;
 

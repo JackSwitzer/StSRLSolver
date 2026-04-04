@@ -1,4 +1,5 @@
 use crate::state::EnemyCombatState;
+use crate::combat_types::mfx;
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -10,7 +11,7 @@ use crate::status_ids::sid;
 pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::JW_CHOMP) {
         enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     } else if last_move(enemy, move_ids::JW_BELLOW) {
         enemy.set_move(move_ids::JW_THRASH, 7, 1, 5);
     } else if last_move(enemy, move_ids::JW_THRASH) {
@@ -27,7 +28,7 @@ pub(super) fn roll_cultist(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::FB_BITE) {
         enemy.set_move(move_ids::FB_GROW, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     } else if last_move(enemy, move_ids::FB_GROW) {
         enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
     } else {
@@ -38,7 +39,7 @@ pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
-        enemy.move_effects.insert("strength".to_string(), 3);
+        enemy.add_effect(mfx::STRENGTH, 3);
     } else if last_move(enemy, move_ids::LOUSE_GROW) {
         enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
     } else {
@@ -49,7 +50,7 @@ pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
-        enemy.move_effects.insert("weak".to_string(), 2);
+        enemy.add_effect(mfx::WEAK, 2);
     } else if last_move(enemy, move_ids::LOUSE_SPIT_WEB) {
         enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
     } else {
@@ -60,7 +61,7 @@ pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::BS_STAB) {
         enemy.set_move(move_ids::BS_RAKE, 7, 1, 0);
-        enemy.move_effects.insert("weak".to_string(), 1);
+        enemy.add_effect(mfx::WEAK, 1);
     } else if last_move(enemy, move_ids::BS_RAKE) {
         enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
     } else {
@@ -76,21 +77,21 @@ pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState) {
 
     if !used_entangle && !enemy.move_history.is_empty() {
         enemy.set_move(move_ids::RS_ENTANGLE, 0, 0, 0);
-        enemy.move_effects.insert("entangle".to_string(), 1);
+        enemy.add_effect(mfx::ENTANGLE, 1);
     } else if last_move(enemy, move_ids::RS_ENTANGLE)
         || last_two_moves(enemy, move_ids::RS_SCRAPE)
     {
         enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
     } else {
         enemy.set_move(move_ids::RS_SCRAPE, 8, 1, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 1);
+        enemy.add_effect(mfx::VULNERABLE, 1);
     }
 }
 
 pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
-        enemy.move_effects.insert("weak".to_string(), 1);
+        enemy.add_effect(mfx::WEAK, 1);
     } else {
         enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
     }
@@ -101,13 +102,13 @@ pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::AS_TACKLE, 10, 1, 0);
     } else if last_two_moves(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 1);
+        enemy.add_effect(mfx::SLIMED, 1);
     } else if last_move(enemy, move_ids::AS_LICK) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 1);
+        enemy.add_effect(mfx::SLIMED, 1);
     } else {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 1);
+        enemy.add_effect(mfx::SLIMED, 1);
     }
 }
 
@@ -116,10 +117,10 @@ pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
     } else if last_two_moves(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 2);
+        enemy.add_effect(mfx::SLIMED, 2);
     } else if last_move(enemy, move_ids::AS_LICK) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
-        enemy.move_effects.insert("slimed".to_string(), 2);
+        enemy.add_effect(mfx::SLIMED, 2);
     } else {
         enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
     }
@@ -132,7 +133,7 @@ pub(super) fn roll_spike_slime_s(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::SS_TACKLE) {
         enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
-        enemy.move_effects.insert("frail".to_string(), 1);
+        enemy.add_effect(mfx::FRAIL, 1);
     } else if last_move(enemy, move_ids::SS_LICK) {
         enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
     } else {
@@ -143,7 +144,7 @@ pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState) {
     if last_two_moves(enemy, move_ids::SS_TACKLE) {
         enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
-        enemy.move_effects.insert("frail".to_string(), 2);
+        enemy.add_effect(mfx::FRAIL, 2);
     } else if last_move(enemy, move_ids::SS_LICK) {
         enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
     } else {
@@ -169,7 +170,7 @@ pub(super) fn roll_looter(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_gremlin_simple(enemy: &mut EnemyCombatState, dmg: i32, weak: i32) {
     enemy.set_move(move_ids::GREMLIN_ATTACK, dmg, 1, 0);
     if weak > 0 {
-        enemy.move_effects.insert("weak".to_string(), weak);
+        enemy.add_effect(mfx::WEAK, weak as i16);
     }
 }
 
@@ -188,7 +189,7 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
     } else {
         enemy.set_move(move_ids::NOB_SKULL_BASH, 6, 1, 0);
-        enemy.move_effects.insert("vulnerable".to_string(), 2);
+        enemy.add_effect(mfx::VULNERABLE, 2);
     }
 }
 
@@ -207,8 +208,8 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
         // Awake: alternate Attack and Siphon Soul
         if last_move(enemy, move_ids::LAGA_ATTACK) {
             enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
-            enemy.move_effects.insert("siphon_str".to_string(), 1);
-            enemy.move_effects.insert("siphon_dex".to_string(), 1);
+            enemy.add_effect(mfx::SIPHON_STR, 1);
+            enemy.add_effect(mfx::SIPHON_DEX, 1);
         } else {
             enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
         }
@@ -225,7 +226,7 @@ pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::SENTRY_BOLT) {
         enemy.set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
-        enemy.move_effects.insert("daze".to_string(), 2);
+        enemy.add_effect(mfx::DAZE, 2);
     } else {
         enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
     }
@@ -250,8 +251,8 @@ pub(super) fn roll_guardian(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::GUARD_FIERCE_BASH, fb, 1, 0);
         } else if last_move(enemy, move_ids::GUARD_FIERCE_BASH) {
             enemy.set_move(move_ids::GUARD_VENT_STEAM, 0, 0, 0);
-            enemy.move_effects.insert("weak".to_string(), 2);
-            enemy.move_effects.insert("vulnerable".to_string(), 2);
+            enemy.add_effect(mfx::WEAK, 2);
+            enemy.add_effect(mfx::VULNERABLE, 2);
         } else if last_move(enemy, move_ids::GUARD_VENT_STEAM) {
             enemy.set_move(move_ids::GUARD_WHIRLWIND, 5, 4, 0);
         } else {
@@ -312,7 +313,7 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
                     // Sear: 6 damage + burn cards (searBurnCount, default 1)
                     enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
                     let sbc = { let v = enemy.entity.status(sid::SEAR_BURN_COUNT); if v > 0 { v } else { 1 } };
-                    enemy.move_effects.insert("burn".to_string(), sbc);
+                    enemy.add_effect(mfx::BURN, sbc as i16);
                 }
                 1 | 4 => {
                     // Fire Tackle: fireTackleDmg x2 (A4+ = 6, else 5)
@@ -323,13 +324,13 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
                     // Inflame: 12 block + strAmount Str (A19 = 3, else 2)
                     enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
                     let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 2 } };
-                    enemy.move_effects.insert("strength".to_string(), sa);
+                    enemy.add_effect(mfx::STRENGTH, sa as i16);
                 }
                 _ => {
                     // Inferno: infernoDmg x6 (A4+ = 3, else 2) + upgrade all burns
                     let idmg = { let v = enemy.entity.status(sid::INFERNO_DMG); if v > 0 { v } else { 2 } };
                     enemy.set_move(move_ids::HEX_INFERNO, idmg, 6, 0);
-                    enemy.move_effects.insert("burn_upgrade".to_string(), 1);
+                    enemy.add_effect(mfx::BURN_UPGRADE, 1);
                 }
             }
         }
@@ -351,7 +352,7 @@ pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::SB_SLAM, 35, 1, 0);
     } else {
         enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
-        enemy.move_effects.insert("slimed".to_string(), 3);
+        enemy.add_effect(mfx::SLIMED, 3);
     }
 }
 

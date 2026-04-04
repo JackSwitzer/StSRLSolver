@@ -12,12 +12,9 @@ pub fn decrement_debuffs(entity: &mut EntityState) {
 
 /// Decrement a single status by 1. Remove if it reaches 0.
 pub fn decrement_status(entity: &mut EntityState, key: StatusId) {
-    if let Some(val) = entity.statuses.get(&key).copied() {
-        if val <= 1 {
-            entity.statuses.remove(&key);
-        } else {
-            entity.statuses.insert(key, val - 1);
-        }
+    let val = entity.status(key);
+    if val > 0 {
+        entity.set_status(key, val - 1);
     }
 }
 

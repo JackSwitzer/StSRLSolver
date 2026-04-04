@@ -4,6 +4,7 @@
 //! (damage, block, draw, scry, mantra, vigor, pen nib, etc.) lives here.
 
 use crate::cards::{CardDef, CardTarget, CardType};
+use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::engine::CombatEngine;
 use crate::orbs::{self, OrbType};
@@ -14,7 +15,8 @@ use crate::status_ids::sid;
 /// Execute all effects for a card that was just played.
 ///
 /// Called from `CombatEngine::play_card()` after energy payment and hand removal.
-pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: &str, target_idx: i32) {
+pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst: CardInstance, target_idx: i32) {
+    let card_id = engine.card_registry.card_name(card_inst.def_id);
     // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
     let x_value = if card.cost == -1 {
         let x = engine.state.energy;
@@ -74,10 +76,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             .chain(engine.state.draw_pile.iter())
             .chain(engine.state.discard_pile.iter())
             .chain(engine.state.exhaust_pile.iter())
-            .filter(|id| {
-                let lower = id.to_lowercase();
-                lower.contains("strike")
-            })
+            .filter(|c| engine.card_registry.is_strike(c.def_id))
             .count() as i32;
         per_strike * strike_count
     } else {
@@ -158,7 +157,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         // BlockReturn only triggers on actual HP damage
                         if block_return > 0 {
                             if hp_dmg > 0 || enemy_hp_before > engine.state.enemies[tidx].entity.hp {
-                                engine.state.player.block += block_return;
+                                engine.gain_block_player(block_return);
                             }
                         }
                         if engine.state.enemies[tidx].entity.is_dead() {
@@ -197,7 +196,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
                         if block_return > 0 {
                             let hp_dmg = dmg - enemy_block_before.min(dmg);
                             if hp_dmg > 0 || enemy_hp_before > engine.state.enemies[enemy_idx].entity.hp {
-                                engine.state.player.block += block_return;
+                                engine.gain_block_player(block_return);
                             }
                         }
                         if engine.state.enemies[enemy_idx].entity.is_dead() {
@@ -213,7 +212,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Wallop: gain block equal to unblocked damage dealt ----
     if card.effects.contains(&"block_from_damage") {
-        engine.state.player.block += total_unblocked_damage;
+        engine.gain_block_player(total_unblocked_damage);
     }
 
     // ---- Reaper: heal for total unblocked damage dealt to all enemies ----
@@ -242,7 +241,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let block = damage::calculate_block(card.base_block, dex, frail);
-        engine.state.player.block += block * block_multiplier;
+        engine.gain_block_player(block * block_multiplier);
     }
 
     // ---- Spirit Shield: gain block per card in hand ----
@@ -252,7 +251,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let block = damage::calculate_block(per_card * cards_in_hand, dex, frail);
-        engine.state.player.block += block;
+        engine.gain_block_player(block);
     }
 
     // ---- Halt: extra block in Wrath ----
@@ -261,7 +260,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let extra = damage::calculate_block(card.base_magic, dex, frail);
-            engine.state.player.block += extra;
+            engine.gain_block_player(extra);
         }
     }
 
@@ -440,18 +439,24 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Lesson Learned: if enemy dies, upgrade a random card ----
     if card.effects.contains(&"lesson_learned") && enemy_killed {
         let mut upgraded = false;
-        for card_id in engine.state.draw_pile.iter_mut() {
-            if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
-                card_id.push('+');
-                upgraded = true;
-                break;
+        for c in engine.state.draw_pile.iter_mut() {
+            if !c.is_upgraded() {
+                let name = engine.card_registry.card_name(c.def_id);
+                if !name.starts_with("Strike_") && !name.starts_with("Defend_") {
+                    engine.card_registry.upgrade_card(c);
+                    upgraded = true;
+                    break;
+                }
             }
         }
         if !upgraded {
-            for card_id in engine.state.discard_pile.iter_mut() {
-                if !card_id.ends_with('+') && !card_id.starts_with("Strike_") && !card_id.starts_with("Defend_") {
-                    card_id.push('+');
-                    break;
+            for c in engine.state.discard_pile.iter_mut() {
+                if !c.is_upgraded() {
+                    let name = engine.card_registry.card_name(c.def_id);
+                    if !name.starts_with("Strike_") && !name.starts_with("Defend_") {
+                        engine.card_registry.upgrade_card(c);
+                        break;
+                    }
                 }
             }
         }
@@ -459,20 +464,20 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Shuffle self into draw pile (Tantrum) ----
     if card.effects.contains(&"shuffle_self_into_draw") {
-        engine.state.draw_pile.push(card_id.to_string());
+        engine.state.draw_pile.push(card_inst);
         engine.shuffle_draw_pile();
     }
 
     // ---- Add Insight to draw pile (Evaluate) ----
     if card.effects.contains(&"insight_to_draw") {
-        let insight_id = engine.temp_card_id("Insight");
+        let insight_id = engine.temp_card("Insight");
         engine.state.draw_pile.push(insight_id);
         engine.shuffle_draw_pile();
     }
 
     // ---- Add Smite to hand (Carve Reality) ----
     if card.effects.contains(&"add_smite_to_hand") {
-        let smite_id = engine.temp_card_id("Smite");
+        let smite_id = engine.temp_card("Smite");
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(smite_id);
         }
@@ -480,7 +485,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Add Safety to hand (Deceive Reality) ----
     if card.effects.contains(&"add_safety_to_hand") {
-        let safety_id = engine.temp_card_id("Safety");
+        let safety_id = engine.temp_card("Safety");
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(safety_id);
         }
@@ -488,21 +493,21 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Add Through Violence to draw (Reach Heaven) ----
     if card.effects.contains(&"add_through_violence_to_draw") {
-        let tv_id = engine.temp_card_id("ThroughViolence");
+        let tv_id = engine.temp_card("ThroughViolence");
         engine.state.draw_pile.push(tv_id);
         engine.shuffle_draw_pile();
     }
 
     // ---- Add Beta to draw (Alpha) ----
     if card.effects.contains(&"add_beta_to_draw") {
-        let beta_id = engine.temp_card_id("Beta");
+        let beta_id = engine.temp_card("Beta");
         engine.state.draw_pile.push(beta_id);
         engine.shuffle_draw_pile();
     }
 
     // ---- Add Omega to draw (Beta) ----
     if card.effects.contains(&"add_omega_to_draw") {
-        let omega_id = engine.temp_card_id("Omega");
+        let omega_id = engine.temp_card("Omega");
         engine.state.draw_pile.push(omega_id);
         engine.shuffle_draw_pile();
     }
@@ -543,8 +548,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
             if engine.state.hand.len() >= 10 {
                 break;
             }
-            if let Some(returned) = engine.state.discard_pile.pop() {
-                engine.state.retained_cards.push(returned.clone());
+            if let Some(mut returned) = engine.state.discard_pile.pop() {
+                returned.set_retained(true);
+                engine.state.retained_cards.push(returned);
                 engine.state.hand.push(returned);
             }
         }
@@ -562,7 +568,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Foreign Influence: MCTS approximation ----
     if card.effects.contains(&"foreign_influence") {
-        let smite_id = engine.temp_card_id("Smite");
+        let smite_id = engine.temp_card("Smite");
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(smite_id);
         }
@@ -570,7 +576,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Conjure Blade: create Expunger with X hits ----
     if card.effects.contains(&"conjure_blade") {
-        let expunger_id = engine.temp_card_id("Expunger");
+        let expunger_id = engine.temp_card("Expunger");
         if x_value > 0 && engine.state.hand.len() < 10 {
             engine.state.hand.push(expunger_id);
             engine.state.player.set_status(sid::EXPUNGER_HITS, x_value);
@@ -889,7 +895,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Add random Power to hand (White Noise) ----
     if card.effects.contains(&"add_random_power") {
-        let power_id = engine.temp_card_id("Defragment");
+        let power_id = engine.temp_card("Defragment");
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(power_id);
         }
@@ -1004,14 +1010,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Return zero-cost cards from discard to hand (All For One) ----
     if card.effects.contains(&"return_zero_cost_from_discard") {
-        let registry = crate::cards::CardRegistry::new();
         let mut returned = Vec::new();
-        engine.state.discard_pile.retain(|card_id| {
-            if let Some(def) = registry.get(card_id) {
-                if def.cost == 0 && engine.state.hand.len() + returned.len() < 10 {
-                    returned.push(card_id.clone());
-                    return false;
-                }
+        engine.state.discard_pile.retain(|card_inst| {
+            let def = engine.card_registry.card_def_by_id(card_inst.def_id);
+            if def.cost == 0 && engine.state.hand.len() + returned.len() < 10 {
+                returned.push(*card_inst);
+                return false;
             }
             true
         });
@@ -1021,9 +1025,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     // ---- Reboot: shuffle hand+discard into draw, draw base_magic cards ----
     if card.effects.contains(&"reboot") {
         let draw_count = card.base_magic.max(4);
-        let hand_cards: Vec<String> = engine.state.hand.drain(..).collect();
+        let hand_cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
         engine.state.draw_pile.extend(hand_cards);
-        let discard_cards: Vec<String> = engine.state.discard_pile.drain(..).collect();
+        let discard_cards: Vec<CardInstance> = engine.state.discard_pile.drain(..).collect();
         engine.state.draw_pile.extend(discard_cards);
         engine.draw_cards(draw_count);
     }
@@ -1064,7 +1068,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Copy to Discard: add a copy of this card to discard (Anger) ----
     if card.effects.contains(&"copy_to_discard") {
-        engine.state.discard_pile.push(card_id.to_string());
+        engine.state.discard_pile.push(card_inst);
     }
 
     // ---- Discard: force player to discard 1 card from hand (MCTS: discard random) ----
@@ -1205,7 +1209,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
     if card.effects.contains(&"fiend_fire") {
         let hand_count = engine.state.hand.len() as i32;
         // Exhaust all cards from hand
-        let exhausted_cards: Vec<String> = engine.state.hand.drain(..).collect();
+        let exhausted_cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
         engine.state.exhaust_pile.extend(exhausted_cards);
         // Deal base_damage per card exhausted to the target
         if hand_count > 0 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
@@ -1267,16 +1271,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
 
     // ---- Second Wind: exhaust all non-attack cards in hand, gain block per exhaust ----
     if card.effects.contains(&"second_wind") {
-        let registry = crate::cards::CardRegistry::new();
         let block_per = card.base_block.max(5);
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
         let mut to_exhaust = Vec::new();
         let mut remaining = Vec::new();
         for hand_card in engine.state.hand.drain(..) {
-            let is_attack = registry.get(&hand_card)
-                .map(|def| def.card_type == CardType::Attack)
-                .unwrap_or(false);
+            let is_attack = engine.card_registry.card_def_by_id(hand_card.def_id).card_type == CardType::Attack;
             if is_attack {
                 remaining.push(hand_card);
             } else {
@@ -1288,7 +1289,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_id: 
         engine.state.hand = remaining;
         if exhaust_count > 0 {
             let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
-            engine.state.player.block += block;
+            engine.gain_block_player(block);
         }
     }
 }

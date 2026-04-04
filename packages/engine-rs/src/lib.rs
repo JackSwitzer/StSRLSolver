@@ -9,6 +9,7 @@
 //! PyO3 bindings expose both engines to Python as `sts_engine`.
 
 pub mod actions;
+pub mod combat_types;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
@@ -237,10 +238,11 @@ fn describe_combat_action(
             card_idx,
             target_idx,
         } => {
+            let registry = crate::cards::CardRegistry::new();
             let card_name = state
                 .hand
                 .get(*card_idx)
-                .cloned()
+                .map(|c| registry.card_name(c.def_id).to_string())
                 .unwrap_or_else(|| format!("card_{}", card_idx));
             let target_desc = if *target_idx >= 0 {
                 let enemy_name = state
@@ -491,16 +493,21 @@ impl StSEngine {
                     combat.set_item("mantra", cs.mantra)?;
                     combat.set_item("cards_played_this_turn", cs.cards_played_this_turn)?;
 
-                    let hand = PyList::new_bound(py, &cs.hand);
+                    let hand_names: Vec<String> = cs.hand.iter()
+                        .map(|c| ce.card_registry.card_name(c.def_id).to_string())
+                        .collect();
+                    let hand = PyList::new_bound(py, &hand_names);
                     combat.set_item("hand", hand)?;
                     combat.set_item("draw_pile_size", cs.draw_pile.len())?;
                     combat.set_item("discard_pile_size", cs.discard_pile.len())?;
                     combat.set_item("exhaust_pile_size", cs.exhaust_pile.len())?;
 
                     let statuses = PyDict::new_bound(py);
-                    for (&k, &v) in &cs.player.statuses {
-                        let name = crate::status_ids::status_name(k);
-                        statuses.set_item(name, v)?;
+                    for (i, &val) in cs.player.statuses.iter().enumerate() {
+                        if val != 0 {
+                            let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                            statuses.set_item(name, val as i32)?;
+                        }
                     }
                     combat.set_item("player_statuses", statuses)?;
 
@@ -513,14 +520,16 @@ impl StSEngine {
                         ed.set_item("max_hp", e.entity.max_hp)?;
                         ed.set_item("block", e.entity.block)?;
                         ed.set_item("alive", e.is_alive())?;
-                        ed.set_item("move_damage", e.move_damage)?;
-                        ed.set_item("move_hits", e.move_hits)?;
-                        ed.set_item("move_block", e.move_block)?;
+                        ed.set_item("move_damage", e.move_damage())?;
+                        ed.set_item("move_hits", e.move_hits())?;
+                        ed.set_item("move_block", e.move_block())?;
                         ed.set_item("intent_damage", e.total_incoming_damage())?;
                         let es = PyDict::new_bound(py);
-                        for (&k, &v) in &e.entity.statuses {
-                            let name = crate::status_ids::status_name(k);
-                            es.set_item(name, v)?;
+                        for (i, &val) in e.entity.statuses.iter().enumerate() {
+                            if val != 0 {
+                                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                                es.set_item(name, val as i32)?;
+                            }
                         }
                         ed.set_item("statuses", es)?;
                         enemies_list.append(ed)?;

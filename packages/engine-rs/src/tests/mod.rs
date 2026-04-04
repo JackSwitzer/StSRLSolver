@@ -27,7 +27,6 @@ mod test_bosses;
 mod test_integration;
 mod test_potions;
 mod test_powers;
-mod test_powers_parity;
 mod test_relics;
 mod test_relics_parity;
 mod test_run_parity;

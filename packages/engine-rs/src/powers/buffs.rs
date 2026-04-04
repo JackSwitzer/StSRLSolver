@@ -276,15 +276,6 @@ pub fn get_flame_barrier_damage(entity: &EntityState) -> i32 {
     entity.status(sid::FLAME_BARRIER)
 }
 
-/// Plated Armor: decrement by 1 when taking unblocked damage.
-
-pub fn decrement_plated_armor_on_hit(entity: &mut EntityState) {
-    let plated = entity.status(sid::PLATED_ARMOR);
-    if plated > 0 {
-        entity.set_status(sid::PLATED_ARMOR, plated - 1);
-    }
-}
-
 /// Buffer: returns true if damage should be negated (reduces buffer by 1).
 
 pub fn check_buffer(entity: &mut EntityState) -> bool {
@@ -300,15 +291,6 @@ pub fn check_buffer(entity: &mut EntityState) -> bool {
 
 pub fn get_envenom_amount(entity: &EntityState) -> i32 {
     entity.status(sid::ENVENOM)
-}
-
-/// Curiosity: gain Strength when player plays a Power.
-
-pub fn apply_rupture(entity: &mut EntityState) {
-    let rupture = entity.status(sid::RUPTURE);
-    if rupture > 0 {
-        entity.add_status(sid::STRENGTH, rupture);
-    }
 }
 
 /// StaticDischarge: returns number of Lightning orbs to channel when taking damage.
@@ -477,30 +459,6 @@ pub fn get_like_water_block(entity: &EntityState) -> i32 {
 
 pub fn remove_rage_end_of_turn(entity: &mut EntityState) {
     entity.set_status(sid::RAGE, 0);
-}
-
-// ---------------------------------------------------------------------------
-// DoubleDamage consumption
-// ---------------------------------------------------------------------------
-
-/// DoubleDamage: check and consume one stack. Returns doubled damage if active,
-/// otherwise returns the base damage unchanged. Decrements by 1 per attack.
-pub fn apply_double_damage(entity: &mut EntityState, base_damage: i32) -> i32 {
-    let dd = entity.status(sid::DOUBLE_DAMAGE);
-    if dd > 0 {
-        entity.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-        base_damage * 2
-    } else {
-        base_damage
-    }
-}
-
-/// DoubleDamage: consumed after playing an Attack (legacy zero-out).
-pub fn consume_double_damage(entity: &mut EntityState) {
-    let dd = entity.status(sid::DOUBLE_DAMAGE);
-    if dd > 0 {
-        entity.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -832,39 +790,6 @@ mod tests {
     use super::*;
     use crate::powers::*;
 
-    // -- Power registry tests --
-
-    #[test]
-    fn test_power_def_lookup() {
-        let def = get_power_def("Strength").unwrap();
-        assert_eq!(def.id, "Strength");
-        assert!(def.can_go_negative);
-        assert!(def.modify_damage_give);
-        assert_eq!(def.power_type, PowerType::Buff);
-    }
-
-    #[test]
-    fn test_power_def_debuff() {
-        let def = get_power_def("Weakened").unwrap();
-        assert_eq!(def.power_type, PowerType::Debuff);
-        assert!(def.is_turn_based);
-        assert!(def.on_end_of_round);
-    }
-
-    #[test]
-    fn test_power_def_unknown() {
-        assert!(get_power_def("NonexistentPower").is_none());
-    }
-
-    #[test]
-    fn test_power_id_key_roundtrip() {
-        assert_eq!(PowerId::Strength.key(), "Strength");
-        assert_eq!(PowerId::Weakened.key(), "Weakened");
-        assert_eq!(PowerId::DemonForm.key(), "DemonForm");
-        assert_eq!(PowerId::MentalFortress.key(), "MentalFortress");
-        assert_eq!(PowerId::Omega.key(), "Omega");
-    }
-
     // -- Debuff decrement tests --
 
     #[test]
@@ -902,7 +827,7 @@ mod tests {
         let dmg = tick_poison(&mut entity);
         assert_eq!(dmg, 1);
         assert_eq!(entity.status(sid::POISON), 0);
-        assert!(!entity.statuses.contains_key(&sid::POISON));
+        assert_eq!(entity.status(sid::POISON), 0);
     }
 
     // -- Metallicize / Plated Armor tests --

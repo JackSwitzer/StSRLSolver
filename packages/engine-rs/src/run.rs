@@ -684,12 +684,16 @@ impl RunEngine {
             })
             .collect();
 
-        // Create combat state
+        // Create combat state — convert deck strings to CardInstance
+        let registry = crate::cards::CardRegistry::new();
+        let deck_instances: Vec<crate::combat_types::CardInstance> = self.run_state.deck.iter()
+            .map(|name| registry.make_card(name))
+            .collect();
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
             enemy_states,
-            self.run_state.deck.clone(),
+            deck_instances,
             3, // Watcher base energy
         );
         combat_state.relics = self.run_state.relics.clone();

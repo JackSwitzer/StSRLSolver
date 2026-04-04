@@ -1,4 +1,5 @@
 use crate::state::EnemyCombatState;
+use crate::combat_types::mfx;
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -18,7 +19,7 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
             // 50/50 Fortify or Bash. Deterministic: Bash if not last, else Fortify.
             if !last_move(enemy, move_ids::SHIELD_BASH) {
                 enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-                enemy.move_effects.insert("strength_down".to_string(), 1);
+                enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
             }
@@ -27,7 +28,7 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
             // The other of Bash/Fortify
             if !last_move(enemy, move_ids::SHIELD_BASH) {
                 enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-                enemy.move_effects.insert("strength_down".to_string(), 1);
+                enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
             }
@@ -52,10 +53,10 @@ pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
             // Burn Strike or Piercer
             if !last_move(enemy, move_ids::SPEAR_BURN_STRIKE) {
                 enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
-                enemy.move_effects.insert("burn".to_string(), 2);
+                enemy.add_effect(mfx::BURN, 2);
             } else {
                 enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
-                enemy.move_effects.insert("strength".to_string(), 2);
+                enemy.add_effect(mfx::STRENGTH, 2);
             }
         }
         1 => {
@@ -66,10 +67,10 @@ pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
             // 50/50 Piercer or Burn Strike
             if !last_move(enemy, move_ids::SPEAR_PIERCER) {
                 enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
-                enemy.move_effects.insert("strength".to_string(), 2);
+                enemy.add_effect(mfx::STRENGTH, 2);
             } else {
                 enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
-                enemy.move_effects.insert("burn".to_string(), 2);
+                enemy.add_effect(mfx::BURN, 2);
             }
         }
     }
@@ -110,13 +111,13 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
             // Buff: +2 Str + escalating buff (Artifact 2, +1 BeatOfDeath, PainfulStabs, +10 Str, +50 Str)
             let buff_count = enemy.entity.status(sid::BUFF_COUNT);
             enemy.set_move(move_ids::HEART_BUFF, 0, 0, 0);
-            enemy.move_effects.insert("strength".to_string(), 2);
+            enemy.add_effect(mfx::STRENGTH, 2);
             match buff_count {
-                0 => { enemy.move_effects.insert("artifact".to_string(), 2); }
-                1 => { enemy.move_effects.insert("beat_of_death".to_string(), 1); }
-                2 => { enemy.move_effects.insert("painful_stabs".to_string(), 1); }
-                3 => { enemy.move_effects.insert("strength_bonus".to_string(), 10); }
-                _ => { enemy.move_effects.insert("strength_bonus".to_string(), 50); }
+                0 => { enemy.add_effect(mfx::ARTIFACT, 2); }
+                1 => { enemy.add_effect(mfx::BEAT_OF_DEATH, 1); }
+                2 => { enemy.add_effect(mfx::PAINFUL_STABS, 1); }
+                3 => { enemy.add_effect(mfx::STRENGTH_BONUS, 10); }
+                _ => { enemy.add_effect(mfx::STRENGTH_BONUS, 50); }
             }
             enemy.entity.set_status(sid::BUFF_COUNT, buff_count + 1);
         }

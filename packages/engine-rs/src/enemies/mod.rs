@@ -5,6 +5,7 @@
 //! the most common/expected move pattern for fast simulation.
 
 use crate::state::EnemyCombatState;
+use crate::combat_types::mfx;
 use crate::status_ids::sid;
 
 
@@ -334,7 +335,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "Cultist" => {
             enemy.set_move(move_ids::CULT_INCANTATION, 0, 0, 0);
-            enemy.move_effects.insert("ritual".to_string(), 3);
+            enemy.add_effect(mfx::RITUAL, 3);
         }
         "FungiBeast" => {
             enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
@@ -359,11 +360,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "AcidSlime_M" => {
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
-            enemy.move_effects.insert("slimed".to_string(), 1);
+            enemy.add_effect(mfx::SLIMED, 1);
         }
         "AcidSlime_L" => {
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
-            enemy.move_effects.insert("slimed".to_string(), 2);
+            enemy.add_effect(mfx::SLIMED, 2);
         }
         "SpikeSlime_S" => {
             enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
@@ -381,7 +382,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "GremlinFat" => {
             // Smash: 4 damage + apply 1 Weak
             enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
-            enemy.move_effects.insert("weak".to_string(), 1);
+            enemy.add_effect(mfx::WEAK, 1);
         }
         "GremlinThief" => {
             // Puncture: 9 damage
@@ -439,7 +440,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "SlimeBoss" => {
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
-            enemy.move_effects.insert("slimed".to_string(), 3);
+            enemy.add_effect(mfx::SLIMED, 3);
         }
 
         // =================================================================
@@ -488,7 +489,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Taskmaster" => {
             // Always Scouring Whip (7 damage + Wounds)
             enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
-            enemy.move_effects.insert("wound".to_string(), 1);
+            enemy.add_effect(mfx::WOUND, 1);
         }
         "SphericGuardian" | "Spheric Guardian" => {
             // First turn: Activate (gain 40 block)
@@ -497,12 +498,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Snecko" => {
             // First turn: Glare (debuff)
             enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
-            enemy.move_effects.insert("confused".to_string(), 1);
+            enemy.add_effect(mfx::CONFUSED, 1);
         }
         "BanditBear" | "Bear" => {
             // First turn: Bear Hug (debuff: -2 Dexterity)
             enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
-            enemy.move_effects.insert("dexterity_down".to_string(), 2);
+            enemy.add_effect(mfx::DEX_DOWN, 2);
         }
         "BanditLeader" => {
             // First turn: Mock (buff minions)
@@ -530,7 +531,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "BronzeOrb" | "Bronze Orb" => {
             // First turn: Stasis (steal card from hand)
             enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
-            enemy.move_effects.insert("stasis".to_string(), 1);
+            enemy.add_effect(mfx::STASIS, 1);
         }
         "TorchHead" | "Torch Head" => {
             // Always: Tackle (7 damage)
@@ -543,8 +544,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
                 (16, 12, 2, 5, 15)
             };
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
-            enemy.move_effects.insert("frail".to_string(), 2);
-            enemy.move_effects.insert("vulnerable".to_string(), 2);
+            enemy.add_effect(mfx::FRAIL, 2);
+            enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.entity.set_status(sid::NUM_TURNS, 0);
             enemy.entity.set_status(sid::THRESHOLD_REACHED, 0);
             enemy.entity.set_status(sid::STR_AMT, str_amt);
@@ -577,7 +578,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "OrbWalker" | "Orb Walker" => {
             // First turn: Laser (10 damage + burn)
             enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-            enemy.move_effects.insert("burn".to_string(), 1);
+            enemy.add_effect(mfx::BURN, 1);
         }
         "Spiker" => {
             // Has Thorns 3. First turn: attack (7 damage)
@@ -587,7 +588,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Repulsor" => {
             // Mostly Daze (add Daze cards). First turn: Daze
             enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-            enemy.move_effects.insert("daze".to_string(), 2);
+            enemy.add_effect(mfx::DAZE, 2);
         }
         "Exploder" => {
             // 3-turn timer: Attack -> Unknown -> Explode (30 damage)
@@ -611,8 +612,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Maw" => {
             // First turn: Roar (debuff: Weak + Frail)
             enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
-            enemy.move_effects.insert("weak".to_string(), 3);
-            enemy.move_effects.insert("frail".to_string(), 3);
+            enemy.add_effect(mfx::WEAK, 3);
+            enemy.add_effect(mfx::FRAIL, 3);
             enemy.entity.set_status(sid::TURN_COUNT, 1);
         }
         "Transient" => {
@@ -623,6 +624,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 30);
             enemy.entity.set_status(sid::SHIFTING, 1);
+            // Fading: dies after 5 turns (6 at A17+, but Transient always 999hp so use 5)
+            enemy.entity.set_status(sid::FADING, 5);
         }
         "GiantHead" | "Giant Head" => {
             // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
@@ -649,7 +652,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "SnakeDagger" | "Snake Dagger" => {
             // First turn: Wound (9 damage + add Wound to discard)
             enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
-            enemy.move_effects.insert("wound".to_string(), 1);
+            enemy.add_effect(mfx::WOUND, 1);
         }
         "AwakenedOne" | "Awakened One" => {
             // Phase 1. Curiosity: gains Str when player plays a Power (A19: 2, else 1).
@@ -669,14 +672,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "Donu" => {
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
-            enemy.move_effects.insert("strength".to_string(), 3);
+            enemy.add_effect(mfx::STRENGTH, 3);
             if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); enemy.entity.set_status(sid::BEAM_DMG, 12); }
             else { enemy.entity.set_status(sid::ARTIFACT, 2); enemy.entity.set_status(sid::BEAM_DMG, 10); }
         }
         "Deca" => {
             let bdmg = if hp >= 265 { 12 } else { 10 };
             enemy.set_move(move_ids::DECA_BEAM, bdmg, 2, 0);
-            enemy.move_effects.insert("daze".to_string(), 2);
+            enemy.add_effect(mfx::DAZE, 2);
             if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); } else { enemy.entity.set_status(sid::ARTIFACT, 2); }
             enemy.entity.set_status(sid::BEAM_DMG, bdmg);
         }
@@ -687,6 +690,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::USED_HASTE, 0);
             enemy.entity.set_status(sid::REVERB_DMG, rd);
             enemy.entity.set_status(sid::HEAD_SLAM_DMG, hsd);
+            enemy.entity.set_status(sid::TIME_WARP_ACTIVE, 1);
         }
 
         // =================================================================
@@ -697,21 +701,21 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Bash: 12 (A3+ = 14). Smash: 34 (A3+ = 38). Fortify: 30 block.
             // Bash applies -1 Str or -1 Focus (random if player has orbs).
             enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-            enemy.move_effects.insert("strength_down".to_string(), 1);
+            enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
         }
         "SpireSpear" | "Spire Spear" => {
             // 3-move cycle. First turn: Burn Strike (5x2 + Burns)
             enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
-            enemy.move_effects.insert("burn".to_string(), 2);
+            enemy.add_effect(mfx::BURN, 2);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::SKEWER_COUNT, 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
-            enemy.move_effects.insert("vulnerable".to_string(), 2);
-            enemy.move_effects.insert("weak".to_string(), 2);
-            enemy.move_effects.insert("frail".to_string(), 2);
+            enemy.add_effect(mfx::VULNERABLE, 2);
+            enemy.add_effect(mfx::WEAK, 2);
+            enemy.add_effect(mfx::FRAIL, 2);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::BUFF_COUNT, 0);
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
@@ -812,7 +816,7 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState) {
         "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
         "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy),
         _ => {
-            if enemy.move_damage > 0 {
+            if enemy.move_damage() > 0 {
                 enemy.set_move(2, 0, 0, 5);
             } else {
                 enemy.set_move(1, 6, 1, 0);
@@ -860,7 +864,7 @@ mod tests {
         assert_eq!(enemy.id, "JawWorm");
         assert_eq!(enemy.entity.hp, 44);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
-        assert_eq!(enemy.move_damage, 11);
+        assert_eq!(enemy.move_damage(), 11);
     }
 
     #[test]
@@ -870,12 +874,12 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&3));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::JW_THRASH);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_block, 5);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_block(), 5);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
@@ -885,12 +889,12 @@ mod tests {
     fn test_cultist_pattern() {
         let mut enemy = create_enemy("Cultist", 50, 50);
         assert_eq!(enemy.move_id, move_ids::CULT_INCANTATION);
-        assert_eq!(enemy.move_damage, 0);
-        assert_eq!(enemy.move_effects.get("ritual"), Some(&3));
+        assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CULT_DARK_STRIKE);
-        assert_eq!(enemy.move_damage, 6);
+        assert_eq!(enemy.move_damage(), 6);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CULT_DARK_STRIKE);
@@ -918,7 +922,7 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SENTRY_BEAM);
-        assert_eq!(enemy.move_effects.get("daze"), Some(&2));
+        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
@@ -934,7 +938,7 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_SLAM);
-        assert_eq!(enemy.move_damage, 35);
+        assert_eq!(enemy.move_damage(), 35);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
@@ -959,17 +963,17 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
-        assert_eq!(enemy.move_damage, 32);
+        assert_eq!(enemy.move_damage(), 32);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
-        assert_eq!(enemy.move_effects.get("weak"), Some(&2));
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
-        assert_eq!(enemy.move_damage, 5);
-        assert_eq!(enemy.move_hits, 4);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 4);
     }
 
     #[test]
@@ -995,15 +999,15 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_hits(), 6);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
-        assert_eq!(enemy.move_effects.get("burn"), Some(&1));
+        assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_hits(), 2);
     }
 
     #[test]
@@ -1011,37 +1015,37 @@ mod tests {
         let mut enemy = create_enemy("Hexaghost", 250, 250);
         hexaghost_set_divider(&mut enemy, 80);
         // 80 / 12 + 1 = 7 (integer division)
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 6);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 6);
 
         hexaghost_set_divider(&mut enemy, 60);
         // 60 / 12 + 1 = 6
-        assert_eq!(enemy.move_damage, 6);
+        assert_eq!(enemy.move_damage(), 6);
     }
 
     #[test]
     fn test_blue_slaver_pattern() {
         let mut enemy = create_enemy("SlaverBlue", 48, 48);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
-        assert_eq!(enemy.move_damage, 12);
+        assert_eq!(enemy.move_damage(), 12);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BS_RAKE);
-        assert_eq!(enemy.move_effects.get("weak"), Some(&1));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
     }
 
     #[test]
     fn test_red_slaver_pattern() {
         let mut enemy = create_enemy("SlaverRed", 48, 48);
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
-        assert_eq!(enemy.move_damage, 13);
+        assert_eq!(enemy.move_damage(), 13);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
-        assert_eq!(enemy.move_effects.get("entangle"), Some(&1));
+        assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
 
         roll_next_move(&mut enemy);
         assert!(
@@ -1056,7 +1060,7 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::AS_LICK);
-        assert_eq!(enemy.move_effects.get("weak"), Some(&1));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
@@ -1066,14 +1070,14 @@ mod tests {
     fn test_spike_slime_m_pattern() {
         let mut enemy = create_enemy("SpikeSlime_M", 28, 28);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
-        assert_eq!(enemy.move_damage, 8);
+        assert_eq!(enemy.move_damage(), 8);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SS_LICK);
-        assert_eq!(enemy.move_effects.get("frail"), Some(&1));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(1));
     }
 
     #[test]
@@ -1115,13 +1119,13 @@ mod tests {
     fn test_chosen_pattern() {
         let mut enemy = create_enemy("Chosen", 97, 97);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
-        assert_eq!(enemy.move_damage, 5);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 2);
 
         // After Poke: Hex
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_HEX);
-        assert_eq!(enemy.move_effects.get("hex"), Some(&1));
+        assert_eq!(enemy.effect(mfx::HEX), Some(1));
 
         // After Hex: Debilitate or Drain
         roll_next_move(&mut enemy);
@@ -1130,15 +1134,15 @@ mod tests {
         // After debuff: attack
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_ZAP);
-        assert_eq!(enemy.move_damage, 18);
+        assert_eq!(enemy.move_damage(), 18);
     }
 
     #[test]
     fn test_byrd_pattern() {
         let mut enemy = create_enemy("Byrd", 28, 28);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
-        assert_eq!(enemy.move_damage, 1);
-        assert_eq!(enemy.move_hits, 5);
+        assert_eq!(enemy.move_damage(), 1);
+        assert_eq!(enemy.move_hits(), 5);
         assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
 
         roll_next_move(&mut enemy);
@@ -1146,30 +1150,30 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
-        assert_eq!(enemy.move_damage, 12);
+        assert_eq!(enemy.move_damage(), 12);
     }
 
     #[test]
     fn test_snake_plant_pattern() {
         let mut enemy = create_enemy("SnakePlant", 77, 77);
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 3);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SNAKE_SPORES);
-        assert_eq!(enemy.move_effects.get("weak"), Some(&2));
-        assert_eq!(enemy.move_effects.get("frail"), Some(&2));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
     }
 
     #[test]
     fn test_book_of_stabbing_escalation() {
         let mut enemy = create_enemy("BookOfStabbing", 162, 162);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_hits(), 2);
 
         // Roll: stab count increments
         roll_next_move(&mut enemy);
@@ -1186,23 +1190,23 @@ mod tests {
         // After spawn: Flail
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 2);
     }
 
     #[test]
     fn test_champ_boss_pattern() {
         let mut enemy = create_enemy("Champ", 420, 420);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
-        assert_eq!(enemy.move_damage, 12);
+        assert_eq!(enemy.move_damage(), 12);
         // Java: Face Slap gives Frail 2 + Vulnerable 2
-        assert_eq!(enemy.move_effects.get("frail"), Some(&2));
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&2));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
         // Phase 1 cycle
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
-        assert_eq!(enemy.move_damage, 16); // base (non-A4) slash dmg
+        assert_eq!(enemy.move_damage(), 16); // base (non-A4) slash dmg
 
         // Trigger phase 2 at half HP
         enemy.entity.hp = 200;
@@ -1218,7 +1222,7 @@ mod tests {
         // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
-        assert_eq!(enemy.move_damage, 18);
+        assert_eq!(enemy.move_damage(), 18);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
@@ -1229,8 +1233,8 @@ mod tests {
         // Mega Debuff at turn 4 (turnsTaken >= 3)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
-        assert_eq!(enemy.move_effects.get("vulnerable"), Some(&3));
-        assert_eq!(enemy.move_effects.get("weak"), Some(&3));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(3));
     }
 
     // ----- Act 3 -----
@@ -1239,35 +1243,35 @@ mod tests {
     fn test_awakened_one_boss() {
         let mut enemy = create_enemy("AwakenedOne", 300, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
-        assert_eq!(enemy.move_damage, 20);
+        assert_eq!(enemy.move_damage(), 20);
         assert_eq!(enemy.entity.status(sid::PHASE), 1);
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
 
         // Phase 1 cycle: Slash -> Soul Strike
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
-        assert_eq!(enemy.move_damage, 6);
-        assert_eq!(enemy.move_hits, 4);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.move_hits(), 4);
 
         // Trigger rebirth
         awakened_one_rebirth(&mut enemy);
         assert_eq!(enemy.entity.status(sid::PHASE), 2);
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
-        assert_eq!(enemy.move_damage, 40);
+        assert_eq!(enemy.move_damage(), 40);
 
         // Phase 2: Dark Echo -> Sludge (adds Void, not Slimed)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
-        assert_eq!(enemy.move_effects.get("void"), Some(&1));
+        assert_eq!(enemy.effect(mfx::VOID), Some(1));
     }
 
     #[test]
     fn test_time_eater_boss() {
         let mut enemy = create_enemy("TimeEater", 456, 456);
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
-        assert_eq!(enemy.move_damage, 7);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.move_hits(), 3);
 
         roll_next_move(&mut enemy);
         // After first reverberate, second reverberate
@@ -1276,8 +1280,8 @@ mod tests {
         roll_next_move(&mut enemy);
         // After two reverberates: Head Slam (gives draw_reduction, not slimed)
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
-        assert_eq!(enemy.move_damage, 26);
-        assert_eq!(enemy.move_effects.get("draw_reduction"), Some(&1));
+        assert_eq!(enemy.move_damage(), 26);
+        assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
     }
 
     #[test]
@@ -1288,25 +1292,25 @@ mod tests {
 
         roll_next_move(&mut donu);
         assert_eq!(donu.move_id, move_ids::DONU_BEAM);
-        assert_eq!(donu.move_damage, 10);
-        assert_eq!(donu.move_hits, 2);
+        assert_eq!(donu.move_damage(), 10);
+        assert_eq!(donu.move_hits(), 2);
 
         let mut deca = create_enemy("Deca", 250, 250);
         // Java: Deca starts with isAttacking=true -> first move is Beam
         assert_eq!(deca.move_id, move_ids::DECA_BEAM);
-        assert_eq!(deca.move_damage, 10);
-        assert_eq!(deca.move_effects.get("daze"), Some(&2));
+        assert_eq!(deca.move_damage(), 10);
+        assert_eq!(deca.effect(mfx::DAZE), Some(2));
 
         roll_next_move(&mut deca);
         assert_eq!(deca.move_id, move_ids::DECA_SQUARE);
-        assert_eq!(deca.move_block, 16);
+        assert_eq!(deca.move_block(), 16);
     }
 
     #[test]
     fn test_giant_head_elite() {
         let mut enemy = create_enemy("GiantHead", 500, 500);
         assert_eq!(enemy.move_id, move_ids::GH_COUNT);
-        assert_eq!(enemy.move_damage, 13);
+        assert_eq!(enemy.move_damage(), 13);
         assert_eq!(enemy.entity.status(sid::COUNT), 5);
 
         // Roll moves. Count decrements each roll. After count reaches 1, It Is Time.
@@ -1324,8 +1328,8 @@ mod tests {
     fn test_nemesis_elite() {
         let mut enemy = create_enemy("Nemesis", 185, 185);
         assert_eq!(enemy.move_id, move_ids::NEM_TRI_ATTACK);
-        assert_eq!(enemy.move_damage, 6);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.move_hits(), 3);
 
         roll_next_move(&mut enemy);
         // Second turn
@@ -1343,28 +1347,28 @@ mod tests {
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
-        assert_eq!(enemy.move_damage, 13);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 13);
+        assert_eq!(enemy.move_hits(), 2);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
-        assert_eq!(enemy.move_damage, 30);
+        assert_eq!(enemy.move_damage(), 30);
     }
 
     #[test]
     fn test_transient_escalation() {
         let mut enemy = create_enemy("Transient", 999, 999);
         assert_eq!(enemy.move_id, move_ids::TRANSIENT_ATTACK);
-        assert_eq!(enemy.move_damage, 30);
+        assert_eq!(enemy.move_damage(), 30);
 
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_damage, 40); // 30 + 10
+        assert_eq!(enemy.move_damage(), 40); // 30 + 10
 
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_damage, 50); // 30 + 20
+        assert_eq!(enemy.move_damage(), 50); // 30 + 20
 
         roll_next_move(&mut enemy);
-        assert_eq!(enemy.move_damage, 60); // 30 + 30
+        assert_eq!(enemy.move_damage(), 60); // 30 + 30
     }
 
     // ----- Act 4 -----
@@ -1380,19 +1384,19 @@ mod tests {
         // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
-        assert_eq!(enemy.move_damage, 2);
-        assert_eq!(enemy.move_hits, 12);
+        assert_eq!(enemy.move_damage(), 2);
+        assert_eq!(enemy.move_hits(), 12);
 
         // moveCount=1, 1%3=1 -> Echo (since last wasn't Echo)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
-        assert_eq!(enemy.move_damage, 40);
+        assert_eq!(enemy.move_damage(), 40);
 
         // moveCount=2, 2%3=2 -> Buff (first buff: +2 Str + Artifact 2)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.move_effects.get("strength"), Some(&2));
-        assert_eq!(enemy.move_effects.get("artifact"), Some(&2));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
+        assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
     }
 
     #[test]
@@ -1400,13 +1404,13 @@ mod tests {
         let mut enemy = create_enemy("SpireShield", 110, 110);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
         // Base damage: 12 (A3+ = 14)
-        assert_eq!(enemy.move_damage, 12);
-        assert_eq!(enemy.move_effects.get("strength_down"), Some(&1));
+        assert_eq!(enemy.move_damage(), 12);
+        assert_eq!(enemy.effect(mfx::STRENGTH_DOWN), Some(1));
 
         // mc=0 -> 0%3=0: Fortify (since last was Bash)
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
-        assert_eq!(enemy.move_block, 30);
+        assert_eq!(enemy.move_block(), 30);
 
         // mc=1 -> 1%3=1: Bash (since last was Fortify)
         roll_next_move(&mut enemy);
@@ -1415,15 +1419,15 @@ mod tests {
         // mc=2 -> 2%3=2: Smash
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
-        assert_eq!(enemy.move_damage, 34);
+        assert_eq!(enemy.move_damage(), 34);
     }
 
     #[test]
     fn test_spire_spear_boss() {
         let mut enemy = create_enemy("SpireSpear", 160, 160);
         assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);
-        assert_eq!(enemy.move_damage, 5);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 2);
         assert_eq!(enemy.entity.status(sid::SKEWER_COUNT), 3);
 
         // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
@@ -1433,32 +1437,32 @@ mod tests {
         // mc=1 -> 1%3=1: Skewer
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
-        assert_eq!(enemy.move_damage, 10);
-        assert_eq!(enemy.move_hits, 3);
+        assert_eq!(enemy.move_damage(), 10);
+        assert_eq!(enemy.move_hits(), 3);
     }
 
     #[test]
     fn test_snake_dagger_pattern() {
         let mut enemy = create_enemy("SnakeDagger", 22, 22);
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
-        assert_eq!(enemy.move_damage, 9);
+        assert_eq!(enemy.move_damage(), 9);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SD_EXPLODE);
-        assert_eq!(enemy.move_damage, 25);
+        assert_eq!(enemy.move_damage(), 25);
     }
 
     #[test]
     fn test_darkling_pattern() {
         let mut enemy = create_enemy("Darkling", 52, 52);
         assert_eq!(enemy.move_id, move_ids::DARK_NIP);
-        assert_eq!(enemy.move_damage, 8);
+        assert_eq!(enemy.move_damage(), 8);
 
         roll_next_move(&mut enemy);
         roll_next_move(&mut enemy);
         // After two Nips: Chomp
         assert_eq!(enemy.move_id, move_ids::DARK_CHOMP);
-        assert_eq!(enemy.move_hits, 2);
+        assert_eq!(enemy.move_hits(), 2);
     }
 
     #[test]
@@ -1474,18 +1478,18 @@ mod tests {
 
         roll_next_move(&mut enemy); // count=3, EXPLODE
         assert_eq!(enemy.move_id, move_ids::EXPLODER_EXPLODE);
-        assert_eq!(enemy.move_damage, 30);
+        assert_eq!(enemy.move_damage(), 30);
     }
 
     #[test]
     fn test_orb_walker_pattern() {
         let mut enemy = create_enemy("OrbWalker", 93, 93);
         assert_eq!(enemy.move_id, move_ids::OW_LASER);
-        assert_eq!(enemy.move_damage, 10);
+        assert_eq!(enemy.move_damage(), 10);
 
         roll_next_move(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::OW_CLAW);
-        assert_eq!(enemy.move_damage, 15);
+        assert_eq!(enemy.move_damage(), 15);
     }
 
     /// Test all enemy IDs can be created without panicking

@@ -7,9 +7,8 @@ mod ironclad_card_java_parity_tests {
     use crate::status_ids::sid;
     use crate::tests::support::{
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
-        play_card, play_on_enemy, play_self, TEST_SEED, enemy, discard_prefix_count,
-        exhaust_prefix_count,
-        hand_count,
+        make_deck, make_deck_n, play_card, play_on_enemy, play_self, TEST_SEED, enemy,
+        discard_prefix_count, exhaust_prefix_count, hand_count,
     };
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
     use crate::engine::CombatEngine;
@@ -135,12 +134,12 @@ mod ironclad_card_java_parity_tests {
         energy: i32,
     ) -> CombatEngine {
         let mut state = combat_state_with(
-            draw.iter().map(|s| (*s).to_string()).collect(),
+            make_deck(draw),
             enemies,
             energy,
         );
-        state.hand = hand.iter().map(|s| (*s).to_string()).collect();
-        state.discard_pile = discard.iter().map(|s| (*s).to_string()).collect();
+        state.hand = make_deck(hand);
+        state.discard_pile = make_deck(discard);
         let mut engine = CombatEngine::new(state, TEST_SEED);
         force_player_turn(&mut engine);
         engine.state.turn = 1;
@@ -233,7 +232,7 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn bash_applies_vulnerable() {
-        let mut e = engine_with(vec!["Bash".to_string(); 5], 50, 0);
+        let mut e = engine_with(make_deck_n("Bash", 5), 50, 0);
         ensure_in_hand(&mut e, "Bash");
         let hp = e.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut e, "Bash", 0));
@@ -259,7 +258,7 @@ mod ironclad_card_java_parity_tests {
             vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
             3,
         );
-        let clash_idx = e.state.hand.iter().position(|card| card == "Clash").expect("Clash should be in hand");
+        let clash_idx = e.state.hand.iter().position(|card| e.card_registry.card_name(card.def_id) == "Clash").expect("Clash should be in hand");
         assert!(
             !e.get_legal_actions().iter().any(|action| matches!(
                 action,
@@ -272,7 +271,7 @@ mod ironclad_card_java_parity_tests {
     #[test]
     fn cleave_hits_all_enemies() {
         let mut e = engine_with_enemies(
-            vec!["Cleave".to_string(); 5],
+            make_deck_n("Cleave", 5),
             vec![
                 enemy("JawWorm", 40, 40, 1, 0, 1),
                 enemy("Cultist", 40, 40, 1, 0, 1),
