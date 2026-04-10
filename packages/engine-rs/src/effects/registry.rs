@@ -16,6 +16,34 @@ use super::flags::EffectFlags;
 use super::types::*;
 
 // ===========================================================================
+// Bit index constants — named aliases for bit positions in EffectFlags
+// ===========================================================================
+
+// can_play hooks (bits 0-3)
+pub const BIT_UNPLAYABLE: u8 = 0;
+pub const BIT_ONLY_ATTACK_IN_HAND: u8 = 1;
+pub const BIT_ONLY_ATTACKS_IN_HAND: u8 = 2;
+pub const BIT_ONLY_EMPTY_DRAW: u8 = 3;
+// modify_cost hooks (bits 4-7)
+pub const BIT_COST_REDUCE_ON_HP_LOSS: u8 = 4;
+pub const BIT_REDUCE_COST_PER_POWER: u8 = 5;
+pub const BIT_COST_REDUCE_ON_DISCARD: u8 = 6;
+pub const BIT_COST_INCREASE_ON_HP_LOSS: u8 = 7;
+// on_retain hooks (bits 8-10)
+pub const BIT_REDUCE_COST_ON_RETAIN: u8 = 8;
+pub const BIT_GROW_BLOCK_ON_RETAIN: u8 = 9;
+pub const BIT_GROW_DAMAGE_ON_RETAIN: u8 = 10;
+// on_draw hooks (bits 11-12)
+pub const BIT_LOSE_ENERGY_ON_DRAW: u8 = 11;
+pub const BIT_COPY_ON_DRAW: u8 = 12;
+// on_discard hooks (bits 13-14)
+pub const BIT_DRAW_ON_DISCARD: u8 = 13;
+pub const BIT_ENERGY_ON_DISCARD: u8 = 14;
+// post_play_dest hooks (bits 15-16)
+pub const BIT_SHUFFLE_SELF_INTO_DRAW: u8 = 15;
+pub const BIT_END_TURN: u8 = 16;
+
+// ===========================================================================
 // Hook function type aliases
 // ===========================================================================
 
@@ -86,14 +114,114 @@ impl CardEffectEntry {
 /// Card effect registry. Each entry is one effect tag with its hook fn pointers.
 /// Entries are added as effects are migrated from card_effects.rs.
 pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
-    // Hooks will be added here as effects are migrated in Steps 1-3.
-    // Example (not yet active):
-    // CardEffectEntry {
-    //     tag: "unplayable",
-    //     bit_index: 0,
-    //     can_play: Some(hooks_can_play::hook_unplayable),
-    //     ..CardEffectEntry::NONE
-    // },
+    // ===== can_play hooks (bits 0-3) =====
+    CardEffectEntry {
+        tag: "unplayable",
+        bit_index: 0,
+        can_play: Some(super::hooks_can_play::hook_unplayable),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "only_attack_in_hand",
+        bit_index: 1,
+        can_play: Some(super::hooks_can_play::hook_only_attack_in_hand),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "only_attacks_in_hand",
+        bit_index: 2,
+        can_play: Some(super::hooks_can_play::hook_only_attacks_in_hand),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "only_empty_draw",
+        bit_index: 3,
+        can_play: Some(super::hooks_can_play::hook_only_empty_draw),
+        ..CardEffectEntry::NONE
+    },
+    // ===== modify_cost hooks (bits 4-7) =====
+    CardEffectEntry {
+        tag: "cost_reduce_on_hp_loss",
+        bit_index: 4,
+        modify_cost: Some(super::hooks_cost::hook_cost_reduce_on_hp_loss),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "reduce_cost_per_power",
+        bit_index: 5,
+        modify_cost: Some(super::hooks_cost::hook_reduce_cost_per_power),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "cost_reduce_on_discard",
+        bit_index: 6,
+        modify_cost: Some(super::hooks_cost::hook_cost_reduce_on_discard),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "cost_increase_on_hp_loss",
+        bit_index: 7,
+        modify_cost: Some(super::hooks_cost::hook_cost_increase_on_hp_loss),
+        ..CardEffectEntry::NONE
+    },
+    // ===== on_retain hooks (bits 8-10) =====
+    CardEffectEntry {
+        tag: "reduce_cost_on_retain",
+        bit_index: 8,
+        on_retain: Some(super::hooks_retain::hook_reduce_cost_on_retain),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "grow_block_on_retain",
+        bit_index: 9,
+        on_retain: Some(super::hooks_retain::hook_grow_block_on_retain),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "grow_damage_on_retain",
+        bit_index: 10,
+        on_retain: Some(super::hooks_retain::hook_grow_damage_on_retain),
+        ..CardEffectEntry::NONE
+    },
+    // ===== on_draw hooks (bits 11-12) =====
+    CardEffectEntry {
+        tag: "lose_energy_on_draw",
+        bit_index: 11,
+        on_draw: Some(super::hooks_draw::hook_lose_energy_on_draw),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "copy_on_draw",
+        bit_index: 12,
+        on_draw: Some(super::hooks_draw::hook_copy_on_draw),
+        ..CardEffectEntry::NONE
+    },
+    // ===== on_discard hooks (bits 13-14) =====
+    CardEffectEntry {
+        tag: "draw_on_discard",
+        bit_index: 13,
+        on_discard: Some(super::hooks_discard::hook_draw_on_discard),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "energy_on_discard",
+        bit_index: 14,
+        on_discard: Some(super::hooks_discard::hook_energy_on_discard),
+        ..CardEffectEntry::NONE
+    },
+    // ===== post_play_dest hooks (bits 15-16) =====
+    CardEffectEntry {
+        tag: "shuffle_self_into_draw",
+        bit_index: 15,
+        post_play_dest: Some(super::hooks_dest::hook_shuffle_self_into_draw),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "end_turn",
+        bit_index: 16,
+        post_play_dest: Some(super::hooks_dest::hook_end_turn),
+        ..CardEffectEntry::NONE
+    },
 ];
 
 // ===========================================================================

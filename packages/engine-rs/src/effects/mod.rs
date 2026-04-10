@@ -11,9 +11,15 @@ pub mod flags;
 pub mod types;
 pub mod registry;
 
-// Hook implementation files — added as effects are migrated from card_effects.rs:
-// pub mod hooks_can_play;
-// pub mod hooks_cost;
+// Hook implementation files (Step 1)
+pub mod hooks_can_play;
+pub mod hooks_cost;
+pub mod hooks_retain;
+pub mod hooks_draw;
+pub mod hooks_discard;
+pub mod hooks_dest;
+
+// Future hook files (Steps 2-3):
 // pub mod hooks_damage;
 // pub mod hooks_simple;
 // pub mod hooks_debuff;
@@ -21,10 +27,6 @@ pub mod registry;
 // pub mod hooks_complex;
 // pub mod hooks_orb;
 // pub mod hooks_power;
-// pub mod hooks_retain;
-// pub mod hooks_draw;
-// pub mod hooks_discard;
-// pub mod hooks_dest;
 // pub mod hooks_scaling;
 
 pub use flags::EffectFlags;

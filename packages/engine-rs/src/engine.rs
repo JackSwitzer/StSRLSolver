@@ -13,6 +13,7 @@ use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
 use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::damage;
+use crate::effects;
 use crate::enemies;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
@@ -1025,6 +1026,7 @@ impl CombatEngine {
         let establishment = self.state.player.status(sid::ESTABLISHMENT);
         for card_inst in self.state.hand.iter_mut() {
             let card_def = self.card_registry.card_def_by_id(card_inst.def_id);
+            let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
             // Establishment: reduce retained card cost
             if establishment > 0 {
@@ -1032,17 +1034,17 @@ impl CombatEngine {
             }
 
             // Sands of Time: reduce cost on retain
-            if card_def.effects.contains(&"reduce_cost_on_retain") {
+            if card_flags.has(effects::registry::BIT_REDUCE_COST_ON_RETAIN) {
                 card_inst.cost = (card_inst.cost - 1).max(0);
             }
 
             // Perseverance: grow block bonus on retain
-            if card_def.effects.contains(&"grow_block_on_retain") {
+            if card_flags.has(effects::registry::BIT_GROW_BLOCK_ON_RETAIN) {
                 self.state.player.add_status(sid::PERSEVERANCE_BONUS, card_def.base_magic);
             }
 
             // Windmill Strike: grow damage bonus on retain
-            if card_def.effects.contains(&"grow_damage_on_retain") {
+            if card_flags.has(effects::registry::BIT_GROW_DAMAGE_ON_RETAIN) {
                 self.state.player.add_status(sid::WINDMILL_STRIKE_BONUS, card_def.base_magic);
             }
         }
@@ -1212,30 +1214,9 @@ impl CombatEngine {
             return false;
         }
 
-        // Signature Move: only playable if no other attacks in hand
-        if card.effects.contains(&"only_attack_in_hand") {
-            let other_attacks = self.state.hand.iter().filter(|c| {
-                let other_card = self.card_registry.card_def_by_id(c.def_id);
-                other_card.card_type == CardType::Attack && c.def_id != card_inst.def_id
-            }).count();
-            if other_attacks > 0 {
-                return false;
-            }
-        }
-
-        // Clash: only playable if hand contains only attacks
-        if card.effects.contains(&"only_attacks_in_hand") {
-            let has_non_attack = self.state.hand.iter().any(|c| {
-                let other_card = self.card_registry.card_def_by_id(c.def_id);
-                other_card.card_type != CardType::Attack
-            });
-            if has_non_attack {
-                return false;
-            }
-        }
-
-        // Grand Finale: only playable if draw pile is empty
-        if card.effects.contains(&"only_empty_draw") && !self.state.draw_pile.is_empty() {
+        // Registry-dispatched can_play hooks (Signature Move, Clash, Grand Finale)
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
+        if !effects::dispatch_can_play(&self.state, card, card_inst, card_flags, &self.card_registry) {
             return false;
         }
 
@@ -1283,28 +1264,9 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        // Blood for Blood: reduce cost by 1 per HP lost this combat
-        if card.effects.contains(&"cost_reduce_on_hp_loss") {
-            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
-            cost = (cost - hp_lost).max(0);
-        }
-
-        // Force Field: reduce cost by 1 per active power on player
-        if card.effects.contains(&"reduce_cost_per_power") {
-            let power_count = powers::registry::count_active_powers(&self.state.player);
-            cost = (cost - power_count).max(0);
-        }
-
-        // Eviscerate: reduce cost by 1 per card discarded this turn
-        if card.effects.contains(&"cost_reduce_on_discard") {
-            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
-            cost = (cost - discarded).max(0);
-        }
-
-        // Masterful Stab: increase cost by 1 per HP lost this combat
-        if card.effects.contains(&"cost_increase_on_hp_loss") {
-            cost += self.state.total_damage_taken;
-        }
+        // Registry-dispatched cost modifiers (Blood for Blood, Force Field, Eviscerate, Masterful Stab)
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
+        cost = effects::dispatch_modify_cost(&self.state, card, card_inst, card_flags, cost);
 
         cost
     }
@@ -1346,28 +1308,9 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        // Blood for Blood: reduce cost by 1 per HP lost this combat
-        if card.effects.contains(&"cost_reduce_on_hp_loss") {
-            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
-            cost = (cost - hp_lost).max(0);
-        }
-
-        // Force Field: reduce cost by 1 per active power on player
-        if card.effects.contains(&"reduce_cost_per_power") {
-            let power_count = powers::registry::count_active_powers(&self.state.player);
-            cost = (cost - power_count).max(0);
-        }
-
-        // Eviscerate: reduce cost by 1 per card discarded this turn
-        if card.effects.contains(&"cost_reduce_on_discard") {
-            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
-            cost = (cost - discarded).max(0);
-        }
-
-        // Masterful Stab: increase cost by 1 per HP lost this combat
-        if card.effects.contains(&"cost_increase_on_hp_loss") {
-            cost += self.state.total_damage_taken;
-        }
+        // Registry-dispatched cost modifiers (Blood for Blood, Force Field, Eviscerate, Masterful Stab)
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
+        cost = effects::dispatch_modify_cost(&self.state, card, card_inst, card_flags, cost);
 
         cost
     }
@@ -1380,6 +1323,7 @@ impl CombatEngine {
         let card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
         let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
         let card_id = self.card_registry.card_name(card_inst.def_id).to_string();
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
         if !self.can_play_card_inst(&card, card_inst) {
             return;
@@ -1685,7 +1629,7 @@ impl CombatEngine {
                 self.state.energy += 1;
             }
             // Powers don't go to any pile
-        } else if card.effects.contains(&"shuffle_self_into_draw") {
+        } else if card_flags.has(effects::registry::BIT_SHUFFLE_SELF_INTO_DRAW) {
             // Tantrum: goes to draw pile instead of discard
             // (already handled in execute_card_effects, don't double-add)
         } else if card.exhaust
@@ -1708,9 +1652,9 @@ impl CombatEngine {
             self.state.discard_pile.push(card_inst);
         }
 
-        // Conclude: end the turn immediately after playing
+        // Conclude: end the turn immediately after playing (via EffectFlags)
         // Let end_turn() handle the remaining hand (respects retain/ethereal)
-        if card.effects.contains(&"end_turn") {
+        if card_flags.has(effects::registry::BIT_END_TURN) {
             self.end_turn();
             return;
         }
@@ -1800,24 +1744,14 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
-        // Extract card info before mutable borrows
-        let (has_draw, has_energy, magic) = {
-            let card_def = self.card_registry.card_def_by_id(card.def_id);
-            (
-                card_def.effects.contains(&"draw_on_discard"),
-                card_def.effects.contains(&"energy_on_discard"),
-                card_def.base_magic,
-            )
-        };
-
-        // Reflex: draw N cards when discarded from hand
-        if has_draw {
-            self.draw_cards(magic);
+        // Registry-dispatched on_discard hooks (Reflex, Tactician)
+        let card_flags = self.card_registry.effect_flags(card.def_id);
+        let discard_effect = effects::dispatch_on_discard(self, card, card_flags);
+        if discard_effect.draw > 0 {
+            self.draw_cards(discard_effect.draw);
         }
-
-        // Tactician: gain N energy when discarded from hand
-        if has_energy {
-            self.state.energy += magic;
+        if discard_effect.energy > 0 {
+            self.state.energy += discard_effect.energy;
         }
 
         // Track discard count this turn (for Sneaky Strike, Eviscerate)
@@ -2177,15 +2111,10 @@ impl CombatEngine {
             if let Some(drawn) = self.state.draw_pile.pop() {
                 self.state.hand.push(drawn);
 
-                // Extract card info before mutable borrows
-                let (card_type, has_void, has_copy) = {
-                    let card_def = self.card_registry.card_def_by_id(drawn.def_id);
-                    (
-                        card_def.card_type,
-                        card_def.effects.contains(&"lose_energy_on_draw"),
-                        card_def.effects.contains(&"copy_on_draw"),
-                    )
-                };
+                // Extract card info for power triggers
+                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                let card_type = card_def.card_type;
+                let card_flags = self.card_registry.effect_flags(drawn.def_id);
 
                 // Evolve: draw extra cards when drawing a Status
                 let evolve = self.state.player.status(sid::EVOLVE);
@@ -2203,13 +2132,13 @@ impl CombatEngine {
                     }
                 }
 
-                // Void: lose 1 energy when drawn
-                if has_void {
+                // Void: lose 1 energy when drawn (via EffectFlags)
+                if card_flags.has(effects::registry::BIT_LOSE_ENERGY_ON_DRAW) {
                     self.state.energy = (self.state.energy - 1).max(0);
                 }
 
-                // Endless Agony: add a copy to hand when drawn
-                if has_copy && self.state.hand.len() < 10 {
+                // Endless Agony: add a copy to hand when drawn (via EffectFlags)
+                if card_flags.has(effects::registry::BIT_COPY_ON_DRAW) && self.state.hand.len() < 10 {
                     self.state.hand.push(drawn);
                 }
             }
