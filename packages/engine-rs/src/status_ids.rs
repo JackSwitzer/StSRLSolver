@@ -293,9 +293,12 @@ pub mod sid {
     pub const SLAVERS_COLLAR_ENERGY: StatusId = StatusId(231);
     pub const GAMBLING_CHIP_ACTIVE: StatusId = StatusId(232);
     pub const FORESIGHT: StatusId = StatusId(233);
+    pub const DISCARDED_THIS_TURN: StatusId = StatusId(234);
+    pub const PERSEVERANCE_BONUS: StatusId = StatusId(235);
+    pub const WINDMILL_STRIKE_BONUS: StatusId = StatusId(236);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 234;
+    pub const NUM_IDS: usize = 237;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -566,6 +569,9 @@ static STATUS_NAMES: &[&str] = &[
     "SlaversCollarEnergy", // 231
     "GamblingChipActive", // 232
     "Foresight",          // 233
+    "DiscardedThisTurn",  // 234
+    "PerseveranceBonus",  // 235
+    "WindmillStrikeBonus", // 236
 ];
 
 #[cfg(test)]
