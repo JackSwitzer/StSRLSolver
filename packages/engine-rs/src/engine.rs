@@ -47,6 +47,12 @@ pub enum ChoiceReason {
     DualWield,
     UpgradeCard,
     PickFromExhaust,
+    SearchDrawPile,
+    ReturnFromDiscard,
+    ForethoughtPick,
+    RecycleCard,
+    DiscardForEffect,
+    SetupPick,
 }
 
 /// A single option the player can choose.
@@ -308,6 +314,12 @@ impl CombatEngine {
             ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
             ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
             ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
+            ChoiceReason::SearchDrawPile => self.resolve_search_draw_pile(ctx),
+            ChoiceReason::ReturnFromDiscard => self.resolve_return_from_discard(ctx),
+            ChoiceReason::ForethoughtPick => self.resolve_forethought(ctx),
+            ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
+            ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
+            ChoiceReason::SetupPick => self.resolve_setup(ctx),
         }
 
         self.phase = CombatPhase::PlayerTurn;
@@ -522,6 +534,95 @@ impl CombatEngine {
                 }
             }
         }
+    }
+
+    fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
+        // Secret Weapon / Secret Technique: move selected card from draw pile to hand
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
+                if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+                    let card = self.state.draw_pile.remove(idx);
+                    self.state.hand.push(card);
+                }
+            }
+        }
+    }
+
+    fn resolve_return_from_discard(&mut self, ctx: ChoiceContext) {
+        // Hologram: move selected card from discard to hand (not top of draw)
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::DiscardCard(idx) = ctx.options[sel] {
+                if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
+                    let card = self.state.discard_pile.remove(idx);
+                    self.state.hand.push(card);
+                }
+            }
+        }
+    }
+
+    fn resolve_forethought(&mut self, ctx: ChoiceContext) {
+        // Forethought: put selected card(s) on bottom of draw pile at 0 cost
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in indices {
+            if idx < self.state.hand.len() {
+                let mut card = self.state.hand.remove(idx);
+                card.cost = 0;
+                // Bottom of draw pile = end of vec (top = index 0 or beginning)
+                self.state.draw_pile.push(card);
+            }
+        }
+    }
+
+    fn resolve_recycle(&mut self, ctx: ChoiceContext) {
+        // Recycle: exhaust selected card, gain its cost as energy
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    let card = self.state.hand.remove(idx);
+                    // cost == -1 means "use CardDef base cost"
+                    let effective_cost = if card.cost >= 0 {
+                        card.cost as i32
+                    } else {
+                        self.card_registry.card_def_by_id(card.def_id).cost.max(0)
+                    };
+                    self.state.energy += effective_cost;
+                    self.state.exhaust_pile.push(card);
+                    self.trigger_on_exhaust();
+                }
+            }
+        }
+    }
+
+    fn resolve_setup(&mut self, ctx: ChoiceContext) {
+        // Setup: set card cost to 0 and put on top of draw pile
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    let mut card = self.state.hand.remove(idx);
+                    card.cost = 0;
+                    self.state.draw_pile.insert(0, card);
+                }
+            }
+        }
+    }
+
+    fn resolve_discard_for_effect(&mut self, ctx: ChoiceContext) {
+        // Concentrate: discard N cards, then gain energy
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in indices {
+            if idx < self.state.hand.len() {
+                let card = self.state.hand.remove(idx);
+                self.state.discard_pile.push(card);
+            }
+        }
+        // Concentrate gives 2 energy after discarding
+        self.state.energy += 2;
     }
 
     // =======================================================================
@@ -1052,34 +1153,43 @@ impl CombatEngine {
         true
     }
 
+    /// Resolve the effective cost of a card instance.
+    ///
+    /// Priority: X-cost -> free overrides -> Confusion -> instance cost -> CardDef cost.
+    /// CardInstance.cost == -1 means "use CardDef base cost" (the default).
+    /// When a card's cost is modified at runtime (Streamline, Madness, etc.),
+    /// the instance cost is set to a non-negative value which takes precedence.
     fn effective_cost_inst(&self, card: &CardDef, card_inst: CardInstance) -> i32 {
-        // X-cost cards: always playable if energy >= 0
+        // X-cost cards: cost is consumed separately in card_effects
         if card.cost == -1 {
             return 0;
         }
 
-        // NextAttackFree: next attack costs 0
+        // Free overrides
+        if card_inst.is_free() {
+            return 0;
+        }
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             return 0;
         }
-
-        // Corruption: all Skills cost 0
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-
-        // BulletTime: all cards cost 0
         if self.state.player.status(sid::BULLET_TIME) > 0 {
             return 0;
         }
 
-        // Confusion/SneckoEye: randomize card costs 0-3
-        // MCTS approximation: use deterministic midpoint (1) to avoid RNG in &self method
+        // Confusion/SneckoEye: MCTS approximation (deterministic midpoint)
         if self.state.player.status(sid::CONFUSION) > 0 {
             return 1;
         }
 
-        let mut cost = card.cost;
+        // Instance cost overrides CardDef cost when set (>= 0)
+        let mut cost = if card_inst.cost >= 0 {
+            card_inst.cost as i32
+        } else {
+            card.cost
+        };
 
         // Establishment: retained cards cost 1 less per stack
         let establishment = self.state.player.status(sid::ESTABLISHMENT);
@@ -1093,22 +1203,21 @@ impl CombatEngine {
     /// Effective cost with RNG for actual card play (Confusion randomization).
     /// Called from play_card where &mut self is available.
     fn effective_cost_mut_inst(&mut self, card: &CardDef, card_inst: CardInstance) -> i32 {
-        // X-cost cards: always playable if energy >= 0
+        // X-cost cards: cost is consumed separately in card_effects
         if card.cost == -1 {
             return 0;
         }
 
-        // NextAttackFree: next attack costs 0
+        // Free overrides
+        if card_inst.is_free() {
+            return 0;
+        }
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             return 0;
         }
-
-        // Corruption: all Skills cost 0
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-
-        // BulletTime: all cards cost 0
         if self.state.player.status(sid::BULLET_TIME) > 0 {
             return 0;
         }
@@ -1118,7 +1227,12 @@ impl CombatEngine {
             return self.rng.random(3);
         }
 
-        let mut cost = card.cost;
+        // Instance cost overrides CardDef cost when set (>= 0)
+        let mut cost = if card_inst.cost >= 0 {
+            card_inst.cost as i32
+        } else {
+            card.cost
+        };
 
         // Establishment: retained cards cost 1 less per stack
         let establishment = self.state.player.status(sid::ESTABLISHMENT);

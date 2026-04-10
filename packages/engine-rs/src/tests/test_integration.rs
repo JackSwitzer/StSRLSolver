@@ -2702,4 +2702,137 @@ mod effect_handler_tests {
         assert_eq!(e.state.enemies.len(), 3,
             "GremlinLeader should spawn 2 gremlins");
     }
+
+    // ====================================================================
+    // PR5: Choice-based card effect tests
+    // ====================================================================
+
+    #[test] fn secret_weapon_searches_attacks() {
+        let mut e = make_engine_with_deck(make_deck(&[
+            "Defend_G", "Defend_G", "Defend_G", "Defend_G", "Defend_G",
+            "Strike_R", "Strike_R", "Strike_R",
+        ]));
+        e.start_combat();
+        e.state.energy = 10;
+        let sw = e.card_registry.make_card("Secret Weapon");
+        e.state.hand.push(sw);
+        play_card(&mut e, "Secret Weapon", -1);
+        // Should be awaiting choice to pick an attack from draw pile
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice, "Should be awaiting choice");
+        // Choose first option
+        e.execute_action(&Action::Choose(0));
+        assert_eq!(e.phase, CombatPhase::PlayerTurn, "Should return to player turn");
+    }
+
+    #[test] fn hologram_returns_from_discard() {
+        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        e.start_combat();
+        e.state.energy = 10;
+        // Put a card in discard
+        let card = e.card_registry.make_card("Strike_R");
+        e.state.discard_pile.push(card);
+        let holo = e.card_registry.make_card("Hologram");
+        e.state.hand.push(holo);
+        play_card(&mut e, "Hologram", -1);
+        // Should be awaiting choice
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        e.execute_action(&Action::Choose(0));
+        // Strike should now be in hand
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike_R"),
+            "Strike_R should be in hand after Hologram");
+        assert!(e.state.discard_pile.iter().all(|c| e.card_registry.card_name(c.def_id) != "Strike_R"),
+            "Strike_R should not be in discard after Hologram");
+    }
+
+    #[test] fn recycle_exhausts_and_gains_energy() {
+        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        e.start_combat();
+        e.state.energy = 1; // just enough for Recycle
+        let rec = e.card_registry.make_card("Recycle");
+        e.state.hand.push(rec);
+        // Add a 2-cost card to hand as target
+        let expensive = e.card_registry.make_card("Streamline");
+        e.state.hand.push(expensive);
+        play_card(&mut e, "Recycle", -1);
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        // Find the Streamline option and choose it
+        let streamline_idx = e.choice.as_ref().unwrap().options.iter()
+            .enumerate()
+            .find(|(_, opt)| {
+                if let crate::engine::ChoiceOption::HandCard(idx) = opt {
+                    e.card_registry.card_name(e.state.hand[*idx].def_id) == "Streamline"
+                } else { false }
+            })
+            .map(|(i, _)| i)
+            .unwrap();
+        e.execute_action(&Action::Choose(streamline_idx));
+        // Should gain 2 energy (Streamline costs 2)
+        assert!(e.state.energy >= 2, "Should have gained energy from recycled card cost, energy={}", e.state.energy);
+    }
+
+    #[test] fn concentrate_discards_and_gains_energy() {
+        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        e.start_combat();
+        e.state.energy = 5;
+        let conc = e.card_registry.make_card("Concentrate");
+        e.state.hand.push(conc);
+        let energy_before = e.state.energy;
+        play_card(&mut e, "Concentrate", -1);
+        // Should be awaiting choice to discard 3 cards
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice, "Should await choice to discard");
+        // Select 3 cards
+        e.execute_action(&Action::Choose(0));
+        e.execute_action(&Action::Choose(1));
+        e.execute_action(&Action::Choose(2));
+        e.execute_action(&Action::ConfirmSelection);
+        // Should have gained 2 energy
+        assert_eq!(e.state.energy, energy_before + 2, "Should gain 2 energy after discarding");
+    }
+
+    #[test] fn thinking_ahead_draws_then_puts_on_top() {
+        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        e.start_combat();
+        e.state.energy = 10;
+        let ta = e.card_registry.make_card("Thinking Ahead");
+        e.state.hand.push(ta);
+        let hand_before = e.state.hand.len();
+        play_card(&mut e, "Thinking Ahead", -1);
+        // Should have drawn 2 cards, then be awaiting choice to put 1 on top
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        e.execute_action(&Action::Choose(0));
+        assert_eq!(e.phase, CombatPhase::PlayerTurn);
+    }
+
+    #[test] fn instance_cost_override_respected() {
+        // A card with instance cost set to 0 should be playable with 0 energy
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 0;
+        // Streamline normally costs 2, but set instance cost to 0
+        let mut card = e.card_registry.make_card("Streamline");
+        card.cost = 0; // instance override
+        e.state.hand.push(card);
+        let hp_before = e.state.enemies[0].entity.hp;
+        play_card(&mut e, "Streamline", 0);
+        assert!(e.state.enemies[0].entity.hp < hp_before,
+            "Streamline at instance cost 0 should be playable with 0 energy");
+        assert_eq!(e.state.energy, 0, "Should not go negative");
+    }
+
+    #[test] fn instance_cost_neg1_uses_carddef_cost() {
+        // Default instance cost (-1) should use CardDef cost
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 1; // Streamline costs 2, so not enough
+        let card = e.card_registry.make_card("Streamline");
+        assert_eq!(card.cost, -1, "Default instance cost should be -1");
+        e.state.hand.push(card);
+        let hp_before = e.state.enemies[0].entity.hp;
+        // Should not be playable — can_play_card_inst should reject it
+        if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == "Streamline") {
+            e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: 0 });
+        }
+        assert_eq!(e.state.enemies[0].entity.hp, hp_before,
+            "Streamline should not be playable with only 1 energy (costs 2)");
+    }
 }
