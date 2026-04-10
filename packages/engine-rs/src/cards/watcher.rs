@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
+use crate::effects::declarative::{Effect as E, SimpleEffect as SE, Target as T, AmountSource as A, Pile as P, Condition as Cond, BoolFlag as BF};
+use crate::status_ids::sid;
+use crate::state::Stance;
 
 pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Watcher Basic Cards ----
@@ -61,25 +64,35 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "CrushJoints", name: "Crush Joints", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["vuln_if_last_skill"], effect_data: &[], complex_hook: None,
+            effects: &["vuln_if_last_skill"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Skill), &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "CrushJoints+", name: "Crush Joints+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["vuln_if_last_skill"], effect_data: &[], complex_hook: None,
+            effects: &["vuln_if_last_skill"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Skill), &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "CutThroughFate", name: "Cut Through Fate", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["scry", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["scry", "draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "CutThroughFate+", name: "Cut Through Fate+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["scry", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["scry", "draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "EmptyBody", name: "Empty Body", card_type: CardType::Skill,
@@ -119,37 +132,49 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "FollowUp", name: "Follow-Up", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["energy_if_last_attack"], effect_data: &[], complex_hook: None,
+            effects: &["energy_if_last_attack"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Attack), &[E::Simple(SE::GainEnergy(A::Fixed(1)))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "FollowUp+", name: "Follow-Up+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["energy_if_last_attack"], effect_data: &[], complex_hook: None,
+            effects: &["energy_if_last_attack"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Attack), &[E::Simple(SE::GainEnergy(A::Fixed(1)))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Halt", name: "Halt", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 3,
             base_magic: 9, exhaust: false, enter_stance: None,
-            effects: &["extra_block_in_wrath"], effect_data: &[], complex_hook: None,
+            effects: &["extra_block_in_wrath"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Wrath), &[E::Simple(SE::GainBlock(A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Halt+", name: "Halt+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 4,
             base_magic: 14, exhaust: false, enter_stance: None,
-            effects: &["extra_block_in_wrath"], effect_data: &[], complex_hook: None,
+            effects: &["extra_block_in_wrath"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Wrath), &[E::Simple(SE::GainBlock(A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Prostrate", name: "Prostrate", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 4,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["mantra"], effect_data: &[], complex_hook: None,
+            effects: &["mantra"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Prostrate+", name: "Prostrate+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 4,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["mantra"], effect_data: &[], complex_hook: None,
+            effects: &["mantra"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Tantrum", name: "Tantrum", card_type: CardType::Attack,
@@ -209,13 +234,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Evaluate", name: "Evaluate", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["insight_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["insight_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Evaluate+", name: "Evaluate+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 10,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["insight_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["insight_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
 
         // ---- Common: Just Lucky ---- (cost 0, 3 dmg, 2 block, scry 1; +1/+1/+1 upgrade)
@@ -223,13 +252,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "JustLucky", name: "Just Lucky", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: 2,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["scry"], effect_data: &[], complex_hook: None,
+            effects: &["scry"], effect_data: &[
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "JustLucky+", name: "Just Lucky+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: 3,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["scry"], effect_data: &[], complex_hook: None,
+            effects: &["scry"], effect_data: &[
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Common: Pressure Points ---- (cost 1, skill, apply 8 Mark, trigger; +3 upgrade)
@@ -266,13 +299,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "SashWhip", name: "Sash Whip", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["weak_if_last_attack"], effect_data: &[], complex_hook: None,
+            effects: &["weak_if_last_attack"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Attack), &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "SashWhip+", name: "Sash Whip+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["weak_if_last_attack"], effect_data: &[], complex_hook: None,
+            effects: &["weak_if_last_attack"], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Attack), &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic))], &[]),
+            ], complex_hook: None,
         });
 
         // ---- Common: Tranquility ---- (cost 1, enter Calm, exhaust, retain; upgrade: cost 0)
@@ -295,13 +332,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "ThirdEye", name: "Third Eye", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["scry"], effect_data: &[], complex_hook: None,
+            effects: &["scry"], effect_data: &[
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "ThirdEye+", name: "Third Eye+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 9,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["scry"], effect_data: &[], complex_hook: None,
+            effects: &["scry"], effect_data: &[
+                E::Simple(SE::Scry(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon Watcher Cards ----
@@ -309,25 +350,33 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "InnerPeace", name: "Inner Peace", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["if_calm_draw_else_calm"], effect_data: &[], complex_hook: None,
+            effects: &["if_calm_draw_else_calm"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Calm), &[E::Simple(SE::DrawCards(A::Magic))], &[E::Simple(SE::ChangeStance(Stance::Calm))]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "InnerPeace+", name: "Inner Peace+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: false, enter_stance: None,
-            effects: &["if_calm_draw_else_calm"], effect_data: &[], complex_hook: None,
+            effects: &["if_calm_draw_else_calm"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Calm), &[E::Simple(SE::DrawCards(A::Magic))], &[E::Simple(SE::ChangeStance(Stance::Calm))]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "WheelKick", name: "Wheel Kick", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "WheelKick+", name: "Wheel Kick+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 20, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         // ---- Uncommon: Battle Hymn ---- (cost 1, power, add Smite to hand each turn; upgrade: innate)
         insert(cards, CardDef {
@@ -348,13 +397,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "CarveReality", name: "Carve Reality", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_smite_to_hand"], effect_data: &[], complex_hook: None,
+            effects: &["add_smite_to_hand"], effect_data: &[
+                E::Simple(SE::AddCard("Smite", P::Hand, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "CarveReality+", name: "Carve Reality+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_smite_to_hand"], effect_data: &[], complex_hook: None,
+            effects: &["add_smite_to_hand"], effect_data: &[
+                E::Simple(SE::AddCard("Smite", P::Hand, A::Fixed(1))),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Deceive Reality ---- (cost 1, 4 block, add Safety to hand; +3 block upgrade)
@@ -362,13 +415,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "DeceiveReality", name: "Deceive Reality", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 4,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_safety_to_hand"], effect_data: &[], complex_hook: None,
+            effects: &["add_safety_to_hand"], effect_data: &[
+                E::Simple(SE::AddCard("Safety", P::Hand, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "DeceiveReality+", name: "Deceive Reality+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_safety_to_hand"], effect_data: &[], complex_hook: None,
+            effects: &["add_safety_to_hand"], effect_data: &[
+                E::Simple(SE::AddCard("Safety", P::Hand, A::Fixed(1))),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Empty Mind ---- (cost 1, draw 2, exit stance; +1 draw upgrade)
@@ -376,13 +433,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "EmptyMind", name: "Empty Mind", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: Some("Neutral"),
-            effects: &["draw", "exit_stance"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "exit_stance"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "EmptyMind+", name: "Empty Mind+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: Some("Neutral"),
-            effects: &["draw", "exit_stance"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "exit_stance"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Fear No Evil ---- (cost 1, 8 dmg, enter Calm if enemy attacking; +3 dmg upgrade)
@@ -390,13 +451,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "FearNoEvil", name: "Fear No Evil", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["calm_if_enemy_attacking"], effect_data: &[], complex_hook: None,
+            effects: &["calm_if_enemy_attacking"], effect_data: &[
+                E::Conditional(Cond::EnemyAttacking, &[E::Simple(SE::ChangeStance(Stance::Calm))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "FearNoEvil+", name: "Fear No Evil+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["calm_if_enemy_attacking"], effect_data: &[], complex_hook: None,
+            effects: &["calm_if_enemy_attacking"], effect_data: &[
+                E::Conditional(Cond::EnemyAttacking, &[E::Simple(SE::ChangeStance(Stance::Calm))], &[]),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Foreign Influence ---- (cost 0, skill, exhaust, choose attack from other class; upgrade: upgraded choices)
@@ -418,13 +483,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Indignation", name: "Indignation", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["indignation"], effect_data: &[], complex_hook: None,
+            effects: &["indignation"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Wrath), &[E::Simple(SE::AddStatus(T::AllEnemies, sid::VULNERABLE, A::Magic))], &[E::Simple(SE::ChangeStance(Stance::Wrath))]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Indignation+", name: "Indignation+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["indignation"], effect_data: &[], complex_hook: None,
+            effects: &["indignation"], effect_data: &[
+                E::Conditional(Cond::InStance(Stance::Wrath), &[E::Simple(SE::AddStatus(T::AllEnemies, sid::VULNERABLE, A::Magic))], &[E::Simple(SE::ChangeStance(Stance::Wrath))]),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Like Water ---- (cost 1, power, if in Calm at end of turn gain 5 block; +2 magic upgrade)
@@ -488,13 +557,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "ReachHeaven", name: "Reach Heaven", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_through_violence_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["add_through_violence_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "ReachHeaven+", name: "Reach Heaven+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["add_through_violence_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["add_through_violence_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Sands of Time ---- (cost 4, 20 dmg, retain, cost -1 each retain; +6 dmg upgrade)
@@ -544,13 +617,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Swivel", name: "Swivel", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 8,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["next_attack_free"], effect_data: &[], complex_hook: None,
+            effects: &["next_attack_free"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::NextAttackFree)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Swivel+", name: "Swivel+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 11,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["next_attack_free"], effect_data: &[], complex_hook: None,
+            effects: &["next_attack_free"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::NextAttackFree)),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Wallop ---- (cost 2, 9 dmg, gain block equal to unblocked damage; +3 dmg upgrade)
@@ -572,13 +649,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "WaveOfTheHand", name: "Wave of the Hand", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["wave_of_the_hand"], effect_data: &[], complex_hook: None,
+            effects: &["wave_of_the_hand"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::WAVE_OF_THE_HAND, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "WaveOfTheHand+", name: "Wave of the Hand+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["wave_of_the_hand"], effect_data: &[], complex_hook: None,
+            effects: &["wave_of_the_hand"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::WAVE_OF_THE_HAND, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Weave ---- (cost 0, 4 dmg, returns to hand on Scry; +2 dmg upgrade)
@@ -613,12 +694,16 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
         insert(cards, CardDef {
             id: "Sanctity", name: "Sanctity", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
-            base_magic: 2, exhaust: false, enter_stance: None, effects: &[], effect_data: &[], complex_hook: None,
+            base_magic: 2, exhaust: false, enter_stance: None, effects: &[], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Skill), &[E::Simple(SE::DrawCards(A::Magic))], &[]),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Sanctity+", name: "Sanctity+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 9,
-            base_magic: 2, exhaust: false, enter_stance: None, effects: &[], effect_data: &[], complex_hook: None,
+            base_magic: 2, exhaust: false, enter_stance: None, effects: &[], effect_data: &[
+                E::Conditional(Cond::LastCardType(CardType::Skill), &[E::Simple(SE::DrawCards(A::Magic))], &[]),
+            ], complex_hook: None,
         });
 
         // ---- Uncommon: Simmering Fury ---- (Java ID: Vengeance, cost 1, next turn enter Wrath + draw 2; +1 magic upgrade)
@@ -662,13 +747,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "WreathOfFlame", name: "Wreath of Flame", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["vigor"], effect_data: &[], complex_hook: None,
+            effects: &["vigor"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::VIGOR, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "WreathOfFlame+", name: "Wreath of Flame+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 8, exhaust: false, enter_stance: None,
-            effects: &["vigor"], effect_data: &[], complex_hook: None,
+            effects: &["vigor"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::VIGOR, A::Magic)),
+            ], complex_hook: None,
         });
 
         insert(cards, CardDef {
@@ -687,37 +776,49 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "TalkToTheHand", name: "Talk to the Hand", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 5, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["apply_block_return"], effect_data: &[], complex_hook: None,
+            effects: &["apply_block_return"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::BLOCK_RETURN, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "TalkToTheHand+", name: "Talk to the Hand+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["apply_block_return"], effect_data: &[], complex_hook: None,
+            effects: &["apply_block_return"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::BLOCK_RETURN, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Pray", name: "Pray", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["mantra"], effect_data: &[], complex_hook: None,
+            effects: &["mantra"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Pray+", name: "Pray+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: false, enter_stance: None,
-            effects: &["mantra"], effect_data: &[], complex_hook: None,
+            effects: &["mantra"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Worship", name: "Worship", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["mantra"], effect_data: &[], complex_hook: None,
+            effects: &["mantra"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Worship+", name: "Worship+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["mantra", "retain"], effect_data: &[], complex_hook: None,
+            effects: &["mantra", "retain"], effect_data: &[
+                E::Simple(SE::GainMantra(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Power Cards ----
@@ -765,13 +866,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Alpha", name: "Alpha", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_beta_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["add_beta_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("Beta", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Alpha+", name: "Alpha+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_beta_to_draw", "innate"], effect_data: &[], complex_hook: None,
+            effects: &["add_beta_to_draw", "innate"], effect_data: &[
+                E::Simple(SE::AddCard("Beta", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
 
         // ---- Rare: Blasphemy ---- (cost 1, skill, exhaust, enter Divinity, die next turn; upgrade: retain)
@@ -779,13 +884,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Blasphemy", name: "Blasphemy", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: Some("Divinity"),
-            effects: &["die_next_turn"], effect_data: &[], complex_hook: None,
+            effects: &["die_next_turn"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::Blasphemy)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Blasphemy+", name: "Blasphemy+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: Some("Divinity"),
-            effects: &["die_next_turn", "retain"], effect_data: &[], complex_hook: None,
+            effects: &["die_next_turn", "retain"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::Blasphemy)),
+            ], complex_hook: None,
         });
 
         // ---- Rare: Brilliance ---- (cost 1, 12 dmg + mantra gained this combat; +4 dmg upgrade)
@@ -962,13 +1071,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Vault", name: "Vault", card_type: CardType::Skill,
             target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["skip_enemy_turn", "end_turn"], effect_data: &[], complex_hook: None,
+            effects: &["skip_enemy_turn", "end_turn"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::SkipEnemyTurn)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Vault+", name: "Vault+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["skip_enemy_turn", "end_turn"], effect_data: &[], complex_hook: None,
+            effects: &["skip_enemy_turn", "end_turn"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::SkipEnemyTurn)),
+            ], complex_hook: None,
         });
 
         // ---- Rare: Wish ---- (cost 3, skill, exhaust, choose: +3 str, or 25 gold, or 6 block; upgrade: +1/+5/+2)
@@ -1027,13 +1140,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Miracle", name: "Miracle", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: true, enter_stance: None,
-            effects: &["gain_energy"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Miracle+", name: "Miracle+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["gain_energy"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Magic)),
+            ], complex_hook: None,
         });
         // Holy Water: 0 cost, 5 block, retain, exhaust (from HolyWater relic)
         insert(cards, CardDef {
@@ -1067,13 +1184,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Beta", name: "Beta", card_type: CardType::Skill,
             target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_omega_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["add_omega_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("Omega", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Beta+", name: "Beta+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_omega_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &["add_omega_to_draw"], effect_data: &[
+                E::Simple(SE::AddCard("Omega", P::Draw, A::Fixed(1))),
+            ], complex_hook: None,
         });
         // Omega (from Beta chain): cost 3, power, deal 50 dmg at end of turn
         insert(cards, CardDef {
@@ -1119,13 +1240,17 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Insight", name: "Insight", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["draw", "retain"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "retain"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Insight+", name: "Insight+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["draw", "retain"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "retain"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         // Expunger (from Conjure Blade): cost 1, deal 9 dmg X times
         insert(cards, CardDef {

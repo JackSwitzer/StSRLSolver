@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
+use crate::effects::declarative::{Effect as E, SimpleEffect as SE, Target as T, AmountSource as A, Pile as P};
+use crate::status_ids::sid;
+use crate::orbs::OrbType;
 
 pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Defect Basic Cards ----
@@ -27,13 +30,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Zap", name: "Zap", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_lightning"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Zap+", name: "Zap+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_lightning"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Dualcast", name: "Dualcast", card_type: CardType::Skill,
@@ -54,13 +61,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Ball Lightning", name: "Ball Lightning", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_lightning"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Ball Lightning+", name: "Ball Lightning+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_lightning"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
+            ], complex_hook: None,
         });
         // Barrage: 1 cost, 4 dmg x orbs
         insert(cards, CardDef {
@@ -80,26 +91,34 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Beam Cell", name: "Beam Cell", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["apply_vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["apply_vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Beam Cell+", name: "Beam Cell+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["apply_vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["apply_vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
         // Cold Snap: 1 cost, 6 dmg, channel 1 Frost
         insert(cards, CardDef {
             id: "Cold Snap", name: "Cold Snap", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_frost"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Cold Snap+", name: "Cold Snap+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_frost"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
+            ], complex_hook: None,
         });
         // Compile Driver: 1 cost, 7 dmg, draw 1 per unique orb
         insert(cards, CardDef {
@@ -132,13 +151,19 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Coolheaded", name: "Coolheaded", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_frost", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost", "draw"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Fixed(1))),
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Coolheaded+", name: "Coolheaded+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["channel_frost", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost", "draw"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Fixed(1))),
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         // Go for the Eyes: 0 cost, 3 dmg, apply Weak if attacking
         insert(cards, CardDef {
@@ -234,26 +259,36 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Sweeping Beam", name: "Sweeping Beam", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 1, base_damage: 6, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Sweeping Beam+", name: "Sweeping Beam+", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 1, base_damage: 9, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         // Turbo: 0 cost, gain 2 energy, add Void to discard
         insert(cards, CardDef {
             id: "Turbo", name: "Turbo", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["gain_energy", "add_void_to_discard"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy", "add_void_to_discard"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Magic)),
+                E::Simple(SE::AddCard("Void", P::Discard, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Turbo+", name: "Turbo+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["gain_energy", "add_void_to_discard"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy", "add_void_to_discard"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Magic)),
+                E::Simple(SE::AddCard("Void", P::Discard, A::Fixed(1))),
+            ], complex_hook: None,
         });
         // Claw (Java ID: Gash): 0 cost, 3 dmg, all Claw dmg +2 for rest of combat
         insert(cards, CardDef {
@@ -379,7 +414,9 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Darkness", name: "Darkness", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_dark"], effect_data: &[], complex_hook: None,
+            effects: &["channel_dark"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Darkness+", name: "Darkness+", card_type: CardType::Skill,
@@ -392,26 +429,34 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Defragment", name: "Defragment", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["gain_focus"], effect_data: &[], complex_hook: None,
+            effects: &["gain_focus"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Defragment+", name: "Defragment+", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["gain_focus"], effect_data: &[], complex_hook: None,
+            effects: &["gain_focus"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Magic)),
+            ], complex_hook: None,
         });
         // Doom and Gloom: 2 cost, 10 dmg AoE, channel 1 Dark
         insert(cards, CardDef {
             id: "Doom and Gloom", name: "Doom and Gloom", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 2, base_damage: 10, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_dark"], effect_data: &[], complex_hook: None,
+            effects: &["channel_dark"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Doom and Gloom+", name: "Doom and Gloom+", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 2, base_damage: 14, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_dark"], effect_data: &[], complex_hook: None,
+            effects: &["channel_dark"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Magic)),
+            ], complex_hook: None,
         });
         // Double Energy: 1 cost, double your energy, exhaust (upgrade: cost 0)
         insert(cards, CardDef {
@@ -470,13 +515,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Fusion", name: "Fusion", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_plasma"], effect_data: &[], complex_hook: None,
+            effects: &["channel_plasma"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Plasma, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Fusion+", name: "Fusion+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["channel_plasma"], effect_data: &[], complex_hook: None,
+            effects: &["channel_plasma"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Plasma, A::Magic)),
+            ], complex_hook: None,
         });
         // Genetic Algorithm: 1 cost, block from misc (starts 0), grows +2 per combat, exhaust
         insert(cards, CardDef {
@@ -496,13 +545,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Glacier", name: "Glacier", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 7,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["channel_frost"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Glacier+", name: "Glacier+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 10,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["channel_frost"], effect_data: &[], complex_hook: None,
+            effects: &["channel_frost"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
+            ], complex_hook: None,
         });
         // Heatsinks: 1 cost, power, whenever you play a power draw 1 card
         insert(cards, CardDef {
@@ -548,13 +601,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Lockon", name: "Lock-On", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["apply_lock_on"], effect_data: &[], complex_hook: None,
+            effects: &["apply_lock_on"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOCK_ON, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Lockon+", name: "Lock-On+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["apply_lock_on"], effect_data: &[], complex_hook: None,
+            effects: &["apply_lock_on"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOCK_ON, A::Magic)),
+            ], complex_hook: None,
         });
         // Loop: 1 cost, power, trigger frontmost orb passive at start of turn
         insert(cards, CardDef {
@@ -587,13 +644,19 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Steam Power", name: "Overclock", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["draw", "add_burn_to_discard"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "add_burn_to_discard"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+                E::Simple(SE::AddCard("Burn", P::Discard, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Steam Power+", name: "Overclock+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["draw", "add_burn_to_discard"], effect_data: &[], complex_hook: None,
+            effects: &["draw", "add_burn_to_discard"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+                E::Simple(SE::AddCard("Burn", P::Discard, A::Fixed(1))),
+            ], complex_hook: None,
         });
         // Recycle: 1 cost, exhaust a card, gain energy equal to its cost (upgrade: cost 0)
         insert(cards, CardDef {
@@ -639,13 +702,21 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Reprogram", name: "Reprogram", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["reprogram"], effect_data: &[], complex_hook: None,
+            effects: &["reprogram"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-1))),
+                E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
+                E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Reprogram+", name: "Reprogram+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["reprogram"], effect_data: &[], complex_hook: None,
+            effects: &["reprogram"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-2))),
+                E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
+                E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
+            ], complex_hook: None,
         });
         // Rip and Tear: 1 cost, deal 7 dmg twice to random enemies
         insert(cards, CardDef {
@@ -691,13 +762,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Skim", name: "Skim", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Skim+", name: "Skim+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         // Static Discharge: 1 cost, power, channel 1 Lightning whenever you take unblocked damage
         insert(cards, CardDef {
@@ -888,13 +963,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Hyperbeam", name: "Hyperbeam", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 2, base_damage: 26, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["lose_focus"], effect_data: &[], complex_hook: None,
+            effects: &["lose_focus"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-3))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Hyperbeam+", name: "Hyperbeam+", card_type: CardType::Attack,
             target: CardTarget::AllEnemy, cost: 2, base_damage: 34, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["lose_focus"], effect_data: &[], complex_hook: None,
+            effects: &["lose_focus"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-3))),
+            ], complex_hook: None,
         });
         // Machine Learning: 1 cost, power, draw 1 extra card each turn (upgrade: innate)
         insert(cards, CardDef {
@@ -914,13 +993,17 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Meteor Strike", name: "Meteor Strike", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 5, base_damage: 24, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["channel_plasma"], effect_data: &[], complex_hook: None,
+            effects: &["channel_plasma"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Plasma, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Meteor Strike+", name: "Meteor Strike+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 5, base_damage: 30, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["channel_plasma"], effect_data: &[], complex_hook: None,
+            effects: &["channel_plasma"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Plasma, A::Magic)),
+            ], complex_hook: None,
         });
         // Multi-Cast: X cost, evoke frontmost orb X times (upgrade: X+1)
         insert(cards, CardDef {
@@ -940,13 +1023,21 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Rainbow", name: "Rainbow", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["channel_lightning", "channel_frost", "channel_dark"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning", "channel_frost", "channel_dark"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(1))),
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Fixed(1))),
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Rainbow+", name: "Rainbow+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["channel_lightning", "channel_frost", "channel_dark"], effect_data: &[], complex_hook: None,
+            effects: &["channel_lightning", "channel_frost", "channel_dark"], effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(1))),
+                E::Simple(SE::ChannelOrb(OrbType::Frost, A::Fixed(1))),
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
+            ], complex_hook: None,
         });
         // Reboot: 0 cost, shuffle hand+discard into draw, draw 4, exhaust
         insert(cards, CardDef {

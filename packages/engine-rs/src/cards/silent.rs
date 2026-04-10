@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
+use crate::effects::declarative::{Effect as E, SimpleEffect as SE, Target as T, AmountSource as A, Pile as P, BoolFlag as BF};
+use crate::status_ids::sid;
 
 pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Silent Basic: Strike_G ----
@@ -29,13 +31,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Neutralize", name: "Neutralize", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Neutralize+", name: "Neutralize+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
         // ---- Silent Basic: Survivor ---- (cost 1, 8 block, discard 1; +3 block)
         insert(cards, CardDef {
@@ -70,13 +76,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Backflip", name: "Backflip", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Backflip+", name: "Backflip+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Bane ---- (cost 1, 7 dmg, double if poisoned; +3 dmg)
@@ -98,13 +108,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Blade Dance", name: "Blade Dance", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["add_shivs"], effect_data: &[], complex_hook: None,
+            effects: &["add_shivs"], effect_data: &[
+                E::Simple(SE::AddCard("Shiv", P::Hand, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Blade Dance+", name: "Blade Dance+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: false, enter_stance: None,
-            effects: &["add_shivs"], effect_data: &[], complex_hook: None,
+            effects: &["add_shivs"], effect_data: &[
+                E::Simple(SE::AddCard("Shiv", P::Hand, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Cloak and Dagger ---- (cost 1, 6 block, add 1 Shiv to hand; +1 shiv)
@@ -112,13 +126,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Cloak and Dagger", name: "Cloak and Dagger", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["add_shivs"], effect_data: &[], complex_hook: None,
+            effects: &["add_shivs"], effect_data: &[
+                E::Simple(SE::AddCard("Shiv", P::Hand, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Cloak and Dagger+", name: "Cloak and Dagger+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["add_shivs"], effect_data: &[], complex_hook: None,
+            effects: &["add_shivs"], effect_data: &[
+                E::Simple(SE::AddCard("Shiv", P::Hand, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Dagger Spray ---- (cost 1, 4 dmg x2 AoE; +2 dmg)
@@ -154,13 +172,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Deadly Poison", name: "Deadly Poison", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["poison"], effect_data: &[], complex_hook: None,
+            effects: &["poison"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Deadly Poison+", name: "Deadly Poison+", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 7, exhaust: false, enter_stance: None,
-            effects: &["poison"], effect_data: &[], complex_hook: None,
+            effects: &["poison"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Deflect ---- (cost 0, 4 block; +3)
@@ -236,13 +258,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Poisoned Stab", name: "Poisoned Stab", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["poison"], effect_data: &[], complex_hook: None,
+            effects: &["poison"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Poisoned Stab+", name: "Poisoned Stab+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: 4, exhaust: false, enter_stance: None,
-            effects: &["poison"], effect_data: &[], complex_hook: None,
+            effects: &["poison"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Prepared ---- (cost 0, draw 1, discard 1; upgrade: draw 2 discard 2)
@@ -264,13 +290,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Quick Slash", name: "Quick Slash", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Quick Slash+", name: "Quick Slash+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 12, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Common: Slice ---- (cost 0, 6 dmg; +3 dmg)
@@ -304,13 +334,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Sucker Punch", name: "Sucker Punch", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Sucker Punch+", name: "Sucker Punch+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Accuracy ---- (cost 1, power, Shivs +4 dmg; +2)
@@ -416,13 +450,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Catalyst", name: "Catalyst", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["catalyst_double"], effect_data: &[], complex_hook: None,
+            effects: &["catalyst_double"], effect_data: &[
+                E::Simple(SE::MultiplyStatus(T::SelectedEnemy, sid::POISON, 2)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Catalyst+", name: "Catalyst+", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["catalyst_triple"], effect_data: &[], complex_hook: None,
+            effects: &["catalyst_triple"], effect_data: &[
+                E::Simple(SE::MultiplyStatus(T::SelectedEnemy, sid::POISON, 3)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Choke ---- (cost 2, 12 dmg, deal 3 dmg per card played this turn; +2 magic)
@@ -430,13 +468,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Choke", name: "Choke", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["choke"], effect_data: &[], complex_hook: None,
+            effects: &["choke"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::CONSTRICTED, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Choke+", name: "Choke+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,
             base_magic: 5, exhaust: false, enter_stance: None,
-            effects: &["choke"], effect_data: &[], complex_hook: None,
+            effects: &["choke"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::CONSTRICTED, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Concentrate ---- (cost 0, discard 3, gain 2 energy; -1 discard)
@@ -458,13 +500,19 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Crippling Cloud", name: "Crippling Cloud", card_type: CardType::Skill,
             target: CardTarget::AllEnemy, cost: 2, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: true, enter_stance: None,
-            effects: &["poison_all", "weak_all"], effect_data: &[], complex_hook: None,
+            effects: &["poison_all", "weak_all"], effect_data: &[
+                E::Simple(SE::AddStatus(T::AllEnemies, sid::POISON, A::Magic)),
+                E::Simple(SE::AddStatus(T::AllEnemies, sid::WEAKENED, A::Fixed(2))),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Crippling Cloud+", name: "Crippling Cloud+", card_type: CardType::Skill,
             target: CardTarget::AllEnemy, cost: 2, base_damage: -1, base_block: -1,
             base_magic: 7, exhaust: true, enter_stance: None,
-            effects: &["poison_all", "weak_all"], effect_data: &[], complex_hook: None,
+            effects: &["poison_all", "weak_all"], effect_data: &[
+                E::Simple(SE::AddStatus(T::AllEnemies, sid::POISON, A::Magic)),
+                E::Simple(SE::AddStatus(T::AllEnemies, sid::WEAKENED, A::Fixed(3))),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Dash ---- (cost 2, 10 dmg + 10 block; +3/+3)
@@ -638,13 +686,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Leg Sweep", name: "Leg Sweep", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 2, base_damage: -1, base_block: 11,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Leg Sweep+", name: "Leg Sweep+", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 2, base_damage: -1, base_block: 14,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["weak"], effect_data: &[], complex_hook: None,
+            effects: &["weak"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Masterful Stab ---- (cost 0, 12 dmg, costs 1 more per HP lost; +4 dmg)
@@ -764,13 +816,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Terror", name: "Terror", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 99, exhaust: true, enter_stance: None,
-            effects: &["vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Terror+", name: "Terror+", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 99, exhaust: true, enter_stance: None,
-            effects: &["vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Uncommon: Well-Laid Plans ---- (cost 1, power, retain 1 card/turn; +1)
@@ -806,13 +862,19 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Adrenaline", name: "Adrenaline", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["gain_energy_1", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy_1", "draw"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Fixed(1))),
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Adrenaline+", name: "Adrenaline+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["gain_energy_1", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["gain_energy_1", "draw"], effect_data: &[
+                E::Simple(SE::GainEnergy(A::Fixed(1))),
+                E::Simple(SE::DrawCards(A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Rare: After Image ---- (cost 1, power, 1 block per card played; upgrade: cost 0)  [Note: ID is "After Image"]
@@ -848,13 +910,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Bullet Time", name: "Bullet Time", card_type: CardType::Skill,
             target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["bullet_time"], effect_data: &[], complex_hook: None,
+            effects: &["bullet_time"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::BulletTime)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Bullet Time+", name: "Bullet Time+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["bullet_time"], effect_data: &[], complex_hook: None,
+            effects: &["bullet_time"], effect_data: &[
+                E::Simple(SE::SetFlag(BF::BulletTime)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Rare: Burst ---- (cost 1, next skill played twice; upgrade: next 2 skills)
@@ -862,13 +928,17 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Burst", name: "Burst", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["burst"], effect_data: &[], complex_hook: None,
+            effects: &["burst"], effect_data: &[
+                E::Simple(SE::SetStatus(T::Player, sid::BURST, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Burst+", name: "Burst+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["burst"], effect_data: &[], complex_hook: None,
+            effects: &["burst"], effect_data: &[
+                E::Simple(SE::SetStatus(T::Player, sid::BURST, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Silent Rare: Corpse Explosion ---- (cost 2, 6 poison, on death deal dmg = max HP to all; +3 poison)
