@@ -10,8 +10,8 @@ use crate::cards::CardDef;
 /// Context passed to card effect hooks during play.
 /// Contains all pre-computed values from the damage preamble.
 #[derive(Debug, Clone)]
-pub struct CardPlayContext {
-    pub card: &'static CardDef,
+pub struct CardPlayContext<'a> {
+    pub card: &'a CardDef,
     pub card_inst: CardInstance,
     pub target_idx: i32,
     pub x_value: i32,

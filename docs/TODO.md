@@ -36,16 +36,27 @@ Auto-generated from `docs/work_units/` YAML frontmatter. Updated via `/pr`.
 See [COMPLETED.md](COMPLETED.md) for closed work units and full history.
 
 ## Latest audit note
-- 2026-03-25: See `docs/research/optimization-bug-audit-2026-03-25.md` for the current runtime/optimization audit and the remaining parity follow-up notes.
-- 2026-03-30: 5 PRs merged (#75-79). F16 wall analysis complete. Next: value head normalization, Rust engine scoping, auto-research system.
+- 2026-04-10: 8-agent comprehensive audit complete. 26 effect tags migrated (Steps 0-2). 10 broken cards found. Dead code identified (status_keys.rs, 7 dead branches, 4 unused functions). MCTS perf opportunities: static CardRegistry, relic bitset, SmallVec. Parity: cards ~100%, enemies ~95%, relics ~100%, potions 100%, events ~75%, powers ~95%.
 
-## Immediate (next session)
-- [ ] Value head return normalization — bimodal rewards (0-2 vs 13-15) make value head unlearnable
-- [ ] Codex plugin dead code audit — use new codex/review plugin for systematic cleanup
-- [ ] Hyperparam sweep setup — configs in sweep_config.py, A/B test via `training.sh experiment`
-- [ ] Refine iMessage text system — test on branch, better formatting
+## Current Sprint (on `feat/rust-engine`)
 
-## Medium Term
-- [ ] Auto-research system — interval-based audits + fixes via /loop + /schedule
-- [ ] Rust engine migration scoping — audit Java source, estimate effort, plan 2-agent approach
-- [ ] Dashboard frontend — jackswitzer.com page consuming gist data (gist: 6fd47c26377bb8b9e16802f85d771348)
+### In Progress
+- [x] Modular effects scaffold (Steps 0-2: 26 tags migrated to EffectFlags registry)
+- [ ] Step 3: Bulk on_play migration (200 tags → 7 hooks files, 8 parallel agents)
+- [ ] Fix 10 broken effect tags (Mind Blast, Nightmare, Blizzard, Thunder Strike, Scrape, Normality, Pride, Hand of Greed, Panic Button, Alchemize)
+- [ ] Dead code cleanup (status_keys.rs, 7 dead branches, unused vars/imports)
+
+### Blocked on this PR
+- [ ] MCTS perf: static CardRegistry (OnceLock), relic bitset ([u64;3]), SmallVec
+- [ ] Training integration: replace Python engine with Rust in workers (action layer TBD)
+
+### Merge path to main
+1. `feat/rust-engine` — engine polish + modular migration (current)
+2. Training PR into `feat/rust-engine` — Rust worker swap + action layer redesign
+3. Merge to `main` — replaces Python engine core
+
+## Deferred (post-main-merge)
+- [ ] Live combat viewer — N-up grid view of bots playing, real-time card-by-card replay
+- [ ] Analytics dashboard — win rate by enemy, time-in-phase, card frequency, solver utilization
+- [ ] Auto-research system — interval-based audits + fixes
+- [ ] Dashboard frontend — jackswitzer.com page consuming gist data

@@ -199,6 +199,28 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
+    // ---- Declarative effect interpreter fallthrough ----
+    // If card has effect_data populated, use the new interpreter for post-damage effects.
+    // Otherwise, fall through to the old string-based dispatch below.
+    if !card.effect_data.is_empty() {
+        let ctx = crate::effects::types::CardPlayContext {
+            card,
+            card_inst,
+            target_idx,
+            x_value,
+            pen_nib_active,
+            vigor,
+            total_unblocked_damage,
+            enemy_killed,
+        };
+        crate::effects::interpreter::execute_effects(engine, &ctx, card.effect_data);
+        // Also run complex_hook if present
+        if let Some(hook) = card.complex_hook {
+            hook(engine, &ctx);
+        }
+        return; // Skip old string-based dispatch
+    }
+
     // ---- Wallop: gain block equal to unblocked damage dealt ----
     if card.effects.contains(&"block_from_damage") {
         engine.gain_block_player(total_unblocked_damage);
