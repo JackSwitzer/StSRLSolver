@@ -296,9 +296,13 @@ pub mod sid {
     pub const DISCARDED_THIS_TURN: StatusId = StatusId(234);
     pub const PERSEVERANCE_BONUS: StatusId = StatusId(235);
     pub const WINDMILL_STRIKE_BONUS: StatusId = StatusId(236);
+    pub const RAMPAGE_BONUS: StatusId = StatusId(237);
+    pub const GLASS_KNIFE_PENALTY: StatusId = StatusId(238);
+    pub const GENETIC_ALG_BONUS: StatusId = StatusId(239);
+    pub const RITUAL_DAGGER_BONUS: StatusId = StatusId(240);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 237;
+    pub const NUM_IDS: usize = 241;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -572,6 +576,10 @@ static STATUS_NAMES: &[&str] = &[
     "DiscardedThisTurn",  // 234
     "PerseveranceBonus",  // 235
     "WindmillStrikeBonus", // 236
+    "RampageBonus",       // 237
+    "GlassKnifePenalty",  // 238
+    "GeneticAlgBonus",    // 239
+    "RitualDaggerBonus",  // 240
 ];
 
 #[cfg(test)]

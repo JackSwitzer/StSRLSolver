@@ -83,6 +83,28 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         0
     };
 
+    // ---- Per-card scaling bonuses (from status counters) ----
+    let scaling_bonus = if card.effects.contains(&"rampage") {
+        engine.state.player.status(sid::RAMPAGE_BONUS)
+    } else if card.effects.contains(&"glass_knife") {
+        -engine.state.player.status(sid::GLASS_KNIFE_PENALTY)
+    } else if card.effects.contains(&"ritual_dagger") {
+        engine.state.player.status(sid::RITUAL_DAGGER_BONUS)
+    } else if card.effects.contains(&"searing_blow") {
+        // Searing Blow: base 12, each upgrade adds progressively more
+        // Upgraded flag = +4 bonus (simplified for MCTS)
+        if card_inst.flags & 0x04 != 0 { 4 } else { 0 }
+    } else {
+        0
+    };
+
+    // ---- Genetic Algorithm: scaling block bonus ----
+    let genetic_alg_block_bonus = if card.effects.contains(&"genetic_algorithm") {
+        engine.state.player.status(sid::GENETIC_ALG_BONUS)
+    } else {
+        0
+    };
+
     // ---- Damage ----
     // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
@@ -95,7 +117,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let effective_base_damage = if body_slam_damage >= 0 {
             body_slam_damage
         } else {
-            card.base_damage + perfected_strike_bonus
+            (card.base_damage + perfected_strike_bonus + scaling_bonus).max(0)
         };
 
         let is_multi_hit = card.effects.contains(&"multi_hit");
@@ -240,7 +262,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         };
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
-        let block = damage::calculate_block(card.base_block, dex, frail);
+        let block = damage::calculate_block(card.base_block + genetic_alg_block_bonus, dex, frail);
         engine.gain_block_player(block * block_multiplier);
     }
 
@@ -1804,6 +1826,128 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     if card.effects.contains(&"claw_scaling") {
         engine.state.player.add_status(sid::GENERIC_STRENGTH_UP, 2);
     }
+
+    // ====================================================================
+    // PR4: Per-card scaling (post-play updates) + card generation
+    // ====================================================================
+
+    // ---- Rampage: +5 bonus damage each play (or +8 upgraded) ----
+    if card.effects.contains(&"rampage") {
+        let increment = card.base_magic.max(5);
+        engine.state.player.add_status(sid::RAMPAGE_BONUS, increment);
+    }
+
+    // ---- Glass Knife: -2 damage each play ----
+    if card.effects.contains(&"glass_knife") {
+        engine.state.player.add_status(sid::GLASS_KNIFE_PENALTY, 2);
+    }
+
+    // ---- Genetic Algorithm: +2 block each play (exhaust) ----
+    if card.effects.contains(&"genetic_algorithm") {
+        engine.state.player.add_status(sid::GENETIC_ALG_BONUS, 2);
+    }
+
+    // ---- Ritual Dagger: +3 bonus damage on kill (or +5 upgraded) ----
+    if card.effects.contains(&"ritual_dagger") && enemy_killed {
+        let increment = card.base_magic.max(3);
+        engine.state.player.add_status(sid::RITUAL_DAGGER_BONUS, increment);
+    }
+
+    // ---- Reduce cost each play (Streamline): reduce this card's cost by 1 ----
+    if card.effects.contains(&"reduce_cost_each_play") {
+        // Find matching cards in draw/discard piles and reduce cost
+        let def_id = card_inst.def_id;
+        for pile_card in engine.state.draw_pile.iter_mut()
+            .chain(engine.state.discard_pile.iter_mut())
+        {
+            if pile_card.def_id == def_id && pile_card.cost > 0 {
+                pile_card.cost -= 1;
+            }
+        }
+    }
+
+    // ---- Add random colorless card to hand (Jack of All Trades) ----
+    if card.effects.contains(&"add_random_colorless") {
+        // MCTS: use Smite as representative colorless attack
+        let temp = engine.temp_card("Smite");
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(temp);
+        }
+    }
+
+    // ---- Random attack to hand at 0 cost (Infernal Blade) ----
+    if card.effects.contains(&"random_attack_to_hand") {
+        // MCTS: use Strike as representative, set cost to 0
+        let mut temp = engine.temp_card("Strike_R");
+        temp.cost = 0;
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(temp);
+        }
+    }
+
+    // ---- Random skill to hand at 0 cost (Distraction) ----
+    if card.effects.contains(&"random_skill_to_hand") {
+        // MCTS: use Defend as representative, set cost to 0
+        let mut temp = engine.temp_card("Defend_G");
+        temp.cost = 0;
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(temp);
+        }
+    }
+
+    // ---- Draw attacks from draw pile (Violence) ----
+    if card.effects.contains(&"draw_attacks_from_draw") {
+        let count = card.base_magic.max(1) as usize;
+        let mut drawn = 0;
+        // Find attacks in draw pile and move to hand
+        let mut i = engine.state.draw_pile.len();
+        while i > 0 && drawn < count {
+            i -= 1;
+            let is_attack = {
+                let def = engine.card_registry.card_def_by_id(engine.state.draw_pile[i].def_id);
+                def.card_type == CardType::Attack
+            };
+            if is_attack && engine.state.hand.len() < 10 {
+                let c = engine.state.draw_pile.remove(i);
+                engine.state.hand.push(c);
+                drawn += 1;
+            }
+        }
+    }
+
+    // ---- Add random attacks to draw pile (Metamorphosis) ----
+    if card.effects.contains(&"add_random_attacks_to_draw") {
+        let count = card.base_magic.max(3);
+        for _ in 0..count {
+            let temp = engine.temp_card("Strike_R");
+            engine.state.draw_pile.push(temp);
+        }
+    }
+
+    // ---- Add random skills to draw pile (Chrysalis) ----
+    if card.effects.contains(&"add_random_skills_to_draw") {
+        let count = card.base_magic.max(3);
+        for _ in 0..count {
+            let temp = engine.temp_card("Defend_G");
+            engine.state.draw_pile.push(temp);
+        }
+    }
+
+    // ---- Transmutation: add X random colorless cards to hand ----
+    if card.effects.contains(&"transmutation") {
+        let count = if card.cost == -1 { x_value } else { card.base_magic.max(1) };
+        for _ in 0..count {
+            let temp = engine.temp_card("Smite");
+            if engine.state.hand.len() < 10 {
+                engine.state.hand.push(temp);
+            }
+        }
+    }
+
+    // ---- Alchemize: gain a random potion (MCTS: no-op, potions are run-level) ----
+    // Potions are managed at the run level, not combat level.
+    // For MCTS purposes, this is effectively a no-op since potion slots
+    // are tracked outside the combat state.
 
     // ====================================================================
     // PR2: Simple effect handlers (no choices, no hooks needed)

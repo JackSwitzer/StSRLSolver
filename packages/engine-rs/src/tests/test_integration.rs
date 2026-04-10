@@ -2702,4 +2702,95 @@ mod effect_handler_tests {
         assert_eq!(e.state.enemies.len(), 3,
             "GremlinLeader should spawn 2 gremlins");
     }
+
+    // ====================================================================
+    // PR4: Per-card scaling tests
+    // ====================================================================
+
+    #[test] fn rampage_scales_damage() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Rampage", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        let hp0 = e.state.enemies[0].entity.hp;
+        ensure_in_hand(&mut e, "Rampage");
+        play_card(&mut e, "Rampage", 0);
+        let dmg1 = hp0 - e.state.enemies[0].entity.hp;
+        assert_eq!(e.state.player.status(sid::RAMPAGE_BONUS), 5);
+        let hp1 = e.state.enemies[0].entity.hp;
+        ensure_in_hand(&mut e, "Rampage");
+        play_card(&mut e, "Rampage", 0);
+        let dmg2 = hp1 - e.state.enemies[0].entity.hp;
+        assert_eq!(dmg2, dmg1 + 5, "Rampage should deal 5 more on second play");
+        assert_eq!(e.state.player.status(sid::RAMPAGE_BONUS), 10);
+    }
+
+    #[test] fn glass_knife_loses_damage() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Glass Knife", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        let hp0 = e.state.enemies[0].entity.hp;
+        ensure_in_hand(&mut e, "Glass Knife");
+        play_card(&mut e, "Glass Knife", 0);
+        let dmg1 = hp0 - e.state.enemies[0].entity.hp;
+        assert_eq!(e.state.player.status(sid::GLASS_KNIFE_PENALTY), 2);
+        let hp1 = e.state.enemies[0].entity.hp;
+        ensure_in_hand(&mut e, "Glass Knife");
+        play_card(&mut e, "Glass Knife", 0);
+        let dmg2 = hp1 - e.state.enemies[0].entity.hp;
+        assert!(dmg2 < dmg1, "Glass Knife should deal less damage on second play: {} vs {}", dmg2, dmg1);
+    }
+
+    #[test] fn genetic_algorithm_scales_block() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Genetic Algorithm", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        ensure_in_hand(&mut e, "Genetic Algorithm");
+        play_card(&mut e, "Genetic Algorithm", -1);
+        let block1 = e.state.player.block;
+        assert_eq!(e.state.player.status(sid::GENETIC_ALG_BONUS), 2);
+        e.state.player.block = 0;
+        ensure_in_hand(&mut e, "Genetic Algorithm");
+        play_card(&mut e, "Genetic Algorithm", -1);
+        let block2 = e.state.player.block;
+        assert!(block2 > block1, "Genetic Algorithm should gain more block on second play: {} vs {}", block2, block1);
+    }
+
+    #[test] fn streamline_reduces_cost() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Streamline", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        ensure_in_hand(&mut e, "Streamline");
+        play_card(&mut e, "Streamline", 0);
+        let has_reduced = e.state.draw_pile.iter()
+            .chain(e.state.discard_pile.iter())
+            .any(|c| {
+                let name = e.card_registry.card_name(c.def_id);
+                name == "Streamline" && c.cost < 2
+            });
+        assert!(has_reduced, "Streamline copies should have reduced cost after play");
+    }
+
+    #[test] fn card_gen_random_attack_to_hand() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        let ib = e.card_registry.make_card("Infernal Blade");
+        e.state.hand.push(ib);
+        let hand_size = e.state.hand.len();
+        play_card(&mut e, "Infernal Blade", -1);
+        assert!(e.state.hand.len() >= hand_size, "Random attack should be added to hand");
+    }
+
+    #[test] fn transmutation_adds_x_cards() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 3;
+        let t = e.card_registry.make_card("Transmutation");
+        e.state.hand.push(t);
+        let hand_before = e.state.hand.len();
+        play_card(&mut e, "Transmutation", -1);
+        assert_eq!(e.state.energy, 0, "X-cost should consume all energy");
+        assert!(e.state.hand.len() >= hand_before - 1 + 3,
+            "Transmutation should add X cards to hand, hand={}", e.state.hand.len());
+    }
 }
