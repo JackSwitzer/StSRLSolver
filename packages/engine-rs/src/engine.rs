@@ -357,11 +357,17 @@ impl CombatEngine {
         }).collect();
         indices.sort_unstable_by(|a, b| b.cmp(a)); // Reverse order
         let discard_count = indices.len();
+        let mut discarded_cards = Vec::new();
         for idx in indices {
             if idx < self.state.hand.len() {
                 let card = self.state.hand.remove(idx);
                 self.state.discard_pile.push(card);
+                discarded_cards.push(card);
             }
+        }
+        // Fire on_card_discarded hooks for each discarded card
+        for card in discarded_cards {
+            self.on_card_discarded(card);
         }
         // Gambling Chip: redraw equal to discarded count
         if self.state.player.status(sid::GAMBLING_CHIP_ACTIVE) > 0 {
@@ -510,6 +516,7 @@ impl CombatEngine {
 
         // Reset per-turn statuses
         self.state.player.set_status(sid::WAVE_OF_THE_HAND, 0);
+        self.state.player.set_status(sid::DISCARDED_THIS_TURN, 0);
 
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);
@@ -808,6 +815,32 @@ impl CombatEngine {
             // Track retained cards for Establishment cost reduction
             self.state.retained_cards = retained.clone();
             self.state.hand = retained;
+        }
+
+        // on_retain hooks for retained cards
+        let establishment = self.state.player.status(sid::ESTABLISHMENT);
+        for card_inst in self.state.hand.iter_mut() {
+            let card_def = self.card_registry.card_def_by_id(card_inst.def_id);
+
+            // Establishment: reduce retained card cost
+            if establishment > 0 {
+                card_inst.cost = (card_inst.cost - establishment as i8).max(0);
+            }
+
+            // Sands of Time: reduce cost on retain
+            if card_def.effects.contains(&"reduce_cost_on_retain") {
+                card_inst.cost = (card_inst.cost - 1).max(0);
+            }
+
+            // Perseverance: grow block bonus on retain
+            if card_def.effects.contains(&"grow_block_on_retain") {
+                self.state.player.add_status(sid::PERSEVERANCE_BONUS, card_def.base_magic);
+            }
+
+            // Windmill Strike: grow damage bonus on retain
+            if card_def.effects.contains(&"grow_damage_on_retain") {
+                self.state.player.add_status(sid::WINDMILL_STRIKE_BONUS, card_def.base_magic);
+            }
         }
 
         // Trigger exhaust hooks for ethereal cards exhausted at end of turn
@@ -1494,6 +1527,41 @@ impl CombatEngine {
     }
 
     // =======================================================================
+    // Hook Dispatch: on_card_discarded
+    // =======================================================================
+
+    /// Called when a card is manually discarded from hand (card effects, choices).
+    /// NOT called for end-of-turn discard (matches real game behavior).
+    pub fn on_card_discarded(&mut self, card: CardInstance) {
+        // Extract card info before mutable borrows
+        let (has_draw, has_energy, magic) = {
+            let card_def = self.card_registry.card_def_by_id(card.def_id);
+            (
+                card_def.effects.contains(&"draw_on_discard"),
+                card_def.effects.contains(&"energy_on_discard"),
+                card_def.base_magic,
+            )
+        };
+
+        // Reflex: draw N cards when discarded from hand
+        if has_draw {
+            self.draw_cards(magic);
+        }
+
+        // Tactician: gain N energy when discarded from hand
+        if has_energy {
+            self.state.energy += magic;
+        }
+
+        // Track discard count this turn (for Sneaky Strike, Eviscerate)
+        self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
+
+        // Relic triggers
+        relics::tough_bandages_on_discard(&mut self.state);
+        relics::tingsha_on_discard(&mut self.state);
+    }
+
+    // =======================================================================
     // Centralized Mutations
     // =======================================================================
 
@@ -1796,9 +1864,15 @@ impl CombatEngine {
             if let Some(drawn) = self.state.draw_pile.pop() {
                 self.state.hand.push(drawn);
 
-                // On-draw hooks: check drawn card type
-                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
-                let card_type = card_def.card_type;
+                // Extract card info before mutable borrows
+                let (card_type, has_void, has_copy) = {
+                    let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                    (
+                        card_def.card_type,
+                        card_def.effects.contains(&"lose_energy_on_draw"),
+                        card_def.effects.contains(&"copy_on_draw"),
+                    )
+                };
 
                 // Evolve: draw extra cards when drawing a Status
                 let evolve = self.state.player.status(sid::EVOLVE);
@@ -1814,6 +1888,16 @@ impl CombatEngine {
                             self.deal_damage_to_enemy(i, fire_breathing);
                         }
                     }
+                }
+
+                // Void: lose 1 energy when drawn
+                if has_void {
+                    self.state.energy = (self.state.energy - 1).max(0);
+                }
+
+                // Endless Agony: add a copy to hand when drawn
+                if has_copy && self.state.hand.len() < 10 {
+                    self.state.hand.push(drawn);
                 }
             }
         }
