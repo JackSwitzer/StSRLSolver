@@ -13,6 +13,7 @@ pub mod combat_types;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
+pub mod effects;
 pub mod ids;
 pub mod status_ids;
 pub mod damage;

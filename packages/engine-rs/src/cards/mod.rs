@@ -89,6 +89,8 @@ pub struct CardRegistry {
     id_to_name: Vec<&'static str>,
     /// Bitset: true if this card ID is a "Strike" variant (for Perfected Strike).
     strike_flags: Vec<bool>,
+    /// Precomputed effect flags per card ID for O(1) hook dispatch.
+    effect_flags_vec: Vec<crate::effects::EffectFlags>,
 }
 
 
@@ -133,7 +135,12 @@ impl CardRegistry {
             strike_flags.push(lower.contains("strike"));
         }
 
-        CardRegistry { cards, id_to_def, name_to_id, id_to_name, strike_flags }
+        let effect_flags_vec = id_to_def
+            .iter()
+            .map(|def| crate::effects::build_effect_flags(def.effects))
+            .collect();
+
+        CardRegistry { cards, id_to_def, name_to_id, id_to_name, strike_flags, effect_flags_vec }
     }
 
     fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
@@ -220,6 +227,15 @@ impl CardRegistry {
     /// Returns false for out-of-range IDs.
     pub fn is_strike(&self, id: u16) -> bool {
         self.strike_flags.get(id as usize).copied().unwrap_or(false)
+    }
+
+    /// Get precomputed effect flags for a card ID. Returns EMPTY for unknown IDs.
+    #[inline]
+    pub fn effect_flags(&self, id: u16) -> crate::effects::EffectFlags {
+        self.effect_flags_vec
+            .get(id as usize)
+            .copied()
+            .unwrap_or(crate::effects::EffectFlags::EMPTY)
     }
 
     /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
