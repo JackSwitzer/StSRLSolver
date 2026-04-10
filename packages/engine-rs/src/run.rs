@@ -697,13 +697,22 @@ impl RunEngine {
         }).collect();
 
         // Create enemies
-        let enemy_states: Vec<EnemyCombatState> = expanded
+        let mut enemy_states: Vec<EnemyCombatState> = expanded
             .iter()
             .map(|id| {
                 let (hp, max_hp) = self.roll_enemy_hp(id);
                 enemies::create_enemy(id, hp, max_hp)
             })
             .collect();
+
+        // Sentry stagger: middle sentry starts on Beam, others on Bolt
+        if expanded.len() == 3
+            && expanded.iter().all(|id| id == "Sentry")
+        {
+            use crate::enemies::move_ids;
+            enemy_states[1].set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
+            enemy_states[1].add_effect(crate::combat_types::mfx::DAZE, 2);
+        }
 
         // Create combat state — convert deck strings to CardInstance
         let registry = crate::cards::CardRegistry::new();
@@ -940,6 +949,12 @@ impl RunEngine {
             if engine.state.player_won {
                 // Combat win reward
                 reward += 1.0;
+
+                // Apply on_victory relic effects (Burning Blood, Black Blood, Meat on the Bone, etc.)
+                let heal = relics::on_victory(&mut engine.state);
+                if heal > 0 {
+                    engine.state.heal_player(heal);
+                }
 
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
