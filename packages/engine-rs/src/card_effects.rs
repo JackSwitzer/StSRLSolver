@@ -199,6 +199,26 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
+    // ---- Standard block calculation (preamble, runs for ALL cards) ----
+    // This runs BEFORE the interpreter fallthrough because block from base_block
+    // is a preamble operation, not a post-damage effect.
+    if card.base_block >= 0 {
+        let block_multiplier = if card.effects.contains(&"block_x_times") {
+            x_value
+        } else {
+            1
+        };
+        if !card.effects.contains(&"block_if_skill") {
+            let dex = engine.state.player.dexterity();
+            let frail = engine.state.player.is_frail();
+            let block = damage::calculate_block(
+                card.base_block + genetic_alg_block_bonus + perseverance_block_bonus,
+                dex, frail,
+            );
+            engine.gain_block_player(block * block_multiplier);
+        }
+    }
+
     // ---- Declarative effect interpreter fallthrough ----
     // If card has effect_data populated, use the new interpreter for post-damage effects.
     // Otherwise, fall through to the old string-based dispatch below.
@@ -241,20 +261,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.state.player.hp += hp_gain;
     }
 
-    // ---- Block ----
-    // block_if_skill (Escape Plan): block is conditional, handled separately below
-    if card.base_block >= 0 && !card.effects.contains(&"block_if_skill") {
-        // Reinforced Body (block_x_times): gain base_block X times
-        let block_multiplier = if card.effects.contains(&"block_x_times") {
-            x_value
-        } else {
-            1
-        };
-        let dex = engine.state.player.dexterity();
-        let frail = engine.state.player.is_frail();
-        let block = damage::calculate_block(card.base_block + genetic_alg_block_bonus + perseverance_block_bonus, dex, frail);
-        engine.gain_block_player(block * block_multiplier);
-    }
+    // Standard block from base_block is now handled in the preamble above (before interpreter fallthrough).
+    // Only special block effects remain below.
 
     // ---- Spirit Shield: gain block per card in hand ----
     if card.effects.contains(&"block_per_card_in_hand") {

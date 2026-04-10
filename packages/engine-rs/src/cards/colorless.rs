@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
+use crate::effects::declarative::{Effect as E, SimpleEffect as SE, Target as T, AmountSource as A, Pile as P};
+use crate::status_ids::sid;
 
 pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Colorless basics (Strike/Defend aliases for other characters) ----
@@ -30,26 +32,26 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Bandage Up", name: "Bandage Up", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: true, enter_stance: None,
-            effects: &["heal"], effect_data: &[], complex_hook: None,
+            effects: &["heal"], effect_data: &[E::Simple(SE::ModifyHp(A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Bandage Up+", name: "Bandage Up+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 6, exhaust: true, enter_stance: None,
-            effects: &["heal"], effect_data: &[], complex_hook: None,
+            effects: &["heal"], effect_data: &[E::Simple(SE::ModifyHp(A::Magic))], complex_hook: None,
         });
         // Blind: 0 cost, apply 2 Weak to enemy (upgrade: target all)
         insert(cards, CardDef {
             id: "Blind", name: "Blind", card_type: CardType::Skill,
             target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["apply_weak"], effect_data: &[], complex_hook: None,
+            effects: &["apply_weak"], effect_data: &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Blind+", name: "Blind+", card_type: CardType::Skill,
             target: CardTarget::AllEnemy, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["apply_weak"], effect_data: &[], complex_hook: None,
+            effects: &["apply_weak"], effect_data: &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic))], complex_hook: None,
         });
         // Dark Shackles: 0 cost, reduce enemy str by 9 for one turn, exhaust
         insert(cards, CardDef {
@@ -69,13 +71,13 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Deep Breath", name: "Deep Breath", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 1, exhaust: false, enter_stance: None,
-            effects: &["shuffle_discard_into_draw", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["shuffle_discard_into_draw", "draw"], effect_data: &[E::Simple(SE::ShuffleDiscardIntoDraw), E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Deep Breath+", name: "Deep Breath+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["shuffle_discard_into_draw", "draw"], effect_data: &[], complex_hook: None,
+            effects: &["shuffle_discard_into_draw", "draw"], effect_data: &[E::Simple(SE::ShuffleDiscardIntoDraw), E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         // Discovery: 1 cost, choose 1 of 3 cards to add to hand, exhaust (upgrade: no exhaust)
         insert(cards, CardDef {
@@ -121,26 +123,26 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Finesse", name: "Finesse", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 2,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Finesse+", name: "Finesse+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 4,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         // Flash of Steel: 0 cost, 3 dmg, draw 1
         insert(cards, CardDef {
             id: "Flash of Steel", name: "Flash of Steel", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Flash of Steel+", name: "Flash of Steel+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 6, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         // Forethought: 0 cost, put card from hand to bottom of draw pile at 0 cost
         insert(cards, CardDef {
@@ -340,13 +342,13 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Master of Strategy", name: "Master of Strategy", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Master of Strategy+", name: "Master of Strategy+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
             base_magic: 4, exhaust: true, enter_stance: None,
-            effects: &["draw"], effect_data: &[], complex_hook: None,
+            effects: &["draw"], effect_data: &[E::Simple(SE::DrawCards(A::Magic))], complex_hook: None,
         });
         // Mayhem: 2 cost, power, auto-play top card of draw pile each turn (upgrade: cost 1)
         insert(cards, CardDef {
