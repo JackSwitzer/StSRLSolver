@@ -1790,10 +1790,16 @@ impl CombatEngine {
             self.draw_cards(1);
         }
         let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
-        if ect > 0 && !self.state.orb_slots.orbs.is_empty() {
-            let front_orb = self.state.orb_slots.orbs[0];
-            let focus = self.state.player.status(sid::FOCUS);
-            let effect = front_orb.passive_with_focus(focus);
+        if ect > 0 && self.state.orb_slots.occupied_count() > 0 {
+            let front_orb = &self.state.orb_slots.slots[0];
+            let focus = self.state.player.focus();
+            let val = front_orb.passive_with_focus(focus);
+            let effect = match front_orb.orb_type {
+                crate::orbs::OrbType::Lightning => crate::orbs::PassiveEffect::LightningDamage(val),
+                crate::orbs::OrbType::Frost => crate::orbs::PassiveEffect::FrostBlock(val),
+                crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(val),
+                _ => crate::orbs::PassiveEffect::None,
+            };
             self.apply_passive_effect(effect);
         }
 

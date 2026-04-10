@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::enemies;
 use crate::engine::CombatEngine;
 use crate::map::{generate_map, DungeonMap, RoomType};
+use crate::relics;
 use crate::state::{CombatState, EnemyCombatState};
 
 // ---------------------------------------------------------------------------
