@@ -5,7 +5,8 @@ mod defect_card_java_parity_tests {
 
     use crate::cards::{CardRegistry, CardType};
     use crate::status_ids::sid;
-    use crate::engine::CombatEngine;
+    use crate::engine::{CombatEngine, CombatPhase};
+    use crate::actions::Action;
     use crate::orbs::OrbType;
     use crate::powers::{process_end_of_round, process_end_of_turn, process_start_of_turn};
     use crate::state::{EnemyCombatState, Stance};
@@ -598,6 +599,9 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Seek");
         e.state.draw_pile = make_deck(&["Zap", "Turbo", "Defragment"]);
         play_self(&mut e, "Seek");
+        // Seek now presents a PickFromDrawPile choice
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        e.execute_action(&Action::Choose(0)); // pick first card
         assert!(!e.state.hand.is_empty());
     });
 

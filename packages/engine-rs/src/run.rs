@@ -309,6 +309,10 @@ pub struct RunState {
     // Run outcome
     pub run_won: bool,
     pub run_over: bool,
+
+    // Relic flags (bitfield for O(1) relic checks)
+    #[serde(skip)]
+    pub relic_flags: crate::relic_flags::RelicFlags,
 }
 
 impl RunState {
@@ -334,6 +338,10 @@ impl RunState {
 
         let max_hp = if ascension >= 14 { 68 } else { 72 };
 
+        let relics = vec!["PureWater".to_string()];
+        let mut relic_flags = crate::relic_flags::RelicFlags::default();
+        relic_flags.rebuild(&relics);
+
         Self {
             current_hp: max_hp,
             max_hp,
@@ -342,7 +350,7 @@ impl RunState {
             act: 1,
             ascension,
             deck,
-            relics: vec!["PureWater".to_string()], // Watcher starting relic
+            relics,
             potions: vec!["".to_string(); 3],
             max_potions: 3,
             map_x: -1,
@@ -355,6 +363,7 @@ impl RunState {
             bosses_killed: 0,
             run_won: false,
             run_over: false,
+            relic_flags,
         }
     }
 }
@@ -498,21 +507,25 @@ impl RunEngine {
     }
 
     fn get_campfire_actions(&self) -> Vec<RunAction> {
-        let mut actions = vec![RunAction::CampfireRest];
-        // Upgrade: one action per upgradeable card in deck
-        for (i, card) in self.run_state.deck.iter().enumerate() {
-            if !card.ends_with('+') && card != "Strike_P" && card != "Defend_P" {
-                // Only non-basic, non-upgraded cards
-                actions.push(RunAction::CampfireUpgrade(i));
-            }
+        let mut actions = Vec::new();
+
+        // Coffee Dripper blocks resting
+        if !self.run_state.relic_flags.has(crate::relic_flags::flag::COFFEE_DRIPPER) {
+            actions.push(RunAction::CampfireRest);
         }
-        // Also allow upgrading basics (Strike_P -> Strike_P+, etc.)
-        for (i, card) in self.run_state.deck.iter().enumerate() {
-            if !card.ends_with('+') {
-                if !actions.contains(&RunAction::CampfireUpgrade(i)) {
+
+        // Fusion Hammer blocks upgrading
+        if !self.run_state.relic_flags.has(crate::relic_flags::flag::FUSION_HAMMER) {
+            for (i, card) in self.run_state.deck.iter().enumerate() {
+                if !card.ends_with('+') {
                     actions.push(RunAction::CampfireUpgrade(i));
                 }
             }
+        }
+
+        // Must have at least one action
+        if actions.is_empty() {
+            actions.push(RunAction::CampfireRest);
         }
         actions
     }
@@ -626,6 +639,14 @@ impl RunEngine {
             }
         }
 
+        // Maw Bank: +12g per non-shop floor
+        if room_type != RoomType::Shop
+            && self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK)
+            && !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM)
+        {
+            self.run_state.gold += 12;
+        }
+
         // Floor milestone reward
         let floor_reward = self.run_state.floor as f32 / 55.0;
         floor_reward
@@ -698,6 +719,7 @@ impl RunEngine {
         );
         combat_state.relics = self.run_state.relics.clone();
         combat_state.potions = self.run_state.potions.clone();
+        combat_state.relic_counters = self.run_state.relic_flags.counters;
 
         let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
         let mut engine = CombatEngine::new(combat_state, combat_seed);
@@ -922,11 +944,17 @@ impl RunEngine {
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.potions = engine.state.potions.clone();
+                self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.combats_won += 1;
 
-                // Gold reward
-                let gold = self.rng.gen_range(10..=20);
-                self.run_state.gold += gold;
+                // Gold reward (Ectoplasm blocks, Golden Idol +25%)
+                if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
+                    let mut gold = self.rng.gen_range(10..=20);
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::GOLDEN_IDOL) {
+                        gold = (gold as f32 * 1.25) as i32;
+                    }
+                    self.run_state.gold += gold;
+                }
 
                 // Check if this was elite
                 let room_type = if self.run_state.map_y >= 0 {
@@ -937,8 +965,10 @@ impl RunEngine {
 
                 if room_type == RoomType::Elite {
                     self.run_state.elites_killed += 1;
-                    let extra_gold = self.rng.gen_range(25..=35);
-                    self.run_state.gold += extra_gold;
+                    if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
+                        let extra_gold = self.rng.gen_range(25..=35);
+                        self.run_state.gold += extra_gold;
+                    }
                 }
 
                 // Check if boss
@@ -1011,6 +1041,12 @@ impl RunEngine {
                 if *idx < self.card_rewards.len() {
                     let card = self.card_rewards[*idx].clone();
                     self.run_state.deck.push(card);
+                    // Ceramic Fish: +9g on card add
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::CERAMIC_FISH)
+                        && !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM)
+                    {
+                        self.run_state.gold += 9;
+                    }
                 }
             }
             RunAction::SkipCardReward => {}
@@ -1038,9 +1074,18 @@ impl RunEngine {
     fn step_campfire(&mut self, action: &RunAction) -> f32 {
         match action {
             RunAction::CampfireRest => {
-                // Heal 30% of max HP
-                let heal = (self.run_state.max_hp as f32 * 0.3).ceil() as i32;
-                self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+                if !self.run_state.relic_flags.has(crate::relic_flags::flag::MARK_OF_BLOOM) {
+                    let mut heal = (self.run_state.max_hp as f32 * 0.3).ceil() as i32;
+                    // Regal Pillow: +15 campfire heal
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::REGAL_PILLOW) {
+                        heal += 15;
+                    }
+                    // Magic Flower: 1.5x healing
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::MAGIC_FLOWER) {
+                        heal = (heal as f32 * 1.5) as i32;
+                    }
+                    self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+                }
             }
             RunAction::CampfireUpgrade(idx) => {
                 if *idx < self.run_state.deck.len() {
@@ -1091,10 +1136,24 @@ impl RunEngine {
             } else {
                 self.rng.gen_range(135..=200)
             };
-            cards.push((card.to_string(), price));
+            // Membership Card: 50% shop discount
+            let final_price = if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+                price / 2
+            } else {
+                price
+            };
+            cards.push((card.to_string(), final_price));
         }
 
-        let remove_price = 75 + (self.run_state.combats_won as i32 * 25);
+        let mut remove_price = 75 + (self.run_state.combats_won as i32 * 25);
+        // Smiling Mask: card removal always costs 50g
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::SMILING_MASK) {
+            remove_price = 50;
+        }
+        // Membership Card discount on removal too
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+            remove_price /= 2;
+        }
 
         self.current_shop = Some(ShopState {
             cards,
@@ -1102,6 +1161,17 @@ impl RunEngine {
             removal_used: false,
         });
         self.phase = RunPhase::Shop;
+
+        // Meal Ticket: heal 15 on shop enter
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEAL_TICKET)
+            && !self.run_state.relic_flags.has(crate::relic_flags::flag::MARK_OF_BLOOM)
+        {
+            let mut heal = 15;
+            if self.run_state.relic_flags.has(crate::relic_flags::flag::MAGIC_FLOWER) {
+                heal = (heal as f32 * 1.5) as i32;
+            }
+            self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+        }
     }
 
     fn step_shop(&mut self, action: &RunAction) -> f32 {
@@ -1183,6 +1253,7 @@ impl RunEngine {
                     EventEffect::GainRelic => {
                         // Simplified: gain a placeholder relic
                         self.run_state.relics.push("EventRelic".to_string());
+                        self.run_state.relic_flags.rebuild(&self.run_state.relics);
                     }
                     EventEffect::MaxHp(amount) => {
                         self.run_state.max_hp += amount;
@@ -1238,7 +1309,18 @@ impl RunEngine {
                             self.run_state.deck.push(card);
                         }
                     }
-                    EventEffect::GainPotion => {}
+                    EventEffect::GainPotion => {
+                        if !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU) {
+                            // Find first empty potion slot
+                            if let Some(slot_idx) = self.run_state.potions.iter().position(|p| p.is_empty()) {
+                                let potions = ["Block Potion", "Dexterity Potion", "Energy Potion",
+                                    "Strength Potion", "Swift Potion", "Fear Potion",
+                                    "Fire Potion", "Weak Potion"];
+                                let idx = self.rng.gen_range(0..potions.len());
+                                self.run_state.potions[slot_idx] = potions[idx].to_string();
+                            }
+                        }
+                    }
                     EventEffect::LosePercentHp(percent) => {
                         let loss = (self.run_state.max_hp * percent) / 100;
                         self.run_state.current_hp = (self.run_state.current_hp - loss.max(1)).max(0);

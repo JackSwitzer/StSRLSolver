@@ -1616,7 +1616,7 @@ mod combat_engine_p0_p1_regression {
 mod effect_handler_tests {
     use crate::actions::Action;
     use crate::combat_types::CardInstance;
-    use crate::engine::CombatEngine;
+    use crate::engine::{CombatEngine, CombatPhase};
     use crate::state::{CombatState, EnemyCombatState, Stance};
     use crate::status_ids::sid;
     use crate::tests::support::{make_deck, make_deck_n};
@@ -1954,8 +1954,11 @@ mod effect_handler_tests {
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "Wish", -1);
+        // Wish now presents a PickOption choice
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        e.execute_action(&Action::Choose(0)); // pick first option (Strength)
         assert_eq!(e.state.player.strength(), 3,
-            "Wish should grant 3 Strength (MCTS approximation)");
+            "Wish should grant 3 Strength");
     }
 
     // ===== 19. Meditate: return cards from discard =====
@@ -2248,7 +2251,11 @@ mod effect_handler_tests {
         e.state.player.set_status(sid::NIRVANA, 4);
         let block_before = e.state.player.block;
         play_card(&mut e, "CutThroughFate", 0);
-        // CutThroughFate scries 2, Nirvana gives 4 block per scry trigger
+        // CutThroughFate scries 2, which now presents a choice
+        if e.phase == CombatPhase::AwaitingChoice {
+            e.execute_action(&Action::ConfirmSelection); // keep all cards
+        }
+        // Nirvana gives 4 block per scry trigger
         assert!(e.state.player.block >= block_before + 4,
             "Nirvana should give block when scrying");
     }

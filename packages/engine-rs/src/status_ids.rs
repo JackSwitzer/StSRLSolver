@@ -291,9 +291,11 @@ pub mod sid {
     pub const CHANNEL_PLASMA_START: StatusId = StatusId(229);
     pub const RING_OF_SERPENT_DRAW: StatusId = StatusId(230);
     pub const SLAVERS_COLLAR_ENERGY: StatusId = StatusId(231);
+    pub const GAMBLING_CHIP_ACTIVE: StatusId = StatusId(232);
+    pub const FORESIGHT: StatusId = StatusId(233);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 232;
+    pub const NUM_IDS: usize = 234;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -562,6 +564,8 @@ static STATUS_NAMES: &[&str] = &[
     "ChannelPlasmaStart", // 229
     "RingOfSerpentDraw", // 230
     "SlaversCollarEnergy", // 231
+    "GamblingChipActive", // 232
+    "Foresight",          // 233
 ];
 
 #[cfg(test)]

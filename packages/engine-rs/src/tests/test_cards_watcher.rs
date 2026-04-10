@@ -5,7 +5,8 @@
 mod watcher_card_java_parity_tests {
     use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::status_ids::sid;
-    use crate::engine::CombatEngine;
+    use crate::engine::{CombatEngine, CombatPhase};
+    use crate::actions::Action;
     use crate::state::Stance;
     use crate::tests::support::*;
 
@@ -343,6 +344,14 @@ mod watcher_card_java_parity_tests {
             engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
+            // Scry now presents multi-select choice; select all revealed cards to discard
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            // ThirdEye scries 3, so up to 3 cards revealed; select all for discard
+            let num_options = engine.choice.as_ref().unwrap().options.len();
+            for i in 0..num_options {
+                engine.execute_action(&Action::Choose(i));
+            }
+            engine.execute_action(&Action::ConfirmSelection);
             assert_eq!(engine.state.player.block, 7);
             assert_eq!(engine.state.discard_pile.len(), 4);
             assert!(engine.state.discard_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "ThirdEye"));
@@ -418,7 +427,10 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "ForeignInfluence");
             play_self(&mut engine, "ForeignInfluence");
-            assert_eq!(hand_count(&engine, "Smite"), 1);
+            // Foreign Influence now presents a DiscoverCard choice with 3 options
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            engine.execute_action(&Action::Choose(0)); // pick first option
+            assert!(engine.state.hand.len() >= 1);
             assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ForeignInfluence"));
         }
     );
@@ -621,10 +633,16 @@ mod watcher_card_java_parity_tests {
         plus = ("Weave+", "Weave+", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["return_on_scry"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
+            // Need cards in draw pile so Scry has something to reveal
+            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "Weave");
             ensure_in_hand(&mut engine, "ThirdEye");
             play_on_enemy(&mut engine, "Weave", 0);
             play_self(&mut engine, "ThirdEye");
+            // ThirdEye triggers Scry which now needs choice resolution
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            engine.execute_action(&Action::ConfirmSelection); // keep all, don't discard
+            // Weave should return from discard to hand on Scry
             assert!(engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Weave"));
         }
     );

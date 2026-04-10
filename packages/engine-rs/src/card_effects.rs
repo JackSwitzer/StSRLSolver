@@ -286,6 +286,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ---- Scry ----
     if card.effects.contains(&"scry") && card.base_magic > 0 {
         engine.do_scry(card.base_magic);
+        // Scry triggers AwaitingChoice -- pause remaining effects
+        if engine.phase == crate::engine::CombatPhase::AwaitingChoice {
+            return;
+        }
     }
 
     // ---- Gain Energy (Miracle) ----
@@ -587,11 +591,39 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.state.player.add_status(sid::RAGE, card.base_magic.max(1));
     }
 
-    // ---- Foreign Influence: MCTS approximation ----
-    if card.effects.contains(&"foreign_influence") {
-        let smite_id = engine.temp_card("Smite");
+    // ---- Discovery: choose 1 of 3 generated cards to add to hand ----
+    if card.effects.contains(&"discovery") {
         if engine.state.hand.len() < 10 {
-            engine.state.hand.push(smite_id);
+            let options = vec![
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Smite")),
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Safety")),
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Insight")),
+            ];
+            engine.begin_choice(
+                crate::engine::ChoiceReason::DiscoverCard,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
+    }
+
+    // ---- Foreign Influence: choose 1 of 3 generated attack cards ----
+    if card.effects.contains(&"foreign_influence") {
+        if engine.state.hand.len() < 10 {
+            let options = vec![
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Smite")),
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Flying Sleeves")),
+                crate::engine::ChoiceOption::GeneratedCard(engine.temp_card("Iron Wave")),
+            ];
+            engine.begin_choice(
+                crate::engine::ChoiceReason::DiscoverCard,
+                options,
+                1,
+                1,
+            );
+            return;
         }
     }
 
@@ -604,15 +636,36 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
-    // ---- Omniscience: MCTS approximation ----
+    // ---- Omniscience: player picks a card from hand to play for free ----
     if card.effects.contains(&"omniscience") {
-        engine.draw_cards(2);
+        if !engine.state.hand.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PlayCardFree,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
     }
 
-    // ---- Wish: MCTS approximation ----
+    // ---- Wish: player picks from Strength / Gold / Plated Armor ----
     if card.effects.contains(&"wish") {
-        let amount = card.base_magic.max(1);
-        engine.state.player.add_status(sid::STRENGTH, amount);
+        let options = vec![
+            crate::engine::ChoiceOption::Named("Strength"),
+            crate::engine::ChoiceOption::Named("Gold"),
+            crate::engine::ChoiceOption::Named("Plated Armor"),
+        ];
+        engine.begin_choice(
+            crate::engine::ChoiceReason::PickOption,
+            options,
+            1,
+            1,
+        );
+        return;
     }
 
     // ---- Blasphemy: die_next_turn flag ----
@@ -1053,14 +1106,20 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.draw_cards(draw_count);
     }
 
-    // ---- Seek: tutor base_magic cards from draw pile to hand ----
+    // ---- Seek: player picks card(s) from draw pile to add to hand ----
     if card.effects.contains(&"seek") {
         let count = card.base_magic.max(1) as usize;
-        let to_move = count.min(engine.state.draw_pile.len()).min(10 - engine.state.hand.len());
-        for _ in 0..to_move {
-            if let Some(card_id) = engine.state.draw_pile.pop() {
-                engine.state.hand.push(card_id);
-            }
+        if !engine.state.draw_pile.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.draw_pile.len())
+                .map(|i| crate::engine::ChoiceOption::DrawCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PickFromDrawPile,
+                options,
+                1,
+                count,
+            );
+            return; // Pause execution; remaining effects handled after choice resolves
         }
     }
 
@@ -1092,22 +1151,51 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.state.discard_pile.push(card_inst);
     }
 
-    // ---- Discard: force player to discard 1 card from hand (MCTS: discard random) ----
+    // ---- Discard: force player to discard 1 card from hand ----
     if card.effects.contains(&"discard") {
         if !engine.state.hand.is_empty() {
-            let idx = engine.rng_gen_range(0..engine.state.hand.len());
-            let discarded = engine.state.hand.remove(idx);
-            engine.state.discard_pile.push(discarded);
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::DiscardFromHand,
+                options,
+                1,
+                1,
+            );
+            return;
         }
     }
 
-    // ---- Discard to Top of Draw: move a card from discard to top of draw (Headbutt) ----
+    // ---- Discard to Top of Draw: player picks a card from discard to put on top of draw (Headbutt) ----
     if card.effects.contains(&"discard_to_top_of_draw") {
         if !engine.state.discard_pile.is_empty() {
-            // MCTS approximation: move the last discarded card to top of draw
-            if let Some(moved) = engine.state.discard_pile.pop() {
-                engine.state.draw_pile.push(moved);
-            }
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.discard_pile.len())
+                .map(|i| crate::engine::ChoiceOption::DiscardCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PickFromDiscard,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
+    }
+
+    // ---- Put Card On Top: player picks a card from hand to put on top of draw (Warcry) ----
+    if card.effects.contains(&"put_card_on_top") {
+        if !engine.state.hand.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PutOnTopFromHand,
+                options,
+                1,
+                1,
+            );
+            return;
         }
     }
 
@@ -1189,16 +1277,19 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         engine.state.player.add_status(sid::INTANGIBLE, 1);
     }
 
-    // ---- Exhaust Choose: player chooses N cards from hand to exhaust (MCTS: random) ----
+    // ---- Exhaust Choose: player chooses 1 card from hand to exhaust ----
     if card.effects.contains(&"exhaust_choose") {
-        let count = 1; // Standard: exhaust 1 card
-        for _ in 0..count {
-            if engine.state.hand.is_empty() {
-                break;
-            }
-            let idx = engine.rng_gen_range(0..engine.state.hand.len());
-            let exhausted = engine.state.hand.remove(idx);
-            engine.state.exhaust_pile.push(exhausted);
+        if !engine.state.hand.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::ExhaustFromHand,
+                options,
+                1,
+                1,
+            );
+            return;
         }
     }
 
@@ -1312,5 +1403,387 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
             engine.gain_block_player(block);
         }
+    }
+
+    // ====================================================================
+    // Skill/Attack status setters (NOT handled by install_power)
+    // Power cards are handled by install_power() via the power registry.
+    // ====================================================================
+
+    // ---- Flame Barrier (Skill): deal damage back when hit ----
+    if card.effects.contains(&"flame_barrier") {
+        engine.state.player.add_status(sid::FLAME_BARRIER, card.base_magic.max(1));
+    }
+
+    // ====================================================================
+    // Card manipulation effects
+    // ====================================================================
+
+    // ---- Calculated Gamble: discard hand, draw same count ----
+    if card.effects.contains(&"calculated_gamble") {
+        let hand_count = engine.state.hand.len() as i32;
+        let discarded: Vec<CardInstance> = engine.state.hand.drain(..).collect();
+        engine.state.discard_pile.extend(discarded);
+        if hand_count > 0 {
+            engine.draw_cards(hand_count);
+        }
+    }
+
+    // ---- Exhaust non-attacks from hand ----
+    if card.effects.contains(&"exhaust_non_attacks") {
+        let mut remaining = Vec::new();
+        for hand_card in engine.state.hand.drain(..) {
+            let def = engine.card_registry.card_def_by_id(hand_card.def_id);
+            if def.card_type == CardType::Attack {
+                remaining.push(hand_card);
+            } else {
+                engine.state.exhaust_pile.push(hand_card);
+            }
+        }
+        engine.state.hand = remaining;
+    }
+
+    // ---- Discard non-attacks from hand ----
+    if card.effects.contains(&"discard_non_attacks") {
+        let mut remaining = Vec::new();
+        for hand_card in engine.state.hand.drain(..) {
+            let def = engine.card_registry.card_def_by_id(hand_card.def_id);
+            if def.card_type == CardType::Attack {
+                remaining.push(hand_card);
+            } else {
+                engine.state.discard_pile.push(hand_card);
+            }
+        }
+        engine.state.hand = remaining;
+    }
+
+    // ---- Exhume: pick card from exhaust pile to return to hand ----
+    if card.effects.contains(&"exhume") {
+        if !engine.state.exhaust_pile.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.exhaust_pile.len())
+                .map(|i| crate::engine::ChoiceOption::DiscardCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PickFromDiscard,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
+    }
+
+    // ---- Dual Wield: copy a card from hand ----
+    if card.effects.contains(&"dual_wield") {
+        let copies = card.base_magic.max(1) as usize;
+        if !engine.state.hand.is_empty() && engine.state.hand.len() + copies <= 10 {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PickOption,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
+    }
+
+    // ====================================================================
+    // Card generation effects
+    // ====================================================================
+
+    // ---- Add Shivs to hand ----
+    if card.effects.contains(&"add_shiv_to_hand") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            if engine.state.hand.len() >= 10 { break; }
+            let shiv = engine.temp_card("Shiv");
+            engine.state.hand.push(shiv);
+        }
+    }
+
+    // ---- Add Wound to discard ----
+    if card.effects.contains(&"add_wound_to_discard") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let wound = engine.temp_card("Wound");
+            engine.state.discard_pile.push(wound);
+        }
+    }
+
+    // ---- Add Burn to discard ----
+    if card.effects.contains(&"add_burn_to_discard") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let burn = engine.temp_card("Burn");
+            engine.state.discard_pile.push(burn);
+        }
+    }
+
+    // ---- Add Dazed to discard ----
+    if card.effects.contains(&"add_dazed_to_discard") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let dazed = engine.temp_card("Dazed");
+            engine.state.discard_pile.push(dazed);
+        }
+    }
+
+    // ---- Add Void to discard ----
+    if card.effects.contains(&"add_void_to_discard") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let void_card = engine.temp_card("Void");
+            engine.state.discard_pile.push(void_card);
+        }
+    }
+
+    // ---- Storm of Steel: discard hand, add Shiv per card discarded ----
+    if card.effects.contains(&"storm_of_steel") {
+        let hand_count = engine.state.hand.len();
+        let discarded: Vec<CardInstance> = engine.state.hand.drain(..).collect();
+        engine.state.discard_pile.extend(discarded);
+        for _ in 0..hand_count {
+            if engine.state.hand.len() >= 10 { break; }
+            let shiv = engine.temp_card("Shiv");
+            engine.state.hand.push(shiv);
+        }
+    }
+
+    // ====================================================================
+    // Conditional damage effects
+    // ====================================================================
+
+    // ---- Bane: double damage if target poisoned ----
+    if card.effects.contains(&"double_if_poisoned") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            if engine.state.enemies[tidx].entity.status(sid::POISON) > 0 {
+                // Deal base damage again (already dealt once in main damage section)
+                let player_strength = engine.state.player.strength();
+                let player_weak = engine.state.player.is_weak();
+                let stance_mult = engine.state.stance.outgoing_mult();
+                let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+                let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+                let dmg = damage::calculate_damage(
+                    card.base_damage, player_strength + vigor, player_weak,
+                    stance_mult, enemy_vuln, enemy_intangible,
+                );
+                engine.deal_damage_to_enemy(tidx, dmg);
+            }
+        }
+    }
+
+    // ---- Finisher: damage per attack played this turn ----
+    if card.effects.contains(&"finisher") {
+        let attacks = engine.state.attacks_played_this_turn;
+        if attacks > 1 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let player_strength = engine.state.player.strength();
+            let player_weak = engine.state.player.is_weak();
+            let stance_mult = engine.state.stance.outgoing_mult();
+            let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+            let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+            let dmg = damage::calculate_damage(
+                card.base_damage, player_strength + vigor, player_weak,
+                stance_mult, enemy_vuln, enemy_intangible,
+            );
+            // Already dealt 1 hit in main damage; deal (attacks - 1) more
+            for _ in 0..(attacks - 1) {
+                if engine.state.enemies[tidx].entity.is_dead() { break; }
+                engine.deal_damage_to_enemy(tidx, dmg);
+            }
+        }
+    }
+
+    // ---- Flechettes: damage per Skill in hand ----
+    if card.effects.contains(&"flechettes") {
+        let skill_count = engine.state.hand.iter()
+            .filter(|c| engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Skill)
+            .count() as i32;
+        if skill_count > 0 && target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let tidx = target_idx as usize;
+            let player_strength = engine.state.player.strength();
+            let player_weak = engine.state.player.is_weak();
+            let stance_mult = engine.state.stance.outgoing_mult();
+            let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+            let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+            let dmg = damage::calculate_damage(
+                card.base_damage, player_strength + vigor, player_weak,
+                stance_mult, enemy_vuln, enemy_intangible,
+            );
+            for _ in 0..skill_count {
+                if engine.state.enemies[tidx].entity.is_dead() { break; }
+                engine.deal_damage_to_enemy(tidx, dmg);
+            }
+        }
+    }
+
+    // ====================================================================
+    // Energy / cost manipulation
+    // ====================================================================
+
+    // ---- Enlightenment: reduce hand card costs to 1 this turn ----
+    if card.effects.contains(&"enlightenment") {
+        for hand_card in &mut engine.state.hand {
+            let def = engine.card_registry.card_def_by_id(hand_card.def_id);
+            if def.cost > 1 {
+                hand_card.cost = 1;
+            }
+        }
+    }
+
+    // ---- Madness: random card in hand costs 0 this combat ----
+    if card.effects.contains(&"madness") {
+        let eligible: Vec<usize> = engine.state.hand.iter()
+            .enumerate()
+            .filter(|(_, c)| {
+                let def = engine.card_registry.card_def_by_id(c.def_id);
+                def.cost > 0
+            })
+            .map(|(i, _)| i)
+            .collect();
+        if !eligible.is_empty() {
+            let idx = eligible[engine.rng_gen_range(0..eligible.len())];
+            engine.state.hand[idx].cost = 0;
+        }
+    }
+
+    // ---- Havoc: play top card of draw pile for free ----
+    if card.effects.contains(&"play_top_card") {
+        if !engine.state.draw_pile.is_empty() {
+            let top = engine.state.draw_pile.pop().unwrap();
+            let def = engine.card_registry.card_def_by_id(top.def_id).clone();
+            // Pick a valid target
+            let target = if def.target == CardTarget::Enemy {
+                let living = engine.state.living_enemy_indices();
+                if living.is_empty() { -1 } else { living[0] as i32 }
+            } else {
+                -1
+            };
+            // Execute the card effects directly (free play)
+            execute_card_effects(engine, &def, top, target);
+            engine.state.discard_pile.push(top);
+        }
+    }
+
+    // ---- Upgrade all cards in hand (Apotheosis) ----
+    if card.effects.contains(&"upgrade_all_cards") {
+        for hand_card in &mut engine.state.hand {
+            if !hand_card.is_upgraded() {
+                engine.card_registry.upgrade_card(hand_card);
+            }
+        }
+    }
+
+    // ---- Upgrade one card in hand (Armaments) -- choice ----
+    if card.effects.contains(&"upgrade_one_card") {
+        let upgradeable: Vec<usize> = engine.state.hand.iter()
+            .enumerate()
+            .filter(|(_, c)| !c.is_upgraded())
+            .map(|(i, _)| i)
+            .collect();
+        if !upgradeable.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = upgradeable.iter()
+                .map(|&i| crate::engine::ChoiceOption::HandCard(i))
+                .collect();
+            engine.begin_choice(
+                crate::engine::ChoiceReason::PickOption,
+                options,
+                1,
+                1,
+            );
+            return;
+        }
+    }
+
+    // ---- Gain orb slots (Capacitor) — Power cards handled by install_power ----
+    // gain_orb_slots is already handled in engine.rs install_power() for Powers.
+    // This handles non-Power uses (if any).
+    if card.card_type != CardType::Power && card.effects.contains(&"gain_orb_slots") {
+        let amount = card.base_magic.max(1);
+        for _ in 0..amount {
+            engine.state.orb_slots.add_slot();
+        }
+    }
+
+    // ---- Channel random orb ----
+    if card.effects.contains(&"channel_random") {
+        let orb_types = [OrbType::Lightning, OrbType::Frost, OrbType::Dark, OrbType::Plasma];
+        let idx = engine.rng_gen_range(0..orb_types.len());
+        let focus = engine.state.player.focus();
+        let evoke = engine.state.orb_slots.channel(orb_types[idx], focus);
+        engine.apply_evoke_effect(evoke);
+    }
+
+    // ---- Evoke all orbs ----
+    if card.effects.contains(&"evoke_all") {
+        let focus = engine.state.player.focus();
+        let effects = engine.state.orb_slots.evoke_all(focus);
+        for effect in effects {
+            engine.apply_evoke_effect(effect);
+        }
+    }
+
+    // ---- Trigger all orb passives ----
+    if card.effects.contains(&"trigger_all_passives") {
+        let focus = engine.state.player.focus();
+        for i in 0..engine.state.orb_slots.slots.len() {
+            let orb = &engine.state.orb_slots.slots[i];
+            if orb.is_empty() { continue; }
+            let passive_val = orb.passive_with_focus(focus);
+            match orb.orb_type {
+                OrbType::Frost => {
+                    engine.state.player.block += passive_val;
+                }
+                OrbType::Lightning => {
+                    let living = engine.state.living_enemy_indices();
+                    if let Some(&idx) = living.first() {
+                        engine.deal_damage_to_enemy(idx, passive_val);
+                    }
+                }
+                OrbType::Plasma => {
+                    engine.state.energy += passive_val;
+                }
+                OrbType::Dark => {
+                    // Dark passive increases its own evoke amount
+                    engine.state.orb_slots.slots[i].evoke_amount += passive_val;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // ---- Choke: deal damage each time enemy plays card (status) ----
+    if card.effects.contains(&"choke") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            engine.state.enemies[target_idx as usize]
+                .entity
+                .add_status(sid::CONSTRICTED, amount);
+        }
+    }
+
+    // ---- Plated Armor: gain N Plated Armor ----
+    if card.effects.contains(&"plated_armor") {
+        let amount = card.base_magic.max(1);
+        engine.state.player.add_status(sid::PLATED_ARMOR, amount);
+    }
+
+    // ---- Apply Lock-On to target (for orb focus bonus) ----
+    if card.effects.contains(&"lock_on") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            engine.state.enemies[target_idx as usize]
+                .entity
+                .add_status(sid::LOCK_ON, amount);
+        }
+    }
+
+    // ---- Claw scaling: each play increases future Claw damage ----
+    if card.effects.contains(&"claw_scaling") {
+        engine.state.player.add_status(sid::GENERIC_STRENGTH_UP, 2);
     }
 }

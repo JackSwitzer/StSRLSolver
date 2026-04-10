@@ -539,25 +539,23 @@ pub fn apply_turn_start_relics(state: &mut CombatState) {
         }
     }
 
-    // Happy Flower: every 3rd turn, +1 energy
+    // Happy Flower: every 3rd turn, +1 energy (counter persists across combats)
     if state.has_relic("Happy Flower") {
-        let counter = state.player.status(sid::HAPPY_FLOWER_COUNTER) + 1;
-        if counter >= 3 {
+        use crate::relic_flags::counter;
+        state.relic_counters[counter::HAPPY_FLOWER] += 1;
+        if state.relic_counters[counter::HAPPY_FLOWER] >= 3 {
             state.energy += 1;
-            state.player.set_status(sid::HAPPY_FLOWER_COUNTER, 0);
-        } else {
-            state.player.set_status(sid::HAPPY_FLOWER_COUNTER, counter);
+            state.relic_counters[counter::HAPPY_FLOWER] = 0;
         }
     }
 
-    // Incense Burner: every 6th turn, gain 1 Intangible
+    // Incense Burner: every 6th turn, gain 1 Intangible (counter persists across combats)
     if state.has_relic("Incense Burner") || state.has_relic("IncenseBurner") {
-        let counter = state.player.status(sid::INCENSE_BURNER_COUNTER) + 1;
-        if counter >= 6 {
+        use crate::relic_flags::counter;
+        state.relic_counters[counter::INCENSE_BURNER] += 1;
+        if state.relic_counters[counter::INCENSE_BURNER] >= 6 {
             state.player.add_status(sid::INTANGIBLE, 1);
-            state.player.set_status(sid::INCENSE_BURNER_COUNTER, 0);
-        } else {
-            state.player.set_status(sid::INCENSE_BURNER_COUNTER, counter);
+            state.relic_counters[counter::INCENSE_BURNER] = 0;
         }
     }
 
@@ -783,26 +781,24 @@ pub fn on_card_played(state: &mut CombatState, card_type: CardType) {
         }
     }
 
-    // --- Nunchaku: every 10 attacks, +1 energy ---
+    // --- Nunchaku: every 10 attacks, +1 energy (counter persists across combats) ---
     if is_attack && state.has_relic("Nunchaku") {
-        let counter = state.player.status(sid::NUNCHAKU_COUNTER) + 1;
-        if counter >= 10 {
+        use crate::relic_flags::counter;
+        state.relic_counters[counter::NUNCHAKU] += 1;
+        if state.relic_counters[counter::NUNCHAKU] >= 10 {
             state.energy += 1;
-            state.player.set_status(sid::NUNCHAKU_COUNTER, 0);
-        } else {
-            state.player.set_status(sid::NUNCHAKU_COUNTER, counter);
+            state.relic_counters[counter::NUNCHAKU] = 0;
         }
     }
 
-    // --- Ink Bottle: every 10 cards, draw 1 ---
+    // --- Ink Bottle: every 10 cards, draw 1 (counter persists across combats) ---
     if state.has_relic("InkBottle") {
-        let counter = state.player.status(sid::INK_BOTTLE_COUNTER) + 1;
-        if counter >= 10 {
+        use crate::relic_flags::counter;
+        state.relic_counters[counter::INK_BOTTLE] += 1;
+        if state.relic_counters[counter::INK_BOTTLE] >= 10 {
             // Draw 1 card (set flag for engine)
             state.player.set_status(sid::INK_BOTTLE_DRAW, 1);
-            state.player.set_status(sid::INK_BOTTLE_COUNTER, 0);
-        } else {
-            state.player.set_status(sid::INK_BOTTLE_COUNTER, counter);
+            state.relic_counters[counter::INK_BOTTLE] = 0;
         }
     }
 

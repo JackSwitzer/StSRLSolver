@@ -24,6 +24,7 @@ pub mod obs;
 pub mod orbs;
 pub mod potions;
 pub mod powers;
+pub mod relic_flags;
 pub mod relics;
 pub mod run;
 pub mod seed;
@@ -196,6 +197,8 @@ fn encode_combat_action(a: &crate::actions::Action) -> i32 {
             potion_idx,
             target_idx,
         } => 100 + (*potion_idx as i32 * 6) + (*target_idx + 1),
+        crate::actions::Action::ConfirmSelection => 199,
+        crate::actions::Action::Choose(idx) => 200 + *idx as i32,
     }
 }
 
@@ -209,13 +212,15 @@ fn decode_combat_action_id(action_id: i32) -> PyResult<crate::actions::Action> {
                 target_idx: (c % 6) as i32 - 1,
             })
         }
-        id if id >= 100 => {
+        id if id >= 100 && id < 199 => {
             let p = id - 100;
             Ok(crate::actions::Action::UsePotion {
                 potion_idx: (p / 6) as usize,
                 target_idx: (p % 6) as i32 - 1,
             })
         }
+        199 => Ok(crate::actions::Action::ConfirmSelection),
+        id if id >= 200 => Ok(crate::actions::Action::Choose((id - 200) as usize)),
         _ => Err(pyo3::exceptions::PyValueError::new_err("Invalid action id")),
     }
 }
@@ -291,6 +296,22 @@ fn describe_combat_action(
                 description: format!("Use {}{}", potion_name, target_desc),
             }
         }
+        crate::actions::Action::Choose(idx) => ActionInfo {
+            id,
+            name: format!("choose_{}", idx),
+            action_type: "choice".to_string(),
+            card_name: String::new(),
+            target: -1,
+            description: format!("Choose option {}", idx),
+        },
+        crate::actions::Action::ConfirmSelection => ActionInfo {
+            id,
+            name: "confirm_selection".to_string(),
+            action_type: "choice".to_string(),
+            card_name: String::new(),
+            target: -1,
+            description: "Confirm selection".to_string(),
+        },
     }
 }
 
@@ -908,6 +929,8 @@ impl PyRunEngine {
                     potion_idx,
                     target_idx,
                 } => COMBAT_BASE + 100 + (*potion_idx as i32 * 6) + (*target_idx + 1),
+                crate::actions::Action::ConfirmSelection => COMBAT_BASE + 199,
+                crate::actions::Action::Choose(idx) => COMBAT_BASE + 200 + *idx as i32,
             },
         }
     }
@@ -918,6 +941,14 @@ impl PyRunEngine {
             if combat_id == 0 {
                 return Some(run::RunAction::CombatAction(
                     crate::actions::Action::EndTurn,
+                ));
+            } else if combat_id >= 200 {
+                return Some(run::RunAction::CombatAction(
+                    crate::actions::Action::Choose((combat_id - 200) as usize),
+                ));
+            } else if combat_id == 199 {
+                return Some(run::RunAction::CombatAction(
+                    crate::actions::Action::ConfirmSelection,
                 ));
             } else if combat_id >= 100 {
                 let p = combat_id - 100;

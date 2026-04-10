@@ -41,8 +41,13 @@ impl StsRandom {
     /// Matches libGDX: `new RandomXS128(seed)` which calls
     /// `setState(murmurHash3(seed), murmurHash3(seed0))`.
     pub fn new(seed: u64) -> Self {
-        let s0 = murmur_hash3(seed);
+        let mut s0 = murmur_hash3(seed);
         let s1 = murmur_hash3(s0);
+        // Guard: murmur_hash3(0)==0, making both seeds 0 -- an absorbing state
+        // for xorshift128+. Use fallback to avoid degenerate all-zero output.
+        if s0 == 0 && s1 == 0 {
+            s0 = 1;
+        }
         Self {
             seed0: s0,
             seed1: s1,
@@ -94,15 +99,28 @@ impl StsRandom {
         self.seed1.wrapping_add(s0)
     }
 
-    /// Generate the next i32 in [0, bound) — matches libGDX nextInt(int).
-    /// Uses rejection sampling for uniformity.
+    /// Generate the next i32 in [0, bound) — matches java.util.Random.nextInt(int)
+    /// with rejection sampling to eliminate modulo bias.
     pub fn next_int(&mut self, bound: i32) -> i32 {
         debug_assert!(bound > 0, "bound must be positive");
-        // Same algorithm as java.util.Random.nextInt(bound) but with our bits
         let bound = bound as u64;
-        // Use upper 31 bits of next_long() and do modular reduction
-        let bits = (self.next_long() >> 33) as u64;
-        (bits % bound) as i32
+
+        // Power-of-2 bounds have no modulo bias
+        if bound & (bound - 1) == 0 {
+            let bits = (self.next_long() >> 33) as u64;
+            return (bits & (bound - 1)) as i32;
+        }
+
+        // Rejection sampling: reject values where modular reduction is biased.
+        // Mirrors java.util.Random.nextInt(int bound) logic.
+        loop {
+            let bits = (self.next_long() >> 33) as u64;
+            let val = bits % bound;
+            // Reject if bits - val + (bound - 1) would overflow 31-bit range
+            if bits.wrapping_sub(val).wrapping_add(bound - 1) < (1u64 << 31) {
+                return val as i32;
+            }
+        }
     }
 
     /// Generate i32 in [start, end] (inclusive both ends).
@@ -339,6 +357,50 @@ mod tests {
         assert_eq!(rng.counter, 2);
         rng.random_range(1, 10);
         assert_eq!(rng.counter, 3);
+    }
+
+    #[test]
+    fn seed_zero_not_absorbing() {
+        // Seed 0 should not produce all-zero output
+        let mut rng = StsRandom::new(0);
+        let mut all_zero = true;
+        for _ in 0..10 {
+            if rng.next_long() != 0 {
+                all_zero = false;
+                break;
+            }
+        }
+        assert!(!all_zero, "Seed 0 produced all-zero output (absorbing state)");
+    }
+
+    #[test]
+    fn next_int_rejection_sampling_uniformity() {
+        // Test that next_int with non-power-of-2 bound is reasonably uniform
+        let mut rng = StsRandom::new(42);
+        let bound = 7;
+        let mut counts = [0u32; 7];
+        let n = 7000;
+        for _ in 0..n {
+            let val = rng.next_int(bound);
+            assert!(val >= 0 && val < bound, "next_int({}) produced {}", bound, val);
+            counts[val as usize] += 1;
+        }
+        // Each bucket should get roughly n/7 = 1000. Allow 30% deviation.
+        let expected = n as f64 / bound as f64;
+        for (i, &count) in counts.iter().enumerate() {
+            let ratio = count as f64 / expected;
+            assert!(ratio > 0.7 && ratio < 1.3,
+                "Bucket {} has {} (expected ~{:.0}), ratio {:.2}", i, count, expected, ratio);
+        }
+    }
+
+    #[test]
+    fn next_int_power_of_2_fast_path() {
+        let mut rng = StsRandom::new(42);
+        for _ in 0..1000 {
+            let val = rng.next_int(8); // power of 2
+            assert!(val >= 0 && val < 8);
+        }
     }
 
     #[test]

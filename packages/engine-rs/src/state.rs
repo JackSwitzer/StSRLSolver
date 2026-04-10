@@ -321,6 +321,10 @@ pub struct CombatState {
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
+    /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
+    /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
+    pub relic_counters: [i16; 8],
+
 }
 
 impl CombatState {
@@ -359,6 +363,7 @@ impl CombatState {
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
+            relic_counters: [0i16; 8],
         }
     }
 

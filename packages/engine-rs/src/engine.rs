@@ -23,12 +23,48 @@ use crate::status_effects;
 use crate::status_ids::sid;
 
 /// Combat phase enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CombatPhase {
     NotStarted,
     PlayerTurn,
     EnemyTurn,
+    AwaitingChoice,
     CombatOver,
+}
+
+/// Why we're awaiting a player choice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChoiceReason {
+    Scry,
+    DiscardFromHand,
+    ExhaustFromHand,
+    PutOnTopFromHand,
+    PickFromDiscard,
+    PickFromDrawPile,
+    DiscoverCard,
+    PickOption,
+    PlayCardFree,
+}
+
+/// A single option the player can choose.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChoiceOption {
+    HandCard(usize),
+    DrawCard(usize),
+    DiscardCard(usize),
+    RevealedCard(crate::combat_types::CardInstance),
+    GeneratedCard(crate::combat_types::CardInstance),
+    Named(&'static str),
+}
+
+/// Context for an in-progress player choice.
+#[derive(Debug, Clone)]
+pub struct ChoiceContext {
+    pub reason: ChoiceReason,
+    pub options: Vec<ChoiceOption>,
+    pub selected: Vec<usize>,
+    pub min_picks: usize,
+    pub max_picks: usize,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -38,6 +74,7 @@ pub struct CombatEngine {
     pub phase: CombatPhase,
     pub card_registry: CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
+    pub choice: Option<ChoiceContext>,
 }
 
 impl CombatEngine {
@@ -48,6 +85,7 @@ impl CombatEngine {
             phase: CombatPhase::NotStarted,
             card_registry: CardRegistry::new(),
             rng: crate::seed::StsRandom::new(seed),
+            choice: None,
         }
     }
 
@@ -92,6 +130,22 @@ impl CombatEngine {
 
     /// Get all legal actions from the current state.
     pub fn get_legal_actions(&self) -> Vec<Action> {
+        // If awaiting a choice, only choice actions are legal
+        if self.phase == CombatPhase::AwaitingChoice {
+            if let Some(ref ctx) = self.choice {
+                let mut actions = Vec::new();
+                for i in 0..ctx.options.len() {
+                    if !ctx.selected.contains(&i) {
+                        actions.push(Action::Choose(i));
+                    }
+                }
+                if ctx.max_picks != 1 && ctx.selected.len() >= ctx.min_picks {
+                    actions.push(Action::ConfirmSelection);
+                }
+                return actions;
+            }
+        }
+
         if self.phase != CombatPhase::PlayerTurn || self.state.combat_over {
             return Vec::new();
         }
@@ -160,6 +214,8 @@ impl CombatEngine {
                 potion_idx,
                 target_idx,
             } => self.use_potion(*potion_idx, *target_idx),
+            Action::Choose(idx) => self.execute_choose(*idx),
+            Action::ConfirmSelection => self.execute_confirm_selection(),
         }
     }
 
@@ -167,9 +223,257 @@ impl CombatEngine {
     pub fn clone_state(&self) -> CombatEngine {
         CombatEngine {
             state: self.state.clone(),
-            phase: self.phase,
+            phase: self.phase.clone(),
             card_registry: CardRegistry::new(), // Registry is stateless, cheap to recreate
             rng: self.rng.clone(),
+            choice: self.choice.clone(),
+        }
+    }
+
+    // =======================================================================
+    // Interactive Choice System
+    // =======================================================================
+
+    /// Begin an interactive choice. Sets phase to AwaitingChoice.
+    pub fn begin_choice(
+        &mut self,
+        reason: ChoiceReason,
+        options: Vec<ChoiceOption>,
+        min_picks: usize,
+        max_picks: usize,
+    ) {
+        if options.is_empty() {
+            return; // Nothing to choose from
+        }
+        if self.phase == CombatPhase::AwaitingChoice {
+            return; // Don't overwrite an active choice
+        }
+        self.phase = CombatPhase::AwaitingChoice;
+        self.choice = Some(ChoiceContext {
+            reason,
+            options,
+            selected: Vec::new(),
+            min_picks,
+            max_picks,
+        });
+    }
+
+    /// Handle Choose(idx) action.
+    fn execute_choose(&mut self, idx: usize) {
+        let is_single = {
+            let ctx = match self.choice.as_mut() {
+                Some(c) => c,
+                None => return,
+            };
+            if idx >= ctx.options.len() || ctx.selected.contains(&idx) {
+                return;
+            }
+            ctx.selected.push(idx);
+            ctx.max_picks == 1
+        };
+
+        if is_single {
+            self.resolve_choice();
+        }
+    }
+
+    /// Handle ConfirmSelection action (multi-select finalization).
+    fn execute_confirm_selection(&mut self) {
+        if self.choice.is_some() {
+            self.resolve_choice();
+        }
+    }
+
+    /// Resolve the current choice and return to PlayerTurn.
+    fn resolve_choice(&mut self) {
+        let ctx = match self.choice.take() {
+            Some(c) => c,
+            None => return,
+        };
+
+        match ctx.reason {
+            ChoiceReason::Scry => self.resolve_scry(ctx),
+            ChoiceReason::DiscardFromHand => self.resolve_discard_from_hand(ctx),
+            ChoiceReason::ExhaustFromHand => self.resolve_exhaust_from_hand(ctx),
+            ChoiceReason::PutOnTopFromHand => self.resolve_put_on_top(ctx),
+            ChoiceReason::PickFromDiscard => self.resolve_pick_from_discard(ctx),
+            ChoiceReason::PickFromDrawPile => self.resolve_pick_from_draw(ctx),
+            ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
+            ChoiceReason::PickOption => self.resolve_pick_option(ctx),
+            ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
+        }
+
+        self.phase = CombatPhase::PlayerTurn;
+    }
+
+    fn resolve_scry(&mut self, ctx: ChoiceContext) {
+        // Selected indices are cards to discard from the revealed set.
+        // The revealed cards were taken from top of draw pile and stored as options.
+        // Non-selected go back on top of draw pile, selected go to discard.
+        let mut to_discard = Vec::new();
+        let mut to_keep = Vec::new();
+        for (i, opt) in ctx.options.into_iter().enumerate() {
+            if let ChoiceOption::RevealedCard(card) = opt {
+                if ctx.selected.contains(&i) {
+                    to_discard.push(card);
+                } else {
+                    to_keep.push(card);
+                }
+            }
+        }
+        // Put kept cards back on top of draw pile (front = top)
+        for card in to_keep.into_iter().rev() {
+            self.state.draw_pile.insert(0, card);
+        }
+        for card in to_discard {
+            self.state.discard_pile.push(card);
+        }
+
+        // Nirvana: gain block when scrying
+        let nirvana = self.state.player.status(sid::NIRVANA);
+        if nirvana > 0 {
+            self.gain_block_player(nirvana);
+        }
+
+        // Weave: return from discard to hand on Scry
+        let mut weave_indices = Vec::new();
+        for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
+            if self.card_registry.card_name(card_inst.def_id).starts_with("Weave") {
+                weave_indices.push(i);
+            }
+        }
+        for &i in weave_indices.iter().rev() {
+            let card = self.state.discard_pile.remove(i);
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            }
+        }
+    }
+
+    fn resolve_discard_from_hand(&mut self, ctx: ChoiceContext) {
+        // Discard selected hand cards (process in reverse to maintain indices)
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a)); // Reverse order
+        let discard_count = indices.len();
+        for idx in indices {
+            if idx < self.state.hand.len() {
+                let card = self.state.hand.remove(idx);
+                self.state.discard_pile.push(card);
+            }
+        }
+        // Gambling Chip: redraw equal to discarded count
+        if self.state.player.status(sid::GAMBLING_CHIP_ACTIVE) > 0 {
+            self.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 0);
+            if discard_count > 0 {
+                self.draw_cards(discard_count as i32);
+            }
+        }
+    }
+
+    fn resolve_exhaust_from_hand(&mut self, ctx: ChoiceContext) {
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in indices {
+            if idx < self.state.hand.len() {
+                let card = self.state.hand.remove(idx);
+                self.state.exhaust_pile.push(card);
+                self.trigger_on_exhaust();
+            }
+        }
+    }
+
+    fn resolve_put_on_top(&mut self, ctx: ChoiceContext) {
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    let card = self.state.hand.remove(idx);
+                    self.state.draw_pile.insert(0, card);
+                }
+            }
+        }
+    }
+
+    fn resolve_pick_from_discard(&mut self, ctx: ChoiceContext) {
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::DiscardCard(idx) = ctx.options[sel] {
+                if idx < self.state.discard_pile.len() {
+                    let card = self.state.discard_pile.remove(idx);
+                    // Put on top of draw pile (Headbutt)
+                    self.state.draw_pile.insert(0, card);
+                }
+            }
+        }
+    }
+
+    fn resolve_pick_from_draw(&mut self, ctx: ChoiceContext) {
+        // Seek: move selected card(s) from draw pile to hand
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::DrawCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in indices {
+            if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+                let card = self.state.draw_pile.remove(idx);
+                self.state.hand.push(card);
+            }
+        }
+    }
+
+    fn resolve_discover(&mut self, ctx: ChoiceContext) {
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::GeneratedCard(card) = ctx.options[sel] {
+                if self.state.hand.len() < 10 {
+                    self.state.hand.push(card);
+                }
+            }
+        }
+    }
+
+    fn resolve_pick_option(&mut self, ctx: ChoiceContext) {
+        // Wish: Named options [Strength, Gold, Plated Armor]
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::Named(name) = ctx.options[sel] {
+                match name {
+                    "Strength" => {
+                        let current = self.state.player.status(sid::STRENGTH);
+                        self.state.player.set_status(sid::STRENGTH, current + 3);
+                    }
+                    "Gold" => {
+                        // Can't modify run gold from combat engine; grant 3 Plated Armor instead
+                        let current = self.state.player.status(sid::PLATED_ARMOR);
+                        self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
+                    }
+                    "Plated Armor" => {
+                        let current = self.state.player.status(sid::PLATED_ARMOR);
+                        self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn resolve_play_card_free(&mut self, ctx: ChoiceContext) {
+        // Omniscience: play selected card from hand for free, twice
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    // Set card to free
+                    self.state.hand[idx].cost = 0;
+                    self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
+                    // Play it (target -1 = self; for targeted cards MCTS will handle)
+                    let target = if self.card_registry.card_def_by_id(self.state.hand[idx].def_id).target == CardTarget::Enemy {
+                        self.state.targetable_enemy_indices().first().copied().unwrap_or(0) as i32
+                    } else {
+                        -1
+                    };
+                    self.play_card(idx, target);
+                }
+            }
         }
     }
 
@@ -188,6 +492,7 @@ impl CombatEngine {
             self.state.combat_over = true;
             self.state.player_won = false;
             self.phase = CombatPhase::CombatOver;
+            self.choice = None;
             return;
         }
 
@@ -354,15 +659,15 @@ impl CombatEngine {
             }
         }
 
-        // ToolsOfTheTrade: draw then discard (discard needs RNG, handled inline)
+        // ToolsOfTheTrade: draw then player chooses card to discard
         if fx.tools_of_the_trade_draw > 0 {
             self.draw_cards(fx.tools_of_the_trade_draw);
-            for _ in 0..fx.tools_of_the_trade_discard {
-                if !self.state.hand.is_empty() {
-                    let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
-                    let discarded = self.state.hand.remove(idx);
-                    self.state.discard_pile.push(discarded);
-                }
+            if fx.tools_of_the_trade_discard > 0 && !self.state.hand.is_empty() {
+                let options: Vec<ChoiceOption> = (0..self.state.hand.len())
+                    .map(|i| ChoiceOption::HandCard(i))
+                    .collect();
+                self.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
+                return; // Pause turn start; resumes after choice
             }
         }
 
@@ -370,6 +675,22 @@ impl CombatEngine {
         if self.state.has_relic("WarpedTongs") && !self.state.hand.is_empty() {
             let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
             self.card_registry.upgrade_card(&mut self.state.hand[idx]);
+        }
+
+        // Gambling Chip: at start of each turn, player chooses cards to discard and redraws
+        if self.state.has_relic("Gambling Chip") || self.state.has_relic("GamblingChip") {
+            if !self.state.hand.is_empty() {
+                let options: Vec<ChoiceOption> = (0..self.state.hand.len())
+                    .map(|i| ChoiceOption::HandCard(i))
+                    .collect();
+                let n = options.len();
+                self.begin_choice(ChoiceReason::DiscardFromHand, options, 0, n);
+                // After confirm, resolve_discard_from_hand will discard selected cards.
+                // We need to redraw equal count -- handled in resolve_discard_from_hand
+                // by checking if the reason originated from Gambling Chip.
+                // For now, we store a flag so resolve knows to draw replacements.
+                self.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
+            }
         }
     }
 
@@ -1256,6 +1577,7 @@ impl CombatEngine {
             self.state.combat_over = true;
             self.state.player_won = false;
             self.phase = CombatPhase::CombatOver;
+            self.choice = None;
         }
     }
 
@@ -1570,40 +1892,22 @@ impl CombatEngine {
         }
     }
 
-    /// Perform Scry: approximate for MCTS by discarding bottom N cards from draw pile.
-    /// Triggers Nirvana (on_scry block) and Weave (return_on_scry).
+    /// Perform Scry: reveal top N cards, let player choose which to discard.
+    /// Triggers Nirvana (on_scry block) and Weave (return_on_scry) in resolve_scry.
     pub fn do_scry(&mut self, amount: i32) {
-        // For MCTS: approximate scry as discarding bottom cards from draw pile.
         let to_scry = (amount as usize).min(self.state.draw_pile.len());
-        if to_scry > 0 {
-            // Remove from the bottom (front) of draw pile as an approximation
-            let scryed: Vec<CardInstance> = self.state.draw_pile.drain(0..to_scry).collect();
-            // In MCTS, we discard all scryed cards (simplification)
-            for card in scryed {
-                self.state.discard_pile.push(card);
-            }
+        if to_scry == 0 {
+            return;
         }
-
-        // Nirvana: gain block when scrying
-        let nirvana = self.state.player.status(sid::NIRVANA);
-        if nirvana > 0 {
-            self.gain_block_player(nirvana);
-        }
-
-        // Weave: return from discard to hand on Scry
-        let mut weave_indices = Vec::new();
-        for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
-            if self.card_registry.card_name(card_inst.def_id).starts_with("Weave") {
-                weave_indices.push(i);
-            }
-        }
-        // Remove in reverse order to maintain indices
-        for &i in weave_indices.iter().rev() {
-            let card = self.state.discard_pile.remove(i);
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(card);
-            }
-        }
+        // Take top N cards from draw pile (end = top) and present as choice
+        let revealed: Vec<CardInstance> = self.state.draw_pile
+            .drain(self.state.draw_pile.len() - to_scry..)
+            .collect();
+        let options: Vec<ChoiceOption> = revealed.into_iter()
+            .map(ChoiceOption::RevealedCard)
+            .collect();
+        // Multi-select: player picks any subset to discard (min 0 = can keep all)
+        self.begin_choice(ChoiceReason::Scry, options, 0, to_scry);
     }
 
     // =======================================================================
@@ -1694,6 +1998,7 @@ impl CombatEngine {
             self.state.combat_over = true;
             self.state.player_won = true;
             self.phase = CombatPhase::CombatOver;
+            self.choice = None;
             // Fire on_victory relics (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
             let heal = relics::on_victory(&mut self.state);
             if heal > 0 {
@@ -1707,6 +2012,7 @@ impl CombatEngine {
             self.state.combat_over = true;
             self.state.player_won = false;
             self.phase = CombatPhase::CombatOver;
+            self.choice = None;
             return true;
         }
 

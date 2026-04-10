@@ -15,6 +15,12 @@ pub enum Action {
 
     /// End the player's turn.
     EndTurn,
+
+    /// Pick an option during AwaitingChoice phase. Index into ChoiceContext.options.
+    Choose(usize),
+
+    /// Finalize a multi-select choice (Scry, Gambling Chip).
+    ConfirmSelection,
 }
 
 impl Action {
@@ -42,6 +48,8 @@ impl Action {
                 }
             }
             Action::EndTurn => "EndTurn".to_string(),
+            Action::Choose(idx) => format!("Choose({})", idx),
+            Action::ConfirmSelection => "ConfirmSelection".to_string(),
         }
     }
 }
@@ -88,33 +96,52 @@ impl PyAction {
         }
     }
 
-    /// Get the action type as a string: "PlayCard", "UsePotion", or "EndTurn".
+    /// Create a Choose action.
+    #[staticmethod]
+    fn choose(idx: usize) -> Self {
+        PyAction {
+            inner: Action::Choose(idx),
+        }
+    }
+
+    /// Create a ConfirmSelection action.
+    #[staticmethod]
+    fn confirm_selection() -> Self {
+        PyAction {
+            inner: Action::ConfirmSelection,
+        }
+    }
+
+    /// Get the action type as a string.
     #[getter]
     fn action_type(&self) -> &str {
         match &self.inner {
             Action::PlayCard { .. } => "PlayCard",
             Action::UsePotion { .. } => "UsePotion",
             Action::EndTurn => "EndTurn",
+            Action::Choose(_) => "Choose",
+            Action::ConfirmSelection => "ConfirmSelection",
         }
     }
 
-    /// For PlayCard/UsePotion: the card/potion index. Returns None for EndTurn.
+    /// For PlayCard/UsePotion: the card/potion index. For Choose: the choice index.
     #[getter]
     fn index(&self) -> Option<usize> {
         match &self.inner {
             Action::PlayCard { card_idx, .. } => Some(*card_idx),
             Action::UsePotion { potion_idx, .. } => Some(*potion_idx),
-            Action::EndTurn => None,
+            Action::Choose(idx) => Some(*idx),
+            _ => None,
         }
     }
 
-    /// For PlayCard/UsePotion: the target index. Returns None for EndTurn.
+    /// For PlayCard/UsePotion: the target index. Returns None for others.
     #[getter]
     fn target(&self) -> Option<i32> {
         match &self.inner {
             Action::PlayCard { target_idx, .. } => Some(*target_idx),
             Action::UsePotion { target_idx, .. } => Some(*target_idx),
-            Action::EndTurn => None,
+            _ => None,
         }
     }
 
