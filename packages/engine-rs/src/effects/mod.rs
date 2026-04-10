@@ -20,13 +20,14 @@ pub mod hooks_discard;
 pub mod hooks_dest;
 
 pub mod hooks_damage;
+pub mod hooks_orb;
+pub mod declarative;
 
 // Future hook files (Step 3):
-// pub mod hooks_simple;
+pub mod hooks_simple;
 // pub mod hooks_debuff;
 // pub mod hooks_generate;
 // pub mod hooks_complex;
-// pub mod hooks_orb;
 // pub mod hooks_power;
 // pub mod hooks_scaling;
 
