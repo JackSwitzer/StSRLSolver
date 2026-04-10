@@ -347,13 +347,14 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
             let vuln_pf = engine.state.has_relic("Paper Frog");
             let has_flight = engine.state.enemies[tidx].entity.status(sid::FLIGHT) > 0;
+            // Vigor and Pen Nib already consumed on first hit — don't apply again
             let dmg = damage::calculate_damage_full(
                 card.base_damage,
                 player_strength,
-                vigor,
+                0, // vigor already applied on first hit
                 player_weak,
                 weak_pc,
-                pen_nib_active,
+                false, // pen nib already applied on first hit
                 false,
                 stance_mult,
                 enemy_vuln,
@@ -420,7 +421,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let weak_pc = engine.state.has_relic("Paper Crane");
         let vuln_pf = engine.state.has_relic("Paper Frog");
         let stance_mult = engine.state.stance.outgoing_mult();
-        for _ in 0..card.base_magic {
+        for hit_i in 0..card.base_magic {
             let living = engine.state.living_enemy_indices();
             if living.is_empty() {
                 break;
@@ -429,13 +430,14 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let enemy_vuln = engine.state.enemies[idx].entity.is_vulnerable();
             let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
             let has_flight = engine.state.enemies[idx].entity.status(sid::FLIGHT) > 0;
+            // Vigor and Pen Nib only apply on first hit
             let dmg = damage::calculate_damage_full(
                 card.base_damage,
                 player_strength,
-                vigor,
+                if hit_i == 0 { vigor } else { 0 },
                 player_weak,
                 weak_pc,
-                pen_nib_active,
+                if hit_i == 0 { pen_nib_active } else { false },
                 false,
                 stance_mult,
                 enemy_vuln,
@@ -586,21 +588,16 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
-    // ---- Meditate: return cards from discard to hand ----
+    // ---- Meditate: choose cards from discard to return to hand (retained) ----
     if card.effects.contains(&"meditate") {
         let count = card.base_magic.max(1) as usize;
-        for _ in 0..count {
-            if engine.state.discard_pile.is_empty() {
-                break;
-            }
-            if engine.state.hand.len() >= 10 {
-                break;
-            }
-            if let Some(mut returned) = engine.state.discard_pile.pop() {
-                returned.set_retained(true);
-                engine.state.retained_cards.push(returned);
-                engine.state.hand.push(returned);
-            }
+        if !engine.state.discard_pile.is_empty() {
+            let options: Vec<_> = engine.state.discard_pile.iter()
+                .enumerate()
+                .map(|(i, _)| ChoiceOption::DiscardCard(i))
+                .collect();
+            let max_picks = count.min(options.len());
+            engine.begin_choice(ChoiceReason::ReturnFromDiscard, options, 1, max_picks);
         }
     }
 
@@ -1581,14 +1578,15 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
-    // ---- Storm of Steel: discard hand, add Shiv per card discarded ----
+    // ---- Storm of Steel: discard hand, add Shiv per card discarded (upgraded: Shiv+) ----
     if card.effects.contains(&"storm_of_steel") {
         let hand_count = engine.state.hand.len();
         let discarded: Vec<CardInstance> = engine.state.hand.drain(..).collect();
         engine.state.discard_pile.extend(discarded);
+        let shiv_name = if card.id.ends_with('+') { "Shiv+" } else { "Shiv" };
         for _ in 0..hand_count {
             if engine.state.hand.len() >= 10 { break; }
-            let shiv = engine.temp_card("Shiv");
+            let shiv = engine.temp_card(shiv_name);
             engine.state.hand.push(shiv);
         }
     }

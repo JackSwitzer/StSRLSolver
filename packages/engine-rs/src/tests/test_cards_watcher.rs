@@ -468,6 +468,10 @@ mod watcher_card_java_parity_tests {
             engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
+            // Meditate now presents a choice to pick from discard
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            engine.execute_action(&Action::Choose(0)); // select first card
+            engine.execute_action(&Action::ConfirmSelection);
             assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Defend_P" || n == "Strike_P" }));
         }
     );
@@ -779,6 +783,10 @@ mod watcher_card_java_parity_tests {
             engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
+            // Meditate now presents a choice to pick from discard
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            engine.execute_action(&Action::Choose(0));
+            engine.execute_action(&Action::ConfirmSelection);
             assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Strike_P" || n == "Defend_P" }));
         }
     );

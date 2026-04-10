@@ -359,9 +359,9 @@ impl CombatEngine {
                 }
             }
         }
-        // Put kept cards back on top of draw pile (front = top)
+        // Put kept cards back on top of draw pile (last = top, pop = draw)
         for card in to_keep.into_iter().rev() {
-            self.state.draw_pile.insert(0, card);
+            self.state.draw_pile.push(card);
         }
         for card in to_discard {
             self.state.discard_pile.push(card);
@@ -435,7 +435,7 @@ impl CombatEngine {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
                     let card = self.state.hand.remove(idx);
-                    self.state.draw_pile.insert(0, card);
+                    self.state.draw_pile.push(card); // last = top
                 }
             }
         }
@@ -446,8 +446,8 @@ impl CombatEngine {
             if let ChoiceOption::DiscardCard(idx) = ctx.options[sel] {
                 if idx < self.state.discard_pile.len() {
                     let card = self.state.discard_pile.remove(idx);
-                    // Put on top of draw pile (Headbutt)
-                    self.state.draw_pile.insert(0, card);
+                    // Put on top of draw pile (Headbutt) — last = top
+                    self.state.draw_pile.push(card);
                 }
             }
         }
@@ -487,9 +487,8 @@ impl CombatEngine {
                         self.state.player.set_status(sid::STRENGTH, current + 3);
                     }
                     "Gold" => {
-                        // Can't modify run gold from combat engine; grant 3 Plated Armor instead
-                        let current = self.state.player.status(sid::PLATED_ARMOR);
-                        self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
+                        // Combat engine can't modify run gold; no-op for MCTS
+                        // (MCTS should prefer Strength or Plated Armor options)
                     }
                     "Plated Armor" => {
                         let current = self.state.player.status(sid::PLATED_ARMOR);
@@ -574,19 +573,23 @@ impl CombatEngine {
     }
 
     fn resolve_return_from_discard(&mut self, ctx: ChoiceContext) {
-        // Hologram: move selected card from discard to hand (not top of draw)
-        if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::DiscardCard(idx) = ctx.options[sel] {
-                if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
-                    let card = self.state.discard_pile.remove(idx);
-                    self.state.hand.push(card);
-                }
+        // Hologram / Meditate: move selected card(s) from discard to hand
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::DiscardCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a)); // remove from back to front
+        for idx in indices {
+            if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
+                let mut card = self.state.discard_pile.remove(idx);
+                card.set_retained(true); // Meditate marks returned cards as retained
+                self.state.hand.push(card);
             }
         }
     }
 
     fn resolve_forethought(&mut self, ctx: ChoiceContext) {
         // Forethought: put selected card(s) on bottom of draw pile at 0 cost
+        // Convention: last = top (pop draws), index 0 = bottom
         let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
             if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
         }).collect();
@@ -595,8 +598,7 @@ impl CombatEngine {
             if idx < self.state.hand.len() {
                 let mut card = self.state.hand.remove(idx);
                 card.cost = 0;
-                // Bottom of draw pile = end of vec (top = index 0 or beginning)
-                self.state.draw_pile.push(card);
+                self.state.draw_pile.insert(0, card); // bottom of draw pile
             }
         }
     }
@@ -622,13 +624,13 @@ impl CombatEngine {
     }
 
     fn resolve_setup(&mut self, ctx: ChoiceContext) {
-        // Setup: set card cost to 0 and put on top of draw pile
+        // Setup: set card cost to 0 and put on top of draw pile (last = top)
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
                     let mut card = self.state.hand.remove(idx);
                     card.cost = 0;
-                    self.state.draw_pile.insert(0, card);
+                    self.state.draw_pile.push(card);
                 }
             }
         }
@@ -858,8 +860,8 @@ impl CombatEngine {
             self.card_registry.upgrade_card(&mut self.state.hand[idx]);
         }
 
-        // Gambling Chip: at start of each turn, player chooses cards to discard and redraws
-        if self.state.has_relic("Gambling Chip") || self.state.has_relic("GamblingChip") {
+        // Gambling Chip: at start of combat (turn 1 only), player chooses cards to discard and redraws
+        if self.state.turn == 1 && (self.state.has_relic("Gambling Chip") || self.state.has_relic("GamblingChip")) {
             if !self.state.hand.is_empty() {
                 let options: Vec<ChoiceOption> = (0..self.state.hand.len())
                     .map(|i| ChoiceOption::HandCard(i))
@@ -1255,11 +1257,8 @@ impl CombatEngine {
             card.cost
         };
 
-        // Establishment: retained cards cost 1 less per stack
-        let establishment = self.state.player.status(sid::ESTABLISHMENT);
-        if establishment > 0 && card_inst.is_retained() {
-            cost = (cost - establishment).max(0);
-        }
+        // Establishment: cost already physically reduced in end_turn on_retain loop.
+        // Do NOT reduce again here to avoid double-dipping.
 
         // Blood for Blood: reduce cost by 1 per HP lost this combat
         if card.effects.contains(&"cost_reduce_on_hp_loss") {
@@ -1316,11 +1315,8 @@ impl CombatEngine {
             card.cost
         };
 
-        // Establishment: retained cards cost 1 less per stack
-        let establishment = self.state.player.status(sid::ESTABLISHMENT);
-        if establishment > 0 && card_inst.is_retained() {
-            cost = (cost - establishment).max(0);
-        }
+        // Establishment: cost already physically reduced in end_turn on_retain loop.
+        // Do NOT reduce again here to avoid double-dipping.
 
         // Blood for Blood: reduce cost by 1 per HP lost this combat
         if card.effects.contains(&"cost_reduce_on_hp_loss") {
@@ -1508,6 +1504,9 @@ impl CombatEngine {
 
         // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
         for ei in 0..self.state.enemies.len() {
+            if self.state.combat_over || self.state.player.hp <= 0 {
+                break;
+            }
             if self.state.enemies[ei].is_alive() {
                 let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
                 if bod > 0 {
@@ -1527,8 +1526,7 @@ impl CombatEngine {
                     );
                     self.state.player.block = result.block_remaining;
                     if result.hp_loss > 0 {
-                        self.state.player.hp -= result.hp_loss;
-                        self.state.total_damage_taken += result.hp_loss;
+                        self.player_lose_hp(result.hp_loss);
                     }
                 }
             }
@@ -1598,7 +1596,8 @@ impl CombatEngine {
         // Necronomicon: replay first 2+-cost Attack once per turn
         if !self.state.combat_over {
             let is_attack = card.card_type == CardType::Attack;
-            if relics::necronomicon_should_trigger(&self.state, card.cost, is_attack) {
+            let effective = self.effective_cost_inst(&card, card_inst);
+            if relics::necronomicon_should_trigger(&self.state, effective, is_attack) {
                 relics::necronomicon_mark_used(&mut self.state);
                 crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
             }
@@ -1857,6 +1856,7 @@ impl CombatEngine {
         }
         let rcd = self.state.player.status(sid::RUNIC_CUBE_DRAW);
         if rcd > 0 {
+            self.state.player.set_status(sid::RUNIC_CUBE_DRAW, 0);
             self.draw_cards(1);
         }
         let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
@@ -1959,8 +1959,7 @@ impl CombatEngine {
             // Sharp Hide: deal retaliation damage to player when attacked
             let sharp_hide = self.state.enemies[enemy_idx].entity.status(sid::SHARP_HIDE);
             if sharp_hide > 0 {
-                self.state.player.hp -= sharp_hide;
-                self.state.total_damage_taken += sharp_hide;
+                self.player_lose_hp(sharp_hide);
             }
 
             // Shifting: gain block equal to unblocked damage

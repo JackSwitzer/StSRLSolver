@@ -192,7 +192,7 @@ mod silent_card_java_parity_tests {
     );
     card_pair_test!(bouncing_flask,
         "Bouncing Flask", 2, -1, -1, 3, CardType::Skill, CardTarget::AllEnemy, false, None, &["poison_random_multi"],
-        "Bouncing Flask+", 2, -1, -1, 3, CardType::Skill, CardTarget::AllEnemy, false, None, &["poison_random_multi_4"],
+        "Bouncing Flask+", 2, -1, -1, 4, CardType::Skill, CardTarget::AllEnemy, false, None, &["poison_random_multi"],
     );
     card_pair_test!(calculated_gamble,
         "Calculated Gamble", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["calculated_gamble"],
@@ -368,7 +368,7 @@ mod silent_card_java_parity_tests {
     );
     card_pair_test!(storm_of_steel,
         "Storm of Steel", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel"],
-        "Storm of Steel+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel_plus"],
+        "Storm of Steel+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel"],
     );
     card_pair_test!(tools_of_the_trade,
         "Tools of the Trade", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["tools_of_the_trade"],

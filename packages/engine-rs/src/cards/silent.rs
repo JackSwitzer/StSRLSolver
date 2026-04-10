@@ -379,8 +379,8 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
         insert(cards, CardDef {
             id: "Bouncing Flask+", name: "Bouncing Flask+", card_type: CardType::Skill,
             target: CardTarget::AllEnemy, cost: 2, base_damage: -1, base_block: -1,
-            base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["poison_random_multi_4"],
+            base_magic: 4, exhaust: false, enter_stance: None,
+            effects: &["poison_random_multi"],  // 4 bounces (upgraded from 3)
         });
 
         // ---- Silent Uncommon: Calculated Gamble ---- (cost 0, discard hand draw that many, exhaust; upgrade: no exhaust)
@@ -992,7 +992,7 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Storm of Steel+", name: "Storm of Steel+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["storm_of_steel_plus"],
+            effects: &["storm_of_steel"],  // handler checks card name for Shiv vs Shiv+
         });
 
         // ---- Silent Rare: Tools of the Trade ---- (cost 1, power, draw 1 + discard 1 at turn start; upgrade: cost 0)
