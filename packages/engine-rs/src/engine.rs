@@ -1681,6 +1681,13 @@ impl CombatEngine {
 
             // Toy Ornithopter: heal 5 on potion use
             relics::toy_ornithopter_on_potion(&mut self.state);
+
+            // Consume potion draw (Swift Potion, etc.)
+            let pd = self.state.player.status(sid::POTION_DRAW);
+            if pd > 0 {
+                self.state.player.set_status(sid::POTION_DRAW, 0);
+                self.draw_cards(pd);
+            }
         }
 
         // Check combat end (potions can kill enemies)
@@ -1770,6 +1777,24 @@ impl CombatEngine {
         let rupture = self.state.player.status(sid::RUPTURE);
         if rupture > 0 {
             self.state.player.add_status(sid::STRENGTH, rupture);
+        }
+
+        // Consume relic-set draw statuses
+        let cpd = self.state.player.status(sid::CENTENNIAL_PUZZLE_DRAW);
+        if cpd > 0 {
+            self.state.player.set_status(sid::CENTENNIAL_PUZZLE_DRAW, 0);
+            self.draw_cards(cpd);
+        }
+        let rcd = self.state.player.status(sid::RUNIC_CUBE_DRAW);
+        if rcd > 0 {
+            self.draw_cards(1);
+        }
+        let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
+        if ect > 0 && !self.state.orb_slots.orbs.is_empty() {
+            let front_orb = self.state.orb_slots.orbs[0];
+            let focus = self.state.player.status(sid::FOCUS);
+            let effect = front_orb.passive_with_focus(focus);
+            self.apply_passive_effect(effect);
         }
 
         // Fairy revive check
@@ -1878,6 +1903,13 @@ impl CombatEngine {
             }
             // Fire on_enemy_death relics (Gremlin Horn, The Specimen)
             relics::on_enemy_death(&mut self.state, enemy_idx);
+            // Consume Gremlin Horn draw/energy
+            let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
+            if ghd > 0 {
+                self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
+                self.draw_cards(1);
+                self.state.energy += 1;
+            }
         }
 
         // Boss damage hooks
