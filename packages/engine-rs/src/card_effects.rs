@@ -6,7 +6,7 @@
 use crate::cards::{CardDef, CardTarget, CardType};
 use crate::combat_types::CardInstance;
 use crate::damage;
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, ChoiceOption, ChoiceReason};
 use crate::orbs::{self, OrbType};
 use crate::powers;
 use crate::state::Stance;
@@ -1483,10 +1483,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     if card.effects.contains(&"exhume") {
         if !engine.state.exhaust_pile.is_empty() {
             let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.exhaust_pile.len())
-                .map(|i| crate::engine::ChoiceOption::DiscardCard(i))
+                .map(|i| crate::engine::ChoiceOption::ExhaustCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickFromDiscard,
+                crate::engine::ChoiceReason::PickFromExhaust,
                 options,
                 1,
                 1,
@@ -1503,10 +1503,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 .map(|i| crate::engine::ChoiceOption::HandCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickOption,
+                crate::engine::ChoiceReason::DualWield,
                 options,
                 1,
-                1,
+                copies,
             );
             return;
         }
@@ -1730,7 +1730,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 .map(|&i| crate::engine::ChoiceOption::HandCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickOption,
+                crate::engine::ChoiceReason::UpgradeCard,
                 options,
                 1,
                 1,
@@ -2151,5 +2151,111 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 .entity
                 .add_status(sid::LOCK_ON, amount);
         }
+    }
+
+    // ====================================================================
+    // PR5: Choice-based card effects
+    // ====================================================================
+
+    // ---- Search draw pile for Attack (Secret Weapon) ----
+    if card.effects.contains(&"search_attack") {
+        let options: Vec<_> = engine.state.draw_pile.iter()
+            .enumerate()
+            .filter(|(_, c)| {
+                engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Attack
+            })
+            .map(|(i, _)| ChoiceOption::DrawCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::SearchDrawPile, options, 1, 1);
+    }
+
+    // ---- Search draw pile for Skill (Secret Technique) ----
+    if card.effects.contains(&"search_skill") {
+        let options: Vec<_> = engine.state.draw_pile.iter()
+            .enumerate()
+            .filter(|(_, c)| {
+                engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Skill
+            })
+            .map(|(i, _)| ChoiceOption::DrawCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::SearchDrawPile, options, 1, 1);
+    }
+
+    // ---- Return card from discard to hand (Hologram) ----
+    if card.effects.contains(&"return_from_discard") {
+        let options: Vec<_> = engine.state.discard_pile.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::DiscardCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::ReturnFromDiscard, options, 1, 1);
+    }
+
+    // ---- Forethought: put 1 card from hand to bottom of draw at cost 0 ----
+    if card.effects.contains(&"forethought") {
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::ForethoughtPick, options, 1, 1);
+    }
+
+    // ---- Forethought+: put ALL hand cards to bottom of draw at cost 0 ----
+    if card.effects.contains(&"forethought_all") {
+        // Auto-resolve: move all hand cards to bottom of draw at cost 0
+        let hand_cards: Vec<_> = engine.state.hand.drain(..).collect();
+        for mut c in hand_cards {
+            c.cost = 0;
+            engine.state.draw_pile.push(c);
+        }
+    }
+
+    // ---- Recycle: exhaust 1 card from hand, gain its cost as energy ----
+    if card.effects.contains(&"recycle") {
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::RecycleCard, options, 1, 1);
+    }
+
+    // ---- Discard N cards, gain energy (Concentrate) ----
+    if card.effects.contains(&"discard_gain_energy") {
+        let discard_count = card.base_magic.max(1) as usize;
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        let actual_picks = discard_count.min(options.len());
+        engine.begin_choice(ChoiceReason::DiscardForEffect, options, actual_picks, actual_picks);
+    }
+
+    // ---- Exhaust N from hand (Purity) ----
+    if card.effects.contains(&"exhaust_from_hand") {
+        let exhaust_count = card.base_magic.max(1) as usize;
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        let actual_picks = exhaust_count.min(options.len());
+        engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 0, actual_picks);
+    }
+
+    // ---- Setup: pick card from hand, set cost 0, put on top of draw ----
+    if card.effects.contains(&"setup") {
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::SetupPick, options, 1, 1);
+    }
+
+    // ---- Thinking Ahead: draw 2, then put 1 card on top of draw ----
+    if card.effects.contains(&"thinking_ahead") {
+        engine.draw_cards(2);
+        let options: Vec<_> = engine.state.hand.iter()
+            .enumerate()
+            .map(|(i, _)| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::PutOnTopFromHand, options, 1, 1);
     }
 }
