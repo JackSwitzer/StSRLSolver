@@ -42,6 +42,16 @@ pub const BIT_ENERGY_ON_DISCARD: u8 = 14;
 // post_play_dest hooks (bits 15-16)
 pub const BIT_SHUFFLE_SELF_INTO_DRAW: u8 = 15;
 pub const BIT_END_TURN: u8 = 16;
+// modify_damage hooks (bits 17-25)
+pub const BIT_HEAVY_BLADE: u8 = 17;
+pub const BIT_DAMAGE_EQUALS_BLOCK: u8 = 18;
+pub const BIT_DAMAGE_PLUS_MANTRA: u8 = 19;
+pub const BIT_PERFECTED_STRIKE: u8 = 20;
+pub const BIT_RAMPAGE: u8 = 21;
+pub const BIT_GLASS_KNIFE: u8 = 22;
+pub const BIT_RITUAL_DAGGER: u8 = 23;
+pub const BIT_SEARING_BLOW: u8 = 24;
+pub const BIT_DAMAGE_RANDOM_X_TIMES: u8 = 25;
 
 // ===========================================================================
 // Hook function type aliases
@@ -181,6 +191,7 @@ pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
         tag: "grow_damage_on_retain",
         bit_index: 10,
         on_retain: Some(super::hooks_retain::hook_grow_damage_on_retain),
+        modify_damage: Some(super::hooks_damage::hook_windmill_strike_damage),
         ..CardEffectEntry::NONE
     },
     // ===== on_draw hooks (bits 11-12) =====
@@ -220,6 +231,61 @@ pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
         tag: "end_turn",
         bit_index: 16,
         post_play_dest: Some(super::hooks_dest::hook_end_turn),
+        ..CardEffectEntry::NONE
+    },
+    // ===== modify_damage hooks (bits 17-25) =====
+    CardEffectEntry {
+        tag: "heavy_blade",
+        bit_index: 17,
+        modify_damage: Some(super::hooks_damage::hook_heavy_blade),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_equals_block",
+        bit_index: 18,
+        modify_damage: Some(super::hooks_damage::hook_damage_equals_block),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_plus_mantra",
+        bit_index: 19,
+        modify_damage: Some(super::hooks_damage::hook_damage_plus_mantra),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "perfected_strike",
+        bit_index: 20,
+        modify_damage: Some(super::hooks_damage::hook_perfected_strike),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "rampage",
+        bit_index: 21,
+        modify_damage: Some(super::hooks_damage::hook_rampage),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "glass_knife",
+        bit_index: 22,
+        modify_damage: Some(super::hooks_damage::hook_glass_knife),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "ritual_dagger",
+        bit_index: 23,
+        modify_damage: Some(super::hooks_damage::hook_ritual_dagger),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "searing_blow",
+        bit_index: 24,
+        modify_damage: Some(super::hooks_damage::hook_searing_blow),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_random_x_times",
+        bit_index: 25,
+        modify_damage: Some(super::hooks_damage::hook_damage_random_x_times),
         ..CardEffectEntry::NONE
     },
 ];

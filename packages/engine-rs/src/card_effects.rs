@@ -44,61 +44,18 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         0
     };
 
-    // ---- Brilliance: extra damage from mantra gained ----
-    let brilliance_bonus = if card.effects.contains(&"damage_plus_mantra") {
-        engine.state.mantra_gained
-    } else {
-        0
-    };
+    // ---- Damage modifiers via registry dispatch ----
+    let card_flags = engine.card_registry.effect_flags(card_inst.def_id);
+    let dmg_mod = crate::effects::dispatch_modify_damage(engine, card, card_inst, card_flags);
 
-    // ---- Body Slam: damage = current player block ----
-    let body_slam_damage = if card.effects.contains(&"damage_equals_block") {
-        engine.state.player.block
-    } else {
-        -1
-    };
+    let body_slam_damage = dmg_mod.base_damage_override;
+    let heavy_blade_mult = dmg_mod.strength_multiplier;
+    // All additive bonuses (brilliance, perfected_strike, rampage, etc.) are merged
+    let total_damage_bonus = dmg_mod.base_damage_bonus;
 
     // ---- Grand Finale: only deal damage if draw pile is empty ----
-    let grand_finale_blocked = card.effects.contains(&"only_empty_draw")
+    let grand_finale_blocked = card_flags.has(crate::effects::registry::BIT_ONLY_EMPTY_DRAW)
         && !engine.state.draw_pile.is_empty();
-
-    // ---- Heavy Blade: strength multiplier (3x base, 5x upgraded) ----
-    let heavy_blade_mult = if card.effects.contains(&"heavy_blade") {
-        card.base_magic.max(1)
-    } else {
-        1
-    };
-
-    // ---- Perfected Strike: +N damage per "Strike" card in all piles ----
-    let perfected_strike_bonus = if card.effects.contains(&"perfected_strike") {
-        let per_strike = card.base_magic.max(1);
-        let strike_count = engine.state.hand.iter()
-            .chain(engine.state.draw_pile.iter())
-            .chain(engine.state.discard_pile.iter())
-            .chain(engine.state.exhaust_pile.iter())
-            .filter(|c| engine.card_registry.is_strike(c.def_id))
-            .count() as i32;
-        per_strike * strike_count
-    } else {
-        0
-    };
-
-    // ---- Per-card scaling bonuses (from status counters) ----
-    let scaling_bonus = if card.effects.contains(&"rampage") {
-        engine.state.player.status(sid::RAMPAGE_BONUS)
-    } else if card.effects.contains(&"glass_knife") {
-        -engine.state.player.status(sid::GLASS_KNIFE_PENALTY)
-    } else if card.effects.contains(&"ritual_dagger") {
-        engine.state.player.status(sid::RITUAL_DAGGER_BONUS)
-    } else if card.effects.contains(&"searing_blow") {
-        // Searing Blow: base 12, each upgrade adds progressively more
-        // Upgraded flag = +4 bonus (simplified for MCTS)
-        if card_inst.flags & 0x04 != 0 { 4 } else { 0 }
-    } else if card.effects.contains(&"grow_damage_on_retain") {
-        engine.state.player.status(sid::WINDMILL_STRIKE_BONUS)
-    } else {
-        0
-    };
 
     // ---- Genetic Algorithm: scaling block bonus ----
     let genetic_alg_block_bonus = if card.effects.contains(&"genetic_algorithm") {
@@ -108,7 +65,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     };
 
     // ---- Perseverance: scaling block bonus from retaining ----
-    let perseverance_block_bonus = if card.effects.contains(&"grow_block_on_retain") {
+    let perseverance_block_bonus = if card_flags.has(crate::effects::registry::BIT_GROW_BLOCK_ON_RETAIN) {
         engine.state.player.status(sid::PERSEVERANCE_BONUS)
     } else {
         0
@@ -120,13 +77,14 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     let mut enemy_killed = false;
 
     // Skip generic damage for cards that use damage_random_x_times (they handle their own hits)
-    let skip_generic_damage = card.effects.contains(&"damage_random_x_times");
+    let skip_generic_damage = dmg_mod.skip_generic_damage;
 
     if !skip_generic_damage && !grand_finale_blocked && (card.base_damage >= 0 || body_slam_damage >= 0) {
         let effective_base_damage = if body_slam_damage >= 0 {
             body_slam_damage
         } else {
-            (card.base_damage + perfected_strike_bonus + scaling_bonus).max(0)
+            // total_damage_bonus includes all additive modifiers (brilliance, perfected_strike, scaling, etc.)
+            (card.base_damage + total_damage_bonus).max(0)
         };
 
         let is_multi_hit = card.effects.contains(&"multi_hit");
@@ -163,7 +121,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                     let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
-                        effective_base_damage + brilliance_bonus,
+                        effective_base_damage,
                         player_strength,
                         vigor,
                         player_weak,
@@ -205,7 +163,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                     let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
-                        effective_base_damage + brilliance_bonus,
+                        effective_base_damage,
                         player_strength,
                         vigor,
                         player_weak,

@@ -19,8 +19,9 @@ pub mod hooks_draw;
 pub mod hooks_discard;
 pub mod hooks_dest;
 
-// Future hook files (Steps 2-3):
-// pub mod hooks_damage;
+pub mod hooks_damage;
+
+// Future hook files (Step 3):
 // pub mod hooks_simple;
 // pub mod hooks_debuff;
 // pub mod hooks_generate;
