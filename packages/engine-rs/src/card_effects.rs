@@ -94,6 +94,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         // Searing Blow: base 12, each upgrade adds progressively more
         // Upgraded flag = +4 bonus (simplified for MCTS)
         if card_inst.flags & 0x04 != 0 { 4 } else { 0 }
+    } else if card.effects.contains(&"grow_damage_on_retain") {
+        engine.state.player.status(sid::WINDMILL_STRIKE_BONUS)
     } else {
         0
     };
@@ -101,6 +103,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ---- Genetic Algorithm: scaling block bonus ----
     let genetic_alg_block_bonus = if card.effects.contains(&"genetic_algorithm") {
         engine.state.player.status(sid::GENETIC_ALG_BONUS)
+    } else {
+        0
+    };
+
+    // ---- Perseverance: scaling block bonus from retaining ----
+    let perseverance_block_bonus = if card.effects.contains(&"grow_block_on_retain") {
+        engine.state.player.status(sid::PERSEVERANCE_BONUS)
     } else {
         0
     };
@@ -263,7 +272,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         };
         let dex = engine.state.player.dexterity();
         let frail = engine.state.player.is_frail();
-        let block = damage::calculate_block(card.base_block + genetic_alg_block_bonus, dex, frail);
+        let block = damage::calculate_block(card.base_block + genetic_alg_block_bonus + perseverance_block_bonus, dex, frail);
         engine.gain_block_player(block * block_multiplier);
     }
 
@@ -656,14 +665,14 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         }
     }
 
-    // ---- Omniscience: player picks a card from hand to play for free ----
+    // ---- Omniscience: player picks a card from draw pile to play for free ----
     if card.effects.contains(&"omniscience") {
-        if !engine.state.hand.is_empty() {
-            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
-                .map(|i| crate::engine::ChoiceOption::HandCard(i))
+        if !engine.state.draw_pile.is_empty() {
+            let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.draw_pile.len())
+                .map(|i| crate::engine::ChoiceOption::DrawCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PlayCardFree,
+                crate::engine::ChoiceReason::PlayCardFreeFromDraw,
                 options,
                 1,
                 1,

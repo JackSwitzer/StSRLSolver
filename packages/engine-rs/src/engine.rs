@@ -53,6 +53,7 @@ pub enum ChoiceReason {
     RecycleCard,
     DiscardForEffect,
     SetupPick,
+    PlayCardFreeFromDraw,
 }
 
 /// A single option the player can choose.
@@ -339,6 +340,7 @@ impl CombatEngine {
             ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
             ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
             ChoiceReason::SetupPick => self.resolve_setup(ctx),
+            ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
         }
 
         self.phase = CombatPhase::PlayerTurn;
@@ -541,7 +543,7 @@ impl CombatEngine {
     }
 
     fn resolve_play_card_free(&mut self, ctx: ChoiceContext) {
-        // Omniscience: play selected card from hand for free, twice
+        // Play selected card from hand for free
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
@@ -555,6 +557,27 @@ impl CombatEngine {
                         -1
                     };
                     self.play_card(idx, target);
+                }
+            }
+        }
+    }
+
+    fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
+        // Omniscience: move selected card from draw pile to hand, then play it for free
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
+                if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+                    let mut card = self.state.draw_pile.remove(idx);
+                    card.cost = 0;
+                    card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
+                    self.state.hand.push(card);
+                    let hand_idx = self.state.hand.len() - 1;
+                    let target = if self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id).target == CardTarget::Enemy {
+                        self.state.targetable_enemy_indices().first().copied().unwrap_or(0) as i32
+                    } else {
+                        -1
+                    };
+                    self.play_card(hand_idx, target);
                 }
             }
         }
@@ -1278,6 +1301,11 @@ impl CombatEngine {
             cost = (cost - discarded).max(0);
         }
 
+        // Masterful Stab: increase cost by 1 per HP lost this combat
+        if card.effects.contains(&"cost_increase_on_hp_loss") {
+            cost += self.state.total_damage_taken;
+        }
+
         cost
     }
 
@@ -1334,6 +1362,11 @@ impl CombatEngine {
         if card.effects.contains(&"cost_reduce_on_discard") {
             let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
             cost = (cost - discarded).max(0);
+        }
+
+        // Masterful Stab: increase cost by 1 per HP lost this combat
+        if card.effects.contains(&"cost_increase_on_hp_loss") {
+            cost += self.state.total_damage_taken;
         }
 
         cost
