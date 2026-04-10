@@ -1495,7 +1495,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ====================================================================
 
     // ---- Add Shivs to hand ----
-    if card.effects.contains(&"add_shiv_to_hand") {
+    if card.effects.contains(&"add_shiv_to_hand") || card.effects.contains(&"add_shivs") {
         let count = card.base_magic.max(1);
         for _ in 0..count {
             if engine.state.hand.len() >= 10 { break; }
@@ -1528,6 +1528,24 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         for _ in 0..count {
             let dazed = engine.temp_card("Dazed");
             engine.state.discard_pile.push(dazed);
+        }
+    }
+
+    // ---- Add Wound to DRAW pile (Wild Strike) ----
+    if card.effects.contains(&"add_wound_to_draw") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let wound = engine.temp_card("Wound");
+            engine.state.draw_pile.push(wound);
+        }
+    }
+
+    // ---- Add Dazed to DRAW pile (Reckless Charge) ----
+    if card.effects.contains(&"add_dazed_to_draw") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            let dazed = engine.temp_card("Dazed");
+            engine.state.draw_pile.push(dazed);
         }
     }
 
@@ -1785,5 +1803,209 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ---- Claw scaling: each play increases future Claw damage ----
     if card.effects.contains(&"claw_scaling") {
         engine.state.player.add_status(sid::GENERIC_STRENGTH_UP, 2);
+    }
+
+    // ====================================================================
+    // PR2: Simple effect handlers (no choices, no hooks needed)
+    // ====================================================================
+
+    // ---- Lose HP (Hemokinesis, Offering) ----
+    if card.effects.contains(&"lose_hp") {
+        engine.player_lose_hp(card.base_magic);
+    }
+
+    // ---- Lose HP + gain energy (Bloodletting) ----
+    if card.effects.contains(&"lose_hp_gain_energy") {
+        engine.player_lose_hp(card.base_magic);
+        engine.state.energy += 2;
+    }
+
+    // ---- Lose HP + gain Strength (J.A.X.) ----
+    if card.effects.contains(&"lose_hp_gain_str") {
+        engine.player_lose_hp(card.base_magic);
+        engine.state.player.add_status(sid::STRENGTH, card.base_magic);
+    }
+
+    // ---- Damage from draw pile size (Mind Blast) ----
+    // Note: Mind Blast damage is set pre-damage section, this tag is for the flag
+    // The actual damage calc happens above in the pre-damage section if present
+
+    // ---- Draw to N cards in hand (Expertise) ----
+    if card.effects.contains(&"draw_to_n") {
+        let target = card.base_magic;
+        let to_draw = (target - engine.state.hand.len() as i32).max(0);
+        if to_draw > 0 {
+            engine.draw_cards(to_draw);
+        }
+    }
+
+    // ---- Draw if no attacks in hand (Impatience) ----
+    if card.effects.contains(&"draw_if_no_attacks") {
+        let has_attack = engine.state.hand.iter().any(|c| {
+            engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Attack
+        });
+        if !has_attack {
+            engine.draw_cards(card.base_magic);
+        }
+    }
+
+    // ---- Draw if few cards played this turn (FTL) ----
+    if card.effects.contains(&"draw_if_few_cards_played") {
+        if engine.state.cards_played_this_turn < 3 {
+            engine.draw_cards(card.base_magic);
+        }
+    }
+
+    // ---- Block from discard pile size (Stack) ----
+    if card.effects.contains(&"block_from_discard") {
+        let block = engine.state.discard_pile.len() as i32;
+        engine.gain_block_player(block);
+    }
+
+    // ---- Block only if no block (Auto Shields) ----
+    if card.effects.contains(&"block_if_no_block") {
+        if engine.state.player.block == 0 {
+            engine.gain_block_player(card.base_block);
+        }
+    }
+
+    // ---- Remove enemy block before damage (Melter) ----
+    if card.effects.contains(&"remove_enemy_block") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            engine.state.enemies[target_idx as usize].entity.block = 0;
+        }
+    }
+
+    // ---- No draw this turn (Battle Trance) ----
+    if card.effects.contains(&"no_draw") {
+        engine.state.player.set_status(sid::NO_DRAW, 1);
+    }
+
+    // ---- Shuffle discard into draw (Deep Breath) ----
+    if card.effects.contains(&"shuffle_discard_into_draw") {
+        let mut cards = std::mem::take(&mut engine.state.discard_pile);
+        engine.state.draw_pile.append(&mut cards);
+        engine.shuffle_draw_pile();
+    }
+
+    // ---- Energy from draw pile size (Aggregate) ----
+    if card.effects.contains(&"energy_per_cards_in_draw") {
+        engine.state.energy += engine.state.draw_pile.len() as i32 / 4;
+    }
+
+    // ---- Add Wounds to hand (Power Through) ----
+    if card.effects.contains(&"add_wounds_to_hand") {
+        let count = card.base_magic.max(1);
+        for _ in 0..count {
+            if engine.state.hand.len() >= 10 { break; }
+            let wound = engine.temp_card("Wound");
+            engine.state.hand.push(wound);
+        }
+    }
+
+    // ---- Poison random enemy multiple times (Bouncing Flask) ----
+    if card.effects.contains(&"poison_random_multi") {
+        let applications = card.base_magic.max(1);
+        let poison_per = 3; // Bouncing Flask applies 3 poison per bounce
+        for _ in 0..applications {
+            let living = engine.state.living_enemy_indices();
+            if living.is_empty() { break; }
+            let idx = if living.len() == 1 { 0 } else {
+                engine.rng_gen_range(0..living.len())
+            };
+            let target = living[idx];
+            engine.state.enemies[target].entity.add_status(sid::POISON, poison_per);
+        }
+    }
+
+    // ---- Weak if attacking (Go for the Eyes) ----
+    if card.effects.contains(&"weak_if_attacking") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let enemy = &engine.state.enemies[target_idx as usize];
+            let is_attacking = enemy.move_damage() > 0;
+            if is_attacking {
+                crate::powers::apply_debuff(
+                    &mut engine.state.enemies[target_idx as usize].entity,
+                    sid::WEAKENED,
+                    card.base_magic,
+                );
+            }
+        }
+    }
+
+    // ---- If vulnerable: gain energy + draw (Dropkick) ----
+    if card.effects.contains(&"if_vulnerable_energy_draw") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            if engine.state.enemies[target_idx as usize].entity.is_vulnerable() {
+                engine.state.energy += 1;
+                engine.draw_cards(1);
+            }
+        }
+    }
+
+    // ---- If weak: gain energy + draw (Heel Hook) ----
+    if card.effects.contains(&"if_weak_energy_draw") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            if engine.state.enemies[target_idx as usize].entity.status(sid::WEAKENED) > 0 {
+                engine.state.energy += 1;
+                engine.draw_cards(1);
+            }
+        }
+    }
+
+    // ---- Temporary Strength reduction (Dark Shackles) ----
+    if card.effects.contains(&"reduce_str_this_turn") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic;
+            engine.state.enemies[target_idx as usize].entity.add_status(sid::STRENGTH, -amount);
+            engine.state.enemies[target_idx as usize].entity.add_status(sid::LOSE_STRENGTH, amount);
+        }
+    }
+
+    // ---- Discard random card (All-Out Attack) ----
+    if card.effects.contains(&"discard_random") {
+        if !engine.state.hand.is_empty() {
+            let idx = engine.rng_gen_range(0..engine.state.hand.len());
+            let card = engine.state.hand.remove(idx);
+            engine.state.discard_pile.push(card);
+        }
+    }
+
+    // ---- Retain block / Blur ----
+    if card.effects.contains(&"retain_block") {
+        engine.state.player.add_status(sid::BLUR, card.base_magic.max(1));
+    }
+
+    // ---- The Bomb: install bomb status (countdown hook already in registry) ----
+    if card.effects.contains(&"the_bomb") {
+        engine.state.player.add_status(sid::THE_BOMB, card.base_magic);
+    }
+
+    // ---- Enlightenment this turn (reduce all hand costs to 1 this turn) ----
+    if card.effects.contains(&"enlightenment_this_turn") {
+        for hand_card in engine.state.hand.iter_mut() {
+            if hand_card.cost > 1 {
+                hand_card.cost = 1;
+            }
+        }
+    }
+
+    // ---- Enlightenment permanent (reduce all hand costs to 1 permanently) ----
+    if card.effects.contains(&"enlightenment_permanent") {
+        for hand_card in engine.state.hand.iter_mut() {
+            if hand_card.cost > 1 {
+                hand_card.cost = 1;
+            }
+        }
+    }
+
+    // ---- Apply Lock-On (Bullseye uses "apply_lock_on" tag) ----
+    if card.effects.contains(&"apply_lock_on") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            engine.state.enemies[target_idx as usize]
+                .entity
+                .add_status(sid::LOCK_ON, amount);
+        }
     }
 }
