@@ -129,6 +129,25 @@ impl CombatEngine {
         // Shuffle draw pile
         self.state.draw_pile.shuffle(&mut self.rng);
 
+        // Innate: move cards with "innate" tag to top of draw pile
+        // Draw pile convention: index 0 = bottom, last = top
+        let mut innate_indices = Vec::new();
+        for (i, card) in self.state.draw_pile.iter().enumerate() {
+            let def = self.card_registry.card_def_by_id(card.def_id);
+            if def.effects.contains(&"innate") {
+                innate_indices.push(i);
+            }
+        }
+        // Remove from back to front to preserve indices, then push to end (top)
+        let mut innate_cards = Vec::new();
+        for &i in innate_indices.iter().rev() {
+            innate_cards.push(self.state.draw_pile.remove(i));
+        }
+        innate_cards.reverse(); // Maintain original order
+        for card in innate_cards {
+            self.state.draw_pile.push(card);
+        }
+
         // Start first player turn
         self.start_player_turn();
     }
@@ -707,6 +726,13 @@ impl CombatEngine {
             self.state.player.set_status(sid::LOSE_DEXTERITY, 0);
         }
 
+        // Biased Cognition: lose Focus at start of each turn
+        let bias_loss = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
+        if bias_loss > 0 {
+            let current_focus = self.state.player.focus();
+            self.state.player.set_status(sid::FOCUS, current_focus - bias_loss);
+        }
+
         // === POWER HOOKS: start of turn ===
         // Dispatch collects all power effects; engine applies them in correct order.
         // Hooks that mutate entity directly (DemonForm/Strength, WraithForm/Dex) do so
@@ -945,11 +971,16 @@ impl CombatEngine {
             self.state.hand = kept;
         } else {
             // Normal: retain tagged cards + explicitly retained (FLAG_RETAINED), exhaust ethereal, discard rest
+            // Equilibrium / Well-Laid Plans: retain entire hand
+            let retain_all = self.state.player.status(sid::RETAIN_HAND_FLAG) > 0;
+            if retain_all {
+                self.state.player.set_status(sid::RETAIN_HAND_FLAG, 0);
+            }
             let hand = std::mem::take(&mut self.state.hand);
             let mut retained = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if card.effects.contains(&"retain") || card_inst.is_retained() {
+                if retain_all || card.effects.contains(&"retain") || card_inst.is_retained() {
                     let mut retained_inst = card_inst;
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
@@ -1230,6 +1261,24 @@ impl CombatEngine {
             cost = (cost - establishment).max(0);
         }
 
+        // Blood for Blood: reduce cost by 1 per HP lost this combat
+        if card.effects.contains(&"cost_reduce_on_hp_loss") {
+            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
+            cost = (cost - hp_lost).max(0);
+        }
+
+        // Force Field: reduce cost by 1 per active power on player
+        if card.effects.contains(&"reduce_cost_per_power") {
+            let power_count = powers::registry::count_active_powers(&self.state.player);
+            cost = (cost - power_count).max(0);
+        }
+
+        // Eviscerate: reduce cost by 1 per card discarded this turn
+        if card.effects.contains(&"cost_reduce_on_discard") {
+            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
+            cost = (cost - discarded).max(0);
+        }
+
         cost
     }
 
@@ -1271,6 +1320,24 @@ impl CombatEngine {
         let establishment = self.state.player.status(sid::ESTABLISHMENT);
         if establishment > 0 && card_inst.is_retained() {
             cost = (cost - establishment).max(0);
+        }
+
+        // Blood for Blood: reduce cost by 1 per HP lost this combat
+        if card.effects.contains(&"cost_reduce_on_hp_loss") {
+            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
+            cost = (cost - hp_lost).max(0);
+        }
+
+        // Force Field: reduce cost by 1 per active power on player
+        if card.effects.contains(&"reduce_cost_per_power") {
+            let power_count = powers::registry::count_active_powers(&self.state.player);
+            cost = (cost - power_count).max(0);
+        }
+
+        // Eviscerate: reduce cost by 1 per card discarded this turn
+        if card.effects.contains(&"cost_reduce_on_discard") {
+            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
+            cost = (cost - discarded).max(0);
         }
 
         cost
@@ -1770,6 +1837,9 @@ impl CombatEngine {
         self.state.player.hp -= amount;
         self.state.total_damage_taken += amount;
 
+        // Track cumulative HP loss for Blood for Blood cost reduction
+        self.state.player.add_status(sid::HP_LOSS_THIS_COMBAT, amount);
+
         // Fire on_hp_loss relics (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
         relics::on_hp_loss(&mut self.state, amount);
 
@@ -1915,6 +1985,18 @@ impl CombatEngine {
                 self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
                 self.draw_cards(1);
                 self.state.energy += 1;
+            }
+
+            // Corpse Explosion: deal damage equal to enemy max HP to all other enemies
+            let ce = self.state.enemies[enemy_idx].entity.status(sid::CORPSE_EXPLOSION);
+            if ce > 0 {
+                let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
+                let living = self.state.living_enemy_indices();
+                for other_idx in living {
+                    if other_idx != enemy_idx {
+                        self.deal_damage_to_enemy(other_idx, max_hp);
+                    }
+                }
             }
         }
 

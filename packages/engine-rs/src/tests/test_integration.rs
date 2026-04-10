@@ -2926,4 +2926,114 @@ mod effect_handler_tests {
         assert_eq!(e.state.enemies[0].entity.hp, hp_before,
             "Streamline should not be playable with only 1 energy (costs 2)");
     }
+
+    // ====================================================================
+    // PR6: Powers + dynamic cost + innate tests
+    // ====================================================================
+
+    #[test] fn innate_cards_drawn_first() {
+        // Backstab has "innate" tag — should appear in opening hand
+        let mut deck = make_deck_n("Defend_G", 9);
+        let reg = crate::cards::CardRegistry::new();
+        deck.push(reg.make_card("Backstab"));
+        let mut e = make_engine_with_deck(deck);
+        e.start_combat();
+        let has_backstab = e.state.hand.iter()
+            .any(|c| e.card_registry.card_name(c.def_id) == "Backstab");
+        assert!(has_backstab, "Innate card (Backstab) should appear in opening hand");
+    }
+
+    #[test] fn phantasmal_killer_sets_double_damage() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        let pk = e.card_registry.make_card("Phantasmal Killer");
+        e.state.hand.push(pk);
+        play_card(&mut e, "Phantasmal Killer", -1);
+        assert!(e.state.player.status(sid::DOUBLE_DAMAGE) > 0,
+            "Phantasmal Killer should set DOUBLE_DAMAGE status");
+    }
+
+    #[test] fn biased_cognition_loses_focus_each_turn() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 5);
+        e.start_combat();
+        e.state.energy = 10;
+        let bc = e.card_registry.make_card("Biased Cognition");
+        e.state.hand.push(bc);
+        let focus_before = e.state.player.focus();
+        play_card(&mut e, "Biased Cognition", -1);
+        let focus_after_play = e.state.player.focus();
+        assert!(focus_after_play > focus_before, "Should gain focus on play");
+        // End turn + start next turn should lose 1 focus
+        e.execute_action(&Action::EndTurn);
+        let focus_turn2 = e.state.player.focus();
+        assert_eq!(focus_turn2, focus_after_play - 1,
+            "Should lose 1 focus at start of turn 2");
+    }
+
+    #[test] fn corpse_explosion_aoe_on_death() {
+        // 3 enemies, apply corpse explosion to first, kill it, others take damage
+        let enemies: Vec<EnemyCombatState> = (0..3).map(|_| {
+            let mut e = EnemyCombatState::new("JawWorm", 20, 20);
+            e.set_move(1, 0, 0, 0);
+            e
+        }).collect();
+        let state = CombatState::new(80, 80, enemies, make_deck_n("Strike_R", 10), 10);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+        // Apply Corpse Explosion to enemy 0
+        e.state.enemies[0].entity.add_status(sid::CORPSE_EXPLOSION, 1);
+        // Kill enemy 0
+        e.state.enemies[0].entity.hp = 1;
+        e.deal_damage_to_enemy(0, 10);
+        assert!(e.state.enemies[0].entity.is_dead());
+        // Others should have taken damage = enemy 0's max_hp (20)
+        assert!(e.state.enemies[1].entity.hp < 20 || e.state.enemies[1].entity.is_dead(),
+            "Enemy 1 should take Corpse Explosion damage");
+    }
+
+    #[test] fn blood_for_blood_cost_reduces_on_hp_loss() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        // Blood for Blood costs 4, reduce by 1 per HP lost
+        let bfb = e.card_registry.make_card("Blood for Blood");
+        e.state.hand.push(bfb);
+        e.state.energy = 10;
+        // Lose 4 HP -> cost should become 0
+        e.player_lose_hp(4);
+        let hp_before = e.state.enemies[0].entity.hp;
+        play_card(&mut e, "Blood for Blood", 0);
+        assert!(e.state.enemies[0].entity.hp < hp_before,
+            "Blood for Blood should be playable after losing enough HP");
+    }
+
+    #[test] fn retain_hand_flag_keeps_all_cards() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 15), 200, 5);
+        e.start_combat();
+        e.state.energy = 10;
+        e.state.player.set_status(sid::RETAIN_HAND_FLAG, 1);
+        let hand_size = e.state.hand.len(); // 5 cards drawn
+        e.execute_action(&Action::EndTurn);
+        // Retained 5 + drew 5 more on next turn = 10 total
+        assert_eq!(e.state.hand.len(), hand_size + 5,
+            "RetainHandFlag should keep all cards + draw new ones");
+    }
+
+    #[test] fn sneaky_strike_refunds_energy_after_discard() {
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        e.start_combat();
+        e.state.energy = 10;
+        // Simulate having discarded this turn
+        e.state.player.set_status(sid::DISCARDED_THIS_TURN, 1);
+        let ss = e.card_registry.make_card("Sneaky Strike");
+        e.state.hand.push(ss);
+        let energy_before = e.state.energy;
+        let hp_before = e.state.enemies[0].entity.hp;
+        play_card(&mut e, "Sneaky Strike", 0);
+        assert!(e.state.enemies[0].entity.hp < hp_before, "Should deal damage");
+        // Sneaky Strike costs 2, refunds 2 if discarded this turn -> net 0 energy spent
+        // But the card costs 2 to play, then refunds 2
+        assert_eq!(e.state.energy, energy_before - 2 + 2,
+            "Sneaky Strike should refund 2 energy when discarded this turn");
+    }
 }

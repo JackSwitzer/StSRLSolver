@@ -300,9 +300,15 @@ pub mod sid {
     pub const GLASS_KNIFE_PENALTY: StatusId = StatusId(238);
     pub const GENETIC_ALG_BONUS: StatusId = StatusId(239);
     pub const RITUAL_DAGGER_BONUS: StatusId = StatusId(240);
+    pub const AMPLIFY: StatusId = StatusId(241);
+    pub const SELF_REPAIR: StatusId = StatusId(242);
+    pub const CORPSE_EXPLOSION: StatusId = StatusId(243);
+    pub const RETAIN_HAND_FLAG: StatusId = StatusId(244);
+    pub const BIASED_COG_FOCUS_LOSS: StatusId = StatusId(245);
+    pub const HP_LOSS_THIS_COMBAT: StatusId = StatusId(246);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 241;
+    pub const NUM_IDS: usize = 247;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -580,6 +586,12 @@ static STATUS_NAMES: &[&str] = &[
     "GlassKnifePenalty",  // 238
     "GeneticAlgBonus",    // 239
     "RitualDaggerBonus",  // 240
+    "Amplify",            // 241
+    "SelfRepair",         // 242
+    "CorpseExplosion",    // 243
+    "RetainHandFlag",     // 244
+    "BiasedCogFocusLoss", // 245
+    "HpLossThisCombat",   // 246
 ];
 
 #[cfg(test)]

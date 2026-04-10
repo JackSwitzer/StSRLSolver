@@ -460,6 +460,18 @@ pub fn dispatch_on_stance_change(entity: &EntityState, entering_wrath: bool) -> 
     out
 }
 
+/// Count how many registered powers are active (value > 0) on an entity.
+/// Used by Force Field to reduce cost by number of active powers.
+pub fn count_active_powers(entity: &EntityState) -> i32 {
+    let mut count = 0;
+    for entry in POWER_REGISTRY.iter() {
+        if entity.status(entry.status_id) > 0 {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// Dispatch enemy-turn-start hooks.
 pub fn dispatch_enemy_turn_start(entity: &mut EntityState, is_first_turn: bool) -> EnemyTurnStartEffect {
     let mut out = EnemyTurnStartEffect::default();

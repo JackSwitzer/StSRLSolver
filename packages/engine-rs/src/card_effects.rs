@@ -253,7 +253,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     }
 
     // ---- Block ----
-    if card.base_block >= 0 {
+    // block_if_skill (Escape Plan): block is conditional, handled separately below
+    if card.base_block >= 0 && !card.effects.contains(&"block_if_skill") {
         // Reinforced Body (block_x_times): gain base_block X times
         let block_multiplier = if card.effects.contains(&"block_x_times") {
             x_value
@@ -2257,5 +2258,80 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             .map(|(i, _)| ChoiceOption::HandCard(i))
             .collect();
         engine.begin_choice(ChoiceReason::PutOnTopFromHand, options, 1, 1);
+    }
+
+    // ====================================================================
+    // PR6: Power installs + dynamic cost + misc
+    // ====================================================================
+
+    // ---- Phantasmal Killer: set DOUBLE_DAMAGE for next turn ----
+    if card.effects.contains(&"phantasmal_killer") {
+        engine.state.player.add_status(sid::DOUBLE_DAMAGE, 1);
+    }
+
+    // ---- Biased Cognition: gain Focus now, lose 1 Focus each turn ----
+    if card.effects.contains(&"lose_focus_each_turn") {
+        engine.state.player.add_status(sid::BIASED_COG_FOCUS_LOSS, 1);
+    }
+    // gain_focus is already handled by existing gain_focus handler
+
+    // ---- Amplify: next Power played this turn is doubled ----
+    if card.effects.contains(&"amplify_power") {
+        engine.state.player.add_status(sid::AMPLIFY, 1);
+    }
+
+    // ---- Self Repair: heal at end of combat ----
+    if card.effects.contains(&"heal_end_of_combat") {
+        let amount = card.base_magic.max(7);
+        engine.state.player.add_status(sid::SELF_REPAIR, amount);
+    }
+
+    // ---- Corpse Explosion: mark enemy, on death deal max_hp to all enemies ----
+    if card.effects.contains(&"corpse_explosion") {
+        if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
+            let amount = card.base_magic.max(1);
+            engine.state.enemies[target_idx as usize]
+                .entity
+                .add_status(sid::CORPSE_EXPLOSION, amount);
+        }
+    }
+
+    // ---- Equilibrium: retain entire hand this turn ----
+    if card.effects.contains(&"retain_hand") {
+        engine.state.player.set_status(sid::RETAIN_HAND_FLAG, 1);
+    }
+
+    // ---- Sentinel: gain energy when this card is exhausted ----
+    // Sentinel only exhausts under Corruption (all Skills exhaust on play).
+    // If Corruption is active, the card will be routed to exhaust pile and
+    // trigger_on_exhaust fires, so we grant energy here proactively.
+    if card.effects.contains(&"energy_on_exhaust") {
+        if engine.state.player.status(sid::CORRUPTION) > 0 {
+            let amount = card.base_magic.max(2);
+            engine.state.energy += amount;
+        }
+    }
+
+    // ---- Escape Plan: draw 1, if Skill gain block ----
+    if card.effects.contains(&"block_if_skill") {
+        // The "draw" tag already drew a card. Check if the drawn card is a Skill.
+        // Look at last card in hand (the one just drawn).
+        if !engine.state.hand.is_empty() {
+            let last = engine.state.hand.last().unwrap();
+            let last_type = engine.card_registry.card_def_by_id(last.def_id).card_type;
+            if last_type == CardType::Skill {
+                let dex = engine.state.player.dexterity();
+                let frail = engine.state.player.is_frail();
+                let block = damage::calculate_block(card.base_block.max(0), dex, frail);
+                engine.gain_block_player(block);
+            }
+        }
+    }
+
+    // ---- Sneaky Strike: refund energy if discarded this turn ----
+    if card.effects.contains(&"refund_energy_on_discard") {
+        if engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0 {
+            engine.state.energy += 2;
+        }
     }
 }
