@@ -44,6 +44,9 @@ pub enum ChoiceReason {
     DiscoverCard,
     PickOption,
     PlayCardFree,
+    DualWield,
+    UpgradeCard,
+    PickFromExhaust,
 }
 
 /// A single option the player can choose.
@@ -55,6 +58,7 @@ pub enum ChoiceOption {
     RevealedCard(crate::combat_types::CardInstance),
     GeneratedCard(crate::combat_types::CardInstance),
     Named(&'static str),
+    ExhaustCard(usize),
 }
 
 /// Context for an in-progress player choice.
@@ -301,6 +305,9 @@ impl CombatEngine {
             ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
             ChoiceReason::PickOption => self.resolve_pick_option(ctx),
             ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
+            ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
+            ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
+            ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
         }
 
         self.phase = CombatPhase::PlayerTurn;
@@ -452,6 +459,46 @@ impl CombatEngine {
                         self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
                     }
                     _ => {}
+                }
+            }
+        }
+    }
+
+    fn resolve_dual_wield(&mut self, ctx: ChoiceContext) {
+        // Dual Wield: duplicate selected card in hand
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    let card = self.state.hand[idx];
+                    // base_magic determines copy count (1 base, 2 upgraded)
+                    let copies = ctx.max_picks.max(1);
+                    for _ in 0..copies {
+                        if self.state.hand.len() >= 10 { break; }
+                        self.state.hand.push(card);
+                    }
+                }
+            }
+        }
+    }
+
+    fn resolve_upgrade_card(&mut self, ctx: ChoiceContext) {
+        // Armaments: upgrade selected card in hand
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    self.state.hand[idx].flags |= 0x04; // UPGRADED flag
+                }
+            }
+        }
+    }
+
+    fn resolve_pick_from_exhaust(&mut self, ctx: ChoiceContext) {
+        // Exhume: move selected card from exhaust pile to hand
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::ExhaustCard(idx) = ctx.options[sel] {
+                if idx < self.state.exhaust_pile.len() && self.state.hand.len() < 10 {
+                    let card = self.state.exhaust_pile.remove(idx);
+                    self.state.hand.push(card);
                 }
             }
         }

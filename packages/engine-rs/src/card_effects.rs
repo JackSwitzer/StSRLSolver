@@ -1461,10 +1461,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     if card.effects.contains(&"exhume") {
         if !engine.state.exhaust_pile.is_empty() {
             let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.exhaust_pile.len())
-                .map(|i| crate::engine::ChoiceOption::DiscardCard(i))
+                .map(|i| crate::engine::ChoiceOption::ExhaustCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickFromDiscard,
+                crate::engine::ChoiceReason::PickFromExhaust,
                 options,
                 1,
                 1,
@@ -1481,10 +1481,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 .map(|i| crate::engine::ChoiceOption::HandCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickOption,
+                crate::engine::ChoiceReason::DualWield,
                 options,
                 1,
-                1,
+                copies,
             );
             return;
         }
@@ -1690,7 +1690,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 .map(|&i| crate::engine::ChoiceOption::HandCard(i))
                 .collect();
             engine.begin_choice(
-                crate::engine::ChoiceReason::PickOption,
+                crate::engine::ChoiceReason::UpgradeCard,
                 options,
                 1,
                 1,
