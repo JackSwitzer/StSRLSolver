@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
+use crate::effects::declarative::{Effect as E, SimpleEffect as SE, Target as T, AmountSource as A};
+use crate::status_ids::sid;
 
 pub fn register_ironclad(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Ironclad Basic: Bash ---- (cost 2, 8 dmg, 2 vuln; +2/+1)
@@ -7,13 +9,17 @@ pub fn register_ironclad(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Bash", name: "Bash", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 8, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Bash+", name: "Bash+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["vulnerable"], effect_data: &[], complex_hook: None,
+            effects: &["vulnerable"], effect_data: &[
+                E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Ironclad Common: Anger ---- (cost 0, 6 dmg, add copy to discard; +2 dmg)
@@ -549,13 +555,17 @@ pub fn register_ironclad(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Inflame", name: "Inflame", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 2, exhaust: false, enter_stance: None,
-            effects: &["gain_strength"], effect_data: &[], complex_hook: None,
+            effects: &["gain_strength"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
+            ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Inflame+", name: "Inflame+", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: 3, exhaust: false, enter_stance: None,
-            effects: &["gain_strength"], effect_data: &[], complex_hook: None,
+            effects: &["gain_strength"], effect_data: &[
+                E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
+            ], complex_hook: None,
         });
 
         // ---- Ironclad Uncommon: Intimidate ---- (cost 0, 1 weak to all, exhaust; +1 magic)
