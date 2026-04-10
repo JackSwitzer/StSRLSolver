@@ -432,7 +432,7 @@ pub struct PyCombatState {
 impl PyCombatState {
     /// Convert the state to a Python dict for inspection.
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let registry = crate::cards::CardRegistry::new();
+        let registry = crate::cards::global_registry();
         let dict = PyDict::new_bound(py);
         dict.set_item("player_hp", self.inner.player.hp)?;
         dict.set_item("player_max_hp", self.inner.player.max_hp)?;

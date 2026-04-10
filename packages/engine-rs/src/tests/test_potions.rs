@@ -156,7 +156,7 @@ mod potion_tests {
         s.hand.clear();
         apply_potion(&mut s, "BottledMiracle", -1);
         assert_eq!(s.hand.len(), 2);
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert_eq!(reg.card_name(s.hand[0].def_id), "Miracle");
     }
     #[test] fn miracle_respects_hand_limit() {

@@ -22,6 +22,8 @@ pub mod hooks_dest;
 pub mod hooks_damage;
 pub mod hooks_orb;
 pub mod declarative;
+pub mod interpreter;
+pub mod fx;
 
 // Future hook files (Step 3):
 pub mod hooks_simple;

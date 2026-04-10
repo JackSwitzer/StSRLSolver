@@ -716,7 +716,7 @@ impl RunEngine {
         }
 
         // Create combat state — convert deck strings to CardInstance
-        let registry = crate::cards::CardRegistry::new();
+        let registry = crate::cards::global_registry();
         let deck_instances: Vec<crate::combat_types::CardInstance> = self.run_state.deck.iter()
             .map(|name| registry.make_card(name))
             .collect();

@@ -84,7 +84,7 @@ pub struct ChoiceContext {
 pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
-    pub card_registry: CardRegistry,
+    pub card_registry: &'static CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
     pub choice: Option<ChoiceContext>,
 }
@@ -95,7 +95,7 @@ impl CombatEngine {
         Self {
             state,
             phase: CombatPhase::NotStarted,
-            card_registry: CardRegistry::new(),
+            card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
             choice: None,
         }
@@ -255,7 +255,7 @@ impl CombatEngine {
         CombatEngine {
             state: self.state.clone(),
             phase: self.phase.clone(),
-            card_registry: CardRegistry::new(), // Registry is stateless, cheap to recreate
+            card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
             choice: self.choice.clone(),
         }
@@ -2387,7 +2387,7 @@ impl RustCombatEngine {
             })
             .collect();
 
-        let registry = CardRegistry::new();
+        let registry = crate::cards::global_registry();
         let deck_instances: Vec<CardInstance> = deck.iter()
             .map(|name| registry.make_card(name))
             .collect();

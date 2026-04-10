@@ -230,7 +230,7 @@ fn power_index(id: StatusId) -> Option<usize> {
 /// Encode the run state portion of the observation (260 dims).
 pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     let rs = &engine.run_state;
-    let registry = CardRegistry::new();
+    let registry = crate::cards::global_registry();
     let mut off = 0;
 
     // --- HP/resources (6 dims) ---
@@ -389,7 +389,7 @@ fn relic_catalog_index(relic: &str) -> Option<usize> {
 
 /// Encode available actions into the observation vector.
 pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32; RUN_DIM]) {
-    let registry = CardRegistry::new();
+    let registry = crate::cards::global_registry();
     let off = STATE_DIM;
     let n = actions.len().min(ACTION_SLOTS);
 
@@ -466,7 +466,7 @@ pub const COMBAT_DIM: usize = 298;
 /// Encode combat state into a 298-dim vector matching Python's CombatStateEncoder.
 pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     let mut obs = [0.0f32; COMBAT_DIM];
-    let registry = CardRegistry::new();
+    let registry = crate::cards::global_registry();
 
     let combat = match engine.get_combat_engine() {
         Some(e) => e,
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_card_effect_vector_strike() {
-        let registry = CardRegistry::new();
+        let registry = crate::cards::global_registry();
         let ev = card_effect_vector("Strike_P", &registry);
         assert!(ev[1] > 0.0, "Strike should have damage > 0");
         assert_eq!(ev[8], 1.0, "Strike should be attack type");

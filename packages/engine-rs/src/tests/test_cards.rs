@@ -2,8 +2,8 @@
 mod card_registry_tests {
     use crate::cards::*;
 
-    fn reg() -> CardRegistry {
-        CardRegistry::new()
+    fn reg() -> &'static CardRegistry {
+        crate::cards::global_registry()
     }
 
     // ========== Watcher Basics ==========

@@ -181,7 +181,7 @@ mod tests {
         state.relics.push("Ninja Scroll".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), 3);
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
     }
 
@@ -192,7 +192,7 @@ mod tests {
         let hand_before = state.hand.len();
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), hand_before + 1);
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert_eq!(reg.card_name(state.hand.last().unwrap().def_id), "Miracle");
     }
 
@@ -203,7 +203,7 @@ mod tests {
         let initial_draw_size = state.draw_pile.len();
         apply_combat_start_relics(&mut state);
         assert_eq!(state.draw_pile.len(), initial_draw_size + 2);
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         let wound_count = state.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(wound_count, 2);
     }
@@ -633,7 +633,7 @@ mod tests {
         state.relics.push("Unceasing Top".to_string());
         state.hand.clear();
         assert!(unceasing_top_should_draw(&state));
-        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Strike")); };
+        { let reg = crate::cards::global_registry(); state.hand.push(reg.make_card("Strike")); };
         assert!(!unceasing_top_should_draw(&state));
     }
 

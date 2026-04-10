@@ -10,8 +10,8 @@ mod watcher_card_java_parity_tests {
     use crate::state::Stance;
     use crate::tests::support::*;
 
-    fn reg() -> CardRegistry {
-        CardRegistry::new()
+    fn reg() -> &'static CardRegistry {
+        crate::cards::global_registry()
     }
 
     fn assert_card(

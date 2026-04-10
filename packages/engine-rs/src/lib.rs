@@ -244,7 +244,7 @@ fn describe_combat_action(
             card_idx,
             target_idx,
         } => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             let card_name = state
                 .hand
                 .get(*card_idx)

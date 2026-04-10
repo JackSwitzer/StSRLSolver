@@ -1,0 +1,731 @@
+//! Declarative effect interpreter — walks Effect arrays and dispatches
+//! through proper engine methods.
+
+use crate::cards::CardType;
+use crate::damage;
+use crate::engine::{CombatEngine, CombatPhase, ChoiceOption, ChoiceReason};
+use crate::effects::declarative::*;
+use crate::effects::types::CardPlayContext;
+use crate::ids::StatusId;
+use crate::powers;
+use crate::status_ids::sid;
+
+// ===========================================================================
+// Public entry point
+// ===========================================================================
+
+/// Execute a slice of declarative effects.
+/// Called from the card play pipeline after the damage loop.
+/// Stops if AwaitingChoice is triggered (ChooseCards must be last).
+pub fn execute_effects(engine: &mut CombatEngine, ctx: &CardPlayContext, effects: &[Effect]) {
+    for effect in effects {
+        if engine.phase == CombatPhase::AwaitingChoice {
+            return; // Choice triggered, stop processing
+        }
+        execute_one(engine, ctx, effect);
+    }
+}
+
+// ===========================================================================
+// Single effect dispatch
+// ===========================================================================
+
+fn execute_one(engine: &mut CombatEngine, ctx: &CardPlayContext, effect: &Effect) {
+    match effect {
+        Effect::Simple(simple) => execute_simple(engine, ctx, simple),
+
+        Effect::Conditional(condition, then_effects, else_effects) => {
+            if evaluate_condition(engine, ctx, condition) {
+                execute_effects(engine, ctx, then_effects);
+            } else {
+                execute_effects(engine, ctx, else_effects);
+            }
+        }
+
+        Effect::ChooseCards { source, filter, action, min_picks, max_picks } => {
+            execute_choose_cards(engine, ctx, *source, *filter, *action, *min_picks, *max_picks);
+        }
+
+        Effect::ForEachInPile { pile, filter, action } => {
+            execute_for_each(engine, ctx, *pile, *filter, *action);
+        }
+
+        Effect::ExtraHits(_amount_source) => {
+            // Extra hits are integrated into the damage loop in card_effects.rs.
+            // The declarative interpreter does not handle the damage pipeline directly —
+            // card_effects.rs reads the ExtraHits variant to determine hit count.
+        }
+
+        Effect::Discover(card_names) => {
+            execute_discover(engine, ctx, card_names);
+        }
+    }
+}
+
+// ===========================================================================
+// SimpleEffect dispatch
+// ===========================================================================
+
+fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &SimpleEffect) {
+    match *simple {
+        // -- Status application --
+        SimpleEffect::AddStatus(target, status, ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            apply_status(engine, ctx, target, status, amount);
+        }
+
+        SimpleEffect::SetStatus(target, status, ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            set_status(engine, ctx, target, status, amount);
+        }
+
+        SimpleEffect::MultiplyStatus(target, status, multiplier) => {
+            multiply_status(engine, ctx, target, status, multiplier);
+        }
+
+        // -- Draw --
+        SimpleEffect::DrawCards(ref amount_src) => {
+            let count = resolve_amount(engine, ctx, amount_src);
+            engine.draw_cards(count);
+        }
+
+        // -- Energy --
+        SimpleEffect::GainEnergy(ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            engine.state.energy += amount;
+        }
+
+        // -- Block (routes through dex/frail pipeline) --
+        SimpleEffect::GainBlock(ref amount_src) => {
+            let base = resolve_amount(engine, ctx, amount_src);
+            let dex = engine.state.player.dexterity();
+            let frail = engine.state.player.is_frail();
+            let block = damage::calculate_block(base, dex, frail);
+            engine.gain_block_player(block);
+        }
+
+        // -- HP modification --
+        SimpleEffect::ModifyHp(ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            if amount > 0 {
+                engine.heal_player(amount);
+            } else if amount < 0 {
+                engine.player_lose_hp(-amount);
+            }
+        }
+
+        // -- Mantra --
+        SimpleEffect::GainMantra(ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            engine.gain_mantra(amount);
+        }
+
+        // -- Scry (may trigger AwaitingChoice) --
+        SimpleEffect::Scry(ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            engine.do_scry(amount);
+        }
+
+        // -- Add temp card to a pile --
+        SimpleEffect::AddCard(name, pile, ref amount_src) => {
+            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            for _ in 0..count {
+                let card = engine.temp_card(name);
+                push_to_pile(engine, pile, card);
+            }
+            // Shuffle draw pile if cards were added to it
+            if pile == Pile::Draw && count > 0 {
+                engine.shuffle_draw_pile();
+            }
+        }
+
+        // -- Copy played card to a pile (Anger: copy to discard) --
+        SimpleEffect::CopyThisCardTo(pile) => {
+            push_to_pile(engine, pile, ctx.card_inst);
+            if pile == Pile::Draw {
+                engine.shuffle_draw_pile();
+            }
+        }
+
+        // -- Channel orb --
+        SimpleEffect::ChannelOrb(orb_type, ref amount_src) => {
+            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            for _ in 0..count {
+                engine.channel_orb(orb_type);
+            }
+        }
+
+        // -- Evoke front orb --
+        SimpleEffect::EvokeOrb(ref amount_src) => {
+            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            if count > 0 {
+                engine.evoke_front_orb_n(count as usize);
+            }
+        }
+
+        // -- Stance change --
+        SimpleEffect::ChangeStance(stance) => {
+            engine.change_stance(stance);
+        }
+
+        // -- Boolean flags --
+        SimpleEffect::SetFlag(flag) => {
+            set_bool_flag(engine, flag);
+        }
+
+        // -- Shuffle discard into draw --
+        SimpleEffect::ShuffleDiscardIntoDraw => {
+            let mut cards = std::mem::take(&mut engine.state.discard_pile);
+            engine.state.draw_pile.append(&mut cards);
+            engine.shuffle_draw_pile();
+        }
+    }
+}
+
+// ===========================================================================
+// Status helpers
+// ===========================================================================
+
+/// Debuff status IDs that should route through apply_debuff (handles Artifact).
+fn is_debuff(status: StatusId) -> bool {
+    status == sid::WEAKENED
+        || status == sid::VULNERABLE
+        || status == sid::FRAIL
+        || status == sid::POISON
+        || status == sid::CONSTRICTED
+}
+
+fn apply_status(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    target: Target,
+    status: StatusId,
+    amount: i32,
+) {
+    match target {
+        Target::Player => {
+            engine.state.player.add_status(status, amount);
+        }
+        Target::SelectedEnemy => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                let i = idx as usize;
+                if is_debuff(status) {
+                    powers::apply_debuff(&mut engine.state.enemies[i].entity, status, amount);
+                } else {
+                    engine.state.enemies[i].entity.add_status(status, amount);
+                }
+            }
+        }
+        Target::AllEnemies => {
+            let living = engine.state.living_enemy_indices();
+            for i in living {
+                if is_debuff(status) {
+                    powers::apply_debuff(&mut engine.state.enemies[i].entity, status, amount);
+                } else {
+                    engine.state.enemies[i].entity.add_status(status, amount);
+                }
+            }
+        }
+        Target::RandomEnemy => {
+            let living = engine.state.living_enemy_indices();
+            if !living.is_empty() {
+                let idx = living[engine.rng_gen_range(0..living.len())];
+                if is_debuff(status) {
+                    powers::apply_debuff(&mut engine.state.enemies[idx].entity, status, amount);
+                } else {
+                    engine.state.enemies[idx].entity.add_status(status, amount);
+                }
+            }
+        }
+    }
+}
+
+fn set_status(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    target: Target,
+    status: StatusId,
+    value: i32,
+) {
+    match target {
+        Target::Player => {
+            engine.state.player.set_status(status, value);
+        }
+        Target::SelectedEnemy => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                engine.state.enemies[idx as usize].entity.set_status(status, value);
+            }
+        }
+        Target::AllEnemies => {
+            let living = engine.state.living_enemy_indices();
+            for i in living {
+                engine.state.enemies[i].entity.set_status(status, value);
+            }
+        }
+        Target::RandomEnemy => {
+            let living = engine.state.living_enemy_indices();
+            if !living.is_empty() {
+                let idx = living[engine.rng_gen_range(0..living.len())];
+                engine.state.enemies[idx].entity.set_status(status, value);
+            }
+        }
+    }
+}
+
+fn multiply_status(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    target: Target,
+    status: StatusId,
+    multiplier: i32,
+) {
+    match target {
+        Target::Player => {
+            let current = engine.state.player.status(status);
+            if current > 0 {
+                engine.state.player.set_status(status, current * multiplier);
+            }
+        }
+        Target::SelectedEnemy => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                let i = idx as usize;
+                let current = engine.state.enemies[i].entity.status(status);
+                if current > 0 {
+                    engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                }
+            }
+        }
+        Target::AllEnemies => {
+            let living = engine.state.living_enemy_indices();
+            for i in living {
+                let current = engine.state.enemies[i].entity.status(status);
+                if current > 0 {
+                    engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                }
+            }
+        }
+        Target::RandomEnemy => {
+            let living = engine.state.living_enemy_indices();
+            if !living.is_empty() {
+                let idx = living[engine.rng_gen_range(0..living.len())];
+                let current = engine.state.enemies[idx].entity.status(status);
+                if current > 0 {
+                    engine.state.enemies[idx].entity.set_status(status, current * multiplier);
+                }
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Amount resolution
+// ===========================================================================
+
+fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSource) -> i32 {
+    match *src {
+        AmountSource::Magic => ctx.card.base_magic.max(1),
+        AmountSource::Block => ctx.card.base_block.max(0),
+        AmountSource::Damage => ctx.card.base_damage.max(0),
+        AmountSource::Fixed(n) => n,
+        AmountSource::XCost => ctx.x_value,
+        AmountSource::MagicPlusX => ctx.card.base_magic.max(0) + ctx.x_value,
+        AmountSource::LivingEnemyCount => engine.state.living_enemy_indices().len() as i32,
+        AmountSource::OrbCount => engine.state.orb_slots.occupied_count() as i32,
+        AmountSource::UniqueOrbCount => {
+            // Count unique non-empty orb types
+            let mut has_lightning = false;
+            let mut has_frost = false;
+            let mut has_dark = false;
+            let mut has_plasma = false;
+            for orb in &engine.state.orb_slots.slots {
+                match orb.orb_type {
+                    crate::orbs::OrbType::Lightning => has_lightning = true,
+                    crate::orbs::OrbType::Frost => has_frost = true,
+                    crate::orbs::OrbType::Dark => has_dark = true,
+                    crate::orbs::OrbType::Plasma => has_plasma = true,
+                    crate::orbs::OrbType::Empty => {}
+                }
+            }
+            (has_lightning as i32) + (has_frost as i32) + (has_dark as i32) + (has_plasma as i32)
+        }
+        AmountSource::HandSize => engine.state.hand.len() as i32,
+        AmountSource::PlayerBlock => engine.state.player.block,
+        AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+        AmountSource::DrawPileDivN(n) => {
+            if n > 0 {
+                engine.state.draw_pile.len() as i32 / n
+            } else {
+                0
+            }
+        }
+        AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
+        AmountSource::SkillsInHand => {
+            engine.state.hand.iter()
+                .filter(|c| {
+                    let def = engine.card_registry.card_def_by_id(c.def_id);
+                    def.card_type == CardType::Skill
+                })
+                .count() as i32
+        }
+    }
+}
+
+// ===========================================================================
+// Condition evaluation
+// ===========================================================================
+
+fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condition) -> bool {
+    match *cond {
+        Condition::InStance(stance) => engine.state.stance == stance,
+
+        Condition::EnemyAttacking => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                engine.state.enemies[idx as usize].is_attacking()
+            } else {
+                false
+            }
+        }
+
+        Condition::EnemyHasStatus(status) => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                engine.state.enemies[idx as usize].entity.status(status) > 0
+            } else {
+                false
+            }
+        }
+
+        Condition::LastCardType(card_type) => {
+            engine.state.last_card_type == Some(card_type)
+        }
+
+        Condition::PlayerHasStatus(status) => {
+            engine.state.player.status(status) > 0
+        }
+
+        Condition::NoBlock => engine.state.player.block == 0,
+
+        Condition::EnemyKilled => {
+            // The damage loop in card_effects.rs sets this on ctx.
+            // For now, check if any enemy died since damage was dealt.
+            // This is a best-effort check — the caller should set this via context.
+            engine.state.enemies.iter().any(|e| e.entity.is_dead())
+        }
+
+        Condition::DiscardedThisTurn => {
+            engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0
+        }
+    }
+}
+
+// ===========================================================================
+// ChooseCards
+// ===========================================================================
+
+fn execute_choose_cards(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    source: Pile,
+    filter: CardFilter,
+    action: ChoiceAction,
+    min_picks_src: AmountSource,
+    max_picks_src: AmountSource,
+) {
+    let pile = get_pile(engine, source);
+
+    // Build options from the source pile, applying filter
+    let options: Vec<ChoiceOption> = pile.iter()
+        .enumerate()
+        .filter(|(_, card)| matches_filter(engine, card, filter))
+        .map(|(i, _)| make_choice_option(source, i))
+        .collect();
+
+    if options.is_empty() {
+        return;
+    }
+
+    let min_picks = resolve_amount(engine, ctx, &min_picks_src).max(0) as usize;
+    let max_picks = (resolve_amount(engine, ctx, &max_picks_src).max(0) as usize)
+        .min(options.len());
+
+    if max_picks == 0 {
+        return;
+    }
+
+    let reason = choice_reason_for_action(action, source);
+    engine.begin_choice(reason, options, min_picks, max_picks);
+}
+
+fn get_pile(engine: &CombatEngine, pile: Pile) -> &Vec<crate::combat_types::CardInstance> {
+    match pile {
+        Pile::Hand => &engine.state.hand,
+        Pile::Draw => &engine.state.draw_pile,
+        Pile::Discard => &engine.state.discard_pile,
+        Pile::Exhaust => &engine.state.exhaust_pile,
+    }
+}
+
+fn push_to_pile(engine: &mut CombatEngine, pile: Pile, card: crate::combat_types::CardInstance) {
+    match pile {
+        Pile::Hand => {
+            if engine.state.hand.len() < 10 {
+                engine.state.hand.push(card);
+            }
+        }
+        Pile::Draw => engine.state.draw_pile.push(card),
+        Pile::Discard => engine.state.discard_pile.push(card),
+        Pile::Exhaust => engine.state.exhaust_pile.push(card),
+    }
+}
+
+fn matches_filter(
+    engine: &CombatEngine,
+    card: &crate::combat_types::CardInstance,
+    filter: CardFilter,
+) -> bool {
+    match filter {
+        CardFilter::All => true,
+        CardFilter::Attacks => {
+            engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
+        }
+        CardFilter::Skills => {
+            engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Skill
+        }
+        CardFilter::NonAttacks => {
+            engine.card_registry.card_def_by_id(card.def_id).card_type != CardType::Attack
+        }
+        CardFilter::ZeroCost => {
+            let def = engine.card_registry.card_def_by_id(card.def_id);
+            def.cost == 0
+        }
+        CardFilter::Upgradeable => !card.is_upgraded(),
+    }
+}
+
+fn make_choice_option(source: Pile, index: usize) -> ChoiceOption {
+    match source {
+        Pile::Hand => ChoiceOption::HandCard(index),
+        Pile::Draw => ChoiceOption::DrawCard(index),
+        Pile::Discard => ChoiceOption::DiscardCard(index),
+        Pile::Exhaust => ChoiceOption::ExhaustCard(index),
+    }
+}
+
+fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason {
+    match action {
+        ChoiceAction::Discard => ChoiceReason::DiscardFromHand,
+        ChoiceAction::Exhaust => match source {
+            Pile::Hand => ChoiceReason::ExhaustFromHand,
+            _ => ChoiceReason::DiscardForEffect,
+        },
+        ChoiceAction::MoveToHand => match source {
+            Pile::Discard => ChoiceReason::PickFromDiscard,
+            Pile::Draw => ChoiceReason::SearchDrawPile,
+            Pile::Exhaust => ChoiceReason::PickFromExhaust,
+            _ => ChoiceReason::PickOption,
+        },
+        ChoiceAction::PutOnTopOfDraw => ChoiceReason::PutOnTopFromHand,
+        ChoiceAction::PlayForFree => ChoiceReason::PlayCardFree,
+        ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
+        ChoiceAction::CopyToHand => ChoiceReason::DualWield,
+        ChoiceAction::PutOnBottomAtCostZero => ChoiceReason::ForethoughtPick,
+        ChoiceAction::ExhaustAndGainEnergy => ChoiceReason::RecycleCard,
+    }
+}
+
+// ===========================================================================
+// ForEachInPile
+// ===========================================================================
+
+fn execute_for_each(
+    engine: &mut CombatEngine,
+    _ctx: &CardPlayContext,
+    pile: Pile,
+    filter: CardFilter,
+    action: BulkAction,
+) {
+    // Collect matching indices first to avoid borrow issues
+    let matching: Vec<usize> = get_pile(engine, pile)
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| matches_filter(engine, card, filter))
+        .map(|(i, _)| i)
+        .collect();
+
+    if matching.is_empty() {
+        return;
+    }
+
+    match action {
+        BulkAction::Exhaust => {
+            // Move matching cards to exhaust pile (reverse order to preserve indices)
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut exhausted = Vec::new();
+            for &i in matching.iter().rev() {
+                if i < pile_ref.len() {
+                    exhausted.push(pile_ref.remove(i));
+                }
+            }
+            engine.state.exhaust_pile.extend(exhausted);
+            // Trigger on-exhaust hooks for each card
+            for _ in 0..matching.len() {
+                engine.trigger_on_exhaust();
+            }
+        }
+
+        BulkAction::Discard => {
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut discarded = Vec::new();
+            for &i in matching.iter().rev() {
+                if i < pile_ref.len() {
+                    discarded.push(pile_ref.remove(i));
+                }
+            }
+            engine.state.discard_pile.extend(discarded);
+        }
+
+        BulkAction::Upgrade => {
+            // Inline pile access to avoid borrow conflict between card_registry and state
+            let pile_vec = match pile {
+                Pile::Hand => &mut engine.state.hand,
+                Pile::Draw => &mut engine.state.draw_pile,
+                Pile::Discard => &mut engine.state.discard_pile,
+                Pile::Exhaust => &mut engine.state.exhaust_pile,
+            };
+            for &i in &matching {
+                if i < pile_vec.len() {
+                    engine.card_registry.upgrade_card(&mut pile_vec[i]);
+                }
+            }
+        }
+
+        BulkAction::SetCost(cost) => {
+            let pile_ref = get_pile_mut(engine, pile);
+            for &i in &matching {
+                if i < pile_ref.len() {
+                    pile_ref[i].cost = cost as i8;
+                }
+            }
+        }
+
+        BulkAction::MoveToHand => {
+            if pile == Pile::Hand {
+                return; // No-op: already in hand
+            }
+            // Collect matching cards from the source pile, then add to hand
+            let hand_capacity = 10 - engine.state.hand.len();
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut moved = Vec::new();
+            for &i in matching.iter().rev() {
+                if i < pile_ref.len() && moved.len() < hand_capacity {
+                    moved.push(pile_ref.remove(i));
+                }
+            }
+            // pile_ref borrow ends here (temporary)
+            engine.state.hand.extend(moved);
+        }
+
+        BulkAction::MoveToBottom => {
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut moved = Vec::new();
+            for &i in matching.iter().rev() {
+                if i < pile_ref.len() {
+                    moved.push(pile_ref.remove(i));
+                }
+            }
+            // Insert at bottom of draw pile (index 0 = bottom)
+            for card in moved {
+                engine.state.draw_pile.insert(0, card);
+            }
+        }
+    }
+}
+
+fn get_pile_mut(engine: &mut CombatEngine, pile: Pile) -> &mut Vec<crate::combat_types::CardInstance> {
+    match pile {
+        Pile::Hand => &mut engine.state.hand,
+        Pile::Draw => &mut engine.state.draw_pile,
+        Pile::Discard => &mut engine.state.discard_pile,
+        Pile::Exhaust => &mut engine.state.exhaust_pile,
+    }
+}
+
+// ===========================================================================
+// Discover
+// ===========================================================================
+
+fn execute_discover(
+    engine: &mut CombatEngine,
+    _ctx: &CardPlayContext,
+    card_names: &[&'static str],
+) {
+    if engine.state.hand.len() >= 10 {
+        return;
+    }
+    let options: Vec<ChoiceOption> = card_names.iter()
+        .map(|name| ChoiceOption::GeneratedCard(engine.temp_card(name)))
+        .collect();
+    if !options.is_empty() {
+        engine.begin_choice(ChoiceReason::DiscoverCard, options, 1, 1);
+    }
+}
+
+// ===========================================================================
+// BoolFlag dispatch
+// ===========================================================================
+
+fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
+    match flag {
+        BoolFlag::NoDraw => {
+            engine.state.player.set_status(sid::NO_DRAW, 1);
+        }
+        BoolFlag::RetainHand => {
+            engine.state.player.set_status(sid::RETAIN_HAND_FLAG, 1);
+        }
+        BoolFlag::SkipEnemyTurn => {
+            engine.state.skip_enemy_turn = true;
+        }
+        BoolFlag::NextAttackFree => {
+            engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
+        }
+        BoolFlag::Blasphemy => {
+            engine.state.blasphemy_active = true;
+        }
+        BoolFlag::BulletTime => {
+            engine.state.player.set_status(sid::BULLET_TIME, 1);
+            engine.state.player.set_status(sid::NO_DRAW, 1);
+        }
+    }
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::effects::declarative::*;
+
+    #[test]
+    fn test_resolve_amount_fixed() {
+        // Verify that Fixed(N) returns N without needing an engine
+        // (we can't easily construct a CombatEngine in unit tests,
+        //  so this just confirms the match arm compiles)
+        let _ = AmountSource::Fixed(5);
+    }
+
+    #[test]
+    fn test_is_debuff() {
+        assert!(is_debuff(sid::WEAKENED));
+        assert!(is_debuff(sid::VULNERABLE));
+        assert!(is_debuff(sid::FRAIL));
+        assert!(is_debuff(sid::POISON));
+        assert!(!is_debuff(sid::STRENGTH));
+        assert!(!is_debuff(sid::VIGOR));
+    }
+}

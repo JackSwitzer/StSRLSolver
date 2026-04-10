@@ -63,6 +63,14 @@ pub struct CardDef {
     pub enter_stance: Option<&'static str>,
     /// Special effect tags for the engine to check
     pub effects: &'static [&'static str],
+    /// Declarative effect data for the new interpreter (parallel to string tags during migration).
+    /// Empty slice = use old card_effects.rs dispatch.
+    #[serde(skip)]
+    pub effect_data: &'static [crate::effects::declarative::Effect],
+    /// Complex on-play hook for irreducible effects (Pressure Points, Judgement, etc.).
+    /// None = no complex hook.
+    #[serde(skip)]
+    pub complex_hook: Option<crate::effects::registry::OnPlayFn>,
 }
 
 impl CardDef {
@@ -78,6 +86,14 @@ impl CardDef {
 
 /// Static card registry. Populated with core Watcher cards + universals.
 /// Cards not in the registry fall back to defaults (cost 1, attack, enemy target).
+/// Global static card registry. Built once via OnceLock, shared by all engines.
+static GLOBAL_REGISTRY: std::sync::OnceLock<CardRegistry> = std::sync::OnceLock::new();
+
+/// Get or initialize the global card registry. First call builds it; subsequent calls return &'static ref.
+pub fn global_registry() -> &'static CardRegistry {
+    GLOBAL_REGISTRY.get_or_init(CardRegistry::new)
+}
+
 #[derive(Clone)]
 pub struct CardRegistry {
     cards: HashMap<&'static str, CardDef>,
@@ -170,6 +186,8 @@ impl CardRegistry {
                 exhaust: false,
                 enter_stance: None,
                 effects: &[],
+                effect_data: &[],
+                complex_hook: None,
             }
         }
     }
@@ -262,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_registry_lookup() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let strike = reg.get("Strike_P").unwrap();
         assert_eq!(strike.base_damage, 6);
         assert_eq!(strike.cost, 1);
@@ -271,14 +289,14 @@ mod tests {
 
     #[test]
     fn test_upgraded_lookup() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let strike_plus = reg.get("Strike_P+").unwrap();
         assert_eq!(strike_plus.base_damage, 9);
     }
 
     #[test]
     fn test_eruption_stance() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let eruption = reg.get("Eruption").unwrap();
         assert_eq!(eruption.enter_stance, Some("Wrath"));
         assert_eq!(eruption.cost, 2);
@@ -289,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_unknown_card_default() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let unknown = reg.get_or_default("SomeWeirdCard");
         assert_eq!(unknown.cost, 1);
         assert_eq!(unknown.card_type, CardType::Attack);
@@ -323,7 +341,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_pool_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let pool_cards = [
             // Common
             "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
@@ -358,14 +376,14 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_consecrate_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Consecrate", 0, 5, -1, -1, CardType::Attack);
         assert_card(&reg, "Consecrate+", 0, 8, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_crescendo_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Crescendo", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Crescendo+", 0, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Crescendo").unwrap().exhaust);
@@ -375,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_empty_fist_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "EmptyFist", 1, 9, -1, -1, CardType::Attack);
         assert_card(&reg, "EmptyFist+", 1, 14, -1, -1, CardType::Attack);
         assert_eq!(reg.get("EmptyFist").unwrap().enter_stance, Some("Neutral"));
@@ -383,28 +401,28 @@ mod tests {
 
     #[test]
     fn test_evaluate_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Evaluate", 1, -1, 6, -1, CardType::Skill);
         assert_card(&reg, "Evaluate+", 1, -1, 10, -1, CardType::Skill);
     }
 
     #[test]
     fn test_just_lucky_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "JustLucky", 0, 3, 2, 1, CardType::Attack);
         assert_card(&reg, "JustLucky+", 0, 4, 3, 2, CardType::Attack);
     }
 
     #[test]
     fn test_pressure_points_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "PressurePoints", 1, -1, -1, 8, CardType::Skill);
         assert_card(&reg, "PressurePoints+", 1, -1, -1, 11, CardType::Skill);
     }
 
     #[test]
     fn test_protect_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Protect", 2, -1, 12, -1, CardType::Skill);
         assert_card(&reg, "Protect+", 2, -1, 16, -1, CardType::Skill);
         assert_has_effect(&reg, "Protect", "retain");
@@ -412,14 +430,14 @@ mod tests {
 
     #[test]
     fn test_sash_whip_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "SashWhip", 1, 8, -1, 1, CardType::Attack);
         assert_card(&reg, "SashWhip+", 1, 10, -1, 2, CardType::Attack);
     }
 
     #[test]
     fn test_tranquility_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Tranquility", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Tranquility+", 0, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Tranquility").unwrap().exhaust);
@@ -431,7 +449,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_battle_hymn_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "BattleHymn", 1, -1, -1, 1, CardType::Power);
         assert_card(&reg, "BattleHymn+", 1, -1, -1, 1, CardType::Power);
         assert_has_effect(&reg, "BattleHymn+", "innate");
@@ -439,21 +457,21 @@ mod tests {
 
     #[test]
     fn test_carve_reality_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "CarveReality", 1, 6, -1, -1, CardType::Attack);
         assert_card(&reg, "CarveReality+", 1, 10, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_deceive_reality_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "DeceiveReality", 1, -1, 4, -1, CardType::Skill);
         assert_card(&reg, "DeceiveReality+", 1, -1, 7, -1, CardType::Skill);
     }
 
     #[test]
     fn test_empty_mind_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "EmptyMind", 1, -1, -1, 2, CardType::Skill);
         assert_card(&reg, "EmptyMind+", 1, -1, -1, 3, CardType::Skill);
         assert_eq!(reg.get("EmptyMind").unwrap().enter_stance, Some("Neutral"));
@@ -461,35 +479,35 @@ mod tests {
 
     #[test]
     fn test_fear_no_evil_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "FearNoEvil", 1, 8, -1, -1, CardType::Attack);
         assert_card(&reg, "FearNoEvil+", 1, 11, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_foreign_influence_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "ForeignInfluence", 0, -1, -1, -1, CardType::Skill);
         assert!(reg.get("ForeignInfluence").unwrap().exhaust);
     }
 
     #[test]
     fn test_indignation_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Indignation", 1, -1, -1, 3, CardType::Skill);
         assert_card(&reg, "Indignation+", 1, -1, -1, 5, CardType::Skill);
     }
 
     #[test]
     fn test_like_water_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "LikeWater", 1, -1, -1, 5, CardType::Power);
         assert_card(&reg, "LikeWater+", 1, -1, -1, 7, CardType::Power);
     }
 
     #[test]
     fn test_meditate_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Meditate", 1, -1, -1, 1, CardType::Skill);
         assert_card(&reg, "Meditate+", 1, -1, -1, 2, CardType::Skill);
         assert_eq!(reg.get("Meditate").unwrap().enter_stance, Some("Calm"));
@@ -497,14 +515,14 @@ mod tests {
 
     #[test]
     fn test_nirvana_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Nirvana", 1, -1, -1, 3, CardType::Power);
         assert_card(&reg, "Nirvana+", 1, -1, -1, 4, CardType::Power);
     }
 
     #[test]
     fn test_perseverance_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Perseverance", 1, -1, 5, 2, CardType::Skill);
         assert_card(&reg, "Perseverance+", 1, -1, 7, 3, CardType::Skill);
         assert_has_effect(&reg, "Perseverance", "retain");
@@ -512,14 +530,14 @@ mod tests {
 
     #[test]
     fn test_reach_heaven_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "ReachHeaven", 2, 10, -1, -1, CardType::Attack);
         assert_card(&reg, "ReachHeaven+", 2, 15, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_sands_of_time_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "SandsOfTime", 4, 20, -1, -1, CardType::Attack);
         assert_card(&reg, "SandsOfTime+", 4, 26, -1, -1, CardType::Attack);
         assert_has_effect(&reg, "SandsOfTime", "retain");
@@ -527,49 +545,49 @@ mod tests {
 
     #[test]
     fn test_signature_move_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "SignatureMove", 2, 30, -1, -1, CardType::Attack);
         assert_card(&reg, "SignatureMove+", 2, 40, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_study_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Study", 2, -1, -1, 1, CardType::Power);
         assert_card(&reg, "Study+", 1, -1, -1, 1, CardType::Power);
     }
 
     #[test]
     fn test_swivel_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Swivel", 2, -1, 8, -1, CardType::Skill);
         assert_card(&reg, "Swivel+", 2, -1, 11, -1, CardType::Skill);
     }
 
     #[test]
     fn test_wallop_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Wallop", 2, 9, -1, -1, CardType::Attack);
         assert_card(&reg, "Wallop+", 2, 12, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_wave_of_the_hand_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "WaveOfTheHand", 1, -1, -1, 1, CardType::Skill);
         assert_card(&reg, "WaveOfTheHand+", 1, -1, -1, 2, CardType::Skill);
     }
 
     #[test]
     fn test_weave_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Weave", 0, 4, -1, -1, CardType::Attack);
         assert_card(&reg, "Weave+", 0, 6, -1, -1, CardType::Attack);
     }
 
     #[test]
     fn test_windmill_strike_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "WindmillStrike", 2, 7, -1, 4, CardType::Attack);
         assert_card(&reg, "WindmillStrike+", 2, 10, -1, 5, CardType::Attack);
         assert_has_effect(&reg, "WindmillStrike", "retain");
@@ -577,7 +595,7 @@ mod tests {
 
     #[test]
     fn test_wreath_of_flame_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "WreathOfFlame", 1, -1, -1, 5, CardType::Skill);
         assert_card(&reg, "WreathOfFlame+", 1, -1, -1, 8, CardType::Skill);
     }
@@ -587,7 +605,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_alpha_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Alpha", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Alpha+", 1, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Alpha").unwrap().exhaust);
@@ -596,7 +614,7 @@ mod tests {
 
     #[test]
     fn test_blasphemy_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Blasphemy", 1, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Blasphemy").unwrap().exhaust);
         assert_eq!(reg.get("Blasphemy").unwrap().enter_stance, Some("Divinity"));
@@ -605,21 +623,21 @@ mod tests {
 
     #[test]
     fn test_brilliance_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Brilliance", 1, 12, -1, 0, CardType::Attack);
         assert_card(&reg, "Brilliance+", 1, 16, -1, 0, CardType::Attack);
     }
 
     #[test]
     fn test_conjure_blade_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "ConjureBlade", -1, -1, -1, -1, CardType::Skill);
         assert!(reg.get("ConjureBlade").unwrap().exhaust);
     }
 
     #[test]
     fn test_deva_form_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "DevaForm", 3, -1, -1, 1, CardType::Power);
         assert_card(&reg, "DevaForm+", 3, -1, -1, 1, CardType::Power);
         assert_has_effect(&reg, "DevaForm", "ethereal");
@@ -628,35 +646,35 @@ mod tests {
 
     #[test]
     fn test_devotion_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Devotion", 1, -1, -1, 2, CardType::Power);
         assert_card(&reg, "Devotion+", 1, -1, -1, 3, CardType::Power);
     }
 
     #[test]
     fn test_establishment_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Establishment", 1, -1, -1, 1, CardType::Power);
         assert_has_effect(&reg, "Establishment+", "innate");
     }
 
     #[test]
     fn test_fasting_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Fasting", 2, -1, -1, 3, CardType::Power);
         assert_card(&reg, "Fasting+", 2, -1, -1, 4, CardType::Power);
     }
 
     #[test]
     fn test_judgement_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Judgement", 1, -1, -1, 30, CardType::Skill);
         assert_card(&reg, "Judgement+", 1, -1, -1, 40, CardType::Skill);
     }
 
     #[test]
     fn test_lesson_learned_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "LessonLearned", 2, 10, -1, -1, CardType::Attack);
         assert_card(&reg, "LessonLearned+", 2, 13, -1, -1, CardType::Attack);
         assert!(reg.get("LessonLearned").unwrap().exhaust);
@@ -664,14 +682,14 @@ mod tests {
 
     #[test]
     fn test_master_reality_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "MasterReality", 1, -1, -1, -1, CardType::Power);
         assert_card(&reg, "MasterReality+", 0, -1, -1, -1, CardType::Power);
     }
 
     #[test]
     fn test_omniscience_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Omniscience", 4, -1, -1, 2, CardType::Skill);
         assert_card(&reg, "Omniscience+", 3, -1, -1, 2, CardType::Skill);
         assert!(reg.get("Omniscience").unwrap().exhaust);
@@ -679,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_scrawl_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Scrawl", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Scrawl+", 0, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Scrawl").unwrap().exhaust);
@@ -687,14 +705,14 @@ mod tests {
 
     #[test]
     fn test_spirit_shield_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "SpiritShield", 2, -1, -1, 3, CardType::Skill);
         assert_card(&reg, "SpiritShield+", 2, -1, -1, 4, CardType::Skill);
     }
 
     #[test]
     fn test_vault_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Vault", 3, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Vault+", 2, -1, -1, -1, CardType::Skill);
         assert!(reg.get("Vault").unwrap().exhaust);
@@ -702,7 +720,7 @@ mod tests {
 
     #[test]
     fn test_wish_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Wish", 3, -1, -1, 3, CardType::Skill);
         assert_card(&reg, "Wish+", 3, -1, -1, 4, CardType::Skill);
         assert!(reg.get("Wish").unwrap().exhaust);
@@ -713,14 +731,14 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_tantrum_shuffle_into_draw() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_has_effect(&reg, "Tantrum", "shuffle_self_into_draw");
         assert_has_effect(&reg, "Tantrum+", "shuffle_self_into_draw");
     }
 
     #[test]
     fn test_smite_exhaust() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert!(reg.get("Smite").unwrap().exhaust, "Smite should exhaust");
         assert!(reg.get("Smite+").unwrap().exhaust, "Smite+ should exhaust");
         assert_has_effect(&reg, "Smite", "retain");
@@ -731,7 +749,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_ironclad_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let ironclad_cards = [
             // Basic
             "Strike_R", "Defend_R", "Bash",
@@ -770,7 +788,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_silent_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let silent_cards = [
             // Basic
             "Strike_G", "Defend_G", "Neutralize", "Survivor",
@@ -810,7 +828,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_bash_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Bash", 2, 8, -1, 2, CardType::Attack);
         assert_card(&reg, "Bash+", 2, 10, -1, 3, CardType::Attack);
         assert_has_effect(&reg, "Bash", "vulnerable");
@@ -818,7 +836,7 @@ mod tests {
 
     #[test]
     fn test_impervious_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Impervious", 2, -1, 30, -1, CardType::Skill);
         assert_card(&reg, "Impervious+", 2, -1, 40, -1, CardType::Skill);
         assert!(reg.get("Impervious").unwrap().exhaust);
@@ -826,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_corruption_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Corruption", 3, -1, -1, -1, CardType::Power);
         assert_card(&reg, "Corruption+", 2, -1, -1, -1, CardType::Power);
         assert_has_effect(&reg, "Corruption", "corruption");
@@ -837,7 +855,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_neutralize_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Neutralize", 0, 3, -1, 1, CardType::Attack);
         assert_card(&reg, "Neutralize+", 0, 4, -1, 2, CardType::Attack);
         assert_has_effect(&reg, "Neutralize", "weak");
@@ -845,7 +863,7 @@ mod tests {
 
     #[test]
     fn test_wraith_form_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Wraith Form", 3, -1, -1, 2, CardType::Power);
         assert_card(&reg, "Wraith Form+", 3, -1, -1, 3, CardType::Power);
         assert_has_effect(&reg, "Wraith Form", "wraith_form");
@@ -853,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_deadly_poison_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Deadly Poison", 1, -1, -1, 5, CardType::Skill);
         assert_card(&reg, "Deadly Poison+", 1, -1, -1, 7, CardType::Skill);
         assert_has_effect(&reg, "Deadly Poison", "poison");
@@ -863,7 +881,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_defect_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let defect_cards = [
             // Basic
             "Strike_B", "Defend_B", "Zap", "Dualcast",
@@ -897,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_defect_orb_effects() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_has_effect(&reg, "Zap", "channel_lightning");
         assert_has_effect(&reg, "Ball Lightning", "channel_lightning");
         assert_has_effect(&reg, "Cold Snap", "channel_frost");
@@ -910,7 +928,7 @@ mod tests {
 
     #[test]
     fn test_defect_card_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         // Basic
         assert_card(&reg, "Strike_B", 1, 6, -1, -1, CardType::Attack);
         assert_card(&reg, "Strike_B+", 1, 9, -1, -1, CardType::Attack);
@@ -938,7 +956,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_colorless_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let colorless_cards = [
             // Uncommon
             "Bandage Up", "Blind", "Dark Shackles", "Deep Breath",
@@ -963,7 +981,7 @@ mod tests {
 
     #[test]
     fn test_colorless_card_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Apotheosis", 2, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Apotheosis+", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "HandOfGreed", 2, 20, -1, 20, CardType::Attack);
@@ -981,7 +999,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_curse_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let curse_cards = [
             "AscendersBane", "Clumsy", "CurseOfTheBell", "Decay",
             "Doubt", "Injury", "Necronomicurse", "Normality",
@@ -997,7 +1015,7 @@ mod tests {
 
     #[test]
     fn test_curse_effects() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_has_effect(&reg, "Decay", "end_turn_damage");
         assert_has_effect(&reg, "Doubt", "end_turn_weak");
         assert_has_effect(&reg, "Shame", "end_turn_frail");
@@ -1012,7 +1030,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_status_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let status_cards = ["Slimed", "Wound", "Daze", "Burn", "Void"];
         for id in &status_cards {
             let card = reg.get(id).unwrap_or_else(|| panic!("Status '{}' missing", id));
@@ -1022,7 +1040,7 @@ mod tests {
 
     #[test]
     fn test_status_effects() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_has_effect(&reg, "Burn", "end_turn_damage");
         assert_eq!(reg.get("Burn").unwrap().base_magic, 2);
         assert_has_effect(&reg, "Burn+", "end_turn_damage");
@@ -1037,7 +1055,7 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_all_temp_cards_registered() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let temp_cards = [
             "Miracle", "Smite", "Beta", "Omega", "Expunger",
             "Insight", "Safety", "ThroughViolence", "Shiv",
@@ -1051,7 +1069,7 @@ mod tests {
 
     #[test]
     fn test_temp_card_stats() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_card(&reg, "Beta", 2, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Beta+", 1, -1, -1, -1, CardType::Skill);
         assert_card(&reg, "Omega", 3, -1, -1, 50, CardType::Power);
@@ -1073,7 +1091,7 @@ mod tests {
 
     #[test]
     fn test_card_id_roundtrip() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let id = reg.card_id("Strike_P");
         assert_ne!(id, u16::MAX, "Strike_P should have a valid ID");
         assert_eq!(reg.card_name(id), "Strike_P");
@@ -1082,20 +1100,20 @@ mod tests {
 
     #[test]
     fn test_card_id_unknown_returns_max() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_eq!(reg.card_id("TotallyFakeCard"), u16::MAX);
     }
 
     #[test]
     fn test_card_count_matches_hashmap() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert_eq!(reg.card_count(), reg.cards.len());
         assert!(reg.card_count() > 700, "Should have 700+ cards registered");
     }
 
     #[test]
     fn test_base_and_upgraded_consecutive_ids() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let base_id = reg.card_id("Strike_P");
         let upgraded_id = reg.card_id("Strike_P+");
         assert_ne!(base_id, u16::MAX);
@@ -1107,7 +1125,7 @@ mod tests {
 
     #[test]
     fn test_all_ids_have_matching_defs() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         for id in 0..reg.card_count() as u16 {
             let name = reg.card_name(id);
             let def = reg.card_def_by_id(id);
@@ -1118,7 +1136,7 @@ mod tests {
 
     #[test]
     fn test_is_strike() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         assert!(reg.is_strike(reg.card_id("Strike_P")));
         assert!(reg.is_strike(reg.card_id("Strike_P+")));
         assert!(reg.is_strike(reg.card_id("Strike_R")));
@@ -1136,7 +1154,7 @@ mod tests {
 
     #[test]
     fn test_make_card() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let card = reg.make_card("Eruption");
         assert_eq!(card.def_id, reg.card_id("Eruption"));
         assert!(!card.is_upgraded());
@@ -1144,7 +1162,7 @@ mod tests {
 
     #[test]
     fn test_make_card_upgraded() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         let card = reg.make_card_upgraded("Eruption+");
         assert_eq!(card.def_id, reg.card_id("Eruption+"));
         assert!(card.is_upgraded());
@@ -1152,7 +1170,7 @@ mod tests {
 
     #[test]
     fn test_card_def_by_id_matches_get() {
-        let reg = CardRegistry::new();
+        let reg = super::global_registry();
         // Every card accessible via get() should match card_def_by_id()
         for name in ["Strike_P", "Eruption", "Bash", "Neutralize", "Zap", "Apotheosis"] {
             let by_name = reg.get(name).unwrap();

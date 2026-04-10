@@ -33,12 +33,12 @@ mod engine_integration_tests {
     }
 
     fn make_deck(names: &[&str]) -> Vec<crate::combat_types::CardInstance> {
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         names.iter().map(|n| reg.make_card(n)).collect()
     }
 
     fn make_deck_n(name: &str, n: usize) -> Vec<crate::combat_types::CardInstance> {
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         vec![reg.make_card(name); n]
     }
 
@@ -855,7 +855,7 @@ mod engine_integration_tests {
 
     // ---- Worship retain effect tag exists ----
     #[test] fn worship_plus_has_retain_effect() {
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         let c = reg.get("Worship+").unwrap();
         assert!(c.effects.contains(&"retain"));
     }
@@ -989,7 +989,7 @@ mod bugfix_regression_tests {
 
     #[test]
     fn card_pool_ids_in_registry() {
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         // Check that key cards from the reward pool resolve in the registry
         let important_cards = [
             "BowlingBash", "CrushJoints", "FollowUp", "Flurry",
@@ -2938,7 +2938,7 @@ mod effect_handler_tests {
     #[test] fn innate_cards_drawn_first() {
         // Backstab has "innate" tag — should appear in opening hand
         let mut deck = make_deck_n("Defend_G", 9);
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         deck.push(reg.make_card("Backstab"));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();

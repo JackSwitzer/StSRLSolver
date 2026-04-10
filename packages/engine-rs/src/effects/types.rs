@@ -17,6 +17,10 @@ pub struct CardPlayContext {
     pub x_value: i32,
     pub pen_nib_active: bool,
     pub vigor: i32,
+    /// Total unblocked damage dealt during the damage loop (for Wallop, Reaper).
+    pub total_unblocked_damage: i32,
+    /// Whether an enemy was killed during the damage loop (for Sunder, Ritual Dagger, Feed).
+    pub enemy_killed: bool,
 }
 
 /// Damage modifier returned by modify_damage hooks.

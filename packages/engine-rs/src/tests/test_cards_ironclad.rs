@@ -13,8 +13,8 @@ mod ironclad_card_java_parity_tests {
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
     use crate::engine::CombatEngine;
 
-    fn reg() -> CardRegistry {
-        CardRegistry::new()
+    fn reg() -> &'static CardRegistry {
+        crate::cards::global_registry()
     }
 
     fn card(id: &str) -> CardDef {

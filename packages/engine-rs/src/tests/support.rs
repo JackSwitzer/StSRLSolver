@@ -11,13 +11,13 @@ pub(crate) const TEST_SEED: u64 = 42;
 
 /// Create a deck of CardInstances from card name strings.
 pub(crate) fn make_deck(names: &[&str]) -> Vec<CardInstance> {
-    let reg = CardRegistry::new();
+    let reg = crate::cards::global_registry();
     names.iter().map(|n| reg.make_card(n)).collect()
 }
 
 /// Create N copies of the same card.
 pub(crate) fn make_deck_n(name: &str, n: usize) -> Vec<CardInstance> {
-    let reg = CardRegistry::new();
+    let reg = crate::cards::global_registry();
     vec![reg.make_card(name); n]
 }
 

@@ -278,7 +278,7 @@ pub fn apply_potion_scaled(
         "FairyPotion" | "Fairy in a Bottle" => false,
 
         "BottledMiracle" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
@@ -289,7 +289,7 @@ pub fn apply_potion_scaled(
         }
 
         "CunningPotion" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
                 if state.hand.len() < 10 {
@@ -323,7 +323,7 @@ pub fn apply_potion_scaled(
 
         "BlessingOfTheForge" => {
             // Upgrade ALL cards in hand
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             for card in &mut state.hand {
                 registry.upgrade_card(card);
             }
@@ -383,22 +383,22 @@ pub fn apply_potion_scaled(
         }
 
         "AttackPotion" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
             true
         }
         "SkillPotion" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend_P")); }
             true
         }
         "PowerPotion" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             if state.hand.len() < 10 { state.hand.push(registry.make_card("Smite")); }
             true
         }
         "ColorlessPotion" => {
-            let registry = crate::cards::CardRegistry::new();
+            let registry = crate::cards::global_registry();
             if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
             true
         }
@@ -737,7 +737,7 @@ mod tests {
         let mut state = make_test_state();
         state.hand.clear();
         apply_potion(&mut state, "BottledMiracle", -1);
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert_eq!(state.hand.len(), 2);
         assert_eq!(reg.card_name(state.hand[0].def_id), "Miracle");
         assert_eq!(reg.card_name(state.hand[1].def_id), "Miracle");
@@ -748,7 +748,7 @@ mod tests {
         let mut state = make_test_state();
         state.hand.clear();
         apply_potion(&mut state, "CunningPotion", -1);
-        let reg = CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert_eq!(state.hand.len(), 3);
         assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
     }

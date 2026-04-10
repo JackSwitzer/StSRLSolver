@@ -96,7 +96,7 @@ mod relic_tests {
     // ---- Mark of Pain ----
     #[test] fn mark_of_pain_wounds() {
         let s = state_with("Mark of Pain");
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         let w = s.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(w, 2);
     }

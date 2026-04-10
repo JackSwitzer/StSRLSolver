@@ -213,7 +213,7 @@ mod relic_java_parity_tests {
     #[test]
     fn mark_of_pain_adds_two_wounds_to_draw_pile() {
         let state = start_with("Mark of Pain");
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         let wound_count = state.draw_pile.iter().filter(|c| reg.card_name(c.def_id) == "Wound").count();
         assert_eq!(wound_count, 2);
     }
@@ -238,7 +238,7 @@ mod relic_java_parity_tests {
         state.relics.push("HolyWater".to_string());
         apply_combat_start_relics(&mut state);
         assert_eq!(state.hand.len(), 10);
-        let reg = crate::cards::CardRegistry::new();
+        let reg = crate::cards::global_registry();
         assert_eq!(reg.card_name(state.hand.last().unwrap().def_id), "HolyWater");
     }
 
@@ -933,9 +933,9 @@ mod relic_java_parity_tests {
         let mut state = base_state();
         state.relics.push("Unceasing Top".to_string());
         state.hand.clear();
-        { let reg = crate::cards::CardRegistry::new(); state.draw_pile.push(reg.make_card("Strike_P")); };
+        { let reg = crate::cards::global_registry(); state.draw_pile.push(reg.make_card("Strike_P")); };
         assert!(unceasing_top_should_draw(&state));
-        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Defend_P")); };
+        { let reg = crate::cards::global_registry(); state.hand.push(reg.make_card("Defend_P")); };
         assert!(!unceasing_top_should_draw(&state));
     }
 
@@ -1169,8 +1169,8 @@ mod relic_java_parity_tests {
     extra_case!(unceasing_top_nonempty_hand, {
         let mut state = base_state();
         state.relics.push("Unceasing Top".to_string());
-        { let reg = crate::cards::CardRegistry::new(); state.hand.push(reg.make_card("Defend_P")); };
-        { let reg = crate::cards::CardRegistry::new(); state.draw_pile.push(reg.make_card("Strike_P")); };
+        { let reg = crate::cards::global_registry(); state.hand.push(reg.make_card("Defend_P")); };
+        { let reg = crate::cards::global_registry(); state.draw_pile.push(reg.make_card("Strike_P")); };
         assert!(!unceasing_top_should_draw(&state));
     });
 

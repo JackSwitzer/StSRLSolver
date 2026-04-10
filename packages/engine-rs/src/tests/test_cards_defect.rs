@@ -30,8 +30,8 @@ mod defect_card_java_parity_tests {
         exhaust: bool,
     }
 
-    fn reg() -> CardRegistry {
-        CardRegistry::new()
+    fn reg() -> &'static CardRegistry {
+        crate::cards::global_registry()
     }
 
     fn assert_stats(case: StatCase) {

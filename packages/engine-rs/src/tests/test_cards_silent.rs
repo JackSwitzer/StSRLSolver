@@ -8,8 +8,8 @@ mod silent_card_java_parity_tests {
     use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::tests::support::*;
 
-    fn reg() -> CardRegistry {
-        CardRegistry::new()
+    fn reg() -> &'static CardRegistry {
+        crate::cards::global_registry()
     }
 
     fn assert_card(

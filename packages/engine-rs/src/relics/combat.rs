@@ -70,7 +70,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             }
             "Mark of Pain" => {
                 // 2 Wounds in draw pile
-                let registry = crate::cards::CardRegistry::new();
+                let registry = crate::cards::global_registry();
                 state.draw_pile.push(registry.make_card("Wound"));
                 state.draw_pile.push(registry.make_card("Wound"));
             }
@@ -87,12 +87,12 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             // --- Card-generation relics (atBattleStartPreDraw) ---
             "PureWater" => {
                 // Add a Miracle card to hand at combat start
-                let registry = crate::cards::CardRegistry::new();
+                let registry = crate::cards::global_registry();
                 state.hand.push(registry.make_card("Miracle"));
             }
             "HolyWater" => {
                 // Add 3 Holy Water cards to hand at combat start
-                let registry = crate::cards::CardRegistry::new();
+                let registry = crate::cards::global_registry();
                 for _ in 0..3 {
                     if state.hand.len() < 10 {
                         state.hand.push(registry.make_card("HolyWater"));
@@ -101,7 +101,7 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
             }
             "Ninja Scroll" | "NinjaScroll" => {
                 // Add 3 Shivs to hand at combat start
-                let registry = crate::cards::CardRegistry::new();
+                let registry = crate::cards::global_registry();
                 for _ in 0..3 {
                     if state.hand.len() < 10 {
                         state.hand.push(registry.make_card("Shiv"));
