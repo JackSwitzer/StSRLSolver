@@ -523,7 +523,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
             _ => ChoiceReason::DiscardForEffect,
         },
         ChoiceAction::MoveToHand => match source {
-            Pile::Discard => ChoiceReason::PickFromDiscard,
+            Pile::Discard => ChoiceReason::ReturnFromDiscard,
             Pile::Draw => ChoiceReason::SearchDrawPile,
             Pile::Exhaust => ChoiceReason::PickFromExhaust,
             _ => ChoiceReason::PickOption,

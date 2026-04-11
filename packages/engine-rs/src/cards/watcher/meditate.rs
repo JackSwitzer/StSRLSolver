@@ -6,12 +6,22 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Meditate", name: "Meditate", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: Some("Calm"),
-                effects: &["meditate", "end_turn"], effect_data: &[], complex_hook: None,
+                effects: &["meditate", "end_turn"], effect_data: &[
+                    E::ChooseCards {
+                        source: P::Discard, filter: CardFilter::All, action: ChoiceAction::MoveToHand,
+                        min_picks: A::Fixed(1), max_picks: A::Magic,
+                    },
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Meditate+", name: "Meditate+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: Some("Calm"),
-                effects: &["meditate", "end_turn"], effect_data: &[], complex_hook: None,
+                effects: &["meditate", "end_turn"], effect_data: &[
+                    E::ChooseCards {
+                        source: P::Discard, filter: CardFilter::All, action: ChoiceAction::MoveToHand,
+                        min_picks: A::Fixed(1), max_picks: A::Magic,
+                    },
+                ], complex_hook: None,
             });
 }

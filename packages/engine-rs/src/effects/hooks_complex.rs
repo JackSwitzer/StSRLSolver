@@ -807,3 +807,130 @@ pub fn hook_flechettes(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         }
     }
 }
+
+// =========================================================================
+// Random multi-hit damage (Sword Boomerang, Rip and Tear)
+// =========================================================================
+
+/// Sword Boomerang / Rip and Tear: deal base_damage to random enemies base_magic times.
+/// The generic damage loop is skipped (damage_random_x_times sets skip_generic_damage).
+pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let hits = ctx.card.base_magic.max(1);
+    let player_strength = engine.state.player.strength();
+    let player_weak = engine.state.player.is_weak();
+    let weak_pc = engine.state.has_relic("Paper Crane");
+    let stance_mult = engine.state.stance.outgoing_mult();
+    let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
+    if double_damage {
+        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
+        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
+    }
+
+    for i in 0..hits {
+        let living = engine.state.living_enemy_indices();
+        if living.is_empty() { break; }
+        let idx = living[engine.rng_gen_range(0..living.len())];
+        let enemy_vuln = engine.state.enemies[idx].entity.is_vulnerable();
+        let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
+        let vuln_pf = engine.state.has_relic("Paper Frog");
+        let dmg = damage::calculate_damage_full(
+            ctx.card.base_damage,
+            player_strength,
+            if i == 0 { ctx.vigor } else { 0 },
+            player_weak,
+            weak_pc,
+            if i == 0 { ctx.pen_nib_active } else { false },
+            double_damage,
+            stance_mult,
+            enemy_vuln,
+            vuln_pf,
+            false, // flight
+            enemy_intangible,
+        );
+        engine.deal_damage_to_enemy(idx, dmg);
+    }
+}
+
+// =========================================================================
+// Feed: gain max HP on kill
+// =========================================================================
+
+/// Feed: if an enemy was killed during the damage loop, increase max HP and heal.
+pub fn hook_feed(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    if ctx.enemy_killed {
+        let amount = ctx.card.base_magic.max(1);
+        engine.state.player.max_hp += amount;
+        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
+    }
+}
+
+// =========================================================================
+// Reaper: heal for unblocked damage
+// =========================================================================
+
+/// Reaper: heal player for total unblocked damage dealt to all enemies.
+pub fn hook_reaper(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    if ctx.total_unblocked_damage > 0 {
+        engine.heal_player(ctx.total_unblocked_damage);
+    }
+}
+
+// =========================================================================
+// Escape Plan: draw 1, if skill gain block
+// =========================================================================
+
+/// Escape Plan: draw 1 card, if the drawn card is a Skill, gain block.
+pub fn hook_escape_plan(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let hand_before = engine.state.hand.len();
+    engine.draw_cards(1);
+    // Check if a card was actually drawn
+    if engine.state.hand.len() > hand_before {
+        let drawn_card = &engine.state.hand[engine.state.hand.len() - 1];
+        let def = engine.card_registry.card_def_by_id(drawn_card.def_id);
+        if def.card_type == CardType::Skill {
+            let dex = engine.state.player.dexterity();
+            let frail = engine.state.player.is_frail();
+            let block = damage::calculate_block(ctx.card.base_block, dex, frail);
+            engine.gain_block_player(block);
+        }
+    }
+}
+
+// =========================================================================
+// Malaise: apply X weak + reduce X strength
+// =========================================================================
+
+/// Malaise: apply (X + base_magic) Weak and reduce (X + base_magic) Strength to target enemy.
+pub fn hook_malaise(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let amount = ctx.x_value + ctx.card.base_magic.max(0);
+    if amount > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
+        let tidx = ctx.target_idx as usize;
+        crate::powers::apply_debuff(&mut engine.state.enemies[tidx].entity, sid::WEAKENED, amount);
+        engine.state.enemies[tidx].entity.add_status(sid::STRENGTH, -amount);
+    }
+}
+
+// =========================================================================
+// Wraith Form: gain Intangible + set Wraith Form power
+// =========================================================================
+
+/// Wraith Form: gain base_magic Intangible, set Wraith Form power to 1
+/// (Wraith Form power causes -1 Dex per turn via the power system).
+pub fn hook_wraith_form(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let amount = ctx.card.base_magic.max(1);
+    engine.state.player.add_status(sid::INTANGIBLE, amount);
+    engine.state.player.set_status(sid::WRAITH_FORM, 1);
+}
+
+// =========================================================================
+// Doppelganger: set next-turn draw/energy bonuses
+// =========================================================================
+
+/// Doppelganger: set draw and energy bonuses for next turn (X + base_magic).
+pub fn hook_doppelganger_set_bonuses(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let amount = ctx.x_value + ctx.card.base_magic.max(0);
+    if amount > 0 {
+        engine.state.player.add_status(sid::DOPPELGANGER_DRAW, amount);
+        engine.state.player.add_status(sid::DOPPELGANGER_ENERGY, amount);
+    }
+}

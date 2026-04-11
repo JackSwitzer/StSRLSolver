@@ -870,7 +870,7 @@ mod tests {
         let reg = super::global_registry();
         assert_card(&reg, "Wraith Form", 3, -1, -1, 2, CardType::Power);
         assert_card(&reg, "Wraith Form+", 3, -1, -1, 3, CardType::Power);
-        assert_has_effect(&reg, "Wraith Form", "wraith_form");
+        // Wraith Form now uses complex_hook, no effect tags
     }
 
     #[test]

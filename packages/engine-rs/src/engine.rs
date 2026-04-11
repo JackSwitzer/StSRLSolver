@@ -1630,8 +1630,9 @@ impl CombatEngine {
             }
             // Powers don't go to any pile
         } else if card_flags.has(effects::registry::BIT_SHUFFLE_SELF_INTO_DRAW) {
-            // Tantrum: goes to draw pile instead of discard
-            // (already handled in execute_card_effects, don't double-add)
+            // Tantrum: shuffle into draw pile instead of discard
+            self.state.draw_pile.push(card_inst);
+            self.shuffle_draw_pile();
         } else if card.exhaust
             || (card.card_type == CardType::Skill
                 && self.state.player.status(sid::CORRUPTION) > 0)

@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Ragnarok", name: "Ragnarok", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 5, base_block: -1,
                 base_magic: 5, exhaust: false, enter_stance: None,
-                effects: &["damage_random_x_times"], effect_data: &[], complex_hook: None,
+                effects: &["damage_random_x_times"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_damage_random_hits),
             });
     insert(cards, CardDef {
                 id: "Ragnarok+", name: "Ragnarok+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 6, base_block: -1,
                 base_magic: 6, exhaust: false, enter_stance: None,
-                effects: &["damage_random_x_times"], effect_data: &[], complex_hook: None,
+                effects: &["damage_random_x_times"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_damage_random_hits),
             });
 }

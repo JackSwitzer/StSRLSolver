@@ -6,12 +6,16 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Compile Driver", name: "Compile Driver", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["draw_per_unique_orb"], effect_data: &[], complex_hook: None,
+                effects: &["draw_per_unique_orb"], effect_data: &[
+                    E::Simple(SE::DrawCards(A::UniqueOrbCount)),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Compile Driver+", name: "Compile Driver+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["draw_per_unique_orb"], effect_data: &[], complex_hook: None,
+                effects: &["draw_per_unique_orb"], effect_data: &[
+                    E::Simple(SE::DrawCards(A::UniqueOrbCount)),
+                ], complex_hook: None,
             });
 }

@@ -235,8 +235,8 @@ mod silent_card_java_parity_tests {
         "Envenom+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
     );
     card_pair_test!(escape_plan,
-        "Escape Plan", 0, -1, 3, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw", "block_if_skill"],
-        "Escape Plan+", 0, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw", "block_if_skill"],
+        "Escape Plan", 0, -1, 3, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
+        "Escape Plan+", 0, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
     );
     card_pair_test!(eviscerate,
         "Eviscerate", 3, 7, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
@@ -343,8 +343,8 @@ mod silent_card_java_parity_tests {
         "Die Die Die+", 1, 17, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
     );
     card_pair_test!(doppelganger,
-        "Doppelganger", -1, -1, -1, 0, CardType::Skill, CardTarget::None, true, None, &["x_cost", "doppelganger"],
-        "Doppelganger+", -1, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["x_cost", "doppelganger"],
+        "Doppelganger", -1, -1, -1, 0, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
+        "Doppelganger+", -1, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
     );
     card_pair_test!(glass_knife,
         "Glass Knife", 1, 8, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
@@ -355,8 +355,8 @@ mod silent_card_java_parity_tests {
         "Grand Finale+", 0, 60, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["only_empty_draw"],
     );
     card_pair_test!(malaise,
-        "Malaise", -1, -1, -1, 0, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost", "malaise"],
-        "Malaise+", -1, -1, -1, 1, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost", "malaise"],
+        "Malaise", -1, -1, -1, 0, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
+        "Malaise+", -1, -1, -1, 1, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
     );
     card_pair_test!(nightmare,
         "Nightmare", 3, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["nightmare"],
@@ -379,8 +379,8 @@ mod silent_card_java_parity_tests {
         "Unload+", 1, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
     );
     card_pair_test!(wraith_form,
-        "Wraith Form", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["wraith_form"],
-        "Wraith Form+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &["wraith_form"],
+        "Wraith Form", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &[],
+        "Wraith Form+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &[],
     );
 
     // ---------------------------------------------------------------------
