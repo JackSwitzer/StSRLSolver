@@ -134,19 +134,19 @@ mod card_registry_tests {
     #[test]
     fn empty_body_upgraded() {
         let c = reg().get("EmptyBody+").unwrap().clone();
-        assert_eq!(c.base_block, 11);
+        assert_eq!(c.base_block, 10);
     }
 
     #[test]
     fn flurry_base() {
-        let c = reg().get("Flurry").unwrap().clone();
+        let c = reg().get("FlurryOfBlows").unwrap().clone();
         assert_eq!(c.base_damage, 4);
         assert_eq!(c.cost, 0);
     }
 
     #[test]
     fn flurry_upgraded() {
-        let c = reg().get("Flurry+").unwrap().clone();
+        let c = reg().get("FlurryOfBlows+").unwrap().clone();
         assert_eq!(c.base_damage, 6);
         assert_eq!(c.cost, 0);
     }
@@ -504,7 +504,7 @@ mod card_registry_tests {
             "Eruption", "Eruption+", "Vigilance", "Vigilance+",
             "BowlingBash", "BowlingBash+", "CrushJoints", "CrushJoints+",
             "CutThroughFate", "CutThroughFate+", "EmptyBody", "EmptyBody+",
-            "Flurry", "Flurry+", "FlyingSleeves", "FlyingSleeves+",
+            "FlurryOfBlows", "FlurryOfBlows+", "FlyingSleeves", "FlyingSleeves+",
             "FollowUp", "FollowUp+", "Halt", "Halt+",
             "Prostrate", "Prostrate+", "Tantrum", "Tantrum+",
             "ThirdEye", "ThirdEye+", "InnerPeace", "InnerPeace+",

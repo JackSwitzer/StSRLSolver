@@ -74,9 +74,9 @@ pub enum RunPhase {
 const WATCHER_COMMON_CARDS: &[&str] = &[
     "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
     "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
-    "Flurry", "FlyingSleeves", "FollowUp", "Halt",
-    "JustLucky", "PressurePoints", "Prostrate",
-    "Protect", "SashWhip", "Tranquility",
+    "FlurryOfBlows", "FlyingSleeves", "FollowUp", "Halt",
+    "JustLucky", "PathToVictory", "Prostrate",
+    "Protect", "SashWhip", "ClearTheMind",
 ];
 
 const WATCHER_UNCOMMON_CARDS: &[&str] = &[
@@ -91,7 +91,7 @@ const WATCHER_UNCOMMON_CARDS: &[&str] = &[
 
 const WATCHER_RARE_CARDS: &[&str] = &[
     "Alpha", "Blasphemy", "Brilliance", "ConjureBlade",
-    "DevaForm", "Devotion", "Establishment", "Fasting",
+    "DevaForm", "Devotion", "Establishment", "Fasting2",
     "Judgement", "LessonLearned", "MasterReality",
     "MentalFortress", "Omniscience", "Ragnarok",
     "Adaptation", "Scrawl", "SpiritShield", "Vault",

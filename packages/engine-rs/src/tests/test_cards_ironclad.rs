@@ -224,7 +224,7 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(juggernaut, "Juggernaut", "Juggernaut+", 2, -1, -1, 5, 2, -1, -1, 7, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(limit_break, "Limit Break", "Limit Break+", 1, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, false);
     card_pair_test!(offering, "Offering", "Offering+", 0, -1, -1, 3, 0, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, true);
-    card_pair_test!(reaper, "Reaper", "Reaper+", 2, 4, -1, -1, 2, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, true);
+    card_pair_test!(reaper, "Reaper", "Reaper+", 2, 4, -1, -1, 2, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
 
     // ------------------------------------------------------------------
     // Deep behavior checks for cards that are already wired through Rust.

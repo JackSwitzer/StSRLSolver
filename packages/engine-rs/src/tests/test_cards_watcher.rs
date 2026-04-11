@@ -190,7 +190,7 @@ mod watcher_card_java_parity_tests {
     watcher_test!(
         empty_body_java_parity,
         base = ("EmptyBody", "Empty Body", 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["exit_stance"]),
-        plus = ("EmptyBody+", "Empty Body+", 1, -1, 11, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["exit_stance"]),
+        plus = ("EmptyBody+", "Empty Body+", 1, -1, 10, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["exit_stance"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Wrath);
@@ -202,13 +202,13 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         flurry_of_blows_java_parity,
-        base = ("Flurry", "Flurry of Blows", 0, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
-        plus = ("Flurry+", "Flurry of Blows+", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
+        base = ("FlurryOfBlows", "Flurry of Blows", 0, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
+        plus = ("FlurryOfBlows+", "Flurry of Blows+", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 40, 0);
-            ensure_in_hand(&mut engine, "Flurry");
+            ensure_in_hand(&mut engine, "FlurryOfBlows");
             let energy_before = engine.state.energy;
-            play_on_enemy(&mut engine, "Flurry", 0);
+            play_on_enemy(&mut engine, "FlurryOfBlows", 0);
             assert_eq!(engine.state.energy, energy_before);
             assert_eq!(engine.state.enemies[0].entity.hp, 36);
         }
@@ -306,12 +306,12 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         pressure_points_java_parity,
-        base = ("PressurePoints", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
-        plus = ("PressurePoints+", "Pressure Points+", 1, -1, -1, 11, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
+        base = ("PathToVictory", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
+        plus = ("PathToVictory+", "Pressure Points+", 1, -1, -1, 11, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 40, 0);
-            ensure_in_hand(&mut engine, "PressurePoints");
-            play_on_enemy(&mut engine, "PressurePoints", 0);
+            ensure_in_hand(&mut engine, "PathToVictory");
+            play_on_enemy(&mut engine, "PathToVictory", 0);
             assert_eq!(engine.state.enemies[0].entity.status(sid::MARK), 8);
             assert_eq!(engine.state.enemies[0].entity.hp, 32);
         }
@@ -727,12 +727,12 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         fasting_java_parity,
-        base = ("Fasting", "Fasting", 2, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, ["fasting"]),
-        plus = ("Fasting+", "Fasting+", 2, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, ["fasting"]),
+        base = ("Fasting2", "Fasting", 2, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, ["fasting"]),
+        plus = ("Fasting2+", "Fasting+", 2, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, ["fasting"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            ensure_in_hand(&mut engine, "Fasting");
-            play_self(&mut engine, "Fasting");
+            ensure_in_hand(&mut engine, "Fasting2");
+            play_self(&mut engine, "Fasting2");
             assert_eq!(engine.state.player.strength(), 3);
             assert_eq!(engine.state.player.dexterity(), 3);
             assert_eq!(engine.state.max_energy, 2);
@@ -805,8 +805,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         press_points_java_parity,
-        base = ("PressurePoints", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
-        plus = ("PressurePoints+", "Pressure Points+", 1, -1, -1, 11, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
+        base = ("PathToVictory", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
+        plus = ("PathToVictory+", "Pressure Points+", 1, -1, -1, 11, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
         {}
     );
     watcher_test!(
@@ -835,14 +835,14 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         trancendental_java_parity,
-        base = ("Tranquility", "Tranquility", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Calm"), ["retain"]),
-        plus = ("Tranquility+", "Tranquility+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Calm"), ["retain"]),
+        base = ("ClearTheMind", "Tranquility", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Calm"), ["retain"]),
+        plus = ("ClearTheMind+", "Tranquility+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Calm"), ["retain"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            ensure_in_hand(&mut engine, "Tranquility");
-            play_self(&mut engine, "Tranquility");
+            ensure_in_hand(&mut engine, "ClearTheMind");
+            play_self(&mut engine, "ClearTheMind");
             assert_eq!(engine.state.stance, Stance::Calm);
-            assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Tranquility"));
+            assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ClearTheMind"));
         }
     );
     watcher_test!(

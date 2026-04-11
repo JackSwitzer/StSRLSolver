@@ -668,6 +668,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
         ChoiceAction::PlayForFree => ChoiceReason::PlayCardFree,
         ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
+        ChoiceAction::PutOnTopAtCostZero => ChoiceReason::SetupPick,
         ChoiceAction::PutOnBottomAtCostZero => ChoiceReason::ForethoughtPick,
         ChoiceAction::ExhaustAndGainEnergy => ChoiceReason::RecycleCard,
     }

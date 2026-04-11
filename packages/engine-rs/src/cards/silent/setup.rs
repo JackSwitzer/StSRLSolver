@@ -10,7 +10,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                     E::ChooseCards {
                         source: P::Hand,
                         filter: CardFilter::All,
-                        action: ChoiceAction::PutOnBottomAtCostZero,
+                        action: ChoiceAction::PutOnTopAtCostZero,
                         min_picks: A::Fixed(1),
                         max_picks: A::Fixed(1),
                     },
@@ -24,7 +24,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                     E::ChooseCards {
                         source: P::Hand,
                         filter: CardFilter::All,
-                        action: ChoiceAction::PutOnBottomAtCostZero,
+                        action: ChoiceAction::PutOnTopAtCostZero,
                         min_picks: A::Fixed(1),
                         max_picks: A::Fixed(1),
                     },

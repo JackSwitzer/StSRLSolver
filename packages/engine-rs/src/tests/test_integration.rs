@@ -253,10 +253,10 @@ mod engine_integration_tests {
     // ---- Flurry 0 cost ----
     #[test] fn flurry_free() {
         let mut e = engine_with(
-            make_deck_n("Flurry", 5), 100, 0,
+            make_deck_n("FlurryOfBlows", 5), 100, 0,
         );
         let en = e.state.energy;
-        play(&mut e, "Flurry");
+        play(&mut e, "FlurryOfBlows");
         assert_eq!(e.state.energy, en); // 0 cost
     }
 
@@ -751,11 +751,11 @@ mod engine_integration_tests {
         assert_eq!(e.state.stance, Stance::Neutral);
     }
 
-    // ---- EmptyBody+ gives 11 block ----
+    // ---- EmptyBody+ gives 10 block ----
     #[test] fn empty_body_plus_11_block() {
         let mut e = engine_with(make_deck_n("EmptyBody+", 5), 100, 0);
         play_self(&mut e, "EmptyBody+");
-        assert_eq!(e.state.player.block, 11);
+        assert_eq!(e.state.player.block, 10);
     }
 
     // ---- Vigilance+ gives 12 block and enters Calm ----
@@ -992,7 +992,7 @@ mod bugfix_regression_tests {
         let reg = crate::cards::global_registry();
         // Check that key cards from the reward pool resolve in the registry
         let important_cards = [
-            "BowlingBash", "CrushJoints", "FollowUp", "Flurry",
+            "BowlingBash", "CrushJoints", "FollowUp", "FlurryOfBlows",
             "FlyingSleeves", "Halt", "Prostrate", "Conclude",
             "InnerPeace", "Smite", "TalkToTheHand", "Tantrum",
             "ThirdEye", "WheelKick", "MentalFortress", "Ragnarok",
@@ -1714,11 +1714,11 @@ mod effect_handler_tests {
     // ===== 3. Pressure Points =====
     #[test]
     fn pressure_points_applies_mark_and_damages() {
-        let deck = make_deck_n("PressurePoints", 10);
+        let deck = make_deck_n("PathToVictory", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         let hp_before = e.state.enemies[0].entity.hp;
-        play_card(&mut e, "PressurePoints", 0);
+        play_card(&mut e, "PathToVictory", 0);
         // Should apply 8 Mark, then deal 8 damage to all marked
         assert_eq!(e.state.enemies[0].entity.status(sid::MARK), 8);
         assert_eq!(e.state.enemies[0].entity.hp, hp_before - 8);
@@ -1726,12 +1726,12 @@ mod effect_handler_tests {
 
     #[test]
     fn pressure_points_stacks_mark() {
-        let deck = make_deck_n("PressurePoints", 10);
+        let deck = make_deck_n("PathToVictory", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        play_card(&mut e, "PressurePoints", 0);
+        play_card(&mut e, "PathToVictory", 0);
         let hp_after_first = e.state.enemies[0].entity.hp;
-        play_card(&mut e, "PressurePoints", 0);
+        play_card(&mut e, "PathToVictory", 0);
         // Second play: adds 8 more Mark (total 16), deals 16 damage
         assert_eq!(e.state.enemies[0].entity.status(sid::MARK), 16);
         assert_eq!(e.state.enemies[0].entity.hp, hp_after_first - 16);
@@ -2088,14 +2088,14 @@ mod effect_handler_tests {
     // ===== 25. Install Power: Fasting =====
     #[test]
     fn fasting_grants_str_dex_loses_energy() {
-        let mut deck = make_deck(&["Fasting"]);
+        let mut deck = make_deck(&["Fasting2"]);
         deck.extend(make_deck_n("Defend_P", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Fasting") {
-            e.state.hand.push(e.card_registry.make_card("Fasting"));
+            e.state.hand.push(e.card_registry.make_card("Fasting2"));
         }
-        play_card(&mut e, "Fasting", -1);
+        play_card(&mut e, "Fasting2", -1);
         assert_eq!(e.state.player.strength(), 3, "Fasting should give 3 Strength");
         assert_eq!(e.state.player.dexterity(), 3, "Fasting should give 3 Dexterity");
         assert_eq!(e.state.max_energy, 2, "Fasting should reduce max energy by 1");

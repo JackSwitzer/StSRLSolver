@@ -120,6 +120,8 @@ pub enum ChoiceAction {
     Upgrade,
     /// Copy selected card(s) to hand.
     CopyToHand,
+    /// Put selected card(s) on top of draw pile at cost 0.
+    PutOnTopAtCostZero,
     /// Put selected card(s) on bottom of draw pile at cost 0.
     PutOnBottomAtCostZero,
     /// Exhaust selected card and gain its cost as energy.

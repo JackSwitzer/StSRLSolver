@@ -10,7 +10,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             });
     insert(cards, CardDef {
                 id: "Expunger+", name: "Expunger+", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
+                target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
                 effects: &["multi_hit"], effect_data: &[], complex_hook: None,
             });

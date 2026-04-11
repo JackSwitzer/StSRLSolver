@@ -350,9 +350,9 @@ mod tests {
             // Common
             "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
             "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
-            "Flurry", "FlyingSleeves", "FollowUp", "Halt",
-            "JustLucky", "PressurePoints", "Prostrate",
-            "Protect", "SashWhip", "Tranquility",
+            "FlurryOfBlows", "FlyingSleeves", "FollowUp", "Halt",
+            "JustLucky", "PathToVictory", "Prostrate",
+            "Protect", "SashWhip", "ClearTheMind",
             // Uncommon
             "BattleHymn", "CarveReality", "Conclude", "DeceiveReality",
             "EmptyMind", "FearNoEvil", "ForeignInfluence", "Indignation",
@@ -363,7 +363,7 @@ mod tests {
             "Weave", "WheelKick", "WindmillStrike", "WreathOfFlame",
             // Rare
             "Alpha", "Blasphemy", "Brilliance", "ConjureBlade",
-            "DevaForm", "Devotion", "Establishment", "Fasting",
+            "DevaForm", "Devotion", "Establishment", "Fasting2",
             "Judgement", "LessonLearned", "MasterReality",
             "MentalFortress", "Omniscience", "Ragnarok",
             "Adaptation", "Scrawl", "SpiritShield", "Vault", "Wish",
@@ -420,8 +420,8 @@ mod tests {
     #[test]
     fn test_pressure_points_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "PressurePoints", 1, -1, -1, 8, CardType::Skill);
-        assert_card(&reg, "PressurePoints+", 1, -1, -1, 11, CardType::Skill);
+        assert_card(&reg, "PathToVictory", 1, -1, -1, 8, CardType::Skill);
+        assert_card(&reg, "PathToVictory+", 1, -1, -1, 11, CardType::Skill);
     }
 
     #[test]
@@ -442,10 +442,10 @@ mod tests {
     #[test]
     fn test_tranquility_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "Tranquility", 1, -1, -1, -1, CardType::Skill);
-        assert_card(&reg, "Tranquility+", 0, -1, -1, -1, CardType::Skill);
-        assert!(reg.get("Tranquility").unwrap().exhaust);
-        assert_eq!(reg.get("Tranquility").unwrap().enter_stance, Some("Calm"));
+        assert_card(&reg, "ClearTheMind", 1, -1, -1, -1, CardType::Skill);
+        assert_card(&reg, "ClearTheMind+", 0, -1, -1, -1, CardType::Skill);
+        assert!(reg.get("ClearTheMind").unwrap().exhaust);
+        assert_eq!(reg.get("ClearTheMind").unwrap().enter_stance, Some("Calm"));
     }
 
     // -----------------------------------------------------------------------
@@ -665,8 +665,8 @@ mod tests {
     #[test]
     fn test_fasting_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "Fasting", 2, -1, -1, 3, CardType::Power);
-        assert_card(&reg, "Fasting+", 2, -1, -1, 4, CardType::Power);
+        assert_card(&reg, "Fasting2", 2, -1, -1, 3, CardType::Power);
+        assert_card(&reg, "Fasting2+", 2, -1, -1, 4, CardType::Power);
     }
 
     #[test]
