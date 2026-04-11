@@ -6,12 +6,16 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dodge and Roll", name: "Dodge and Roll", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 4,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["next_turn_block"], effect_data: &[], complex_hook: None,
+                effects: &["next_turn_block"], effect_data: &[
+                    E::Simple(SE::AddStatus(T::Player, sid::NEXT_TURN_BLOCK, A::Magic)),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Dodge and Roll+", name: "Dodge and Roll+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
                 base_magic: 6, exhaust: false, enter_stance: None,
-                effects: &["next_turn_block"], effect_data: &[], complex_hook: None,
+                effects: &["next_turn_block"], effect_data: &[
+                    E::Simple(SE::AddStatus(T::Player, sid::NEXT_TURN_BLOCK, A::Magic)),
+                ], complex_hook: None,
             });
 }

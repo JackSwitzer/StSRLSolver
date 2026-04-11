@@ -6,12 +6,28 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Setup", name: "Setup", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["setup"], effect_data: &[], complex_hook: None,
+                effects: &["setup"], effect_data: &[
+                    E::ChooseCards {
+                        source: P::Hand,
+                        filter: CardFilter::All,
+                        action: ChoiceAction::PutOnBottomAtCostZero,
+                        min_picks: A::Fixed(1),
+                        max_picks: A::Fixed(1),
+                    },
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Setup+", name: "Setup+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["setup"], effect_data: &[], complex_hook: None,
+                effects: &["setup"], effect_data: &[
+                    E::ChooseCards {
+                        source: P::Hand,
+                        filter: CardFilter::All,
+                        action: ChoiceAction::PutOnBottomAtCostZero,
+                        min_picks: A::Fixed(1),
+                        max_picks: A::Fixed(1),
+                    },
+                ], complex_hook: None,
             });
 }
