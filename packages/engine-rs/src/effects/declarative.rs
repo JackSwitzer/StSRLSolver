@@ -76,6 +76,10 @@ pub enum AmountSource {
     AttacksThisTurn,
     /// Number of Skill cards in hand (Flechettes).
     SkillsInHand,
+    /// Potion effective potency (base value scaled by A11 + Sacred Bark).
+    /// The base potency is stored in the EntityDef; runtime resolves via
+    /// `effective_potency(base, ascension, sacred_bark)`.
+    PotionPotency,
 }
 
 /// Boolean condition checked at runtime.

@@ -417,6 +417,11 @@ fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSour
         AmountSource::PercentMaxHp(pct) => {
             (engine.state.player.max_hp * pct) / 100
         }
+        AmountSource::PotionPotency => {
+            // Resolved externally by the potion interpreter (not the card interpreter).
+            // If this is reached from card play context, it's a bug.
+            0
+        }
     }
 }
 

@@ -8,6 +8,8 @@
 //! Ascension 11+ reduces potion effectiveness. Call `apply_potion_scaled`
 //! with the run's ascension level, or use `apply_potion` for base potency.
 
+pub mod defs;
+
 use crate::state::CombatState;
 use crate::status_ids::sid;
 
