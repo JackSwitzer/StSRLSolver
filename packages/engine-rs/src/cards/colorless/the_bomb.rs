@@ -6,12 +6,18 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "The Bomb", name: "The Bomb", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 40, exhaust: false, enter_stance: None,
-                effects: &["the_bomb"], effect_data: &[], complex_hook: None,
+                effects: &["the_bomb"], effect_data: &[
+                    E::Simple(SE::AddStatus(T::Player, sid::THE_BOMB, A::Magic)),
+                    E::Simple(SE::SetStatus(T::Player, sid::THE_BOMB_TURNS, A::Fixed(3))),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "The Bomb+", name: "The Bomb+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 50, exhaust: false, enter_stance: None,
-                effects: &["the_bomb"], effect_data: &[], complex_hook: None,
+                effects: &["the_bomb"], effect_data: &[
+                    E::Simple(SE::AddStatus(T::Player, sid::THE_BOMB, A::Magic)),
+                    E::Simple(SE::SetStatus(T::Player, sid::THE_BOMB_TURNS, A::Fixed(3))),
+                ], complex_hook: None,
             });
 }
