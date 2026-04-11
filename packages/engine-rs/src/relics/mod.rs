@@ -17,6 +17,7 @@
 use crate::status_ids::sid;
 pub mod combat;
 pub mod run;
+pub mod defs;
 
 // Re-export all relic functions from sub-modules
 pub use combat::apply_combat_start_relics;
