@@ -935,3 +935,193 @@ pub fn hook_doppelganger_set_bonuses(engine: &mut CombatEngine, ctx: &CardPlayCo
         engine.state.player.add_status(sid::DOPPELGANGER_ENERGY, amount);
     }
 }
+
+// =========================================================================
+// Defect: Blizzard — damage = magic * frost channeled this combat (AoE)
+// =========================================================================
+
+/// Blizzard: deal (base_magic * frost_channeled) flat damage to all enemies.
+/// The preamble base_damage is 0, so we handle all damage here.
+pub fn hook_blizzard(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let frost_count = engine.state.player.status(sid::FROST_CHANNELED);
+    let per_frost = ctx.card.base_magic.max(1);
+    let total_damage = frost_count * per_frost;
+    if total_damage > 0 {
+        let living = engine.state.living_enemy_indices();
+        for idx in living {
+            engine.deal_damage_to_enemy(idx, total_damage);
+        }
+    }
+}
+
+// =========================================================================
+// Defect: Thunder Strike — deal base_damage per lightning channeled to random enemies
+// =========================================================================
+
+/// Thunder Strike: deal base_damage to a random enemy for each Lightning channeled.
+pub fn hook_thunder_strike(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let lightning_count = engine.state.player.status(sid::LIGHTNING_CHANNELED);
+    if lightning_count <= 0 { return; }
+    let player_strength = engine.state.player.strength();
+    let player_weak = engine.state.player.is_weak();
+    let stance_mult = engine.state.stance.outgoing_mult();
+    for _ in 0..lightning_count {
+        let living = engine.state.living_enemy_indices();
+        if living.is_empty() { break; }
+        let idx = living[engine.rng_gen_range(0..living.len())];
+        let enemy_vuln = engine.state.enemies[idx].entity.is_vulnerable();
+        let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
+        let dmg = damage::calculate_damage(
+            ctx.card.base_damage, player_strength, player_weak,
+            stance_mult, enemy_vuln, enemy_intangible,
+        );
+        engine.deal_damage_to_enemy(idx, dmg);
+    }
+}
+
+// =========================================================================
+// Defect: Scrape — draw N, discard drawn cards costing > 0
+// =========================================================================
+
+/// Scrape: draw base_magic cards, then discard any drawn cards with cost > 0.
+pub fn hook_scrape(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let draw_count = ctx.card.base_magic.max(1);
+    let hand_before = engine.state.hand.len();
+    engine.draw_cards(draw_count);
+    // Discard drawn cards that cost > 0
+    let hand_after = engine.state.hand.len();
+    let mut to_discard = Vec::new();
+    for i in hand_before..hand_after {
+        let def = engine.card_registry.card_def_by_id(engine.state.hand[i].def_id);
+        if def.cost > 0 {
+            to_discard.push(i);
+        }
+    }
+    // Remove in reverse order to preserve indices
+    for &i in to_discard.iter().rev() {
+        let card = engine.state.hand.remove(i);
+        engine.state.discard_pile.push(card);
+    }
+}
+
+// =========================================================================
+// Defect: Recursion (Redo) — evoke front orb, channel same type
+// =========================================================================
+
+/// Recursion: evoke the front orb, then channel a new orb of the same type.
+pub fn hook_recursion(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    // Peek at front orb type before evoking
+    let front_type = engine.state.orb_slots.front_orb_type();
+    if front_type == crate::orbs::OrbType::Empty {
+        return;
+    }
+    // Evoke the front orb
+    engine.evoke_front_orb();
+    // Channel a new orb of the same type
+    engine.channel_orb(front_type);
+}
+
+// =========================================================================
+// Defect: Claw — increment CLAW_BONUS status (all Claws gain +2 damage)
+// =========================================================================
+
+/// Claw: after dealing damage, add base_magic (2) to CLAW_BONUS for future Claws.
+pub fn hook_claw(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let bonus = ctx.card.base_magic.max(2);
+    engine.state.player.add_status(sid::CLAW_BONUS, bonus);
+}
+
+// =========================================================================
+// Defect: Chaos upgrade — channel N random orbs
+// =========================================================================
+
+/// Chaos: channel base_magic random orbs (base=1, upgrade=2).
+pub fn hook_chaos(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let count = ctx.card.base_magic.max(1);
+    let orb_types = [crate::orbs::OrbType::Lightning, crate::orbs::OrbType::Frost,
+                     crate::orbs::OrbType::Dark, crate::orbs::OrbType::Plasma];
+    for _ in 0..count {
+        let idx = engine.rng_gen_range(0..orb_types.len());
+        engine.channel_orb(orb_types[idx]);
+    }
+}
+
+// =========================================================================
+// Colorless: Mind Blast — damage equal to draw pile size
+// =========================================================================
+
+/// Mind Blast: deal flat damage equal to draw pile size to target enemy.
+/// The preamble base_damage is 0, so we handle all damage here.
+pub fn hook_mind_blast(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let draw_pile_size = engine.state.draw_pile.len() as i32;
+    if draw_pile_size > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
+        let tidx = ctx.target_idx as usize;
+        let player_strength = engine.state.player.strength();
+        let player_weak = engine.state.player.is_weak();
+        let stance_mult = engine.state.stance.outgoing_mult();
+        let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+        let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+        let dmg = damage::calculate_damage(
+            draw_pile_size, player_strength, player_weak,
+            stance_mult, enemy_vuln, enemy_intangible,
+        );
+        engine.deal_damage_to_enemy(tidx, dmg);
+    }
+}
+
+// =========================================================================
+// Colorless: Enlightenment+ — permanently set all hand card costs to 1
+// =========================================================================
+
+/// Enlightenment+: permanently reduce hand card costs to 1.
+/// Unlike base Enlightenment (this-turn only), the cost stays at 1.
+pub fn hook_enlightenment_permanent(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    for hand_card in &mut engine.state.hand {
+        let def = engine.card_registry.card_def_by_id(hand_card.def_id);
+        if def.cost > 1 {
+            hand_card.cost = 1;
+        }
+    }
+}
+
+// =========================================================================
+// Colorless: Chrysalis — add Deflect cards (MCTS approx for random Skills)
+// =========================================================================
+
+/// Chrysalis: add base_magic Deflect cards (cost 0) to draw pile and shuffle.
+pub fn hook_chrysalis(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let count = ctx.card.base_magic.max(1);
+    for _ in 0..count {
+        let card = engine.temp_card("Deflect");
+        engine.state.draw_pile.push(card);
+    }
+    engine.shuffle_draw_pile();
+}
+
+// =========================================================================
+// Colorless: Metamorphosis — add Strike cards (MCTS approx for random Attacks)
+// =========================================================================
+
+/// Metamorphosis: add base_magic Strike temp cards (cost 0) to draw pile and shuffle.
+pub fn hook_metamorphosis(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let count = ctx.card.base_magic.max(1);
+    for _ in 0..count {
+        let card = engine.temp_card("Smite");
+        engine.state.draw_pile.push(card);
+    }
+    engine.shuffle_draw_pile();
+}
+
+// =========================================================================
+// Colorless: Jack of All Trades — add Finesse to hand (MCTS approx)
+// =========================================================================
+
+/// Jack of All Trades: add base_magic Finesse cards to hand.
+pub fn hook_jack_of_all_trades(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let count = ctx.card.base_magic.max(1);
+    for _ in 0..count {
+        if engine.state.hand.len() >= 10 { break; }
+        let card = engine.temp_card("Finesse");
+        engine.state.hand.push(card);
+    }
+}

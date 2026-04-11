@@ -195,6 +195,14 @@ impl OrbSlots {
         self.max_slots
     }
 
+    /// Return the orb type of the frontmost non-empty orb, or Empty if none.
+    pub fn front_orb_type(&self) -> OrbType {
+        self.slots.iter()
+            .find(|o| !o.is_empty())
+            .map(|o| o.orb_type)
+            .unwrap_or(OrbType::Empty)
+    }
+
     /// Check if there are any orbs at all.
     pub fn has_orbs(&self) -> bool {
         self.max_slots > 0

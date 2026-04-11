@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Discovery", name: "Discovery", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["discovery"], effect_data: &[], complex_hook: None,
+                effects: &["discovery"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_discovery),
             });
     insert(cards, CardDef {
                 id: "Discovery+", name: "Discovery+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["discovery"], effect_data: &[], complex_hook: None,
+                effects: &["discovery"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_discovery),
             });
 }

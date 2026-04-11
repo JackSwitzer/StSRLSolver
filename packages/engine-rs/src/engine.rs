@@ -1228,6 +1228,17 @@ impl CombatEngine {
             return false;
         }
 
+        // Normality curse: max 3 cards per turn when Normality is in hand
+        if self.state.cards_played_this_turn >= 3 {
+            let has_normality = self.state.hand.iter().any(|c| {
+                let def = self.card_registry.card_def_by_id(c.def_id);
+                def.effects.contains(&"limit_cards_per_turn")
+            });
+            if has_normality {
+                return false;
+            }
+        }
+
         // Energy check — Confusion: any card could cost 0-3, so playable if energy >= 0
         if self.state.player.status(sid::CONFUSION) > 0 && card.cost >= 0 {
             if self.state.energy < 0 {
@@ -2333,7 +2344,18 @@ impl CombatEngine {
     // =======================================================================
 
     /// Channel an orb. If slots are full, evokes the front orb first.
+    /// Also tracks channeled counts for Blizzard/Thunder Strike.
     pub fn channel_orb(&mut self, orb_type: crate::orbs::OrbType) {
+        // Track channeled counts for Blizzard / Thunder Strike
+        match orb_type {
+            crate::orbs::OrbType::Lightning => {
+                self.state.player.add_status(sid::LIGHTNING_CHANNELED, 1);
+            }
+            crate::orbs::OrbType::Frost => {
+                self.state.player.add_status(sid::FROST_CHANNELED, 1);
+            }
+            _ => {}
+        }
         let focus = self.state.player.focus();
         let evoke_effect = self.state.orb_slots.channel(orb_type, focus);
         self.apply_evoke_effect(evoke_effect);

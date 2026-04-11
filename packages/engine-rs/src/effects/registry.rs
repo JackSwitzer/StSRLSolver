@@ -54,6 +54,11 @@ pub const BIT_SEARING_BLOW: u8 = 24;
 pub const BIT_DAMAGE_RANDOM_X_TIMES: u8 = 25;
 // on_draw hooks (continued, bits 26+)
 pub const BIT_DEUS_EX_MACHINA: u8 = 26;
+// modify_damage hooks (continued, bits 27-30)
+pub const BIT_CLAW_SCALING: u8 = 27;
+pub const BIT_DAMAGE_PER_FROST: u8 = 28;
+pub const BIT_DAMAGE_PER_LIGHTNING: u8 = 29;
+pub const BIT_DAMAGE_FROM_DRAW_PILE: u8 = 30;
 
 // ===========================================================================
 // Hook function type aliases
@@ -294,6 +299,31 @@ pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
         tag: "damage_random_x_times",
         bit_index: 25,
         modify_damage: Some(super::hooks_damage::hook_damage_random_x_times),
+        ..CardEffectEntry::NONE
+    },
+    // ===== Defect damage modifiers (bits 27-30) =====
+    CardEffectEntry {
+        tag: "claw_scaling",
+        bit_index: 27,
+        modify_damage: Some(super::hooks_damage::hook_claw_damage),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_per_frost_channeled",
+        bit_index: 28,
+        modify_damage: Some(super::hooks_damage::hook_skip_generic_damage),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_per_lightning_channeled",
+        bit_index: 29,
+        modify_damage: Some(super::hooks_damage::hook_skip_generic_damage),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "damage_from_draw_pile",
+        bit_index: 30,
+        modify_damage: Some(super::hooks_damage::hook_skip_generic_damage),
         ..CardEffectEntry::NONE
     },
 ];

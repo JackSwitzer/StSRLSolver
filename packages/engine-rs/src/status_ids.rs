@@ -308,9 +308,11 @@ pub mod sid {
     pub const HP_LOSS_THIS_COMBAT: StatusId = StatusId(246);
     pub const COLLECT_MIRACLES: StatusId = StatusId(247);
     pub const SIMMERING_FURY: StatusId = StatusId(248);
+    pub const FROST_CHANNELED: StatusId = StatusId(249);
+    pub const CLAW_BONUS: StatusId = StatusId(250);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 249;
+    pub const NUM_IDS: usize = 251;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -596,6 +598,8 @@ static STATUS_NAMES: &[&str] = &[
     "HpLossThisCombat",   // 246
     "CollectMiracles",    // 247
     "SimmeringFury",      // 248
+    "FrostChanneled",     // 249
+    "ClawBonus",          // 250
 ];
 
 #[cfg(test)]

@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Gash", name: "Claw", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["claw_scaling"], effect_data: &[], complex_hook: None,
+                effects: &["claw_scaling"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_claw),
             });
     insert(cards, CardDef {
                 id: "Gash+", name: "Claw+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 5, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["claw_scaling"], effect_data: &[], complex_hook: None,
+                effects: &["claw_scaling"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_claw),
             });
 }

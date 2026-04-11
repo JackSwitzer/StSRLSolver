@@ -94,3 +94,19 @@ pub fn hook_damage_random_x_times(_engine: &CombatEngine, _card: &CardDef, _card
         ..DamageModifier::default()
     }
 }
+
+/// Claw: bonus damage from CLAW_BONUS status (incremented each time any Claw is played).
+pub fn hook_claw_damage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+    DamageModifier {
+        base_damage_bonus: engine.state.player.status(sid::CLAW_BONUS),
+        ..DamageModifier::default()
+    }
+}
+
+/// Mind Blast / Blizzard / Thunder Strike: skip generic damage loop (handled by complex_hook).
+pub fn hook_skip_generic_damage(_engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+    DamageModifier {
+        skip_generic_damage: true,
+        ..DamageModifier::default()
+    }
+}

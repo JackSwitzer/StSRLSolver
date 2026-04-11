@@ -358,6 +358,8 @@ pub static POWER_REGISTRY: &[PowerRegistryEntry] = &[
     PowerRegistryEntry { tag: "buffer", status_id: sid::BUFFER, ..PowerRegistryEntry::NONE },
     PowerRegistryEntry { tag: "establishment", status_id: sid::ESTABLISHMENT, ..PowerRegistryEntry::NONE },
     PowerRegistryEntry { tag: "extra_draw_each_turn", status_id: sid::DRAW, ..PowerRegistryEntry::NONE },
+    PowerRegistryEntry { tag: "channel_lightning_on_damage", status_id: sid::STATIC_DISCHARGE, ..PowerRegistryEntry::NONE },
+    PowerRegistryEntry { tag: "heal_end_of_combat", status_id: sid::SELF_REPAIR, ..PowerRegistryEntry::NONE },
 ];
 
 // ===========================================================================

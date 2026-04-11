@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Melter", name: "Melter", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["remove_enemy_block"], effect_data: &[], complex_hook: None,
+                effects: &["remove_enemy_block"], effect_data: &[], complex_hook: Some(crate::effects::hooks_simple::hook_remove_enemy_block),
             });
     insert(cards, CardDef {
                 id: "Melter+", name: "Melter+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 14, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["remove_enemy_block"], effect_data: &[], complex_hook: None,
+                effects: &["remove_enemy_block"], effect_data: &[], complex_hook: Some(crate::effects::hooks_simple::hook_remove_enemy_block),
             });
 }

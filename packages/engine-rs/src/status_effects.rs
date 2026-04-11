@@ -84,6 +84,12 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
         if card.effects.contains(&"end_turn_frail") {
             powers::apply_debuff(&mut state.player, sid::FRAIL, 1);
         }
+
+        // Pride: add a copy of Pride to draw pile at end of turn
+        if card.effects.contains(&"add_copy_end_turn") {
+            let copy = crate::combat_types::CardInstance::new(card_inst.def_id);
+            state.draw_pile.push(copy);
+        }
     }
 
     // Check player death from status card damage

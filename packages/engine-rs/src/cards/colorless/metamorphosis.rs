@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Metamorphosis", name: "Metamorphosis", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: true, enter_stance: None,
-                effects: &["add_random_attacks_to_draw"], effect_data: &[], complex_hook: None,
+                effects: &["add_random_attacks_to_draw"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_metamorphosis),
             });
     insert(cards, CardDef {
                 id: "Metamorphosis+", name: "Metamorphosis+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 5, exhaust: true, enter_stance: None,
-                effects: &["add_random_attacks_to_draw"], effect_data: &[], complex_hook: None,
+                effects: &["add_random_attacks_to_draw"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_metamorphosis),
             });
 }
