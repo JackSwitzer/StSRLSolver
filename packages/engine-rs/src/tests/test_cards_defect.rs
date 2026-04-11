@@ -180,8 +180,6 @@ mod defect_card_java_parity_tests {
             StatCase { id: "Heatsinks+", cost: 1, damage: -1, block: -1, magic: 2, card_type: CardType::Power, exhaust: false },
             StatCase { id: "Hello World", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Power, exhaust: false },
             StatCase { id: "Hello World+", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Power, exhaust: false },
-            StatCase { id: "Impulse", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Skill, exhaust: true },
-            StatCase { id: "Impulse+", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Lockon", cost: 1, damage: 8, block: -1, magic: 2, card_type: CardType::Attack, exhaust: false },
             StatCase { id: "Lockon+", cost: 1, damage: 11, block: -1, magic: 3, card_type: CardType::Attack, exhaust: false },
             StatCase { id: "Loop", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Power, exhaust: false },

@@ -117,18 +117,6 @@ pub fn hook_next_turn_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     engine.state.player.add_status(sid::ENERGIZED, ctx.card.base_magic);
 }
 
-/// Sunder: gain 3 energy on kill.
-/// NOTE: depends on enemy_killed flag from the damage loop. The caller must
-/// gate this hook on whether the target was actually killed. For now this is
-/// a TODO — the dispatch system doesn't yet pass damage-loop results.
-pub fn hook_energy_on_kill(_engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    // TODO: This effect depends on `enemy_killed` which is computed in the
-    // damage loop within card_effects.rs. The hook system doesn't currently
-    // propagate damage-loop outcomes. When the damage loop is migrated, wire
-    // this up:
-    //   if enemy_killed { engine.state.energy += 3; }
-}
-
 /// Bloodletting: lose HP, gain 2 energy.
 pub fn hook_lose_hp_gain_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     engine.player_lose_hp(ctx.card.base_magic);
@@ -161,15 +149,6 @@ pub fn hook_vigor(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 // =====================================================================
 // Block effects
 // =====================================================================
-
-/// Wallop: gain block equal to unblocked damage dealt.
-/// NOTE: depends on total_unblocked_damage from the damage loop. Implemented
-/// as a no-op until the damage loop is migrated into the hook system.
-pub fn hook_block_from_damage(_engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    // TODO: This effect depends on `total_unblocked_damage` computed in the
-    // damage loop within card_effects.rs. When the damage loop is migrated:
-    //   engine.gain_block_player(total_unblocked_damage);
-}
 
 /// Escape Plan: if the last drawn card is a Skill, gain block.
 /// NOTE: The "draw" tag already drew a card before this hook fires.
@@ -240,18 +219,6 @@ pub fn hook_block_if_no_block(engine: &mut CombatEngine, ctx: &CardPlayContext) 
 // =====================================================================
 // HP effects
 // =====================================================================
-
-/// Reaper: heal for total unblocked damage dealt to all enemies.
-/// NOTE: depends on total_unblocked_damage from the damage loop. Implemented
-/// as a no-op until the damage loop is migrated into the hook system.
-pub fn hook_reaper(_engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    // TODO: This effect depends on `total_unblocked_damage` computed in the
-    // damage loop within card_effects.rs. When the damage loop is migrated:
-    //   if total_unblocked_damage > 0 {
-    //       engine.state.player.hp = (engine.state.player.hp + total_unblocked_damage)
-    //           .min(engine.state.player.max_hp);
-    //   }
-}
 
 /// Heal player (Bandage Up).
 pub fn hook_heal(engine: &mut CombatEngine, ctx: &CardPlayContext) {

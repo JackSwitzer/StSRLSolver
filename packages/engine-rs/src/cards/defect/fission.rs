@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Fission", name: "Fission", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 1, exhaust: true, enter_stance: None,
-                effects: &["fission"], effect_data: &[], complex_hook: Some(crate::effects::hooks_orb::hook_fission),
+                effects: &[], effect_data: &[], complex_hook: Some(crate::effects::hooks_orb::hook_fission),
             });
     insert(cards, CardDef {
                 id: "Fission+", name: "Fission+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 1, exhaust: true, enter_stance: None,
-                effects: &["fission_evoke"], effect_data: &[], complex_hook: Some(crate::effects::hooks_orb::hook_fission_evoke),
+                effects: &[], effect_data: &[], complex_hook: Some(crate::effects::hooks_orb::hook_fission_evoke),
             });
 }

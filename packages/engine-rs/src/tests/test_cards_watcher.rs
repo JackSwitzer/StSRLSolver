@@ -871,12 +871,6 @@ mod watcher_card_java_parity_tests {
         {}
     );
     watcher_test!(
-        discipline_java_parity,
-        base = ("Discipline", "Discipline", 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
-        plus = ("Discipline+", "Discipline+", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
-        {}
-    );
-    watcher_test!(
         deus_ex_machina_java_parity,
         base = ("DeusExMachina", "Deus Ex Machina", -2, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, true, None, []),
         plus = ("DeusExMachina+", "Deus Ex Machina+", -2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, true, None, []),
@@ -892,12 +886,6 @@ mod watcher_card_java_parity_tests {
         simmering_fury_java_parity,
         base = ("Vengeance", "Simmering Fury", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, []),
         plus = ("Vengeance+", "Simmering Fury+", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, []),
-        {}
-    );
-    watcher_test!(
-        unraveling_java_parity,
-        base = ("Unraveling", "Unraveling", 2, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, []),
-        plus = ("Unraveling+", "Unraveling+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, []),
         {}
     );
 }

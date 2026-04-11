@@ -49,20 +49,6 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
             effects: &["unplayable"], effect_data: &[], complex_hook: None,
         });
-        // Decay: unplayable, deal 2 dmg to player at end of turn
-        insert(cards, CardDef {
-            id: "Decay", name: "Decay", card_type: CardType::Curse,
-            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["unplayable", "end_turn_damage"], effect_data: &[], complex_hook: None,
-        });
-        // Doubt: unplayable, apply 1 Weak at end of turn
-        insert(cards, CardDef {
-            id: "Doubt", name: "Doubt", card_type: CardType::Curse,
-            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["unplayable", "end_turn_weak"], effect_data: &[], complex_hook: None,
-        });
         // Injury: unplayable
         insert(cards, CardDef {
             id: "Injury", name: "Injury", card_type: CardType::Curse,
@@ -104,20 +90,6 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
             effects: &["innate", "add_copy_end_turn"], effect_data: &[], complex_hook: None,
-        });
-        // Regret: unplayable, lose HP equal to cards in hand at end of turn
-        insert(cards, CardDef {
-            id: "Regret", name: "Regret", card_type: CardType::Curse,
-            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["unplayable", "end_turn_hp_loss_per_card"], effect_data: &[], complex_hook: None,
-        });
-        // Shame: unplayable, apply 1 Frail at end of turn
-        insert(cards, CardDef {
-            id: "Shame", name: "Shame", card_type: CardType::Curse,
-            target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: false, enter_stance: None,
-            effects: &["unplayable", "end_turn_frail"], effect_data: &[], complex_hook: None,
         });
         // Writhe: unplayable, innate
         insert(cards, CardDef {

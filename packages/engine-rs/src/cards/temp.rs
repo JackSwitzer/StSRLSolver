@@ -7,13 +7,13 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Beta", name: "Beta", card_type: CardType::Skill,
             target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_omega_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &[], effect_data: &[], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Beta+", name: "Beta+", card_type: CardType::Skill,
             target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["add_omega_to_draw"], effect_data: &[], complex_hook: None,
+            effects: &[], effect_data: &[], complex_hook: None,
         });
         // Omega: 3 cost, power, deal 50 dmg to all enemies at end of each turn
         insert(cards, CardDef {

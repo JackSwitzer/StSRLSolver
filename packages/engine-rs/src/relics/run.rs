@@ -110,14 +110,12 @@ pub fn on_enemy_death(state: &mut CombatState, _dead_enemy_idx: usize) {
 pub fn on_victory(state: &mut CombatState) -> i32 {
     let mut heal = 0;
 
-    // Burning Blood: heal 6 on victory
-    if state.has_relic("Burning Blood") {
-        heal += 6;
-    }
-
     // Black Blood: heal 12 on victory (replaces Burning Blood)
     if state.has_relic("Black Blood") {
         heal += 12;
+    } else if state.has_relic("Burning Blood") {
+        // Burning Blood: heal 6 on victory (skipped if Black Blood present)
+        heal += 6;
     }
 
     // Meat on the Bone: if HP <= 50%, heal 12

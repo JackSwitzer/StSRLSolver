@@ -42,7 +42,6 @@ mod heatsinks;
 mod hello_world;
 mod hologram;
 mod hyperbeam;
-mod impulse;
 mod leap;
 mod lockon;
 mod loop_card;
@@ -120,7 +119,6 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
     hello_world::register(cards);
     hologram::register(cards);
     hyperbeam::register(cards);
-    impulse::register(cards);
     leap::register(cards);
     lockon::register(cards);
     loop_card::register(cards);

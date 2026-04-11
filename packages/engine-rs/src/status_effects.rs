@@ -121,7 +121,6 @@ pub fn process_pain_on_card_play(state: &mut CombatState, card_registry: &CardRe
         .filter(|c| {
             let card = card_registry.card_def_by_id(c.def_id);
             card.effects.contains(&"damage_on_draw")
-                || card.effects.contains(&"damage_on_play")
                 || card_registry.card_name(c.def_id) == "Pain"
         })
         .count() as i32;

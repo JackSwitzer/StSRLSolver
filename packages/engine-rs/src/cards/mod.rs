@@ -899,7 +899,7 @@ mod tests {
             "Capacitor", "Chaos", "Chill", "Consume", "Darkness",
             "Defragment", "Doom and Gloom", "Double Energy", "Undo",
             "Force Field", "FTL", "Fusion", "Genetic Algorithm", "Glacier",
-            "Heatsinks", "Hello World", "Impulse", "Lockon", "Loop",
+            "Heatsinks", "Hello World", "Lockon", "Loop",
             "Melter", "Steam Power", "Recycle", "Redo",
             "Reinforced Body", "Reprogram", "Rip and Tear", "Scrape",
             "Self Repair", "Skim", "Static Discharge", "Storm",

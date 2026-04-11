@@ -263,8 +263,8 @@ pub(crate) fn hook_end_omega(amt: i32, _entity: &mut EntityState) -> TurnEndEffe
 }
 
 pub(crate) fn hook_end_combust(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
-    // Combust: lose 1 HP, deal damage to all enemies
-    TurnEndEffect { combust_damage: amt, combust_hp_loss: 1, ..Default::default() }
+    // Combust: lose HP and deal damage to all enemies (scales with stacks)
+    TurnEndEffect { combust_damage: amt, combust_hp_loss: amt, ..Default::default() }
 }
 
 pub(crate) fn hook_end_rage(_amt: i32, entity: &mut EntityState) -> TurnEndEffect {
