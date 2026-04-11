@@ -291,6 +291,7 @@ pub fn hook_exhaust_random(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
         let idx = engine.rng_gen_range(0..engine.state.hand.len());
         let exhausted = engine.state.hand.remove(idx);
         engine.state.exhaust_pile.push(exhausted);
+        engine.trigger_on_exhaust();
     }
 }
 

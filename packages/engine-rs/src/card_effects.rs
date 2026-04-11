@@ -48,7 +48,15 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     let body_slam_damage = dmg_mod.base_damage_override;
     let heavy_blade_mult = dmg_mod.strength_multiplier;
     // All additive bonuses (brilliance, perfected_strike, rampage, etc.) are merged
-    let total_damage_bonus = dmg_mod.base_damage_bonus;
+    let mut total_damage_bonus = dmg_mod.base_damage_bonus;
+
+    // Accuracy: +N damage to Shiv cards
+    if card_id == "Shiv" || card_id == "Shiv+" {
+        let accuracy = engine.state.player.status(sid::ACCURACY);
+        if accuracy > 0 {
+            total_damage_bonus += accuracy;
+        }
+    }
 
     // ---- Grand Finale: only deal damage if draw pile is empty ----
     let grand_finale_blocked = card_flags.has(crate::effects::registry::BIT_ONLY_EMPTY_DRAW)
@@ -227,6 +235,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         total_unblocked_damage,
         enemy_killed,
     };
+    // ---- Exhaust random: True Grit (base) exhausts 1 random card from hand ----
+    if card.effects.contains(&"exhaust_random") {
+        crate::effects::hooks_complex::hook_exhaust_random(engine, &ctx);
+    }
+
     crate::effects::interpreter::execute_effects(engine, &ctx, card.effect_data);
     if let Some(hook) = card.complex_hook {
         hook(engine, &ctx);

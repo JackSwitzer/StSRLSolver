@@ -2194,6 +2194,21 @@ impl CombatEngine {
         if sfx.draw > 0 {
             self.draw_cards(sfx.draw);
         }
+
+        // Flurry of Blows: return all copies from discard to hand on any stance change
+        let mut flurry_indices = Vec::new();
+        for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
+            let name = self.card_registry.card_name(card_inst.def_id);
+            if name == "FlurryOfBlows" || name == "FlurryOfBlows+" {
+                flurry_indices.push(i);
+            }
+        }
+        for &i in flurry_indices.iter().rev() {
+            let card = self.state.discard_pile.remove(i);
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            }
+        }
     }
 
     /// Gain mantra and check for Divinity entry (10+ mantra).

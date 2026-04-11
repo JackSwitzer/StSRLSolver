@@ -31,3 +31,4 @@ mod test_relics;
 mod test_relics_parity;
 mod test_run_parity;
 mod test_state;
+mod test_interactions;
