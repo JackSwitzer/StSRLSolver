@@ -404,4 +404,184 @@ mod interaction_tests {
         assert_eq!(engine.state.enemies[1].entity.hp, 35,
             "Whirlwind: second enemy also takes 15 damage");
     }
+
+    // =========================================================================
+    // 15. Corruption: attacks still cost energy normally
+    //     Play Corruption (3 cost), then Strike_R (1 cost attack).
+    //     Strike should cost 1 energy and go to discard (not exhaust).
+    // =========================================================================
+    #[test]
+    fn corruption_attack_costs_normally() {
+        let mut engine = engine_with(
+            make_deck(&["Corruption", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"]),
+            50, 0,
+        );
+        engine.state.energy = 5; // enough for Corruption (3) + Strike (1)
+        ensure_in_hand(&mut engine, "Corruption");
+        play_self(&mut engine, "Corruption");
+        let energy_after_corruption = engine.state.energy; // 5 - 3 = 2
+
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+
+        // Strike should cost 1 energy (Corruption only affects Skills)
+        assert_eq!(engine.state.energy, energy_after_corruption - 1,
+            "Strike should cost 1 energy even with Corruption active");
+
+        // Strike should go to discard, not exhaust
+        assert_eq!(discard_prefix_count(&engine, "Strike_R"), 1,
+            "Strike should go to discard pile, not exhaust");
+        assert_eq!(exhaust_prefix_count(&engine, "Strike_R"), 0,
+            "Strike should NOT be exhausted under Corruption");
+    }
+
+    // =========================================================================
+    // 16. Demon Form: +2 Strength each turn
+    //     Play Demon Form (sets DEMON_FORM=2). End turn, start next.
+    //     After 1 cycle: 2 Str. After 2 cycles: 4 Str.
+    // =========================================================================
+    #[test]
+    fn demon_form_gains_strength_each_turn() {
+        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        engine.state.energy = 5;
+
+        // Set Demon Form status directly (avoids needing 3 energy for the card)
+        engine.state.player.set_status(sid::DEMON_FORM, 2);
+
+        assert_eq!(engine.state.player.status(sid::STRENGTH), 0,
+            "Should start with 0 Strength");
+
+        // Give block to survive any enemy damage
+        engine.state.player.block = 100;
+        end_turn(&mut engine);
+
+        // After first turn cycle: Demon Form fires at start of player turn
+        assert_eq!(engine.state.player.status(sid::STRENGTH), 2,
+            "After 1 turn cycle, Demon Form should grant 2 Strength");
+
+        engine.state.player.block = 100;
+        end_turn(&mut engine);
+
+        // After second turn cycle: cumulative 4 Strength
+        assert_eq!(engine.state.player.status(sid::STRENGTH), 4,
+            "After 2 turn cycles, Demon Form should grant 4 total Strength");
+    }
+
+    // =========================================================================
+    // 17. After Image: +1 block per card played
+    //     Set AFTER_IMAGE=1. Play 3 Strike_R cards.
+    //     After Image triggers on each card play, granting 1 block each.
+    //     Total block = 3 (from After Image only; Strikes give no block).
+    // =========================================================================
+    #[test]
+    fn after_image_blocks_per_card() {
+        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        engine.state.energy = 5;
+
+        // Set After Image status directly
+        engine.state.player.set_status(sid::AFTER_IMAGE, 1);
+
+        assert_eq!(engine.state.player.block, 0, "Should start with 0 block");
+
+        // Play 3 Strikes (attacks, no block from card itself)
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+
+        // After Image grants 1 block per card played = 3 block total
+        assert_eq!(engine.state.player.block, 3,
+            "After Image should grant 1 block per card played (3 cards = 3 block)");
+    }
+
+    // =========================================================================
+    // 18. Burst: replays next Skill
+    //     Play Burst, then Backflip (5 block, draw 2).
+    //     Burst replays the skill: 5+5=10 block, 2+2=4 draws.
+    // =========================================================================
+    #[test]
+    fn burst_replays_skill() {
+        let mut engine = engine_with(
+            make_deck(&["Burst", "Backflip", "Strike_R", "Strike_R", "Strike_R",
+                        "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"]),
+            50, 0,
+        );
+        engine.state.energy = 5;
+
+        ensure_in_hand(&mut engine, "Burst");
+        play_self(&mut engine, "Burst");
+        assert_eq!(engine.state.player.status(sid::BURST), 1,
+            "Burst should set BURST status to 1");
+
+        let hand_before = engine.state.hand.len();
+        ensure_in_hand(&mut engine, "Backflip");
+        play_self(&mut engine, "Backflip");
+
+        // Backflip: 5 block + draw 2, replayed by Burst: another 5 block + draw 2
+        assert_eq!(engine.state.player.block, 10,
+            "Burst + Backflip: 5 + 5 = 10 block");
+
+        // Burst status should be consumed
+        assert_eq!(engine.state.player.status(sid::BURST), 0,
+            "Burst status should be consumed after replaying a skill");
+    }
+
+    // =========================================================================
+    // 19. Noxious Fumes: 2 enemies, each gets 2 poison
+    //     Set NOXIOUS_FUMES=2 on player. End turn.
+    //     At start of new player turn, both enemies get 2 poison.
+    // =========================================================================
+    #[test]
+    fn noxious_fumes_two_enemies() {
+        let enemies = vec![
+            enemy("Louse1", 50, 50, 1, 0, 1),
+            enemy("Louse2", 50, 50, 1, 0, 1),
+        ];
+        let mut engine = engine_with_enemies(make_deck_n("Strike_R", 10), enemies, 3);
+        engine.state.energy = 5;
+
+        // Set Noxious Fumes status directly
+        engine.state.player.set_status(sid::NOXIOUS_FUMES, 2);
+
+        engine.state.player.block = 100;
+        end_turn(&mut engine);
+
+        // At start of new player turn, Noxious Fumes applies 2 poison to all enemies
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2,
+            "First enemy should have 2 poison from Noxious Fumes");
+        assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 2,
+            "Second enemy should have 2 poison from Noxious Fumes");
+    }
+
+    // =========================================================================
+    // 20. Wrath doubles outgoing damage
+    //     Enter Wrath stance, play Strike_R (6 base).
+    //     Expected: 6 * 2 = 12 damage.
+    // =========================================================================
+    #[test]
+    fn wrath_doubles_damage() {
+        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        engine.state.stance = Stance::Wrath;
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 38,
+            "Strike in Wrath: 6 * 2 = 12 damage, 50-12 = 38");
+    }
+
+    // =========================================================================
+    // 21. Divinity triples outgoing damage
+    //     Enter Divinity stance, play Strike_R (6 base).
+    //     Expected: 6 * 3 = 18 damage.
+    // =========================================================================
+    #[test]
+    fn divinity_triples_damage() {
+        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        engine.state.stance = Stance::Divinity;
+        ensure_in_hand(&mut engine, "Strike_R");
+        play_on_enemy(&mut engine, "Strike_R", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 32,
+            "Strike in Divinity: 6 * 3 = 18 damage, 50-18 = 32");
+    }
 }
