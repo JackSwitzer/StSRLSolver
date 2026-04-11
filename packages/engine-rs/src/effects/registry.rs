@@ -52,6 +52,8 @@ pub const BIT_GLASS_KNIFE: u8 = 22;
 pub const BIT_RITUAL_DAGGER: u8 = 23;
 pub const BIT_SEARING_BLOW: u8 = 24;
 pub const BIT_DAMAGE_RANDOM_X_TIMES: u8 = 25;
+// on_draw hooks (continued, bits 26+)
+pub const BIT_DEUS_EX_MACHINA: u8 = 26;
 
 // ===========================================================================
 // Hook function type aliases
@@ -205,6 +207,12 @@ pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
         tag: "copy_on_draw",
         bit_index: 12,
         on_draw: Some(super::hooks_draw::hook_copy_on_draw),
+        ..CardEffectEntry::NONE
+    },
+    CardEffectEntry {
+        tag: "deus_ex_machina",
+        bit_index: 26,
+        on_draw: Some(super::hooks_draw::hook_deus_ex_machina_on_draw),
         ..CardEffectEntry::NONE
     },
     // ===== on_discard hooks (bits 13-14) =====

@@ -33,6 +33,10 @@ pub struct TurnStartEffect {
     pub mayhem_draw: i32,
     pub tools_of_the_trade_draw: i32,
     pub tools_of_the_trade_discard: i32,
+    pub foresight_scry: i32,
+    pub add_miracles: i32,
+    pub simmering_fury_draw: i32,
+    pub simmering_fury_wrath: bool,
 }
 
 impl TurnStartEffect {
@@ -54,6 +58,10 @@ impl TurnStartEffect {
         self.mayhem_draw += other.mayhem_draw;
         self.tools_of_the_trade_draw += other.tools_of_the_trade_draw;
         self.tools_of_the_trade_discard += other.tools_of_the_trade_discard;
+        self.foresight_scry += other.foresight_scry;
+        self.add_miracles += other.add_miracles;
+        self.simmering_fury_draw += other.simmering_fury_draw;
+        self.simmering_fury_wrath = self.simmering_fury_wrath || other.simmering_fury_wrath;
     }
 }
 
@@ -235,6 +243,26 @@ pub(crate) fn hook_tools_of_the_trade(amt: i32, _entity: &mut EntityState) -> Tu
 
 pub(crate) fn hook_devotion(amt: i32, _entity: &mut EntityState) -> TurnStartEffect {
     TurnStartEffect { mantra_gain: amt, ..Default::default() }
+}
+
+pub(crate) fn hook_foresight(amt: i32, _entity: &mut EntityState) -> TurnStartEffect {
+    TurnStartEffect { foresight_scry: amt, ..Default::default() }
+}
+
+pub(crate) fn hook_collect_miracles(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
+    // One-shot: consume after use (set on play, fires next turn start)
+    entity.set_status(sid::COLLECT_MIRACLES, 0);
+    TurnStartEffect { add_miracles: amt, ..Default::default() }
+}
+
+pub(crate) fn hook_simmering_fury(amt: i32, entity: &mut EntityState) -> TurnStartEffect {
+    // One-shot: consume after use
+    entity.set_status(sid::SIMMERING_FURY, 0);
+    TurnStartEffect {
+        simmering_fury_draw: amt,
+        simmering_fury_wrath: true,
+        ..Default::default()
+    }
 }
 
 // ===========================================================================

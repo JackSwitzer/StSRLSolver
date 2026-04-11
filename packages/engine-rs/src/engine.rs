@@ -564,13 +564,16 @@ impl CombatEngine {
     }
 
     fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
-        // Omniscience: move selected card from draw pile to hand, then play it for free
+        // Omniscience: move selected card from draw pile to hand, play it for free,
+        // then add a copy at cost 0 to hand (MCTS approximation of "play it twice").
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
                 if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
                     let mut card = self.state.draw_pile.remove(idx);
                     card.cost = 0;
                     card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
+                    // Keep a copy before playing (play_card may exhaust/discard it)
+                    let copy = card;
                     self.state.hand.push(card);
                     let hand_idx = self.state.hand.len() - 1;
                     let target = if self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id).target == CardTarget::Enemy {
@@ -579,6 +582,13 @@ impl CombatEngine {
                         -1
                     };
                     self.play_card(hand_idx, target);
+                    // Add a cost-0 copy to hand (second play, MCTS lets agent decide when)
+                    if self.state.hand.len() < 10 {
+                        let mut second = copy;
+                        second.cost = 0;
+                        second.flags |= crate::combat_types::CardInstance::FLAG_FREE;
+                        self.state.hand.push(second);
+                    }
                 }
             }
         }
@@ -876,6 +886,27 @@ impl CombatEngine {
                 self.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
                 return; // Pause turn start; resumes after choice
             }
+        }
+
+        // Foresight: scry N at start of turn (post-draw)
+        if fx.foresight_scry > 0 {
+            self.do_scry(fx.foresight_scry);
+        }
+
+        // Collect: add Miracle cards to hand (one-shot, set on previous turn)
+        for _ in 0..fx.add_miracles {
+            let miracle = self.temp_card("Miracle");
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(miracle);
+            }
+        }
+
+        // Simmering Fury: enter Wrath + draw cards (one-shot)
+        if fx.simmering_fury_wrath {
+            self.change_stance(Stance::Wrath);
+        }
+        if fx.simmering_fury_draw > 0 {
+            self.draw_cards(fx.simmering_fury_draw);
         }
 
         // WarpedTongs: upgrade a random card in hand each turn
@@ -2141,6 +2172,24 @@ impl CombatEngine {
                 // Endless Agony: add a copy to hand when drawn (via EffectFlags)
                 if card_flags.has(effects::registry::BIT_COPY_ON_DRAW) && self.state.hand.len() < 10 {
                     self.state.hand.push(drawn);
+                }
+
+                // Deus Ex Machina: when drawn, add Miracles to hand and exhaust self
+                if card_flags.has(effects::registry::BIT_DEUS_EX_MACHINA) {
+                    let miracle_count = card_def.base_magic.max(1);
+                    // Remove from hand (it was just pushed) and exhaust
+                    if let Some(pos) = self.state.hand.iter().rposition(|c| c.def_id == drawn.def_id) {
+                        let removed = self.state.hand.remove(pos);
+                        self.state.exhaust_pile.push(removed);
+                        self.trigger_on_exhaust();
+                    }
+                    // Add Miracles to hand
+                    for _ in 0..miracle_count {
+                        if self.state.hand.len() < 10 {
+                            let miracle = self.temp_card("Miracle");
+                            self.state.hand.push(miracle);
+                        }
+                    }
                 }
             }
         }

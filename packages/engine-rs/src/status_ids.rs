@@ -306,9 +306,11 @@ pub mod sid {
     pub const RETAIN_HAND_FLAG: StatusId = StatusId(244);
     pub const BIASED_COG_FOCUS_LOSS: StatusId = StatusId(245);
     pub const HP_LOSS_THIS_COMBAT: StatusId = StatusId(246);
+    pub const COLLECT_MIRACLES: StatusId = StatusId(247);
+    pub const SIMMERING_FURY: StatusId = StatusId(248);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 247;
+    pub const NUM_IDS: usize = 249;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -592,6 +594,8 @@ static STATUS_NAMES: &[&str] = &[
     "RetainHandFlag",     // 244
     "BiasedCogFocusLoss", // 245
     "HpLossThisCombat",   // 246
+    "CollectMiracles",    // 247
+    "SimmeringFury",      // 248
 ];
 
 #[cfg(test)]

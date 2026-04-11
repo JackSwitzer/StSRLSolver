@@ -216,6 +216,21 @@ pub static POWER_REGISTRY: &[PowerRegistryEntry] = &[
         on_turn_start: Some(super::hooks::hook_devotion),
         ..PowerRegistryEntry::NONE
     },
+    PowerRegistryEntry {
+        tag: "foresight", status_id: sid::FORESIGHT,
+        on_turn_start: Some(super::hooks::hook_foresight),
+        ..PowerRegistryEntry::NONE
+    },
+    PowerRegistryEntry {
+        tag: "", status_id: sid::COLLECT_MIRACLES,
+        on_turn_start: Some(super::hooks::hook_collect_miracles),
+        ..PowerRegistryEntry::NONE
+    },
+    PowerRegistryEntry {
+        tag: "", status_id: sid::SIMMERING_FURY,
+        on_turn_start: Some(super::hooks::hook_simmering_fury),
+        ..PowerRegistryEntry::NONE
+    },
 
     // ---- Turn End powers ----
     PowerRegistryEntry {

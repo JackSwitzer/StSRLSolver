@@ -872,14 +872,14 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         deus_ex_machina_java_parity,
-        base = ("DeusExMachina", "Deus Ex Machina", -2, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, true, None, []),
-        plus = ("DeusExMachina+", "Deus Ex Machina+", -2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, true, None, []),
+        base = ("DeusExMachina", "Deus Ex Machina", -2, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, true, None, ["unplayable", "deus_ex_machina"]),
+        plus = ("DeusExMachina+", "Deus Ex Machina+", -2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, true, None, ["unplayable", "deus_ex_machina"]),
         {}
     );
     watcher_test!(
         foresight_java_parity,
-        base = ("Wireheading", "Foresight", 1, -1, -1, 3, CardType::Power, CardTarget::None, false, None, []),
-        plus = ("Wireheading+", "Foresight+", 1, -1, -1, 4, CardType::Power, CardTarget::None, false, None, []),
+        base = ("Wireheading", "Foresight", 1, -1, -1, 3, CardType::Power, CardTarget::None, false, None, ["foresight"]),
+        plus = ("Wireheading+", "Foresight+", 1, -1, -1, 4, CardType::Power, CardTarget::None, false, None, ["foresight"]),
         {}
     );
     watcher_test!(
