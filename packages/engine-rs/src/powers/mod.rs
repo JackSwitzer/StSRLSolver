@@ -23,7 +23,7 @@ pub mod hooks;
 pub mod registry;
 pub mod defs;
 mod buffs;
-mod debuffs;
+pub(crate) mod debuffs;
 mod enemy_powers;
 
 // ---------------------------------------------------------------------------

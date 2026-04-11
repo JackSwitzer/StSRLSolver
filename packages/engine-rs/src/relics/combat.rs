@@ -29,18 +29,18 @@ pub fn apply_combat_start_relics(state: &mut CombatState) {
                 state.player.add_status(sid::VIGOR, 8);
             }
             "Bag of Marbles" => {
-                // Apply 1 Vulnerable to ALL enemies
+                // Apply 1 Vulnerable to ALL enemies (respects Artifact)
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status(sid::VULNERABLE, 1);
+                        crate::powers::debuffs::apply_debuff(&mut enemy.entity, sid::VULNERABLE, 1);
                     }
                 }
             }
             "Red Mask" | "RedMask" => {
-                // Apply 1 Weak to ALL enemies
+                // Apply 1 Weak to ALL enemies (respects Artifact)
                 for enemy in &mut state.enemies {
                     if enemy.is_alive() {
-                        enemy.entity.add_status(sid::WEAKENED, 1);
+                        crate::powers::debuffs::apply_debuff(&mut enemy.entity, sid::WEAKENED, 1);
                     }
                 }
             }

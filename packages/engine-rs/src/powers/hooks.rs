@@ -291,8 +291,9 @@ pub(crate) fn hook_end_omega(amt: i32, _entity: &mut EntityState) -> TurnEndEffe
 }
 
 pub(crate) fn hook_end_combust(amt: i32, _entity: &mut EntityState) -> TurnEndEffect {
-    // Combust: lose HP and deal damage to all enemies (scales with stacks)
-    TurnEndEffect { combust_damage: amt, combust_hp_loss: amt, ..Default::default() }
+    // Combust: always lose exactly 1 HP, deal damage = stacks to all enemies.
+    // Java: AbstractPlayer.damage(new DamageInfo(this.owner, 1, DamageType.THORNS))
+    TurnEndEffect { combust_damage: amt, combust_hp_loss: 1, ..Default::default() }
 }
 
 pub(crate) fn hook_end_rage(_amt: i32, entity: &mut EntityState) -> TurnEndEffect {
