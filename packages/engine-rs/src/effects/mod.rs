@@ -24,6 +24,8 @@ pub mod hooks_orb;
 pub mod declarative;
 pub mod interpreter;
 pub mod fx;
+pub mod trigger;
+pub mod entity_def;
 
 // Future hook files (Step 3):
 pub mod hooks_simple;

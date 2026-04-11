@@ -66,6 +66,10 @@ pub enum AmountSource {
     PlayerBlock,
     /// Discard pile size.
     DiscardPileSize,
+    /// Current value of a status (e.g., read Metallicize stacks).
+    StatusValue(crate::ids::StatusId),
+    /// Percentage of max HP (e.g., 7 = 7% of max HP).
+    PercentMaxHp(i32),
     /// Draw pile size divided by N (Aggregate: draw_pile / 4).
     DrawPileDivN(i32),
     /// Number of attacks played this turn (Finisher).
@@ -200,6 +204,18 @@ pub enum SimpleEffect {
     SetFlag(BoolFlag),
     /// Shuffle discard pile into draw pile.
     ShuffleDiscardIntoDraw,
+    /// Deal flat damage to a target (no strength/stance modifiers).
+    DealDamage(Target, AmountSource),
+    /// Heal HP capped at max HP.
+    HealHp(Target, AmountSource),
+    /// Increment a counter status; fires associated effect at threshold.
+    IncrementCounter(crate::ids::StatusId, i32),
+    /// Modify max HP (positive = increase, negative = decrease).
+    ModifyMaxHp(AmountSource),
+    /// Modify gold (positive = gain, negative = lose).
+    ModifyGold(AmountSource),
+    /// End combat as a flee (player escapes).
+    FleeCombat,
 }
 
 /// A card's effect — can be simple, conditional, choice-based, or complex.

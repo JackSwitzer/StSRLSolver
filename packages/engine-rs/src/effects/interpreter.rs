@@ -5,6 +5,7 @@ use crate::cards::CardType;
 use crate::damage;
 use crate::engine::{CombatEngine, CombatPhase, ChoiceOption, ChoiceReason};
 use crate::effects::declarative::*;
+use crate::effects::trigger::TriggerContext;
 use crate::effects::types::CardPlayContext;
 use crate::ids::StatusId;
 use crate::powers;
@@ -178,6 +179,46 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
             let mut cards = std::mem::take(&mut engine.state.discard_pile);
             engine.state.draw_pile.append(&mut cards);
             engine.shuffle_draw_pile();
+        }
+
+        // -- Deal flat damage (no strength/stance modifiers) --
+        SimpleEffect::DealDamage(target, ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            if amount > 0 {
+                deal_flat_damage(engine, ctx, target, amount);
+            }
+        }
+
+        // -- Heal HP (capped at max) --
+        SimpleEffect::HealHp(_target, ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            if amount > 0 {
+                engine.heal_player(amount);
+            }
+        }
+
+        // -- Increment counter status --
+        SimpleEffect::IncrementCounter(status_id, _threshold) => {
+            engine.state.player.add_status(status_id, 1);
+        }
+
+        // -- Modify max HP --
+        SimpleEffect::ModifyMaxHp(ref amount_src) => {
+            let amount = resolve_amount(engine, ctx, amount_src);
+            engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
+            if engine.state.player.hp > engine.state.player.max_hp {
+                engine.state.player.hp = engine.state.player.max_hp;
+            }
+        }
+
+        // -- Modify gold (no-op in combat context; wired in Wave 2) --
+        SimpleEffect::ModifyGold(_amount_src) => {
+            // Gold is on RunState, not CombatEngine. Handled at dispatch level.
+        }
+
+        // -- Flee combat --
+        SimpleEffect::FleeCombat => {
+            engine.state.combat_over = true;
         }
     }
 }
@@ -370,7 +411,97 @@ fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSour
                 })
                 .count() as i32
         }
+        AmountSource::StatusValue(status_id) => {
+            engine.state.player.status(status_id)
+        }
+        AmountSource::PercentMaxHp(pct) => {
+            (engine.state.player.max_hp * pct) / 100
+        }
     }
+}
+
+// ===========================================================================
+// Deal flat damage (no strength/stance — used by relics, powers)
+// ===========================================================================
+
+fn deal_flat_damage(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    target: Target,
+    amount: i32,
+) {
+    match target {
+        Target::Player => {
+            engine.player_lose_hp(amount);
+        }
+        Target::SelectedEnemy => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                engine.deal_damage_to_enemy(idx as usize, amount);
+            }
+        }
+        Target::AllEnemies => {
+            let living = engine.state.living_enemy_indices();
+            for i in living {
+                engine.deal_damage_to_enemy(i, amount);
+            }
+        }
+        Target::RandomEnemy => {
+            let living = engine.state.living_enemy_indices();
+            if !living.is_empty() {
+                let idx = living[engine.rng_gen_range(0..living.len())];
+                engine.deal_damage_to_enemy(idx, amount);
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Trigger-based effect execution (no CardPlayContext needed)
+// ===========================================================================
+
+/// Execute a slice of declarative effects from a trigger context.
+/// Used by relics, powers, and potions that fire effects outside
+/// of the card play pipeline.
+///
+/// This creates a synthetic CardPlayContext with no card data,
+/// then delegates to the existing effect interpreter.
+pub fn execute_trigger_effects(
+    engine: &mut CombatEngine,
+    trigger_ctx: &TriggerContext,
+    effects: &[Effect],
+) {
+    // Build a minimal synthetic CardPlayContext.
+    // Card-relative AmountSource variants (Magic, Block, Damage) will
+    // resolve to 0/1 — callers should use Fixed() for trigger effects.
+    static EMPTY_CARD: crate::cards::CardDef = crate::cards::CardDef {
+        id: "",
+        name: "",
+        card_type: CardType::Skill,
+        target: crate::cards::CardTarget::SelfTarget,
+        cost: 0,
+        base_damage: 0,
+        base_block: 0,
+        base_magic: 0,
+        exhaust: false,
+        enter_stance: None,
+        effects: &[],
+        effect_data: &[],
+        complex_hook: None,
+    };
+
+    let ctx = CardPlayContext {
+        card: &EMPTY_CARD,
+        card_inst: crate::combat_types::CardInstance::new(0),
+        target_idx: trigger_ctx.target_idx,
+        x_value: 0,
+        pen_nib_active: false,
+        vigor: 0,
+        total_unblocked_damage: 0,
+        enemy_killed: false,
+    };
+
+    execute_effects(engine, &ctx, effects);
 }
 
 // ===========================================================================
