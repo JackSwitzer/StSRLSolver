@@ -1,0 +1,17 @@
+use crate::cards::prelude::*;
+
+pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // ---- Silent Common: Prepared ---- (cost 0, draw 1, discard 1; upgrade: draw 2 discard 2)
+    insert(cards, CardDef {
+                id: "Prepared", name: "Prepared", card_type: CardType::Skill,
+                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+                base_magic: 1, exhaust: false, enter_stance: None,
+                effects: &["draw", "discard"], effect_data: &[], complex_hook: None,
+            });
+    insert(cards, CardDef {
+                id: "Prepared+", name: "Prepared+", card_type: CardType::Skill,
+                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+                base_magic: 2, exhaust: false, enter_stance: None,
+                effects: &["draw", "discard"], effect_data: &[], complex_hook: None,
+            });
+}

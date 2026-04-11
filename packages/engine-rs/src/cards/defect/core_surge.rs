@@ -1,0 +1,17 @@
+use crate::cards::prelude::*;
+
+pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // Core Surge: 1 cost, 11 dmg, gain 1 Artifact, exhaust
+    insert(cards, CardDef {
+                id: "Core Surge", name: "Core Surge", card_type: CardType::Attack,
+                target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,
+                base_magic: 1, exhaust: true, enter_stance: None,
+                effects: &["gain_artifact"], effect_data: &[], complex_hook: None,
+            });
+    insert(cards, CardDef {
+                id: "Core Surge+", name: "Core Surge+", card_type: CardType::Attack,
+                target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,
+                base_magic: 1, exhaust: true, enter_stance: None,
+                effects: &["gain_artifact"], effect_data: &[], complex_hook: None,
+            });
+}

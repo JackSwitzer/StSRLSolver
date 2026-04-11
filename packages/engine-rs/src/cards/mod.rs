@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use crate::combat_types::CardInstance;
 
+mod prelude;
 mod watcher;
 mod ironclad;
 mod silent;
@@ -16,6 +17,11 @@ mod colorless;
 mod curses;
 mod status;
 mod temp;
+
+/// Insert a card definition into the registry map.
+pub(crate) fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
+    map.insert(card.id, card);
+}
 
 
 // ---------------------------------------------------------------------------
@@ -159,9 +165,7 @@ impl CardRegistry {
         CardRegistry { cards, id_to_def, name_to_id, id_to_name, strike_flags, effect_flags_vec }
     }
 
-    fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
-        map.insert(card.id, card);
-    }
+
 
     /// Look up a card by ID. Falls back to a default attack if not found.
     pub fn get(&self, card_id: &str) -> Option<&CardDef> {
