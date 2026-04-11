@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Distraction", name: "Distraction", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["random_skill_to_hand"], effect_data: &[], complex_hook: None,
+                effects: &["random_skill_to_hand"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_distraction),
             });
     insert(cards, CardDef {
                 id: "Distraction+", name: "Distraction+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["random_skill_to_hand"], effect_data: &[], complex_hook: None,
+                effects: &["random_skill_to_hand"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_distraction),
             });
 }

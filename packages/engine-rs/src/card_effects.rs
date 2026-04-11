@@ -213,7 +213,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         } else {
             1
         };
-        if !card.effects.contains(&"block_if_skill") && !card.effects.contains(&"block_if_no_block") {
+        if !card.effects.contains(&"block_if_skill") && !card.effects.contains(&"block_if_no_block") && !card.effects.contains(&"second_wind") {
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let block = damage::calculate_block(

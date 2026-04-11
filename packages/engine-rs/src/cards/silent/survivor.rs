@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Survivor", name: "Survivor", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["discard"], effect_data: &[], complex_hook: None,
+                effects: &["discard"], effect_data: &[E::ChooseCards { source: P::Hand, filter: CardFilter::All, action: ChoiceAction::Discard, min_picks: A::Fixed(1), max_picks: A::Fixed(1) }], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Survivor+", name: "Survivor+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 11,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["discard"], effect_data: &[], complex_hook: None,
+                effects: &["discard"], effect_data: &[E::ChooseCards { source: P::Hand, filter: CardFilter::All, action: ChoiceAction::Discard, min_picks: A::Fixed(1), max_picks: A::Fixed(1) }], complex_hook: None,
             });
 }

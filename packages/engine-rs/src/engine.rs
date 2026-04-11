@@ -431,6 +431,12 @@ impl CombatEngine {
                 self.trigger_on_exhaust();
             }
         }
+        // Burning Pact: draw cards after exhaust choice resolves
+        let pending = self.state.player.status(sid::PENDING_DRAW);
+        if pending > 0 {
+            self.state.player.set_status(sid::PENDING_DRAW, 0);
+            self.draw_cards(pending);
+        }
     }
 
     fn resolve_put_on_top(&mut self, ctx: ChoiceContext) {

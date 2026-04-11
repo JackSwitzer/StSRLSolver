@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Piercing Wail", name: "Piercing Wail", card_type: CardType::Skill,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 6, exhaust: true, enter_stance: None,
-                effects: &["reduce_strength_all_temp"], effect_data: &[], complex_hook: None,
+                effects: &["reduce_strength_all_temp"], effect_data: &[E::Simple(SE::AddStatus(T::AllEnemies, sid::LOSE_STRENGTH, A::Magic))], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Piercing Wail+", name: "Piercing Wail+", card_type: CardType::Skill,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 8, exhaust: true, enter_stance: None,
-                effects: &["reduce_strength_all_temp"], effect_data: &[], complex_hook: None,
+                effects: &["reduce_strength_all_temp"], effect_data: &[E::Simple(SE::AddStatus(T::AllEnemies, sid::LOSE_STRENGTH, A::Magic))], complex_hook: None,
             });
 }

@@ -1125,3 +1125,135 @@ pub fn hook_jack_of_all_trades(engine: &mut CombatEngine, ctx: &CardPlayContext)
         engine.state.hand.push(card);
     }
 }
+
+// =========================================================================
+// Burning Pact: exhaust 1 card from hand, then draw N
+// =========================================================================
+
+/// Burning Pact: choose 1 card to exhaust from hand, then draw base_magic cards.
+/// Sets PENDING_DRAW so resolve_exhaust_from_hand draws after the exhaust.
+pub fn hook_burning_pact(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let draw_count = ctx.card.base_magic.max(1);
+    if !engine.state.hand.is_empty() {
+        engine.state.player.set_status(sid::PENDING_DRAW, draw_count);
+        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
+            .map(|i| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 1, 1);
+    }
+}
+
+// =========================================================================
+// All-Out Attack: discard 1 random card from hand
+// =========================================================================
+
+/// All-Out Attack: discard 1 random card from hand.
+pub fn hook_discard_random(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    if !engine.state.hand.is_empty() {
+        let idx = engine.rng_gen_range(0..engine.state.hand.len());
+        let card = engine.state.hand.remove(idx);
+        engine.state.discard_pile.push(card);
+        engine.on_card_discarded(card);
+    }
+}
+
+// =========================================================================
+// Calculated Gamble: discard entire hand, draw that many
+// =========================================================================
+
+/// Calculated Gamble: discard entire hand, draw that many cards.
+pub fn hook_calculated_gamble(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    let hand_count = engine.state.hand.len() as i32;
+    let cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
+    for card in cards {
+        engine.state.discard_pile.push(card);
+        engine.on_card_discarded(card);
+    }
+    if hand_count > 0 {
+        engine.draw_cards(hand_count);
+    }
+}
+
+// =========================================================================
+// Expertise: draw until hand has N cards
+// =========================================================================
+
+/// Expertise: draw until hand has base_magic cards.
+pub fn hook_expertise(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let target_size = ctx.card.base_magic.max(1);
+    let to_draw = (target_size - engine.state.hand.len() as i32).max(0);
+    if to_draw > 0 {
+        engine.draw_cards(to_draw);
+    }
+}
+
+// =========================================================================
+// Bouncing Flask: apply 3 Poison to random enemies N times
+// =========================================================================
+
+/// Bouncing Flask: apply 3 Poison to a random enemy, repeated base_magic times.
+pub fn hook_bouncing_flask(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let bounces = ctx.card.base_magic.max(1);
+    let poison_per_bounce = 3;
+    for _ in 0..bounces {
+        let living = engine.state.living_enemy_indices();
+        if living.is_empty() { break; }
+        let idx = living[engine.rng_gen_range(0..living.len())];
+        powers::apply_debuff(
+            &mut engine.state.enemies[idx].entity,
+            sid::POISON,
+            poison_per_bounce,
+        );
+    }
+}
+
+// =========================================================================
+// Storm of Steel: discard hand, add 1 Shiv per card discarded
+// =========================================================================
+
+/// Storm of Steel: discard entire hand, add 1 Shiv per card discarded.
+/// Upgraded version adds Shiv+ instead of Shiv.
+pub fn hook_storm_of_steel(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let hand_count = engine.state.hand.len();
+    let cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
+    for card in cards {
+        engine.state.discard_pile.push(card);
+        engine.on_card_discarded(card);
+    }
+    let shiv_name = if ctx.card.id.ends_with('+') { "Shiv+" } else { "Shiv" };
+    for _ in 0..hand_count {
+        if engine.state.hand.len() >= 10 { break; }
+        let shiv = engine.temp_card(shiv_name);
+        engine.state.hand.push(shiv);
+    }
+}
+
+// =========================================================================
+// Nightmare: choose a card in hand, add N copies to hand (MCTS simplified)
+// =========================================================================
+
+/// Nightmare: choose a card in hand, add base_magic copies to hand.
+/// MCTS simplification: adds copies immediately (real game adds next turn).
+/// Uses DualWield choice reason -- max_picks encodes the copy count.
+pub fn hook_nightmare(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let copies = ctx.card.base_magic.max(1) as usize;
+    if !engine.state.hand.is_empty() && engine.state.hand.len() + copies <= 10 {
+        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
+            .map(|i| ChoiceOption::HandCard(i))
+            .collect();
+        engine.begin_choice(ChoiceReason::DualWield, options, 1, copies);
+    }
+}
+
+// =========================================================================
+// Distraction: add random Skill to hand at cost 0 (MCTS approx)
+// =========================================================================
+
+/// Distraction: MCTS approximation -- add Backflip at cost 0 to hand.
+pub fn hook_distraction(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    if engine.state.hand.len() < 10 {
+        let mut card = engine.temp_card("Backflip");
+        card.cost = 0;
+        engine.state.hand.push(card);
+    }
+}

@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Calculated Gamble", name: "Calculated Gamble", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["calculated_gamble"], effect_data: &[], complex_hook: None,
+                effects: &["calculated_gamble"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_calculated_gamble),
             });
     insert(cards, CardDef {
                 id: "Calculated Gamble+", name: "Calculated Gamble+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["calculated_gamble"], effect_data: &[], complex_hook: None,
+                effects: &["calculated_gamble"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_calculated_gamble),
             });
 }

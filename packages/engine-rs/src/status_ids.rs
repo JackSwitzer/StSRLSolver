@@ -310,9 +310,10 @@ pub mod sid {
     pub const SIMMERING_FURY: StatusId = StatusId(248);
     pub const FROST_CHANNELED: StatusId = StatusId(249);
     pub const CLAW_BONUS: StatusId = StatusId(250);
+    pub const PENDING_DRAW: StatusId = StatusId(251);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 251;
+    pub const NUM_IDS: usize = 252;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -600,6 +601,7 @@ static STATUS_NAMES: &[&str] = &[
     "SimmeringFury",      // 248
     "FrostChanneled",     // 249
     "ClawBonus",          // 250
+    "PendingDraw",        // 251
 ];
 
 #[cfg(test)]
