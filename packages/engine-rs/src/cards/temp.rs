@@ -2,19 +2,9 @@ use std::collections::HashMap;
 use super::{CardDef, CardType, CardTarget};
 
 pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
-        // Beta: 2 cost, shuffle Omega into draw pile, exhaust (upgrade: cost 1)
-        insert(cards, CardDef {
-            id: "Beta", name: "Beta", card_type: CardType::Skill,
-            target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &[], effect_data: &[], complex_hook: None,
-        });
-        insert(cards, CardDef {
-            id: "Beta+", name: "Beta+", card_type: CardType::Skill,
-            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
-            base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &[], effect_data: &[], complex_hook: None,
-        });
+        // Beta: registered in watcher/beta.rs (with effect_data for AddCard Omega)
+        // Insight: registered in watcher/insight.rs (with effect_data for DrawCards)
+
         // Omega: 3 cost, power, deal 50 dmg to all enemies at end of each turn
         insert(cards, CardDef {
             id: "Omega", name: "Omega", card_type: CardType::Power,
@@ -41,19 +31,8 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: 0, exhaust: false, enter_stance: None,
             effects: &["multi_hit"], effect_data: &[], complex_hook: None,
         });
-        // Insight: 0 cost, draw 2, retain, exhaust
-        insert(cards, CardDef {
-            id: "Insight", name: "Insight", card_type: CardType::Skill,
-            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
-            base_magic: 2, exhaust: true, enter_stance: None,
-            effects: &["draw", "retain"], effect_data: &[], complex_hook: None,
-        });
-        insert(cards, CardDef {
-            id: "Insight+", name: "Insight+", card_type: CardType::Skill,
-            target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
-            base_magic: 3, exhaust: true, enter_stance: None,
-            effects: &["draw", "retain"], effect_data: &[], complex_hook: None,
-        });
+        // Insight: registered in watcher/insight.rs (with effect_data for DrawCards)
+
         // Safety: 1 cost, 12 block, retain, exhaust
         insert(cards, CardDef {
             id: "Safety", name: "Safety", card_type: CardType::Skill,
