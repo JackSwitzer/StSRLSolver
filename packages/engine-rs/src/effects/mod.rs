@@ -26,6 +26,7 @@ pub mod interpreter;
 pub mod fx;
 pub mod trigger;
 pub mod entity_def;
+pub mod dispatch;
 
 // Future hook files (Step 3):
 pub mod hooks_simple;

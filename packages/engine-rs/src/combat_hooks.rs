@@ -179,8 +179,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.player.hp -= result.hp_loss;
                 engine.state.total_damage_taken += result.hp_loss;
 
-                // Fire on_hp_loss relics (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
-                relics::on_hp_loss(&mut engine.state, result.hp_loss);
+                // Fire on_hp_loss relics (via unified dispatch)
+                {
+                    let ctx = crate::effects::trigger::TriggerContext::empty();
+                    crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnPlayerHpLoss, &ctx);
+                }
 
                 // Rupture: gain Strength when losing HP from attack
                 let rupture = engine.state.player.status(sid::RUPTURE);
@@ -252,7 +255,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.total_damage_dealt += hp_dmg_t;
                 if e.entity.hp <= 0 {
                     e.entity.hp = 0;
-                    relics::on_enemy_death(&mut engine.state, enemy_idx);
+                    {
+                        let ctx = crate::effects::trigger::TriggerContext {
+                            card_type: None,
+                            is_first_turn: false,
+                            target_idx: enemy_idx as i32,
+                        };
+                        crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
+                    }
                 }
                 if hp_dmg_t > 0 {
                     on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
@@ -270,7 +280,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.state.total_damage_dealt += hp_dmg_f;
                 if e.entity.hp <= 0 {
                     e.entity.hp = 0;
-                    relics::on_enemy_death(&mut engine.state, enemy_idx);
+                    {
+                        let ctx = crate::effects::trigger::TriggerContext {
+                            card_type: None,
+                            is_first_turn: false,
+                            target_idx: enemy_idx as i32,
+                        };
+                        crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
+                    }
                 }
                 if hp_dmg_f > 0 {
                     on_enemy_damaged(engine, enemy_idx, hp_dmg_f);

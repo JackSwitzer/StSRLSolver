@@ -951,10 +951,10 @@ impl RunEngine {
                 // Combat win reward
                 reward += 1.0;
 
-                // Apply on_victory relic effects (Burning Blood, Black Blood, Meat on the Bone, etc.)
-                let heal = relics::on_victory(&mut engine.state);
-                if heal > 0 {
-                    engine.state.heal_player(heal);
+                // Apply on_victory relic effects (via unified dispatch)
+                {
+                    let ctx = crate::effects::trigger::TriggerContext::empty();
+                    crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::CombatVictory, &ctx);
                 }
 
                 // Self Repair: heal at end of combat
