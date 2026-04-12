@@ -2,7 +2,6 @@
 //! Stub: death prevention handled in check_fairy_revive pipeline.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition};
 
 static TRIGGERS: [TriggeredEffect; 0] = [];
 

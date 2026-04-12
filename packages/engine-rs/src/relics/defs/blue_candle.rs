@@ -1,7 +1,7 @@
 //! Blue Candle: curse cards become playable (1 HP + exhaust).
 //! Passive check via has_relic in card playability pipeline.
 
-use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::entity_def::{EntityDef, EntityKind};
 
 pub static DEF: EntityDef = EntityDef {
     id: "Blue Candle",
