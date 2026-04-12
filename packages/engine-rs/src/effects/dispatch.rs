@@ -25,10 +25,14 @@ pub fn dispatch_trigger(engine: &mut CombatEngine, trigger: Trigger, ctx: &Trigg
         execute_entity_triggers(engine, def, trigger, ctx);
     }
 
-    // 2. Power defs — active if the power has matching triggers
-    //    Powers check their own status inside the effects (via StatusValue).
-    //    We still skip entirely if no trigger matches.
+    // 2. Power defs — active if the player has the power's status guard > 0.
+    //    Skip entirely if the guard status is not present.
     for def in crate::powers::defs::POWER_DEFS {
+        if let Some(guard) = def.status_guard {
+            if engine.state.player.status(guard) <= 0 {
+                continue;
+            }
+        }
         execute_entity_triggers(engine, def, trigger, ctx);
     }
 }

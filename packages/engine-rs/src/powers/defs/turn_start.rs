@@ -30,6 +30,7 @@ pub static DEF_DEMON_FORM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &DEMON_FORM_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::DEMON_FORM),
 };
 
 // ===========================================================================
@@ -55,6 +56,7 @@ pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &NOXIOUS_FUMES_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::NOXIOUS_FUMES),
 };
 
 // ===========================================================================
@@ -82,6 +84,7 @@ pub static DEF_BRUTALITY: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &BRUTALITY_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::BRUTALITY),
 };
 
 // ===========================================================================
@@ -105,6 +108,7 @@ pub static DEF_BERSERK: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &BERSERK_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::BERSERK),
 };
 
 // ===========================================================================
@@ -130,6 +134,7 @@ pub static DEF_INFINITE_BLADES: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &INFINITE_BLADES_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::INFINITE_BLADES),
 };
 
 // ===========================================================================
@@ -155,6 +160,7 @@ pub static DEF_BATTLE_HYMN: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &BATTLE_HYMN_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::BATTLE_HYMN),
 };
 
 // ===========================================================================
@@ -178,6 +184,7 @@ pub static DEF_DEVOTION: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &DEVOTION_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::DEVOTION),
 };
 
 // ===========================================================================
@@ -203,6 +210,7 @@ pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &WRAITH_FORM_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::WRAITH_FORM),
 };
 
 // ===========================================================================
@@ -213,9 +221,17 @@ pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
 // (incrementing the status value) needs complex_hook or engine support.
 // ===========================================================================
 
-static DEVA_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
-    AmountSource::StatusValue(sid::DEVA_FORM),
-))];
+static DEVA_FORM_EFFECTS: [Effect; 2] = [
+    Effect::Simple(SimpleEffect::GainEnergy(
+        AmountSource::StatusValue(sid::DEVA_FORM),
+    )),
+    // Escalate: increment status so next turn grants more energy
+    Effect::Simple(SimpleEffect::AddStatus(
+        Target::Player,
+        sid::DEVA_FORM,
+        AmountSource::Fixed(1),
+    )),
+];
 
 static DEVA_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
@@ -230,6 +246,7 @@ pub static DEF_DEVA_FORM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &DEVA_FORM_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::DEVA_FORM),
 };
 
 // ===========================================================================
@@ -255,6 +272,7 @@ pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &HELLO_WORLD_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::HELLO_WORLD),
 };
 
 // ===========================================================================
@@ -280,6 +298,7 @@ pub static DEF_MAGNETISM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &MAGNETISM_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::MAGNETISM),
 };
 
 // ===========================================================================

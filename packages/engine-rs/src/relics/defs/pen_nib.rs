@@ -15,4 +15,5 @@ pub static DEF: EntityDef = EntityDef {
     // via check_pen_nib() in combat.rs. Cannot be pure declarative because
     // it modifies the damage multiplier, not an effect list.
     complex_hook: None,
+    status_guard: None,
 };

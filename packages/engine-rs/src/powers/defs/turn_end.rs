@@ -29,6 +29,7 @@ pub static DEF_METALLICIZE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &METALLICIZE_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::METALLICIZE),
 };
 
 // ===========================================================================
@@ -52,6 +53,7 @@ pub static DEF_PLATED_ARMOR: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &PLATED_ARMOR_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::PLATED_ARMOR),
 };
 
 // ===========================================================================
@@ -82,6 +84,7 @@ pub static DEF_COMBUST: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &COMBUST_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::COMBUST),
 };
 
 // ===========================================================================
@@ -106,6 +109,7 @@ pub static DEF_OMEGA: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &OMEGA_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::OMEGA),
 };
 
 // ===========================================================================
@@ -129,6 +133,7 @@ pub static DEF_LIKE_WATER: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &LIKE_WATER_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::LIKE_WATER),
 };
 
 // ===========================================================================
@@ -154,6 +159,7 @@ pub static DEF_STUDY: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &STUDY_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::STUDY),
 };
 
 // ===========================================================================

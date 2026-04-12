@@ -29,6 +29,7 @@ pub static DEF_MENTAL_FORTRESS: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &MENTAL_FORTRESS_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::MENTAL_FORTRESS),
 };
 
 // ===========================================================================
@@ -52,6 +53,7 @@ pub static DEF_RUSHDOWN: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &RUSHDOWN_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::RUSHDOWN),
 };
 
 // ===========================================================================

@@ -17,4 +17,5 @@ pub static DEF: EntityDef = EntityDef {
     kind: EntityKind::Potion,
     triggers: &TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };

@@ -23,4 +23,5 @@ pub static DEF: EntityDef = EntityDef {
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };

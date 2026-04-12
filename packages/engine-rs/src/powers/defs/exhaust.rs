@@ -28,6 +28,7 @@ pub static DEF_FEEL_NO_PAIN: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &FEEL_NO_PAIN_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::FEEL_NO_PAIN),
 };
 
 // ===========================================================================
@@ -51,6 +52,7 @@ pub static DEF_DARK_EMBRACE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &DARK_EMBRACE_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::DARK_EMBRACE),
 };
 
 // ===========================================================================

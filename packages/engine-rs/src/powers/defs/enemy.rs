@@ -34,6 +34,7 @@ pub static DEF_RITUAL: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &RITUAL_TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };
 
 // ===========================================================================
@@ -58,6 +59,7 @@ pub static DEF_REGENERATION: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &REGENERATION_TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };
 
 // ===========================================================================
@@ -88,6 +90,7 @@ pub static DEF_GROWTH: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &GROWTH_TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };
 
 // ===========================================================================
@@ -111,6 +114,7 @@ pub static DEF_METALLICIZE_ENEMY: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &METALLICIZE_ENEMY_TRIGGERS,
     complex_hook: None,
+    status_guard: None,
 };
 
 // ===========================================================================

@@ -28,6 +28,7 @@ pub static DEF_AFTER_IMAGE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &AFTER_IMAGE_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::AFTER_IMAGE),
 };
 
 // ===========================================================================
@@ -51,6 +52,7 @@ pub static DEF_RAGE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &RAGE_TRIGGERS,
     complex_hook: None,
+    status_guard: Some(sid::RAGE),
 };
 
 // ===========================================================================

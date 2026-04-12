@@ -13,6 +13,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind};
 use crate::effects::trigger::TriggerContext;
 use crate::engine::CombatEngine;
+use crate::status_ids::sid;
 
 // ===========================================================================
 // Complex hook stubs
@@ -33,6 +34,7 @@ pub static DEF_ECHO_FORM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::ECHO_FORM),
 };
 
 // ===========================================================================
@@ -45,6 +47,7 @@ pub static DEF_DOUBLE_TAP: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::DOUBLE_TAP),
 };
 
 // ===========================================================================
@@ -57,6 +60,7 @@ pub static DEF_BURST: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::BURST),
 };
 
 // ===========================================================================
@@ -69,6 +73,7 @@ pub static DEF_THORNS: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::THORNS),
 };
 
 // ===========================================================================
@@ -81,6 +86,7 @@ pub static DEF_FLAME_BARRIER: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::FLAME_BARRIER),
 };
 
 // ===========================================================================
@@ -93,6 +99,7 @@ pub static DEF_ENVENOM: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::ENVENOM),
 };
 
 // ===========================================================================
@@ -105,6 +112,7 @@ pub static DEF_SADISTIC_NATURE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::SADISTIC),
 };
 
 // ===========================================================================
@@ -117,6 +125,7 @@ pub static DEF_THOUSAND_CUTS: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::THOUSAND_CUTS),
 };
 
 // ===========================================================================
@@ -129,6 +138,7 @@ pub static DEF_PANACHE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::PANACHE),
 };
 
 // ===========================================================================
@@ -141,6 +151,7 @@ pub static DEF_ELECTRODYNAMICS: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[],
     complex_hook: Some(hook_noop),
+    status_guard: Some(sid::ELECTRODYNAMICS),
 };
 
 // ===========================================================================

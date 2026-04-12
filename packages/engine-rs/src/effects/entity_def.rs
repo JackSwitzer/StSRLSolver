@@ -64,6 +64,9 @@ pub struct EntityDef {
     /// Optional complex hook for irreducible logic.
     /// Receives the engine and the trigger context.
     pub complex_hook: Option<fn(&mut CombatEngine, &TriggerContext)>,
+    /// Optional status guard: if set, skip this entity unless the player
+    /// has this status > 0. Used by powers so they only fire when installed.
+    pub status_guard: Option<StatusId>,
 }
 
 // ===========================================================================
@@ -117,6 +120,7 @@ mod tests {
             kind: EntityKind::Relic,
             triggers: &TRIGGERS,
             complex_hook: None,
+    status_guard: None,
         };
         assert_eq!(DEF.id, "test_relic");
         assert_eq!(DEF.kind, EntityKind::Relic);
