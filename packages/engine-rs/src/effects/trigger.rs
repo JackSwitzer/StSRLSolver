@@ -57,6 +57,21 @@ pub enum Trigger {
     EnemyTurnStart,
     /// Only fires when manually activated (e.g. potion use).
     ManualActivation,
+    /// When unblocked damage is resolved (for min-damage / reduction relics).
+    /// Called from the damage pipeline; not dispatched via dispatch_trigger.
+    DamageResolved,
+    /// When a debuff is applied (for Champion Belt: Vuln -> also apply Weak).
+    /// Called inline; not dispatched via dispatch_trigger.
+    OnDebuffApplied,
+    /// When an enemy's block is broken by an attack.
+    /// Called inline; not dispatched via dispatch_trigger.
+    OnBlockBroken,
+    /// When damage is calculated (for passive damage bonuses like Strike Dummy).
+    /// Called from the damage pipeline; not dispatched via dispatch_trigger.
+    DamageCalculation,
+    /// When Poison is applied (for Snecko Skull bonus).
+    /// Called inline; not dispatched via dispatch_trigger.
+    OnPoisonApplied,
 }
 
 // ===========================================================================

@@ -33,7 +33,7 @@ pub use complex::*;
 /// All declarative power definitions, in a single static array.
 /// Grouped by trigger type for clarity.
 pub static POWER_DEFS: &[&EntityDef] = &[
-    // -- Turn Start --
+    // -- Turn Start (simple) --
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
     &turn_start::DEF_BRUTALITY,
@@ -45,6 +45,14 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_DEVA_FORM,
     &turn_start::DEF_HELLO_WORLD,
     &turn_start::DEF_MAGNETISM,
+    &turn_start::DEF_DOPPELGANGER_DRAW,
+    &turn_start::DEF_DOPPELGANGER_ENERGY,
+
+    // -- Turn Start (complex) --
+    &turn_start::DEF_CREATIVE_AI,
+    &turn_start::DEF_ENTER_DIVINITY,
+    &turn_start::DEF_MAYHEM,
+    &turn_start::DEF_TOOLS_OF_THE_TRADE,
 
     // -- Turn End --
     &turn_end::DEF_METALLICIZE,
@@ -57,6 +65,13 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
+    &card_play::DEF_HEATSINK,
+    &card_play::DEF_STORM,
+    &card_play::DEF_CURIOSITY,
+    &card_play::DEF_BEAT_OF_DEATH,
+    &card_play::DEF_SLOW,
+    &card_play::DEF_FORCEFIELD,
+    &card_play::DEF_SKILL_BURN,
 
     // -- Exhaust --
     &exhaust::DEF_FEEL_NO_PAIN,
@@ -83,6 +98,8 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_THOUSAND_CUTS,
     &complex::DEF_PANACHE,
     &complex::DEF_ELECTRODYNAMICS,
+    &complex::DEF_TIME_WARP,
+    &complex::DEF_STATIC_DISCHARGE,
 ];
 
 // ===========================================================================
@@ -97,8 +114,8 @@ mod tests {
     #[test]
     fn test_power_defs_count() {
         assert!(
-            POWER_DEFS.len() >= 30,
-            "Expected at least 30 power defs, got {}",
+            POWER_DEFS.len() >= 49,
+            "Expected at least 49 power defs, got {}",
             POWER_DEFS.len()
         );
     }
@@ -148,6 +165,8 @@ mod tests {
             "demon_form", "noxious_fumes", "brutality", "berserk",
             "metallicize", "plated_armor", "after_image", "rage",
             "feel_no_pain", "dark_embrace", "mental_fortress", "rushdown",
+            "doppelganger_draw", "doppelganger_energy", "heatsink",
+            "curiosity", "beat_of_death", "slow", "forcefield", "skill_burn",
         ];
         for id in &simple_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);
@@ -165,6 +184,8 @@ mod tests {
     fn test_complex_defs_have_hooks() {
         let complex_ids = [
             "echo_form", "double_tap", "burst", "thorns", "flame_barrier",
+            "creative_ai", "enter_divinity", "mayhem", "tools_of_the_trade",
+            "storm", "time_warp", "static_discharge",
         ];
         for id in &complex_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);

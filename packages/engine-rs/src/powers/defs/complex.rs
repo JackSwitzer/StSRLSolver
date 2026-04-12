@@ -155,6 +155,33 @@ pub static DEF_ELECTRODYNAMICS: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Time Warp — OnAnyCardPlayed: at 12 cards, end turn + gain Strength.
+// Counter pattern with threshold 12.
+// ===========================================================================
+
+pub static DEF_TIME_WARP: EntityDef = EntityDef {
+    id: "time_warp",
+    name: "Time Warp",
+    kind: EntityKind::Power,
+    triggers: &[],
+    complex_hook: Some(hook_noop),
+    status_guard: None, // enemy power
+};
+
+// ===========================================================================
+// Static Discharge — On unblocked damage: channel Lightning
+// ===========================================================================
+
+pub static DEF_STATIC_DISCHARGE: EntityDef = EntityDef {
+    id: "static_discharge",
+    name: "Static Discharge",
+    kind: EntityKind::Power,
+    triggers: &[],
+    complex_hook: Some(hook_noop),
+    status_guard: Some(sid::STATIC_DISCHARGE),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -169,6 +196,7 @@ mod tests {
             &DEF_THORNS, &DEF_FLAME_BARRIER, &DEF_ENVENOM,
             &DEF_SADISTIC_NATURE, &DEF_THOUSAND_CUTS,
             &DEF_PANACHE, &DEF_ELECTRODYNAMICS,
+            &DEF_TIME_WARP, &DEF_STATIC_DISCHARGE,
         ];
         for def in &defs {
             assert!(
@@ -185,6 +213,7 @@ mod tests {
         let defs = [
             &DEF_ECHO_FORM, &DEF_DOUBLE_TAP, &DEF_BURST,
             &DEF_THORNS, &DEF_FLAME_BARRIER,
+            &DEF_TIME_WARP, &DEF_STATIC_DISCHARGE,
         ];
         for def in &defs {
             assert!(

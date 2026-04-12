@@ -9,12 +9,22 @@ static EFFECTS: [Effect; 1] = [
     Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::STRENGTH, AmountSource::Fixed(1))),
 ];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
+static RESET_EFFECTS: [Effect; 1] = [
+    Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::SHURIKEN_COUNTER, AmountSource::Fixed(0))),
+];
+
+static TRIGGERS: [TriggeredEffect; 2] = [
     TriggeredEffect {
         trigger: Trigger::OnAttackPlayed,
         condition: TriggerCondition::CounterReached,
         effects: &EFFECTS,
         counter: Some((sid::SHURIKEN_COUNTER, 3)),
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &RESET_EFFECTS,
+        counter: None,
     },
 ];
 

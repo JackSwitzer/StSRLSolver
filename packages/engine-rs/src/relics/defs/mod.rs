@@ -65,9 +65,135 @@ pub mod self_forming_clay;
 pub mod the_abacus;
 
 // ===========================================================================
+// Combat-start: stat buffs requiring complex_hook
+// ===========================================================================
+pub mod du_vu_doll;
+pub mod girya;
+pub mod sling;
+pub mod preserved_insect;
+pub mod slavers_collar;
+
+// ===========================================================================
+// Combat-start: flag setting
+// ===========================================================================
+pub mod ginger;
+pub mod turnip;
+pub mod mark_of_bloom;
+pub mod magic_flower;
+pub mod snecko_eye;
+
+// ===========================================================================
+// Combat-start: counter initialization
+// ===========================================================================
+pub mod velvet_choker_init;
+pub mod pocketwatch;
+pub mod art_of_war;
+pub mod orange_pellets;
+pub mod horn_cleat;
+pub mod captains_wheel;
+pub mod stone_calendar;
+
+// ===========================================================================
+// Combat-start: orb channeling (complex_hook)
+// ===========================================================================
+pub mod symbiotic_virus;
+pub mod cracked_core;
+pub mod nuclear_battery;
+
+// ===========================================================================
+// Combat-start: card generation (complex_hook)
+// ===========================================================================
+pub mod pure_water;
+pub mod ninja_scroll;
+pub mod holy_water;
+pub mod mark_of_pain;
+
+// ===========================================================================
+// Combat-start: other
+// ===========================================================================
+pub mod pantograph;
+
+// ===========================================================================
 // Complex relics (use complex_hook or stub-only)
 // ===========================================================================
 pub mod pen_nib;
+
+// ===========================================================================
+// Turn-start relics (draw, orb slots, counter resets)
+// ===========================================================================
+pub mod bag_of_prep;
+pub mod ring_of_snake;
+pub mod inserter;
+
+// ===========================================================================
+// Turn-end relics
+// ===========================================================================
+pub mod frozen_core;
+// stone_calendar TurnEnd trigger added to existing stone_calendar.rs
+
+// ===========================================================================
+// On-card-play relics
+// ===========================================================================
+pub mod mummified_hand;
+pub mod yang_duality;
+pub mod velvet_choker;
+// pocketwatch OnAnyCardPlayed trigger added to existing pocketwatch.rs
+
+// ===========================================================================
+// On-HP-loss relics
+// ===========================================================================
+pub mod centennial_puzzle;
+pub mod runic_cube;
+pub mod emotion_chip;
+
+// ===========================================================================
+// On-enemy-death relics
+// ===========================================================================
+pub mod the_specimen;
+
+// ===========================================================================
+// On-victory relics
+// ===========================================================================
+pub mod meat_on_the_bone;
+pub mod face_of_cleric;
+
+// ===========================================================================
+// Stance-change relics
+// ===========================================================================
+pub mod teardrop_locket;
+
+// ===========================================================================
+// Damage modifiers (called inline, not via dispatch_trigger)
+// ===========================================================================
+pub mod boot;
+pub mod torii;
+pub mod tungsten_rod;
+pub mod champion_belt;
+pub mod hand_drill;
+
+// ===========================================================================
+// Passive bonuses (called inline, not via dispatch_trigger)
+// ===========================================================================
+pub mod strike_dummy;
+pub mod wrist_blade;
+pub mod snecko_skull;
+
+// ===========================================================================
+// Remaining combat relics
+// ===========================================================================
+pub mod runic_capacitor;
+pub mod ring_of_serpent;
+pub mod violet_lotus;
+pub mod red_skull;
+pub mod enchiridion;
+pub mod warped_tongs;
+pub mod gambling_chip;
+pub mod hovering_kite;
+pub mod lizard_tail;
+pub mod ancient_tea_set;
+pub mod medical_kit;
+pub mod blue_candle;
+pub mod strange_spoon;
 
 // ===========================================================================
 // Registry — static array of all relic EntityDefs
@@ -120,8 +246,84 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &toy_ornithopter::DEF,
     &self_forming_clay::DEF,
     &the_abacus::DEF,
+    // Combat-start: stat buffs (complex_hook)
+    &du_vu_doll::DEF,
+    &girya::DEF,
+    &sling::DEF,
+    &preserved_insect::DEF,
+    &slavers_collar::DEF,
+    // Combat-start: flag setting
+    &ginger::DEF,
+    &turnip::DEF,
+    &mark_of_bloom::DEF,
+    &magic_flower::DEF,
+    &snecko_eye::DEF,
+    // Combat-start: counter initialization
+    &velvet_choker_init::DEF,
+    &pocketwatch::DEF,
+    &art_of_war::DEF,
+    &orange_pellets::DEF,
+    &horn_cleat::DEF,
+    &captains_wheel::DEF,
+    &stone_calendar::DEF,
+    // Combat-start: orb channeling
+    &symbiotic_virus::DEF,
+    &cracked_core::DEF,
+    &nuclear_battery::DEF,
+    // Combat-start: card generation
+    &pure_water::DEF,
+    &ninja_scroll::DEF,
+    &holy_water::DEF,
+    &mark_of_pain::DEF,
+    // Combat-start: other
+    &pantograph::DEF,
     // Complex relics
     &pen_nib::DEF,
+    // Turn-start relics
+    &bag_of_prep::DEF,
+    &ring_of_snake::DEF,
+    &inserter::DEF,
+    // Turn-end relics
+    &frozen_core::DEF,
+    // On-card-play relics
+    &mummified_hand::DEF,
+    &yang_duality::DEF,
+    &velvet_choker::DEF,
+    // On-HP-loss relics
+    &centennial_puzzle::DEF,
+    &runic_cube::DEF,
+    &emotion_chip::DEF,
+    // On-enemy-death relics
+    &the_specimen::DEF,
+    // On-victory relics
+    &meat_on_the_bone::DEF,
+    &face_of_cleric::DEF,
+    // Stance-change relics
+    &teardrop_locket::DEF,
+    // Damage modifiers
+    &boot::DEF,
+    &torii::DEF,
+    &tungsten_rod::DEF,
+    &champion_belt::DEF,
+    &hand_drill::DEF,
+    // Passive bonuses
+    &strike_dummy::DEF,
+    &wrist_blade::DEF,
+    &snecko_skull::DEF,
+    // Remaining combat relics
+    &runic_capacitor::DEF,
+    &ring_of_serpent::DEF,
+    &violet_lotus::DEF,
+    &red_skull::DEF,
+    &enchiridion::DEF,
+    &warped_tongs::DEF,
+    &gambling_chip::DEF,
+    &hovering_kite::DEF,
+    &lizard_tail::DEF,
+    &ancient_tea_set::DEF,
+    &medical_kit::DEF,
+    &blue_candle::DEF,
+    &strange_spoon::DEF,
 ];
 
 // ===========================================================================
@@ -145,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_relic_defs_count() {
-        assert!(RELIC_DEFS.len() >= 30, "Expected at least 30 relic defs, got {}", RELIC_DEFS.len());
+        assert!(RELIC_DEFS.len() >= 95, "Expected at least 95 relic defs, got {}", RELIC_DEFS.len());
     }
 
     #[test]
@@ -180,13 +382,15 @@ mod tests {
     #[test]
     fn test_ornamental_fan_has_counter() {
         let def = find_relic_def("Ornamental Fan").unwrap();
-        assert_eq!(def.triggers.len(), 1);
+        assert_eq!(def.triggers.len(), 2); // OnAttackPlayed counter + TurnStart reset
         let te = &def.triggers[0];
         assert_eq!(te.trigger, crate::effects::trigger::Trigger::OnAttackPlayed);
         assert!(te.counter.is_some());
         let (counter_id, threshold) = te.counter.unwrap();
         assert_eq!(counter_id, crate::status_ids::sid::ORNAMENTAL_FAN_COUNTER);
         assert_eq!(threshold, 3);
+        // Second trigger resets counter at turn start
+        assert_eq!(def.triggers[1].trigger, crate::effects::trigger::Trigger::TurnStart);
     }
 
     #[test]
