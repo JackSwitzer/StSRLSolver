@@ -111,14 +111,11 @@ impl CombatEngine {
             return;
         }
 
-        // Apply combat-start relic effects (old dispatch for full coverage)
-        crate::relics::apply_combat_start_relics(&mut self.state);
-        // NOTE: dispatch_trigger(CombatStart) commented out to avoid double-application
-        // with old dispatch. EntityDef infrastructure preserved for future incremental migration.
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatStart, &ctx);
-        // }
+        // Apply combat-start relic + power effects via unified dispatch
+        {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatStart, &ctx);
+        }
 
         // Channel orbs from combat-start relics (need engine context)
         if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
@@ -736,17 +733,15 @@ impl CombatEngine {
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);
 
-        // All turn-start relic effects (old dispatch for full coverage)
-        relics::apply_turn_start_relics(&mut self.state);
-        // NOTE: dispatch_trigger(TurnStart) commented out — old dispatch handles relics
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext {
-        //         card_type: None,
-        //         is_first_turn: self.state.turn == 1,
-        //         target_idx: -1,
-        //     };
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStart, &ctx);
-        // }
+        // All turn-start relic + power effects via unified dispatch
+        {
+            let ctx = crate::effects::trigger::TriggerContext {
+                card_type: None,
+                is_first_turn: self.state.turn == 1,
+                target_idx: -1,
+            };
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStart, &ctx);
+        }
 
         // Divinity auto-exit at start of turn
         if self.state.stance == Stance::Divinity {
@@ -790,25 +785,21 @@ impl CombatEngine {
             self.state.player.set_status(sid::FOCUS, current_focus - bias_loss);
         }
 
-        // === POWER HOOKS: start of turn (old dispatch) ===
-        // Dispatch collects all power effects; engine applies them in correct order.
-        // Hooks that mutate entity directly (DemonForm/Strength, WraithForm/Dex) do so
-        // inside the hook fn. One-shot hooks (Doppelganger, EnterDivinity) clear themselves.
-        let fx = powers::registry::dispatch_turn_start(&mut self.state.player);
-
-        // Pre-draw: energy from hooks (DevaForm, Berserk, DoppelgangerEnergy)
-        self.state.energy += fx.energy + fx.doppelganger_energy;
+        // === POWER HOOKS handled by dispatch_trigger(TurnStart) above:
+        // DemonForm, NoxiousFumes, Brutality, Berserk, InfiniteBlades, BattleHymn,
+        // Devotion, WraithForm, DevaForm, HelloWorld, Magnetism,
+        // DoppelgangerDraw, DoppelgangerEnergy
+        //
+        // One-shot statuses consumed by dispatch_trigger declarative effects need clearing:
+        {
+            let dd = self.state.player.status(sid::DOPPELGANGER_DRAW);
+            if dd > 0 { self.state.player.set_status(sid::DOPPELGANGER_DRAW, 0); }
+            let de = self.state.player.status(sid::DOPPELGANGER_ENERGY);
+            if de > 0 { self.state.player.set_status(sid::DOPPELGANGER_ENERGY, 0); }
+        }
 
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
-
-        // Pre-draw: add temp cards to hand (BattleHymn smites)
-        for _ in 0..fx.add_smites {
-            let smite_id = self.temp_card("Smite");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(smite_id);
-            }
-        }
 
         // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
         let ml = self.state.player.status(sid::DRAW);
@@ -829,116 +820,98 @@ impl CombatEngine {
             self.state.player.set_status(sid::INK_BOTTLE_DRAW, 0);
         }
 
-        // ---- Post-draw power effects ----
-
-        // Devotion: gain Mantra (Java: atStartOfTurnPostDraw)
-        if fx.mantra_gain > 0 {
-            self.gain_mantra(fx.mantra_gain);
-        }
+        // ---- Post-draw power effects (complex powers not in EntityDefs) ----
 
         // CreativeAI: add random Power card to hand (MCTS: add "Smite")
-        for _ in 0..fx.add_creative_ai_cards {
-            if self.state.hand.len() < 10 {
-                let smite_id = self.temp_card("Smite");
-                self.state.hand.push(smite_id);
+        {
+            let creative_ai = self.state.player.status(sid::CREATIVE_AI);
+            for _ in 0..creative_ai {
+                if self.state.hand.len() < 10 {
+                    let smite_id = self.temp_card("Smite");
+                    self.state.hand.push(smite_id);
+                }
             }
         }
 
-        // DoppelgangerDraw: consume extra draws
-        if fx.doppelganger_draw > 0 {
-            self.draw_cards(fx.doppelganger_draw);
-        }
-
-        // Magnetism + HelloWorld: add Strikes to hand
-        for _ in 0..fx.add_strikes {
-            if self.state.hand.len() < 10 {
-                let strike_id = self.temp_card("Strike");
-                self.state.hand.push(strike_id);
-            }
-        }
-
-        // EnterDivinity (Damaru relic)
-        if fx.enter_divinity {
+        // EnterDivinity (Damaru relic flag)
+        if self.state.player.status(sid::ENTER_DIVINITY) > 0 {
+            self.state.player.set_status(sid::ENTER_DIVINITY, 0);
             self.change_stance(Stance::Divinity);
         }
 
         // Mayhem: add top card(s) of draw pile to hand
-        for _ in 0..fx.mayhem_draw {
-            if self.state.hand.len() < 10 {
-                if let Some(card_id) = self.state.draw_pile.pop() {
-                    self.state.hand.push(card_id);
+        {
+            let mayhem = self.state.player.status(sid::MAYHEM);
+            for _ in 0..mayhem {
+                if self.state.hand.len() < 10 {
+                    if let Some(card_id) = self.state.draw_pile.pop() {
+                        self.state.hand.push(card_id);
+                    }
                 }
             }
         }
 
-        // NoxiousFumes: apply Poison to all living enemies
-        if fx.poison_all_enemies > 0 {
-            for ei in 0..self.state.enemies.len() {
-                if self.state.enemies[ei].is_alive() {
-                    self.state.enemies[ei].entity.add_status(sid::POISON, fx.poison_all_enemies);
-                }
-            }
-        }
-
-        // Brutality: draw + HP loss (draw from hook, HP loss applied here)
-        if fx.hp_loss > 0 {
-            self.draw_cards(fx.draw);
-            self.player_lose_hp(fx.hp_loss);
-            if self.state.combat_over {
-                return;
-            }
-        }
-
-        // InfiniteBlades: add Shivs to hand
-        for _ in 0..fx.add_shivs {
-            let shiv_id = self.temp_card("Shiv");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(shiv_id);
-            }
+        // Brutality combat_over check (declarative DealDamage fires via dispatch, check here)
+        if self.state.combat_over {
+            return;
         }
 
         // ToolsOfTheTrade: draw then player chooses card to discard
-        if fx.tools_of_the_trade_draw > 0 {
-            self.draw_cards(fx.tools_of_the_trade_draw);
-            if fx.tools_of_the_trade_discard > 0 && !self.state.hand.is_empty() {
-                let options: Vec<ChoiceOption> = (0..self.state.hand.len())
-                    .map(|i| ChoiceOption::HandCard(i))
-                    .collect();
-                self.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
-                return; // Pause turn start; resumes after choice
+        {
+            let tott = self.state.player.status(sid::TOOLS_OF_THE_TRADE);
+            if tott > 0 {
+                self.draw_cards(tott);
+                if !self.state.hand.is_empty() {
+                    let options: Vec<ChoiceOption> = (0..self.state.hand.len())
+                        .map(|i| ChoiceOption::HandCard(i))
+                        .collect();
+                    self.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
+                    return; // Pause turn start; resumes after choice
+                }
             }
         }
 
         // Foresight: scry N at start of turn (post-draw)
-        if fx.foresight_scry > 0 {
-            self.do_scry(fx.foresight_scry);
+        {
+            let foresight = self.state.player.status(sid::FORESIGHT);
+            if foresight > 0 {
+                self.do_scry(foresight);
+            }
         }
 
         // Collect: add Miracle cards to hand (one-shot, set on previous turn)
-        for _ in 0..fx.add_miracles {
-            let miracle = self.temp_card("Miracle");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(miracle);
+        {
+            let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
+            if miracles > 0 {
+                for _ in 0..miracles {
+                    let miracle = self.temp_card("Miracle");
+                    if self.state.hand.len() < 10 {
+                        self.state.hand.push(miracle);
+                    }
+                }
+                self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
             }
         }
 
         // Simmering Fury: enter Wrath + draw cards (one-shot)
-        if fx.simmering_fury_wrath {
-            self.change_stance(Stance::Wrath);
-        }
-        if fx.simmering_fury_draw > 0 {
-            self.draw_cards(fx.simmering_fury_draw);
+        {
+            let sf = self.state.player.status(sid::SIMMERING_FURY);
+            if sf > 0 {
+                self.change_stance(Stance::Wrath);
+                self.draw_cards(sf);
+                self.state.player.set_status(sid::SIMMERING_FURY, 0);
+            }
         }
 
-        // NOTE: dispatch_trigger(TurnStartPostDraw) commented out — old dispatch handles above
-        // {
-        //     let post_draw_ctx = crate::effects::trigger::TriggerContext {
-        //         card_type: None,
-        //         is_first_turn: self.state.turn == 1,
-        //         target_idx: -1,
-        //     };
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStartPostDraw, &post_draw_ctx);
-        // }
+        // TurnStartPostDraw dispatch (relics/powers with post-draw triggers)
+        {
+            let post_draw_ctx = crate::effects::trigger::TriggerContext {
+                card_type: None,
+                is_first_turn: self.state.turn == 1,
+                target_idx: -1,
+            };
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStartPostDraw, &post_draw_ctx);
+        }
 
         // WarpedTongs: upgrade a random card in hand each turn
         if self.state.has_relic("WarpedTongs") && !self.state.hand.is_empty() {
@@ -973,51 +946,27 @@ impl CombatEngine {
 
         // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
-        // 1. End-of-turn relic triggers (old dispatch)
-        relics::apply_turn_end_relics(&mut self.state);
-
-        // 2. End-of-turn power triggers (old dispatch via hook tables)
-        let in_calm = self.state.stance == Stance::Calm;
-        let efx = powers::registry::dispatch_turn_end(&mut self.state.player, in_calm);
-
-        // Block gains (Metallicize, PlatedArmor, LikeWater)
-        if efx.block_gain > 0 {
-            self.gain_block_player(efx.block_gain);
+        // Unified dispatch for end-of-turn relics + powers
+        {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnEnd, &ctx);
         }
 
-        // Study: add Insight(s) to draw pile
-        for _ in 0..efx.add_insights {
-            let insight_id = self.temp_card("Insight");
-            self.state.draw_pile.push(insight_id);
+        if self.state.combat_over {
+            return;
         }
 
-        // Omega: deal damage to all living enemies
-        if efx.omega_damage > 0 {
-            let living = self.state.living_enemy_indices();
-            for idx in living {
-                self.deal_damage_to_enemy(idx, efx.omega_damage);
+        // Rage clear at end of turn (not in POWER_DEFS)
+        self.state.player.set_status(sid::RAGE, 0);
+
+        // TempStrength revert at end of turn (not in POWER_DEFS)
+        {
+            let ts = self.state.player.status(sid::TEMP_STRENGTH);
+            if ts > 0 {
+                self.state.player.add_status(sid::STRENGTH, -ts);
+                self.state.player.set_status(sid::TEMP_STRENGTH, 0);
             }
         }
-
-        // Combust: lose HP first (death check), then deal damage to all enemies
-        if efx.combust_hp_loss > 0 {
-            self.player_lose_hp(efx.combust_hp_loss);
-            if self.state.combat_over {
-                return;
-            }
-            let living = self.state.living_enemy_indices();
-            for idx in living {
-                self.deal_damage_to_enemy(idx, efx.combust_damage);
-            }
-        }
-
-        // TempStrength revert and Rage clear are handled inside the hook fns
-
-        // NOTE: dispatch_trigger(TurnEnd) commented out — old dispatch handles above
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnEnd, &ctx);
-        // }
 
         // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
         for ei in 0..self.state.enemies.len() {
@@ -1416,7 +1365,14 @@ impl CombatEngine {
             self.state.total_cards_played += 1;
             self.state.exhaust_pile.push(card_inst);
             self.trigger_on_exhaust();
-            relics::on_card_played(&mut self.state, card.card_type);
+            {
+                let ctx = crate::effects::trigger::TriggerContext {
+                    card_type: Some(card.card_type),
+                    is_first_turn: self.state.turn == 1,
+                    target_idx,
+                };
+                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &ctx);
+            }
             return;
         }
 
@@ -1430,7 +1386,14 @@ impl CombatEngine {
             self.state.exhaust_pile.push(card_inst);
             self.trigger_on_exhaust();
             self.player_lose_hp(1);
-            relics::on_card_played(&mut self.state, card.card_type);
+            {
+                let ctx = crate::effects::trigger::TriggerContext {
+                    card_type: Some(card.card_type),
+                    is_first_turn: self.state.turn == 1,
+                    target_idx,
+                };
+                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &ctx);
+            }
             if self.state.combat_over { return; }
             return;
         }
@@ -1450,21 +1413,15 @@ impl CombatEngine {
         }
 
         // ---- Java onUseCard hooks (fire BEFORE card effects resolve) ----
-
-        // AfterImage: gain block per card played (via hook dispatch, pre-effects)
-        let pre_fx = powers::registry::dispatch_on_card_played_pre(&self.state.player);
-        if pre_fx.block_gain > 0 {
-            self.gain_block_player(pre_fx.block_gain);
+        // AfterImage and other pre-play triggers via unified dispatch
+        {
+            let pre_ctx = crate::effects::trigger::TriggerContext {
+                card_type: Some(card.card_type),
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+            };
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPre, &pre_ctx);
         }
-        // NOTE: dispatch_trigger(OnCardPlayedPre) commented out — old dispatch handles above
-        // {
-        //     let pre_ctx = crate::effects::trigger::TriggerContext {
-        //         card_type: Some(card.card_type),
-        //         is_first_turn: self.state.turn == 1,
-        //         target_idx,
-        //     };
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPre, &pre_ctx);
-        // }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
         crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
@@ -1545,10 +1502,34 @@ impl CombatEngine {
             return;
         }
 
-        // All on-card-play relic effects (old dispatch — Fan, Kunai, Shuriken, Nunchaku, etc.)
-        relics::on_card_played(&mut self.state, card.card_type);
+        // ---- Post-effects dispatch: relic + power triggers ----
+        // Unified dispatch handles: relic counters (Fan, Kunai, Shuriken, etc.),
+        // AfterImage (OnAnyCardPlayed), Rage (OnAttackPlayed), Heatsink, Storm,
+        // Beat of Death, Slow, Forcefield, SkillBurn.
+        {
+            let post_ctx = crate::effects::trigger::TriggerContext {
+                card_type: Some(card.card_type),
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+            };
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPost, &post_ctx);
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &post_ctx);
+            // Type-specific triggers
+            match card.card_type {
+                CardType::Attack => {
+                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAttackPlayed, &post_ctx);
+                }
+                CardType::Skill => {
+                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnSkillPlayed, &post_ctx);
+                }
+                CardType::Power => {
+                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnPowerPlayed, &post_ctx);
+                }
+                _ => {}
+            }
+        }
 
-        // ---- Power hooks on card play (AFTER effects) ----
+        // Inline complex power hooks (complex_hook is hook_noop in EntityDefs):
 
         // A Thousand Cuts: deal damage to ALL living enemies per card played
         let thousand_cuts_dmg = powers::get_thousand_cuts_damage(&self.state.player);
@@ -1558,23 +1539,6 @@ impl CombatEngine {
                 self.deal_damage_to_enemy(idx, thousand_cuts_dmg);
             }
         }
-
-        // Rage: gain block when playing an Attack (via hook dispatch, post-effects)
-        let post_fx = powers::registry::dispatch_on_card_played_post(&self.state.player, card.card_type == CardType::Attack);
-        if post_fx.block_gain > 0 {
-            self.gain_block_player(post_fx.block_gain);
-        }
-
-        // NOTE: dispatch_trigger(OnCardPlayedPost/OnAnyCardPlayed/type-specific) commented out
-        // {
-        //     let post_ctx = crate::effects::trigger::TriggerContext {
-        //         card_type: Some(card.card_type),
-        //         is_first_turn: self.state.turn == 1,
-        //         target_idx,
-        //     };
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPost, &post_ctx);
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &post_ctx);
-        // }
 
         // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
         for ei in 0..self.state.enemies.len() {
@@ -1855,14 +1819,11 @@ impl CombatEngine {
         // Track discard count this turn (for Sneaky Strike, Eviscerate)
         self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
 
-        // Relic triggers (old dispatch)
-        relics::tough_bandages_on_discard(&mut self.state);
-        relics::tingsha_on_discard(&mut self.state);
-        // NOTE: dispatch_trigger(OnCardDiscard) commented out — old dispatch handles above
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardDiscard, &ctx);
-        // }
+        // Relic triggers via unified dispatch (Tough Bandages, Tingsha)
+        {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardDiscard, &ctx);
+        }
     }
 
     // =======================================================================
@@ -1909,13 +1870,11 @@ impl CombatEngine {
         // Track cumulative HP loss for Blood for Blood cost reduction
         self.state.player.add_status(sid::HP_LOSS_THIS_COMBAT, amount);
 
-        // Fire on_hp_loss relics (old dispatch — Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
-        relics::on_hp_loss(&mut self.state, amount);
-        // NOTE: dispatch_trigger(OnPlayerHpLoss) commented out — old dispatch handles above
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnPlayerHpLoss, &ctx);
-        // }
+        // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
+        {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnPlayerHpLoss, &ctx);
+        }
 
         // Rupture: gain Strength when losing HP
         let rupture = self.state.player.status(sid::RUPTURE);
@@ -2051,17 +2010,15 @@ impl CombatEngine {
             if spore > 0 {
                 powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
             }
-            // Fire on_enemy_death relics (old dispatch — Gremlin Horn, The Specimen)
-            relics::on_enemy_death(&mut self.state, enemy_idx);
-            // NOTE: dispatch_trigger(OnEnemyDeath) commented out — old dispatch handles above
-            // {
-            //     let ctx = crate::effects::trigger::TriggerContext {
-            //         card_type: None,
-            //         is_first_turn: false,
-            //         target_idx: enemy_idx as i32,
-            //     };
-            //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
-            // }
+            // Fire on_enemy_death relics via unified dispatch (Gremlin Horn, The Specimen)
+            {
+                let ctx = crate::effects::trigger::TriggerContext {
+                    card_type: None,
+                    is_first_turn: false,
+                    target_idx: enemy_idx as i32,
+                };
+                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
+            }
             // Consume Gremlin Horn draw/energy
             let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
             if ghd > 0 {
@@ -2221,13 +2178,11 @@ impl CombatEngine {
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
                 shuffled.shuffle(&mut self.rng);
                 self.state.draw_pile = shuffled;
-                // Fire on_shuffle relics (old dispatch — Sundial, The Abacus)
-                relics::on_shuffle(&mut self.state);
-                // NOTE: dispatch_trigger(OnShuffle) commented out — old dispatch handles above
-                // {
-                //     let ctx = crate::effects::trigger::TriggerContext::empty();
-                //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnShuffle, &ctx);
-                // }
+                // Fire on_shuffle relics via unified dispatch (Sundial, The Abacus)
+                {
+                    let ctx = crate::effects::trigger::TriggerContext::empty();
+                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnShuffle, &ctx);
+                }
             }
 
             if let Some(drawn) = self.state.draw_pile.pop() {
@@ -2324,20 +2279,12 @@ impl CombatEngine {
 
         self.state.stance = new_stance;
 
-        // -- Power triggers on stance change (old dispatch via hook tables) --
-        let entering_wrath = new_stance == Stance::Wrath;
-        let sfx = powers::registry::dispatch_on_stance_change(&self.state.player, entering_wrath);
-        if sfx.block_gain > 0 {
-            self.gain_block_player(sfx.block_gain);
+        // Power + relic triggers on stance change via unified dispatch
+        // (Mental Fortress block, Rushdown draw, Teardrop Locket)
+        {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnStanceChange, &ctx);
         }
-        if sfx.draw > 0 {
-            self.draw_cards(sfx.draw);
-        }
-        // NOTE: dispatch_trigger(OnStanceChange) commented out — old dispatch handles above
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnStanceChange, &ctx);
-        // }
 
         // Flurry of Blows: return all copies from discard to hand on any stance change
         let mut flurry_indices = Vec::new();
@@ -2400,32 +2347,11 @@ impl CombatEngine {
     // Exhaust Hooks
     // =======================================================================
 
-    /// Trigger all on-exhaust power and relic hooks (old dispatch).
+    /// Trigger all on-exhaust power and relic hooks via unified dispatch.
+    /// (FeelNoPain block, DarkEmbrace draw, Charon's Ashes damage, Dead Branch card gen)
     pub fn trigger_on_exhaust(&mut self) {
-        // Power hooks via dispatch (FeelNoPain block, DarkEmbrace draw)
-        let efx = powers::registry::dispatch_on_exhaust(&self.state.player);
-        if efx.block_gain > 0 {
-            self.gain_block_player(efx.block_gain);
-        }
-        if efx.draw > 0 {
-            self.draw_cards(efx.draw);
-        }
-
-        // Charon's Ashes (relic): deal 3 damage to all enemies on exhaust
-        relics::charons_ashes_on_exhaust(&mut self.state);
-
-        // Dead Branch (relic): add a random card to hand on exhaust
-        if relics::dead_branch_on_exhaust(&self.state) {
-            let temp = self.temp_card("Strike");
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(temp);
-            }
-        }
-        // NOTE: dispatch_trigger(OnCardExhaust) commented out — old dispatch handles above
-        // {
-        //     let ctx = crate::effects::trigger::TriggerContext::empty();
-        //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardExhaust, &ctx);
-        // }
+        let ctx = crate::effects::trigger::TriggerContext::empty();
+        crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardExhaust, &ctx);
     }
 
     // =======================================================================
@@ -2501,16 +2427,11 @@ impl CombatEngine {
             self.state.player_won = true;
             self.phase = CombatPhase::CombatOver;
             self.choice = None;
-            // Fire on_victory relics (old dispatch — Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
-            let heal = relics::on_victory(&mut self.state);
-            if heal > 0 {
-                self.heal_player(heal);
+            // Fire on_victory relics via unified dispatch (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
+            {
+                let ctx = crate::effects::trigger::TriggerContext::empty();
+                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatVictory, &ctx);
             }
-            // NOTE: dispatch_trigger(CombatVictory) commented out — old dispatch handles above
-            // {
-            //     let ctx = crate::effects::trigger::TriggerContext::empty();
-            //     crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatVictory, &ctx);
-            // }
             return true;
         }
 
