@@ -1257,3 +1257,27 @@ pub fn hook_distraction(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
         engine.state.hand.push(card);
     }
 }
+
+// =========================================================================
+// Defect: Streamline — reduce cost of all copies by 1 each play
+// =========================================================================
+
+/// Streamline: after playing, reduce the instance cost of all other
+/// Streamline/Streamline+ copies in hand, draw, and discard by 1 (min 0).
+pub fn hook_streamline(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
+    // Determine the effective cost: if instance cost is set (>= 0), use it; else use CardDef cost.
+    // After reduction, the new cost is current_effective - 1, min 0.
+    let reduce_all_copies = |pile: &mut Vec<CardInstance>, registry: &crate::cards::CardRegistry| {
+        for c in pile.iter_mut() {
+            let name = registry.card_name(c.def_id);
+            if name == "Streamline" || name == "Streamline+" {
+                let def = registry.card_def_by_id(c.def_id);
+                let current: i32 = if c.cost >= 0 { c.cost as i32 } else { def.cost };
+                c.cost = (current - 1).max(0) as i8;
+            }
+        }
+    };
+    reduce_all_copies(&mut engine.state.hand, &engine.card_registry);
+    reduce_all_copies(&mut engine.state.draw_pile, &engine.card_registry);
+    reduce_all_copies(&mut engine.state.discard_pile, &engine.card_registry);
+}

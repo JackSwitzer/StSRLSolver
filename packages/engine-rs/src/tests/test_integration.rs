@@ -557,7 +557,7 @@ mod engine_integration_tests {
             if e.state.hand.len() >= 10 { break; }
             if let Some(c) = e.state.draw_pile.pop() { e.state.hand.push(c); }
         }
-        assert!(e.state.hand.len() <= 10);
+        assert_eq!(e.state.hand.len(), 10);
     }
 
     // ---- LoseStrength applied at turn start ----
@@ -1030,7 +1030,7 @@ mod bugfix_regression_tests {
         // Now play CrushJoints — should apply Vulnerable
         play(&mut e, "CrushJoints");
         let vuln = e.state.enemies[0].entity.status(sid::VULNERABLE);
-        assert!(vuln > 0, "CrushJoints should apply Vulnerable after a Skill, got {}", vuln);
+        assert_eq!(vuln, 1, "CrushJoints should apply 1 Vulnerable after a Skill, got {}", vuln);
     }
 
     #[test]
@@ -1082,7 +1082,7 @@ mod bugfix_regression_tests {
         );
         play(&mut e, "TalkToTheHand");
         let br = e.state.enemies[0].entity.status(sid::BLOCK_RETURN);
-        assert!(br > 0, "TalkToTheHand should apply BlockReturn status");
+        assert_eq!(br, 2, "TalkToTheHand should apply BlockReturn=2");
     }
 
     #[test]
@@ -1093,7 +1093,7 @@ mod bugfix_regression_tests {
         );
         play(&mut e, "TalkToTheHand");
         let br = e.state.enemies[0].entity.status(sid::BLOCK_RETURN);
-        assert!(br > 0);
+        assert_eq!(br, 2); // TalkToTheHand base_magic=2
         // Player attacks marked enemy — should gain block
         let block_before = e.state.player.block;
         play(&mut e, "Strike_P");
@@ -1117,7 +1117,7 @@ mod bugfix_regression_tests {
         // Actually: effects run first, then stance change. So all hits are at base mult.
         // 5 damage * 5 hits = 25 total (at Neutral stance)
         let total_dmg = total_hp_before - total_hp_after;
-        assert!(total_dmg >= 25, "Ragnarok should deal at least 25 total damage (5 hits of 5), got {}", total_dmg);
+        assert_eq!(total_dmg, 25, "Ragnarok should deal 25 total damage (5 hits of 5), got {}", total_dmg);
     }
 
     // ===== P2: Conclude ends turn =====
@@ -1144,7 +1144,7 @@ mod bugfix_regression_tests {
         ensure_in_hand(&mut e, "Conclude");
         let hp_before = e.state.player.hp;
         play(&mut e, "Conclude");
-        assert!(e.state.player.hp < hp_before, "Conclude should trigger enemy attacks");
+        assert_eq!(e.state.player.hp, hp_before - 5, "Conclude should trigger enemy attack for 5 damage");
     }
 
     // ===== P2: Retain and Ethereal in end_turn =====
@@ -1178,7 +1178,7 @@ mod bugfix_regression_tests {
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
         // Daze should be in exhaust pile, not discard
-        assert!(e.state.exhaust_pile.len() > exhaust_before,
+        assert_eq!(e.state.exhaust_pile.len(), exhaust_before + 1,
             "Ethereal card (Daze) should go to exhaust pile");
         assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"),
             "Ethereal card should not remain in hand");
@@ -1194,7 +1194,7 @@ mod bugfix_regression_tests {
         e.state.hand.push(e.card_registry.make_card("AscendersBane"));
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
-        assert!(e.state.exhaust_pile.len() > exhaust_before,
+        assert_eq!(e.state.exhaust_pile.len(), exhaust_before + 1,
             "Ascender's Bane should exhaust at end of turn");
     }
 
@@ -1312,7 +1312,7 @@ mod combat_engine_p0_p1_regression {
         e.execute_action(&Action::EndTurn);
 
         // Intangible caps damage to 1
-        assert!(e.state.player.hp >= hp_before - 1,
+        assert_eq!(e.state.player.hp, hp_before - 1,
             "Intangible should cap damage to 1, got hp={} from {}",
             e.state.player.hp, hp_before);
     }
@@ -1368,8 +1368,8 @@ mod combat_engine_p0_p1_regression {
         }
 
         // Guardian should have shifted to defensive mode
-        assert!(e.state.enemies[0].entity.status(sid::SHARP_HIDE) > 0,
-            "Guardian should have entered defensive mode (SharpHide > 0)");
+        assert_eq!(e.state.enemies[0].entity.status(sid::SHARP_HIDE), 3,
+            "Guardian should have entered defensive mode (SharpHide = 3)");
     }
 
     #[test]
@@ -1390,7 +1390,7 @@ mod combat_engine_p0_p1_regression {
         assert!(e.state.enemies[0].entity.is_dead(),
             "Slime Boss should be dead after split, hp={}",
             e.state.enemies[0].entity.hp);
-        assert!(e.state.enemies.len() >= 3,
+        assert_eq!(e.state.enemies.len(), 3,
             "Should have spawned 2 new medium slimes, total enemies: {}",
             e.state.enemies.len());
     }
@@ -1443,10 +1443,10 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Lagavulin starts sleeping with Metallicize
-        assert!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS) > 0,
-            "Lagavulin should start with SleepTurns > 0");
-        assert!(e.state.enemies[0].entity.status(sid::METALLICIZE) > 0,
-            "Lagavulin should start with Metallicize while sleeping");
+        assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 3,
+            "Lagavulin should start with SleepTurns = 3");
+        assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 8,
+            "Lagavulin should start with Metallicize = 8 while sleeping");
     }
 
     #[test]
@@ -1596,7 +1596,7 @@ mod combat_engine_p0_p1_regression {
         // Play a Defend to gain block, then end turn
         play_card(&mut e, "Defend_P", -1);
         let block_after_defend = e.state.player.block;
-        assert!(block_after_defend > 10, "Should have block from Anchor + Defend");
+        assert_eq!(block_after_defend, 15, "Should have block from Anchor(10) + Defend(5)");
 
         // End turn -> turn 2 starts -> block should be reset to 0
         e.execute_action(&Action::EndTurn);
@@ -1694,8 +1694,8 @@ mod effect_handler_tests {
         play_card(&mut e, "Wallop", 0);
         // Wallop deals 9 damage, enemy has 0 block -> 9 unblocked
         // Player gains block = unblocked damage dealt (capped by enemy HP)
-        assert!(e.state.player.block > block_before,
-            "Wallop should gain block from unblocked damage");
+        assert_eq!(e.state.player.block, 9,
+            "Wallop should gain 9 block from 9 unblocked damage");
         assert_eq!(e.state.player.block, 9,
             "Wallop should gain 9 block (9 dmg, no enemy block)");
     }
@@ -1770,8 +1770,8 @@ mod effect_handler_tests {
         play_card(&mut e, "Strike_P", 0);
         // Now play SashWhip — should apply Weak
         play_card(&mut e, "SashWhip", 0);
-        assert!(e.state.enemies[0].entity.status(sid::WEAKENED) >= 1,
-            "SashWhip should apply Weak when last card was an Attack");
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 1,
+            "SashWhip should apply 1 Weak when last card was an Attack");
     }
 
     // ===== 6. Fear No Evil: calm_if_enemy_attacking =====
@@ -2135,8 +2135,8 @@ mod effect_handler_tests {
             .chain(e.state.discard_pile.iter())
             .chain(e.state.hand.iter())
             .filter(|c| e.card_registry.card_name(c.def_id).starts_with("Insight")).count();
-        assert!(insight_count >= 1,
-            "Study should add Insight to draw pile at end of turn");
+        assert_eq!(insight_count, 1,
+            "Study should add exactly 1 Insight at end of turn");
     }
 
     // ===== 28. Install Power: Establishment =====
@@ -2185,10 +2185,8 @@ mod effect_handler_tests {
         let hp_before = e.state.player.hp;
         e.execute_action(&Action::EndTurn);
         // Burn deals 2 damage at end of turn
-        assert!(e.state.player.hp < hp_before,
-            "Burn should deal damage at end of turn");
         assert_eq!(e.state.player.hp, hp_before - 2,
-            "Burn should deal exactly 2 damage");
+            "Burn should deal exactly 2 damage at end of turn");
     }
 
     // ===== 31. Doubt: end_turn_weak =====
@@ -2238,8 +2236,8 @@ mod effect_handler_tests {
         e.execute_action(&Action::EndTurn);
         // Omega should have dealt 50 damage at end of turn
         // Enemy HP may be reduced
-        assert!(e.state.enemies[0].entity.hp < enemy_hp_before,
-            "Omega should deal damage at end of turn");
+        assert_eq!(e.state.enemies[0].entity.hp, enemy_hp_before - 50,
+            "Omega should deal 50 damage at end of turn");
     }
 
     // ===== 34. Nirvana: block on scry =====
@@ -2260,8 +2258,8 @@ mod effect_handler_tests {
             e.execute_action(&Action::ConfirmSelection); // keep all cards
         }
         // Nirvana gives 4 block per scry trigger
-        assert!(e.state.player.block >= block_before + 4,
-            "Nirvana should give block when scrying");
+        assert_eq!(e.state.player.block, block_before + 4,
+            "Nirvana(4) should give 4 block when scrying");
     }
 
     // ===== 35. Lesson Learned: upgrade on kill =====
@@ -2278,8 +2276,8 @@ mod effect_handler_tests {
         // Should have upgraded a card
         let upgraded_count = e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
             .filter(|c| e.card_registry.card_name(c.def_id).ends_with('+')).count();
-        assert!(upgraded_count >= 1,
-            "Lesson Learned should upgrade a card when killing an enemy");
+        assert_eq!(upgraded_count, 1,
+            "Lesson Learned should upgrade exactly 1 card when killing an enemy");
     }
 
     // ===== 36. Wave of the Hand =====
@@ -2368,8 +2366,8 @@ mod effect_handler_tests {
         // Should NOT be at full HP instantly — rebirth is pending
         assert_eq!(e.state.enemies[0].entity.status(sid::REBIRTH_PENDING), 1,
             "AwakenedOne should have RebirthPending flag set");
-        assert!(e.state.enemies[0].entity.hp < e.state.enemies[0].entity.max_hp,
-            "AwakenedOne should NOT be at full HP before rebirth executes");
+        assert_eq!(e.state.enemies[0].entity.hp, 0,
+            "AwakenedOne should be at 0 HP before rebirth executes");
     }
 
     // #3: Poison triggers boss hooks (SlimeBoss split via poison)
@@ -2390,8 +2388,8 @@ mod effect_handler_tests {
         // SlimeBoss should have split from poison damage
         assert_eq!(e.state.enemies[0].entity.hp, 0,
             "SlimeBoss should be dead after poison-triggered split");
-        assert!(e.state.enemies.len() >= 3,
-            "Should have spawned slimes from poison-triggered split");
+        assert_eq!(e.state.enemies.len(), 3,
+            "Should have spawned 2 slimes from poison-triggered split");
     }
 
     // #4: Burn deals damage through block (not HP loss)
@@ -2484,8 +2482,8 @@ mod effect_handler_tests {
         let hp_before = e.state.player.hp;
         // Play a Strike — Pain should deal 1 HP loss per Pain in hand
         play_card(&mut e, "Strike_P", 0);
-        assert!(e.state.player.hp < hp_before,
-            "Pain should deal HP loss when a card is played. HP went from {} to {}",
+        assert_eq!(e.state.player.hp, hp_before - 1,
+            "Pain should deal 1 HP loss when a card is played. HP went from {} to {}",
             hp_before, e.state.player.hp);
     }
 
@@ -2741,7 +2739,7 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Glass Knife");
         play_card(&mut e, "Glass Knife", 0);
         let dmg2 = hp1 - e.state.enemies[0].entity.hp;
-        assert!(dmg2 < dmg1, "Glass Knife should deal less damage on second play: {} vs {}", dmg2, dmg1);
+        assert_eq!(dmg2, dmg1 - 4, "Glass Knife should deal 4 less damage on second play (2 penalty * 2 hits): {} vs {}", dmg2, dmg1);
     }
 
     #[test] fn genetic_algorithm_scales_block() {
@@ -2756,7 +2754,7 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Genetic Algorithm");
         play_card(&mut e, "Genetic Algorithm", -1);
         let block2 = e.state.player.block;
-        assert!(block2 > block1, "Genetic Algorithm should gain more block on second play: {} vs {}", block2, block1);
+        assert_eq!(block2, block1 + 2, "Genetic Algorithm should gain 2 more block on second play: {} vs {}", block2, block1);
     }
 
     #[test] fn streamline_reduces_cost() {
@@ -2782,7 +2780,7 @@ mod effect_handler_tests {
         e.state.hand.push(ib);
         let hand_size = e.state.hand.len();
         play_card(&mut e, "Infernal Blade", -1);
-        assert!(e.state.hand.len() >= hand_size, "Random attack should be added to hand");
+        assert_eq!(e.state.hand.len(), hand_size, "Infernal Blade exhausts itself (-1) and adds random attack (+1)");
     }
 
     #[test] fn transmutation_adds_x_cards() {
@@ -2794,8 +2792,8 @@ mod effect_handler_tests {
         let hand_before = e.state.hand.len();
         play_card(&mut e, "Transmutation", -1);
         assert_eq!(e.state.energy, 0, "X-cost should consume all energy");
-        assert!(e.state.hand.len() >= hand_before - 1 + 3,
-            "Transmutation should add X cards to hand, hand={}", e.state.hand.len());
+        assert_eq!(e.state.hand.len(), hand_before - 1 + 3,
+            "Transmutation exhausts itself (-1) and adds X=3 cards, hand={}", e.state.hand.len());
     }
 
     // ====================================================================
@@ -2862,7 +2860,7 @@ mod effect_handler_tests {
             .unwrap();
         e.execute_action(&Action::Choose(streamline_idx));
         // Should gain 2 energy (Streamline costs 2)
-        assert!(e.state.energy >= 2, "Should have gained energy from recycled card cost, energy={}", e.state.energy);
+        assert_eq!(e.state.energy, 2, "Recycle costs 1, gains 2 from Streamline's cost, energy={}", e.state.energy);
     }
 
     #[test] fn concentrate_discards_and_gains_energy() {
@@ -2909,8 +2907,8 @@ mod effect_handler_tests {
         e.state.hand.push(card);
         let hp_before = e.state.enemies[0].entity.hp;
         play_card(&mut e, "Streamline", 0);
-        assert!(e.state.enemies[0].entity.hp < hp_before,
-            "Streamline at instance cost 0 should be playable with 0 energy");
+        assert_eq!(e.state.enemies[0].entity.hp, hp_before - 15,
+            "Streamline (15 dmg) at instance cost 0 should be playable with 0 energy");
         assert_eq!(e.state.energy, 0, "Should not go negative");
     }
 
@@ -2954,8 +2952,8 @@ mod effect_handler_tests {
         let pk = e.card_registry.make_card("Phantasmal Killer");
         e.state.hand.push(pk);
         play_card(&mut e, "Phantasmal Killer", -1);
-        assert!(e.state.player.status(sid::DOUBLE_DAMAGE) > 0,
-            "Phantasmal Killer should set DOUBLE_DAMAGE status");
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1,
+            "Phantasmal Killer should set DOUBLE_DAMAGE = 1");
     }
 
     #[test] fn biased_cognition_loses_focus_each_turn() {
@@ -2967,7 +2965,7 @@ mod effect_handler_tests {
         let focus_before = e.state.player.focus();
         play_card(&mut e, "Biased Cognition", -1);
         let focus_after_play = e.state.player.focus();
-        assert!(focus_after_play > focus_before, "Should gain focus on play");
+        assert_eq!(focus_after_play, focus_before + 4, "Biased Cognition should give 4 focus on play");
         // End turn + start next turn should lose 1 focus
         e.execute_action(&Action::EndTurn);
         let focus_turn2 = e.state.player.focus();
@@ -2992,8 +2990,8 @@ mod effect_handler_tests {
         e.deal_damage_to_enemy(0, 10);
         assert!(e.state.enemies[0].entity.is_dead());
         // Others should have taken damage = enemy 0's max_hp (20)
-        assert!(e.state.enemies[1].entity.hp < 20 || e.state.enemies[1].entity.is_dead(),
-            "Enemy 1 should take Corpse Explosion damage");
+        assert!(e.state.enemies[1].entity.is_dead(),
+            "Enemy 1 should be killed by Corpse Explosion (20 max_hp AoE damage to 20 HP enemy)");
     }
 
     #[test] fn blood_for_blood_cost_reduces_on_hp_loss() {
@@ -3007,8 +3005,8 @@ mod effect_handler_tests {
         e.player_lose_hp(4);
         let hp_before = e.state.enemies[0].entity.hp;
         play_card(&mut e, "Blood for Blood", 0);
-        assert!(e.state.enemies[0].entity.hp < hp_before,
-            "Blood for Blood should be playable after losing enough HP");
+        assert_eq!(e.state.enemies[0].entity.hp, hp_before - 18,
+            "Blood for Blood should deal 18 damage");
     }
 
     #[test] fn retain_hand_flag_keeps_all_cards() {
@@ -3034,9 +3032,8 @@ mod effect_handler_tests {
         let energy_before = e.state.energy;
         let hp_before = e.state.enemies[0].entity.hp;
         play_card(&mut e, "Sneaky Strike", 0);
-        assert!(e.state.enemies[0].entity.hp < hp_before, "Should deal damage");
+        assert_eq!(e.state.enemies[0].entity.hp, hp_before - 12, "Sneaky Strike should deal 12 damage");
         // Sneaky Strike costs 2, refunds 2 if discarded this turn -> net 0 energy spent
-        // But the card costs 2 to play, then refunds 2
         assert_eq!(e.state.energy, energy_before - 2 + 2,
             "Sneaky Strike should refund 2 energy when discarded this turn");
     }

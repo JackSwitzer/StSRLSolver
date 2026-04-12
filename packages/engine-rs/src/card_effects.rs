@@ -69,6 +69,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         0
     };
 
+    // ---- Steam Barrier: block decreases by 1 each play ----
+    let steam_barrier_penalty = if card.effects.contains(&"lose_block_each_play") {
+        engine.state.player.status(sid::STEAM_BARRIER_LOSS)
+    } else {
+        0
+    };
+
     // ---- Perseverance: scaling block bonus from retaining ----
     let perseverance_block_bonus = if card_flags.has(crate::effects::registry::BIT_GROW_BLOCK_ON_RETAIN) {
         engine.state.player.status(sid::PERSEVERANCE_BONUS)
@@ -217,7 +224,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let block = damage::calculate_block(
-                card.base_block + genetic_alg_block_bonus + perseverance_block_bonus,
+                (card.base_block + genetic_alg_block_bonus + perseverance_block_bonus - steam_barrier_penalty).max(0),
                 dex, frail,
             );
             engine.gain_block_player(block * block_multiplier);

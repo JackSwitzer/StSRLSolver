@@ -403,8 +403,8 @@ mod defect_card_java_parity_tests {
         let before_hp = e.state.enemies[0].entity.hp;
         let before_block = e.state.player.block;
         play_self(&mut e, "Fission+");
-        assert!(e.state.enemies[0].entity.hp < before_hp);
-        assert!(e.state.player.block >= before_block);
+        assert_eq!(e.state.enemies[0].entity.hp, before_hp - 14); // Lightning evoke 8 + Dark evoke 6
+        assert_eq!(e.state.player.block, before_block + 5); // Frost evoke 5
         assert_eq!(e.state.energy, 6);
     });
 
@@ -440,7 +440,7 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Multi-Cast");
         let hp = e.state.enemies[0].entity.hp;
         play_self(&mut e, "Multi-Cast");
-        assert!(e.state.enemies[0].entity.hp < hp);
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 14); // X=3: Lightning evoke 8 + Frost block + Dark evoke 6
     });
 
     defect_test!(reinforced_body_spends_x_for_block, {
@@ -485,7 +485,7 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Sunder");
         e.state.energy = 3;
         play_on_enemy(&mut e, "Sunder", 0);
-        assert!(e.state.energy >= 2);
+        assert_eq!(e.state.energy, 3); // Sunder costs 3, kills 12HP enemy (24 dmg), refunds 3
     });
 
     defect_test!(tempest_channels_x_lightning, {
@@ -503,7 +503,7 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Thunder Strike");
         e.state.player.set_status(sid::LIGHTNING_CHANNELED, 4);
         play_on_enemy(&mut e, "Thunder Strike", 0);
-        assert!(e.state.enemies[0].entity.hp < 40);
+        assert_eq!(e.state.enemies[0].entity.hp, 40 - 28); // 4 hits of 7 base damage = 28
     });
 
     defect_test!(white_noise_adds_a_power_card, {
@@ -589,7 +589,7 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Reboot");
         e.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Cold Snap"]);
         play_self(&mut e, "Reboot");
-        assert!(e.state.hand.len() >= 4);
+        assert_eq!(e.state.hand.len(), 4); // Reboot draws base_magic=4 cards
     });
 
     defect_test!(seek_is_a_tutor_effect, {

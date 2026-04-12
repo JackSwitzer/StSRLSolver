@@ -430,7 +430,7 @@ mod watcher_card_java_parity_tests {
             // Foreign Influence now presents a DiscoverCard choice with 3 options
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
             engine.execute_action(&Action::Choose(0)); // pick first option
-            assert!(engine.state.hand.len() >= 1);
+            assert_eq!(engine.state.hand.len(), 1); // 1 discovered card added
             assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ForeignInfluence"));
         }
     );
@@ -487,7 +487,7 @@ mod watcher_card_java_parity_tests {
             let block_before = engine.state.player.block;
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
-            assert!(engine.state.player.block > block_before);
+            assert_eq!(engine.state.player.block, block_before + 7); // ThirdEye base_block=7 preamble
         }
     );
     watcher_test!(
@@ -537,7 +537,7 @@ mod watcher_card_java_parity_tests {
             play_self(&mut engine, "Adaptation");
             let hand_before = engine.state.hand.len();
             play_on_enemy(&mut engine, "Eruption", 0);
-            assert!(engine.state.hand.len() >= hand_before);
+            assert_eq!(engine.state.hand.len(), hand_before + 1); // Eruption played (-1) + Rushdown draws 2 on Wrath entry
         }
     );
     watcher_test!(
@@ -577,7 +577,7 @@ mod watcher_card_java_parity_tests {
             let total_insights = hand_prefix_count(&engine, "Insight")
                 + draw_prefix_count(&engine, "Insight")
                 + discard_prefix_count(&engine, "Insight");
-            assert!(total_insights > 0);
+            assert_eq!(total_insights, 1); // Study adds exactly 1 Insight at end of turn
         }
     );
     watcher_test!(
@@ -604,7 +604,7 @@ mod watcher_card_java_parity_tests {
             ensure_in_hand(&mut engine, "Strike_P");
             play_on_enemy(&mut engine, "TalkToTheHand", 0);
             play_on_enemy(&mut engine, "Strike_P", 0);
-            assert!(engine.state.player.block >= 2);
+            assert_eq!(engine.state.player.block, 2); // BlockReturn=2 triggered by Strike hit
         }
     );
     watcher_test!(
