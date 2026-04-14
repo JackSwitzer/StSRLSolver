@@ -4,7 +4,10 @@
 mod silent_wave3 {
     use crate::actions::Action;
     use crate::cards::global_registry;
-    use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+    use crate::effects::declarative::{
+        AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE,
+        Target as T,
+    };
     use crate::engine::CombatEngine;
     use crate::status_ids::sid;
     use crate::tests::support::{
@@ -50,7 +53,32 @@ mod silent_wave3 {
         assert!(malaise.complex_hook.is_some());
 
         let bane = reg.get("Bane").expect("Bane");
-        assert!(bane.complex_hook.is_some(), "Bane still needs a hook until conditional hit-count is runtime-native");
+        assert_eq!(
+            bane.effect_data,
+            &[
+                E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+                E::Conditional(
+                    Cond::EnemyAlive,
+                    &[E::Conditional(
+                        Cond::EnemyHasStatus(sid::POISON),
+                        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
+                        &[],
+                    )],
+                    &[],
+                ),
+            ]
+        );
+        assert!(bane.complex_hook.is_none());
+
+        let all_out_attack = reg.get("All-Out Attack").expect("All-Out Attack");
+        assert_eq!(
+            all_out_attack.effect_data,
+            &[
+                E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+                E::Simple(SE::DiscardRandomCardsFromPile(P::Hand, 1)),
+            ]
+        );
+        assert!(all_out_attack.complex_hook.is_none());
 
         let backstab = reg.get("Backstab").expect("Backstab");
         assert!(backstab.effects.contains(&"innate"));
@@ -124,6 +152,17 @@ mod silent_wave3 {
         assert_eq!(all_out.state.enemies[1].entity.hp, 25);
         assert_eq!(all_out.state.hand.len(), before_hand - 2);
         assert_eq!(all_out.state.discard_pile.len(), 2);
+        assert_eq!(all_out.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+
+        let mut bane_dead = engine_for(
+            &["Bane"],
+            &[],
+            vec![enemy("JawWorm", 8, 8, 1, 0, 1)],
+            3,
+        );
+        bane_dead.state.enemies[0].entity.set_status(sid::POISON, 2);
+        assert!(play_on_enemy(&mut bane_dead, "Bane", 0));
+        assert!(bane_dead.state.enemies[0].entity.is_dead());
     }
 
     #[test]

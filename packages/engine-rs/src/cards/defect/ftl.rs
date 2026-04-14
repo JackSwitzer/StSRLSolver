@@ -9,7 +9,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 3, exhaust: false, enter_stance: None,
                 effects: &["draw_if_few_cards_played"], effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-                ], complex_hook: Some(crate::effects::hooks_simple::hook_draw_if_few_cards_played),
+                    E::Conditional(
+                        Cond::CardsPlayedThisTurnLessThan(3),
+                        &[E::Simple(SE::DrawCards(A::Magic))],
+                        &[],
+                    ),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "FTL+", name: "FTL+", card_type: CardType::Attack,
@@ -17,6 +22,11 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 4, exhaust: false, enter_stance: None,
                 effects: &["draw_if_few_cards_played"], effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-                ], complex_hook: Some(crate::effects::hooks_simple::hook_draw_if_few_cards_played),
+                    E::Conditional(
+                        Cond::CardsPlayedThisTurnLessThan(4),
+                        &[E::Simple(SE::DrawCards(A::Magic))],
+                        &[],
+                    ),
+                ], complex_hook: None,
             });
 }

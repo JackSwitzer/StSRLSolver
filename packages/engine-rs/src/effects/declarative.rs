@@ -106,8 +106,12 @@ pub enum Condition {
     EnemyAttacking,
     /// Hand contains at least one card of the given type.
     HandContainsType(CardType),
+    /// Player has played fewer than this many cards this turn.
+    CardsPlayedThisTurnLessThan(i32),
     /// Target enemy has this status > 0.
     EnemyHasStatus(StatusId),
+    /// Target enemy is still alive.
+    EnemyAlive,
     /// Last card played was this type.
     LastCardType(CardType),
     /// Player has this status > 0.
@@ -281,6 +285,8 @@ pub enum SimpleEffect {
     SetFlag(BoolFlag),
     /// Shuffle discard pile into draw pile.
     ShuffleDiscardIntoDraw,
+    /// Randomly discard cards from a pile.
+    DiscardRandomCardsFromPile(Pile, i32),
     /// Play the top card of the draw pile through the normal free-play path.
     PlayTopCardOfDraw,
     /// Deal flat damage to a target (no strength/stance modifiers).

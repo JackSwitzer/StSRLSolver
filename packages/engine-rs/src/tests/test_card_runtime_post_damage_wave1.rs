@@ -7,6 +7,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
 
 use crate::cards::global_registry;
+use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T};
 use crate::tests::support::*;
 
 #[test]
@@ -22,12 +23,32 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
     assert!(wallop_plus.complex_hook.is_none());
 
     let feed = registry.get("Feed").expect("Feed should exist");
-    assert_eq!(feed.effect_data.len(), 1);
-    assert!(feed.complex_hook.is_some());
+    assert_eq!(
+        feed.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &[E::Simple(SE::ModifyMaxHp(A::Magic))],
+                &[],
+            ),
+        ]
+    );
+    assert!(feed.complex_hook.is_none());
 
     let feed_plus = registry.get("Feed+").expect("Feed+ should exist");
-    assert_eq!(feed_plus.effect_data.len(), 1);
-    assert!(feed_plus.complex_hook.is_some());
+    assert_eq!(
+        feed_plus.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &[E::Simple(SE::ModifyMaxHp(A::Magic))],
+                &[],
+            ),
+        ]
+    );
+    assert!(feed_plus.complex_hook.is_none());
 
     let reaper = registry.get("Reaper").expect("Reaper should exist");
     assert_eq!(reaper.effect_data.len(), 1);
@@ -69,10 +90,12 @@ fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Feed"]);
     let max_hp_before = engine.state.player.max_hp;
+    let hp_before = engine.state.player.hp;
 
     assert!(play_on_enemy(&mut engine, "Feed", 0));
     assert!(engine.state.enemies[0].entity.is_dead());
     assert_eq!(engine.state.player.max_hp, max_hp_before + 3);
+    assert_eq!(engine.state.player.hp, hp_before);
 }
 
 #[test]

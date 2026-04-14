@@ -8,7 +8,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Streamline.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 
@@ -44,9 +46,16 @@ fn defect_wave16_registry_keeps_only_the_remaining_java_blockers_on_partial_type
     let ftl = global_registry().get("FTL").expect("FTL");
     assert_eq!(
         ftl.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::CardsPlayedThisTurnLessThan(3),
+                &[E::Simple(SE::DrawCards(A::Magic))],
+                &[],
+            ),
+        ]
     );
-    assert!(ftl.complex_hook.is_some());
+    assert!(ftl.complex_hook.is_none());
 
     let steam = global_registry().get("Steam").expect("Steam");
     assert_eq!(
@@ -68,7 +77,3 @@ fn defect_wave16_registry_keeps_only_the_remaining_java_blockers_on_partial_type
     );
     assert!(streamline.complex_hook.is_none());
 }
-
-#[test]
-#[ignore = "FTL still needs a cards-played-this-turn gate primitive; Java FTLAction only draws when fewer than three cards were played this turn."]
-fn ftl_still_needs_a_cards_played_this_turn_gate() {}

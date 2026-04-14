@@ -420,6 +420,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.shuffle_draw_pile();
         }
 
+        // -- Discard random cards from a pile --
+        SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
+            execute_discard_random_cards_from_pile(engine, pile, count);
+        }
+
         // -- Play the top card of the draw pile through the normal free-play path --
         SimpleEffect::PlayTopCardOfDraw => {
             if let Some(mut card) = engine.state.draw_pile.pop() {
@@ -988,6 +993,10 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
             })
         }
 
+        Condition::CardsPlayedThisTurnLessThan(threshold) => {
+            engine.state.cards_played_this_turn < threshold
+        }
+
         Condition::EnemyHasStatus(status) => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
@@ -995,6 +1004,13 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
             } else {
                 false
             }
+        }
+
+        Condition::EnemyAlive => {
+            let idx = ctx.target_idx;
+            idx >= 0
+                && (idx as usize) < engine.state.enemies.len()
+                && engine.state.enemies[idx as usize].is_alive()
         }
 
         Condition::LastCardType(card_type) => {
@@ -1289,6 +1305,31 @@ fn execute_draw_random_cards_from_pile_to_hand(
             engine.state.hand.push(card);
         } else {
             engine.state.discard_pile.push(card);
+        }
+    }
+}
+
+fn execute_discard_random_cards_from_pile(
+    engine: &mut CombatEngine,
+    pile: Pile,
+    count: i32,
+) {
+    let count = count.max(0) as usize;
+    if count == 0 {
+        return;
+    }
+
+    for _ in 0..count {
+        let len = get_pile_mut(engine, pile).len();
+        if len == 0 {
+            break;
+        }
+        let idx = engine.rng_gen_range(0..len);
+        let source = get_pile_mut(engine, pile);
+        let card = source.remove(idx);
+        engine.state.discard_pile.push(card);
+        if pile == Pile::Hand {
+            engine.on_card_discarded(card);
         }
     }
 }

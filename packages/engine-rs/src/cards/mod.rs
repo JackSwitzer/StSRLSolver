@@ -416,6 +416,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::RemoveOrbSlot
         | SimpleEffect::EvokeAndRechannelFrontOrb
         | SimpleEffect::ChannelRandomOrb(_)
+        | SimpleEffect::DiscardRandomCardsFromPile(_, _)
         | SimpleEffect::PlayTopCardOfDraw
         | SimpleEffect::RemoveEnemyBlock(_)
         | SimpleEffect::FleeCombat => {}

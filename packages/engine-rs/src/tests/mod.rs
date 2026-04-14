@@ -47,6 +47,7 @@ mod test_card_runtime_colorless_wave7;
 mod test_card_runtime_colorless_wave8;
 mod test_card_runtime_colorless_wave9;
 mod test_card_runtime_colorless_wave10;
+mod test_card_runtime_tiny_primitive_wave2;
 mod test_card_runtime_ironclad_wave1;
 mod test_card_runtime_ironclad_wave2;
 mod test_card_runtime_ironclad_wave8;

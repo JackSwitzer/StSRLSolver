@@ -9,7 +9,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/SecondWind.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 fn one_enemy_engine(enemy_hp: i32, enemy_block: i32, energy: i32) -> crate::engine::CombatEngine {
@@ -53,9 +55,16 @@ fn ironclad_wave13_registry_exports_promote_feed_and_reaper_to_typed_primary_sur
     assert_eq!(feed.target, CardTarget::Enemy);
     assert_eq!(
         feed.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &[E::Simple(SE::ModifyMaxHp(A::Magic))],
+                &[],
+            ),
+        ]
     );
-    assert!(feed.complex_hook.is_some());
+    assert!(feed.complex_hook.is_none());
 
     let reaper = global_registry().get("Reaper").expect("Reaper should exist");
     assert_eq!(reaper.card_type, CardType::Attack);
@@ -75,7 +84,7 @@ fn ironclad_wave13_feed_and_reaper_follow_the_typed_primary_surface() {
     ensure_in_hand(&mut feed, "Feed");
     assert!(play_on_enemy(&mut feed, "Feed", 0));
     assert_eq!(feed.state.player.max_hp, 63);
-    assert_eq!(feed.state.player.hp, 43);
+    assert_eq!(feed.state.player.hp, 40);
 
     let mut reaper = two_enemy_engine(8, 3, 7, 0, 3);
     reaper.state.player.hp = 30;

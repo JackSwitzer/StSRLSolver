@@ -1065,6 +1065,9 @@ impl EffectRuntime {
                 engine.state.draw_pile.append(&mut cards);
                 engine.shuffle_draw_pile();
             }
+            SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
+                self.execute_discard_random_cards_from_pile(engine, pile, count);
+            }
             SimpleEffect::DealDamage(target, amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if amount <= 0 {
@@ -1210,11 +1213,20 @@ impl EffectRuntime {
                     engine.card_registry.card_def_by_id(card.def_id).card_type == card_type
                 })
             }
+            crate::effects::declarative::Condition::CardsPlayedThisTurnLessThan(threshold) => {
+                engine.state.cards_played_this_turn < threshold
+            }
             crate::effects::declarative::Condition::EnemyHasStatus(status_id) => {
                 let idx = event.target_idx;
                 idx >= 0
                     && (idx as usize) < engine.state.enemies.len()
                     && engine.state.enemies[idx as usize].entity.status(status_id) > 0
+            }
+            crate::effects::declarative::Condition::EnemyAlive => {
+                let idx = event.target_idx;
+                idx >= 0
+                    && (idx as usize) < engine.state.enemies.len()
+                    && engine.state.enemies[idx as usize].is_alive()
             }
             crate::effects::declarative::Condition::LastCardType(card_type) => {
                 engine.state.last_card_type == Some(card_type)
@@ -1308,6 +1320,42 @@ impl EffectRuntime {
                 _ => 1,
             },
             AmountSource::TotalUnblockedDamage => engine.runtime_card_total_unblocked_damage.max(0),
+        }
+    }
+
+    fn execute_discard_random_cards_from_pile(
+        &self,
+        engine: &mut CombatEngine,
+        pile: Pile,
+        count: i32,
+    ) {
+        let count = count.max(0) as usize;
+        if count == 0 {
+            return;
+        }
+
+        for _ in 0..count {
+            let len = match pile {
+                Pile::Hand => engine.state.hand.len(),
+                Pile::Draw => engine.state.draw_pile.len(),
+                Pile::Discard => engine.state.discard_pile.len(),
+                Pile::Exhaust => engine.state.exhaust_pile.len(),
+            };
+            if len == 0 {
+                break;
+            }
+            let idx = engine.rng_gen_range(0..len);
+            let source = match pile {
+                Pile::Hand => &mut engine.state.hand,
+                Pile::Draw => &mut engine.state.draw_pile,
+                Pile::Discard => &mut engine.state.discard_pile,
+                Pile::Exhaust => &mut engine.state.exhaust_pile,
+            };
+            let card = source.remove(idx);
+            engine.state.discard_pile.push(card);
+            if pile == Pile::Hand {
+                engine.on_card_discarded(card);
+            }
         }
     }
 

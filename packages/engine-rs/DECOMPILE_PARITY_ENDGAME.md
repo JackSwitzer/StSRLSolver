@@ -41,6 +41,20 @@ Minimum worker acceptance:
 - `./scripts/test_engine_rs.sh test --lib --no-run`
 - one or more focused engine-path suites for the owned slice
 
+## Current Checkpoint
+
+This slice moved the following cards onto the typed primary surface:
+
+- `FTL`
+- `Bane`
+- `Feed`
+- `All-Out Attack`
+
+The remaining explicit blockers in this bundle are still Java-cited and intentional:
+
+- `Enlightenment` base
+- `Escape Plan`
+
 ## Translation Rules
 
 Every migrated legacy registrar element should translate to one canonical runtime-backed definition with:

@@ -12,7 +12,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/common/RemoveAllBlockAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
@@ -28,9 +30,16 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
     let ftl = reg.get("FTL").expect("FTL");
     assert_eq!(
         ftl.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::CardsPlayedThisTurnLessThan(3),
+                &[E::Simple(SE::DrawCards(A::Magic))],
+                &[],
+            ),
+        ]
     );
-    assert!(ftl.complex_hook.is_some(), "FTL still needs the Java cards-played draw gate");
+    assert!(ftl.complex_hook.is_none());
     assert_eq!(ftl.card_type, CardType::Attack);
     assert_eq!(ftl.target, CardTarget::Enemy);
 

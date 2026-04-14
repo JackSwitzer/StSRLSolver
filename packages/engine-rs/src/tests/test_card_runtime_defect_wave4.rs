@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::gameplay::GameplayProgramSource;
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
@@ -54,7 +56,18 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     assert!(chaos.complex_hook.is_some(), "Chaos still needs a random-orb hook");
 
     let ftl = reg.get("FTL").expect("FTL");
-    assert!(ftl.complex_hook.is_some(), "FTL still needs a cards-played hook");
+    assert_eq!(
+        ftl.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::CardsPlayedThisTurnLessThan(3),
+                &[E::Simple(SE::DrawCards(A::Magic))],
+                &[],
+            ),
+        ]
+    );
+    assert!(ftl.complex_hook.is_none());
 
     let claw = reg.get("Gash").expect("Gash");
     assert_eq!(

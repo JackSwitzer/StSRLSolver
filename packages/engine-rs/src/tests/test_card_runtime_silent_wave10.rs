@@ -10,7 +10,9 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::status_ids::sid;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 #[test]
@@ -22,16 +24,32 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
         all_out_attack.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+            E::Simple(SE::DiscardRandomCardsFromPile(P::Hand, 1)),
+        ]
     );
+    assert!(all_out_attack.complex_hook.is_none());
 
     let bane = registry.get("Bane").expect("Bane should exist");
     assert_eq!(bane.card_type, CardType::Attack);
     assert_eq!(bane.target, CardTarget::Enemy);
     assert_eq!(
         bane.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyAlive,
+                &[E::Conditional(
+                    Cond::EnemyHasStatus(sid::POISON),
+                    &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
+                    &[],
+                )],
+                &[],
+            ),
+        ]
     );
+    assert!(bane.complex_hook.is_none());
 
     let escape_plan = registry.get("Escape Plan").expect("Escape Plan should exist");
     assert_eq!(escape_plan.card_type, CardType::Skill);
@@ -86,6 +104,7 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     assert_eq!(discard_prefix_count(&aoa, "All-Out Attack"), 1);
     assert_eq!(aoa.state.discard_pile.len(), 2);
     assert_eq!(aoa.state.hand.len(), 1);
+    assert_eq!(aoa.state.player.status(sid::DISCARDED_THIS_TURN), 1);
 
     let mut bane = engine_without_start(
         Vec::new(),

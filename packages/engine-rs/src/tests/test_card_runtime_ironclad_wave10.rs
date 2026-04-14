@@ -6,7 +6,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 fn one_enemy_engine(enemy_hp: i32, energy: i32) -> crate::engine::CombatEngine {
@@ -101,9 +103,16 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
     let feed = global_registry().get("Feed").expect("Feed should exist");
     assert_eq!(
         feed.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &[E::Simple(SE::ModifyMaxHp(A::Magic))],
+                &[],
+            ),
+        ]
     );
-    assert!(feed.complex_hook.is_some());
+    assert!(feed.complex_hook.is_none());
 
     let reaper = global_registry().get("Reaper").expect("Reaper should exist");
     assert_eq!(
