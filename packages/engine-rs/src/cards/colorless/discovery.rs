@@ -4,7 +4,8 @@ use crate::effects::declarative::{Effect, GeneratedCardPool, GeneratedCostRule};
 static DISCOVERY: [Effect; 1] = [Effect::GenerateDiscoveryChoice {
     pool: GeneratedCardPool::Colorless,
     option_count: 3,
-    cost_rule: GeneratedCostRule::Base,
+    preview_cost_rule: GeneratedCostRule::Base,
+    selected_cost_rule: GeneratedCostRule::Base,
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {

@@ -87,11 +87,3 @@ fn transmutation_plus_upgrades_generated_cards() {
     assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
     assert!(engine.state.hand.iter().all(|card| card.cost == 0));
 }
-
-#[test]
-#[ignore = "Wish still needs payload-driven option resolution for Strength, Gold, and Plated Armor branches on the canonical decision surface."]
-fn wish_still_needs_payload_driven_option_resolution() {}
-
-#[test]
-#[ignore = "Foreign Influence still needs a non-Watcher attack choice pool plus upgraded-only chosen-card cost override semantics."]
-fn foreign_influence_still_needs_cross_class_choice_pool_and_selective_cost_override() {}

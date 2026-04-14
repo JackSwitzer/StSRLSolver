@@ -1236,6 +1236,14 @@ impl RunEngine {
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.potions = engine.state.potions.clone();
+                if engine.state.pending_run_gold > 0
+                    && !self
+                        .run_state
+                        .relic_flags
+                        .has(crate::relic_flags::flag::ECTOPLASM)
+                {
+                    self.run_state.gold += engine.state.pending_run_gold;
+                }
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.persisted_effect_states = engine.export_persisted_effects();
                 self.run_state.combats_won += 1;

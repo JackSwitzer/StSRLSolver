@@ -8,17 +8,63 @@
 use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::engine::{ChoiceReason, ChoiceOption};
-use crate::effects::declarative::{Effect as E};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, NamedOptionKind, ScaledNamedOption,
+};
 use crate::tests::support::*;
 
 #[test]
 fn test_card_runtime_watcher_wave19_registry_promotes_wish_to_typed_named_choice() {
     let wish = global_registry().get("Wish").expect("Wish should exist");
-    assert_eq!(wish.effect_data, &[E::ChooseNamedOptions(&["Strength", "Gold", "Plated Armor"])]);
+    let [E::ChooseScaledNamedOptions(options)] = wish.effect_data else {
+        panic!("Wish should use scaled named option payloads");
+    };
+    assert_eq!(
+        *options,
+        [
+            ScaledNamedOption {
+                label: "Strength",
+                amount: A::Damage,
+                kind: NamedOptionKind::AddStatus(crate::status_ids::sid::STRENGTH),
+            },
+            ScaledNamedOption {
+                label: "Gold",
+                amount: A::Magic,
+                kind: NamedOptionKind::GainRunGold,
+            },
+            ScaledNamedOption {
+                label: "Plated Armor",
+                amount: A::Block,
+                kind: NamedOptionKind::AddStatus(crate::status_ids::sid::PLATED_ARMOR),
+            },
+        ]
+    );
     assert!(wish.complex_hook.is_none());
 
     let wish_plus = global_registry().get("Wish+").expect("Wish+ should exist");
-    assert_eq!(wish_plus.effect_data, &[E::ChooseNamedOptions(&["Strength", "Gold", "Plated Armor"])]);
+    let [E::ChooseScaledNamedOptions(options)] = wish_plus.effect_data else {
+        panic!("Wish+ should use scaled named option payloads");
+    };
+    assert_eq!(
+        *options,
+        [
+            ScaledNamedOption {
+                label: "Strength",
+                amount: A::Damage,
+                kind: NamedOptionKind::AddStatus(crate::status_ids::sid::STRENGTH),
+            },
+            ScaledNamedOption {
+                label: "Gold",
+                amount: A::Magic,
+                kind: NamedOptionKind::GainRunGold,
+            },
+            ScaledNamedOption {
+                label: "Plated Armor",
+                amount: A::Block,
+                kind: NamedOptionKind::AddStatus(crate::status_ids::sid::PLATED_ARMOR),
+            },
+        ]
+    );
     assert!(wish_plus.complex_hook.is_none());
 }
 
@@ -42,6 +88,24 @@ fn test_card_runtime_watcher_wave19_wish_named_choice_resolves_strength_branch()
     assert_eq!(engine.state.player.status(crate::status_ids::sid::STRENGTH), 3);
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
     assert!(engine.choice.is_none());
+}
+
+#[test]
+fn test_card_runtime_watcher_wave19_wish_gold_branch_credits_pending_run_gold() {
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Wish+"]);
+
+    assert!(play_self(&mut engine, "Wish+"));
+    let choice = engine.choice.as_ref().expect("Wish+ should open a choice");
+    assert_eq!(choice.options.len(), 3);
+
+    engine.execute_action(&Action::Choose(1));
+
+    assert_eq!(engine.state.pending_run_gold, 30);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::STRENGTH), 0);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::PLATED_ARMOR), 0);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
 }
 
 #[test]

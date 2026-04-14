@@ -51,10 +51,10 @@ These counts come from the current verified production tree and are useful as a 
 - unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `0`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - unsupported blocked event branches still present in source: `1`
-- total ignored tests in `src/tests`: `92`
+- total ignored tests in `src/tests`: `79`
 - ignored-test classified buckets:
   - active parity blockers: `26`
-  - stale solved / noisy: `50`
+  - stale solved / noisy: `37`
   - post-merge enhancements: `11`
   - cleanup-only shell/accounting: `4`
   - unsupported/out-of-scope: `1`
@@ -91,7 +91,7 @@ What those numbers mean:
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
 - there are no remaining public card gameplay gaps in the source tree; the remaining raw empties are runtime-backed cleanup shells rather than missing gameplay behavior
 - the new canonical audit source for the remaining `1%` is [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md), which separates supported-scope merge blockers from stale ignored-test noise, unsupported event backlog, and post-merge semantic families
-- the current supported-scope merge claim remains `supported runtime parity complete`; the stronger `all gameplay content complete` claim is still blocked by `Scrap Ooze`, the temporary `Match and Keep!` approximation, and the classified post-merge semantic families in the inconsistency report
+- the current supported-scope merge claim remains `supported runtime parity complete`; the stronger `all gameplay content complete` claim is now mainly blocked by `Scrap Ooze`, the temporary `Match and Keep!` approximation, `Neow` action-layer / `Neow's Lament`, potion legality edges, and `Emotion Chip` timing
 
 ## Why We Are Not Done Yet
 
@@ -382,8 +382,9 @@ Goal:
 
 Goal:
 
-- retire the ignored `Emotion Chip` and `Liquid Memories` blocker cases, then address the separate shared `AwaitingChoice` continuation bug family (`Third Eye`, `Foreign Influence`)
-- continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
+- retire the ignored `Emotion Chip` and `Liquid Memories` blocker cases
+- finish the `Neow` action-layer / `Neow's Lament` slice
+- close potion legality / choose-one edges and the remaining unsupported event debt without reintroducing bespoke fallbacks
 
 ### Wave 4: final dead-export cleanup
 

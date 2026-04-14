@@ -14,7 +14,7 @@ use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::effects;
-use crate::effects::declarative::ChoiceAction;
+use crate::effects::declarative::{ChoiceAction, GeneratedCostRule, NamedOptionKind};
 use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
@@ -73,6 +73,12 @@ pub enum ChoiceOption {
     ExhaustCard(usize),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NamedChoicePayload {
+    pub kind: NamedOptionKind,
+    pub amount: i32,
+}
+
 /// Context for an in-progress player choice.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
@@ -90,6 +96,10 @@ pub struct ChoiceContext {
     /// Optional post-choice draw handoff owned by the choice itself.
     /// Burning Pact uses this to draw after the exhaust choice resolves.
     pub post_choice_draw: i32,
+    /// Optional per-option payload for named choices like Wish.
+    pub named_payloads: Option<Vec<NamedChoicePayload>>,
+    /// Optional post-selection cost rule for generated-card choices.
+    pub generated_selected_cost_rule: Option<GeneratedCostRule>,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -364,6 +374,41 @@ impl CombatEngine {
         self.begin_choice_with_action(reason, options, min_picks, max_picks, 0, None);
     }
 
+    pub fn begin_choice_with_named_payloads(
+        &mut self,
+        reason: ChoiceReason,
+        options: Vec<ChoiceOption>,
+        min_picks: usize,
+        max_picks: usize,
+        named_payloads: Vec<NamedChoicePayload>,
+    ) {
+        self.begin_choice_with_action(reason, options, min_picks, max_picks, 0, None);
+        if let Some(choice) = self.choice.as_mut() {
+            choice.named_payloads = Some(named_payloads);
+        }
+    }
+
+    pub fn begin_discovery_choice(
+        &mut self,
+        options: Vec<ChoiceOption>,
+        min_picks: usize,
+        max_picks: usize,
+        aux_count: usize,
+        selected_cost_rule: GeneratedCostRule,
+    ) {
+        self.begin_choice_with_action(
+            ChoiceReason::DiscoverCard,
+            options,
+            min_picks,
+            max_picks,
+            aux_count,
+            None,
+        );
+        if let Some(choice) = self.choice.as_mut() {
+            choice.generated_selected_cost_rule = Some(selected_cost_rule);
+        }
+    }
+
     pub fn begin_choice_with_aux(
         &mut self,
         reason: ChoiceReason,
@@ -400,6 +445,8 @@ impl CombatEngine {
             aux_count,
             action,
             post_choice_draw: 0,
+            named_payloads: None,
+            generated_selected_cost_rule: None,
         });
     }
 
@@ -607,6 +654,9 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::GeneratedCard(preview_card) = ctx.options[sel] {
                 let copies = ctx.aux_count.max(1);
+                let selected_cost_rule = ctx
+                    .generated_selected_cost_rule
+                    .unwrap_or(GeneratedCostRule::Base);
                 for _ in 0..copies {
                     let mut card = preview_card;
                     if self.state.player.status(sid::MASTER_REALITY) > 0 {
@@ -621,6 +671,10 @@ impl CombatEngine {
                     if crate::effects::interpreter::is_colorless_generation_card(card_id) {
                         card.cost = 0;
                     }
+                    crate::effects::interpreter::apply_generated_cost_rule(
+                        &mut card,
+                        selected_cost_rule,
+                    );
                     if self.state.hand.len() < 10 {
                         self.state.hand.push(card);
                     } else {
@@ -632,9 +686,26 @@ impl CombatEngine {
     }
 
     fn resolve_pick_option(&mut self, ctx: ChoiceContext) {
-        // Wish: Named options [Strength, Gold, Plated Armor]
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::Named(name) = ctx.options[sel] {
+                if let Some(payload) = ctx
+                    .named_payloads
+                    .as_ref()
+                    .and_then(|payloads| payloads.get(sel))
+                    .copied()
+                {
+                    match payload.kind {
+                        NamedOptionKind::AddStatus(status) => {
+                            let current = self.state.player.status(status);
+                            self.state.player.set_status(status, current + payload.amount);
+                        }
+                        NamedOptionKind::GainRunGold => {
+                            self.state.pending_run_gold += payload.amount.max(0);
+                        }
+                    }
+                    return;
+                }
+
                 match name {
                     "Strength" => {
                         let current = self.state.player.status(sid::STRENGTH);

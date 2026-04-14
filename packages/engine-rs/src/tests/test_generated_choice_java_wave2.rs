@@ -77,8 +77,7 @@ const COLORLESS_CHOICES: &[&str] = &[
 ];
 
 #[test]
-#[ignore = "Java Wish grants Gold through run-state plumbing; the current combat runtime cannot mutate run gold yet."]
-fn wish_gold_branch_is_blocked_by_run_gold_plumbing() {
+fn wish_gold_branch_credits_pending_run_gold() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Wish", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -99,6 +98,7 @@ fn wish_gold_branch_is_blocked_by_run_gold_plumbing() {
 
     engine.execute_action(&Action::Choose(1));
     assert_eq!(engine.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(engine.state.pending_run_gold, 25);
 }
 
 #[test]
@@ -237,8 +237,7 @@ fn metamorphosis_needs_random_upgraded_attack_generation() {
 }
 
 #[test]
-#[ignore = "Java Transmutation converts X energy into random card generation; the current runtime still uses a fixed Smite-style approximation."]
-fn transmutation_needs_x_cost_random_generation_action() {
+fn transmutation_uses_x_cost_random_generation_action() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Transmutation", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -247,5 +246,16 @@ fn transmutation_needs_x_cost_random_generation_action() {
 
     let hand_before = engine.state.hand.len();
     play_card(&mut engine, "Transmutation");
-    assert!(engine.state.hand.len() >= hand_before);
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.hand.len(), hand_before + 2);
+    let zero_cost_generated = engine
+        .state
+        .hand
+        .iter()
+        .filter(|card| {
+            let name = engine.card_registry.card_name(card.def_id);
+            COLORLESS_CHOICES.contains(&name) && card.cost == 0
+        })
+        .count();
+    assert_eq!(zero_cost_generated, 3);
 }

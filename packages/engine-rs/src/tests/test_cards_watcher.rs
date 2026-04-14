@@ -847,8 +847,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         wish_java_parity,
-        base = ("Wish", "Wish", 3, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, ["wish"]),
-        plus = ("Wish+", "Wish+", 3, -1, -1, 4, CardType::Skill, CardTarget::None, true, None, ["wish"]),
+        base = ("Wish", "Wish", 3, 3, 6, 25, CardType::Skill, CardTarget::None, true, None, ["wish"]),
+        plus = ("Wish+", "Wish+", 3, 4, 8, 30, CardType::Skill, CardTarget::None, true, None, ["wish"]),
         {}
     );
     watcher_test!(

@@ -7,6 +7,7 @@
 
 #[cfg(test)]
 mod run_java_parity_tests {
+    use crate::actions::Action;
     use crate::map::RoomType;
     use crate::run::{RunAction, RunEngine, RunPhase};
 
@@ -215,5 +216,45 @@ mod run_java_parity_tests {
         let engine = RunEngine::new(42, 0);
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert_eq!(engine.run_state.act, 1);
+    }
+
+    #[test]
+    fn wish_gold_branch_syncs_into_run_state_after_combat_resolution() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Wish+".to_string(); 10];
+        set_first_reachable_room(&mut engine, RoomType::Monster);
+
+        let actions = engine.get_legal_actions();
+        engine.step(&actions[0]);
+
+        let gold_before = engine.run_state.gold;
+        let combat = engine.get_combat_engine().expect("combat should be active");
+        let wish_idx = combat
+            .state
+            .hand
+            .iter()
+            .position(|card| combat.card_registry.card_name(card.def_id) == "Wish+")
+            .expect("opening hand should contain Wish+");
+        engine.step(&RunAction::CombatAction(Action::PlayCard {
+            card_idx: wish_idx,
+            target_idx: -1,
+        }));
+        engine.step(&RunAction::CombatAction(Action::Choose(1)));
+        assert_eq!(
+            engine
+                .get_combat_engine()
+                .expect("combat should still be active")
+                .state
+                .pending_run_gold,
+            30
+        );
+        engine.debug_force_current_combat_outcome(true);
+        engine.debug_resolve_current_combat_outcome();
+
+        assert!(
+            engine.run_state.gold >= gold_before + 30,
+            "Wish+ gold branch should sync its 30 gold into RunState on combat resolution, got {}",
+            engine.run_state.gold - gold_before
+        );
     }
 }

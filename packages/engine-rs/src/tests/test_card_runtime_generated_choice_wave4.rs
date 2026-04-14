@@ -89,19 +89,3 @@ fn discovery_plus_keeps_the_same_choice_runtime_without_exhausting() {
             .any(|card| engine.card_registry.card_name(card.def_id) == "Discovery+")
     );
 }
-
-#[test]
-#[ignore = "Moving Chrysalis and Metamorphosis off complex_hook needs a typed generate-random-cards-to-draw op; current Effect only supports GenerateRandomCardsToHand."]
-fn chrysalis_and_metamorphosis_need_a_draw_pile_generation_op() {}
-
-#[test]
-#[ignore = "Transmutation needs a typed generated-card op that combines X-count, upgraded-card copies, and Chemical X energy resolution from TransmutationAction.java."]
-fn transmutation_needs_x_count_upgrade_and_chemical_x_generation_metadata() {}
-
-#[test]
-#[ignore = "Wish needs choice-option payloads for upgraded Strength/Gold/Plated Armor branches plus run-gold plumbing instead of the current fixed named-option resolver."]
-fn wish_needs_payload_driven_option_resolution() {}
-
-#[test]
-#[ignore = "Foreign Influence needs a generated-choice pool for non-Watcher attacks plus an upgraded-only chosen-card cost override; current DiscoverCard resolution always zeroes the chosen card."]
-fn foreign_influence_needs_cross_class_attack_pool_and_selective_cost_override() {}

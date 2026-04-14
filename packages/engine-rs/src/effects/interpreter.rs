@@ -9,7 +9,8 @@ use crate::effects::trigger::TriggerContext;
 use crate::effects::types::CardPlayContext;
 use crate::ids::StatusId;
 use crate::status_ids::sid;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 // ===========================================================================
 // Public entry point
@@ -81,6 +82,10 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
             execute_choose_named_options(engine, option_names);
         }
 
+        Effect::ChooseScaledNamedOptions(option_specs) => {
+            execute_choose_scaled_named_options(engine, ctx, option_specs);
+        }
+
         Effect::GenerateRandomCardsToHand {
             pool,
             count,
@@ -100,9 +105,16 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
         Effect::GenerateDiscoveryChoice {
             pool,
             option_count,
-            cost_rule,
+            preview_cost_rule,
+            selected_cost_rule,
         } => {
-            execute_generate_discovery_choice(engine, *pool, *option_count, *cost_rule);
+            execute_generate_discovery_choice(
+                engine,
+                *pool,
+                *option_count,
+                *preview_cost_rule,
+                *selected_cost_rule,
+            );
         }
     }
 }
@@ -1548,6 +1560,28 @@ fn execute_choose_named_options(engine: &mut CombatEngine, option_names: &[&'sta
     engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
 }
 
+fn execute_choose_scaled_named_options(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    option_specs: &[ScaledNamedOption],
+) {
+    if option_specs.is_empty() {
+        return;
+    }
+    let options = option_specs
+        .iter()
+        .map(|option| ChoiceOption::Named(option.label))
+        .collect();
+    let payloads = option_specs
+        .iter()
+        .map(|option| crate::engine::NamedChoicePayload {
+            kind: option.kind,
+            amount: resolve_card_amount(engine, ctx, &option.amount).max(0),
+        })
+        .collect();
+    engine.begin_choice_with_named_payloads(ChoiceReason::PickOption, options, 1, 1, payloads);
+}
+
 fn execute_generate_random_cards_to_hand(
     engine: &mut CombatEngine,
     ctx: &CardPlayContext,
@@ -1597,7 +1631,8 @@ fn execute_generate_discovery_choice(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
     option_count: usize,
-    cost_rule: GeneratedCostRule,
+    preview_cost_rule: GeneratedCostRule,
+    selected_cost_rule: GeneratedCostRule,
 ) {
     if engine.state.hand.len() >= 10 || option_count == 0 {
         return;
@@ -1605,12 +1640,12 @@ fn execute_generate_discovery_choice(
     let options: Vec<ChoiceOption> = generate_unique_random_cards(engine, pool, option_count)
         .into_iter()
         .map(|mut card| {
-            apply_generated_cost_rule(&mut card, cost_rule);
+            apply_generated_cost_rule(&mut card, preview_cost_rule);
             ChoiceOption::GeneratedCard(card)
         })
         .collect();
     if !options.is_empty() {
-        engine.begin_choice(ChoiceReason::DiscoverCard, options, 1, 1);
+        engine.begin_discovery_choice(options, 1, 1, 1, selected_cost_rule);
     }
 }
 
@@ -1620,7 +1655,7 @@ pub fn open_generated_discovery_choice(
     option_count: usize,
     cost_rule: GeneratedCostRule,
 ) {
-    execute_generate_discovery_choice(engine, pool, option_count, cost_rule);
+    execute_generate_discovery_choice(engine, pool, option_count, cost_rule, cost_rule);
 }
 
 pub fn open_generated_discovery_choice_scaled(
@@ -1643,12 +1678,12 @@ pub fn open_generated_discovery_choice_scaled(
         })
         .collect();
     if !options.is_empty() {
-        engine.begin_choice_with_aux(
-            ChoiceReason::DiscoverCard,
+        engine.begin_discovery_choice(
             options,
             1,
             1,
             copy_count.max(1),
+            cost_rule,
         );
     }
 }
@@ -1691,6 +1726,9 @@ fn generate_random_card(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
 ) -> Option<crate::combat_types::CardInstance> {
+    if matches!(pool, GeneratedCardPool::AnyColorAttackRarityWeighted) {
+        return generate_weighted_any_color_attack_card(engine);
+    }
     let pool_cards = generated_card_pool(engine, pool);
     if pool_cards.is_empty() {
         return None;
@@ -1704,6 +1742,9 @@ fn generate_unique_random_cards(
     pool: GeneratedCardPool,
     option_count: usize,
 ) -> Vec<crate::combat_types::CardInstance> {
+    if matches!(pool, GeneratedCardPool::AnyColorAttackRarityWeighted) {
+        return generate_unique_weighted_any_color_attack_cards(engine, option_count);
+    }
     let pool_cards = generated_card_pool(engine, pool);
     if pool_cards.is_empty() {
         return Vec::new();
@@ -1744,10 +1785,13 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .filter(|def| def.card_type == CardType::Power && !def.id.ends_with('+'))
             .map(|def| def.id)
             .collect(),
+        GeneratedCardPool::AnyColorAttackRarityWeighted => weighted_any_color_attack_ids(engine)
+            .into_iter()
+            .collect(),
     }
 }
 
-fn apply_generated_cost_rule(
+pub fn apply_generated_cost_rule(
     card: &mut crate::combat_types::CardInstance,
     cost_rule: GeneratedCostRule,
 ) {
@@ -1765,6 +1809,169 @@ fn apply_generated_cost_rule(
             card.cost = 0;
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GeneratedPoolRarity {
+    Common,
+    Uncommon,
+    Rare,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GeneratedCardMeta {
+    card_type: CardType,
+    rarity: GeneratedPoolRarity,
+}
+
+fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
+    static CARD_META: OnceLock<HashMap<String, GeneratedCardMeta>> = OnceLock::new();
+    CARD_META
+        .get_or_init(build_generated_card_meta_map)
+        .get(card_id.trim_end_matches('+'))
+        .copied()
+}
+
+fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
+    let mut map = HashMap::new();
+    for line in include_str!("../../../engine/content/cards.py").lines() {
+        let Some((_, id_rest)) = line.split_once("id=\"") else {
+            continue;
+        };
+        let Some((card_id, _)) = id_rest.split_once('"') else {
+            continue;
+        };
+        let Some((_, type_rest)) = line.split_once("card_type=CardType.") else {
+            continue;
+        };
+        let type_token = type_rest
+            .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
+            .next()
+            .unwrap_or("");
+        let card_type = match type_token {
+            "ATTACK" => CardType::Attack,
+            "SKILL" => CardType::Skill,
+            "POWER" => CardType::Power,
+            "STATUS" => CardType::Status,
+            "CURSE" => CardType::Curse,
+            _ => continue,
+        };
+        let Some((_, rarity_rest)) = line.split_once("rarity=CardRarity.") else {
+            continue;
+        };
+        let rarity_token = rarity_rest
+            .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
+            .next()
+            .unwrap_or("");
+        let rarity = match rarity_token {
+            "COMMON" => GeneratedPoolRarity::Common,
+            "UNCOMMON" => GeneratedPoolRarity::Uncommon,
+            "RARE" => GeneratedPoolRarity::Rare,
+            _ => continue,
+        };
+        map.insert(card_id.to_string(), GeneratedCardMeta { card_type, rarity });
+    }
+    map
+}
+
+fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
+    engine
+        .card_registry
+        .all_card_defs()
+        .iter()
+        .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| {
+            matches!(
+                generated_card_meta(def.id),
+                Some(GeneratedCardMeta {
+                    card_type: CardType::Attack,
+                    rarity: GeneratedPoolRarity::Common
+                        | GeneratedPoolRarity::Uncommon
+                        | GeneratedPoolRarity::Rare,
+                })
+            )
+        })
+        .map(|def| def.id)
+        .collect()
+}
+
+fn weighted_any_color_attack_bucket(
+    engine: &CombatEngine,
+    rarity: GeneratedPoolRarity,
+) -> Vec<&'static str> {
+    engine
+        .card_registry
+        .all_card_defs()
+        .iter()
+        .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| {
+            matches!(
+                generated_card_meta(def.id),
+                Some(GeneratedCardMeta {
+                    card_type: CardType::Attack,
+                    rarity: card_rarity,
+                }) if card_rarity == rarity
+            )
+        })
+        .map(|def| def.id)
+        .collect()
+}
+
+fn roll_generated_attack_rarity(engine: &mut CombatEngine) -> GeneratedPoolRarity {
+    let roll = engine.rng_gen_range(0..100);
+    if roll < 55 {
+        GeneratedPoolRarity::Common
+    } else if roll < 85 {
+        GeneratedPoolRarity::Uncommon
+    } else {
+        GeneratedPoolRarity::Rare
+    }
+}
+
+fn generate_weighted_any_color_attack_card(
+    engine: &mut CombatEngine,
+) -> Option<crate::combat_types::CardInstance> {
+    let rarity = roll_generated_attack_rarity(engine);
+    let bucket = weighted_any_color_attack_bucket(engine, rarity);
+    if bucket.is_empty() {
+        return None;
+    }
+    let idx = engine.rng_gen_range(0..bucket.len());
+    Some(engine.temp_card(bucket[idx]))
+}
+
+fn generate_unique_weighted_any_color_attack_cards(
+    engine: &mut CombatEngine,
+    option_count: usize,
+) -> Vec<crate::combat_types::CardInstance> {
+    let total_pool = weighted_any_color_attack_ids(engine);
+    if total_pool.is_empty() || option_count == 0 {
+        return Vec::new();
+    }
+    let target = option_count.min(total_pool.len());
+    let mut picked = Vec::with_capacity(target);
+    let mut seen = HashSet::new();
+    let mut fallback_pool: Vec<&'static str> = total_pool;
+
+    while picked.len() < target {
+        if let Some(card) = generate_weighted_any_color_attack_card(engine) {
+            let card_name = engine.card_registry.card_name(card.def_id);
+            if seen.insert(card_name) {
+                picked.push(card);
+                continue;
+            }
+        }
+        fallback_pool.retain(|card_id| !seen.contains(card_id));
+        if fallback_pool.is_empty() {
+            break;
+        }
+        let idx = engine.rng_gen_range(0..fallback_pool.len());
+        let card_id = fallback_pool.remove(idx);
+        seen.insert(card_id);
+        picked.push(engine.temp_card(card_id));
+    }
+
+    picked
 }
 
 fn upgrade_rule_from_cost_rule(cost_rule: GeneratedCostRule) -> GeneratedUpgradeRule {

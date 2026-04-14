@@ -212,6 +212,7 @@ pub enum GeneratedCardPool {
     Skill,
     Power,
     Colorless,
+    AnyColorAttackRarityWeighted,
 }
 
 /// Temporary cost override applied to generated cards.
@@ -237,6 +238,21 @@ pub enum GeneratedUpgradeRule {
 pub enum GeneratedDestination {
     Hand,
     Draw,
+}
+
+/// Runtime effect attached to a named choice option.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedOptionKind {
+    AddStatus(StatusId),
+    GainRunGold,
+}
+
+/// Declarative named option with a runtime-resolved amount.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScaledNamedOption {
+    pub label: &'static str,
+    pub amount: AmountSource,
+    pub kind: NamedOptionKind,
 }
 
 // ===========================================================================
@@ -395,6 +411,10 @@ pub enum Effect {
     /// Present a named option menu for effects like Wish.
     ChooseNamedOptions(&'static [&'static str]),
 
+    /// Present a named option menu with a resolved runtime payload per option.
+    /// Covers Java-correct Wish semantics.
+    ChooseScaledNamedOptions(&'static [ScaledNamedOption]),
+
     /// Generate random card(s) from a pool directly into hand.
     GenerateRandomCardsToHand {
         pool: GeneratedCardPool,
@@ -413,7 +433,8 @@ pub enum Effect {
     GenerateDiscoveryChoice {
         pool: GeneratedCardPool,
         option_count: usize,
-        cost_rule: GeneratedCostRule,
+        preview_cost_rule: GeneratedCostRule,
+        selected_cost_rule: GeneratedCostRule,
     },
 }
 

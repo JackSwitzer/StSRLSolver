@@ -8,9 +8,9 @@ Branch: `codex/universal-gameplay-runtime`
 Fresh audit result:
 
 - supported-scope engine/runtime parity is effectively `99%`
-- all-content parity including explicit unsupported backlog and post-merge semantic families is closer to `96-97%`
+- all-content parity including explicit unsupported backlog and post-merge semantic families is closer to `97-98%`
 - the supported-scope merge-blocking gameplay tail is currently `0`
-- the remaining work is now dominated by audit hygiene, explicit unsupported scope, and a small set of Java-cited semantic families
+- the remaining work is now dominated by explicit unsupported scope, action-layer breadth, and a small set of Java-cited semantic families
 
 Fresh verification completed during this audit:
 
@@ -51,7 +51,7 @@ Priority task queue from this audit:
 
 1. Clean stale solved `#[ignore]` tests so the backlog is honest.
 2. Keep PR/docs explicit that `Scrap Ooze` remains unsupported and that `Match and Keep!` is currently a temporary fixed-card approximation rather than the Java minigame.
-3. Decide whether the stronger all-content claim is needed now; if yes, finish the Java-cited semantic families in section 6 first.
+3. If the stronger all-content claim is needed now, finish the remaining semantic families in section 6 first: `Neow`, potion legality / choose-one, `Emotion Chip`, `Scrap Ooze`, and full `Match and Keep!`.
 4. After merge readiness is settled, pivot to training-system redesign with the appendix recommendations in section 7.
 
 ## 2. Quantified Baseline
@@ -63,12 +63,12 @@ Current live counts from the verified tree:
 - unresolved public gameplay-gap files: `0`
 - blocked supported event ops: `0`
 - unsupported blocked event branches still present in source: `1`
-- total ignored tests in `packages/engine-rs/src/tests`: `92`
+- total ignored tests in `packages/engine-rs/src/tests`: `79`
 
 Ignored-test bucket totals from the full classifier pass:
 
 - `26` confirmed active parity blockers
-- `50` stale solved / obsolete noisy tests
+- `37` stale solved / obsolete noisy tests
 - `11` post-merge enhancements
 - `4` cleanup-only shell/accounting lines
 - `1` unsupported/out-of-scope line
@@ -238,35 +238,13 @@ These are real Java-cited semantic families, but they do not currently block a s
 - Severity: medium
 - Confidence: high
 - Scope: post-merge
-- Evidence: [`src/cards/watcher/wish.rs`](./src/cards/watcher/wish.rs), [`src/engine.rs:634`](./src/engine.rs#L634), [`test_card_runtime_generated_choice_wave5.rs:78`](./src/tests/test_card_runtime_generated_choice_wave5.rs#L78), Java oracle files `Wish.java`, `BecomeAlmighty.java`, `FameAndFortune.java`, `LiveForever.java`
-- Problem: `Wish` still opens a named menu but resolves the branches through hardcoded simplified outcomes instead of Java-accurate payloads. The current runtime does not yet preserve the exact branch-specific reward semantics for Strength, Gold, and Plated Armor.
-- Recommended fix: make generated-choice resolution payload-aware so `Wish` installs the exact Java branch payload and result semantics rather than a simplified menu label lookup.
-- Test mapping: `test_card_runtime_generated_choice_wave5`, follow-up `test_card_runtime_generated_choice_wave6`
-- Worker slice: generated-choice payload family
-
-### Finding P2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: post-merge
-- Evidence: [`src/cards/colorless/transmutation.rs`](./src/cards/colorless/transmutation.rs), [`src/cards/watcher/foreigninfluence.rs`](./src/cards/watcher/foreigninfluence.rs), [`test_card_runtime_generated_choice_wave5.rs:74`](./src/tests/test_card_runtime_generated_choice_wave5.rs#L74), [`test_card_runtime_watcher_wave16.rs:68`](./src/tests/test_card_runtime_watcher_wave16.rs#L68), Java oracles `TransmutationAction.java`, `ForeignInfluenceAction.java`
-- Problem: generated-choice pool fidelity is still incomplete even after the typed surface landed. `Transmutation` still lacks full Java-accurate `energyOnUse` / `Chemical X` / upgraded-copy behavior, and `Foreign Influence` still uses a registry-wide attack pool instead of Java’s combat-oriented any-color attack pool.
-- Recommended fix: finish the generated-choice payload/pool family as one bounded follow-up wave.
-- Test mapping: `test_card_runtime_generated_choice_wave5`, `test_card_runtime_generated_choice_wave6`, `test_card_runtime_watcher_wave16`
-- Worker slice: generated-choice pool fidelity family
-
-### Finding P3
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: post-merge
 - Evidence: [`test_orb_runtime_java_wave1.rs`](./src/tests/test_orb_runtime_java_wave1.rs#L211), [`test_card_runtime_defect_wave12.rs`](./src/tests/test_card_runtime_defect_wave12.rs#L151), Java oracles `EmotionChip.java`, `BarrageAction.java`, `RipAndTearAction.java`, `ThunderStrikeAction.java`
 - Problem: orb timing and multi-hit timing still miss some exact Java semantics. `Emotion Chip` is the sharpest live timing mismatch, and the Defect multi-hit cards still approximate zero-orb and per-hit retarget edge behavior.
 - Recommended fix: split this into `Emotion Chip` timing and multi-hit target/zero-count parity, then retire the old ignored tests once concrete engine-path proof exists.
 - Test mapping: `test_orb_runtime_java_wave1`, `test_card_runtime_defect_wave12`
 - Worker slice: orb timing / multi-hit family
 
-### Finding P4
+### Finding P2
 - Area: parity
 - Severity: medium
 - Confidence: high
@@ -277,18 +255,18 @@ These are real Java-cited semantic families, but they do not currently block a s
 - Test mapping: `test_potion_runtime_wave8`
 - Worker slice: potion legality family
 
-### Finding P5
+### Finding P3
 - Area: parity
 - Severity: medium
 - Confidence: high
 - Scope: post-merge
-- Evidence: [`test_relic_runtime_wave17.rs`](./src/tests/test_relic_runtime_wave17.rs), [`src/status_ids.rs:214`](./src/status_ids.rs#L214), Java oracle `NeowsLament.java`
-- Problem: `Neow's Lament` / `NeowsBlessing` combat-start HP reduction remains explicitly blocked.
-- Recommended fix: express the combat-start enemy HP-to-one behavior on the canonical runtime path instead of leaving it as a relic-specific blocker.
-- Test mapping: `test_relic_runtime_wave17`
-- Worker slice: relic combat-start family
+- Evidence: [`test_relic_runtime_wave17.rs`](./src/tests/test_relic_runtime_wave17.rs), [`src/tests/test_run_parity.rs`](./src/tests/test_run_parity.rs), [`src/status_ids.rs:214`](./src/status_ids.rs#L214), Java oracle files `NeowsLament.java`, `NeowEvent.java`, `NeowReward.java`
+- Problem: `Neow's Lament` / `NeowsBlessing` combat-start HP reduction remains blocked, and the run action layer still starts post-Neow instead of exposing a real four-option start decision surface for bots.
+- Recommended fix: add a real `Neow` run/start phase that always exposes four choices for the RL surface, then back the `NeowsBlessing` reward path with a runtime-complete combat-start relic implementation.
+- Test mapping: `test_relic_runtime_wave17`, `test_run_parity`, follow-up `test_rl_contract`
+- Worker slice: Neow start/action-layer family
 
-### Finding P6
+### Finding P4
 - Area: parity
 - Severity: low
 - Confidence: high
@@ -299,7 +277,7 @@ These are real Java-cited semantic families, but they do not currently block a s
 - Test mapping: the suites above remain the active backlog inventory
 - Worker slice: post-merge enhancement backlog
 
-### Finding P7
+### Finding P5
 - Area: parity
 - Severity: low
 - Confidence: high

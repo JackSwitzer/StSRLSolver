@@ -77,10 +77,10 @@ Fresh audit framing:
 
 - supported-scope gameplay blockers: `0`
 - unsupported blocked event branches still present in source: `1` (`Scrap Ooze`)
-- total ignored tests still present in `src/tests`: `92`
-- ignored-test classified buckets: `26` active parity blockers, `50` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
+- total ignored tests still present in `src/tests`: `79`
+- ignored-test classified buckets: `26` active parity blockers, `37` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
 - `Match and Keep!` is now temporarily routed through the canonical event reward runtime as a fixed `Rushdown+` / `Adaptation+` reward; it is no longer unsupported-source debt, but it remains approximation debt until the Java minigame lands
-- the remaining live semantic debt is now concentrated in generated-choice payload fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Neow's Lament`, `Scrap Ooze`, and a post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
+- the remaining live semantic debt is now concentrated in `Neow` start/action-layer fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Scrap Ooze`, the temporary `Match and Keep!` minigame approximation, and the post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -181,15 +181,10 @@ Target primitives:
 - discover-style choose-one generation
 - deterministic RNG labels by pool and choice index
 
-Priority entities:
+Status:
 
-- `Chrysalis`
-- `Metamorphosis`
-- `Transmutation`
-- `Attack Potion`
-- `Skill Potion`
-- `Power Potion`
-- `Colorless Potion`
+- completed on the canonical runtime path for `Chrysalis`, `Metamorphosis`, `Transmutation`, and the discovery-style potion family
+- the remaining choice-related all-content debt is no longer in this phase; it has moved to `Neow` action-layer breadth and potion legality / choose-one edges
 
 ### Phase 4. Orb lifecycle and pile-play
 
@@ -265,15 +260,15 @@ The active endgame work is now audit-first rather than primitive-first:
 
 These are the currently verified remaining behavior clusters:
 
-- Watcher shared play-tail cluster:
-  - `Third Eye`
-  - `Foreign Influence`
+- `Neow` start/action-layer exposure plus `Neow's Lament`
+- potion legality / choose-one edges
+- orb timing / `Emotion Chip`
+- unsupported event debt: `Scrap Ooze` and eventual full `Match and Keep!` minigame fidelity
 
 The shared primitive themes behind those clusters are now clear:
 
 - runtime-backed non-play trigger shells are no longer treated as unresolved gameplay gaps once engine-path proof exists
 
-- shared play-card continuation after a choice opens
 - draw-to-N and no-attacks-in-hand checks
 - enemy-HP threshold kill
 - turn-only hand cost reduction

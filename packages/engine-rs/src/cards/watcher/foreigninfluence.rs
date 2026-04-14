@@ -2,15 +2,17 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{Effect as E, GeneratedCardPool, GeneratedCostRule};
 
 static FOREIGN_INFLUENCE: [E; 1] = [E::GenerateDiscoveryChoice {
-    pool: GeneratedCardPool::Attack,
+    pool: GeneratedCardPool::AnyColorAttackRarityWeighted,
     option_count: 3,
-    cost_rule: GeneratedCostRule::Base,
+    preview_cost_rule: GeneratedCostRule::Base,
+    selected_cost_rule: GeneratedCostRule::Base,
 }];
 
 static FOREIGN_INFLUENCE_PLUS: [E; 1] = [E::GenerateDiscoveryChoice {
-    pool: GeneratedCardPool::Attack,
+    pool: GeneratedCardPool::AnyColorAttackRarityWeighted,
     option_count: 3,
-    cost_rule: GeneratedCostRule::ZeroThisTurn,
+    preview_cost_rule: GeneratedCostRule::Base,
+    selected_cost_rule: GeneratedCostRule::ZeroThisTurn,
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {

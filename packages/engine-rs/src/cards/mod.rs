@@ -368,6 +368,7 @@ fn collect_declared_x_cost_amounts(effects: &[Effect], amounts: &mut Vec<AmountS
             Effect::ForEachInPile { .. }
             | Effect::Discover(_)
             | Effect::ChooseNamedOptions(_)
+            | Effect::ChooseScaledNamedOptions(_)
             | Effect::GenerateRandomCardsToHand { .. }
             | Effect::GenerateRandomCardsToDraw { .. }
             | Effect::GenerateDiscoveryChoice { .. } => {}
@@ -458,6 +459,7 @@ fn effect_uses_x_cost(effect: &Effect) -> bool {
         Effect::ForEachInPile { .. }
         | Effect::Discover(_)
         | Effect::ChooseNamedOptions(_)
+        | Effect::ChooseScaledNamedOptions(_)
         | Effect::GenerateRandomCardsToHand { .. }
         | Effect::GenerateRandomCardsToDraw { .. }
         | Effect::GenerateDiscoveryChoice { .. } => false,
@@ -1174,8 +1176,8 @@ mod tests {
     #[test]
     fn test_wish_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "Wish", 3, -1, -1, 3, CardType::Skill);
-        assert_card(&reg, "Wish+", 3, -1, -1, 4, CardType::Skill);
+        assert_card(&reg, "Wish", 3, 3, 6, 25, CardType::Skill);
+        assert_card(&reg, "Wish+", 3, 4, 8, 30, CardType::Skill);
         assert!(reg.get("Wish").unwrap().exhaust);
     }
 

@@ -72,7 +72,6 @@ const COLORLESS_CHOICES: &[&str] = &[
 ];
 
 // Java parity note:
-// - Wish still needs combat-vs-run gold plumbing before we can assert the gold branch.
 // - Discovery potions still need a shared "generate N copies" primitive for Sacred Bark.
 // This file locks the honest base-path behavior we can already execute.
 

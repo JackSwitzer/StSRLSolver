@@ -43,9 +43,10 @@ fn watcher_wave17_registry_exports_foreign_influence_as_typed_generated_choice()
     assert_eq!(
         foreign.effect_data,
         &[E::GenerateDiscoveryChoice {
-            pool: GeneratedCardPool::Attack,
+            pool: GeneratedCardPool::AnyColorAttackRarityWeighted,
             option_count: 3,
-            cost_rule: GeneratedCostRule::Base,
+            preview_cost_rule: GeneratedCostRule::Base,
+            selected_cost_rule: GeneratedCostRule::Base,
         }]
     );
     assert!(foreign.complex_hook.is_none());
@@ -56,9 +57,10 @@ fn watcher_wave17_registry_exports_foreign_influence_as_typed_generated_choice()
     assert_eq!(
         foreign_plus.effect_data,
         &[E::GenerateDiscoveryChoice {
-            pool: GeneratedCardPool::Attack,
+            pool: GeneratedCardPool::AnyColorAttackRarityWeighted,
             option_count: 3,
-            cost_rule: GeneratedCostRule::ZeroThisTurn,
+            preview_cost_rule: GeneratedCostRule::Base,
+            selected_cost_rule: GeneratedCostRule::ZeroThisTurn,
         }]
     );
     assert!(foreign_plus.complex_hook.is_none());
@@ -138,7 +140,3 @@ fn watcher_wave17_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     );
     assert!(omniscience.complex_hook.is_none());
 }
-
-#[test]
-#[ignore = "Wish still needs payload-driven option resolution for Strength, Gold, and Plated Armor branches on the canonical decision surface; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wish.java"]
-fn watcher_wave17_wish_stays_queued_until_payload_driven_option_resolution_exists() {}

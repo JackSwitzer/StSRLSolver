@@ -70,15 +70,3 @@ fn chrysalis_and_metamorphosis_generate_zero_cost_cards_into_draw_pile() {
         );
     }
 }
-
-#[test]
-#[ignore = "Transmutation still needs typed X-cost generation metadata matching TransmutationAction.java, including upgraded-copy generation and Chemical X semantics."]
-fn transmutation_still_needs_x_count_generation_metadata() {}
-
-#[test]
-#[ignore = "Wish still needs payload-driven choice resolution for Strength, Gold, and Plated Armor branches on the canonical decision surface."]
-fn wish_still_needs_payload_driven_option_resolution() {}
-
-#[test]
-#[ignore = "Foreign Influence still needs a non-Watcher attack choice pool plus upgraded-only chosen-card cost override semantics."]
-fn foreign_influence_still_needs_cross_class_choice_pool_and_selective_cost_override() {}
