@@ -11,8 +11,8 @@
 
 use crate::cards::global_registry;
 use crate::effects::declarative::{
-    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
-    Target as T,
+    AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P,
+    SimpleEffect as SE, Target as T,
 };
 
 #[test]
@@ -31,13 +31,20 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
     );
     assert!(dual_wield.complex_hook.is_none());
 
-    for card_id in ["Fiend Fire"] {
-        let card = global_registry()
-            .get(card_id)
-            .unwrap_or_else(|| panic!("{card_id} should exist"));
-        assert!(card.effect_data.is_empty(), "{card_id} should stay blocked");
-        assert!(card.complex_hook.is_some(), "{card_id} should remain hook-backed");
-    }
+    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire");
+    assert_eq!(
+        fiend_fire.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::All,
+                action: BulkAction::Exhaust,
+            },
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ExtraHits(A::HandSizeAtPlay),
+        ]
+    );
+    assert!(fiend_fire.complex_hook.is_none());
 
     let burning_pact = global_registry().get("Burning Pact").expect("Burning Pact");
     assert_eq!(
@@ -132,8 +139,22 @@ fn ironclad_wave14_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current hook still owns the hand-exhaust + per-card damage loop. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]
-fn ironclad_wave14_fiend_fire_stays_explicitly_hook_backed() {}
+fn ironclad_wave14_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
+    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire");
+    assert_eq!(
+        fiend_fire.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::All,
+                action: BulkAction::Exhaust,
+            },
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ExtraHits(A::HandSizeAtPlay),
+        ]
+    );
+    assert!(fiend_fire.complex_hook.is_none());
+}
 
 #[test]
 fn ironclad_wave14_second_wind_uses_the_typed_bulk_exhaust_and_count_return_surface() {

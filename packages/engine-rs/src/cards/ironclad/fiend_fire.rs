@@ -1,9 +1,10 @@
 use crate::cards::prelude::*;
+use crate::effects::declarative::{AmountSource as A, BulkAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Rare: Fiend Fire ----
-    // Still hook-backed until the shared exhaust-per-card + per-hit loop
-    // sequencing is typed.
+    // Typed exhaust-first, then typed multi-hit damage. The hand exhaust runs
+    // through the declarative interpreter before the damage effect resolves.
     insert(cards, CardDef {
         id: "Fiend Fire",
         name: "Fiend Fire",
@@ -15,9 +16,17 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &["fiend_fire", "damage_random_x_times"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_fiend_fire),
+        effects: &[],
+        effect_data: &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: BulkAction::Exhaust,
+            },
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ExtraHits(A::HandSizeAtPlay),
+        ],
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "Fiend Fire+",
@@ -30,8 +39,16 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &["fiend_fire", "damage_random_x_times"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_fiend_fire),
+        effects: &[],
+        effect_data: &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: BulkAction::Exhaust,
+            },
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ExtraHits(A::HandSizeAtPlay),
+        ],
+        complex_hook: None,
     });
 }

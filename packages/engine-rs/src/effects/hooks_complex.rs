@@ -32,13 +32,6 @@ fn draw_card_options(engine: &CombatEngine) -> Vec<ChoiceOption> {
         .collect()
 }
 
-fn exhaust_pile_cards(engine: &mut CombatEngine, cards: Vec<CardInstance>) {
-    for card in cards {
-        engine.state.exhaust_pile.push(card);
-        engine.trigger_on_exhaust();
-    }
-}
-
 // =========================================================================
 // Stance-branching effects
 // =========================================================================
@@ -459,46 +452,6 @@ pub fn hook_spot_weakness(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 // =========================================================================
 // Exhaust-all / exhaust-subset effects
 // =========================================================================
-
-/// Fiend Fire: exhaust all hand cards, deal damage per card exhausted.
-pub fn hook_fiend_fire(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let hand_count = engine.state.hand.len() as i32;
-    let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
-    // Exhaust all cards from hand
-    let exhausted_cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
-    exhaust_pile_cards(engine, exhausted_cards);
-    // Deal base_damage per card exhausted to the target
-    if hand_count > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        let player_strength = engine.state.player.strength();
-        let player_weak = engine.state.player.is_weak();
-        let weak_paper_crane = engine.state.has_relic("Paper Crane");
-        let stance_mult = engine.state.stance.outgoing_mult();
-        let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-        let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
-        let vuln_paper_frog = engine.state.has_relic("Paper Frog");
-        let dmg = damage::calculate_damage_full(
-            base_damage,
-            player_strength,
-            ctx.vigor,
-            player_weak,
-            weak_paper_crane,
-            ctx.pen_nib_active,
-            false,
-            stance_mult,
-            enemy_vuln,
-            vuln_paper_frog,
-            false,
-            enemy_intangible,
-        );
-        for _ in 0..hand_count {
-            if engine.state.enemies[tidx].entity.is_dead() {
-                break;
-            }
-            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
-        }
-    }
-}
 
 /// Exhaust non-attacks from hand (e.g. Warcry variant).
 pub fn hook_exhaust_non_attacks(engine: &mut CombatEngine, _ctx: &CardPlayContext) {

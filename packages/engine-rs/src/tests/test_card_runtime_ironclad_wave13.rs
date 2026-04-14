@@ -10,8 +10,8 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{
-    AmountSource as A, CardFilter, ChoiceAction, Condition as Cond, Effect as E, Pile as P,
-    SimpleEffect as SE, Target as T,
+    AmountSource as A, BulkAction, CardFilter, ChoiceAction, Condition as Cond, Effect as E,
+    Pile as P, SimpleEffect as SE, Target as T,
 };
 use crate::tests::support::*;
 
@@ -116,11 +116,21 @@ fn ironclad_wave13_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current hook still owns the hand-exhaust + per-card damage loop. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]
-fn ironclad_wave13_fiend_fire_stays_explicitly_hook_backed() {
+fn ironclad_wave13_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
     let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
-    assert!(fiend_fire.effect_data.is_empty());
-    assert!(fiend_fire.complex_hook.is_some());
+    assert_eq!(
+        fiend_fire.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: crate::effects::declarative::Pile::Hand,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: BulkAction::Exhaust,
+            },
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ExtraHits(A::HandSizeAtPlay),
+        ]
+    );
+    assert!(fiend_fire.complex_hook.is_none());
 }
 
 #[test]
