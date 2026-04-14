@@ -114,6 +114,7 @@ mod test_events_parity;
 mod test_event_runtime_wave2;
 mod test_event_runtime_wave3;
 mod test_event_runtime_wave7;
+mod test_event_runtime_wave12;
 mod test_event_runtime_wave14;
 mod test_event_runtime_wave15;
 mod test_event_runtime_wave16;

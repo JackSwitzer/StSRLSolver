@@ -11,13 +11,10 @@ fn typed_event(act: i32, name: &str) -> TypedEventDef {
 }
 
 #[test]
-fn spire_heart_remains_the_single_supported_event_blocker_with_an_explicit_reason() {
+fn test_event_runtime_wave12_spire_heart_is_supported_in_the_typed_catalog() {
     let spire_heart = typed_event(3, "Spire Heart");
     assert_eq!(spire_heart.options.len(), 1);
-    assert!(matches!(
-        spire_heart.options[0].status,
-        EventRuntimeStatus::Blocked { .. }
-    ));
+    assert!(matches!(spire_heart.options[0].status, EventRuntimeStatus::Supported));
     assert_eq!(
         spire_heart.options[0]
             .program
@@ -25,18 +22,21 @@ fn spire_heart_remains_the_single_supported_event_blocker_with_an_explicit_reaso
             .iter()
             .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
             .count(),
-        1
-    );
-
-    let EventRuntimeStatus::Blocked { reason } = &spire_heart.options[0].status else {
-        panic!("Spire Heart should be the remaining explicit blocked event");
-    };
-    assert!(
-        reason.contains("Act 4 unlock flow"),
-        "expected exact remaining primitive reason, got {reason}"
+        0
     );
 }
 
 #[test]
-#[ignore = "Blocked on a shared final-act transition model (Act 4 entry plus terminal ending flow) proven by decompiled/java-src/com/megacrit/cardcrawl/events/beyond/SpireHeart.java"]
-fn queued_spire_heart_requires_shared_final_act_transition_model() {}
+fn spire_heart_is_supported_with_no_blocked_placeholder_ops() {
+    let spire_heart = typed_event(3, "Spire Heart");
+    assert_eq!(spire_heart.options.len(), 1);
+    assert!(matches!(
+        spire_heart.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
+    assert!(spire_heart.options[0]
+        .program
+        .ops
+        .iter()
+        .all(|op| !matches!(op, EventProgramOp::BlockedPlaceholder { .. })));
+}
