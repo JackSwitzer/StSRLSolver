@@ -98,7 +98,3 @@ fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 #[test]
 #[ignore = "Mind Blast still needs a draw-pile-size attack scaling primitive on the typed primary attack path; Java resolves damage from the current draw pile size."]
 fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}
-
-#[test]
-#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java updates the played copy after a kill and carries the dagger's misc state forward."]
-fn ritual_dagger_still_needs_kill_context_and_misc_scaling() {}

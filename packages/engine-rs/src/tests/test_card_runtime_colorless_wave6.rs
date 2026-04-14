@@ -58,9 +58,5 @@ fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 fn madness_still_needs_random_hand_card_zero_cost_primitive() {}
 
 #[test]
-#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java updates the played copy after a kill and carries the dagger's misc state forward."]
-fn ritual_dagger_still_needs_kill_context_and_misc_scaling() {}
-
-#[test]
 #[ignore = "Violence still needs a typed draw-pile attack fetch primitive; Java pulls random attacks from the draw pile into hand."]
 fn violence_still_needs_draw_pile_attack_fetch_primitive() {}

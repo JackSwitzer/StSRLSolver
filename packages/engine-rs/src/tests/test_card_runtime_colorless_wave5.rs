@@ -105,10 +105,6 @@ fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}
 
 #[test]
-#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java updates the played copy after a kill and carries the dagger's misc state forward."]
-fn ritual_dagger_still_needs_kill_context_and_misc_scaling() {}
-
-#[test]
 #[ignore = "Madness still needs a random-hand-card zero-cost primitive; Java repeatedly samples the hand until it finds a card that can be reduced."]
 fn madness_still_needs_random_hand_card_zero_cost_primitive() {}
 

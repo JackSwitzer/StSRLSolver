@@ -13,8 +13,8 @@
 use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::effects::declarative::{
-    AmountSource as A, ChoiceAction, CardFilter, Effect as E, Pile as P, SimpleEffect as SE,
-    Target as T,
+    AmountSource as A, ChoiceAction, CardFilter, Condition as Cond, Effect as E, Pile as P,
+    SimpleEffect as SE, Target as T,
 };
 use crate::engine::CombatPhase;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
@@ -40,10 +40,16 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
     let ritual_dagger = registry.get("RitualDagger").expect("RitualDagger should exist");
     assert_eq!(
         ritual_dagger.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &[E::Simple(SE::ModifyPlayedCardDamage(A::Magic))],
+                &[],
+            ),
+        ]
     );
-    // Typed primary body is present; only the kill-context / misc propagation remains hooked.
-    assert!(ritual_dagger.complex_hook.is_some());
+    assert!(ritual_dagger.complex_hook.is_none());
 }
 
 #[test]
@@ -79,10 +85,6 @@ fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 #[test]
 #[ignore = "Mind Blast still needs a draw-pile-size attack scaling primitive on the typed primary attack path; Java resolves damage from the current draw pile size."]
 fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}
-
-#[test]
-#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RitualDaggerAction.java updates the played copy after a kill and carries the dagger's misc state forward."]
-fn ritual_dagger_still_needs_kill_context_and_misc_scaling() {}
 
 #[test]
 #[ignore = "Madness still needs a random-hand-card zero-cost primitive; Java repeatedly samples the hand until it finds a card that can be reduced."]
