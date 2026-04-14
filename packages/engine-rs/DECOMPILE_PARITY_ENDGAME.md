@@ -49,12 +49,17 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Bane`
 - `Feed`
 - `All-Out Attack`
+- `Alchemize`
+- `Reaper`
 - `Violence`
+
+The currently verified unresolved public-card tail is `19` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
 - `Enlightenment` base
 - `Escape Plan`
+- `Omniscience`
 
 ## Translation Rules
 

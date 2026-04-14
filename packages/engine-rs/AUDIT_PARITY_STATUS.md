@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `17`
+- card files with empty `effect_data`: `14`
 - card files still using `complex_hook`: `16`
-- unresolved public card files (union of empty typed programs and hook-backed files): `22`
+- unresolved public card files (union of empty typed programs and hook-backed files): `19`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -68,6 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
+  - the currently verified unresolved public-card tail is: `Enlightenment`, `Ritual Dagger`, `Blizzard`, `Fission`, `Reboot`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `True Grit`, `Escape Plan`, `Malaise`, `Nightmare`, `Reflex`, `Tactician`, `Deus Ex Machina`, `Lesson Learned`, and `Omniscience`
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect frost/order, and Colorless utility/cost-mutation behavior
