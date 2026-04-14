@@ -51,12 +51,24 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
     assert!(feed_plus.complex_hook.is_none());
 
     let reaper = registry.get("Reaper").expect("Reaper should exist");
-    assert_eq!(reaper.effect_data.len(), 1);
-    assert!(reaper.complex_hook.is_some());
+    assert_eq!(
+        reaper.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+            E::Simple(SE::HealHp(T::Player, A::TotalUnblockedDamage)),
+        ]
+    );
+    assert!(reaper.complex_hook.is_none());
 
     let reaper_plus = registry.get("Reaper+").expect("Reaper+ should exist");
-    assert_eq!(reaper_plus.effect_data.len(), 1);
-    assert!(reaper_plus.complex_hook.is_some());
+    assert_eq!(
+        reaper_plus.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+            E::Simple(SE::HealHp(T::Player, A::TotalUnblockedDamage)),
+        ]
+    );
+    assert!(reaper_plus.complex_hook.is_none());
 
     let lesson_learned = registry
         .get("LessonLearned")

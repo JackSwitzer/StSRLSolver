@@ -796,6 +796,9 @@ impl EffectRuntime {
                     }
                 }
             }
+            SimpleEffect::ObtainRandomPotion => {
+                let _ = engine.obtain_random_potion();
+            }
             SimpleEffect::ModifyPlayedCardCost(amount_src) => {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {

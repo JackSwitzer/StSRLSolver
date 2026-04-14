@@ -220,7 +220,7 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared card-primitive follow-up centered on `Enlightenment`, `Escape Plan`, `Alchemize`, `Reaper`, `Deus Ex Machina`, and `Omniscience`
+- shared card-primitive follow-up centered on `Enlightenment`, `Escape Plan`, `Deus Ex Machina`, and `Omniscience`; `Alchemize` and `Reaper` have landed on the typed primary surface in the current slice
 - isolated stale-cleanup / dead-shim follow-up centered on already-identified stale ignores and dead relic shim residue
 - read-only broad-audit preparation for the first representative parity sweep after the next 1-2 card landings
 

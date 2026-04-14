@@ -257,6 +257,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::ObtainRandomPotion => {
+            let _ = engine.obtain_random_potion();
+        }
+
         SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, ref count_src) => {
             execute_draw_random_cards_from_pile_to_hand(engine, ctx, pile, filter, *count_src);
         }

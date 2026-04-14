@@ -44,8 +44,8 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     );
 
     let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
-    assert!(alchemize.effect_data.is_empty());
-    assert!(alchemize.effects.contains(&"alchemize"));
+    assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
+    assert!(alchemize.complex_hook.is_none());
 
     let reflex = registry.get("Reflex").expect("Reflex should exist");
     assert!(reflex.effect_data.is_empty());
@@ -115,10 +115,6 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
     tactician_engine.on_card_discarded(tactician);
     assert_eq!(tactician_engine.state.energy, 3);
 }
-
-#[test]
-#[ignore = "Alchemize still needs a typed random-potion generation effect on the canonical runtime path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java"]
-fn silent_wave9_alchemize_needs_typed_random_potion_generation() {}
 
 #[test]
 #[ignore = "Reflex still needs a typed manual-discard reaction effect instead of tag-only behavior; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java"]

@@ -32,7 +32,10 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
         assert_eq!(card.target, CardTarget::Enemy);
         assert_eq!(
             card.effect_data,
-            &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
+            &[
+                E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+                E::Simple(SE::ModifyPlayedCardDamage(A::Magic)),
+            ],
             "{card_id} should declare a typed primary attack",
         );
         assert!(
@@ -40,7 +43,7 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
             "{card_id} should use the typed primary preamble"
         );
         assert!(card.effects.contains(&"rampage"));
-        assert!(card.complex_hook.is_some(), "{card_id} still needs instance scaling");
+        assert!(card.complex_hook.is_none(), "{card_id} should be fully typed");
     }
 
     let true_grit = global_registry()
@@ -117,9 +120,12 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
     let reaper = global_registry().get("Reaper").expect("Reaper should exist");
     assert_eq!(
         reaper.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+            E::Simple(SE::HealHp(T::Player, A::TotalUnblockedDamage)),
+        ]
     );
-    assert!(reaper.complex_hook.is_some());
+    assert!(reaper.complex_hook.is_none());
 }
 
 #[test]

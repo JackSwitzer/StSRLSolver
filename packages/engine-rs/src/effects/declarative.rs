@@ -246,6 +246,8 @@ pub enum SimpleEffect {
     DrawToHandSize(AmountSource),
     /// Set a random eligible card in hand to exact cost.
     SetRandomHandCardCost(i32),
+    /// Obtain a random potion into the first empty slot, respecting Sozu and slot availability.
+    ObtainRandomPotion,
     /// Move random matching cards from a pile to hand.
     DrawRandomCardsFromPileToHand(Pile, CardFilter, AmountSource),
     /// Trigger Dark orb passive accumulation once.

@@ -8,6 +8,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
 
 use crate::cards::global_registry;
+use crate::effects::declarative::{
+    AmountSource as A, BulkAction, CardFilter, Effect as E, Pile as P, SimpleEffect as SE,
+};
 use crate::tests::support::*;
 
 #[test]
@@ -15,8 +18,8 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     let registry = global_registry();
 
     let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
-    assert!(alchemize.effect_data.is_empty());
-    assert!(alchemize.complex_hook.is_some());
+    assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
+    assert!(alchemize.complex_hook.is_none());
 
     let nightmare = registry.get("Nightmare").expect("Nightmare should exist");
     assert!(nightmare.effect_data.is_empty());
@@ -30,8 +33,18 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     let storm_of_steel = registry
         .get("Storm of Steel")
         .expect("Storm of Steel should exist");
-    assert!(storm_of_steel.effect_data.is_empty());
-    assert!(storm_of_steel.complex_hook.is_some());
+    assert_eq!(
+        storm_of_steel.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::All,
+                action: BulkAction::Discard,
+            },
+            E::Simple(SE::AddCard("Shiv", P::Hand, A::HandSizeAtPlay)),
+        ]
+    );
+    assert!(storm_of_steel.complex_hook.is_none());
 
     let tactician = registry.get("Tactician").expect("Tactician should exist");
     assert!(tactician.effect_data.is_empty());
@@ -63,13 +76,5 @@ fn silent_wave12_runtime_backed_residuals_still_follow_their_discard_hooks() {
 }
 
 #[test]
-#[ignore = "Alchemize still needs a typed random-potion generation effect on the canonical runtime path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java"]
-fn silent_wave12_alchemize_needs_typed_random_potion_generation() {}
-
-#[test]
 #[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java"]
 fn silent_wave12_nightmare_needs_delayed_copy_install_primitive() {}
-
-#[test]
-#[ignore = "Storm of Steel still needs a typed discard-hand-then-create-Shiv-per-card primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java"]
-fn silent_wave12_storm_of_steel_needs_discard_then_spawn_shivs() {}

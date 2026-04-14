@@ -71,9 +71,12 @@ fn ironclad_wave13_registry_exports_promote_feed_and_reaper_to_typed_primary_sur
     assert_eq!(reaper.target, CardTarget::AllEnemy);
     assert_eq!(
         reaper.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+            E::Simple(SE::HealHp(T::Player, A::TotalUnblockedDamage)),
+        ]
     );
-    assert!(reaper.complex_hook.is_some());
+    assert!(reaper.complex_hook.is_none());
 }
 
 #[test]
