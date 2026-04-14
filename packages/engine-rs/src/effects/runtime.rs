@@ -792,7 +792,7 @@ impl EffectRuntime {
                 if !eligible.is_empty() {
                     let idx = eligible[engine.rng_gen_range(0..eligible.len())];
                     if idx < engine.state.hand.len() {
-                        engine.state.hand[idx].cost = cost as i8;
+                        engine.state.hand[idx].set_permanent_cost(cost as i8);
                     }
                 }
             }
@@ -808,7 +808,7 @@ impl EffectRuntime {
                         engine.card_registry.card_def_by_id(card.def_id).cost
                     };
                     let next = (current + delta).max(0) as i8;
-                    card.cost = next;
+                    card.set_permanent_cost(next);
                     engine.runtime_played_card = Some(card);
                 }
             }

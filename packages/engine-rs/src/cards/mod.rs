@@ -669,7 +669,12 @@ impl CardRegistry {
     /// Create a CardInstance from a string card name.
     /// Sets def_id to u16::MAX if the name is not found.
     pub fn make_card(&self, name: &str) -> CardInstance {
-        CardInstance::new(self.card_id(name))
+        let def_id = self.card_id(name);
+        let mut card = CardInstance::new(def_id);
+        if let Some(def) = self.id_to_def.get(def_id as usize) {
+            card.base_cost = def.cost as i8;
+        }
+        card
     }
 
     /// Create an upgraded CardInstance from a string card name.
@@ -677,7 +682,9 @@ impl CardRegistry {
     /// For pre-registered upgraded defs (e.g. "Strike_P+"), pass the "+" name
     /// and the flag is set automatically.
     pub fn make_card_upgraded(&self, name: &str) -> CardInstance {
-        CardInstance::new(self.card_id(name)).upgraded()
+        let mut card = self.make_card(name);
+        self.upgrade_card(&mut card);
+        card
     }
 
     /// Returns true if the card at this numeric ID is a Strike variant.
@@ -704,6 +711,9 @@ impl CardRegistry {
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
             card.def_id = id;
             card.flags |= CardInstance::FLAG_UPGRADED;
+            if let Some(def) = self.id_to_def.get(id as usize) {
+                card.base_cost = def.cost as i8;
+            }
         }
     }
 }

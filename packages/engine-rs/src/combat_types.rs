@@ -11,8 +11,10 @@ use serde::{Serialize, Deserialize};
 pub struct CardInstance {
     /// Index into static CardDef table.
     pub def_id: u16,
-    /// Cost for this turn. -1 = use base cost from CardDef.
+    /// Cost for this turn. -1 = use the permanent baseline or CardDef cost.
     pub cost: i8,
+    /// Permanent combat cost baseline. -1 = use CardDef cost.
+    pub base_cost: i8,
     /// Card-specific mutable numeric state. -1 = uninitialized / use def value.
     pub misc: i16,
     /// Bit flags.
@@ -28,7 +30,7 @@ impl CardInstance {
     pub const FLAG_PURGE: u8     = 0x20;
 
     pub fn new(def_id: u16) -> Self {
-        Self { def_id, cost: -1, misc: -1, flags: 0 }
+        Self { def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
     }
     pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
     pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
@@ -45,6 +47,19 @@ impl CardInstance {
 
     pub fn set_retained(&mut self, v: bool) {
         if v { self.flags |= Self::FLAG_RETAINED } else { self.flags &= !Self::FLAG_RETAINED }
+    }
+
+    pub fn set_cost_for_turn(&mut self, cost: i8) {
+        self.cost = cost;
+    }
+
+    pub fn set_permanent_cost(&mut self, cost: i8) {
+        self.cost = cost;
+        self.base_cost = cost;
+    }
+
+    pub fn reset_cost_for_turn(&mut self) {
+        self.cost = self.base_cost;
     }
 }
 
@@ -163,7 +178,7 @@ mod tests {
 
     #[test]
     fn card_instance_is_4_bytes() {
-        assert_eq!(std::mem::size_of::<CardInstance>(), 6);
+        assert_eq!(std::mem::size_of::<CardInstance>(), 8);
     }
 
     #[test]

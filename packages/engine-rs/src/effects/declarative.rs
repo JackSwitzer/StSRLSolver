@@ -159,6 +159,8 @@ pub enum BulkAction {
     Exhaust,
     Discard,
     Upgrade,
+    /// Set the current turn cost for matching cards without changing the permanent baseline.
+    SetCostForTurn(i32),
     SetCost(i32),
     MoveToHand,
     MoveToBottom,

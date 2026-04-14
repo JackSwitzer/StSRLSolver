@@ -1105,6 +1105,23 @@ impl CombatEngine {
             self.state.hand = retained;
         }
 
+        // Reset temporary cost overrides back to the permanent baseline for
+        // all cards that remain in combat. This mirrors Java's
+        // AbstractCard.resetAttributes() at end-of-turn.
+        for card in &mut self.state.draw_pile {
+            card.reset_cost_for_turn();
+        }
+        for card in &mut self.state.discard_pile {
+            card.reset_cost_for_turn();
+        }
+        for card in &mut self.state.exhaust_pile {
+            card.reset_cost_for_turn();
+        }
+        for card in &mut self.state.hand {
+            card.reset_cost_for_turn();
+        }
+        self.state.retained_cards = self.state.hand.clone();
+
         // on_retain hooks for retained cards
         let establishment = self.state.player.status(sid::ESTABLISHMENT);
         for card_inst in self.state.hand.iter_mut() {

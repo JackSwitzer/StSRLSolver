@@ -87,7 +87,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
 
         // Pride: add a copy of Pride to draw pile at end of turn
         if card.effects.contains(&"add_copy_end_turn") {
-            let copy = crate::combat_types::CardInstance::new(card_inst.def_id);
+            let copy = *card_inst;
             state.draw_pile.push(copy);
         }
     }

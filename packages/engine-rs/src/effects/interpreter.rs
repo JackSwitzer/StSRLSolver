@@ -252,7 +252,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if !eligible.is_empty() {
                 let idx = eligible[engine.rng_gen_range(0..eligible.len())];
                 if idx < engine.state.hand.len() {
-                    engine.state.hand[idx].cost = cost as i8;
+                    engine.state.hand[idx].set_permanent_cost(cost as i8);
                 }
             }
         }
@@ -566,8 +566,8 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                     ctx.card.cost
                 };
                 let next = (current + delta).max(0) as i8;
-                card.cost = next;
-                ctx.card_inst.cost = next;
+                card.set_permanent_cost(next);
+                ctx.card_inst.set_permanent_cost(next);
                 engine.runtime_played_card = Some(card);
             }
         }
@@ -1275,11 +1275,20 @@ fn execute_for_each(
             }
         }
 
-        BulkAction::SetCost(cost) => {
+        BulkAction::SetCostForTurn(cost) => {
             let pile_ref = get_pile_mut(engine, pile);
             for &i in &matching {
                 if i < pile_ref.len() {
                     pile_ref[i].cost = cost as i8;
+                }
+            }
+        }
+
+        BulkAction::SetCost(cost) => {
+            let pile_ref = get_pile_mut(engine, pile);
+            for &i in &matching {
+                if i < pile_ref.len() {
+                    pile_ref[i].set_permanent_cost(cost as i8);
                 }
             }
         }

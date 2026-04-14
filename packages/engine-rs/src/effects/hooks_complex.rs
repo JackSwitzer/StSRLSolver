@@ -1054,7 +1054,7 @@ pub fn hook_enlightenment_permanent(engine: &mut CombatEngine, _ctx: &CardPlayCo
     for hand_card in &mut engine.state.hand {
         let def = engine.card_registry.card_def_by_id(hand_card.def_id);
         if def.cost > 1 {
-            hand_card.cost = 1;
+            hand_card.set_permanent_cost(1);
         }
     }
 }
@@ -1254,7 +1254,7 @@ pub fn hook_streamline(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         ctx.card.cost
     };
     with_runtime_played_card_mut(engine, |card| {
-        card.cost = (current_cost - 1).max(0) as i8;
+        card.set_permanent_cost((current_cost - 1).max(0) as i8);
     });
 }
 
