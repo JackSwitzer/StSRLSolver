@@ -3,8 +3,7 @@
 // Java oracle:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java
 //
-// Warning-only relic bridge helpers were deleted in this wave. The remaining
-// helpers in `relics/run.rs` are live engine/runtime bridges only. If a future
+// Warning-only relic bridge helpers were deleted in this wave. If a future
 // relic regression appears, add engine-path coverage instead of restoring
 // helper-oracle parity.
 
@@ -28,7 +27,3 @@ fn relic_dead_helper_cleanup_wave17_necronomicon_remains_on_live_bridge_path() {
     assert_eq!(engine.state.total_damage_dealt, 64);
     assert_eq!(engine.state.player.status(sid::NECRONOMICON_USED), 1);
 }
-
-#[test]
-#[ignore = "Warning-only relic bridge helpers were deleted in this wave; if any future relic regression appears, add engine-path coverage instead of restoring helper-oracle parity."]
-fn relic_dead_helper_cleanup_wave17_no_warning_only_helpers_remain() {}

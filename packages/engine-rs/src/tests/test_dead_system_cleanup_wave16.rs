@@ -20,7 +20,3 @@ fn relic_dead_surface_cleanup_wave16_chemical_x_is_covered_by_engine_path_collec
     assert!(play_self(&mut engine, "Collect"));
     assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 5);
 }
-
-#[test]
-#[ignore = "Legacy relic helper-path parity has been deleted; if a relic regresses, add the engine-path assertion in a focused relic wave instead of restoring helper tests."]
-fn relic_dead_surface_cleanup_wave16_no_helper_path_oracles_remain() {}
