@@ -15,8 +15,17 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &[],
-        effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
-        complex_hook: Some(crate::effects::hooks_complex::hook_discard_to_top_of_draw),
+        effect_data: &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ChooseCards {
+                source: crate::effects::declarative::Pile::Discard,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
+                min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            },
+        ],
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "Headbutt+",
@@ -30,8 +39,17 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &[],
-        effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
-        complex_hook: Some(crate::effects::hooks_complex::hook_discard_to_top_of_draw),
+        effect_data: &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ChooseCards {
+                source: crate::effects::declarative::Pile::Discard,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
+                min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            },
+        ],
+        complex_hook: None,
     });
 }
 

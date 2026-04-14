@@ -1,7 +1,7 @@
 //! Declarative effect interpreter — walks Effect arrays and dispatches
 //! through proper engine methods.
 
-use crate::cards::CardType;
+use crate::cards::{CardTarget, CardType};
 use crate::damage;
 use crate::engine::{CombatEngine, CombatPhase, ChoiceOption, ChoiceReason};
 use crate::effects::declarative::*;
@@ -349,6 +349,29 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             let mut cards = std::mem::take(&mut engine.state.discard_pile);
             engine.state.draw_pile.append(&mut cards);
             engine.shuffle_draw_pile();
+        }
+
+        // -- Play the top card of the draw pile through the normal free-play path --
+        SimpleEffect::PlayTopCardOfDraw => {
+            if let Some(mut card) = engine.state.draw_pile.pop() {
+                let def = engine.card_registry.card_def_by_id(card.def_id).clone();
+                let target = if def.target == CardTarget::Enemy {
+                    let living = engine.state.living_enemy_indices();
+                    if living.is_empty() {
+                        -1
+                    } else {
+                        let idx = engine.rng_gen_range(0..living.len());
+                        living[idx] as i32
+                    }
+                } else {
+                    -1
+                };
+                card.cost = 0;
+                card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
+                engine.state.hand.push(card);
+                let hand_idx = engine.state.hand.len() - 1;
+                engine.play_card(hand_idx, target);
+            }
         }
 
         // -- Deal flat damage (no strength/stance modifiers) --
@@ -985,7 +1008,10 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
             Pile::Exhaust => ChoiceReason::PickFromExhaust,
             _ => ChoiceReason::PickOption,
         },
-        ChoiceAction::PutOnTopOfDraw => ChoiceReason::PutOnTopFromHand,
+        ChoiceAction::PutOnTopOfDraw => match source {
+            Pile::Discard => ChoiceReason::PickFromDiscard,
+            _ => ChoiceReason::PutOnTopFromHand,
+        },
         ChoiceAction::PlayForFree => ChoiceReason::PlayCardFree,
         ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,

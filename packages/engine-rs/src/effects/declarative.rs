@@ -267,6 +267,8 @@ pub enum SimpleEffect {
     SetFlag(BoolFlag),
     /// Shuffle discard pile into draw pile.
     ShuffleDiscardIntoDraw,
+    /// Play the top card of the draw pile through the normal free-play path.
+    PlayTopCardOfDraw,
     /// Deal flat damage to a target (no strength/stance modifiers).
     DealDamage(Target, AmountSource),
     /// Special-resolution attack used by Judgement:

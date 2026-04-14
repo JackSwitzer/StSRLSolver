@@ -45,8 +45,8 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `23`
-- card files still using `complex_hook`: `35`
+- card files with empty `effect_data`: `22`
+- card files still using `complex_hook`: `33`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`

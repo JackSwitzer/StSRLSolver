@@ -1476,7 +1476,7 @@ impl CombatEngine {
         cost
     }
 
-    fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
+    pub(crate) fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
         if hand_idx >= self.state.hand.len() {
             return;
         }

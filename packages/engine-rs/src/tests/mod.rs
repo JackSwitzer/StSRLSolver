@@ -52,6 +52,7 @@ mod test_card_runtime_ironclad_wave11;
 mod test_card_runtime_ironclad_wave12;
 mod test_card_runtime_ironclad_wave13;
 mod test_card_runtime_ironclad_wave14;
+mod test_card_runtime_ironclad_wave15;
 mod test_card_runtime_silent_wave1;
 mod test_card_runtime_silent_wave2;
 mod test_card_runtime_silent_wave8;

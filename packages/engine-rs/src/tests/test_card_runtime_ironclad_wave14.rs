@@ -14,7 +14,7 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 
 #[test]
 fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
-    for card_id in ["Dual Wield", "Fiend Fire", "Havoc", "Second Wind"] {
+    for card_id in ["Dual Wield", "Fiend Fire", "Second Wind"] {
         let card = global_registry()
             .get(card_id)
             .unwrap_or_else(|| panic!("{card_id} should exist"));
@@ -41,9 +41,25 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
     let headbutt = global_registry().get("Headbutt").expect("Headbutt");
     assert_eq!(
         headbutt.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ChooseCards {
+                source: crate::effects::declarative::Pile::Discard,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
+                min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            },
+        ]
     );
-    assert!(headbutt.complex_hook.is_some(), "Headbutt still needs the discard-zone top-of-draw primitive");
+    assert!(headbutt.complex_hook.is_none(), "Headbutt should now be fully typed");
+
+    let havoc = global_registry().get("Havoc").expect("Havoc");
+    assert_eq!(
+        havoc.effect_data,
+        &[E::Simple(SE::PlayTopCardOfDraw)]
+    );
+    assert!(havoc.complex_hook.is_none(), "Havoc should now be fully typed");
 
     let true_grit = global_registry().get("True Grit").expect("True Grit");
     assert_eq!(true_grit.effect_data, &[crate::effects::declarative::Effect::Simple(
@@ -63,14 +79,6 @@ fn ironclad_wave14_dual_wield_stays_explicitly_hook_backed() {}
 #[test]
 #[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current hook still owns the hand-exhaust + per-card damage loop. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]
 fn ironclad_wave14_fiend_fire_stays_explicitly_hook_backed() {}
-
-#[test]
-#[ignore = "Blocked on Java top-of-draw play sequencing for Havoc; the current runtime still needs a dedicated play-top-card primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Havoc.java"]
-fn ironclad_wave14_havoc_stays_explicitly_hook_backed() {}
-
-#[test]
-#[ignore = "Blocked on Java discard-pile-to-top sequencing for Headbutt; the current runtime still needs a discard-zone selection primitive with top-of-draw routing. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Headbutt.java"]
-fn ironclad_wave14_headbutt_stays_explicitly_hook_backed() {}
 
 #[test]
 #[ignore = "Blocked on Java non-attack bulk exhaust sequencing for Second Wind; the current runtime still needs a typed exhaust-all-non-attacks + per-card block primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/SecondWind.java"]

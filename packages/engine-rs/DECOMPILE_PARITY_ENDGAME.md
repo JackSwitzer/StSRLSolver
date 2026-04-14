@@ -206,10 +206,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- play-top-card / discard-zone-top-of-draw primitive wave for `Havoc` and `Headbutt`
-- relic bridge-helper cleanup in `src/relics/run.rs` after the helper-path relic test modules were deleted
-- Defect blocker audit to group `Blizzard`, `Melter`, `Chaos`, `Fission`, `Reboot`, `Redo`, and `Scrape` by the next exact primitive
-- Colorless blocker audit to group `Forethought`, `Enlightenment`, `Impatience`, `Madness`, `Ritual Dagger`, and `Violence` by the next exact primitive
+- Defect tiny-primitive implementation wave for `Chaos` and `Melter`
+- Ironclad post-damage/state wave for `Feed` and `Reaper`
+- event/runtime breadth cleanup for `Dead Adventurer` and `Golden Wing`
+- RL/reward observability wave for treasure/chest source semantics and compact relic-counter visibility
 
 Each worker must return:
 
@@ -230,7 +230,6 @@ These are the currently verified card-tail clusters that should drive the next p
 - Ironclad exhaust/top-play cluster:
   - `Dual Wield`
   - `Fiend Fire`
-  - `Havoc`
   - `Second Wind`
 - Defect orb/order cluster:
   - `Chaos`
