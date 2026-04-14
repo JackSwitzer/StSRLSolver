@@ -104,6 +104,8 @@ pub enum Condition {
     InStance(Stance),
     /// Target enemy's intent includes damage.
     EnemyAttacking,
+    /// Hand contains at least one card of the given type.
+    HandContainsType(CardType),
     /// Target enemy has this status > 0.
     EnemyHasStatus(StatusId),
     /// Last card played was this type.

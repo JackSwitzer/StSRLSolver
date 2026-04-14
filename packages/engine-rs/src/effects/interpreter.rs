@@ -927,6 +927,12 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
             }
         }
 
+        Condition::HandContainsType(card_type) => {
+            engine.state.hand.iter().any(|card| {
+                engine.card_registry.card_def_by_id(card.def_id).card_type == card_type
+            })
+        }
+
         Condition::EnemyHasStatus(status) => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {

@@ -18,15 +18,6 @@ pub fn has_runic_pyramid(state: &CombatState) -> bool {
     state.has_relic("Runic Pyramid") || state.has_relic("RunicPyramid")
 }
 
-/// Calipers: retain up to 15 Block between turns.
-pub fn calipers_block_retention(state: &CombatState, current_block: i32) -> i32 {
-    if state.has_relic("Calipers") {
-        current_block.min(15).max(0)
-    } else {
-        0
-    }
-}
-
 /// Necronomicon: first 2+-cost attack per turn plays twice.
 pub fn necronomicon_should_trigger(state: &CombatState, card_cost: i32, is_attack: bool) -> bool {
     if !state.has_relic("Necronomicon") {

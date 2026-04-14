@@ -390,25 +390,6 @@ pub fn hook_return_from_discard(engine: &mut CombatEngine, _ctx: &CardPlayContex
     engine.begin_choice(ChoiceReason::ReturnFromDiscard, options, 1, 1);
 }
 
-/// Forethought: put 1 card from hand to bottom of draw at cost 0.
-pub fn hook_forethought(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    let options: Vec<_> = engine.state.hand.iter()
-        .enumerate()
-        .map(|(i, _)| ChoiceOption::HandCard(i))
-        .collect();
-    engine.begin_choice(ChoiceReason::ForethoughtPick, options, 1, 1);
-}
-
-/// Forethought+: put ALL hand cards to bottom of draw at cost 0.
-pub fn hook_forethought_all(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    // Auto-resolve: move all hand cards to bottom of draw at cost 0
-    let hand_cards: Vec<_> = engine.state.hand.drain(..).collect();
-    for mut c in hand_cards {
-        c.cost = 0;
-        engine.state.draw_pile.push(c);
-    }
-}
-
 /// Recycle: exhaust 1 card from hand, gain its cost as energy.
 pub fn hook_recycle(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let options: Vec<_> = engine.state.hand.iter()
@@ -500,9 +481,6 @@ pub fn hook_return_zero_cost_from_discard(engine: &mut CombatEngine, _ctx: &Card
     });
     engine.state.hand.extend(returned);
 }
-
-/// Forethought+: all hand cards to bottom at cost 0 (same as hook_forethought_all).
-// Already defined above as hook_forethought_all.
 
 // =========================================================================
 // Conditional combat effects

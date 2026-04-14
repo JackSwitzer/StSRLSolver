@@ -1,6 +1,14 @@
 use crate::cards::prelude::*;
 use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, Effect, Pile as P};
 
+static FORETHOUGHT_BASE: [Effect; 1] = [Effect::ChooseCards {
+    source: P::Hand,
+    filter: CardFilter::All,
+    action: ChoiceAction::PutOnBottomAtCostZero,
+    min_picks: A::Fixed(1),
+    max_picks: A::Fixed(1),
+}];
+
 static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
     source: P::Hand,
     filter: CardFilter::All,
@@ -15,7 +23,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Forethought", name: "Forethought", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["forethought"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_forethought),
+                effects: &["forethought"], effect_data: &FORETHOUGHT_BASE, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Forethought+", name: "Forethought+", card_type: CardType::Skill,

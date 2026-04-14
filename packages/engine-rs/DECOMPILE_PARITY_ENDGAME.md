@@ -208,8 +208,8 @@ These bundles are intentionally disjoint by write scope:
 
 - Defect follow-up wave for the remaining orb/order blockers after `Chaos` and `Melter`
 - Dead Adventurer event/runtime implementation wave narrowed to the ascension-sensitive search ramp plus room-reward queue semantics
-- Colorless utility audit follow-up for the next non-overlapping tiny-primitive bundle
-- relic bridge-helper reduction follow-up targeting the remaining six turn/retention helpers
+- Colorless utility follow-up narrowed to `Enlightenment` and `Madness`
+- relic bridge-helper reduction follow-up targeting the remaining five turn/retention helpers
 
 Each worker must return:
 

@@ -1071,6 +1071,11 @@ impl EffectRuntime {
                     && (idx as usize) < engine.state.enemies.len()
                     && engine.state.enemies[idx as usize].is_attacking()
             }
+            crate::effects::declarative::Condition::HandContainsType(card_type) => {
+                engine.state.hand.iter().any(|card| {
+                    engine.card_registry.card_def_by_id(card.def_id).card_type == card_type
+                })
+            }
             crate::effects::declarative::Condition::EnemyHasStatus(status_id) => {
                 let idx = event.target_idx;
                 idx >= 0

@@ -44,16 +44,6 @@ pub fn hook_draw_to_n(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     }
 }
 
-/// Impatience: draw if no attacks in hand.
-pub fn hook_draw_if_no_attacks(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let has_attack = engine.state.hand.iter().any(|c| {
-        engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Attack
-    });
-    if !has_attack {
-        engine.draw_cards(ctx.card.base_magic);
-    }
-}
-
 /// FTL: draw if few cards played this turn.
 pub fn hook_draw_if_few_cards_played(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     if engine.state.cards_played_this_turn < 3 {

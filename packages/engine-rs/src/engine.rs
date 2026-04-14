@@ -869,8 +869,11 @@ impl CombatEngine {
             if barricade || blur {
                 // Keep all block
             } else {
-                let retained = relics::calipers_block_retention(&self.state, self.state.player.block);
-                self.state.player.block = retained;
+                self.state.player.block = if self.state.has_relic("Calipers") {
+                    self.state.player.block.min(15).max(0)
+                } else {
+                    0
+                };
             }
             // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
             if blur {
