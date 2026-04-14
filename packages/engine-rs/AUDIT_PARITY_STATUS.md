@@ -19,7 +19,7 @@ This scorecard uses the audit-skill rubric:
 
 ## Scorecard
 
-Weighted overall completion toward the target "universal gameplay runtime + decision-complete RL loop": `98%`
+Weighted overall completion toward the target "universal gameplay runtime + decision-complete RL loop": `99%`
 
 Weights:
 
@@ -30,11 +30,11 @@ Weights:
 
 Area scores:
 
-- combat runtime parity: `98%`
+- combat runtime parity: `99%`
 - RL combat surface: `98%`
 - run/reward/event decision parity: `99%`
 - dead-system retirement: `98%`
-- architecture unification snapshot: `98%`
+- architecture unification snapshot: `99%`
 
 Interpretation:
 
@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `21`
-- card files still using `complex_hook`: `30`
-- unresolved public card files (union of empty typed programs and hook-backed files): `33`
+- card files with empty `effect_data`: `20`
+- card files still using `complex_hook`: `29`
+- unresolved public card files (union of empty typed programs and hook-backed files): `32`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -56,7 +56,7 @@ These counts come from the current verified production tree and are useful as a 
 Empty-`effect_data` card backlog by class:
 
 - Watcher: `2`
-- Defect: `6`
+- Defect: `5`
 - Silent: `4`
 - Ironclad: `3`
 - Colorless: `6`
@@ -68,8 +68,8 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, and post-damage-context families
-- the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, but `Dead Adventurer` still remains an explicit Java-cited parity gap rather than a silent approximation
-- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, several live scalar bridge helpers were removed from `relics/run.rs`, and the remaining dead-system tail is now concentrated in a smaller set of higher-latency turn/retention bridges plus ignored blocker tests
+- the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` remains the last explicit Java-cited supported-event parity gap rather than a silent approximation
+- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, most live scalar bridge helpers were removed from `relics/run.rs`, and the remaining dead-system tail is now concentrated in six higher-latency turn/retention bridges plus ignored blocker tests
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
 
 ## Why We Are Not Done Yet

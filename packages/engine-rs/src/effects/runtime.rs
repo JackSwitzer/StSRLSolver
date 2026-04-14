@@ -856,6 +856,30 @@ impl EffectRuntime {
                     engine.player_lose_hp(-amount);
                 }
             }
+            SimpleEffect::RemoveEnemyBlock(target) => {
+                match target {
+                    Target::SelectedEnemy => {
+                        if event.target_idx >= 0
+                            && (event.target_idx as usize) < engine.state.enemies.len()
+                        {
+                            engine.state.enemies[event.target_idx as usize].entity.block = 0;
+                        }
+                    }
+                    Target::AllEnemies => {
+                        for idx in engine.state.living_enemy_indices() {
+                            engine.state.enemies[idx].entity.block = 0;
+                        }
+                    }
+                    Target::RandomEnemy => {
+                        let living = engine.state.living_enemy_indices();
+                        if !living.is_empty() {
+                            let idx = living[engine.rng_gen_range(0..living.len())];
+                            engine.state.enemies[idx].entity.block = 0;
+                        }
+                    }
+                    Target::Player | Target::SelfEntity => {}
+                }
+            }
             SimpleEffect::GainMantra(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.gain_mantra(amount);

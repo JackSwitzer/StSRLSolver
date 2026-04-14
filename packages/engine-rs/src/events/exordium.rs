@@ -23,6 +23,117 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+#[derive(Clone, Copy)]
+enum DeadAdventurerReward {
+    Gold,
+    Nothing,
+    Relic,
+}
+
+fn dead_adventurer_reward_ops(reward: DeadAdventurerReward) -> Vec<EventProgramOp> {
+    match reward {
+        DeadAdventurerReward::Gold => vec![EventProgramOp::gold(30)],
+        DeadAdventurerReward::Nothing => vec![EventProgramOp::nothing()],
+        DeadAdventurerReward::Relic => vec![EventProgramOp::gain_relic("random relic")],
+    }
+}
+
+fn dead_adventurer_suffix_ops(
+    rewards: &[DeadAdventurerReward],
+    start: usize,
+) -> Vec<EventProgramOp> {
+    rewards[start..]
+        .iter()
+        .flat_map(|reward| dead_adventurer_reward_ops(*reward))
+        .collect()
+}
+
+fn dead_adventurer_fight_program(rewards: &[DeadAdventurerReward], start: usize) -> EventProgram {
+    let suffix_ops = dead_adventurer_suffix_ops(rewards, start);
+    let outcomes = vec![
+        vec![EventProgramOp::combat_branch(
+            ["3 Sentries"],
+            suffix_ops.clone(),
+        )],
+        vec![EventProgramOp::combat_branch(
+            ["GremlinNob"],
+            suffix_ops.clone(),
+        )],
+        vec![EventProgramOp::combat_branch(
+            ["Lagavulin Event"],
+            suffix_ops,
+        )],
+    ];
+    EventProgram::from_ops(vec![EventProgramOp::random_outcome_table(outcomes)])
+}
+
+fn dead_adventurer_search_program(
+    rewards: &[DeadAdventurerReward],
+    start: usize,
+    next_event: TypedEventDef,
+    encounter_chance: usize,
+) -> EventProgram {
+    let fight_program = dead_adventurer_fight_program(rewards, start);
+    let mut reward_ops = dead_adventurer_reward_ops(rewards[start]);
+    reward_ops.push(EventProgramOp::continue_event(next_event));
+
+    let mut outcomes = Vec::with_capacity(100);
+    for _ in 0..encounter_chance {
+        outcomes.push(fight_program.ops.clone());
+    }
+    for _ in encounter_chance..100 {
+        outcomes.push(reward_ops.clone());
+    }
+
+    EventProgram::from_ops(vec![EventProgramOp::random_outcome_table(outcomes)])
+}
+
+fn dead_adventurer_page(
+    rewards: [DeadAdventurerReward; 3],
+    start: usize,
+    next_event: TypedEventDef,
+    encounter_chance: usize,
+) -> TypedEventDef {
+    event(
+        "Dead Adventurer",
+        vec![
+            supported(
+                "Search (risk elite fight, gain gold/relic)",
+                dead_adventurer_search_program(&rewards, start, next_event, encounter_chance).ops,
+                EventEffect::DamageAndGold(0, 30),
+            ),
+            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+        ],
+    )
+}
+
+fn dead_adventurer_intro() -> EventProgram {
+    use DeadAdventurerReward::{Gold, Nothing, Relic};
+
+    let permutations = [
+        [Gold, Nothing, Relic],
+        [Gold, Relic, Nothing],
+        [Nothing, Gold, Relic],
+        [Nothing, Relic, Gold],
+        [Relic, Gold, Nothing],
+        [Relic, Nothing, Gold],
+    ];
+
+    let mut outcomes = Vec::with_capacity(permutations.len());
+    for rewards in permutations {
+        let success = event(
+            "Dead Adventurer",
+            vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+        );
+        let page3 = dead_adventurer_page(rewards, 2, success, 75);
+        let page2 = dead_adventurer_page(rewards, 1, page3, 50);
+        let page1 = dead_adventurer_page(rewards, 0, page2, 25);
+        outcomes.push(page1.options[0].program.ops.clone());
+    }
+
+    EventProgram::from_ops(vec![EventProgramOp::random_outcome_table(outcomes)])
+}
+
 pub fn typed_act1_events() -> Vec<TypedEventDef> {
     vec![
         event(
@@ -120,12 +231,9 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             vec![
                 blocked(
                     "Search (risk elite fight, gain gold/relic)",
-                    vec![
-                        EventProgramOp::damage_and_gold(0, 30),
-                        EventProgramOp::gain_relic("random relic"),
-                    ],
+                    dead_adventurer_intro().ops,
                     EventEffect::DamageAndGold(0, 30),
-                    "requires persistent search-state tracking plus a room-reward queue for the one-shot gold/relic pulls and elite-combat continuation",
+                    "requires ascension-sensitive initial encounter chance (25%/35%) on the first search roll",
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],

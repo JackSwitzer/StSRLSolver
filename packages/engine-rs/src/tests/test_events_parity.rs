@@ -127,7 +127,7 @@ mod event_java_parity_tests {
         assert_blocked(
             &dead_adventurer,
             0,
-            "requires persistent search-state tracking plus a room-reward queue",
+            "requires ascension-sensitive initial encounter chance",
         );
     }
 

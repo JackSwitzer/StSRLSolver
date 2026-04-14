@@ -1937,28 +1937,7 @@ impl CombatEngine {
     /// Called when a card is drawn into hand.
     fn on_card_drawn(&mut self, card: CardInstance) {
         let card_flags = self.card_registry.effect_flags(card.def_id);
-        let card_def = self.card_registry.card_def_by_id(card.def_id);
-
-        // Void: lose 1 energy when drawn.
-        if card_flags.has(effects::registry::BIT_LOSE_ENERGY_ON_DRAW) {
-            self.state.energy = (self.state.energy - 1).max(0);
-        }
-
-        // Endless Agony: add a copy to hand when drawn.
-        if card_flags.has(effects::registry::BIT_COPY_ON_DRAW) && self.state.hand.len() < 10 {
-            self.state.hand.push(card);
-        }
-
-        // Deus Ex Machina: when drawn, add Miracles to hand and exhaust self.
-        if card_flags.has(effects::registry::BIT_DEUS_EX_MACHINA) {
-            let miracle_count = card_def.base_magic.max(1);
-            if let Some(pos) = self.state.hand.iter().rposition(|c| c.def_id == card.def_id) {
-                let removed = self.state.hand.remove(pos);
-                self.state.exhaust_pile.push(removed);
-                self.trigger_on_exhaust();
-            }
-            self.add_temp_cards_to_hand("Miracle", miracle_count);
-        }
+        effects::registry::dispatch_on_draw(self, card, card_flags);
     }
 
     // =======================================================================

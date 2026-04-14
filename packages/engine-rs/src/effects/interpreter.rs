@@ -415,6 +415,30 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        // -- Enemy block removal --
+        SimpleEffect::RemoveEnemyBlock(target) => {
+            match target {
+                Target::SelectedEnemy => {
+                    if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
+                        engine.state.enemies[ctx.target_idx as usize].entity.block = 0;
+                    }
+                }
+                Target::AllEnemies => {
+                    for idx in engine.state.living_enemy_indices() {
+                        engine.state.enemies[idx].entity.block = 0;
+                    }
+                }
+                Target::RandomEnemy => {
+                    let living = engine.state.living_enemy_indices();
+                    if !living.is_empty() {
+                        let idx = living[engine.rng_gen_range(0..living.len())];
+                        engine.state.enemies[idx].entity.block = 0;
+                    }
+                }
+                Target::Player | Target::SelfEntity => {}
+            }
+        }
+
         // -- Judgement special resolution --
         SimpleEffect::Judgement(ref threshold_src) => {
             let threshold = resolve_card_amount(engine, ctx, threshold_src);

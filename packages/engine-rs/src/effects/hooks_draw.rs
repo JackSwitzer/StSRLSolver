@@ -17,8 +17,7 @@ pub fn hook_copy_on_draw(engine: &mut CombatEngine, card_inst: CardInstance) {
 
 /// Deus Ex Machina: when drawn, add N Miracles to hand and exhaust self.
 /// N = base_magic of the card (2 base, 3 upgraded).
-/// NOTE: Currently handled inline in draw_cards via BIT_DEUS_EX_MACHINA flag check.
-/// This hook is kept for completeness but the inline path is used.
+/// Routed through the canonical on_draw registry dispatch.
 pub fn hook_deus_ex_machina_on_draw(engine: &mut CombatEngine, card_inst: CardInstance) {
     let card_def = engine.card_registry.card_def_by_id(card_inst.def_id);
     let miracle_count = card_def.base_magic.max(1);

@@ -273,6 +273,8 @@ pub enum SimpleEffect {
     PlayTopCardOfDraw,
     /// Deal flat damage to a target (no strength/stance modifiers).
     DealDamage(Target, AmountSource),
+    /// Remove all block from the target enemy before later effects resolve.
+    RemoveEnemyBlock(Target),
     /// Special-resolution attack used by Judgement:
     /// if the selected enemy is at or below threshold, deal lethal damage equal
     /// to current HP + block.
