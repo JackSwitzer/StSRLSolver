@@ -65,8 +65,9 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Dual Wield`
 - `Fiend Fire`
 - `Nightmare`
+- `Scrape`
 
-The raw public-card tail is `4` files, but the honest unresolved gameplay-gap tail is `1` file after excluding the runtime-backed non-play cleanup shells `Reflex`, `Tactician`, and `Deus Ex Machina`. The separate shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`) are tracked as registry/support surfaces, not as unresolved public-card files.
+The raw public-card tail is `3` files, and the honest unresolved gameplay-gap tail is `0` after excluding the runtime-backed non-play cleanup shells `Reflex`, `Tactician`, and `Deus Ex Machina`. The separate shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`) are tracked as registry/support surfaces, not as unresolved public-card files.
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -241,9 +242,9 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared implementation follow-up for the final gameplay-gap card `Scrape`
-- representative broad parity cleanup over stable event/relic/potion/RL surfaces now that the gameplay-gap tail is effectively one
 - shared engine follow-up for the separate `AwaitingChoice` continuation bug family (`Third Eye`, `Foreign Influence`)
+- representative broad parity cleanup over stable event/relic/potion/RL surfaces now that the gameplay-gap tail is zero
+- cleanup-shell accounting / final merge narrative follow-up
 
 Each worker must return:
 
@@ -255,8 +256,6 @@ Each worker must return:
 
 These are the currently verified remaining behavior clusters:
 
-- Defect order cluster:
-  - `Scrape`
 - Watcher shared play-tail cluster:
   - `Third Eye`
   - `Foreign Influence`
@@ -265,7 +264,6 @@ The shared primitive themes behind those clusters are now clear:
 
 - runtime-backed non-play trigger shells are no longer treated as unresolved gameplay gaps once engine-path proof exists
 
-- draw-follow-up discard limited to the cards newly drawn by the same effect
 - shared play-card continuation after a choice opens
 - draw-to-N and no-attacks-in-hand checks
 - enemy-HP threshold kill
