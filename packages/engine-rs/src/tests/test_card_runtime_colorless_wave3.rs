@@ -12,7 +12,10 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, Effect as E, Pile as P};
+use crate::effects::declarative::{
+    AmountSource as A, ChoiceAction, CardFilter, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::engine::CombatPhase;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
 
@@ -32,6 +35,13 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
         }]
     );
     assert!(forethought_plus.complex_hook.is_none());
+
+    let ritual_dagger = registry.get("RitualDagger").expect("RitualDagger should exist");
+    assert_eq!(
+        ritual_dagger.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
+    assert!(ritual_dagger.complex_hook.is_some());
 }
 
 #[test]
