@@ -143,6 +143,7 @@ mod test_dead_system_cleanup_wave13;
 mod test_dead_system_cleanup_wave14;
 mod test_dead_system_cleanup_wave15;
 mod test_dead_system_cleanup_wave16;
+mod test_dead_system_cleanup_wave17;
 mod test_reward_relic_runtime_wave2;
 mod test_reward_relic_runtime_wave3;
 mod test_reward_runtime;
