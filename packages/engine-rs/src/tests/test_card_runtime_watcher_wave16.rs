@@ -92,6 +92,11 @@ fn watcher_wave16_foreign_influence_preserves_base_cost_and_zeros_upgraded_cost(
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.hand[0].cost, preview_cost);
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "ForeignInfluence"));
 
     let mut upgraded = watcher_engine();
     ensure_in_hand(&mut upgraded, "ForeignInfluence+");
@@ -105,6 +110,11 @@ fn watcher_wave16_foreign_influence_preserves_base_cost_and_zeros_upgraded_cost(
     assert_eq!(upgraded.phase, CombatPhase::PlayerTurn);
     assert_eq!(upgraded.state.hand.len(), 1);
     assert_eq!(upgraded.state.hand[0].cost, 0);
+    assert!(upgraded
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| upgraded.card_registry.card_name(card.def_id) == "ForeignInfluence+"));
 }
 
 #[test]

@@ -344,7 +344,6 @@ mod watcher_card_java_parity_tests {
             engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
-            // Known runtime follow-up: scry discard accounting still needs a targeted fix.
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
             // ThirdEye scries 3, so up to 3 cards revealed; select all for discard.
             let num_options = engine.choice.as_ref().unwrap().options.len();
@@ -352,6 +351,7 @@ mod watcher_card_java_parity_tests {
                 engine.execute_action(&Action::Choose(i));
             }
             engine.execute_action(&Action::ConfirmSelection);
+            assert_eq!(engine.phase, CombatPhase::PlayerTurn);
             assert_eq!(engine.state.player.block, 7);
             assert_eq!(engine.state.discard_pile.len(), 4);
             assert!(engine.state.discard_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "ThirdEye"));
@@ -427,9 +427,9 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "ForeignInfluence");
             play_self(&mut engine, "ForeignInfluence");
-            // Known runtime follow-up: exhaust-pile accounting still differs here.
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
             engine.execute_action(&Action::Choose(0)); // pick first option
+            assert_eq!(engine.phase, CombatPhase::PlayerTurn);
             assert_eq!(engine.state.hand.len(), 1); // 1 discovered card added
             assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ForeignInfluence"));
         }

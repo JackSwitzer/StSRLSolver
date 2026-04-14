@@ -104,6 +104,7 @@ pub struct CombatEngine {
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
+    pub(crate) runtime_play_target_idx: Option<i32>,
     pub runtime_replay_window: bool,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
@@ -124,6 +125,7 @@ impl CombatEngine {
             nightmare_pending_copies: Vec::new(),
             event_log: Vec::new(),
             runtime_played_card: None,
+            runtime_play_target_idx: None,
             runtime_replay_window: false,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
@@ -340,6 +342,7 @@ impl CombatEngine {
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
             event_log: self.event_log.clone(),
             runtime_played_card: self.runtime_played_card,
+            runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_replay_window: self.runtime_replay_window,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
@@ -458,7 +461,19 @@ impl CombatEngine {
             },
         }
 
+        if self.choice.is_some() {
+            return;
+        }
+
         self.phase = CombatPhase::PlayerTurn;
+        if self.state.combat_over {
+            self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
+            return;
+        }
+        if self.runtime_played_card.is_some() {
+            self.resume_played_card_tail_from_runtime();
+        }
     }
 
     fn resolve_scry(&mut self, ctx: ChoiceContext) {
@@ -1550,9 +1565,9 @@ impl CombatEngine {
             return;
         }
 
-        let mut card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
+        let card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
         let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
+        let _card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
         if !self.can_play_card_inst(&card, card_inst) {
             return;
@@ -1617,6 +1632,7 @@ impl CombatEngine {
         // self-mutating cards can write back to the exact copy that is about to
         // land in discard/exhaust.
         self.runtime_played_card = Some(card_inst);
+        self.runtime_play_target_idx = Some(target_idx);
 
         // Track counters
         self.state.cards_played_this_turn += 1;
@@ -1698,6 +1714,7 @@ impl CombatEngine {
         if pain_killed {
             self.phase = CombatPhase::CombatOver;
             self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
             return;
         }
 
@@ -1749,12 +1766,26 @@ impl CombatEngine {
             ));
         }
         if self.state.combat_over
-            || self.phase != CombatPhase::PlayerTurn
             || self.state.turn != turn_before_after_use
         {
             self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
             return;
         }
+        if self.phase != CombatPhase::PlayerTurn {
+            return;
+        }
+        self.resume_played_card_tail_from_runtime();
+    }
+
+    fn resume_played_card_tail_from_runtime(&mut self) {
+        let mut card_inst = match self.runtime_played_card {
+            Some(card) => card,
+            None => return,
+        };
+        let target_idx = self.runtime_play_target_idx.unwrap_or(-1);
+        let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
         if let Some(updated) = self.runtime_played_card {
             card_inst = updated;
@@ -1770,11 +1801,10 @@ impl CombatEngine {
         ));
         if self.state.combat_over || self.phase != CombatPhase::PlayerTurn {
             self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
             return;
         }
 
-        // Replay-capable powers execute through the owner-aware runtime here so
-        // they preserve the old inline ordering relative to Time Warp.
         {
             self.runtime_replay_window = true;
             let mut runtime = std::mem::take(&mut self.effect_runtime);
@@ -1783,12 +1813,14 @@ impl CombatEngine {
         }
         self.runtime_replay_window = false;
 
-        // Consume NextAttackFree after playing an attack
+        if let Some(updated) = self.runtime_played_card {
+            card_inst = updated;
+        }
+
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
         }
 
-        // Necronomicon: replay first 2+-cost Attack once per turn
         if !self.state.combat_over {
             let is_attack = card.card_type == CardType::Attack;
             let effective = self.effective_cost_inst(&card, card_inst);
@@ -1802,9 +1834,6 @@ impl CombatEngine {
             }
         }
 
-        // Wave of the Hand is now handled inside gain_block_player() automatically.
-
-        // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
             let post_ctx = crate::effects::trigger::TriggerContext {
@@ -1816,16 +1845,13 @@ impl CombatEngine {
                 crate::effects::trigger::Trigger::OnPowerPlayed,
                 &post_ctx,
             ));
-            // Powers don't go to any pile
         } else if card_flags.has(effects::registry::BIT_SHUFFLE_SELF_INTO_DRAW) {
-            // Tantrum: shuffle into draw pile instead of discard
             self.state.draw_pile.push(card_inst);
             self.shuffle_draw_pile();
         } else if card.exhaust
             || (card.card_type == CardType::Skill
                 && self.state.player.status(sid::CORRUPTION) > 0)
         {
-            // Strange Spoon: 50% chance exhaust -> shuffle into draw pile
             if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
                 if self.rng.random(1) == 0 {
                     self.state.draw_pile.push(card_inst);
@@ -1842,16 +1868,15 @@ impl CombatEngine {
         }
 
         self.runtime_played_card = None;
+        self.runtime_play_target_idx = None;
 
-        // Conclude: end the turn immediately after playing (via EffectFlags)
-        // Let end_turn() handle the remaining hand (respects retain/ethereal)
         if card_flags.has(effects::registry::BIT_END_TURN) {
             self.end_turn();
             self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
             return;
         }
 
-        // Unceasing Top: draw when hand is empty
         while (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
             && self.state.hand.is_empty()
             && (!self.state.draw_pile.is_empty() || !self.state.discard_pile.is_empty())
@@ -1859,7 +1884,6 @@ impl CombatEngine {
             self.draw_cards(1);
         }
 
-        // Check combat end after card play
         self.check_combat_end();
     }
 
