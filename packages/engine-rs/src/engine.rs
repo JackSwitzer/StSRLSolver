@@ -14,6 +14,7 @@ use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::effects;
+use crate::effects::declarative::ChoiceAction;
 use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
@@ -84,6 +85,8 @@ pub struct ChoiceContext {
     /// Used for cases like Dual Wield/Nightmare where the player picks one card
     /// and the engine later duplicates it N times.
     pub aux_count: usize,
+    /// Optional semantic action for declarative choice resolution.
+    pub action: Option<ChoiceAction>,
     /// Optional post-choice draw handoff owned by the choice itself.
     /// Burning Pact uses this to draw after the exhaust choice resolves.
     pub post_choice_draw: i32,
@@ -98,6 +101,7 @@ pub struct CombatEngine {
     pub(crate) rng: crate::seed::StsRandom,
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
+    pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
     pub runtime_replay_window: bool,
@@ -117,6 +121,7 @@ impl CombatEngine {
             rng: crate::seed::StsRandom::new(seed),
             choice: None,
             effect_runtime,
+            nightmare_pending_copies: Vec::new(),
             event_log: Vec::new(),
             runtime_played_card: None,
             runtime_replay_window: false,
@@ -332,6 +337,7 @@ impl CombatEngine {
             rng: self.rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
+            nightmare_pending_copies: self.nightmare_pending_copies.clone(),
             event_log: self.event_log.clone(),
             runtime_played_card: self.runtime_played_card,
             runtime_replay_window: self.runtime_replay_window,
@@ -352,7 +358,7 @@ impl CombatEngine {
         min_picks: usize,
         max_picks: usize,
     ) {
-        self.begin_choice_with_aux(reason, options, min_picks, max_picks, 0);
+        self.begin_choice_with_action(reason, options, min_picks, max_picks, 0, None);
     }
 
     pub fn begin_choice_with_aux(
@@ -362,6 +368,18 @@ impl CombatEngine {
         min_picks: usize,
         max_picks: usize,
         aux_count: usize,
+    ) {
+        self.begin_choice_with_action(reason, options, min_picks, max_picks, aux_count, None);
+    }
+
+    pub fn begin_choice_with_action(
+        &mut self,
+        reason: ChoiceReason,
+        options: Vec<ChoiceOption>,
+        min_picks: usize,
+        max_picks: usize,
+        aux_count: usize,
+        action: Option<ChoiceAction>,
     ) {
         if options.is_empty() {
             return; // Nothing to choose from
@@ -377,6 +395,7 @@ impl CombatEngine {
             min_picks,
             max_picks,
             aux_count,
+            action,
             post_choice_draw: 0,
         });
     }
@@ -414,7 +433,9 @@ impl CombatEngine {
             None => return,
         };
 
-        match ctx.reason {
+        match ctx.action {
+            Some(ChoiceAction::StoreCardForNextTurnCopies) => self.resolve_nightmare(ctx),
+            _ => match ctx.reason {
             ChoiceReason::Scry => self.resolve_scry(ctx),
             ChoiceReason::DiscardFromHand => self.resolve_discard_from_hand(ctx),
             ChoiceReason::ExhaustFromHand => self.resolve_exhaust_from_hand(ctx),
@@ -434,6 +455,7 @@ impl CombatEngine {
             ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
             ChoiceReason::SetupPick => self.resolve_setup(ctx),
             ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
+            },
         }
 
         self.phase = CombatPhase::PlayerTurn;
@@ -628,6 +650,21 @@ impl CombatEngine {
                         if self.state.hand.len() >= 10 { break; }
                         self.state.hand.push(card);
                     }
+                }
+            }
+        }
+    }
+
+    fn resolve_nightmare(&mut self, ctx: ChoiceContext) {
+        // Nightmare: remember the chosen card and add copies on the next turn start.
+        if let Some(&sel) = ctx.selected.first() {
+            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
+                if idx < self.state.hand.len() {
+                    let mut card = self.state.hand[idx];
+                    card.reset_cost_for_turn();
+                    card.flags &= !CardInstance::FLAG_FREE;
+                    let copies = ctx.aux_count.max(1);
+                    self.nightmare_pending_copies.push((card, copies));
                 }
             }
         }
@@ -865,6 +902,8 @@ impl CombatEngine {
             amount: 0,
             replay_window: false,
         });
+
+        self.flush_pending_nightmare_copies();
 
         // Divinity auto-exit at start of turn
         if self.state.stance == Stance::Divinity {
@@ -2649,6 +2688,31 @@ impl CombatEngine {
                 self.state.hand.push(card);
             } else {
                 self.state.discard_pile.push(card);
+            }
+        }
+    }
+
+    fn flush_pending_nightmare_copies(&mut self) {
+        if self.nightmare_pending_copies.is_empty() {
+            return;
+        }
+        let pending = std::mem::take(&mut self.nightmare_pending_copies);
+        for (card, copies) in pending {
+            self.add_card_instance_copies_to_hand(card, copies as i32);
+        }
+    }
+
+    pub(crate) fn add_card_instance_copies_to_hand(&mut self, card: CardInstance, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        for _ in 0..amount {
+            let mut copy = card;
+            copy.reset_cost_for_turn();
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(copy);
+            } else {
+                self.state.discard_pile.push(copy);
             }
         }
     }

@@ -18,8 +18,18 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     assert!(alchemize.complex_hook.is_none());
 
     let nightmare = registry.get("Nightmare").expect("Nightmare should exist");
-    assert!(nightmare.effect_data.is_empty());
-    assert!(nightmare.complex_hook.is_some());
+    assert_eq!(
+        nightmare.effect_data,
+        &[crate::effects::declarative::Effect::ChooseCards {
+            source: crate::effects::declarative::Pile::Hand,
+            filter: crate::effects::declarative::CardFilter::All,
+            action: crate::effects::declarative::ChoiceAction::StoreCardForNextTurnCopies,
+            min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
+        }]
+    );
+    assert!(nightmare.complex_hook.is_none());
 
     let storm_of_steel = registry
         .get("Storm of Steel")
@@ -38,7 +48,3 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     assert!(storm_of_steel.complex_hook.is_none());
 
 }
-
-#[test]
-#[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/NightmareAction.java define the delayed copy path, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java carrying the next-turn install."]
-fn silent_wave12_nightmare_needs_delayed_copy_install_primitive() {}

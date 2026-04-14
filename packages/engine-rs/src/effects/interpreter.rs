@@ -1166,13 +1166,14 @@ fn execute_choose_cards(
     }
 
     let reason = choice_reason_for_action(action, source);
-    if matches!(action, ChoiceAction::CopyToHand) {
-        engine.begin_choice_with_aux(
+    if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {
+        engine.begin_choice_with_action(
             reason,
             options,
             min_picks,
             max_picks,
             ctx.card.base_magic.max(1) as usize,
+            Some(action),
         );
     } else {
         engine.begin_choice(reason, options, min_picks, max_picks);
@@ -1270,6 +1271,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
         },
         ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
+        ChoiceAction::StoreCardForNextTurnCopies => ChoiceReason::DualWield,
         ChoiceAction::PutOnTopAtCostZero => ChoiceReason::SetupPick,
         ChoiceAction::PutOnBottomAtCostZero => ChoiceReason::ForethoughtPick,
         ChoiceAction::ExhaustAndGainEnergy => ChoiceReason::RecycleCard,

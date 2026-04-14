@@ -121,7 +121,6 @@ fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runt
 }
 
 #[test]
-#[ignore = "Nightmare delayed-copy semantics still need a turn-start install primitive matching NightmarePower"]
 fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
     let mut engine = engine_for(
         &["Nightmare", "Strike_G", "Defend_G"],
@@ -140,7 +139,7 @@ fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(
         engine.state.hand.len(),
-        7,
+        8,
         "Java Nightmare would add the copies at start of turn before the normal draw"
     );
 }

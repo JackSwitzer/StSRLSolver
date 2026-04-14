@@ -239,10 +239,9 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared runtime follow-up centered on the remaining `Nightmare` delayed-copy/install primitive
 - isolated implementation or blocker-conversion follow-up for `Scrape` and `Fiend Fire`
 - cleanup-trio source-model follow-up for `Reflex`, `Tactician`, and `Deus Ex Machina`
-- representative broad parity sweep over stable event/relic/potion/RL surfaces now that the public-card tail is down to six
+- representative broad parity sweep over stable event/relic/potion/RL surfaces now that the public-card tail is down to five
 
 Each worker must return:
 
@@ -254,8 +253,6 @@ Each worker must return:
 
 These are the currently verified card-tail clusters that should drive the next primitive waves once the active bundles land:
 
-- Silent discard/post-choice cluster:
-  - `Nightmare`
 - Ironclad exhaust/top-play cluster:
   - `Fiend Fire`
 - Defect order cluster:
@@ -265,7 +262,6 @@ The shared primitive themes behind those clusters are now clear:
 
 - runtime-backed non-play trigger shells are no longer treated as unresolved gameplay gaps once engine-path proof exists
 
-- discard-then-resolve post-choice sequencing
 - filtered random attack fetch from draw
 - typed exhaust-all / exhaust-per-hit loops
 - draw-to-N and no-attacks-in-hand checks

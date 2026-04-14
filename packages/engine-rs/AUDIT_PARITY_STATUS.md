@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- raw public card files with empty `effect_data`: `6`
-- raw public card files still using `complex_hook`: `3`
-- unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `3`
+- raw public card files with empty `effect_data`: `5`
+- raw public card files still using `complex_hook`: `2`
+- unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `2`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -68,7 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level gameplay tail is now very small and concentrated in retained-state, generated-choice, and post-draw/exhaust sequencing families
-- the currently verified unresolved public gameplay-gap tail is: `Scrape`, `Fiend Fire`, and `Nightmare`
+- the currently verified unresolved public gameplay-gap tail is: `Scrape` and `Fiend Fire`
   - `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
   - `Dual Wield` is now fully typed on the `AttackOrPower` choice path with copy-count routing through the choice context, so it no longer counts in the unresolved public-card tail
   - `Burning Pact` is now fully typed on the declarative choice-owned deferred-draw path, so it no longer counts in the hook-backed public-card tail
@@ -339,7 +339,7 @@ Own:
 Goal:
 
 - finish the remaining low-risk utility/damage-follow-up cards that no longer need big architectural work
-- keep `Nightmare`, `Fiend Fire`, `Scrape`, and the remaining large sequencing cards queued behind their actual missing primitives
+- keep `Fiend Fire`, `Scrape`, and the remaining large sequencing cards queued behind their actual missing primitives
 
 ### Wave 2: final supported-event blocker
 
@@ -368,7 +368,7 @@ Goal:
 
 Goal:
 
-- retire the ignored `Emotion Chip`, `Liquid Memories`, `Scrape`, `Fiend Fire`, and `Nightmare` blocker cases
+- retire the ignored `Emotion Chip`, `Liquid Memories`, `Scrape`, and `Fiend Fire` blocker cases
 - continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
 
 ### Wave 4: final dead-export cleanup

@@ -152,6 +152,8 @@ pub enum ChoiceAction {
     Upgrade,
     /// Copy selected card(s) to hand.
     CopyToHand,
+    /// Store selected card for a next-turn copy/install effect.
+    StoreCardForNextTurnCopies,
     /// Put selected card(s) on top of draw pile at cost 0.
     PutOnTopAtCostZero,
     /// Put selected card(s) on bottom of draw pile at cost 0.
