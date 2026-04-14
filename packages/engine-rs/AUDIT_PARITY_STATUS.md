@@ -46,8 +46,8 @@ Interpretation:
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
 - card files with empty `effect_data`: `6`
-- card files still using `complex_hook`: `4`
-- unresolved public card files (union of empty typed programs and hook-backed files): `7`
+- card files still using `complex_hook`: `3`
+- unresolved public card files (union of empty typed programs and hook-backed files): `6`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -56,9 +56,9 @@ These counts come from the current verified production tree and are useful as a 
 Empty-`effect_data` card backlog by class:
 
 - Watcher: `1`
-- Defect: `2`
+- Defect: `1`
 - Silent: `3`
-- Ironclad: `2`
+- Ironclad: `1`
 - Colorless: `0`
 
 Additional shared-file tail outside the five main class folders:
@@ -68,11 +68,11 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-- the currently verified unresolved public-card tail is: `Ritual Dagger`, `Scrape`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
+- the currently verified unresolved public-card tail is: `Scrape`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
   - `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
   - `Dual Wield` is now fully typed on the `AttackOrPower` choice path with copy-count routing through the choice context, so it no longer counts in the unresolved public-card tail
   - `Burning Pact` is now fully typed on the declarative choice-owned deferred-draw path, so it no longer counts in the hook-backed public-card tail
-  - `Ritual Dagger` is no longer an empty typed-program shell; it now carries a typed damage body while its kill-scaling misc propagation stays hook-backed behind a Java-cited blocker
+  - `Ritual Dagger` is now fully on the declarative path: its kill upgrade is expressed as an `EnemyKilled` conditional that mutates the played card through the existing `ModifyPlayedCardDamage` effect
   - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels
   - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment`, `Reboot`, `Fission`, base `True Grit`, and `Second Wind` are now on typed runtime/declarative paths, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
@@ -339,7 +339,7 @@ Own:
 Goal:
 
 - finish the remaining low-risk utility/damage-follow-up cards that no longer need big architectural work
-- keep `Ritual Dagger`, `Nightmare`, and the remaining large sequencing cards queued behind their actual missing primitives
+- keep `Nightmare`, `Fiend Fire`, `Scrape`, and the remaining large sequencing cards queued behind their actual missing primitives
 
 ### Wave 2: final supported-event blocker
 
@@ -368,7 +368,7 @@ Goal:
 
 Goal:
 
-- retire the ignored `Emotion Chip`, `Liquid Memories`, `Blizzard`, `Fission`, and `Scrape` blocker cases
+- retire the ignored `Emotion Chip`, `Liquid Memories`, `Scrape`, `Fiend Fire`, and `Nightmare` blocker cases
 - continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
 
 ### Wave 4: final dead-export cleanup

@@ -64,7 +64,7 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Burning Pact`
 - `Dual Wield`
 
-The currently verified unresolved public-card tail is `7` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
+The currently verified unresolved public-card tail is `6` files. The separate shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`) are tracked as registry/support surfaces, not as unresolved public-card files.
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -239,9 +239,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared audit-stability/runtime follow-up centered on the queued `Seek+` multi-pick fix, with `Nightmare` queued behind it
-- isolated card-tail parity follow-up centered on `Ritual Dagger`, plus read-only preparation for `Scrape` and `Fiend Fire`
-- representative broad parity sweep over stable event/relic/potion/RL surfaces now that the public-card tail is in single digits
+- shared runtime follow-up centered on the remaining `Nightmare` delayed-copy/install primitive
+- isolated implementation or blocker-conversion follow-up for `Scrape` and `Fiend Fire`
+- cleanup-trio source-model follow-up for `Reflex`, `Tactician`, and `Deus Ex Machina`
+- representative broad parity sweep over stable event/relic/potion/RL surfaces now that the public-card tail is down to six
 
 Each worker must return:
 
@@ -254,20 +255,15 @@ Each worker must return:
 These are the currently verified card-tail clusters that should drive the next primitive waves once the active bundles land:
 
 - Silent discard/post-choice cluster:
-  - `Alchemize`
   - `Nightmare`
   - `Reflex`
   - `Tactician`
 - Ironclad exhaust/top-play cluster:
   - `Fiend Fire`
 - Defect order cluster:
-  - `Fission`
   - `Scrape`
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`
-  - `Lesson Learned`
-- Colorless utility/scaling cluster:
-  - `Ritual Dagger`
 
 The shared primitive themes behind those clusters are now clear:
 
