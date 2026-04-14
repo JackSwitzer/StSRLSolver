@@ -67,6 +67,7 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
             action: ChoiceAction::PlayForFree,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(omniscience.complex_hook.is_none());

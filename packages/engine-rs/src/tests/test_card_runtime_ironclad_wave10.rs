@@ -72,6 +72,7 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
             action: crate::effects::declarative::ChoiceAction::Exhaust,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
 }
@@ -110,9 +111,10 @@ fn ironclad_wave10_burning_pact_uses_choice_owned_deferred_draw_follow_up() {
             action: crate::effects::declarative::ChoiceAction::Exhaust,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: A::Magic,
         }]
     );
-    assert!(burning_pact.complex_hook.is_some());
+    assert!(burning_pact.complex_hook.is_none());
 }
 
 #[test]

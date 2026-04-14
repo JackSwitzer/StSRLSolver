@@ -32,6 +32,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
             action: ChoiceAction::PutOnBottomAtCostZero,
             min_picks: A::Fixed(0),
             max_picks: A::Fixed(99),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(forethought_plus.complex_hook.is_none());

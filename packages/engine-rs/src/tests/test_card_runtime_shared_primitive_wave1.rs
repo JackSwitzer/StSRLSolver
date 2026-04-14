@@ -83,6 +83,7 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
             action: ChoiceAction::PlayForFree,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(omniscience.complex_hook.is_none());

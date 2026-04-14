@@ -12,6 +12,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             action: ChoiceAction::DiscardForEffect,
             min_picks: A::Magic,
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }],
         complex_hook: None,
     });
@@ -26,6 +27,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             action: ChoiceAction::DiscardForEffect,
             min_picks: A::Magic,
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }],
         complex_hook: None,
     });

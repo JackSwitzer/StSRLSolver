@@ -43,8 +43,24 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
             }
         }
 
-        Effect::ChooseCards { source, filter, action, min_picks, max_picks } => {
-            execute_choose_cards(engine, ctx, *source, *filter, *action, *min_picks, *max_picks);
+        Effect::ChooseCards {
+            source,
+            filter,
+            action,
+            min_picks,
+            max_picks,
+            post_choice_draw,
+        } => {
+            execute_choose_cards(
+                engine,
+                ctx,
+                *source,
+                *filter,
+                *action,
+                *min_picks,
+                *max_picks,
+                *post_choice_draw,
+            );
         }
 
         Effect::ForEachInPile { pile, filter, action } => {
@@ -1126,6 +1142,7 @@ fn execute_choose_cards(
     action: ChoiceAction,
     min_picks_src: AmountSource,
     max_picks_src: AmountSource,
+    post_choice_draw_src: AmountSource,
 ) {
     let pile = get_pile(engine, source);
 
@@ -1150,6 +1167,12 @@ fn execute_choose_cards(
 
     let reason = choice_reason_for_action(action, source);
     engine.begin_choice(reason, options, min_picks, max_picks);
+    if post_choice_draw_src != AmountSource::Fixed(0) {
+        let post_choice_draw = resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0);
+        if let Some(choice) = engine.choice.as_mut() {
+            choice.post_choice_draw = post_choice_draw;
+        }
+    }
 }
 
 fn get_pile(engine: &CombatEngine, pile: Pile) -> &Vec<crate::combat_types::CardInstance> {

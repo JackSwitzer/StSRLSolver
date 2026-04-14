@@ -76,6 +76,7 @@ fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
             action: ChoiceAction::DiscardForEffect,
             min_picks: A::Magic,
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }],
     );
     assert!(concentrate.complex_hook.is_none());
@@ -89,6 +90,7 @@ fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
             action: ChoiceAction::DiscardForEffect,
             min_picks: A::Magic,
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }],
     );
     assert!(concentrate_plus.complex_hook.is_none());

@@ -81,6 +81,7 @@ mod ironclad_wave3_card_runtime_tests {
                 action: ChoiceAction::Exhaust,
                 min_picks: A::Fixed(1),
                 max_picks: A::Fixed(1),
+                post_choice_draw: A::Magic,
             }]
         );
 
@@ -185,6 +186,7 @@ mod ironclad_wave3_card_runtime_tests {
                 action: ChoiceAction::Exhaust,
                 min_picks: A::Fixed(1),
                 max_picks: A::Fixed(1),
+                post_choice_draw: A::Magic,
             }]
         );
 

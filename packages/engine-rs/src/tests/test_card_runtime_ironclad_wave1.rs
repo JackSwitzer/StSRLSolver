@@ -81,6 +81,7 @@ mod ironclad_wave1_card_runtime_tests {
                 action: ChoiceAction::Exhaust,
                 min_picks: AmountSource::Fixed(1),
                 max_picks: AmountSource::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
             }],
         );
 

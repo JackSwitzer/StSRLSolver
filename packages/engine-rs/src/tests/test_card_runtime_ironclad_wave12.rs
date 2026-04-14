@@ -50,9 +50,10 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
             action: ChoiceAction::Exhaust,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: A::Magic,
         }]
     );
-    assert!(burning_pact.complex_hook.is_some());
+    assert!(burning_pact.complex_hook.is_none());
 
     let sword_boomerang = global_registry()
         .get("Sword Boomerang")
@@ -155,7 +156,7 @@ fn ironclad_wave12_true_grit_base_uses_the_typed_random_exhaust_surface() {
 fn ironclad_wave12_dual_wield_stays_explicitly_hook_backed() {}
 
 #[test]
-#[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current hook still owns the hand-exhaust + per-card damage loop. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]
+#[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current declarative surface still lacks exhaust-before-damage ordering. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]
 fn ironclad_wave12_fiend_fire_stays_explicitly_hook_backed() {}
 
 #[test]

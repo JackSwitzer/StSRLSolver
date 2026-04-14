@@ -1046,22 +1046,6 @@ pub fn hook_jack_of_all_trades(engine: &mut CombatEngine, ctx: &CardPlayContext)
 }
 
 // =========================================================================
-// Burning Pact: exhaust 1 card from hand, then draw N
-// =========================================================================
-
-/// Burning Pact: choose 1 card to exhaust from hand, then draw base_magic cards.
-pub fn hook_burning_pact(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let draw_count = ctx.card.base_magic.max(1);
-    if !engine.state.hand.is_empty() {
-        let options = hand_card_options(engine);
-        engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 1, 1);
-        if let Some(choice) = engine.choice.as_mut() {
-            choice.post_choice_draw = draw_count;
-        }
-    }
-}
-
-// =========================================================================
 // All-Out Attack: discard 1 random card from hand
 // =========================================================================
 

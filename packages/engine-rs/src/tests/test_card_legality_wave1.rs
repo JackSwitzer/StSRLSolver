@@ -46,6 +46,7 @@ fn headbutt_now_exports_typed_primary_damage_and_discard_choice() {
                 action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
                 min_picks: crate::effects::declarative::AmountSource::Fixed(1),
                 max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
             },
         ]
     );
@@ -80,6 +81,7 @@ fn secret_technique_still_uses_declarative_skill_search_and_finds_only_skills() 
             action: ChoiceAction::MoveToHand,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
 
@@ -130,9 +132,10 @@ fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
             action: crate::effects::declarative::ChoiceAction::Exhaust,
             min_picks: crate::effects::declarative::AmountSource::Fixed(1),
             max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Magic,
         }]
     );
-    assert!(burning_pact.complex_hook.is_some());
+    assert!(burning_pact.complex_hook.is_none());
 }
 
 #[test]

@@ -68,8 +68,18 @@ mod ironclad_wave4_card_runtime_tests {
         assert!(bludgeon.complex_hook.is_none());
 
         let burning_pact = card("Burning Pact");
-        assert!(burning_pact.effect_data.is_empty());
-        assert!(burning_pact.complex_hook.is_some());
+        assert_eq!(
+            burning_pact.effect_data,
+            &[crate::effects::declarative::Effect::ChooseCards {
+                source: crate::effects::declarative::Pile::Hand,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::Exhaust,
+                min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Magic,
+            }]
+        );
+        assert!(burning_pact.complex_hook.is_none());
 
         let carnage = card("Carnage");
         assert!(carnage.effects.contains(&"ethereal"));

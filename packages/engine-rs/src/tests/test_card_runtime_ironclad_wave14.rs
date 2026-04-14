@@ -31,11 +31,12 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
             action: crate::effects::declarative::ChoiceAction::Exhaust,
             min_picks: crate::effects::declarative::AmountSource::Fixed(1),
             max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Magic,
         }]
     );
     assert!(
-        burning_pact.complex_hook.is_some(),
-        "Burning Pact keeps its hook for the choice opening path"
+        burning_pact.complex_hook.is_none(),
+        "Burning Pact should now be fully typed"
     );
 
     let headbutt = global_registry().get("Headbutt").expect("Headbutt");
@@ -49,6 +50,7 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
                 action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
                 min_picks: crate::effects::declarative::AmountSource::Fixed(1),
                 max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
             },
         ]
     );
@@ -89,9 +91,10 @@ fn ironclad_wave14_burning_pact_keeps_choice_body_with_choice_owned_draw_follow_
             action: crate::effects::declarative::ChoiceAction::Exhaust,
             min_picks: crate::effects::declarative::AmountSource::Fixed(1),
             max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Magic,
         }]
     );
-    assert!(burning_pact.complex_hook.is_some());
+    assert!(burning_pact.complex_hook.is_none());
 }
 
 #[test]

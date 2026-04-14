@@ -96,6 +96,7 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
             action: ChoiceAction::PlayForFree,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(omniscience.complex_hook.is_none());

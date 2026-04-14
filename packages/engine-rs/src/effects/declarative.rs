@@ -363,6 +363,8 @@ pub enum Effect {
         action: ChoiceAction,
         min_picks: AmountSource,
         max_picks: AmountSource,
+        /// Choice-owned draw amount applied after the choice resolves.
+        post_choice_draw: AmountSource,
     },
 
     /// Apply a bulk action to all cards matching a filter in a pile.

@@ -49,6 +49,7 @@ fn ironclad_wave15_registry_promotes_havoc_and_headbutt_to_the_typed_surface() {
                 action: ChoiceAction::PutOnTopOfDraw,
                 min_picks: A::Fixed(1),
                 max_picks: A::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
             },
         ]
     );

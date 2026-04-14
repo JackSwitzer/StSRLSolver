@@ -30,6 +30,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
             action: ChoiceAction::MoveToHand,
             min_picks: A::Fixed(1),
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(seek.complex_hook.is_none());
@@ -43,6 +44,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
             action: ChoiceAction::MoveToHand,
             min_picks: A::Fixed(1),
             max_picks: A::Magic,
+            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
     );
     assert!(seek_plus.complex_hook.is_none());

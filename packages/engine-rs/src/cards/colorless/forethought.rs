@@ -7,6 +7,7 @@ static FORETHOUGHT_BASE: [Effect; 1] = [Effect::ChooseCards {
     action: ChoiceAction::PutOnBottomAtCostZero,
     min_picks: A::Fixed(1),
     max_picks: A::Fixed(1),
+    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 
 static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
@@ -15,6 +16,7 @@ static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
     action: ChoiceAction::PutOnBottomAtCostZero,
     min_picks: A::Fixed(0),
     max_picks: A::Fixed(99),
+    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {

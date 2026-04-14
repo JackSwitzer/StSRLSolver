@@ -2,8 +2,7 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Uncommon: Burning Pact ----
-    // Typed choice body is in place; the deferred draw after exhaustion still
-    // stays hook-backed until the shared post-choice sequencing primitive lands.
+    // Typed choice body carries its own post-choice draw amount.
     insert(cards, CardDef {
         id: "Burning Pact",
         name: "Burning Pact",
@@ -22,8 +21,9 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             action: ChoiceAction::Exhaust,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: A::Magic,
         }],
-        complex_hook: Some(crate::effects::hooks_complex::hook_burning_pact),
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "Burning Pact+",
@@ -43,7 +43,8 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             action: ChoiceAction::Exhaust,
             min_picks: A::Fixed(1),
             max_picks: A::Fixed(1),
+            post_choice_draw: A::Magic,
         }],
-        complex_hook: Some(crate::effects::hooks_complex::hook_burning_pact),
+        complex_hook: None,
     });
 }

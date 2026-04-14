@@ -17,6 +17,7 @@ static DISCARD_TWO_EFFECTS: [E; 1] = [E::ChooseCards {
     action: ChoiceAction::Discard,
     min_picks: A::Fixed(2),
     max_picks: A::Fixed(2),
+    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 static EXHAUST_TWO_EFFECTS: [E; 1] = [E::ChooseCards {
     source: P::Hand,
@@ -24,6 +25,7 @@ static EXHAUST_TWO_EFFECTS: [E; 1] = [E::ChooseCards {
     action: ChoiceAction::Exhaust,
     min_picks: A::Fixed(2),
     max_picks: A::Fixed(2),
+    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 static SCRY_THREE_EFFECTS: [E; 1] = [E::Simple(SE::Scry(A::Fixed(3)))];
 static CHANNEL_TWO_LIGHTNING_EFFECTS: [E; 1] = [E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(2)))];
