@@ -8,7 +8,8 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 2, exhaust: false, enter_stance: None,
                 effects: &["gain_focus", "lose_orb_slot"], effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Magic)),
-                ], complex_hook: Some(crate::effects::hooks_orb::hook_lose_orb_slot),
+                    E::Simple(SE::RemoveOrbSlot),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Consume+", name: "Consume+", card_type: CardType::Skill,
@@ -16,6 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 3, exhaust: false, enter_stance: None,
                 effects: &["gain_focus", "lose_orb_slot"], effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Magic)),
-                ], complex_hook: Some(crate::effects::hooks_orb::hook_lose_orb_slot),
+                    E::Simple(SE::RemoveOrbSlot),
+                ], complex_hook: None,
             });
 }

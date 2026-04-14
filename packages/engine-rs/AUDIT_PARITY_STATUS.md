@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `17`
-- card files still using `complex_hook`: `26`
-- unresolved public card files (union of empty typed programs and hook-backed files): `29`
+- card files with empty `effect_data`: `16`
+- card files still using `complex_hook`: `23`
+- unresolved public card files (union of empty typed programs and hook-backed files): `26`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -56,7 +56,7 @@ These counts come from the current verified production tree and are useful as a 
 Empty-`effect_data` card backlog by class:
 
 - Watcher: `2`
-- Defect: `5`
+- Defect: `4`
 - Silent: `4`
 - Ironclad: `3`
 - Colorless: `3`
@@ -67,10 +67,10 @@ Additional shared-file tail outside the five main class folders:
 
 What those numbers mean:
 
-- the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a short colorless utility residue
+- the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless utility residue
 - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` remains the last explicit Java-cited supported-event parity gap rather than a silent approximation
-- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, most live scalar bridge helpers were removed from `relics/run.rs`, and the remaining dead-system tail is now concentrated in two hand-lifecycle bridges plus ignored blocker tests
-- the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
+- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
+- the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect frost/order, and Colorless utility/cost-mutation behavior
 
 ## Why We Are Not Done Yet
 
@@ -172,7 +172,7 @@ What improved in the recent waves:
 - [`src/tests/test_events_parity.rs:103`](./src/tests/test_events_parity.rs#L103)
 - [`src/run.rs:1404`](./src/run.rs#L1404)
 
-The remaining blocked set for supported content is now empty, including `Spire Heart`, which now runs through the canonical final-act resolution path instead of an honest blocker.
+The remaining blocked-op set for supported content is now empty, including `Spire Heart`, which now runs through the canonical final-act resolution path instead of an honest blocker. `Dead Adventurer` remains as an explicit typed-status blocker with one named ascension-sensitive search-roll gap rather than an opaque placeholder op.
 
 ### 7. Dead systems are reduced and mostly pruned, but one oracle family still remains
 
@@ -190,7 +190,8 @@ What improved in the recent waves:
 - `dispatch_modify_damage`, `dispatch_on_discard`, `dispatch_can_play`, `dispatch_modify_cost`, and live potion fallback callsites are gone from production
 - `powers/hooks.rs` is deleted, and the old hook-table registry/helpers are removed from `powers/registry.rs`
 - helper-path parity assertions for `Twisted Funnel`, `Snecko Eye`, `Sling`, `Preserved Insect`, `Du-Vu Doll`, `Girya`, `Red Skull`, `Teardrop Locket`, and `Pantograph` are now replaced by engine-path suites
-- remaining references are helper-path relic tests, oracle assertions, or dead exports only
+- the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridge helpers are now deleted from `relics/run.rs`
+- remaining references are oracle assertions, ignored blocker tests, or dead exports only
 
 ## What Tests Already Prove
 
@@ -211,6 +212,9 @@ What improved in the recent waves:
   - [`src/tests/test_generated_choice_java_wave3.rs`](./src/tests/test_generated_choice_java_wave3.rs)
 - orb/runtime parity:
   - [`src/tests/test_orb_runtime_java_wave1.rs`](./src/tests/test_orb_runtime_java_wave1.rs)
+  - [`src/tests/test_card_runtime_defect_wave11.rs`](./src/tests/test_card_runtime_defect_wave11.rs)
+  - [`src/tests/test_card_runtime_defect_wave14.rs`](./src/tests/test_card_runtime_defect_wave14.rs)
+  - [`src/tests/test_card_runtime_defect_wave16.rs`](./src/tests/test_card_runtime_defect_wave16.rs)
 - damage-followup parity:
   - [`src/tests/test_damage_followup_java_wave1.rs`](./src/tests/test_damage_followup_java_wave1.rs)
 - RL combat contract and deterministic search scaffolding:
@@ -218,8 +222,11 @@ What improved in the recent waves:
   - [`src/tests/test_search_harness.rs`](./src/tests/test_search_harness.rs)
 - reward runtime and ordered reward decisions:
   - [`src/tests/test_reward_runtime.rs`](./src/tests/test_reward_runtime.rs)
+- dead-system cleanup coverage:
+  - [`src/tests/test_dead_system_cleanup_wave22.rs`](./src/tests/test_dead_system_cleanup_wave22.rs)
 - typed event catalog parity and blocked-branch reporting:
   - [`src/tests/test_events_parity.rs`](./src/tests/test_events_parity.rs)
+  - [`src/tests/test_event_runtime_wave18.rs`](./src/tests/test_event_runtime_wave18.rs)
 - newer card/runtime waves:
   - [`src/tests/test_card_runtime_backend_wave3.rs`](./src/tests/test_card_runtime_backend_wave3.rs)
   - [`src/tests/test_card_runtime_backend_wave1.rs`](./src/tests/test_card_runtime_backend_wave1.rs)
@@ -274,11 +281,10 @@ What improved in the recent waves:
 
 ### Coverage that still does not prove full parity
 
-- helper-path relic tests:
-  - [`src/tests/test_relics.rs`](./src/tests/test_relics.rs)
-  - [`src/tests/test_relics_parity.rs`](./src/tests/test_relics_parity.rs)
-- event execution is still only partly behavioral:
-  - typed event programs run in production, but blocked branches still no-op until their missing primitives land
+- `Dead Adventurer` is still only partly behavioral:
+  - the typed program skeleton and blocker reporting are honest, but the ascension-sensitive first search roll still needs a shared event/search-state primitive
+- a short card-tail still relies on hooks or empty programs:
+  - the remaining files are concentrated in discard sequencing, orb-ordering, damage-follow-up, and Colorless utility/scaling families rather than broad architectural gaps
 
 ## Missing Tests We Need Next
 
@@ -290,8 +296,8 @@ These are the next required engine-path scenarios. Each one corresponds to a kno
   - chest rewards should stop being a separate future system
 - `nested_choice_stack_preserves_generated_choice_order`
   - choice sequencing must be explicit and replayable
-- `blocked_event_choice_does_not_partially_apply_placeholder_ops`
-  - blocked typed event branches should remain explicit no-ops until missing primitives land
+- `dead_adventurer_first_search_roll_uses_ascension_sensitive_base_chance`
+  - the final supported-event blocker should stay explicit until the shared search-state primitive lands
 - `event_card_reward_uses_event_reward_screen_and_not_flat_deck_gain`
   - event card rewards should use the same ordered screen as combat rewards
 - `reward_screen_active_item_is_visible_in_rl_context_and_features_after_open`
@@ -302,81 +308,75 @@ These are the next required engine-path scenarios. Each one corresponds to a kno
 ### Ready to remove soon
 
 - `src/effects/dispatch.rs`
+- selected dead exports in `src/powers/registry.rs`
+- selected legacy compatibility exports in `src/powers/mod.rs`
 
 Precondition:
 
-- grep confirmation that production no longer calls it
+- grep confirmation that production no longer calls them
 - any useful unit coverage moved to runtime-path tests
-
-### Keep temporarily as oracle or shim
-
-- `src/relics/combat.rs`
-- `src/powers/registry.rs`
-- selected exports in `src/relics/run.rs`
-- selected exports in `src/powers/mod.rs`
-
-Removal precondition:
-
-- equivalent engine-path coverage for the same scenarios
-- no live production callsites remain
+- no broad audit depends on them as the primary parity signal
 
 ## Next Worker Waves
 
-### Wave 1: low-risk card port expansion
+### Wave 1: small remaining card primitives
 
 Own:
 
+- `src/cards/colorless/**`
 - `src/cards/ironclad/**`
 - `src/cards/silent/**`
-- `src/cards/defect/**`
-- `src/cards/watcher/**`
-- wave-specific card suites
+- shared effect/runtime files only for the owned primitive
+- wave-specific Java-backed suites
 
 Goal:
 
-- use the landed typed primary preamble ops to cut the empty-program tail materially
-- prefer cards with no missing primitive beyond standard hit, block, and visible power/debuff install
+- finish the remaining low-risk utility/damage-follow-up cards that no longer need big architectural work
+- keep `Ritual Dagger`, `Nightmare`, and the remaining large sequencing cards queued behind their actual missing primitives
 
-### Wave 2: blocked event completion
+### Wave 2: final supported-event blocker
 
 Own:
 
-- `src/events/**`
+- `src/events/exordium.rs`
 - `src/run.rs`
-- `src/decision.rs`
 - event engine-path tests
 
 Goal:
 
-- replace the remaining four blocked event ops with canonical run/reward/combat primitives
-- keep all new behavior on the same ordered reward and decision runtime
+- finish `Dead Adventurer` with the ascension-sensitive first-search roll while keeping the existing typed search ramp and reward-order skeleton
 
-### Wave 3: orb / choice / hook tail
+### Wave 3: broad audit before final parity sweep
 
 Own:
 
-- `src/engine.rs`
-- `src/effects/**`
-- orb/replay/generated-choice focused suites
+- `AUDIT_PARITY_STATUS.md`
+- `DECOMPILE_PARITY_ENDGAME.md`
+- representative focused suites across cards, relics, events, potions, and RL reward/observation surfaces
 
 Goal:
 
-- retire the ignored `Emotion Chip`, `Liquid Memories`, and `Reboot` cases
+- recount the true tail after the next 1-2 landings
+- make the final broad parity sweep honest and targeted rather than exploratory
+
+Goal:
+
+- retire the ignored `Emotion Chip`, `Liquid Memories`, `Blizzard`, `Fission`, `Reboot`, and `Scrape` blocker cases
 - continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
 
-### Wave 4: dead-system retirement phase 2
+### Wave 4: final dead-export cleanup
 
 Own:
 
-- `src/relics/combat.rs`
-- `src/relics/mod.rs`
+- `src/effects/dispatch.rs`
 - `src/powers/registry.rs`
-- helper-path relic and power tests
+- `src/powers/mod.rs`
+- any remaining dead-export cleanup tests
 
 Goal:
 
-- delete oracle-only helpers once their scenarios have engine-path replacements
-- reduce dead exports and dead-code warning surfaces
+- delete dead oracle-era exports once the broad audit confirms they are no longer primary parity evidence
+- reduce residual dead-code warning surfaces without reintroducing helper-path logic
 
 ## Latest Confirmed Gaps
 
@@ -389,9 +389,6 @@ These are the remaining coordinator-confirmed blockers on the integrated branch.
 
 ### Legacy kept as oracle only
 
-- `src/relics/combat.rs`
-  - Still referenced by helper-path relic suites and one remaining integration test scaffold.
-  - Removal precondition: port `src/tests/test_relics.rs`, `src/tests/test_relics_parity.rs`, and `src/tests/test_integration.rs:716` scenarios onto engine-path runtime tests.
 - `src/powers/registry.rs`
   - Reduced to live production query helpers only (`status_is_debuff`, `active_player_power_count`) plus any still-needed residual exports.
   - Removal precondition: those remaining live query helpers are moved or inlined into canonical runtime-owned homes.
@@ -402,5 +399,5 @@ These are the remaining coordinator-confirmed blockers on the integrated branch.
   - `Emotion Chip`, `Liquid Memories`, and `Reboot` still need richer orb/choice timing primitives and remain explicit `#[ignore]` blockers.
 - `src/tests/test_power_runtime_debuff_enemy.rs`
   - Still carries a legacy Time Warp expectation and should be migrated to the Java oracle at `decompiled/java-src/com/megacrit/cardcrawl/powers/TimeWarpPower.java`.
-- `src/events/beyond.rs`, `src/events/shrines.rs`, `src/events/city.rs`
-  - One blocked event op remains for `Spire Heart`.
+- `src/events/exordium.rs`
+  - `Dead Adventurer` still needs the ascension-sensitive first-search-roll primitive even though blocked event ops are otherwise at zero.

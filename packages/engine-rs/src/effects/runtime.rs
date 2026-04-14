@@ -966,6 +966,32 @@ impl EffectRuntime {
                     engine.channel_orb(orb_types[idx]);
                 }
             }
+            SimpleEffect::RemoveOrbSlot => {
+                let focus = engine.state.player.focus();
+                let evoke = engine.state.orb_slots.remove_slot(focus);
+                engine.apply_evoke_effect(evoke);
+            }
+            SimpleEffect::TriggerDarkPassive => {
+                let focus = engine.state.player.focus();
+                for orb in engine.state.orb_slots.slots.iter_mut() {
+                    if orb.orb_type == crate::orbs::OrbType::Dark {
+                        let gain = (orb.base_passive + focus).max(0);
+                        orb.evoke_amount += gain;
+                    }
+                }
+            }
+            SimpleEffect::EvokeAndRechannelFrontOrb => {
+                if engine.state.orb_slots.occupied_count() > 0 {
+                    let orb_type = engine.state.orb_slots.front_orb_type();
+                    let focus = engine.state.player.focus();
+                    let evoke = engine.state.orb_slots.evoke_front(focus);
+                    engine.apply_evoke_effect(evoke);
+                    if orb_type != crate::orbs::OrbType::Empty {
+                        let evoke = engine.state.orb_slots.channel(orb_type, focus);
+                        engine.apply_evoke_effect(evoke);
+                    }
+                }
+            }
             SimpleEffect::EvokeOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 if count > 0 {

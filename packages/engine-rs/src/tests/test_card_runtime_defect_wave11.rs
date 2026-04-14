@@ -35,17 +35,26 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
     assert_eq!(ftl.target, CardTarget::Enemy);
 
     let steam = reg.get("Steam").expect("Steam");
-    assert_eq!(steam.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-    assert!(steam.complex_hook.is_some(), "Steam Barrier still needs the played-instance block decrement hook");
+    assert_eq!(
+        steam.effect_data,
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ModifyPlayedCardBlock(A::Fixed(-1))),
+        ]
+    );
+    assert!(steam.complex_hook.is_none(), "Steam Barrier is now on the played-instance block decrement surface");
     assert_eq!(steam.card_type, CardType::Skill);
     assert_eq!(steam.target, CardTarget::SelfTarget);
 
     let streamline = reg.get("Streamline").expect("Streamline");
     assert_eq!(
         streamline.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Simple(SE::ModifyPlayedCardCost(A::Fixed(-1))),
+        ]
     );
-    assert!(streamline.complex_hook.is_some(), "Streamline still needs the UUID-targeted cost reduction hook");
+    assert!(streamline.complex_hook.is_none(), "Streamline is now on the played-card cost mutation surface");
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
     assert!(blizzard.effect_data.is_empty());
@@ -54,8 +63,14 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
     let genetic = reg
         .get("Genetic Algorithm")
         .expect("Genetic Algorithm");
-    assert!(genetic.effect_data.is_empty());
-    assert!(genetic.complex_hook.is_some());
+    assert_eq!(
+        genetic.effect_data,
+        &[
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
+            E::Simple(SE::GainBlock(A::Block)),
+        ]
+    );
+    assert!(genetic.complex_hook.is_none());
 }
 
 #[test]
@@ -124,14 +139,4 @@ fn defect_wave11_blizzard_needs_typed_frost_count_damage_scaling() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert!(blizzard.effect_data.is_empty());
     assert!(blizzard.effects.contains(&"damage_per_frost_channeled"));
-}
-
-#[test]
-#[ignore = "Blocked on card-owned current-block seeding plus replay-state mutation; Java Genetic Algorithm updates misc before future plays"]
-fn defect_wave11_genetic_algorithm_needs_card_owned_misc_seeding() {
-    let genetic = global_registry()
-        .get("Genetic Algorithm")
-        .expect("Genetic Algorithm");
-    assert!(genetic.effect_data.is_empty());
-    assert!(genetic.effects.contains(&"genetic_algorithm"));
 }

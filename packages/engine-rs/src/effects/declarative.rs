@@ -242,6 +242,8 @@ pub enum SimpleEffect {
     DrawToHandSize(AmountSource),
     /// Set a random eligible card in hand to exact cost.
     SetRandomHandCardCost(i32),
+    /// Trigger Dark orb passive accumulation once.
+    TriggerDarkPassive,
     /// Gain energy.
     GainEnergy(AmountSource),
     /// Double current energy.
@@ -265,8 +267,12 @@ pub enum SimpleEffect {
     ChannelOrb(OrbType, AmountSource),
     /// Channel a random orb from the core set (Lightning/Frost/Dark/Plasma).
     ChannelRandomOrb(AmountSource),
+    /// Remove one orb slot, evoking if the slots are currently full.
+    RemoveOrbSlot,
     /// Evoke the front orb N times.
     EvokeOrb(AmountSource),
+    /// Evoke the front orb, then channel the same orb type back.
+    EvokeAndRechannelFrontOrb,
     /// Change player stance.
     ChangeStance(Stance),
     /// Set a boolean flag on combat state.

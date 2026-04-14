@@ -7,6 +7,3 @@
 
 mod run;
 pub mod defs;
-
-pub(crate) use run::unceasing_top_should_draw;
-pub(crate) use run::has_runic_pyramid;

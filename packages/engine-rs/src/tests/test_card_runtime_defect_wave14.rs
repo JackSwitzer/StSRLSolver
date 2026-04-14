@@ -10,8 +10,10 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 use crate::engine::{ChoiceReason, CombatPhase};
+use crate::orbs::OrbType;
+use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, force_player_turn, make_deck, play_self, TEST_SEED};
 
 #[test]
@@ -43,8 +45,38 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     assert!(seek_plus.complex_hook.is_none());
 
     let chaos = global_registry().get("Chaos").expect("Chaos");
-    assert!(chaos.effect_data.is_empty());
-    assert!(chaos.complex_hook.is_some());
+    assert_eq!(
+        chaos.effect_data,
+        &[E::Simple(SE::ChannelRandomOrb(A::Magic))]
+    );
+    assert!(chaos.complex_hook.is_none());
+
+    let consume = global_registry().get("Consume").expect("Consume");
+    assert_eq!(
+        consume.effect_data,
+        &[
+            E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Magic)),
+            E::Simple(SE::RemoveOrbSlot),
+        ]
+    );
+    assert!(consume.complex_hook.is_none());
+
+    let darkness = global_registry().get("Darkness").expect("Darkness");
+    assert_eq!(
+        darkness.effect_data,
+        &[E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1)))]
+    );
+    assert!(darkness.complex_hook.is_none());
+
+    let darkness_plus = global_registry().get("Darkness+").expect("Darkness+");
+    assert_eq!(
+        darkness_plus.effect_data,
+        &[
+            E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
+            E::Simple(SE::TriggerDarkPassive),
+        ]
+    );
+    assert!(darkness_plus.complex_hook.is_none());
 
     let fission = global_registry().get("Fission").expect("Fission");
     assert!(fission.effect_data.is_empty());
@@ -55,8 +87,11 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     assert!(reboot.complex_hook.is_some());
 
     let redo = global_registry().get("Redo").expect("Redo");
-    assert!(redo.effect_data.is_empty());
-    assert!(redo.complex_hook.is_some());
+    assert_eq!(
+        redo.effect_data,
+        &[E::Simple(SE::EvokeAndRechannelFrontOrb)]
+    );
+    assert!(redo.complex_hook.is_none());
 
     let scrape = global_registry().get("Scrape").expect("Scrape");
     assert!(scrape.effect_data.is_empty());
@@ -91,20 +126,79 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
 }
 
 #[test]
-#[ignore = "Chaos still needs a random-orb selection primitive; Java Chaos picks a fresh random orb type on use."]
-fn chaos_still_needs_random_orb_selection() {}
+fn consume_uses_the_typed_orb_slot_removal_surface() {
+    let mut state = crate::tests::support::combat_state_with(
+        make_deck(&["Consume"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.hand = make_deck(&["Consume"]);
+    let mut engine = crate::engine::CombatEngine::new(state, TEST_SEED);
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.channel_orb(OrbType::Plasma);
+
+    assert!(play_self(&mut engine, "Consume"));
+
+    assert_eq!(engine.state.player.focus(), 2);
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 2);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 2);
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Frost);
+}
 
 #[test]
-#[ignore = "Fission still needs a remove-all-orbs primitive before the energy/draw payload can be typed; Java FissionAction removes or evokes all orbs first."]
+fn darkness_plus_channels_dark_then_triggers_dark_passive() {
+    let mut state = crate::tests::support::combat_state_with(
+        make_deck(&["Darkness+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.hand = make_deck(&["Darkness+"]);
+    let mut engine = crate::engine::CombatEngine::new(state, TEST_SEED);
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.init_defect_orbs(3);
+
+    assert!(play_self(&mut engine, "Darkness+"));
+
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+    assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 12);
+}
+
+#[test]
+fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
+    let mut state = crate::tests::support::combat_state_with(
+        make_deck(&["Redo"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.hand = make_deck(&["Redo"]);
+    let mut engine = crate::engine::CombatEngine::new(state, TEST_SEED);
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Plasma);
+
+    assert!(play_self(&mut engine, "Redo"));
+
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.front_orb_type(), OrbType::Plasma);
+    assert_eq!(engine.state.energy, 4);
+}
+
+#[test]
+#[ignore = "Fission still needs a remove-all-orbs primitive before the energy/draw payload can be typed; Java FissionAction removes or evokes all orbs first. See /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java."]
 fn fission_still_needs_remove_all_orbs_before_payload() {}
 
 #[test]
 #[ignore = "Reboot still needs a shuffle-hand-and-discard-into-draw primitive; Java ShuffleAllAction moves the whole hand and discard before drawing."]
 fn reboot_still_needs_shuffle_hand_and_discard_into_draw() {}
-
-#[test]
-#[ignore = "Redo still needs a typed front-orb reuse primitive; Java RecursionAction evokes the front orb and channels the same orb type back."]
-fn redo_still_needs_front_orb_reuse_primitive() {}
 
 #[test]
 #[ignore = "Scrape still needs a draw-then-discard-non-zero-cost follow-up primitive; Java ScrapeFollowUpAction discards the drawn non-zero-cost cards after the draw resolves."]

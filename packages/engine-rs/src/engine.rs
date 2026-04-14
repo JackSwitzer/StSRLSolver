@@ -18,7 +18,6 @@ use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
-use crate::relics;
 use crate::state::{CombatState, EnemyCombatState, PyCombatState, Stance};
 use crate::status_effects;
 use crate::status_ids::sid;
@@ -1061,7 +1060,7 @@ impl CombatEngine {
         //    Only Ethereal cards exhaust at end of turn regardless of Runic Pyramid.
         let _explicitly_retained = std::mem::take(&mut self.state.retained_cards);
         let mut ethereal_exhausted = 0i32;
-        if relics::has_runic_pyramid(&self.state) {
+        if self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid") {
             // Runic Pyramid: keep ALL cards except ethereal (which exhaust)
             let hand = std::mem::take(&mut self.state.hand);
             let mut kept = Vec::new();
@@ -1788,7 +1787,10 @@ impl CombatEngine {
         }
 
         // Unceasing Top: draw when hand is empty
-        while relics::unceasing_top_should_draw(&self.state) {
+        while (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
+            && self.state.hand.is_empty()
+            && (!self.state.draw_pile.is_empty() || !self.state.discard_pile.is_empty())
+        {
             self.draw_cards(1);
         }
 

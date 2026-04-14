@@ -206,10 +206,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- Defect follow-up wave for the remaining orb/order blockers after `Chaos` and `Melter`
-- Dead Adventurer event/runtime implementation wave narrowed to the ascension-sensitive search ramp plus room-reward queue semantics
-- Colorless utility follow-up narrowed to `Enlightenment`
-- relic bridge-helper reduction follow-up targeting the remaining two hand-lifecycle helpers
+- Defect frost/order follow-up centered on `Fission`, `Reboot`, and `Scrape`
+- Dead Adventurer event/runtime follow-up narrowed to the ascension-sensitive first-search roll
+- Colorless utility follow-up centered on `Enlightenment` and `Violence`
+- small-primitive Ironclad/Silent bundle centered on `Feed`, `Reaper`, `Alchemize`, `All-Out Attack`, `Bane`, `Escape Plan`, and `Malaise`
 
 Each worker must return:
 
@@ -223,50 +223,40 @@ These are the currently verified card-tail clusters that should drive the next p
 
 - Silent discard/post-choice cluster:
   - `Alchemize`
-  - `Calculated Gamble`
-  - `Concentrate`
   - `Nightmare`
-  - `Storm of Steel`
+  - `Reflex`
+  - `Tactician`
 - Ironclad exhaust/top-play cluster:
+  - `Burning Pact`
   - `Dual Wield`
+  - `Feed`
   - `Fiend Fire`
+  - `Reaper`
   - `Second Wind`
-- Defect orb/order cluster:
-  - `Chaos`
+- Defect frost/order cluster:
+  - `Blizzard`
   - `Fission`
   - `Reboot`
-  - `Redo`
   - `Scrape`
-- Defect scaling/state cluster:
-  - `Blizzard`
-  - `Genetic Algorithm`
-  - `Melter`
+  - `FTL`
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`
-  - `Omniscience`
-  - `Collect`
-  - `Conjure Blade`
-  - `Fasting`
   - `Lesson Learned`
+  - `Omniscience`
 - Colorless utility/scaling cluster:
-  - `Forethought`
   - `Enlightenment`
-  - `Impatience`
-  - `Madness`
   - `Ritual Dagger`
   - `Violence`
-  - `Mind Blast`
 
 The shared primitive themes behind those clusters are now clear:
 
 - discard-then-resolve post-choice sequencing
-- top-of-draw free play
+- filtered random attack fetch from draw
 - typed exhaust-all / exhaust-per-hit loops
 - draw-to-N and no-attacks-in-hand checks
 - enemy-HP threshold kill
-- payload-driven option resolution
+- turn-only hand cost reduction
 - post-damage amount resolution from unblocked damage
-- random-hand-card cost mutation
 - draw-pile-size and card-owned misc scaling
 - event-local persistent search-state ramp and elite-combat continuation for `Dead Adventurer`
 
