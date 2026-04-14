@@ -1,7 +1,6 @@
 //! Teardrop Locket: Start combat in Calm stance.
 //!
-//! complex_hook needed: engine.change_stance(Calm) requires engine access.
-//! Old dispatch: directly sets state.stance = Stance::Calm at combat start.
+//! Runtime-backed via a combat-start stance change effect.
 
 use crate::effects::declarative::{Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -26,6 +25,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Teardrop Locket",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // TODO: wire complex_hook for engine.change_stance
+    complex_hook: None,
     status_guard: None,
 };

@@ -1,7 +1,7 @@
 //! Ring of the Snake: Draw 2 extra cards on turn 1.
 //!
 //! Same pattern as Bag of Preparation (Silent starter relic).
-//! complex_hook needed: engine.draw_cards(2) requires engine access.
+//! Runtime-backed via a first-turn declarative draw effect.
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -25,6 +25,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Ring of the Snake",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // TODO: wire complex_hook for engine.draw_cards
+    complex_hook: None,
     status_guard: None,
 };

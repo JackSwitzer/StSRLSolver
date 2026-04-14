@@ -10,10 +10,12 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
 
 2. Recount the real tail before planning the next wave.
    - Track at minimum:
-     - card files with empty `effect_data`
-     - card files still using `complex_hook`
+     - raw public card files with empty `effect_data`
+     - raw public card files still using `complex_hook`
      - remaining `EventProgramOp::blocked(...)`
      - remaining relic helper/oracle references in `src/relics/mod.rs` and `src/tests/test_relics_parity.rs`
+   - Do not count runtime-backed non-play cleanup shells as unresolved gameplay gaps once engine-path proof exists.
+     - Current excluded shells after proof: `Reflex`, `Tactician`, `Deus Ex Machina`
    - For the public-card tail counts, exclude shared/support modules that are not public card implementations:
      - `src/cards/mod.rs`
      - `src/cards/status.rs`

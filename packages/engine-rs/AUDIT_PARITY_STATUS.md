@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `6`
-- card files still using `complex_hook`: `3`
-- unresolved public card files (union of empty typed programs and hook-backed files): `6`
+- raw public card files with empty `effect_data`: `6`
+- raw public card files still using `complex_hook`: `3`
+- unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `3`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -67,13 +67,13 @@ Additional shared-file tail outside the five main class folders:
 
 What those numbers mean:
 
-- the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-- the currently verified unresolved public-card tail is: `Scrape`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
+- the card registry is broad, but the remaining file-level gameplay tail is now very small and concentrated in retained-state, generated-choice, and post-draw/exhaust sequencing families
+- the currently verified unresolved public gameplay-gap tail is: `Scrape`, `Fiend Fire`, and `Nightmare`
   - `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
   - `Dual Wield` is now fully typed on the `AttackOrPower` choice path with copy-count routing through the choice context, so it no longer counts in the unresolved public-card tail
   - `Burning Pact` is now fully typed on the declarative choice-owned deferred-draw path, so it no longer counts in the hook-backed public-card tail
   - `Ritual Dagger` is now fully on the declarative path: its kill upgrade is expressed as an `EnemyKilled` conditional that mutates the played card through the existing `ModifyPlayedCardDamage` effect
-  - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels
+  - `Reflex`, `Tactician`, and `Deus Ex Machina` remain raw empty-`effect_data` cleanup shells, but they are excluded from the unresolved gameplay-gap tail because canonical engine-path proof already exists in `test_card_runtime_nonplay_triggers_wave1` plus the focused Silent / Watcher runtime suites
   - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment`, `Reboot`, `Fission`, base `True Grit`, and `Second Wind` are now on typed runtime/declarative paths, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
