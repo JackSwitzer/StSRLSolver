@@ -44,8 +44,8 @@ fn ironclad_wave11_registry_exports_promote_the_typed_surface() {
     assert!(fiend_fire.complex_hook.is_some());
 
     let havoc = global_registry().get("Havoc").expect("Havoc should exist");
-    assert!(havoc.effect_data.is_empty());
-    assert!(havoc.complex_hook.is_some());
+    assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
+    assert!(havoc.complex_hook.is_none());
 
     let sword_boomerang = global_registry()
         .get("Sword Boomerang")
@@ -79,11 +79,10 @@ fn ironclad_wave11_fiend_fire_stays_explicitly_hook_backed() {
 }
 
 #[test]
-#[ignore = "Blocked on Java top-of-draw play sequencing for Havoc; the current runtime still needs a dedicated play-top-card primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Havoc.java"]
-fn ironclad_wave11_havoc_stays_explicitly_hook_backed() {
+fn ironclad_wave11_havoc_uses_the_typed_play_top_card_surface() {
     let havoc = global_registry().get("Havoc").expect("Havoc should exist");
-    assert!(havoc.effect_data.is_empty());
-    assert!(havoc.complex_hook.is_some());
+    assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
+    assert!(havoc.complex_hook.is_none());
 }
 
 #[test]

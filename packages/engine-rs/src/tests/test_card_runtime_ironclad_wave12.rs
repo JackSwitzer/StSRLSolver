@@ -87,8 +87,8 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     assert!(fiend_fire.complex_hook.is_some());
 
     let havoc = global_registry().get("Havoc").expect("Havoc should exist");
-    assert!(havoc.effect_data.is_empty());
-    assert!(havoc.complex_hook.is_some());
+    assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
+    assert!(havoc.complex_hook.is_none());
 }
 
 #[test]
