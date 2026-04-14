@@ -901,6 +901,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         }
         AmountSource::HandSizeAtPlay => ctx.hand_size_at_play as i32,
         AmountSource::HandSizeAtPlayPlus(bonus) => ctx.hand_size_at_play as i32 + bonus,
+        AmountSource::LastBulkCount => ctx.last_bulk_count.max(0),
         AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
         AmountSource::SkillsInHand => {
             engine.state.hand.iter()
@@ -1040,6 +1041,7 @@ pub fn execute_trigger_effects(
         total_unblocked_damage: 0,
         enemy_killed: false,
         hand_size_at_play: 0,
+        last_bulk_count: 0,
     };
 
     execute_effects(engine, &mut ctx, effects);
@@ -1235,7 +1237,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
 
 fn execute_for_each(
     engine: &mut CombatEngine,
-    _ctx: &CardPlayContext,
+    ctx: &mut CardPlayContext,
     pile: Pile,
     filter: CardFilter,
     action: BulkAction,
@@ -1249,8 +1251,11 @@ fn execute_for_each(
         .collect();
 
     if matching.is_empty() {
+        ctx.last_bulk_count = 0;
         return;
     }
+
+    ctx.last_bulk_count = matching.len() as i32;
 
     match action {
         BulkAction::Exhaust => {

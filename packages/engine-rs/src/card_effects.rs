@@ -337,6 +337,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         total_unblocked_damage: 0,
         enemy_killed: false,
         hand_size_at_play: engine.state.hand.len(),
+        last_bulk_count: 0,
     };
 
     // Skip generic damage for cards that use damage_random_x_times (they handle their own hits)
@@ -497,6 +498,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         total_unblocked_damage,
         enemy_killed,
         hand_size_at_play: engine.state.hand.len(),
+        last_bulk_count: 0,
     };
     let prev_total_unblocked_damage = engine.runtime_card_total_unblocked_damage;
     let prev_enemy_killed = engine.runtime_card_enemy_killed;
