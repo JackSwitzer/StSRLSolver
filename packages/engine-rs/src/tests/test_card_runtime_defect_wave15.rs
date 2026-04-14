@@ -7,6 +7,8 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Melter.java
 
 use crate::cards::global_registry;
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::orbs::OrbType;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
 
 fn total_enemy_hp(engine: &crate::engine::CombatEngine) -> i32 {
@@ -19,7 +21,7 @@ fn total_enemy_hp(engine: &crate::engine::CombatEngine) -> i32 {
 }
 
 #[test]
-fn defect_wave15_registry_exports_blocked_cards_as_oracle_backed_entries() {
+fn defect_wave15_registry_exports_typed_and_blocked_cards_honestly() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert!(blizzard.effect_data.is_empty());
     assert!(blizzard.complex_hook.is_some());
@@ -29,16 +31,28 @@ fn defect_wave15_registry_exports_blocked_cards_as_oracle_backed_entries() {
     assert!(blizzard_plus.complex_hook.is_some());
 
     let double_energy = global_registry().get("Double Energy").expect("Double Energy");
-    assert!(double_energy.effect_data.is_empty());
-    assert!(double_energy.complex_hook.is_some());
+    assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
+    assert!(double_energy.complex_hook.is_none());
 
     let genetic = global_registry().get("Genetic Algorithm").expect("Genetic Algorithm");
-    assert!(genetic.effect_data.is_empty());
-    assert!(genetic.complex_hook.is_some());
+    assert_eq!(
+        genetic.effect_data,
+        &[
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
+            E::Simple(SE::GainBlock(A::Block)),
+        ]
+    );
+    assert!(genetic.complex_hook.is_none());
 
     let melter = global_registry().get("Melter").expect("Melter");
-    assert!(melter.effect_data.is_empty());
-    assert!(melter.complex_hook.is_some());
+    assert_eq!(
+        melter.effect_data,
+        &[
+            E::Simple(SE::RemoveEnemyBlock(T::SelectedEnemy)),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+        ]
+    );
+    assert!(melter.complex_hook.is_none());
 }
 
 #[test]
@@ -57,6 +71,28 @@ fn blizzard_does_nothing_without_frost_channeled_this_combat() {
 }
 
 #[test]
+fn blizzard_current_hook_runtime_damages_all_enemies_when_frost_has_been_channeled() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 35, 35),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Frost);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Blizzard"]);
+    let hp_before = total_enemy_hp(&engine);
+
+    assert!(play_self(&mut engine, "Blizzard"));
+    assert_eq!(hp_before - total_enemy_hp(&engine), 8);
+}
+
+#[test]
 #[ignore = "Blizzard still needs a typed frost-scale AoE primitive; Java Blizzard.java uses per-combat Frost Channeled counting and the typed runtime proof does not yet reproduce it."]
 fn blizzard_still_needs_typed_frost_scale_aoe() {}
 
@@ -67,7 +103,3 @@ fn double_energy_still_needs_typed_energy_doubling() {}
 #[test]
 #[ignore = "Genetic Algorithm still needs card-owned current-block seeding plus replay-state mutation; Java IncreaseMiscAction mutates the played copy before future plays."]
 fn genetic_algorithm_still_needs_card_owned_misc_seeding() {}
-
-#[test]
-#[ignore = "Melter still needs a pre-damage enemy block removal primitive; Java RemoveAllBlockAction clears the target's block before damage."]
-fn melter_still_needs_pre_damage_enemy_block_removal() {}

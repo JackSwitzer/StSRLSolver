@@ -14,7 +14,10 @@ use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, E
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, force_player_turn, make_deck, play_self, TEST_SEED};
+use crate::tests::support::{
+    discard_prefix_count, enemy_no_intent, engine_without_start, force_player_turn, hand_prefix_count,
+    make_deck, play_self, TEST_SEED,
+};
 
 #[test]
 fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
@@ -123,6 +126,59 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.draw_pile.len(), 2);
+}
+
+#[test]
+fn fission_reboot_and_scrape_follow_the_current_hooked_defect_runtime_paths() {
+    let mut fission = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    force_player_turn(&mut fission);
+    fission.init_defect_orbs(3);
+    fission.channel_orb(OrbType::Lightning);
+    fission.channel_orb(OrbType::Frost);
+    fission.channel_orb(OrbType::Dark);
+    fission.state.hand = make_deck(&["Fission"]);
+    fission.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+
+    assert!(play_self(&mut fission, "Fission"));
+    assert_eq!(fission.state.orb_slots.occupied_count(), 0);
+    assert_eq!(fission.state.energy, 6);
+    assert_eq!(fission.state.hand.len(), 3);
+
+    let mut reboot = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut reboot);
+    reboot.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    reboot.state.draw_pile.clear();
+    reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
+
+    assert!(play_self(&mut reboot, "Reboot"));
+    assert_eq!(reboot.state.hand.len(), 4);
+    assert_eq!(reboot.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        "Reboot"
+    );
+    assert_eq!(reboot.state.discard_pile.len(), 0);
+
+    let mut scrape = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut scrape);
+    scrape.state.hand = make_deck(&["Scrape"]);
+    scrape.state.draw_pile = make_deck(&["Turbo", "Strike_B"]);
+
+    assert!(play_self(&mut scrape, "Scrape"));
+    assert!(hand_prefix_count(&scrape, "Turbo") >= 1);
+    assert_eq!(discard_prefix_count(&scrape, "Strike_B"), 1);
 }
 
 #[test]

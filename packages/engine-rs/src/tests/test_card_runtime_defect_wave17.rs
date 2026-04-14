@@ -10,8 +10,8 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/common/RemoveAllBlockAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
 fn single_enemy_engine() -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
@@ -61,8 +61,14 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     assert_eq!(blizzard.target, CardTarget::AllEnemy);
 
     let melter = reg.get("Melter").expect("Melter");
-    assert!(melter.effect_data.is_empty());
-    assert!(melter.complex_hook.is_some());
+    assert_eq!(
+        melter.effect_data,
+        &[
+            E::Simple(SE::RemoveEnemyBlock(T::SelectedEnemy)),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+        ]
+    );
+    assert!(melter.complex_hook.is_none());
     assert_eq!(melter.card_type, CardType::Attack);
     assert_eq!(melter.target, CardTarget::Enemy);
 }
@@ -116,5 +122,12 @@ fn genetic_algorithm_updates_the_played_copy_misc_and_future_plays_use_the_new_s
 fn blizzard_still_needs_typed_frost_count_aoe_primitive() {}
 
 #[test]
-#[ignore = "Melter still needs a pre-damage enemy block removal primitive; Java RemoveAllBlockAction clears the target's block before damage."]
-fn melter_still_needs_pre_damage_enemy_block_removal_primitive() {}
+fn melter_removes_block_before_damage_on_the_typed_surface() {
+    let mut engine = single_enemy_engine();
+    engine.state.hand = make_deck(&["Melter"]);
+    engine.state.enemies[0].entity.block = 12;
+
+    assert!(play_on_enemy(&mut engine, "Melter", 0));
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+}
