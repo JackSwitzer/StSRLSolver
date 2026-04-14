@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Rare: Nightmare ---- (cost 3, choose card in hand, add 3 copies next turn, exhaust; upgrade: cost 2)
+    // Still hook-backed: Java's delayed copy/install path is in `NightmareAction`
+    // and `NightmarePower`, which we cannot express without a runtime primitive.
     insert(cards, CardDef {
                 id: "Nightmare", name: "Nightmare", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
