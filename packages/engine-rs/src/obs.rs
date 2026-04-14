@@ -331,6 +331,7 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
             crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
             crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
+            crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
             crate::decision::RewardScreenSource::Unknown => obs[off + 6] = 1.0,
         }
         if let Some(active_item) = screen.active_item {

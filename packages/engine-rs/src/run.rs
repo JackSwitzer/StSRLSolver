@@ -1580,7 +1580,7 @@ impl RunEngine {
         }
 
         let mut screen = RewardScreen {
-            source: RewardScreenSource::Unknown,
+            source: RewardScreenSource::Treasure,
             ordered: true,
             active_item: None,
             items,
@@ -2322,10 +2322,37 @@ impl RunEngine {
     // Event step
     // =======================================================================
 
+    fn deck_has_attack_with_base_damage_at_least(&self, threshold: i32) -> bool {
+        let registry = crate::cards::global_registry();
+        self.run_state.deck.iter().any(|card_id| {
+            registry.get(card_id.as_str()).is_some_and(|card| {
+                card.card_type == crate::cards::CardType::Attack && card.base_damage >= threshold
+            })
+        })
+    }
+
+    fn normalize_event_runtime_statuses(&self, event: &mut TypedEventDef) {
+        if event.name != "Golden Wing" {
+            return;
+        }
+
+        if let Some(option) = event.options.get_mut(1) {
+            if self.deck_has_attack_with_base_damage_at_least(10) {
+                option.status = EventRuntimeStatus::Supported;
+            } else {
+                option.status = EventRuntimeStatus::Blocked {
+                    reason: "requires a deck attack with base damage 10 or more".to_string(),
+                };
+            }
+        }
+    }
+
     fn enter_event(&mut self) {
         let events = typed_events_for_act(self.run_state.act);
         let idx = self.rng.gen_range(0..events.len());
-        self.current_event = Some(events[idx].clone());
+        let mut event = events[idx].clone();
+        self.normalize_event_runtime_statuses(&mut event);
+        self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
     }
@@ -3107,13 +3134,17 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_set_event_state(&mut self, event: crate::events::EventDef) {
-        self.current_event = Some(TypedEventDef::from(event));
+        let mut event = TypedEventDef::from(event);
+        self.normalize_event_runtime_statuses(&mut event);
+        self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
     }
 
     #[cfg(test)]
     pub(crate) fn debug_set_typed_event_state(&mut self, event: TypedEventDef) {
+        let mut event = event;
+        self.normalize_event_runtime_statuses(&mut event);
         self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();

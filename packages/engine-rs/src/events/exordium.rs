@@ -141,11 +141,14 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::RemoveCard,
                 ),
-                blocked(
+                supported(
                     "Attack (gain 50-80 gold if strong card)",
-                    vec![EventProgramOp::gold(65)],
+                    vec![EventProgramOp::random_outcome_table(
+                        (50..=80)
+                            .map(|amount| vec![EventProgramOp::gold(amount)])
+                            .collect(),
+                    )],
                     EventEffect::Gold(65),
-                    "requires Java-style deck damage-threshold evaluation plus a 50-80 gold roll",
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],

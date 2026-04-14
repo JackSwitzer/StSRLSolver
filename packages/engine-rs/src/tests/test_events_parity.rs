@@ -129,24 +129,10 @@ mod event_java_parity_tests {
             0,
             "requires persistent search-state tracking for encounter chance ramp",
         );
-
-        let golden_wing = typed_event(1, "Golden Wing");
-        assert_blocked(
-            &golden_wing,
-            1,
-            "requires Java-style deck damage-threshold evaluation",
-        );
-
     }
 
     #[test]
     fn typed_runtime_supported_branches_are_no_longer_marked_blocked() {
-        let golden_wing = typed_event(1, "Golden Wing");
-        assert!(matches!(
-            golden_wing.options[0].status,
-            EventRuntimeStatus::Supported
-        ));
-
         let addict = typed_event(2, "Addict");
         assert!(matches!(addict.options[0].status, EventRuntimeStatus::Supported));
         assert!(matches!(addict.options[1].status, EventRuntimeStatus::Supported));

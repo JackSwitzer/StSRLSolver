@@ -282,6 +282,8 @@ pub enum SimpleEffect {
     ModifyPlayedCardCost(AmountSource),
     /// Modify the played card instance's current block by a delta.
     ModifyPlayedCardBlock(AmountSource),
+    /// Modify the played card instance's current damage by a delta.
+    ModifyPlayedCardDamage(AmountSource),
     /// Heal HP capped at max HP.
     HealHp(Target, AmountSource),
     /// Increment a counter status; fires associated effect at threshold.

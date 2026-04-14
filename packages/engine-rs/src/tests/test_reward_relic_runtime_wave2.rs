@@ -72,7 +72,7 @@ fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     let screen = engine
         .current_reward_screen()
         .expect("treasure reward screen should exist");
-    assert_eq!(screen.source, RewardScreenSource::Unknown);
+    assert_eq!(screen.source, RewardScreenSource::Treasure);
     assert_eq!(screen.items.len(), 3);
     assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
     assert_eq!(screen.items[1].kind, RewardItemKind::Relic);

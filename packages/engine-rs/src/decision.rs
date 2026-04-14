@@ -29,6 +29,7 @@ pub enum RewardScreenSource {
     Combat,
     BossCombat,
     Event,
+    Treasure,
     Unknown,
 }
 

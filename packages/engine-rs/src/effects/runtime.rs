@@ -805,6 +805,19 @@ impl EffectRuntime {
                     engine.runtime_played_card = Some(card);
                 }
             }
+            SimpleEffect::ModifyPlayedCardDamage(amount_src) => {
+                let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                if let Some(mut card) = engine.runtime_played_card {
+                    let current = if card.misc >= 0 {
+                        card.misc as i32
+                    } else {
+                        engine.card_registry.card_def_by_id(card.def_id).base_damage
+                    };
+                    let next = (current + delta).max(0) as i16;
+                    card.misc = next;
+                    engine.runtime_played_card = Some(card);
+                }
+            }
             SimpleEffect::GainEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.energy += amount;

@@ -207,9 +207,9 @@ Priority entities:
 These bundles are intentionally disjoint by write scope:
 
 - Defect tiny-primitive implementation wave for `Chaos` and `Melter`
-- Ironclad post-damage/state wave for `Feed` and `Reaper`
-- event/runtime breadth cleanup for `Dead Adventurer` and `Golden Wing`
+- Dead Adventurer event/runtime implementation wave
 - RL/reward observability wave for treasure/chest source semantics and compact relic-counter visibility
+- relic bridge-helper reduction audit and follow-up deletion prep
 
 Each worker must return:
 
@@ -268,6 +268,7 @@ The shared primitive themes behind those clusters are now clear:
 - post-damage amount resolution from unblocked damage
 - random-hand-card cost mutation
 - draw-pile-size and card-owned misc scaling
+- event-local persistent search-state ramp and elite-combat continuation for `Dead Adventurer`
 
 ## Test Policy
 

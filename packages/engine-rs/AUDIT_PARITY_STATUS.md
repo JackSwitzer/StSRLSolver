@@ -19,7 +19,7 @@ This scorecard uses the audit-skill rubric:
 
 ## Scorecard
 
-Weighted overall completion toward the target "universal gameplay runtime + decision-complete RL loop": `99%`
+Weighted overall completion toward the target "universal gameplay runtime + decision-complete RL loop": `98%`
 
 Weights:
 
@@ -32,8 +32,8 @@ Area scores:
 
 - combat runtime parity: `98%`
 - RL combat surface: `98%`
-- run/reward/event decision parity: `100%`
-- dead-system retirement: `99%`
+- run/reward/event decision parity: `99%`
+- dead-system retirement: `97%`
 - architecture unification snapshot: `98%`
 
 Interpretation:
@@ -46,7 +46,8 @@ Interpretation:
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
 - card files with empty `effect_data`: `22`
-- card files still using `complex_hook`: `33`
+- card files still using `complex_hook`: `31`
+- unresolved public card files (union of empty typed programs and hook-backed files): `34`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -67,7 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, and post-damage-context families
-- the event runtime is fully supported for the current event set, with no remaining `EventProgramOp::blocked(...)` branches for supported content
+- the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, but `Dead Adventurer` still remains an explicit Java-cited parity gap rather than a silent approximation
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted in the working tree, and the remaining dead-system tail is mostly `relics/run.rs` bridge helpers plus ignored blocker tests
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
 
@@ -75,7 +76,7 @@ What those numbers mean:
 
 ### 1. Reward flow is ordered and substantially runtime-native, but still not fully universal
 
-The branch now has a real ordered reward screen with claim/open, choose, and skip semantics for selectable rewards. Combat potion rewards, boss relic choice screens, and event-generated reward items now all route through that runtime, and automatic combat gold stays outside the action space where it belongs. The remaining gap is breadth: chest rewards and the last event-specific reward branches still do not all use the same canonical reward state.
+The branch now has a real ordered reward screen with claim/open, choose, and skip semantics for selectable rewards. Combat potion rewards, boss relic choice screens, event-generated reward items, and treasure/chest rewards now all route through that runtime, and automatic combat gold stays outside the action space where it belongs. The remaining gap is breadth rather than architecture: the last event-specific reward branches, rarity-conditioned outcomes, and some compact reward-source observability still need wider engine-path coverage.
 
 - [`src/run.rs:1134`](./src/run.rs#L1134)
 - [`src/run.rs:1161`](./src/run.rs#L1161)
@@ -85,24 +86,24 @@ The branch now has a real ordered reward screen with claim/open, choose, and ski
 
 Why this blocks parity:
 
-- chest rewards are still outside the same canonical reward runtime
-- reward branching by rarity or multi-step event flow is still partly blocked
+- reward branching by rarity or multi-step event flow still needs broader engine-path coverage
+- a few RL-facing reward-source and relic-counter details are still coarser than the underlying runtime state
 - reward mutation across more exotic relic stacks still needs broader engine-path coverage
 
 ### 2. Reward-affecting relic semantics are better covered, but not finished
 
-The run reward path can now express ordered claim-before-choose behavior, and key same-screen ordering cases are possible. The remaining problem is breadth: only part of the reward-affecting relic family is implemented on that pipeline, especially for chest and event-specific reward mutations.
+The run reward path can now express ordered claim-before-choose behavior, and key same-screen ordering cases are possible. `Matryoshka`, combat relic ordering, and several same-screen mutation cases now have engine-path coverage. The remaining problem is breadth: not every reward-affecting relic and event/chest interaction has equivalent coverage yet, and a few runtime counters are still more canonical than they are compactly observable.
 
 - [`src/relic_flags.rs`](./src/relic_flags.rs)
 - [`src/run.rs:1161`](./src/run.rs#L1161)
-- [`src/relics/combat.rs:408`](./src/relics/combat.rs#L408)
-- [`src/relics/combat.rs:514`](./src/relics/combat.rs#L514)
+- [`src/tests/test_reward_runtime.rs`](./src/tests/test_reward_runtime.rs)
+- [`src/tests/test_event_runtime_wave14.rs`](./src/tests/test_event_runtime_wave14.rs)
 
 Examples still blocked or incomplete:
 
-- `Matryoshka` chest behavior is not on the canonical reward pipeline
 - rarity-aware shrine/event outcomes still need shared reward branching primitives
 - some potion-drop and chest mutation stacks still lack the same ordered-runtime treatment
+- reward-source observability was recently improved for treasure screens, but related compact-observation coverage is still thinner than combat/event reward coverage
 
 ### 3. A few gameplay islands still bypass the runtime
 
@@ -121,10 +122,11 @@ Still-inline examples:
 
 ### 4. Played-card instance state is covered, and the remaining timing tail is narrower
 
-The highest-signal self-mutating Java card family is no longer a blocker in the current tree. `Streamline`, `Rampage`, `Steam Barrier`, `Glass Knife`, `Genetic Algorithm`, and `Ritual Dagger` now have a dedicated engine-path family suite proving that mutation is carried on the played `CardInstance`, not broadcast through player-global status hacks. The recent timing wave also moved `Time Warp` onto the normal `OnAfterUseCard` runtime path. The remaining combat gap has moved up a level: a smaller set of replay, orb, and generated-choice edges still need tighter phase coverage.
+The highest-signal self-mutating Java card family is no longer a blocker in the current tree. `Streamline`, `Rampage`, `Steam Barrier`, `Glass Knife`, `Genetic Algorithm`, and `Ritual Dagger` now have dedicated engine-path coverage proving that mutation is carried on the played `CardInstance`, not broadcast through player-global status hacks. The recent timing wave also moved `Time Warp` onto the normal `OnAfterUseCard` runtime path. The remaining combat gap has moved up a level: a smaller set of replay, orb, and generated-choice edges still need tighter phase coverage.
 
 - [`src/tests/test_defect_java_wave1.rs`](./src/tests/test_defect_java_wave1.rs)
 - [`src/tests/test_played_card_instance_state.rs`](./src/tests/test_played_card_instance_state.rs)
+- [`src/tests/test_card_runtime_scaling_wave1.rs`](./src/tests/test_card_runtime_scaling_wave1.rs)
 - [`src/card_effects.rs:140`](./src/card_effects.rs#L140)
 - [`src/effects/hooks_complex.rs`](./src/effects/hooks_complex.rs)
 - [`src/effects/hooks_damage.rs:50`](./src/effects/hooks_damage.rs#L50)

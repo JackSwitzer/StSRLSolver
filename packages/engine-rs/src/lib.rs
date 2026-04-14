@@ -993,6 +993,7 @@ fn reward_screen_source_str(source: crate::decision::RewardScreenSource) -> &'st
         crate::decision::RewardScreenSource::Combat => "combat",
         crate::decision::RewardScreenSource::BossCombat => "boss_combat",
         crate::decision::RewardScreenSource::Event => "event",
+        crate::decision::RewardScreenSource::Treasure => "treasure",
         crate::decision::RewardScreenSource::Unknown => "unknown",
     }
 }

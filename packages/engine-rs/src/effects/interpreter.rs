@@ -473,6 +473,21 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::ModifyPlayedCardDamage(ref amount_src) => {
+            let delta = resolve_card_amount(engine, ctx, amount_src);
+            if let Some(mut card) = engine.runtime_played_card {
+                let current = if card.misc >= 0 {
+                    card.misc as i32
+                } else {
+                    ctx.card.base_damage
+                };
+                let next = (current + delta).max(0) as i16;
+                card.misc = next;
+                ctx.card_inst.misc = next;
+                engine.runtime_played_card = Some(card);
+            }
+        }
+
         // -- Heal HP (capped at max) --
         SimpleEffect::HealHp(_target, ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
