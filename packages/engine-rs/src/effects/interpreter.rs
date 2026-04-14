@@ -8,8 +8,8 @@ use crate::effects::declarative::*;
 use crate::effects::trigger::TriggerContext;
 use crate::effects::types::CardPlayContext;
 use crate::ids::StatusId;
-use crate::powers;
 use crate::status_ids::sid;
+use std::collections::HashSet;
 
 // ===========================================================================
 // Public entry point
@@ -18,7 +18,7 @@ use crate::status_ids::sid;
 /// Execute a slice of declarative effects.
 /// Called from the card play pipeline after the damage loop.
 /// Stops if AwaitingChoice is triggered (ChooseCards must be last).
-pub fn execute_effects(engine: &mut CombatEngine, ctx: &CardPlayContext, effects: &[Effect]) {
+pub fn execute_effects(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effects: &[Effect]) {
     for effect in effects {
         if engine.phase == CombatPhase::AwaitingChoice {
             return; // Choice triggered, stop processing
@@ -31,7 +31,7 @@ pub fn execute_effects(engine: &mut CombatEngine, ctx: &CardPlayContext, effects
 // Single effect dispatch
 // ===========================================================================
 
-fn execute_one(engine: &mut CombatEngine, ctx: &CardPlayContext, effect: &Effect) {
+fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Effect) {
     match effect {
         Effect::Simple(simple) => execute_simple(engine, ctx, simple),
 
@@ -60,6 +60,34 @@ fn execute_one(engine: &mut CombatEngine, ctx: &CardPlayContext, effect: &Effect
         Effect::Discover(card_names) => {
             execute_discover(engine, ctx, card_names);
         }
+
+        Effect::ChooseNamedOptions(option_names) => {
+            execute_choose_named_options(engine, option_names);
+        }
+
+        Effect::GenerateRandomCardsToHand {
+            pool,
+            count,
+            cost_rule,
+        } => {
+            execute_generate_random_cards_to_hand(engine, ctx, *pool, *count, *cost_rule);
+        }
+
+        Effect::GenerateRandomCardsToDraw {
+            pool,
+            count,
+            cost_rule,
+        } => {
+            execute_generate_random_cards_to_draw(engine, ctx, *pool, *count, *cost_rule);
+        }
+
+        Effect::GenerateDiscoveryChoice {
+            pool,
+            option_count,
+            cost_rule,
+        } => {
+            execute_generate_discovery_choice(engine, *pool, *option_count, *cost_rule);
+        }
     }
 }
 
@@ -67,16 +95,16 @@ fn execute_one(engine: &mut CombatEngine, ctx: &CardPlayContext, effect: &Effect
 // SimpleEffect dispatch
 // ===========================================================================
 
-fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &SimpleEffect) {
+fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: &SimpleEffect) {
     match *simple {
         // -- Status application --
         SimpleEffect::AddStatus(target, status, ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             apply_status(engine, ctx, target, status, amount);
         }
 
         SimpleEffect::SetStatus(target, status, ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             set_status(engine, ctx, target, status, amount);
         }
 
@@ -86,28 +114,34 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Draw --
         SimpleEffect::DrawCards(ref amount_src) => {
-            let count = resolve_amount(engine, ctx, amount_src);
+            let count = resolve_card_amount(engine, ctx, amount_src);
             engine.draw_cards(count);
         }
 
         // -- Energy --
         SimpleEffect::GainEnergy(ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.energy += amount;
         }
 
         // -- Block (routes through dex/frail pipeline) --
         SimpleEffect::GainBlock(ref amount_src) => {
-            let base = resolve_amount(engine, ctx, amount_src);
+            let base = resolve_card_amount(engine, ctx, amount_src);
+            let mut multiplier = 1;
+            // Java X-cost block cards like Reinforced Body resolve their modified
+            // block once, then apply it per energy spent.
+            if matches!(amount_src, AmountSource::Block) && ctx.card.cost == -1 && ctx.card.base_block > 0 {
+                multiplier = ctx.x_value.max(0);
+            }
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
-            let block = damage::calculate_block(base, dex, frail);
+            let block = damage::calculate_block(base, dex, frail) * multiplier;
             engine.gain_block_player(block);
         }
 
         // -- HP modification --
         SimpleEffect::ModifyHp(ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             if amount > 0 {
                 engine.heal_player(amount);
             } else if amount < 0 {
@@ -117,19 +151,19 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Mantra --
         SimpleEffect::GainMantra(ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.gain_mantra(amount);
         }
 
         // -- Scry (may trigger AwaitingChoice) --
         SimpleEffect::Scry(ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.do_scry(amount);
         }
 
         // -- Add temp card to a pile --
         SimpleEffect::AddCard(name, pile, ref amount_src) => {
-            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             for _ in 0..count {
                 let card = engine.temp_card(name);
                 push_to_pile(engine, pile, card);
@@ -150,7 +184,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Channel orb --
         SimpleEffect::ChannelOrb(orb_type, ref amount_src) => {
-            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             for _ in 0..count {
                 engine.channel_orb(orb_type);
             }
@@ -158,7 +192,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Evoke front orb --
         SimpleEffect::EvokeOrb(ref amount_src) => {
-            let count = resolve_amount(engine, ctx, amount_src).max(0);
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             if count > 0 {
                 engine.evoke_front_orb_n(count as usize);
             }
@@ -183,15 +217,92 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Deal flat damage (no strength/stance modifiers) --
         SimpleEffect::DealDamage(target, ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            if matches!(*amount_src, AmountSource::Damage)
+                && matches!(
+                    target,
+                    Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
+                )
+            {
+                crate::card_effects::execute_primary_attack(engine, ctx, target);
+                return;
+            }
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             if amount > 0 {
                 deal_flat_damage(engine, ctx, target, amount);
             }
         }
 
+        // -- Judgement special resolution --
+        SimpleEffect::Judgement(ref threshold_src) => {
+            let threshold = resolve_card_amount(engine, ctx, threshold_src);
+            if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
+                let tidx = ctx.target_idx as usize;
+                if engine.state.enemies[tidx].entity.hp <= threshold
+                    && engine.state.enemies[tidx].is_alive()
+                {
+                    let lethal =
+                        engine.state.enemies[tidx].entity.hp + engine.state.enemies[tidx].entity.block;
+                    engine.deal_damage_to_enemy(tidx, lethal);
+                }
+            }
+        }
+
+        // -- Pressure Points mark resolution --
+        SimpleEffect::TriggerMarks => {
+            let living = engine.state.living_enemy_indices();
+            let mut total_mark_damage = 0;
+            let mut any_killed = false;
+            for idx in living {
+                let mark = engine.state.enemies[idx].entity.status(sid::MARK);
+                if mark > 0 {
+                    engine.state.enemies[idx].entity.hp -= mark;
+                    engine.state.total_damage_dealt += mark;
+                    total_mark_damage += mark;
+                    if engine.state.enemies[idx].entity.hp <= 0 {
+                        engine.state.enemies[idx].entity.hp = 0;
+                        any_killed = true;
+                    }
+                    engine.record_enemy_hp_damage(idx, mark);
+                }
+            }
+            if total_mark_damage > 0 {
+                ctx.total_unblocked_damage += total_mark_damage;
+            }
+            if any_killed {
+                ctx.enemy_killed = true;
+            }
+        }
+
+        // -- Played card mutation --
+        SimpleEffect::ModifyPlayedCardCost(ref amount_src) => {
+            let delta = resolve_card_amount(engine, ctx, amount_src);
+            if let Some(mut card) = engine.runtime_played_card {
+                let current = if card.cost >= 0 {
+                    card.cost as i32
+                } else {
+                    ctx.card.cost
+                };
+                card.cost = (current + delta).max(0) as i8;
+                engine.runtime_played_card = Some(card);
+            }
+        }
+
+        SimpleEffect::ModifyPlayedCardBlock(ref amount_src) => {
+            let delta = resolve_card_amount(engine, ctx, amount_src);
+            if let Some(mut card) = engine.runtime_played_card {
+                let current = if card.misc >= 0 {
+                    card.misc as i32
+                } else {
+                    ctx.card.base_block.max(0)
+                };
+                card.misc = (current + delta).max(0) as i16;
+                engine.runtime_played_card = Some(card);
+            }
+        }
+
         // -- Heal HP (capped at max) --
         SimpleEffect::HealHp(_target, ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             if amount > 0 {
                 engine.heal_player(amount);
             }
@@ -204,7 +315,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &CardPlayContext, simple: &Sim
 
         // -- Modify max HP --
         SimpleEffect::ModifyMaxHp(ref amount_src) => {
-            let amount = resolve_amount(engine, ctx, amount_src);
+            let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
             if engine.state.player.hp > engine.state.player.max_hp {
                 engine.state.player.hp = engine.state.player.max_hp;
@@ -245,14 +356,19 @@ fn apply_status(
 ) {
     match target {
         Target::Player => {
-            engine.state.player.add_status(status, amount);
+            add_player_status(engine, status, amount);
+        }
+        // Card effects do not currently install owner-aware runtime handlers.
+        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        Target::SelfEntity => {
+            add_player_status(engine, status, amount);
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
                 let i = idx as usize;
                 if is_debuff(status) {
-                    powers::apply_debuff(&mut engine.state.enemies[i].entity, status, amount);
+                    engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
                 }
@@ -262,7 +378,7 @@ fn apply_status(
             let living = engine.state.living_enemy_indices();
             for i in living {
                 if is_debuff(status) {
-                    powers::apply_debuff(&mut engine.state.enemies[i].entity, status, amount);
+                    engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
                 }
@@ -273,7 +389,7 @@ fn apply_status(
             if !living.is_empty() {
                 let idx = living[engine.rng_gen_range(0..living.len())];
                 if is_debuff(status) {
-                    powers::apply_debuff(&mut engine.state.enemies[idx].entity, status, amount);
+                    engine.apply_player_debuff_to_enemy(idx, status, amount);
                 } else {
                     engine.state.enemies[idx].entity.add_status(status, amount);
                 }
@@ -291,7 +407,12 @@ fn set_status(
 ) {
     match target {
         Target::Player => {
-            engine.state.player.set_status(status, value);
+            set_player_status(engine, status, value);
+        }
+        // Card effects do not currently install owner-aware runtime handlers.
+        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        Target::SelfEntity => {
+            set_player_status(engine, status, value);
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
@@ -315,6 +436,27 @@ fn set_status(
     }
 }
 
+fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
+    engine.state.player.add_status(status, amount);
+    if status == sid::ORB_SLOTS && amount > 0 {
+        for _ in 0..amount {
+            engine.state.orb_slots.add_slot();
+        }
+    }
+}
+
+fn set_player_status(engine: &mut CombatEngine, status: StatusId, value: i32) {
+    if status == sid::ORB_SLOTS {
+        let current = engine.state.player.status(status);
+        if value > current {
+            for _ in 0..(value - current) {
+                engine.state.orb_slots.add_slot();
+            }
+        }
+    }
+    engine.state.player.set_status(status, value);
+}
+
 fn multiply_status(
     engine: &mut CombatEngine,
     ctx: &CardPlayContext,
@@ -324,6 +466,14 @@ fn multiply_status(
 ) {
     match target {
         Target::Player => {
+            let current = engine.state.player.status(status);
+            if current > 0 {
+                engine.state.player.set_status(status, current * multiplier);
+            }
+        }
+        // Card effects do not currently install owner-aware runtime handlers.
+        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        Target::SelfEntity => {
             let current = engine.state.player.status(status);
             if current > 0 {
                 engine.state.player.set_status(status, current * multiplier);
@@ -365,10 +515,16 @@ fn multiply_status(
 // Amount resolution
 // ===========================================================================
 
-fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSource) -> i32 {
+pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSource) -> i32 {
     match *src {
         AmountSource::Magic => ctx.card.base_magic.max(1),
-        AmountSource::Block => ctx.card.base_block.max(0),
+        AmountSource::Block => {
+            if ctx.card_inst.misc >= 0 {
+                ctx.card_inst.misc as i32
+            } else {
+                ctx.card.base_block.max(0)
+            }
+        }
         AmountSource::Damage => ctx.card.base_damage.max(0),
         AmountSource::Fixed(n) => n,
         AmountSource::XCost => ctx.x_value,
@@ -395,6 +551,7 @@ fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSour
         AmountSource::HandSize => engine.state.hand.len() as i32,
         AmountSource::PlayerBlock => engine.state.player.block,
         AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+        AmountSource::CardMisc => ctx.card_inst.misc.max(0) as i32,
         AmountSource::DrawPileDivN(n) => {
             if n > 0 {
                 engine.state.draw_pile.len() as i32 / n
@@ -422,6 +579,7 @@ fn resolve_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSour
             // If this is reached from card play context, it's a bug.
             0
         }
+        AmountSource::TotalUnblockedDamage => ctx.total_unblocked_damage.max(0),
     }
 }
 
@@ -437,6 +595,11 @@ fn deal_flat_damage(
 ) {
     match target {
         Target::Player => {
+            engine.player_lose_hp(amount);
+        }
+        // Card effects do not currently install owner-aware runtime handlers.
+        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        Target::SelfEntity => {
             engine.player_lose_hp(amount);
         }
         Target::SelectedEnemy => {
@@ -495,7 +658,7 @@ pub fn execute_trigger_effects(
         complex_hook: None,
     };
 
-    let ctx = CardPlayContext {
+    let mut ctx = CardPlayContext {
         card: &EMPTY_CARD,
         card_inst: crate::combat_types::CardInstance::new(0),
         target_idx: trigger_ctx.target_idx,
@@ -506,7 +669,7 @@ pub fn execute_trigger_effects(
         enemy_killed: false,
     };
 
-    execute_effects(engine, &ctx, effects);
+    execute_effects(engine, &mut ctx, effects);
 }
 
 // ===========================================================================
@@ -545,12 +708,7 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
 
         Condition::NoBlock => engine.state.player.block == 0,
 
-        Condition::EnemyKilled => {
-            // The damage loop in card_effects.rs sets this on ctx.
-            // For now, check if any enemy died since damage was dealt.
-            // This is a best-effort check — the caller should set this via context.
-            engine.state.enemies.iter().any(|e| e.entity.is_dead())
-        }
+        Condition::EnemyKilled => ctx.enemy_killed,
 
         Condition::DiscardedThisTurn => {
             engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0
@@ -584,8 +742,8 @@ fn execute_choose_cards(
         return;
     }
 
-    let min_picks = resolve_amount(engine, ctx, &min_picks_src).max(0) as usize;
-    let max_picks = (resolve_amount(engine, ctx, &max_picks_src).max(0) as usize)
+    let min_picks = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
+    let max_picks = (resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize)
         .min(options.len());
 
     if max_picks == 0 {
@@ -811,6 +969,327 @@ fn execute_discover(
     }
 }
 
+fn execute_choose_named_options(engine: &mut CombatEngine, option_names: &[&'static str]) {
+    if option_names.is_empty() {
+        return;
+    }
+    let options = option_names
+        .iter()
+        .copied()
+        .map(crate::engine::ChoiceOption::Named)
+        .collect();
+    engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
+}
+
+fn execute_generate_random_cards_to_hand(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    pool: GeneratedCardPool,
+    count_src: AmountSource,
+    cost_rule: GeneratedCostRule,
+) {
+    let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    for _ in 0..count {
+        if engine.state.hand.len() >= 10 {
+            break;
+        }
+        if let Some(mut card) = generate_random_card(engine, pool) {
+            apply_generated_upgrade_rule(
+                engine,
+                &mut card,
+                upgrade_rule_from_cost_rule(cost_rule),
+            );
+            apply_generated_cost_rule(&mut card, cost_rule);
+            engine.state.hand.push(card);
+        }
+    }
+}
+
+fn execute_generate_random_cards_to_draw(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    pool: GeneratedCardPool,
+    count_src: AmountSource,
+    cost_rule: GeneratedCostRule,
+) {
+    let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    if count == 0 {
+        return;
+    }
+    generate_random_cards(
+        engine,
+        pool,
+        count,
+        GeneratedDestination::Draw,
+        cost_rule,
+        GeneratedUpgradeRule::Base,
+    );
+}
+
+fn execute_generate_discovery_choice(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    option_count: usize,
+    cost_rule: GeneratedCostRule,
+) {
+    if engine.state.hand.len() >= 10 || option_count == 0 {
+        return;
+    }
+    let options: Vec<ChoiceOption> = generate_unique_random_cards(engine, pool, option_count)
+        .into_iter()
+        .map(|mut card| {
+            apply_generated_cost_rule(&mut card, cost_rule);
+            ChoiceOption::GeneratedCard(card)
+        })
+        .collect();
+    if !options.is_empty() {
+        engine.begin_choice(ChoiceReason::DiscoverCard, options, 1, 1);
+    }
+}
+
+pub fn open_generated_discovery_choice(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    option_count: usize,
+    cost_rule: GeneratedCostRule,
+) {
+    execute_generate_discovery_choice(engine, pool, option_count, cost_rule);
+}
+
+pub fn open_generated_discovery_choice_scaled(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    option_count: usize,
+    cost_rule: GeneratedCostRule,
+    copy_count: usize,
+    upgrade_rule: GeneratedUpgradeRule,
+) {
+    if engine.state.hand.len() >= 10 || option_count == 0 {
+        return;
+    }
+    let options: Vec<ChoiceOption> = generate_unique_random_cards(engine, pool, option_count)
+        .into_iter()
+        .map(|mut card| {
+            apply_generated_upgrade_rule(engine, &mut card, upgrade_rule);
+            apply_generated_cost_rule(&mut card, cost_rule);
+            ChoiceOption::GeneratedCard(card)
+        })
+        .collect();
+    if !options.is_empty() {
+        engine.begin_choice_with_aux(
+            ChoiceReason::DiscoverCard,
+            options,
+            1,
+            1,
+            copy_count.max(1),
+        );
+    }
+}
+
+pub fn generate_random_cards(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    count: usize,
+    destination: GeneratedDestination,
+    cost_rule: GeneratedCostRule,
+    upgrade_rule: GeneratedUpgradeRule,
+) {
+    for _ in 0..count {
+        let at_hand_cap = matches!(destination, GeneratedDestination::Hand) && engine.state.hand.len() >= 10;
+        if at_hand_cap {
+            break;
+        }
+        if let Some(mut card) = generate_random_card(engine, pool) {
+            apply_generated_upgrade_rule(
+                engine,
+                &mut card,
+                combine_generated_upgrade_rules(
+                    upgrade_rule,
+                    upgrade_rule_from_cost_rule(cost_rule),
+                ),
+            );
+            apply_generated_cost_rule(&mut card, cost_rule);
+            match destination {
+                GeneratedDestination::Hand => engine.state.hand.push(card),
+                GeneratedDestination::Draw => engine.state.draw_pile.push(card),
+            }
+        }
+    }
+    if matches!(destination, GeneratedDestination::Draw) && count > 0 {
+        engine.shuffle_draw_pile();
+    }
+}
+
+fn generate_random_card(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+) -> Option<crate::combat_types::CardInstance> {
+    let pool_cards = generated_card_pool(engine, pool);
+    if pool_cards.is_empty() {
+        return None;
+    }
+    let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+    Some(engine.temp_card(choice))
+}
+
+fn generate_unique_random_cards(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    option_count: usize,
+) -> Vec<crate::combat_types::CardInstance> {
+    let pool_cards = generated_card_pool(engine, pool);
+    if pool_cards.is_empty() {
+        return Vec::new();
+    }
+    let target = option_count.min(pool_cards.len());
+    let mut picked = Vec::with_capacity(target);
+    let mut seen = HashSet::new();
+    while picked.len() < target {
+        let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+        if seen.insert(choice) {
+            picked.push(engine.temp_card(choice));
+        }
+    }
+    picked
+}
+
+fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'static str> {
+    match pool {
+        GeneratedCardPool::Colorless => COLORLESS_GENERATION_POOL.to_vec(),
+        GeneratedCardPool::Attack => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| def.card_type == CardType::Attack && !def.id.ends_with('+'))
+            .map(|def| def.id)
+            .collect(),
+        GeneratedCardPool::Skill => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| def.card_type == CardType::Skill && !def.id.ends_with('+'))
+            .map(|def| def.id)
+            .collect(),
+        GeneratedCardPool::Power => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| def.card_type == CardType::Power && !def.id.ends_with('+'))
+            .map(|def| def.id)
+            .collect(),
+    }
+}
+
+fn apply_generated_cost_rule(
+    card: &mut crate::combat_types::CardInstance,
+    cost_rule: GeneratedCostRule,
+) {
+    match cost_rule {
+        GeneratedCostRule::Base => {}
+        GeneratedCostRule::ZeroThisTurn => {
+            card.cost = 0;
+        }
+        GeneratedCostRule::ZeroIfPositiveThisTurn => {
+            if card.cost > 0 {
+                card.cost = 0;
+            }
+        }
+        GeneratedCostRule::ZeroThisTurnAndUpgradeGenerated => {
+            card.cost = 0;
+        }
+    }
+}
+
+fn upgrade_rule_from_cost_rule(cost_rule: GeneratedCostRule) -> GeneratedUpgradeRule {
+    match cost_rule {
+        GeneratedCostRule::ZeroThisTurnAndUpgradeGenerated => GeneratedUpgradeRule::Upgrade,
+        GeneratedCostRule::Base
+        | GeneratedCostRule::ZeroThisTurn
+        | GeneratedCostRule::ZeroIfPositiveThisTurn => GeneratedUpgradeRule::Base,
+    }
+}
+
+fn combine_generated_upgrade_rules(
+    explicit: GeneratedUpgradeRule,
+    implied: GeneratedUpgradeRule,
+) -> GeneratedUpgradeRule {
+    match (explicit, implied) {
+        (GeneratedUpgradeRule::Upgrade, _) | (_, GeneratedUpgradeRule::Upgrade) => {
+            GeneratedUpgradeRule::Upgrade
+        }
+        _ => GeneratedUpgradeRule::Base,
+    }
+}
+
+fn apply_generated_upgrade_rule(
+    engine: &CombatEngine,
+    card: &mut crate::combat_types::CardInstance,
+    upgrade_rule: GeneratedUpgradeRule,
+) {
+    match upgrade_rule {
+        GeneratedUpgradeRule::Base => {}
+        GeneratedUpgradeRule::Upgrade => {
+            if card.is_upgraded() {
+                return;
+            }
+            let base_id = engine.card_registry.card_def_by_id(card.def_id).id;
+            let upgraded_id = format!("{base_id}+");
+            if let Some(def) = engine.card_registry.get(upgraded_id.as_str()) {
+                card.def_id = engine.card_registry.card_id(def.id);
+                card.flags |= crate::combat_types::CardInstance::FLAG_UPGRADED;
+            }
+        }
+    }
+}
+
+const COLORLESS_GENERATION_POOL: &[&str] = &[
+    "Apotheosis",
+    "Bandage Up",
+    "Bite",
+    "Blind",
+    "Chrysalis",
+    "Dark Shackles",
+    "Deep Breath",
+    "Defend_R",
+    "Discovery",
+    "Dramatic Entrance",
+    "Enlightenment",
+    "Finesse",
+    "Flash of Steel",
+    "Forethought",
+    "Ghostly",
+    "Good Instincts",
+    "HandOfGreed",
+    "Impatience",
+    "J.A.X.",
+    "Jack Of All Trades",
+    "Madness",
+    "Magnetism",
+    "Master of Strategy",
+    "Mayhem",
+    "Metamorphosis",
+    "Mind Blast",
+    "Panacea",
+    "Panache",
+    "PanicButton",
+    "Purity",
+    "RitualDagger",
+    "Sadistic Nature",
+    "Secret Technique",
+    "Secret Weapon",
+    "Strike_R",
+    "Swift Strike",
+    "The Bomb",
+    "Thinking Ahead",
+    "Transmutation",
+    "Trip",
+    "Violence",
+];
+
+pub fn is_colorless_generation_card(card_id: &str) -> bool {
+    COLORLESS_GENERATION_POOL.contains(&card_id)
+}
+
 // ===========================================================================
 // BoolFlag dispatch
 // ===========================================================================
@@ -846,7 +1325,6 @@ fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::effects::declarative::*;
 
     #[test]
     fn test_resolve_amount_fixed() {
@@ -866,3 +1344,7 @@ mod tests {
         assert!(!is_debuff(sid::VIGOR));
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/test_generated_choice_java_wave3.rs"]
+mod test_generated_choice_java_wave3;

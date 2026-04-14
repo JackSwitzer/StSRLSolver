@@ -2,12 +2,17 @@
 //! Requires complex_hook to read DU_VU_DOLL_CURSES counter (set by Python).
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
-fn hook(engine: &mut CombatEngine, _ctx: &TriggerContext) {
-    let curse_count = engine.state.player.status(sid::DU_VU_DOLL_CURSES);
+fn hook(
+    engine: &mut CombatEngine,
+    _owner: crate::effects::runtime::EffectOwner,
+    _event: &crate::effects::runtime::GameEvent,
+    state: &mut crate::effects::runtime::EffectState,
+) {
+    let curse_count = state.get(0);
     if curse_count > 0 {
         engine.state.player.add_status(sid::STRENGTH, curse_count);
     }

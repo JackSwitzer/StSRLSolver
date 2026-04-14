@@ -23,14 +23,26 @@ pub enum Trigger {
     TurnStart,
     /// At the start of each player turn (after draw).
     TurnStartPostDraw,
+    /// Late start of turn, after post-draw power/setup effects have resolved.
+    TurnStartPostDrawLate,
     /// At the end of each player turn.
     TurnEnd,
+    /// Late end of turn, after orb passives and Loop have resolved.
+    TurnEndPostOrbs,
     /// When combat is won.
     CombatVictory,
     /// Before a card is played (can modify).
     OnCardPlayedPre,
+    /// Java-style `onPlayCard`: card has been committed to play and counted.
+    OnPlayCard,
+    /// Java-style `onUseCard`: fires before the card's effects resolve.
+    OnUseCard,
     /// After a card is played.
     OnCardPlayedPost,
+    /// Java-style `onAfterUseCard`: card effects resolved, before replay window.
+    OnAfterUseCard,
+    /// Java-style `onAfterCardPlayed`: card fully played for trigger purposes.
+    OnAfterCardPlayed,
     /// After an Attack card is played.
     OnAttackPlayed,
     /// After a Skill card is played.
@@ -105,6 +117,8 @@ pub enum TriggerCondition {
     IsBossFight,
     /// Only in elite fights.
     IsEliteFight,
+    /// Only in elite or boss fights.
+    IsEliteOrBossFight,
 }
 
 // ===========================================================================

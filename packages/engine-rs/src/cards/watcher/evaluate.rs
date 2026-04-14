@@ -7,6 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 6,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effects: &["insight_to_draw"], effect_data: &[
+                    E::Simple(SE::GainBlock(A::Block)),
                     E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -15,6 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 10,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effects: &["insight_to_draw"], effect_data: &[
+                    E::Simple(SE::GainBlock(A::Block)),
                     E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });

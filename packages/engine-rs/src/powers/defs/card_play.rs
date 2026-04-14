@@ -4,8 +4,10 @@
 
 use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
+use crate::orbs::OrbType;
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -17,7 +19,7 @@ static AFTER_IMAGE_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBloc
 ))];
 
 static AFTER_IMAGE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::OnAnyCardPlayed,
+    trigger: Trigger::OnCardPlayedPre,
     condition: TriggerCondition::Always,
     effects: &AFTER_IMAGE_EFFECTS,
     counter: None,
@@ -84,14 +86,30 @@ pub static DEF_HEATSINK: EntityDef = EntityDef {
 // Storm — OnPowerPlayed: channel Lightning (complex_hook)
 // ===========================================================================
 
-fn hook_noop(_engine: &mut CombatEngine, _ctx: &TriggerContext) {}
+static STORM_HOOK_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnPowerPlayed,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+fn hook_storm(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::OnPowerPlayed && event.card_type == Some(crate::cards::CardType::Power) {
+        engine.channel_orb(OrbType::Lightning);
+    }
+}
 
 pub static DEF_STORM: EntityDef = EntityDef {
     id: "storm",
     name: "Storm",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &STORM_HOOK_TRIGGERS,
+    complex_hook: Some(hook_storm),
     status_guard: Some(sid::STORM),
 };
 
@@ -100,7 +118,7 @@ pub static DEF_STORM: EntityDef = EntityDef {
 // ===========================================================================
 
 static CURIOSITY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player, // proxy for "self" (the enemy that owns this power)
+    Target::SelfEntity,
     sid::STRENGTH,
     AmountSource::StatusValue(sid::CURIOSITY),
 ))];
@@ -118,7 +136,7 @@ pub static DEF_CURIOSITY: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &CURIOSITY_TRIGGERS,
     complex_hook: None,
-    status_guard: None, // enemy power, no player guard
+    status_guard: Some(sid::CURIOSITY),
 };
 
 // ===========================================================================
@@ -143,7 +161,7 @@ pub static DEF_BEAT_OF_DEATH: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &BEAT_OF_DEATH_TRIGGERS,
     complex_hook: None,
-    status_guard: None, // enemy power
+    status_guard: Some(sid::BEAT_OF_DEATH),
 };
 
 // ===========================================================================
@@ -168,7 +186,7 @@ pub static DEF_SLOW: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &SLOW_TRIGGERS,
     complex_hook: None,
-    status_guard: None, // enemy power
+    status_guard: Some(sid::SLOW),
 };
 
 // ===========================================================================
@@ -176,7 +194,7 @@ pub static DEF_SLOW: EntityDef = EntityDef {
 // ===========================================================================
 
 static FORCEFIELD_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player, // proxy for "self" (the enemy)
+    Target::SelfEntity,
     sid::FORCEFIELD,
     AmountSource::Fixed(-1),
 ))];
@@ -194,7 +212,7 @@ pub static DEF_FORCEFIELD: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &FORCEFIELD_TRIGGERS,
     complex_hook: None,
-    status_guard: None, // enemy power
+    status_guard: Some(sid::FORCEFIELD),
 };
 
 // ===========================================================================
@@ -219,7 +237,7 @@ pub static DEF_SKILL_BURN: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &SKILL_BURN_TRIGGERS,
     complex_hook: None,
-    status_guard: None, // enemy power
+    status_guard: Some(sid::SKILL_BURN),
 };
 
 // ===========================================================================
@@ -232,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_after_image_fires_on_any_card() {
-        assert_eq!(DEF_AFTER_IMAGE.triggers[0].trigger, Trigger::OnAnyCardPlayed);
+        assert_eq!(DEF_AFTER_IMAGE.triggers[0].trigger, Trigger::OnCardPlayedPre);
     }
 
     #[test]
@@ -263,5 +281,10 @@ mod tests {
     #[test]
     fn test_storm_is_complex() {
         assert!(DEF_STORM.complex_hook.is_some());
+        assert_eq!(DEF_STORM.triggers[0].trigger, Trigger::OnPowerPlayed);
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/test_power_runtime_card_play.rs"]
+mod test_power_runtime_card_play;

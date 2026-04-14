@@ -7,12 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::combat_types::CardInstance;
+use crate::effects::declarative::{
+    AmountSource, ChoiceAction, Effect, Pile, SimpleEffect, Target,
+};
+use crate::orbs::OrbType;
+use crate::state::Stance;
 
 mod prelude;
 mod watcher;
 mod ironclad;
 mod silent;
-mod defect;
+pub(crate) mod defect;
 mod colorless;
 mod curses;
 mod status;
@@ -84,6 +89,353 @@ impl CardDef {
     pub fn is_unplayable(&self) -> bool {
         self.cost == -2
     }
+
+    pub fn declared_effect_count(&self) -> usize {
+        self.effect_data.len()
+    }
+
+    pub fn declared_extra_hits(&self) -> Option<AmountSource> {
+        find_declared_extra_hits(self.effect_data)
+    }
+
+    pub fn declared_stance_change(&self) -> Option<Stance> {
+        find_declared_stance_change(self.effect_data)
+    }
+
+    pub fn declared_all_enemy_damage(&self) -> Option<AmountSource> {
+        if self.target == CardTarget::AllEnemy && self.base_damage >= 0 {
+            Some(AmountSource::Damage)
+        } else {
+            find_declared_all_enemy_damage(self.effect_data)
+        }
+    }
+
+    pub fn declared_primary_attack_target(&self) -> Option<Target> {
+        find_declared_primary_attack_target(self.effect_data)
+    }
+
+    pub fn declared_primary_block(&self) -> bool {
+        has_declared_primary_block(self.effect_data)
+    }
+
+    pub fn uses_typed_primary_preamble(&self) -> bool {
+        self.declared_primary_attack_target().is_some() || self.declared_primary_block()
+    }
+
+    pub fn declared_discard_from_hand_count(&self) -> Option<(AmountSource, AmountSource)> {
+        find_declared_choice_count(self.effect_data, Pile::Hand, &[ChoiceAction::Discard])
+    }
+
+    pub fn declared_exhaust_from_hand_count(&self) -> Option<(AmountSource, AmountSource)> {
+        find_declared_choice_count(
+            self.effect_data,
+            Pile::Hand,
+            &[ChoiceAction::Exhaust, ChoiceAction::ExhaustAndGainEnergy],
+        )
+    }
+
+    pub fn declared_scry_count(&self) -> Option<AmountSource> {
+        find_declared_scry_count(self.effect_data)
+    }
+
+    pub fn declared_channel_orbs(&self) -> Vec<(OrbType, AmountSource)> {
+        let mut hints = Vec::new();
+        collect_declared_channel_orbs(self.effect_data, &mut hints);
+        hints
+    }
+
+    pub fn declared_evoke_count(&self) -> Option<AmountSource> {
+        find_declared_evoke_count(self.effect_data)
+    }
+
+    pub fn uses_declared_x_cost(&self) -> bool {
+        effect_slice_uses_x_cost(self.effect_data)
+    }
+
+    pub fn declared_x_cost_amounts(&self) -> Vec<AmountSource> {
+        let mut amounts = Vec::new();
+        collect_declared_x_cost_amounts(self.effect_data, &mut amounts);
+        amounts
+    }
+}
+
+fn find_declared_extra_hits(effects: &[Effect]) -> Option<AmountSource> {
+    for effect in effects {
+        match effect {
+            Effect::ExtraHits(source) => return Some(*source),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(source) = find_declared_extra_hits(then_effects) {
+                    return Some(source);
+                }
+                if let Some(source) = find_declared_extra_hits(else_effects) {
+                    return Some(source);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_declared_stance_change(effects: &[Effect]) -> Option<Stance> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::ChangeStance(stance)) => return Some(*stance),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(stance) = find_declared_stance_change(then_effects) {
+                    return Some(stance);
+                }
+                if let Some(stance) = find_declared_stance_change(else_effects) {
+                    return Some(stance);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_declared_all_enemy_damage(effects: &[Effect]) -> Option<AmountSource> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::DealDamage(Target::AllEnemies, amount)) => return Some(*amount),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(amount) = find_declared_all_enemy_damage(then_effects) {
+                    return Some(amount);
+                }
+                if let Some(amount) = find_declared_all_enemy_damage(else_effects) {
+                    return Some(amount);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_declared_primary_attack_target(effects: &[Effect]) -> Option<Target> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::DealDamage(target, AmountSource::Damage))
+                if matches!(target, Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy) =>
+            {
+                return Some(*target);
+            }
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(target) = find_declared_primary_attack_target(then_effects) {
+                    return Some(target);
+                }
+                if let Some(target) = find_declared_primary_attack_target(else_effects) {
+                    return Some(target);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn has_declared_primary_block(effects: &[Effect]) -> bool {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)) => return true,
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if has_declared_primary_block(then_effects) {
+                    return true;
+                }
+                if has_declared_primary_block(else_effects) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn find_declared_choice_count(
+    effects: &[Effect],
+    source: Pile,
+    actions: &[ChoiceAction],
+) -> Option<(AmountSource, AmountSource)> {
+    for effect in effects {
+        match effect {
+            Effect::ChooseCards {
+                source: candidate_source,
+                action,
+                min_picks,
+                max_picks,
+                ..
+            } if *candidate_source == source && actions.contains(action) => {
+                return Some((*min_picks, *max_picks));
+            }
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(hint) = find_declared_choice_count(then_effects, source, actions) {
+                    return Some(hint);
+                }
+                if let Some(hint) = find_declared_choice_count(else_effects, source, actions) {
+                    return Some(hint);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_declared_scry_count(effects: &[Effect]) -> Option<AmountSource> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::Scry(amount)) => return Some(*amount),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(amount) = find_declared_scry_count(then_effects) {
+                    return Some(amount);
+                }
+                if let Some(amount) = find_declared_scry_count(else_effects) {
+                    return Some(amount);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn collect_declared_channel_orbs(
+    effects: &[Effect],
+    hints: &mut Vec<(OrbType, AmountSource)>,
+) {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::ChannelOrb(orb_type, amount)) => {
+                hints.push((*orb_type, *amount));
+            }
+            Effect::Conditional(_, then_effects, else_effects) => {
+                collect_declared_channel_orbs(then_effects, hints);
+                collect_declared_channel_orbs(else_effects, hints);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::EvokeOrb(amount)) => return Some(*amount),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(amount) = find_declared_evoke_count(then_effects) {
+                    return Some(amount);
+                }
+                if let Some(amount) = find_declared_evoke_count(else_effects) {
+                    return Some(amount);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn amount_uses_x_cost(source: &AmountSource) -> bool {
+    matches!(source, AmountSource::XCost | AmountSource::MagicPlusX)
+}
+
+fn collect_declared_x_cost_amounts(effects: &[Effect], amounts: &mut Vec<AmountSource>) {
+    for effect in effects {
+        match effect {
+            Effect::Simple(simple) => collect_simple_x_cost_amounts(simple, amounts),
+            Effect::Conditional(_, then_effects, else_effects) => {
+                collect_declared_x_cost_amounts(then_effects, amounts);
+                collect_declared_x_cost_amounts(else_effects, amounts);
+            }
+            Effect::ChooseCards { min_picks, max_picks, .. } => {
+                if amount_uses_x_cost(min_picks) {
+                    amounts.push(*min_picks);
+                }
+                if amount_uses_x_cost(max_picks) {
+                    amounts.push(*max_picks);
+                }
+            }
+            Effect::ExtraHits(source) => {
+                if amount_uses_x_cost(source) {
+                    amounts.push(*source);
+                }
+            }
+            Effect::ForEachInPile { .. }
+            | Effect::Discover(_)
+            | Effect::ChooseNamedOptions(_)
+            | Effect::GenerateRandomCardsToHand { .. }
+            | Effect::GenerateRandomCardsToDraw { .. }
+            | Effect::GenerateDiscoveryChoice { .. } => {}
+        }
+    }
+}
+
+fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<AmountSource>) {
+    match effect {
+        SimpleEffect::AddStatus(_, _, source)
+        | SimpleEffect::SetStatus(_, _, source)
+        | SimpleEffect::DrawCards(source)
+        | SimpleEffect::GainEnergy(source)
+        | SimpleEffect::GainBlock(source)
+        | SimpleEffect::ModifyHp(source)
+        | SimpleEffect::GainMantra(source)
+        | SimpleEffect::Scry(source)
+        | SimpleEffect::AddCard(_, _, source)
+        | SimpleEffect::ChannelOrb(_, source)
+        | SimpleEffect::EvokeOrb(source)
+        | SimpleEffect::DealDamage(_, source)
+        | SimpleEffect::Judgement(source)
+        | SimpleEffect::HealHp(_, source)
+        | SimpleEffect::ModifyMaxHp(source)
+        | SimpleEffect::ModifyGold(source) => {
+            if amount_uses_x_cost(source) {
+                amounts.push(*source);
+            }
+        }
+        SimpleEffect::MultiplyStatus(_, _, _)
+        | SimpleEffect::ChangeStance(_)
+        | SimpleEffect::SetFlag(_)
+        | SimpleEffect::ShuffleDiscardIntoDraw
+        | SimpleEffect::CopyThisCardTo(_)
+        | SimpleEffect::TriggerMarks
+        | SimpleEffect::IncrementCounter(_, _)
+        | SimpleEffect::ModifyPlayedCardCost(_)
+        | SimpleEffect::ModifyPlayedCardBlock(_)
+        | SimpleEffect::FleeCombat => {}
+    }
+}
+
+fn simple_effect_uses_x_cost(effect: &SimpleEffect) -> bool {
+    let mut amounts = Vec::new();
+    collect_simple_x_cost_amounts(effect, &mut amounts);
+    !amounts.is_empty()
+}
+
+fn effect_slice_uses_x_cost(effects: &[Effect]) -> bool {
+    effects.iter().any(effect_uses_x_cost)
+}
+
+fn effect_uses_x_cost(effect: &Effect) -> bool {
+    match effect {
+        Effect::Simple(simple) => simple_effect_uses_x_cost(simple),
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_uses_x_cost(then_effects) || effect_slice_uses_x_cost(else_effects)
+        }
+        Effect::ChooseCards {
+            min_picks,
+            max_picks,
+            ..
+        } => amount_uses_x_cost(min_picks) || amount_uses_x_cost(max_picks),
+        Effect::ForEachInPile { .. }
+        | Effect::Discover(_)
+        | Effect::ChooseNamedOptions(_)
+        | Effect::GenerateRandomCardsToHand { .. }
+        | Effect::GenerateRandomCardsToDraw { .. }
+        | Effect::GenerateDiscoveryChoice { .. } => false,
+        Effect::ExtraHits(source) => amount_uses_x_cost(source),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +450,56 @@ static GLOBAL_REGISTRY: std::sync::OnceLock<CardRegistry> = std::sync::OnceLock:
 /// Get or initialize the global card registry. First call builds it; subsequent calls return &'static ref.
 pub fn global_registry() -> &'static CardRegistry {
     GLOBAL_REGISTRY.get_or_init(CardRegistry::new)
+}
+
+pub fn gameplay_def(card_id: &str) -> Option<&'static crate::gameplay::GameplayDef> {
+    crate::gameplay::global_registry().card(card_id)
+}
+
+pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
+    global_registry()
+        .all_card_defs()
+        .iter()
+        .map(|card| crate::gameplay::GameplayDef {
+            domain: crate::gameplay::GameplayDomain::Card,
+            id: card.id.to_string(),
+            name: card.name.to_string(),
+            tags: card.effects.iter().map(|tag| (*tag).to_string()).collect(),
+            schema: crate::gameplay::GameplaySchema::Card(crate::gameplay::CardSchema {
+                card_type: Some(card.card_type),
+                target: Some(card.target),
+                cost: Some(card.cost),
+                exhausts: card.exhaust,
+                upgraded_from: if card.id.ends_with('+') {
+                    Some(card.id.trim_end_matches('+').to_string())
+                } else {
+                    None
+                },
+                declared_effect_count: card.declared_effect_count(),
+                declared_extra_hits: card.declared_extra_hits().is_some(),
+                declared_stance_change: card.declared_stance_change().is_some(),
+                declared_all_enemy_damage: card.declared_all_enemy_damage(),
+                declared_discard_from_hand: card.declared_discard_from_hand_count().map(|(min, max)| {
+                    crate::gameplay::ChoiceCountHint { min, max }
+                }),
+                declared_exhaust_from_hand: card.declared_exhaust_from_hand_count().map(|(min, max)| {
+                    crate::gameplay::ChoiceCountHint { min, max }
+                }),
+                declared_scry_count: card.declared_scry_count(),
+                declared_channel_orbs: card
+                    .declared_channel_orbs()
+                    .into_iter()
+                    .map(|(orb_type, count)| crate::gameplay::OrbCountHint { orb_type, count })
+                    .collect(),
+                declared_evoke_count: card.declared_evoke_count(),
+                uses_x_cost: card.uses_declared_x_cost(),
+                declared_x_cost_amounts: card.declared_x_cost_amounts(),
+            }),
+            handlers: Vec::new(),
+            state_fields: Vec::new(),
+            has_complex_hook: card.complex_hook.is_some(),
+        })
+        .collect()
 }
 
 #[derive(Clone)]
@@ -217,6 +619,16 @@ impl CardRegistry {
     /// Panics if id is out of range — callers should use IDs from card_id().
     pub fn card_def_by_id(&self, id: u16) -> &CardDef {
         &self.id_to_def[id as usize]
+    }
+
+    /// Iterate the static card registry in deterministic numeric-id order.
+    pub fn all_card_defs(&self) -> &[CardDef] {
+        &self.id_to_def
+    }
+
+    /// Get all registered card names in deterministic numeric-id order.
+    pub fn all_card_names(&self) -> &[&'static str] {
+        &self.id_to_name
     }
 
     /// Look up a card's string name by numeric ID.
@@ -1186,4 +1598,24 @@ mod tests {
             assert_eq!(by_name.base_block, by_id.base_block);
         }
     }
+
+    #[test]
+    fn gameplay_lookup_uses_canonical_registry() {
+        let def = super::gameplay_def("Strike_P").expect("card gameplay def");
+        assert_eq!(def.domain, crate::gameplay::GameplayDomain::Card);
+        assert_eq!(def.id, "Strike_P");
+        assert!(def.card_schema().is_some());
+    }
+
+    #[test]
+    fn gameplay_exports_cover_registry_cards() {
+        let exports = super::gameplay_export_defs();
+        assert_eq!(exports.len(), super::global_registry().card_count());
+        assert!(exports.iter().any(|def| def.id == "Strike_P"));
+        assert!(exports.iter().all(|def| def.domain == crate::gameplay::GameplayDomain::Card));
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/test_card_runtime_backend_wave3.rs"]
+mod test_card_runtime_backend_wave3;

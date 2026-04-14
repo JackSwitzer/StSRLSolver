@@ -16,7 +16,7 @@ use crate::status_ids::sid;
 // ===========================================================================
 
 static RITUAL_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player, // proxy for "self" (the enemy that owns this power)
+    Target::SelfEntity,
     sid::STRENGTH,
     AmountSource::StatusValue(sid::RITUAL),
 ))];
@@ -34,7 +34,7 @@ pub static DEF_RITUAL: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &RITUAL_TRIGGERS,
     complex_hook: None,
-    status_guard: None,
+    status_guard: Some(sid::RITUAL),
 };
 
 // ===========================================================================
@@ -42,7 +42,7 @@ pub static DEF_RITUAL: EntityDef = EntityDef {
 // ===========================================================================
 
 static REGENERATION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
-    Target::Player, // proxy for "self" (the enemy that owns this power)
+    Target::SelfEntity,
     AmountSource::StatusValue(sid::REGENERATION),
 ))];
 
@@ -59,7 +59,7 @@ pub static DEF_REGENERATION: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &REGENERATION_TRIGGERS,
     complex_hook: None,
-    status_guard: None,
+    status_guard: Some(sid::REGENERATION),
 };
 
 // ===========================================================================
@@ -68,7 +68,7 @@ pub static DEF_REGENERATION: EntityDef = EntityDef {
 
 static GROWTH_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::AddStatus(
-        Target::Player, // proxy for "self"
+        Target::SelfEntity,
         sid::STRENGTH,
         AmountSource::StatusValue(sid::GROWTH),
     )),
@@ -90,7 +90,7 @@ pub static DEF_GROWTH: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &GROWTH_TRIGGERS,
     complex_hook: None,
-    status_guard: None,
+    status_guard: Some(sid::GROWTH),
 };
 
 // ===========================================================================
@@ -114,7 +114,7 @@ pub static DEF_METALLICIZE_ENEMY: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &METALLICIZE_ENEMY_TRIGGERS,
     complex_hook: None,
-    status_guard: None,
+    status_guard: Some(sid::METALLICIZE),
 };
 
 // ===========================================================================

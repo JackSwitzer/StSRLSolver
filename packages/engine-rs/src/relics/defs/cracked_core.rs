@@ -2,11 +2,16 @@
 //! Uses complex_hook because channeling requires engine access.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
-fn hook(engine: &mut CombatEngine, _ctx: &TriggerContext) {
+fn hook(
+    engine: &mut CombatEngine,
+    _owner: crate::effects::runtime::EffectOwner,
+    _event: &crate::effects::runtime::GameEvent,
+    _state: &mut crate::effects::runtime::EffectState,
+) {
     // Set the flag for the deferred channel in start_combat()
     engine.state.player.set_status(sid::CHANNEL_LIGHTNING_START, 1);
 }

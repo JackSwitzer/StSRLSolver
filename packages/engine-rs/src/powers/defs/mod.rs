@@ -3,9 +3,9 @@
 //! Each power is expressed as a static `EntityDef` with triggered effects
 //! that describe WHEN and WHAT happens. Simple powers are fully declarative;
 //! complex powers (card replay, on-attacked reactions) use `complex_hook`.
-//!
-//! These definitions are NOT yet wired into dispatch -- the old registry
-//! in `powers/registry.rs` still drives runtime behavior.
+//! The owner-aware runtime in `effects::runtime` now executes the migrated
+//! subset directly, while `powers/registry.rs` remains as install-time
+//! metadata plus a shrinking legacy-oracle surface during the cutover.
 
 mod turn_start;
 mod turn_end;
@@ -100,6 +100,63 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_ELECTRODYNAMICS,
     &complex::DEF_TIME_WARP,
     &complex::DEF_STATIC_DISCHARGE,
+];
+
+/// Power defs that are executed by the owner-aware runtime today.
+/// Complex powers that still execute inline in `engine.rs` are intentionally
+/// excluded until their runtime hooks are migrated.
+pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
+    &turn_start::DEF_DEMON_FORM,
+    &turn_start::DEF_NOXIOUS_FUMES,
+    &turn_start::DEF_BRUTALITY,
+    &turn_start::DEF_BERSERK,
+    &turn_start::DEF_INFINITE_BLADES,
+    &turn_start::DEF_BATTLE_HYMN,
+    &turn_start::DEF_DEVOTION,
+    &turn_start::DEF_WRAITH_FORM,
+    &turn_start::DEF_DEVA_FORM,
+    &turn_start::DEF_HELLO_WORLD,
+    &turn_start::DEF_MAGNETISM,
+    &turn_start::DEF_CREATIVE_AI,
+    &turn_start::DEF_DOPPELGANGER_DRAW,
+    &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_ENTER_DIVINITY,
+    &turn_start::DEF_MAYHEM,
+    &turn_start::DEF_TOOLS_OF_THE_TRADE,
+    &turn_end::DEF_METALLICIZE,
+    &turn_end::DEF_PLATED_ARMOR,
+    &turn_end::DEF_COMBUST,
+    &turn_end::DEF_OMEGA,
+    &turn_end::DEF_LIKE_WATER,
+    &turn_end::DEF_STUDY,
+    &card_play::DEF_AFTER_IMAGE,
+    &card_play::DEF_RAGE,
+    &card_play::DEF_HEATSINK,
+    &card_play::DEF_STORM,
+    &complex::DEF_ECHO_FORM,
+    &complex::DEF_DOUBLE_TAP,
+    &complex::DEF_BURST,
+    &complex::DEF_THOUSAND_CUTS,
+    &complex::DEF_PANACHE,
+    &complex::DEF_SADISTIC_NATURE,
+    &exhaust::DEF_FEEL_NO_PAIN,
+    &exhaust::DEF_DARK_EMBRACE,
+    &stance::DEF_MENTAL_FORTRESS,
+    &stance::DEF_RUSHDOWN,
+];
+
+/// Enemy-owned power defs that can safely execute through the owner-aware
+/// runtime without proxying through player state.
+pub static RUNTIME_ENEMY_POWER_DEFS: &[&EntityDef] = &[
+    &card_play::DEF_CURIOSITY,
+    &card_play::DEF_BEAT_OF_DEATH,
+    &card_play::DEF_SLOW,
+    &card_play::DEF_FORCEFIELD,
+    &card_play::DEF_SKILL_BURN,
+    &enemy::DEF_RITUAL,
+    &enemy::DEF_REGENERATION,
+    &enemy::DEF_GROWTH,
+    &enemy::DEF_METALLICIZE_ENEMY,
 ];
 
 // ===========================================================================

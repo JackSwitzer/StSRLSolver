@@ -1,11 +1,8 @@
-//! Declarative potion definitions using the unified EntityDef system.
+//! Declarative potion definitions using the owner-aware EntityDef runtime.
 //!
-//! Each potion is a static EntityDef with ManualActivation trigger.
-//! Simple potions express their effects purely as data (AddStatus, DealDamage, etc.).
-//! Complex potions (Elixir, Gambler's Brew, Entropic Brew) use complex_hook fn pointers.
-//!
-//! The existing match-block dispatch in potions/mod.rs remains active.
-//! These definitions are for future interpreter wiring.
+//! Potions with `ManualActivation` triggers execute through the owner-aware
+//! runtime first. `potions/mod.rs` remains as an oracle/helper surface for
+//! legacy tests and any unmigrated fallback callers.
 
 mod prelude;
 
@@ -56,6 +53,7 @@ pub mod colorless_potion;
 pub mod potion_of_capacity;
 
 use crate::effects::entity_def::EntityDef;
+use crate::effects::trigger::Trigger;
 
 /// Static registry of all potion EntityDefs.
 /// Index order matches the module declarations above.
@@ -109,6 +107,76 @@ pub static POTION_DEFS: &[&EntityDef] = &[
 /// Look up a potion EntityDef by id.
 pub fn potion_def_by_id(id: &str) -> Option<&'static EntityDef> {
     POTION_DEFS.iter().find(|d| d.id == id).copied()
+}
+
+fn normalize_potion_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect()
+}
+
+/// Look up a potion EntityDef by either compact id or display-style runtime name.
+pub fn potion_def_by_runtime_id(id: &str) -> Option<&'static EntityDef> {
+    let wanted = normalize_potion_key(id);
+    POTION_DEFS
+        .iter()
+        .find(|def| {
+            normalize_potion_key(def.id) == wanted
+                || normalize_potion_key(def.name) == wanted
+        })
+        .copied()
+}
+
+pub fn potion_uses_runtime_manual_activation(id: &str) -> bool {
+    potion_def_by_runtime_id(id).is_some_and(|def| {
+        def.triggers
+            .iter()
+            .any(|trigger| trigger.trigger == Trigger::ManualActivation)
+    })
+}
+
+/// Runtime-authoritative potions have full production behavior on the
+/// owner-aware manual-activation path and should never fall back to the
+/// legacy `apply_potion` oracle path.
+pub fn potion_runtime_manual_activation_is_authoritative(id: &str) -> bool {
+    potion_def_by_runtime_id(id).is_some_and(|def| {
+        matches!(
+            def.id,
+            "BlockPotion"
+                | "SwiftPotion"
+                | "EnergyPotion"
+                | "Ambrosia"
+                | "BlessingOfTheForge"
+                | "BottledMiracle"
+                | "DexterityPotion"
+                | "EntropicBrew"
+                | "EssenceOfDarkness"
+                | "ExplosivePotion"
+                | "FearPotion"
+                | "FirePotion"
+                | "GamblersBrew"
+                | "LiquidMemories"
+                | "PoisonPotion"
+                | "PotionOfCapacity"
+                | "StancePotion"
+                | "StrengthPotion"
+                | "WeakenPotion"
+                | "AncientPotion"
+                | "RegenPotion"
+                | "EssenceOfSteel"
+                | "LiquidBronze"
+                | "CultistPotion"
+                | "GhostInAJar"
+                | "DuplicationPotion"
+                | "SmokeBomb"
+                | "AttackPotion"
+                | "SkillPotion"
+                | "PowerPotion"
+                | "ColorlessPotion"
+        )
+    })
 }
 
 // ===========================================================================
@@ -171,6 +239,90 @@ mod tests {
     }
 
     #[test]
+    fn test_runtime_manual_activation_lookup_covers_migrated_complex_potions() {
+        let migrated_ids = [
+            "AttackPotion", "SkillPotion", "PowerPotion", "ColorlessPotion",
+            "Elixir", "GamblersBrew", "EntropicBrew", "BottledMiracle",
+            "CunningPotion", "Ambrosia", "StancePotion", "BlessingOfTheForge",
+            "LiquidMemories", "DistilledChaos", "EssenceOfDarkness",
+            "PotionOfCapacity",
+        ];
+        for id in migrated_ids {
+            assert!(
+                potion_uses_runtime_manual_activation(id),
+                "{id} should advertise runtime manual activation"
+            );
+        }
+    }
+
+    #[test]
+    fn test_runtime_manual_activation_authority_covers_wave6_simple_combat_potions() {
+        let ids = [
+            "BlockPotion",
+            "SwiftPotion",
+            "EnergyPotion",
+            "Ambrosia",
+            "BlessingOfTheForge",
+            "BottledMiracle",
+            "DexterityPotion",
+            "EntropicBrew",
+            "EssenceOfDarkness",
+            "ExplosivePotion",
+            "FearPotion",
+            "FirePotion",
+            "GamblersBrew",
+            "LiquidMemories",
+            "PoisonPotion",
+            "PotionOfCapacity",
+            "StancePotion",
+            "StrengthPotion",
+            "WeakenPotion",
+            "AncientPotion",
+            "RegenPotion",
+            "EssenceOfSteel",
+            "LiquidBronze",
+            "CultistPotion",
+            "GhostInAJar",
+            "DuplicationPotion",
+            "SmokeBomb",
+            "Block Potion",
+            "Swift Potion",
+            "Energy Potion",
+            "Ambrosia",
+            "Blessing of the Forge",
+            "Bottled Miracle",
+            "Dexterity Potion",
+            "Entropic Brew",
+            "Essence of Darkness",
+            "Explosive Potion",
+            "Fear Potion",
+            "Fire Potion",
+            "Gambler's Brew",
+            "Liquid Memories",
+            "Poison Potion",
+            "Potion of Capacity",
+            "Stance Potion",
+            "Strength Potion",
+            "Weak Potion",
+            "Ancient Potion",
+            "Regen Potion",
+            "Essence of Steel",
+            "Liquid Bronze",
+            "Cultist Potion",
+            "Ghost in a Jar",
+            "Duplication Potion",
+            "Smoke Bomb",
+        ];
+
+        for id in ids {
+            assert!(
+                potion_runtime_manual_activation_is_authoritative(id),
+                "{id} should be runtime-authoritative"
+            );
+        }
+    }
+
+    #[test]
     fn test_fairy_is_passive() {
         let def = potion_def_by_id("FairyPotion").unwrap();
         assert!(def.triggers.is_empty());
@@ -190,4 +342,40 @@ mod tests {
         assert!(potion_def_by_id("FirePotion").is_some());
         assert!(potion_def_by_id("NonExistent").is_none());
     }
+
+    #[test]
+    fn test_lookup_by_runtime_name() {
+        assert_eq!(
+            potion_def_by_runtime_id("Fire Potion").map(|def| def.id),
+            Some("FirePotion")
+        );
+        assert_eq!(
+            potion_def_by_runtime_id("Fairy in a Bottle").map(|def| def.id),
+            Some("FairyPotion")
+        );
+    }
 }
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_action_path.rs"]
+mod test_potion_runtime_action_path;
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_wave4.rs"]
+mod test_potion_runtime_wave4;
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_wave5.rs"]
+mod test_potion_runtime_wave5;
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_wave6.rs"]
+mod test_potion_runtime_wave6;
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_wave7.rs"]
+mod test_potion_runtime_wave7;
+
+#[cfg(test)]
+#[path = "../../tests/test_potion_runtime_wave8.rs"]
+mod test_potion_runtime_wave8;

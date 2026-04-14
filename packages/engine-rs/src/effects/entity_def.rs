@@ -6,9 +6,10 @@
 //! with fn pointers only for irreducible logic.
 
 use crate::effects::declarative::Effect;
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::ids::StatusId;
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 
 // ===========================================================================
 // TriggeredEffect — a single trigger -> effects binding
@@ -62,8 +63,9 @@ pub struct EntityDef {
     /// Declarative triggered effects (static slice for const construction).
     pub triggers: &'static [TriggeredEffect],
     /// Optional complex hook for irreducible logic.
-    /// Receives the engine and the trigger context.
-    pub complex_hook: Option<fn(&mut CombatEngine, &TriggerContext)>,
+    /// Receives the engine, owner, concrete emitted event, and per-instance
+    /// mutable runtime state for this installed entity.
+    pub complex_hook: Option<fn(&mut CombatEngine, EffectOwner, &GameEvent, &mut EffectState)>,
     /// Optional status guard: if set, skip this entity unless the player
     /// has this status > 0. Used by powers so they only fire when installed.
     pub status_guard: Option<StatusId>,

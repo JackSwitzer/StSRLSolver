@@ -2,11 +2,16 @@
 //! Requires complex_hook because it sets multiple interacting statuses.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
-fn hook(engine: &mut CombatEngine, _ctx: &TriggerContext) {
+fn hook(
+    engine: &mut CombatEngine,
+    _owner: crate::effects::runtime::EffectOwner,
+    _event: &crate::effects::runtime::GameEvent,
+    _state: &mut crate::effects::runtime::EffectState,
+) {
     engine.state.player.set_status(sid::SNECKO_EYE, 1);
     engine.state.player.set_status(sid::CONFUSION, 1);
     engine.state.player.set_status(sid::BAG_OF_PREP_DRAW, 2);

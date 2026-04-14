@@ -4,8 +4,10 @@
 
 use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
-use crate::engine::CombatEngine;
+use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
+use crate::state::Stance;
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -255,7 +257,7 @@ pub static DEF_DEVA_FORM: EntityDef = EntityDef {
 // ===========================================================================
 
 static HELLO_WORLD_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
+    "Strike_R",
     Pile::Hand,
     AmountSource::StatusValue(sid::HELLO_WORLD),
 ))];
@@ -281,7 +283,7 @@ pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
 // ===========================================================================
 
 static MAGNETISM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
+    "Strike_R",
     Pile::Hand,
     AmountSource::Fixed(1),
 ))];
@@ -303,17 +305,41 @@ pub static DEF_MAGNETISM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Creative AI — TurnStart: add random Power card to hand (complex_hook)
+// Creative AI — TurnStartPostDraw: add random Power card to hand
+// Current MCTS approximation is preserved exactly by adding "Smite".
 // ===========================================================================
 
-fn hook_noop(_engine: &mut CombatEngine, _ctx: &TriggerContext) {}
+static EMPTY_EFFECTS: [Effect; 0] = [];
+
+static CREATIVE_AI_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_creative_ai(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let creative_ai = engine.state.player.status(sid::CREATIVE_AI);
+    for _ in 0..creative_ai {
+        if engine.state.hand.len() >= 10 {
+            break;
+        }
+        let smite_id = engine.temp_card("Smite");
+        engine.state.hand.push(smite_id);
+    }
+}
 
 pub static DEF_CREATIVE_AI: EntityDef = EntityDef {
     id: "creative_ai",
     name: "Creative AI",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &CREATIVE_AI_TRIGGERS,
+    complex_hook: Some(hook_creative_ai),
     status_guard: Some(sid::CREATIVE_AI),
 };
 
@@ -366,41 +392,117 @@ pub static DEF_DOPPELGANGER_ENERGY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Enter Divinity — TurnStart: enter Divinity stance (one-shot flag)
+// Enter Divinity — TurnStartPostDraw: enter Divinity stance (one-shot flag)
 // ===========================================================================
+
+static ENTER_DIVINITY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_enter_divinity(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if engine.state.player.status(sid::ENTER_DIVINITY) > 0 {
+        engine.state.player.set_status(sid::ENTER_DIVINITY, 0);
+        engine.change_stance(Stance::Divinity);
+    }
+}
 
 pub static DEF_ENTER_DIVINITY: EntityDef = EntityDef {
     id: "enter_divinity",
     name: "Enter Divinity",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &ENTER_DIVINITY_TRIGGERS,
+    complex_hook: Some(hook_enter_divinity),
     status_guard: Some(sid::ENTER_DIVINITY),
 };
 
 // ===========================================================================
-// Mayhem — TurnStart: play top card of draw pile for free (complex_hook)
+// Mayhem — TurnStartPostDraw: move top draw card(s) into hand
+// Preserve current engine behavior exactly, including the MCTS approximation
+// that adds the top card to hand instead of auto-playing it.
 // ===========================================================================
+
+static MAYHEM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_mayhem(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let mayhem = engine.state.player.status(sid::MAYHEM);
+    for _ in 0..mayhem {
+        if engine.state.hand.len() >= 10 {
+            break;
+        }
+        if let Some(card_id) = engine.state.draw_pile.pop() {
+            engine.state.hand.push(card_id);
+        }
+    }
+}
 
 pub static DEF_MAYHEM: EntityDef = EntityDef {
     id: "mayhem",
     name: "Mayhem",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &MAYHEM_TRIGGERS,
+    complex_hook: Some(hook_mayhem),
     status_guard: Some(sid::MAYHEM),
 };
 
 // ===========================================================================
-// Tools of the Trade — TurnStart: draw 1, then discard 1 (complex_hook)
+// Tools of the Trade — TurnStartPostDraw: draw N, then choose one discard
+// Preserve current engine behavior exactly: it draws `N` cards but still
+// opens a single-card discard choice rather than `N` discards.
 // ===========================================================================
+
+static TOOLS_OF_THE_TRADE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_tools_of_the_trade(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let tott = engine.state.player.status(sid::TOOLS_OF_THE_TRADE);
+    if tott <= 0 {
+        return;
+    }
+
+    engine.draw_cards(tott);
+    if engine.state.hand.is_empty() {
+        return;
+    }
+
+    let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
+        .map(ChoiceOption::HandCard)
+        .collect();
+    engine.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
+}
 
 pub static DEF_TOOLS_OF_THE_TRADE: EntityDef = EntityDef {
     id: "tools_of_the_trade",
     name: "Tools of the Trade",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &TOOLS_OF_THE_TRADE_TRIGGERS,
+    complex_hook: Some(hook_tools_of_the_trade),
     status_guard: Some(sid::TOOLS_OF_THE_TRADE),
 };
 
@@ -450,6 +552,12 @@ mod tests {
         for def in &defs {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(def.complex_hook.is_some());
+            assert_eq!(def.triggers.len(), 1);
+            assert_eq!(def.triggers[0].trigger, Trigger::TurnStartPostDraw);
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/test_power_runtime_turn_start.rs"]
+mod test_power_runtime_turn_start;

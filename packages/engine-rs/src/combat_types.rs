@@ -4,7 +4,7 @@
 use serde::{Serialize, Deserialize};
 
 // ---------------------------------------------------------------------------
-// CardInstance — 4 bytes per card, Copy
+// CardInstance — compact Copy-friendly state for deck/hand/discard entries.
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -13,6 +13,8 @@ pub struct CardInstance {
     pub def_id: u16,
     /// Cost for this turn. -1 = use base cost from CardDef.
     pub cost: i8,
+    /// Card-specific mutable numeric state. -1 = uninitialized / use def value.
+    pub misc: i16,
     /// Bit flags.
     pub flags: u8,
 }
@@ -26,10 +28,15 @@ impl CardInstance {
     pub const FLAG_PURGE: u8     = 0x20;
 
     pub fn new(def_id: u16) -> Self {
-        Self { def_id, cost: -1, flags: 0 }
+        Self { def_id, cost: -1, misc: -1, flags: 0 }
     }
     pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
     pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
+    pub fn with_misc(mut self, misc: i16) -> Self { self.misc = misc; self }
+    pub fn set_free(mut self, v: bool) -> Self {
+        if v { self.flags |= Self::FLAG_FREE } else { self.flags &= !Self::FLAG_FREE }
+        self
+    }
 
     pub fn is_retained(&self) -> bool { self.flags & Self::FLAG_RETAINED != 0 }
     pub fn is_ethereal(&self) -> bool { self.flags & Self::FLAG_ETHEREAL != 0 }
@@ -156,7 +163,7 @@ mod tests {
 
     #[test]
     fn card_instance_is_4_bytes() {
-        assert_eq!(std::mem::size_of::<CardInstance>(), 4);
+        assert_eq!(std::mem::size_of::<CardInstance>(), 6);
     }
 
     #[test]

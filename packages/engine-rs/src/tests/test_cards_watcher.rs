@@ -450,8 +450,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         like_water_java_parity,
-        base = ("LikeWater", "Like Water", 1, -1, -1, 5, CardType::Power, CardTarget::None, false, None, ["like_water"]),
-        plus = ("LikeWater+", "Like Water+", 1, -1, -1, 7, CardType::Power, CardTarget::None, false, None, ["like_water"]),
+        base = ("LikeWater", "Like Water", 1, -1, -1, 5, CardType::Power, CardTarget::None, false, None, []),
+        plus = ("LikeWater+", "Like Water+", 1, -1, -1, 7, CardType::Power, CardTarget::None, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "LikeWater");
@@ -566,8 +566,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         study_java_parity,
-        base = ("Study", "Study", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, ["study"]),
-        plus = ("Study+", "Study+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, ["study"]),
+        base = ("Study", "Study", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, []),
+        plus = ("Study+", "Study+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             engine.state.draw_pile = make_deck_n("Strike_P", 5);
@@ -763,8 +763,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         master_reality_java_parity,
-        base = ("MasterReality", "Master Reality", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, ["master_reality"]),
-        plus = ("MasterReality+", "Master Reality+", 0, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, ["master_reality"]),
+        base = ("MasterReality", "Master Reality", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
+        plus = ("MasterReality+", "Master Reality+", 0, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "MasterReality");
@@ -792,8 +792,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         mental_fortress_java_parity,
-        base = ("MentalFortress", "Mental Fortress", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, ["on_stance_change_block"]),
-        plus = ("MentalFortress+", "Mental Fortress+", 1, -1, -1, 6, CardType::Power, CardTarget::SelfTarget, false, None, ["on_stance_change_block"]),
+        base = ("MentalFortress", "Mental Fortress", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, []),
+        plus = ("MentalFortress+", "Mental Fortress+", 1, -1, -1, 6, CardType::Power, CardTarget::SelfTarget, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 100, 0);
             ensure_in_hand(&mut engine, "MentalFortress");

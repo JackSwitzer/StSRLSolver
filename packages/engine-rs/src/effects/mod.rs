@@ -1,11 +1,9 @@
-//! Modular card effect dispatch system.
+//! Card and entity effect runtime.
 //!
-//! Extends the `powers/registry.rs` pattern to all card effects. Each effect tag
-//! is a registry entry with optional fn pointers per hook type (can_play, modify_cost,
-//! modify_damage, on_play, on_retain, on_draw, on_discard, post_play_dest).
-//!
-//! The EffectFlags bitset provides O(1) tag checking in the MCTS hot path,
-//! replacing the previous O(n) string scan per `card.effects.contains(&"tag")`.
+//! Cards still use the fast static hook tables in this module, while relics,
+//! powers, and potions now install owner-aware runtime instances from
+//! `runtime.rs`. The legacy trigger scanner remains only as a parity oracle for
+//! internal tests while the engine emits typed events through the runtime.
 
 pub mod flags;
 pub mod types;
@@ -26,7 +24,7 @@ pub mod interpreter;
 pub mod fx;
 pub mod trigger;
 pub mod entity_def;
-pub mod dispatch;
+pub mod runtime;
 
 // Future hook files (Step 3):
 pub mod hooks_simple;
@@ -40,8 +38,6 @@ pub use flags::EffectFlags;
 pub use types::*;
 pub use registry::{
     build_effect_flags,
-    dispatch_can_play,
-    dispatch_modify_cost,
     dispatch_modify_damage,
     dispatch_on_play,
     dispatch_on_retain,

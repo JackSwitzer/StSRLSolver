@@ -9,11 +9,35 @@ use crate::cards::{CardTarget, CardType};
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::engine::{CombatEngine, ChoiceOption, ChoiceReason};
-use crate::powers;
 use crate::state::Stance;
 use crate::status_ids::sid;
 
 use super::types::CardPlayContext;
+
+fn hand_card_options(engine: &CombatEngine) -> Vec<ChoiceOption> {
+    (0..engine.state.hand.len())
+        .map(ChoiceOption::HandCard)
+        .collect()
+}
+
+fn discard_card_options(engine: &CombatEngine) -> Vec<ChoiceOption> {
+    (0..engine.state.discard_pile.len())
+        .map(ChoiceOption::DiscardCard)
+        .collect()
+}
+
+fn draw_card_options(engine: &CombatEngine) -> Vec<ChoiceOption> {
+    (0..engine.state.draw_pile.len())
+        .map(ChoiceOption::DrawCard)
+        .collect()
+}
+
+fn exhaust_pile_cards(engine: &mut CombatEngine, cards: Vec<CardInstance>) {
+    for card in cards {
+        engine.state.exhaust_pile.push(card);
+        engine.trigger_on_exhaust();
+    }
+}
 
 // =========================================================================
 // Stance-branching effects
@@ -43,11 +67,7 @@ pub fn hook_indignation(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         let vuln_amount = ctx.card.base_magic.max(1);
         let living = engine.state.living_enemy_indices();
         for idx in living {
-            powers::apply_debuff(
-                &mut engine.state.enemies[idx].entity,
-                sid::VULNERABLE,
-                vuln_amount,
-            );
+            engine.apply_player_debuff_to_enemy(idx, sid::VULNERABLE, vuln_amount);
         }
     } else {
         engine.change_stance(Stance::Wrath);
@@ -209,14 +229,12 @@ pub fn hook_wish(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 pub fn hook_seek(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let count = ctx.card.base_magic.max(1) as usize;
     if !engine.state.draw_pile.is_empty() {
-        let options: Vec<ChoiceOption> = (0..engine.state.draw_pile.len())
-            .map(|i| ChoiceOption::DrawCard(i))
-            .collect();
+        let options = draw_card_options(engine);
         engine.begin_choice(
             ChoiceReason::PickFromDrawPile,
             options,
             1,
-            count,
+            count.min(engine.state.draw_pile.len()),
         );
     }
 }
@@ -224,9 +242,7 @@ pub fn hook_seek(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 /// Discard: force player to discard 1 card from hand.
 pub fn hook_discard(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     if !engine.state.hand.is_empty() {
-        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
-            .map(|i| ChoiceOption::HandCard(i))
-            .collect();
+        let options = hand_card_options(engine);
         engine.begin_choice(
             ChoiceReason::DiscardFromHand,
             options,
@@ -239,9 +255,7 @@ pub fn hook_discard(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 /// Headbutt: player picks a card from discard to put on top of draw pile.
 pub fn hook_discard_to_top_of_draw(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     if !engine.state.discard_pile.is_empty() {
-        let options: Vec<ChoiceOption> = (0..engine.state.discard_pile.len())
-            .map(|i| ChoiceOption::DiscardCard(i))
-            .collect();
+        let options = discard_card_options(engine);
         engine.begin_choice(
             ChoiceReason::PickFromDiscard,
             options,
@@ -269,9 +283,7 @@ pub fn hook_put_card_on_top(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 /// True Grit: player chooses 1 card from hand to exhaust.
 pub fn hook_exhaust_choose(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     if !engine.state.hand.is_empty() {
-        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
-            .map(|i| ChoiceOption::HandCard(i))
-            .collect();
+        let options = hand_card_options(engine);
         engine.begin_choice(
             ChoiceReason::ExhaustFromHand,
             options,
@@ -313,13 +325,24 @@ pub fn hook_exhume(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 /// Dual Wield: copy a card from hand (choice).
 pub fn hook_dual_wield(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let copies = ctx.card.base_magic.max(1) as usize;
-    if !engine.state.hand.is_empty() && engine.state.hand.len() + copies <= 10 {
-        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
-            .map(|i| ChoiceOption::HandCard(i))
-            .collect();
-        engine.begin_choice(
+    let options: Vec<ChoiceOption> = engine
+        .state
+        .hand
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| {
+            matches!(
+                engine.card_registry.card_def_by_id(card.def_id).card_type,
+                CardType::Attack | CardType::Power
+            )
+        })
+        .map(|(i, _)| ChoiceOption::HandCard(i))
+        .collect();
+    if !options.is_empty() {
+        engine.begin_choice_with_aux(
             ChoiceReason::DualWield,
             options,
+            1,
             1,
             copies,
         );
@@ -352,18 +375,6 @@ pub fn hook_search_attack(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
         .enumerate()
         .filter(|(_, c)| {
             engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Attack
-        })
-        .map(|(i, _)| ChoiceOption::DrawCard(i))
-        .collect();
-    engine.begin_choice(ChoiceReason::SearchDrawPile, options, 1, 1);
-}
-
-/// Secret Technique: search draw pile for a Skill card to add to hand.
-pub fn hook_search_skill(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    let options: Vec<_> = engine.state.draw_pile.iter()
-        .enumerate()
-        .filter(|(_, c)| {
-            engine.card_registry.card_def_by_id(c.def_id).card_type == CardType::Skill
         })
         .map(|(i, _)| ChoiceOption::DrawCard(i))
         .collect();
@@ -416,17 +427,6 @@ pub fn hook_discard_gain_energy(engine: &mut CombatEngine, ctx: &CardPlayContext
         .collect();
     let actual_picks = discard_count.min(options.len());
     engine.begin_choice(ChoiceReason::DiscardForEffect, options, actual_picks, actual_picks);
-}
-
-/// Purity: exhaust N from hand.
-pub fn hook_exhaust_from_hand(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let exhaust_count = ctx.card.base_magic.max(1) as usize;
-    let options: Vec<_> = engine.state.hand.iter()
-        .enumerate()
-        .map(|(i, _)| ChoiceOption::HandCard(i))
-        .collect();
-    let actual_picks = exhaust_count.min(options.len());
-    engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 0, actual_picks);
 }
 
 /// Setup: pick card from hand, set cost 0, put on top of draw.
@@ -526,9 +526,10 @@ pub fn hook_spot_weakness(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 /// Fiend Fire: exhaust all hand cards, deal damage per card exhausted.
 pub fn hook_fiend_fire(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let hand_count = engine.state.hand.len() as i32;
+    let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
     // Exhaust all cards from hand
     let exhausted_cards: Vec<CardInstance> = engine.state.hand.drain(..).collect();
-    engine.state.exhaust_pile.extend(exhausted_cards);
+    exhaust_pile_cards(engine, exhausted_cards);
     // Deal base_damage per card exhausted to the target
     if hand_count > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
@@ -540,7 +541,7 @@ pub fn hook_fiend_fire(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
         let vuln_paper_frog = engine.state.has_relic("Paper Frog");
         let dmg = damage::calculate_damage_full(
-            ctx.card.base_damage,
+            base_damage,
             player_strength,
             ctx.vigor,
             player_weak,
@@ -557,7 +558,7 @@ pub fn hook_fiend_fire(engine: &mut CombatEngine, ctx: &CardPlayContext) {
             if engine.state.enemies[tidx].entity.is_dead() {
                 break;
             }
-            engine.deal_damage_to_enemy(tidx, dmg);
+            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
         }
     }
 }
@@ -578,7 +579,7 @@ pub fn hook_second_wind(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         }
     }
     let exhaust_count = to_exhaust.len() as i32;
-    engine.state.exhaust_pile.extend(to_exhaust);
+    exhaust_pile_cards(engine, to_exhaust);
     engine.state.hand = remaining;
     if exhaust_count > 0 {
         let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
@@ -664,20 +665,26 @@ pub fn hook_upgrade_all_cards(engine: &mut CombatEngine, _ctx: &CardPlayContext)
 /// Violence: draw attacks from draw pile.
 pub fn hook_draw_attacks_from_draw(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let count = ctx.card.base_magic.max(1) as usize;
-    let mut drawn = 0;
-    // Find attacks in draw pile and move to hand
-    let mut i = engine.state.draw_pile.len();
-    while i > 0 && drawn < count {
-        i -= 1;
-        let is_attack = {
-            let def = engine.card_registry.card_def_by_id(engine.state.draw_pile[i].def_id);
-            def.card_type == CardType::Attack
-        };
-        if is_attack && engine.state.hand.len() < 10 {
-            let c = engine.state.draw_pile.remove(i);
-            engine.state.hand.push(c);
-            drawn += 1;
+    for _ in 0..count {
+        if engine.state.hand.len() >= 10 {
+            break;
         }
+        let eligible: Vec<usize> = engine
+            .state
+            .draw_pile
+            .iter()
+            .enumerate()
+            .filter(|(_, card)| {
+                engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
+            })
+            .map(|(i, _)| i)
+            .collect();
+        if eligible.is_empty() {
+            break;
+        }
+        let draw_idx = eligible[engine.rng_gen_range(0..eligible.len())];
+        let card = engine.state.draw_pile.remove(draw_idx);
+        engine.state.hand.push(card);
     }
 }
 
@@ -712,6 +719,7 @@ pub fn hook_damage_per_enemy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let living_count = engine.state.living_enemy_indices().len() as i32;
     if living_count > 1 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
+        let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
         let player_strength = engine.state.player.strength();
         let player_weak = engine.state.player.is_weak();
         let weak_pc = engine.state.has_relic("Paper Crane");
@@ -722,7 +730,7 @@ pub fn hook_damage_per_enemy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         let has_flight = engine.state.enemies[tidx].entity.status(sid::FLIGHT) > 0;
         // Vigor and Pen Nib already consumed on first hit -- don't apply again
         let dmg = damage::calculate_damage_full(
-            ctx.card.base_damage,
+            base_damage,
             player_strength,
             0, // vigor already applied on first hit
             player_weak,
@@ -739,7 +747,7 @@ pub fn hook_damage_per_enemy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
             if engine.state.enemies[tidx].entity.is_dead() {
                 break;
             }
-            engine.deal_damage_to_enemy(tidx, dmg);
+            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
         }
     }
 }
@@ -749,6 +757,7 @@ pub fn hook_double_if_poisoned(engine: &mut CombatEngine, ctx: &CardPlayContext)
     if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
         if engine.state.enemies[tidx].entity.status(sid::POISON) > 0 {
+            let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
             // Deal base damage again (already dealt once in main damage section)
             let player_strength = engine.state.player.strength();
             let player_weak = engine.state.player.is_weak();
@@ -756,10 +765,10 @@ pub fn hook_double_if_poisoned(engine: &mut CombatEngine, ctx: &CardPlayContext)
             let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
             let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
             let dmg = damage::calculate_damage(
-                ctx.card.base_damage, player_strength + ctx.vigor, player_weak,
+                base_damage, player_strength + ctx.vigor, player_weak,
                 stance_mult, enemy_vuln, enemy_intangible,
             );
-            engine.deal_damage_to_enemy(tidx, dmg);
+            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
         }
     }
 }
@@ -769,19 +778,20 @@ pub fn hook_finisher(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let attacks = engine.state.attacks_played_this_turn;
     if attacks > 1 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
+        let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
         let player_strength = engine.state.player.strength();
         let player_weak = engine.state.player.is_weak();
         let stance_mult = engine.state.stance.outgoing_mult();
         let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
         let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
         let dmg = damage::calculate_damage(
-            ctx.card.base_damage, player_strength + ctx.vigor, player_weak,
+            base_damage, player_strength + ctx.vigor, player_weak,
             stance_mult, enemy_vuln, enemy_intangible,
         );
         // Already dealt 1 hit in main damage; deal (attacks - 1) more
         for _ in 0..(attacks - 1) {
             if engine.state.enemies[tidx].entity.is_dead() { break; }
-            engine.deal_damage_to_enemy(tidx, dmg);
+            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
         }
     }
 }
@@ -793,18 +803,19 @@ pub fn hook_flechettes(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         .count() as i32;
     if skill_count > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
+        let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
         let player_strength = engine.state.player.strength();
         let player_weak = engine.state.player.is_weak();
         let stance_mult = engine.state.stance.outgoing_mult();
         let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
         let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
         let dmg = damage::calculate_damage(
-            ctx.card.base_damage, player_strength + ctx.vigor, player_weak,
+            base_damage, player_strength + ctx.vigor, player_weak,
             stance_mult, enemy_vuln, enemy_intangible,
         );
         for _ in 0..skill_count {
             if engine.state.enemies[tidx].entity.is_dead() { break; }
-            engine.deal_damage_to_enemy(tidx, dmg);
+            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
         }
     }
 }
@@ -817,6 +828,7 @@ pub fn hook_flechettes(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 /// The generic damage loop is skipped (damage_random_x_times sets skip_generic_damage).
 pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let hits = ctx.card.base_magic.max(1);
+    let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
     let player_strength = engine.state.player.strength();
     let player_weak = engine.state.player.is_weak();
     let weak_pc = engine.state.has_relic("Paper Crane");
@@ -835,7 +847,7 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
         let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
         let vuln_pf = engine.state.has_relic("Paper Frog");
         let dmg = damage::calculate_damage_full(
-            ctx.card.base_damage,
+            base_damage,
             player_strength,
             if i == 0 { ctx.vigor } else { 0 },
             player_weak,
@@ -848,7 +860,7 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
             false, // flight
             enemy_intangible,
         );
-        engine.deal_damage_to_enemy(idx, dmg);
+        engine.deal_player_attack_hit_to_enemy(idx, dmg);
     }
 }
 
@@ -906,7 +918,7 @@ pub fn hook_malaise(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let amount = ctx.x_value + ctx.card.base_magic.max(0);
     if amount > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
         let tidx = ctx.target_idx as usize;
-        crate::powers::apply_debuff(&mut engine.state.enemies[tidx].entity, sid::WEAKENED, amount);
+        engine.apply_player_debuff_to_enemy(tidx, sid::WEAKENED, amount);
         engine.state.enemies[tidx].entity.add_status(sid::STRENGTH, -amount);
     }
 }
@@ -949,7 +961,7 @@ pub fn hook_blizzard(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     if total_damage > 0 {
         let living = engine.state.living_enemy_indices();
         for idx in living {
-            engine.deal_damage_to_enemy(idx, total_damage);
+            engine.deal_player_attack_hit_to_enemy(idx, total_damage);
         }
     }
 }
@@ -962,6 +974,7 @@ pub fn hook_blizzard(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 pub fn hook_thunder_strike(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let lightning_count = engine.state.player.status(sid::LIGHTNING_CHANNELED);
     if lightning_count <= 0 { return; }
+    let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
     let player_strength = engine.state.player.strength();
     let player_weak = engine.state.player.is_weak();
     let stance_mult = engine.state.stance.outgoing_mult();
@@ -972,10 +985,10 @@ pub fn hook_thunder_strike(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         let enemy_vuln = engine.state.enemies[idx].entity.is_vulnerable();
         let enemy_intangible = engine.state.enemies[idx].entity.status(sid::INTANGIBLE) > 0;
         let dmg = damage::calculate_damage(
-            ctx.card.base_damage, player_strength, player_weak,
+            base_damage, player_strength, player_weak,
             stance_mult, enemy_vuln, enemy_intangible,
         );
-        engine.deal_damage_to_enemy(idx, dmg);
+        engine.deal_player_attack_hit_to_enemy(idx, dmg);
     }
 }
 
@@ -1065,7 +1078,7 @@ pub fn hook_mind_blast(engine: &mut CombatEngine, ctx: &CardPlayContext) {
             draw_pile_size, player_strength, player_weak,
             stance_mult, enemy_vuln, enemy_intangible,
         );
-        engine.deal_damage_to_enemy(tidx, dmg);
+        engine.deal_player_attack_hit_to_enemy(tidx, dmg);
     }
 }
 
@@ -1136,9 +1149,7 @@ pub fn hook_burning_pact(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let draw_count = ctx.card.base_magic.max(1);
     if !engine.state.hand.is_empty() {
         engine.state.player.set_status(sid::PENDING_DRAW, draw_count);
-        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
-            .map(|i| ChoiceOption::HandCard(i))
-            .collect();
+        let options = hand_card_options(engine);
         engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 1, 1);
     }
 }
@@ -1169,8 +1180,13 @@ pub fn hook_calculated_gamble(engine: &mut CombatEngine, _ctx: &CardPlayContext)
         engine.state.discard_pile.push(card);
         engine.on_card_discarded(card);
     }
-    if hand_count > 0 {
-        engine.draw_cards(hand_count);
+    let draw_count = if _ctx.card.id.ends_with('+') {
+        hand_count + 1
+    } else {
+        hand_count
+    };
+    if draw_count > 0 {
+        engine.draw_cards(draw_count);
     }
 }
 
@@ -1199,11 +1215,7 @@ pub fn hook_bouncing_flask(engine: &mut CombatEngine, ctx: &CardPlayContext) {
         let living = engine.state.living_enemy_indices();
         if living.is_empty() { break; }
         let idx = living[engine.rng_gen_range(0..living.len())];
-        powers::apply_debuff(
-            &mut engine.state.enemies[idx].entity,
-            sid::POISON,
-            poison_per_bounce,
-        );
+        engine.apply_player_debuff_to_enemy(idx, sid::POISON, poison_per_bounce);
     }
 }
 
@@ -1234,14 +1246,11 @@ pub fn hook_storm_of_steel(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Nightmare: choose a card in hand, add base_magic copies to hand.
 /// MCTS simplification: adds copies immediately (real game adds next turn).
-/// Uses DualWield choice reason -- max_picks encodes the copy count.
 pub fn hook_nightmare(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let copies = ctx.card.base_magic.max(1) as usize;
-    if !engine.state.hand.is_empty() && engine.state.hand.len() + copies <= 10 {
-        let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
-            .map(|i| ChoiceOption::HandCard(i))
-            .collect();
-        engine.begin_choice(ChoiceReason::DualWield, options, 1, copies);
+    if !engine.state.hand.is_empty() {
+        let options = hand_card_options(engine);
+        engine.begin_choice_with_aux(ChoiceReason::DualWield, options, 1, 1, copies);
     }
 }
 
@@ -1262,22 +1271,90 @@ pub fn hook_distraction(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 // Defect: Streamline — reduce cost of all copies by 1 each play
 // =========================================================================
 
-/// Streamline: after playing, reduce the instance cost of all other
-/// Streamline/Streamline+ copies in hand, draw, and discard by 1 (min 0).
-pub fn hook_streamline(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    // Determine the effective cost: if instance cost is set (>= 0), use it; else use CardDef cost.
-    // After reduction, the new cost is current_effective - 1, min 0.
-    let reduce_all_copies = |pile: &mut Vec<CardInstance>, registry: &crate::cards::CardRegistry| {
-        for c in pile.iter_mut() {
-            let name = registry.card_name(c.def_id);
-            if name == "Streamline" || name == "Streamline+" {
-                let def = registry.card_def_by_id(c.def_id);
-                let current: i32 = if c.cost >= 0 { c.cost as i32 } else { def.cost };
-                c.cost = (current - 1).max(0) as i8;
-            }
-        }
+fn with_runtime_played_card_mut<F>(engine: &mut CombatEngine, f: F)
+where
+    F: FnOnce(&mut CardInstance),
+{
+    if let Some(mut card) = engine.runtime_played_card {
+        f(&mut card);
+        engine.runtime_played_card = Some(card);
+    }
+}
+
+/// Streamline: after playing, reduce the instance cost of the played copy by 1.
+///
+/// Java targets the played card by UUID. We model that with the current played
+/// instance state that gets written back after the effect pipeline resolves.
+pub fn hook_streamline(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let current_cost = if ctx.card_inst.cost >= 0 {
+        ctx.card_inst.cost as i32
+    } else {
+        ctx.card.cost
     };
-    reduce_all_copies(&mut engine.state.hand, &engine.card_registry);
-    reduce_all_copies(&mut engine.state.draw_pile, &engine.card_registry);
-    reduce_all_copies(&mut engine.state.discard_pile, &engine.card_registry);
+    with_runtime_played_card_mut(engine, |card| {
+        card.cost = (current_cost - 1).max(0) as i8;
+    });
+}
+
+/// Steam Barrier: reduce the played instance's current block by 1.
+pub fn hook_steam_barrier(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let current_block = if ctx.card_inst.misc >= 0 {
+        ctx.card_inst.misc as i32
+    } else {
+        ctx.card.base_block
+    };
+    with_runtime_played_card_mut(engine, |card| {
+        card.misc = (current_block - 1).max(0) as i16;
+    });
+}
+
+/// Genetic Algorithm: increase the played instance's current block by misc.
+pub fn hook_genetic_algorithm(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let current_block = if ctx.card_inst.misc >= 0 {
+        ctx.card_inst.misc as i32
+    } else {
+        ctx.card.base_block
+    };
+    with_runtime_played_card_mut(engine, |card| {
+        card.misc = (current_block + ctx.card.base_magic.max(1)) as i16;
+    });
+}
+
+/// Rampage: increase the played instance's current damage by misc.
+pub fn hook_rampage(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let current_damage = if ctx.card_inst.misc >= 0 {
+        ctx.card_inst.misc as i32
+    } else {
+        ctx.card.base_damage
+    };
+    with_runtime_played_card_mut(engine, |card| {
+        card.misc = (current_damage + ctx.card.base_magic.max(1)) as i16;
+    });
+}
+
+/// Glass Knife: reduce the played instance's current damage by 2.
+pub fn hook_glass_knife(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    let current_damage = if ctx.card_inst.misc >= 0 {
+        ctx.card_inst.misc as i32
+    } else {
+        ctx.card.base_damage
+    };
+    with_runtime_played_card_mut(engine, |card| {
+        card.misc = (current_damage - 2).max(0) as i16;
+    });
+}
+
+/// Ritual Dagger: if the kill condition fired, increase the played instance's current damage.
+pub fn hook_ritual_dagger(engine: &mut CombatEngine, ctx: &CardPlayContext) {
+    if !ctx.enemy_killed {
+        return;
+    }
+    let current_damage = if ctx.card_inst.misc >= 0 {
+        ctx.card_inst.misc as i32
+    } else {
+        ctx.card.base_damage
+    };
+    with_runtime_played_card_mut(engine, |card| {
+        card.misc = (current_damage + ctx.card.base_magic.max(1)) as i16;
+    });
 }

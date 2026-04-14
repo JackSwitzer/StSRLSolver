@@ -8,7 +8,7 @@ mod ironclad_card_java_parity_tests {
     use crate::tests::support::{
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
         make_deck, make_deck_n, play_card, play_on_enemy, play_self, TEST_SEED, enemy,
-        discard_prefix_count, exhaust_prefix_count, hand_count,
+        discard_prefix_count, exhaust_prefix_count,
     };
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
     use crate::engine::CombatEngine;
@@ -39,44 +39,6 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(c.card_type, card_type, "{id} type");
         assert_eq!(c.target, target, "{id} target");
         assert_eq!(c.exhaust, exhaust, "{id} exhaust");
-    }
-
-    fn assert_card_pair(
-        base_id: &str,
-        up_id: &str,
-        base_cost: i32,
-        base_damage: i32,
-        base_block: i32,
-        base_magic: i32,
-        up_cost: i32,
-        up_damage: i32,
-        up_block: i32,
-        up_magic: i32,
-        card_type: CardType,
-        target: CardTarget,
-        base_exhaust: bool,
-        up_exhaust: bool,
-    ) {
-        assert_card(
-            base_id,
-            base_cost,
-            base_damage,
-            base_block,
-            base_magic,
-            card_type,
-            target,
-            base_exhaust,
-        );
-        assert_card(
-            up_id,
-            up_cost,
-            up_damage,
-            up_block,
-            up_magic,
-            card_type,
-            target,
-            up_exhaust,
-        );
     }
 
     macro_rules! card_pair_test {
@@ -251,7 +213,7 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn clash_requires_only_attacks() {
-        let mut e = engine_for(
+        let e = engine_for(
             &["Clash", "Defend_P"],
             &[],
             &[],

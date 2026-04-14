@@ -1,13 +1,9 @@
-//! Power/status effect system for Slay the Spire.
+//! Power/status support for the owner-aware combat runtime.
 //!
-//! Design:
-//! - Powers stored as status IDs + amounts on `EntityState.statuses`
-//! - `PowerRegistryEntry` in `registry.rs` is the single source of truth
-//! - Registry dispatch functions fire hooks at the appropriate trigger points
-//! - Inline helpers in `buffs.rs`, `debuffs.rs`, `enemy_powers.rs` handle
-//!   powers that need engine context or don't fit the registry pattern
-
-use crate::state::EntityState;
+//! Visible power stacks still live on `EntityState.statuses`, while
+//! `defs/` and `effects::runtime` now own production trigger dispatch.
+//! `registry.rs` now only exposes the small production helper surface that
+//! remains relevant to the runtime.
 
 // ---------------------------------------------------------------------------
 // PowerType — buff vs debuff
@@ -19,8 +15,7 @@ pub enum PowerType {
     Debuff,
 }
 
-pub mod hooks;
-pub mod registry;
+pub(crate) mod registry;
 pub mod defs;
 mod buffs;
 pub(crate) mod debuffs;
@@ -51,13 +46,7 @@ pub use buffs::get_battle_hymn_amount;
 pub use buffs::get_devotion_amount;
 pub use buffs::get_infinite_blades;
 pub use buffs::get_after_image_block;
-pub use buffs::get_thousand_cuts_damage;
 pub use buffs::get_rage_block;
-pub use buffs::check_panache;
-pub use buffs::consume_double_tap;
-pub use buffs::consume_burst;
-pub use buffs::get_heatsink_draw;
-pub use buffs::should_storm_channel;
 pub use buffs::check_forcefield;
 pub use buffs::get_skill_burn_damage;
 pub use buffs::get_thorns_damage;

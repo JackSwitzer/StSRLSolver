@@ -1,19 +1,27 @@
 use super::prelude::*;
 use crate::engine::CombatEngine;
-use crate::effects::trigger::TriggerContext;
 
-/// Ambrosia: Enter Divinity stance.
-/// complex_hook because stance changes have side-effects (Calm exit energy,
-/// Divinity +3 energy, relic triggers).
-fn ambrosia_hook(_engine: &mut CombatEngine, _ctx: &TriggerContext) {
-    // Stub: actual logic enters Divinity stance with full side-effects
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::ManualActivation,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+fn ambrosia_hook(
+    engine: &mut CombatEngine,
+    _owner: crate::effects::runtime::EffectOwner,
+    _event: &crate::effects::runtime::GameEvent,
+    _state: &mut crate::effects::runtime::EffectState,
+) {
+    crate::potions::apply_ambrosia_effect(&mut engine.state);
 }
 
 pub static DEF: EntityDef = EntityDef {
     id: "Ambrosia",
     name: "Ambrosia",
     kind: EntityKind::Potion,
-    triggers: &[],
+    triggers: &TRIGGERS,
     complex_hook: Some(ambrosia_hook),
     status_guard: None,
 };

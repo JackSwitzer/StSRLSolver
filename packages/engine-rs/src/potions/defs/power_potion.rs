@@ -1,18 +1,35 @@
 use super::prelude::*;
 use crate::engine::CombatEngine;
-use crate::effects::trigger::TriggerContext;
+use crate::effects::declarative::{GeneratedCardPool, GeneratedCostRule, GeneratedUpgradeRule};
 
-/// Power Potion: Add random Power card to hand (cost 0 this turn).
-/// complex_hook because it requires RNG to pick a random power.
-fn power_potion_hook(_engine: &mut CombatEngine, _ctx: &TriggerContext) {
-    // Stub: actual logic picks random power from class pool, adds at cost 0
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::ManualActivation,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+fn power_potion_hook(
+    engine: &mut CombatEngine,
+    _owner: crate::effects::runtime::EffectOwner,
+    _event: &crate::effects::runtime::GameEvent,
+    _state: &mut crate::effects::runtime::EffectState,
+) {
+    crate::effects::interpreter::open_generated_discovery_choice_scaled(
+        engine,
+        GeneratedCardPool::Power,
+        3,
+        GeneratedCostRule::ZeroThisTurn,
+        crate::potions::effective_potency_runtime(&engine.state, "PowerPotion") as usize,
+        GeneratedUpgradeRule::Base,
+    );
 }
 
 pub static DEF: EntityDef = EntityDef {
     id: "PowerPotion",
     name: "Power Potion",
     kind: EntityKind::Potion,
-    triggers: &[],
+    triggers: &TRIGGERS,
     complex_hook: Some(power_potion_hook),
     status_guard: None,
 };

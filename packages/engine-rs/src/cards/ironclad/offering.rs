@@ -23,3 +23,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 ], complex_hook: None,
             });
 }
+
+#[cfg(test)]
+#[path = "../../tests/test_card_runtime_ironclad_wave7.rs"]
+mod test_card_runtime_ironclad_wave7;

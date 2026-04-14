@@ -14,6 +14,77 @@ pub mod act2;
 pub mod act3;
 pub mod act4;
 
+/// Enemy ids currently reachable through the Rust run/combat engine.
+///
+/// This list is intentionally scoped to the current encounter catalog rather
+/// than the full game database, and provides a stable adapter surface for the
+/// universal gameplay registry during the migration.
+pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("Cultist", "Cultist"),
+        ("JawWorm", "Jaw Worm"),
+        ("FuzzyLouseNormal", "Red Louse"),
+        ("FuzzyLouseDefensive", "Green Louse"),
+        ("AcidSlime_S", "Acid Slime (S)"),
+        ("SpikeSlime_M", "Spike Slime (M)"),
+        ("BlueSlaver", "Blue Slaver"),
+        ("RedSlaver", "Red Slaver"),
+        ("FungiBeast", "Fungi Beast"),
+        ("AcidSlime_L", "Acid Slime (L)"),
+        ("SpikeSlime_L", "Spike Slime (L)"),
+        ("AcidSlime_M", "Acid Slime (M)"),
+        ("GremlinNob", "Gremlin Nob"),
+        ("Lagavulin", "Lagavulin"),
+        ("Sentry", "Sentry"),
+        ("TheGuardian", "The Guardian"),
+        ("Hexaghost", "Hexaghost"),
+        ("SlimeBoss", "Slime Boss"),
+        ("Byrd", "Byrd"),
+        ("Chosen", "Chosen"),
+        ("ShelledParasite", "Shelled Parasite"),
+        ("SnakePlant", "Snake Plant"),
+        ("Centurion", "Centurion"),
+        ("Mystic", "Mystic"),
+        ("GremlinLeader", "Gremlin Leader"),
+        ("BookOfStabbing", "Book of Stabbing"),
+        ("TaskMaster", "Taskmaster"),
+        ("Darkling", "Darkling"),
+        ("OrbWalker", "Orb Walker"),
+        ("Repulsor", "Repulsor"),
+        ("WrithingMass", "Writhing Mass"),
+        ("GiantHead", "Giant Head"),
+        ("Nemesis", "Nemesis"),
+        ("Reptomancer", "Reptomancer"),
+        ("Transient", "Transient"),
+        ("Maw", "Maw"),
+        ("SpireGrowth", "Spire Growth"),
+        ("SpireShield", "Spire Shield"),
+        ("SpireSpear", "Spire Spear"),
+    ]
+}
+
+pub fn gameplay_def(enemy_id: &str) -> Option<&'static crate::gameplay::GameplayDef> {
+    crate::gameplay::global_registry().enemy(enemy_id)
+}
+
+pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
+    known_enemy_ids()
+        .iter()
+        .map(|(id, name)| crate::gameplay::GameplayDef {
+            domain: crate::gameplay::GameplayDomain::Enemy,
+            id: (*id).to_string(),
+            name: (*name).to_string(),
+            tags: vec!["enemy".to_string()],
+            schema: crate::gameplay::GameplaySchema::Enemy(crate::gameplay::EnemySchema {
+                move_source: "enemies::roll_next_move".to_string(),
+            }),
+            handlers: Vec::new(),
+            state_fields: Vec::new(),
+            has_complex_hook: false,
+        })
+        .collect()
+}
+
 pub mod move_ids {
     // =====================================================================
     // Act 1 — Exordium
@@ -1568,5 +1639,13 @@ mod tests {
                 roll_next_move(&mut enemy);
             }
         }
+    }
+
+    #[test]
+    fn gameplay_lookup_uses_canonical_registry() {
+        let def = super::gameplay_def("JawWorm").expect("enemy gameplay def");
+        assert_eq!(def.domain, crate::gameplay::GameplayDomain::Enemy);
+        assert_eq!(def.id, "JawWorm");
+        assert!(def.enemy_schema().is_some());
     }
 }

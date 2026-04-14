@@ -14,7 +14,7 @@ use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::effects;
-use crate::enemies;
+use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
@@ -32,6 +32,10 @@ pub enum CombatPhase {
     AwaitingChoice,
     CombatOver,
 }
+
+#[cfg(test)]
+#[path = "tests/test_runtime_inline_cutover_wave5.rs"]
+mod test_runtime_inline_cutover_wave5;
 
 /// Why we're awaiting a player choice.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +81,10 @@ pub struct ChoiceContext {
     pub selected: Vec<usize>,
     pub min_picks: usize,
     pub max_picks: usize,
+    /// Extra effect-specific count that should not change choice cardinality.
+    /// Used for cases like Dual Wield/Nightmare where the player picks one card
+    /// and the engine later duplicates it N times.
+    pub aux_count: usize,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -87,18 +95,73 @@ pub struct CombatEngine {
     pub card_registry: &'static CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
     pub choice: Option<ChoiceContext>,
+    pub effect_runtime: crate::effects::runtime::EffectRuntime,
+    pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
+    pub runtime_played_card: Option<CardInstance>,
+    pub runtime_replay_window: bool,
+    pub runtime_card_total_unblocked_damage: i32,
+    pub runtime_card_enemy_killed: bool,
 }
 
 impl CombatEngine {
     /// Create a new combat engine.
     pub fn new(state: CombatState, seed: u64) -> Self {
+        let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
+        effect_runtime.rebuild_from_state(&state);
         Self {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
             choice: None,
+            effect_runtime,
+            event_log: Vec::new(),
+            runtime_played_card: None,
+            runtime_replay_window: false,
+            runtime_card_total_unblocked_damage: 0,
+            runtime_card_enemy_killed: false,
         }
+    }
+
+    pub fn rebuild_effect_runtime(&mut self) {
+        self.effect_runtime.rebuild_from_state(&self.state);
+    }
+
+    pub fn load_persisted_effects(
+        &mut self,
+        states: Vec<crate::effects::runtime::PersistedEffectState>,
+    ) {
+        self.effect_runtime.load_persisted_states(states);
+        self.rebuild_effect_runtime();
+    }
+
+    pub fn export_persisted_effects(
+        &self,
+    ) -> Vec<crate::effects::runtime::PersistedEffectState> {
+        self.effect_runtime.export_persisted_states()
+    }
+
+    pub fn emit_event(&mut self, event: crate::effects::runtime::GameEvent) {
+        let mut runtime = std::mem::take(&mut self.effect_runtime);
+        let mut event = event;
+        if event.card_inst.is_none() {
+            event.card_inst = self.runtime_played_card;
+        }
+        event.replay_window = self.runtime_replay_window;
+        runtime.emit(self, event);
+        self.effect_runtime = runtime;
+    }
+
+    pub fn take_event_log(&mut self) -> Vec<crate::effects::runtime::GameEventRecord> {
+        std::mem::take(&mut self.event_log)
+    }
+
+    pub fn clear_event_log(&mut self) {
+        self.event_log.clear();
+    }
+
+    pub fn hidden_effect_value(&self, def_id: &str, owner: crate::effects::runtime::EffectOwner, slot: usize) -> i32 {
+        self.effect_runtime.hidden_value(def_id, owner, slot)
     }
 
     // =======================================================================
@@ -111,11 +174,12 @@ impl CombatEngine {
             return;
         }
 
-        // Apply combat-start relic + power effects via unified dispatch
-        {
-            let ctx = crate::effects::trigger::TriggerContext::empty();
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatStart, &ctx);
-        }
+        self.rebuild_effect_runtime();
+
+        // Apply combat-start relic + power effects via owner-aware runtime.
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::CombatStart,
+        ));
 
         // Channel orbs from combat-start relics (need engine context)
         if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
@@ -238,6 +302,10 @@ impl CombatEngine {
 
     /// Execute an action.
     pub fn execute_action(&mut self, action: &Action) {
+        // Refresh the owner-aware dispatch table once per player action so
+        // externally mutated state (tests, setup code, future run effects)
+        // is visible before any triggered behavior fires.
+        self.rebuild_effect_runtime();
         match action {
             Action::EndTurn => self.end_turn(),
             Action::PlayCard {
@@ -261,6 +329,12 @@ impl CombatEngine {
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
             choice: self.choice.clone(),
+            effect_runtime: self.effect_runtime.clone(),
+            event_log: self.event_log.clone(),
+            runtime_played_card: self.runtime_played_card,
+            runtime_replay_window: self.runtime_replay_window,
+            runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
+            runtime_card_enemy_killed: self.runtime_card_enemy_killed,
         }
     }
 
@@ -276,6 +350,17 @@ impl CombatEngine {
         min_picks: usize,
         max_picks: usize,
     ) {
+        self.begin_choice_with_aux(reason, options, min_picks, max_picks, 0);
+    }
+
+    pub fn begin_choice_with_aux(
+        &mut self,
+        reason: ChoiceReason,
+        options: Vec<ChoiceOption>,
+        min_picks: usize,
+        max_picks: usize,
+        aux_count: usize,
+    ) {
         if options.is_empty() {
             return; // Nothing to choose from
         }
@@ -289,6 +374,7 @@ impl CombatEngine {
             selected: Vec::new(),
             min_picks,
             max_picks,
+            aux_count,
         });
     }
 
@@ -481,9 +567,27 @@ impl CombatEngine {
 
     fn resolve_discover(&mut self, ctx: ChoiceContext) {
         if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::GeneratedCard(card) = ctx.options[sel] {
-                if self.state.hand.len() < 10 {
-                    self.state.hand.push(card);
+            if let ChoiceOption::GeneratedCard(preview_card) = ctx.options[sel] {
+                let copies = ctx.aux_count.max(1);
+                for _ in 0..copies {
+                    let mut card = preview_card;
+                    if self.state.player.status(sid::MASTER_REALITY) > 0 {
+                        let card_id = self.card_registry.card_def_by_id(card.def_id).id;
+                        if card_id.ends_with('+') {
+                            card.flags |= crate::combat_types::CardInstance::FLAG_UPGRADED;
+                        } else if !card.is_upgraded() {
+                            self.card_registry.upgrade_card(&mut card);
+                        }
+                    }
+                    let card_id = self.card_registry.card_name(card.def_id);
+                    if crate::effects::interpreter::is_colorless_generation_card(card_id) {
+                        card.cost = 0;
+                    }
+                    if self.state.hand.len() < 10 {
+                        self.state.hand.push(card);
+                    } else {
+                        self.state.discard_pile.push(card);
+                    }
                 }
             }
         }
@@ -518,8 +622,7 @@ impl CombatEngine {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
                     let card = self.state.hand[idx];
-                    // base_magic determines copy count (1 base, 2 upgraded)
-                    let copies = ctx.max_picks.max(1);
+                    let copies = ctx.aux_count.max(1);
                     for _ in 0..copies {
                         if self.state.hand.len() >= 10 { break; }
                         self.state.hand.push(card);
@@ -685,11 +788,16 @@ impl CombatEngine {
             if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
         }).collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
+        let mut discarded_cards = Vec::new();
         for idx in indices {
             if idx < self.state.hand.len() {
                 let card = self.state.hand.remove(idx);
                 self.state.discard_pile.push(card);
+                discarded_cards.push(card);
             }
+        }
+        for card in discarded_cards {
+            self.on_card_discarded(card);
         }
         // Concentrate gives 2 energy after discarding
         self.state.energy += 2;
@@ -702,6 +810,7 @@ impl CombatEngine {
     fn start_player_turn(&mut self) {
         self.state.turn += 1;
         self.phase = CombatPhase::PlayerTurn;
+        self.rebuild_effect_runtime();
 
         // Blasphemy: die at start of turn
         if self.state.blasphemy_active {
@@ -733,15 +842,19 @@ impl CombatEngine {
         // Necronomicon reset
         relics::necronomicon_reset(&mut self.state);
 
-        // All turn-start relic + power effects via unified dispatch
-        {
-            let ctx = crate::effects::trigger::TriggerContext {
-                card_type: None,
-                is_first_turn: self.state.turn == 1,
-                target_idx: -1,
-            };
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStart, &ctx);
-        }
+        // All turn-start relic + power effects via owner-aware runtime.
+        self.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::TurnStart,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: self.state.turn == 1,
+            target_idx: -1,
+            enemy_idx: -1,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
 
         // Divinity auto-exit at start of turn
         if self.state.stance == Stance::Divinity {
@@ -766,16 +879,20 @@ impl CombatEngine {
             }
         }
 
-        // LoseStrength/LoseDexterity at end of previous turn
-        let lose_str = self.state.player.status(sid::LOSE_STRENGTH);
-        if lose_str > 0 {
-            self.state.player.add_status(sid::STRENGTH, -lose_str);
-            self.state.player.set_status(sid::LOSE_STRENGTH, 0);
-        }
-        let lose_dex = self.state.player.status(sid::LOSE_DEXTERITY);
-        if lose_dex > 0 {
-            self.state.player.add_status(sid::DEXTERITY, -lose_dex);
-            self.state.player.set_status(sid::LOSE_DEXTERITY, 0);
+        // LoseStrength/LoseDexterity at end of the previous turn.
+        // Turn 1 has no "previous turn", so combat-start temporary strength
+        // should survive into the opening player turn.
+        if self.state.turn > 1 {
+            let lose_str = self.state.player.status(sid::LOSE_STRENGTH);
+            if lose_str > 0 {
+                self.state.player.add_status(sid::STRENGTH, -lose_str);
+                self.state.player.set_status(sid::LOSE_STRENGTH, 0);
+            }
+            let lose_dex = self.state.player.status(sid::LOSE_DEXTERITY);
+            if lose_dex > 0 {
+                self.state.player.add_status(sid::DEXTERITY, -lose_dex);
+                self.state.player.set_status(sid::LOSE_DEXTERITY, 0);
+            }
         }
 
         // Biased Cognition: lose Focus at start of each turn
@@ -785,7 +902,7 @@ impl CombatEngine {
             self.state.player.set_status(sid::FOCUS, current_focus - bias_loss);
         }
 
-        // === POWER HOOKS handled by dispatch_trigger(TurnStart) above:
+        // === POWER HOOKS handled by the owner-aware TurnStart event above:
         // DemonForm, NoxiousFumes, Brutality, Berserk, InfiniteBlades, BattleHymn,
         // Devotion, WraithForm, DevaForm, HelloWorld, Magnetism,
         // DoppelgangerDraw, DoppelgangerEnergy
@@ -822,53 +939,21 @@ impl CombatEngine {
 
         // ---- Post-draw power effects (complex powers not in EntityDefs) ----
 
-        // CreativeAI: add random Power card to hand (MCTS: add "Smite")
-        {
-            let creative_ai = self.state.player.status(sid::CREATIVE_AI);
-            for _ in 0..creative_ai {
-                if self.state.hand.len() < 10 {
-                    let smite_id = self.temp_card("Smite");
-                    self.state.hand.push(smite_id);
-                }
-            }
-        }
-
-        // EnterDivinity (Damaru relic flag)
-        if self.state.player.status(sid::ENTER_DIVINITY) > 0 {
-            self.state.player.set_status(sid::ENTER_DIVINITY, 0);
-            self.change_stance(Stance::Divinity);
-        }
-
-        // Mayhem: add top card(s) of draw pile to hand
-        {
-            let mayhem = self.state.player.status(sid::MAYHEM);
-            for _ in 0..mayhem {
-                if self.state.hand.len() < 10 {
-                    if let Some(card_id) = self.state.draw_pile.pop() {
-                        self.state.hand.push(card_id);
-                    }
-                }
-            }
-        }
-
-        // Brutality combat_over check (declarative DealDamage fires via dispatch, check here)
-        if self.state.combat_over {
+        // Post-draw runtime hooks that must happen before remaining turn-start setup.
+        self.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::TurnStartPostDraw,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: self.state.turn == 1,
+            target_idx: -1,
+            enemy_idx: -1,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
+        if self.state.combat_over || self.phase == CombatPhase::AwaitingChoice {
             return;
-        }
-
-        // ToolsOfTheTrade: draw then player chooses card to discard
-        {
-            let tott = self.state.player.status(sid::TOOLS_OF_THE_TRADE);
-            if tott > 0 {
-                self.draw_cards(tott);
-                if !self.state.hand.is_empty() {
-                    let options: Vec<ChoiceOption> = (0..self.state.hand.len())
-                        .map(|i| ChoiceOption::HandCard(i))
-                        .collect();
-                    self.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
-                    return; // Pause turn start; resumes after choice
-                }
-            }
         }
 
         // Foresight: scry N at start of turn (post-draw)
@@ -883,12 +968,7 @@ impl CombatEngine {
         {
             let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
             if miracles > 0 {
-                for _ in 0..miracles {
-                    let miracle = self.temp_card("Miracle");
-                    if self.state.hand.len() < 10 {
-                        self.state.hand.push(miracle);
-                    }
-                }
+                self.add_temp_cards_to_hand("Miracle", miracles);
                 self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
             }
         }
@@ -903,43 +983,27 @@ impl CombatEngine {
             }
         }
 
-        // TurnStartPostDraw dispatch (relics/powers with post-draw triggers)
-        {
-            let post_draw_ctx = crate::effects::trigger::TriggerContext {
-                card_type: None,
-                is_first_turn: self.state.turn == 1,
-                target_idx: -1,
-            };
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnStartPostDraw, &post_draw_ctx);
-        }
+        // Late post-draw runtime hooks (starter relics / turn-start relic setup).
+        self.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::TurnStartPostDrawLate,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: self.state.turn == 1,
+            target_idx: -1,
+            enemy_idx: -1,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
 
-        // WarpedTongs: upgrade a random card in hand each turn
-        if self.state.has_relic("WarpedTongs") && !self.state.hand.is_empty() {
-            let idx = self.rng.random(self.state.hand.len() as i32 - 1) as usize;
-            self.card_registry.upgrade_card(&mut self.state.hand[idx]);
-        }
-
-        // Gambling Chip: at start of combat (turn 1 only), player chooses cards to discard and redraws
-        if self.state.turn == 1 && (self.state.has_relic("Gambling Chip") || self.state.has_relic("GamblingChip")) {
-            if !self.state.hand.is_empty() {
-                let options: Vec<ChoiceOption> = (0..self.state.hand.len())
-                    .map(|i| ChoiceOption::HandCard(i))
-                    .collect();
-                let n = options.len();
-                self.begin_choice(ChoiceReason::DiscardFromHand, options, 0, n);
-                // After confirm, resolve_discard_from_hand will discard selected cards.
-                // We need to redraw equal count -- handled in resolve_discard_from_hand
-                // by checking if the reason originated from Gambling Chip.
-                // For now, we store a flag so resolve knows to draw replacements.
-                self.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
-            }
-        }
     }
 
-    fn end_turn(&mut self) {
+    pub(crate) fn end_turn(&mut self) {
         if self.phase != CombatPhase::PlayerTurn {
             return;
         }
+        self.rebuild_effect_runtime();
 
         // Clear Entangled (only lasts one turn)
         self.state.player.set_status(sid::ENTANGLED, 0);
@@ -947,10 +1011,9 @@ impl CombatEngine {
         // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
         // Unified dispatch for end-of-turn relics + powers
-        {
-            let ctx = crate::effects::trigger::TriggerContext::empty();
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::TurnEnd, &ctx);
-        }
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::TurnEnd,
+        ));
 
         if self.state.combat_over {
             return;
@@ -1108,11 +1171,12 @@ impl CombatEngine {
             }
         }
 
-        // FrozenCore: at end of turn, if no orbs in slots, channel 1 Frost
-        if self.state.player.status(sid::FROZEN_CORE_TRIGGER) > 0 {
-            if self.state.orb_slots.occupied_count() == 0 {
-                self.channel_orb(crate::orbs::OrbType::Frost);
-            }
+        // Late end-of-turn runtime hooks that must happen after orb passives.
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::TurnEndPostOrbs,
+        ));
+        if self.state.combat_over {
+            return;
         }
 
         // Constricted: deal Constricted damage to player at end of turn
@@ -1192,6 +1256,17 @@ impl CombatEngine {
     // Card Play
     // =======================================================================
 
+    fn velvet_choker_allows_play(&self) -> bool {
+        if !self.state.has_relic("Velvet Choker") && !self.state.has_relic("VelvetChoker") {
+            return true;
+        }
+        self.hidden_effect_value(
+            "Velvet Choker",
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+            0,
+        ) < 6
+    }
+
     fn can_play_card_inst(&self, card: &CardDef, card_inst: CardInstance) -> bool {
         // Unplayable cards -- unless Medical Kit (Status) or Blue Candle (Curse)
         if card.cost == -2 || card.effects.contains(&"unplayable") {
@@ -1209,7 +1284,7 @@ impl CombatEngine {
         }
 
         // Velvet Choker: max 6 cards per turn
-        if !relics::velvet_choker_can_play(&self.state) {
+        if !self.velvet_choker_allows_play() {
             return false;
         }
 
@@ -1241,9 +1316,41 @@ impl CombatEngine {
             return false;
         }
 
-        // Registry-dispatched can_play hooks (Signature Move, Clash, Grand Finale)
         let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        if !effects::dispatch_can_play(&self.state, card, card_inst, card_flags, &self.card_registry) {
+        if !self.card_runtime_allows_play(card, card_inst, card_flags) {
+            return false;
+        }
+
+        true
+    }
+
+    fn card_runtime_allows_play(
+        &self,
+        _card: &CardDef,
+        card_inst: CardInstance,
+        card_flags: effects::EffectFlags,
+    ) -> bool {
+        if card_flags.has(effects::registry::BIT_ONLY_ATTACK_IN_HAND) {
+            let has_other_attack = self.state.hand.iter().any(|candidate| {
+                let def = self.card_registry.card_def_by_id(candidate.def_id);
+                def.card_type == CardType::Attack && candidate.def_id != card_inst.def_id
+            });
+            if has_other_attack {
+                return false;
+            }
+        }
+
+        if card_flags.has(effects::registry::BIT_ONLY_ATTACKS_IN_HAND) {
+            let has_non_attack = self.state.hand.iter().any(|candidate| {
+                let def = self.card_registry.card_def_by_id(candidate.def_id);
+                def.card_type != CardType::Attack
+            });
+            if has_non_attack {
+                return false;
+            }
+        }
+
+        if card_flags.has(effects::registry::BIT_ONLY_EMPTY_DRAW) && !self.state.draw_pile.is_empty() {
             return false;
         }
 
@@ -1291,9 +1398,8 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        // Registry-dispatched cost modifiers (Blood for Blood, Force Field, Eviscerate, Masterful Stab)
         let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        cost = effects::dispatch_modify_cost(&self.state, card, card_inst, card_flags, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card_flags, cost);
 
         cost
     }
@@ -1335,9 +1441,37 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        // Registry-dispatched cost modifiers (Blood for Blood, Force Field, Eviscerate, Masterful Stab)
         let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        cost = effects::dispatch_modify_cost(&self.state, card, card_inst, card_flags, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card_flags, cost);
+
+        cost
+    }
+
+    fn apply_card_runtime_cost_modifiers(
+        &self,
+        card_flags: effects::EffectFlags,
+        base_cost: i32,
+    ) -> i32 {
+        let mut cost = base_cost;
+
+        if card_flags.has(effects::registry::BIT_COST_REDUCE_ON_HP_LOSS) {
+            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
+            cost = (cost - hp_lost).max(0);
+        }
+
+        if card_flags.has(effects::registry::BIT_REDUCE_COST_PER_POWER) {
+            let power_count = crate::powers::registry::active_player_power_count(&self.state.player);
+            cost = (cost - power_count).max(0);
+        }
+
+        if card_flags.has(effects::registry::BIT_COST_REDUCE_ON_DISCARD) {
+            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
+            cost = (cost - discarded).max(0);
+        }
+
+        if card_flags.has(effects::registry::BIT_COST_INCREASE_ON_HP_LOSS) {
+            cost += self.state.total_damage_taken;
+        }
 
         cost
     }
@@ -1347,9 +1481,8 @@ impl CombatEngine {
             return;
         }
 
-        let card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
+        let mut card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
         let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
-        let card_id = self.card_registry.card_name(card_inst.def_id).to_string();
         let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
         if !self.can_play_card_inst(&card, card_inst) {
@@ -1371,7 +1504,10 @@ impl CombatEngine {
                     is_first_turn: self.state.turn == 1,
                     target_idx,
                 };
-                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &ctx);
+                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                    crate::effects::trigger::Trigger::OnAnyCardPlayed,
+                    &ctx,
+                ));
             }
             return;
         }
@@ -1392,7 +1528,10 @@ impl CombatEngine {
                     is_first_turn: self.state.turn == 1,
                     target_idx,
                 };
-                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &ctx);
+                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                    crate::effects::trigger::Trigger::OnAnyCardPlayed,
+                    &ctx,
+                ));
             }
             if self.state.combat_over { return; }
             return;
@@ -1405,11 +1544,28 @@ impl CombatEngine {
         // Remove from hand
         self.state.hand.remove(hand_idx);
 
+        // Carry the played instance through the rest of the play pipeline so
+        // self-mutating cards can write back to the exact copy that is about to
+        // land in discard/exhaust.
+        self.runtime_played_card = Some(card_inst);
+
         // Track counters
         self.state.cards_played_this_turn += 1;
         self.state.total_cards_played += 1;
         if card.card_type == CardType::Attack {
             self.state.attacks_played_this_turn += 1;
+        }
+
+        {
+            let play_ctx = crate::effects::trigger::TriggerContext {
+                card_type: Some(card.card_type),
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+            };
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnPlayCard,
+                &play_ctx,
+            ));
         }
 
         // ---- Java onUseCard hooks (fire BEFORE card effects resolve) ----
@@ -1420,46 +1576,19 @@ impl CombatEngine {
                 is_first_turn: self.state.turn == 1,
                 target_idx,
             };
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPre, &pre_ctx);
+            let event = crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnCardPlayedPre,
+                &pre_ctx,
+            );
+            self.emit_event(event);
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnUseCard,
+                &pre_ctx,
+            ));
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
         crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
-
-        // Envenom: when Attack deals unblocked damage, apply Poison to target
-        // MCTS approximation: apply Envenom Poison to target after every attack card
-        let envenom = self.state.player.status(sid::ENVENOM);
-        if envenom > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
-            let tidx = target_idx as usize;
-            if tidx < self.state.enemies.len() && self.state.enemies[tidx].is_alive() {
-                self.state.enemies[tidx].entity.add_status(sid::POISON, envenom);
-            }
-        }
-
-        // Sadistic Nature: deal damage when debuff applied to enemy
-        // MCTS approximation: deal Sadistic damage per debuff-applying attack
-        let sadistic = self.state.player.status(sid::SADISTIC);
-        if sadistic > 0 && card.card_type == CardType::Attack && target_idx >= 0 {
-            // Check if card applies debuffs (Weak, Vulnerable, Poison via effects)
-            let applies_debuff = card.effects.iter().any(|e| {
-                *e == "weak" || *e == "vulnerable" || *e == "poison"
-                    || *e == "weak_all" || *e == "vulnerable_all"
-            });
-            if applies_debuff {
-                let tidx = target_idx as usize;
-                if tidx < self.state.enemies.len() && self.state.enemies[tidx].is_alive() {
-                    self.deal_damage_to_enemy(tidx, sadistic);
-                }
-            }
-        }
-
-        // Electrodynamics: when playing an Attack, channel Lightning for each living enemy
-        if card.card_type == CardType::Attack && self.state.player.status(sid::ELECTRODYNAMICS) > 0 {
-            let count = self.state.living_enemy_indices().len();
-            for _ in 0..count {
-                self.channel_orb(crate::orbs::OrbType::Lightning);
-            }
-        }
 
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
@@ -1499,6 +1628,7 @@ impl CombatEngine {
         );
         if pain_killed {
             self.phase = CombatPhase::CombatOver;
+            self.runtime_played_card = None;
             return;
         }
 
@@ -1506,129 +1636,87 @@ impl CombatEngine {
         // Unified dispatch handles: relic counters (Fan, Kunai, Shuriken, etc.),
         // AfterImage (OnAnyCardPlayed), Rage (OnAttackPlayed), Heatsink, Storm,
         // Beat of Death, Slow, Forcefield, SkillBurn.
+        let turn_before_after_use = self.state.turn;
         {
             let post_ctx = crate::effects::trigger::TriggerContext {
                 card_type: Some(card.card_type),
                 is_first_turn: self.state.turn == 1,
                 target_idx,
             };
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardPlayedPost, &post_ctx);
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAnyCardPlayed, &post_ctx);
+            let post_event = crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnCardPlayedPost,
+                &post_ctx,
+            );
+            self.emit_event(post_event);
+
+            let any_event = crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnAnyCardPlayed,
+                &post_ctx,
+            );
+            self.emit_event(any_event);
             // Type-specific triggers
             match card.card_type {
                 CardType::Attack => {
-                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnAttackPlayed, &post_ctx);
+                    let attack_event = crate::effects::runtime::GameEvent::from_trigger(
+                        crate::effects::trigger::Trigger::OnAttackPlayed,
+                        &post_ctx,
+                    );
+                    self.emit_event(attack_event);
                 }
                 CardType::Skill => {
-                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnSkillPlayed, &post_ctx);
+                    let skill_event = crate::effects::runtime::GameEvent::from_trigger(
+                        crate::effects::trigger::Trigger::OnSkillPlayed,
+                        &post_ctx,
+                    );
+                    self.emit_event(skill_event);
                 }
-                CardType::Power => {
-                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnPowerPlayed, &post_ctx);
-                }
+                CardType::Power => {}
                 _ => {}
             }
+
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnAfterUseCard,
+                &post_ctx,
+            ));
+        }
+        if self.state.combat_over
+            || self.phase != CombatPhase::PlayerTurn
+            || self.state.turn != turn_before_after_use
+        {
+            self.runtime_played_card = None;
+            return;
         }
 
-        // Inline complex power hooks (complex_hook is hook_noop in EntityDefs):
-
-        // A Thousand Cuts: deal damage to ALL living enemies per card played
-        let thousand_cuts_dmg = powers::get_thousand_cuts_damage(&self.state.player);
-        if thousand_cuts_dmg > 0 {
-            let living = self.state.living_enemy_indices();
-            for idx in living {
-                self.deal_damage_to_enemy(idx, thousand_cuts_dmg);
-            }
+        if let Some(updated) = self.runtime_played_card {
+            card_inst = updated;
         }
 
-        // Beat of Death: enemies with this power deal damage to player AFTER card played (Java: onAfterUseCard)
-        for ei in 0..self.state.enemies.len() {
-            if self.state.combat_over || self.state.player.hp <= 0 {
-                break;
-            }
-            if self.state.enemies[ei].is_alive() {
-                let bod = powers::get_beat_of_death_damage(&self.state.enemies[ei].entity);
-                if bod > 0 {
-                    let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-                    let has_torii = self.state.has_relic("Torii");
-                    let has_tungsten = self.state.has_relic("Tungsten Rod");
-                    let has_odd_mushroom = self.state.has_relic("Odd Mushroom");
-                    let result = damage::calculate_incoming_damage(
-                        bod,
-                        self.state.player.block,
-                        self.state.stance == Stance::Wrath,
-                        self.state.player.is_vulnerable(),
-                        intangible,
-                        has_torii,
-                        has_tungsten,
-                        has_odd_mushroom,
-                    );
-                    self.state.player.block = result.block_remaining;
-                    if result.hp_loss > 0 {
-                        self.player_lose_hp(result.hp_loss);
-                    }
-                }
-            }
+        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::OnAfterCardPlayed,
+            &crate::effects::trigger::TriggerContext {
+                card_type: Some(card.card_type),
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+            },
+        ));
+        if self.state.combat_over || self.phase != CombatPhase::PlayerTurn {
+            self.runtime_played_card = None;
+            return;
         }
 
-        // Slow: increment counter on enemies with Slow power
-        for ei in 0..self.state.enemies.len() {
-            if self.state.enemies[ei].is_alive() {
-                powers::increment_slow(&mut self.state.enemies[ei].entity);
-            }
+        // Replay-capable powers execute through the owner-aware runtime here so
+        // they preserve the old inline ordering relative to Time Warp.
+        {
+            self.runtime_replay_window = true;
+            let mut runtime = std::mem::take(&mut self.effect_runtime);
+            runtime.emit_replay_window(self, card.card_type, target_idx, card_inst);
+            self.effect_runtime = runtime;
         }
-
-        // TimeWarp: increment card counter; at 12 end turn + enemy gains Strength
-        for ei in 0..self.state.enemies.len() {
-            if self.state.enemies[ei].is_alive() {
-                let triggered = powers::increment_time_warp(&mut self.state.enemies[ei].entity);
-                if triggered {
-                    self.state.enemies[ei].entity.add_status(sid::STRENGTH, 2);
-                    self.end_turn();
-                    return;
-                }
-            }
-        }
-
-        // Panache: every 5 cards played, deal damage to all enemies
-        let panache_dmg = powers::check_panache(&mut self.state.player);
-        if panache_dmg > 0 {
-            let living = self.state.living_enemy_indices();
-            for idx in living {
-                self.deal_damage_to_enemy(idx, panache_dmg);
-            }
-        }
+        self.runtime_replay_window = false;
 
         // Consume NextAttackFree after playing an attack
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
             self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
-        }
-
-        // EchoForm: replay first N cards played this turn (stacking)
-        let echo_count = self.state.player.status(sid::ECHO_FORM);
-        if echo_count > 0
-            && self.state.cards_played_this_turn <= echo_count
-            && card.card_type != CardType::Power
-            && !self.state.combat_over
-        {
-            crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
-        }
-
-        // Double Tap: replay next Attack (Java: DoubleTapPower.onUseCard)
-        if card.card_type == CardType::Attack && !self.state.combat_over {
-            let dt = self.state.player.status(sid::DOUBLE_TAP);
-            if dt > 0 {
-                self.state.player.add_status(sid::DOUBLE_TAP, -1);
-                crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
-            }
-        }
-
-        // Burst: replay next Skill (Java: BurstPower.onUseCard)
-        if card.card_type == CardType::Skill && !self.state.combat_over {
-            let burst = self.state.player.status(sid::BURST);
-            if burst > 0 {
-                self.state.player.add_status(sid::BURST, -1);
-                crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
-            }
         }
 
         // Necronomicon: replay first 2+-cost Attack once per turn
@@ -1641,54 +1729,20 @@ impl CombatEngine {
             }
         }
 
-        // Curiosity: Awakened One gains Strength when player plays a Power
-        if card.card_type == CardType::Power {
-            for i in 0..self.state.enemies.len() {
-                let curiosity = self.state.enemies[i].entity.status(sid::CURIOSITY);
-                if curiosity > 0 && self.state.enemies[i].is_alive() {
-                    self.state.enemies[i].entity.add_status(sid::STRENGTH, curiosity);
-                }
-            }
-        }
-
-        // SkillBurn (Book of Stabbing): deal damage to player when playing a Skill
-        if card.card_type == CardType::Skill {
-            for i in 0..self.state.enemies.len() {
-                let sb = self.state.enemies[i].entity.status(sid::SKILL_BURN);
-                if sb > 0 && self.state.enemies[i].is_alive() {
-                    self.player_lose_hp(sb);
-                }
-            }
-        }
-
-        // Forcefield: decrement on enemies after each card play
-        for i in 0..self.state.enemies.len() {
-            let ff = self.state.enemies[i].entity.status(sid::FORCEFIELD);
-            if ff > 0 && self.state.enemies[i].is_alive() {
-                self.state.enemies[i].entity.add_status(sid::FORCEFIELD, -1);
-            }
-        }
-
         // Wave of the Hand is now handled inside gain_block_player() automatically.
 
         // Power card: install status effect instead of going to discard
         if card.card_type == CardType::Power {
             self.install_power(&card);
-            // Storm: channel Lightning when playing a Power
-            if powers::should_storm_channel(&self.state.player) {
-                self.channel_orb(crate::orbs::OrbType::Lightning);
-            }
-            // Heatsink: draw cards when playing a Power
-            let heatsink_draw = powers::get_heatsink_draw(&self.state.player);
-            if heatsink_draw > 0 {
-                self.draw_cards(heatsink_draw);
-            }
-            // MummifiedHand: when Power card played, random card in hand costs 0 this turn
-            // MCTS approximation: reduce energy cost of cheapest card in hand by setting its cost
-            // to 0 is not feasible without per-card cost tracking; grant 1 energy instead
-            if self.state.player.status(sid::MUMMIFIED_HAND_TRIGGER) > 0 && !self.state.hand.is_empty() {
-                self.state.energy += 1;
-            }
+            let post_ctx = crate::effects::trigger::TriggerContext {
+                card_type: Some(card.card_type),
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+            };
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnPowerPlayed,
+                &post_ctx,
+            ));
             // Powers don't go to any pile
         } else if card_flags.has(effects::registry::BIT_SHUFFLE_SELF_INTO_DRAW) {
             // Tantrum: shuffle into draw pile instead of discard
@@ -1714,10 +1768,13 @@ impl CombatEngine {
             self.state.discard_pile.push(card_inst);
         }
 
+        self.runtime_played_card = None;
+
         // Conclude: end the turn immediately after playing (via EffectFlags)
         // Let end_turn() handle the remaining hand (respects retain/ethereal)
         if card_flags.has(effects::registry::BIT_END_TURN) {
             self.end_turn();
+            self.runtime_played_card = None;
             return;
         }
 
@@ -1731,13 +1788,12 @@ impl CombatEngine {
     }
 
     /// Install a power card as a permanent status effect.
-    /// Uses the unified power registry for tag->StatusId lookup.
+    /// Uses canonical power install metadata for tag->StatusId lookup.
     fn install_power(&mut self, card: &CardDef) {
         for effect in card.effects {
-            // Registry lookup: covers ~40 powers with the same pattern
-            if let Some(entry) = powers::registry::lookup_by_tag(effect) {
+            if let Some(status_id) = runtime_power_status_for_tag(effect) {
                 let amt = card.base_magic.max(1);
-                self.state.player.add_status(entry.status_id, amt);
+                self.state.player.add_status(status_id, amt);
                 continue;
             }
             // Special cases that need engine context
@@ -1749,9 +1805,6 @@ impl CombatEngine {
                     self.state.max_energy -= 1;
                     self.state.energy = self.state.energy.min(self.state.max_energy);
                 }
-                "master_reality" => {
-                    self.state.player.set_status(sid::MASTER_REALITY, 1);
-                }
                 "gain_orb_slots" => {
                     let slots = card.base_magic.max(1);
                     for _ in 0..slots {
@@ -1761,6 +1814,7 @@ impl CombatEngine {
                 _ => {}
             }
         }
+        self.rebuild_effect_runtime();
     }
 
     // =======================================================================
@@ -1775,17 +1829,61 @@ impl CombatEngine {
             return;
         }
 
-        let potion_id = self.state.potions[potion_idx].clone();
+        // Potion slots can change through rewards, test setup, or direct state
+        // mutation; rebuild so runtime-owned manual activations see the live slot.
+        self.rebuild_effect_runtime();
 
-        // Apply potion effect
-        let success = potions::apply_potion(&mut self.state, &potion_id, target_idx);
+        let potion_id = self.state.potions[potion_idx].clone();
+        let can_use_runtime = crate::potions::defs::potion_uses_runtime_manual_activation(&potion_id);
+        let success = if can_use_runtime {
+            if !self.effect_runtime.has_instance(
+                &potion_id,
+                crate::effects::runtime::EffectOwner::PotionSlot {
+                    slot: potion_idx as u8,
+                },
+            ) {
+                self.rebuild_effect_runtime();
+            }
+            if potions::potion_requires_target(&potion_id)
+                && (target_idx < 0 || (target_idx as usize) >= self.state.enemies.len())
+            {
+                false
+            } else {
+                self.emit_event(crate::effects::runtime::GameEvent {
+                    kind: crate::effects::trigger::Trigger::ManualActivation,
+                    card_type: None,
+                    card_inst: None,
+                    is_first_turn: self.state.turn == 1,
+                    target_idx,
+                    enemy_idx: target_idx,
+                    potion_slot: potion_idx as i32,
+                    status_id: None,
+                    amount: 0,
+                    replay_window: false,
+                });
+                true
+            }
+        } else {
+            false
+        };
 
         if success {
+            self.emit_event(crate::effects::runtime::GameEvent {
+                kind: crate::effects::trigger::Trigger::OnPotionUsed,
+                card_type: None,
+                card_inst: None,
+                is_first_turn: self.state.turn == 1,
+                target_idx,
+                enemy_idx: target_idx,
+                potion_slot: potion_idx as i32,
+                status_id: None,
+                amount: 0,
+                replay_window: false,
+            });
+
             // Consume the potion slot
             self.state.potions[potion_idx] = String::new();
-
-            // Toy Ornithopter: heal 5 on potion use
-            relics::toy_ornithopter_on_potion(&mut self.state);
+            self.rebuild_effect_runtime();
 
             // Consume potion draw (Swift Potion, etc.)
             let pd = self.state.player.status(sid::POTION_DRAW);
@@ -1806,14 +1904,21 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
-        // Registry-dispatched on_discard hooks (Reflex, Tactician)
         let card_flags = self.card_registry.effect_flags(card.def_id);
-        let discard_effect = effects::dispatch_on_discard(self, card, card_flags);
-        if discard_effect.draw > 0 {
-            self.draw_cards(discard_effect.draw);
+        let card_def = self.card_registry.card_def_by_id(card.def_id);
+
+        if card_flags.has(effects::registry::BIT_DRAW_ON_DISCARD) {
+            let draw = card_def.base_magic;
+            if draw > 0 {
+                self.draw_cards(draw);
+            }
         }
-        if discard_effect.energy > 0 {
-            self.state.energy += discard_effect.energy;
+
+        if card_flags.has(effects::registry::BIT_ENERGY_ON_DISCARD) {
+            let energy = card_def.base_magic;
+            if energy > 0 {
+                self.state.energy += energy;
+            }
         }
 
         // Track discard count this turn (for Sneaky Strike, Eviscerate)
@@ -1822,7 +1927,37 @@ impl CombatEngine {
         // Relic triggers via unified dispatch (Tough Bandages, Tingsha)
         {
             let ctx = crate::effects::trigger::TriggerContext::empty();
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardDiscard, &ctx);
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnCardDiscard,
+                &ctx,
+            ));
+        }
+    }
+
+    /// Called when a card is drawn into hand.
+    fn on_card_drawn(&mut self, card: CardInstance) {
+        let card_flags = self.card_registry.effect_flags(card.def_id);
+        let card_def = self.card_registry.card_def_by_id(card.def_id);
+
+        // Void: lose 1 energy when drawn.
+        if card_flags.has(effects::registry::BIT_LOSE_ENERGY_ON_DRAW) {
+            self.state.energy = (self.state.energy - 1).max(0);
+        }
+
+        // Endless Agony: add a copy to hand when drawn.
+        if card_flags.has(effects::registry::BIT_COPY_ON_DRAW) && self.state.hand.len() < 10 {
+            self.state.hand.push(card);
+        }
+
+        // Deus Ex Machina: when drawn, add Miracles to hand and exhaust self.
+        if card_flags.has(effects::registry::BIT_DEUS_EX_MACHINA) {
+            let miracle_count = card_def.base_magic.max(1);
+            if let Some(pos) = self.state.hand.iter().rposition(|c| c.def_id == card.def_id) {
+                let removed = self.state.hand.remove(pos);
+                self.state.exhaust_pile.push(removed);
+                self.trigger_on_exhaust();
+            }
+            self.add_temp_cards_to_hand("Miracle", miracle_count);
         }
     }
 
@@ -1873,7 +2008,10 @@ impl CombatEngine {
         // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
         {
             let ctx = crate::effects::trigger::TriggerContext::empty();
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnPlayerHpLoss, &ctx);
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnPlayerHpLoss,
+                &ctx,
+            ));
         }
 
         // Rupture: gain Strength when losing HP
@@ -1882,12 +2020,6 @@ impl CombatEngine {
             self.state.player.add_status(sid::STRENGTH, rupture);
         }
 
-        // Consume relic-set draw statuses
-        let cpd = self.state.player.status(sid::CENTENNIAL_PUZZLE_DRAW);
-        if cpd > 0 {
-            self.state.player.set_status(sid::CENTENNIAL_PUZZLE_DRAW, 0);
-            self.draw_cards(cpd);
-        }
         let rcd = self.state.player.status(sid::RUNIC_CUBE_DRAW);
         if rcd > 0 {
             self.state.player.set_status(sid::RUNIC_CUBE_DRAW, 0);
@@ -1916,6 +2048,80 @@ impl CombatEngine {
     /// Centralized healing: delegates to CombatState::heal_player.
     pub fn heal_player(&mut self, amount: i32) {
         self.state.heal_player(amount);
+        if self.state.has_relic("Red Skull")
+            && self.hidden_effect_value(
+                "Red Skull",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                0,
+            ) > 0
+            && self.state.player.hp > self.state.player.max_hp / 2
+        {
+            self.state.player.add_status(sid::STRENGTH, -3);
+            let _ = self.effect_runtime.set_hidden_value(
+                "Red Skull",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                0,
+                0,
+            );
+        }
+    }
+
+    pub(crate) fn apply_player_debuff_to_enemy(
+        &mut self,
+        enemy_idx: usize,
+        status: crate::ids::StatusId,
+        amount: i32,
+    ) -> bool {
+        if enemy_idx >= self.state.enemies.len() {
+            return false;
+        }
+
+        let mut applied_amount = amount;
+        if status == sid::POISON {
+            applied_amount += crate::relics::snecko_skull_bonus(&self.state);
+        }
+
+        let applied = powers::apply_debuff(
+            &mut self.state.enemies[enemy_idx].entity,
+            status,
+            applied_amount,
+        );
+        if applied {
+            self.emit_event(crate::effects::runtime::GameEvent {
+                kind: crate::effects::trigger::Trigger::OnDebuffApplied,
+                card_type: None,
+                card_inst: self.runtime_played_card,
+                is_first_turn: self.state.turn == 1,
+                target_idx: enemy_idx as i32,
+                enemy_idx: enemy_idx as i32,
+                potion_slot: -1,
+                status_id: Some(status),
+                amount: applied_amount,
+                replay_window: self.runtime_replay_window,
+            });
+        }
+        if applied
+            && status == sid::VULNERABLE
+            && crate::relics::champion_belt_on_vulnerable(&self.state)
+        {
+            let extra_applied =
+                powers::apply_debuff(&mut self.state.enemies[enemy_idx].entity, sid::WEAKENED, 1);
+            if extra_applied {
+                self.emit_event(crate::effects::runtime::GameEvent {
+                    kind: crate::effects::trigger::Trigger::OnDebuffApplied,
+                    card_type: None,
+                    card_inst: self.runtime_played_card,
+                    is_first_turn: self.state.turn == 1,
+                    target_idx: enemy_idx as i32,
+                    enemy_idx: enemy_idx as i32,
+                    potion_slot: -1,
+                    status_id: Some(sid::WEAKENED),
+                    amount: 1,
+                    replay_window: self.runtime_replay_window,
+                });
+            }
+        }
+        applied
     }
 
     /// Check and apply revive effects (Fairy in a Bottle, Lizard Tail).
@@ -2003,45 +2209,133 @@ impl CombatEngine {
             }
         }
 
-        if self.state.enemies[enemy_idx].entity.hp <= 0 {
-            self.state.enemies[enemy_idx].entity.hp = 0;
-            // SporeCloud: apply Vulnerable to player on death (Java: SporeCloudPower.onDeath)
-            let spore = self.state.enemies[enemy_idx].entity.status(sid::SPORE_CLOUD);
-            if spore > 0 {
-                powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
-            }
-            // Fire on_enemy_death relics via unified dispatch (Gremlin Horn, The Specimen)
-            {
-                let ctx = crate::effects::trigger::TriggerContext {
-                    card_type: None,
-                    is_first_turn: false,
-                    target_idx: enemy_idx as i32,
-                };
-                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
-            }
-            // Consume Gremlin Horn draw/energy
-            let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
-            if ghd > 0 {
-                self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
-                self.draw_cards(1);
-                self.state.energy += 1;
-            }
+        self.record_enemy_hp_damage(enemy_idx, hp_damage);
+    }
 
-            // Corpse Explosion: deal damage equal to enemy max HP to all other enemies
-            let ce = self.state.enemies[enemy_idx].entity.status(sid::CORPSE_EXPLOSION);
-            if ce > 0 {
-                let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
-                let living = self.state.living_enemy_indices();
-                for other_idx in living {
-                    if other_idx != enemy_idx {
-                        self.deal_damage_to_enemy(other_idx, max_hp);
-                    }
+    pub(crate) fn record_enemy_hp_damage(&mut self, enemy_idx: usize, hp_damage: i32) {
+        if hp_damage <= 0 || enemy_idx >= self.state.enemies.len() {
+            return;
+        }
+
+        combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
+        if self.state.enemies[enemy_idx].entity.hp <= 0
+            && self.state.enemies[enemy_idx].entity.status(sid::REBIRTH_PENDING) <= 0
+        {
+            self.state.enemies[enemy_idx].entity.hp = 0;
+            self.finalize_enemy_death(enemy_idx);
+        }
+    }
+
+    pub(crate) fn finalize_enemy_death(&mut self, enemy_idx: usize) {
+        if enemy_idx >= self.state.enemies.len() {
+            return;
+        }
+
+        // Spore Cloud: apply Vulnerable to player on death.
+        let spore = self.state.enemies[enemy_idx].entity.status(sid::SPORE_CLOUD);
+        if spore > 0 {
+            powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
+        }
+
+        // Fire owner-aware death hooks (Gremlin Horn, The Specimen, etc.).
+        let ctx = crate::effects::trigger::TriggerContext {
+            card_type: None,
+            is_first_turn: false,
+            target_idx: enemy_idx as i32,
+        };
+        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::OnEnemyDeath,
+            &ctx,
+        ));
+
+        // Consume Gremlin Horn draw/energy.
+        let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
+        if ghd > 0 {
+            self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
+            self.draw_cards(1);
+            self.state.energy += 1;
+        }
+
+        // Corpse Explosion: deal damage equal to enemy max HP to all other enemies.
+        let ce = self.state.enemies[enemy_idx].entity.status(sid::CORPSE_EXPLOSION);
+        if ce > 0 {
+            let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
+            let living = self.state.living_enemy_indices();
+            for other_idx in living {
+                if other_idx != enemy_idx {
+                    self.deal_damage_to_enemy(other_idx, max_hp);
                 }
             }
         }
+    }
 
-        // Boss damage hooks
-        combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
+    pub(crate) fn deal_player_attack_hit_to_enemy(&mut self, enemy_idx: usize, damage: i32) -> i32 {
+        if enemy_idx >= self.state.enemies.len() || !self.state.enemies[enemy_idx].is_alive() {
+            return 0;
+        }
+
+        let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
+        let mut hit_damage = damage;
+        let unblocked = hit_damage - enemy_block_before.min(hit_damage);
+        if self.state.has_relic("Boot") && unblocked > 0 && unblocked < 5 {
+            hit_damage = enemy_block_before + 5;
+        }
+        let block_broken =
+            self.state.has_relic("HandDrill") && enemy_block_before > 0 && hit_damage > enemy_block_before;
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+
+        self.deal_damage_to_enemy(enemy_idx, hit_damage);
+
+        let hp_damage = (hp_before - self.state.enemies[enemy_idx].entity.hp).max(0);
+        if hp_damage > 0 {
+            self.emit_event(crate::effects::runtime::GameEvent {
+                kind: crate::effects::trigger::Trigger::DamageResolved,
+                card_type: Some(CardType::Attack),
+                card_inst: None,
+                is_first_turn: self.state.turn == 1,
+                target_idx: enemy_idx as i32,
+                enemy_idx: enemy_idx as i32,
+                potion_slot: -1,
+                status_id: None,
+                amount: hp_damage,
+                replay_window: false,
+            });
+        }
+
+        if block_broken && self.state.enemies[enemy_idx].entity.block == 0 {
+            self.apply_player_debuff_to_enemy(enemy_idx, sid::VULNERABLE, 2);
+        }
+
+        hp_damage
+    }
+
+    pub(crate) fn player_attack_base_damage(&self, card: &CardDef, card_inst: CardInstance) -> i32 {
+        let mut damage = card.base_damage;
+        if card.card_type != CardType::Attack {
+            return damage;
+        }
+
+        if self.card_registry.is_strike(card_inst.def_id) {
+            damage += crate::relics::strike_dummy_bonus(&self.state);
+        }
+
+        let effective_cost = if card.cost == -1 {
+            0
+        } else if card_inst.is_free()
+            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+            || self.state.player.status(sid::BULLET_TIME) > 0
+        {
+            0
+        } else if card_inst.cost >= 0 {
+            card_inst.cost as i32
+        } else {
+            card.cost
+        };
+        if effective_cost == 0 {
+            damage += crate::relics::wrist_blade_bonus(&self.state);
+        }
+
+        damage
     }
 
     #[allow(dead_code)]
@@ -2086,7 +2380,15 @@ impl CombatEngine {
     pub(crate) fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
         match effect {
             EvokeEffect::LightningDamage(dmg) => {
-                if let Some(idx) = self.random_living_enemy() {
+                if self.effect_runtime.player_power_active(
+                    self,
+                    "electrodynamics",
+                    sid::ELECTRODYNAMICS,
+                ) {
+                    for idx in self.state.living_enemy_indices() {
+                        self.deal_damage_to_enemy(idx, dmg);
+                    }
+                } else if let Some(idx) = self.random_living_enemy() {
                     self.deal_damage_to_enemy(idx, dmg);
                 }
             }
@@ -2109,7 +2411,15 @@ impl CombatEngine {
     fn apply_passive_effect(&mut self, effect: PassiveEffect) {
         match effect {
             PassiveEffect::LightningDamage(dmg) => {
-                if let Some(idx) = self.random_living_enemy() {
+                if self.effect_runtime.player_power_active(
+                    self,
+                    "electrodynamics",
+                    sid::ELECTRODYNAMICS,
+                ) {
+                    for idx in self.state.living_enemy_indices() {
+                        self.deal_damage_to_enemy(idx, dmg);
+                    }
+                } else if let Some(idx) = self.random_living_enemy() {
                     self.deal_damage_to_enemy(idx, dmg);
                 }
             }
@@ -2181,7 +2491,10 @@ impl CombatEngine {
                 // Fire on_shuffle relics via unified dispatch (Sundial, The Abacus)
                 {
                     let ctx = crate::effects::trigger::TriggerContext::empty();
-                    crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnShuffle, &ctx);
+                    self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                        crate::effects::trigger::Trigger::OnShuffle,
+                        &ctx,
+                    ));
                 }
             }
 
@@ -2191,7 +2504,6 @@ impl CombatEngine {
                 // Extract card info for power triggers
                 let card_def = self.card_registry.card_def_by_id(drawn.def_id);
                 let card_type = card_def.card_type;
-                let card_flags = self.card_registry.effect_flags(drawn.def_id);
 
                 // Evolve: draw extra cards when drawing a Status
                 let evolve = self.state.player.status(sid::EVOLVE);
@@ -2209,33 +2521,7 @@ impl CombatEngine {
                     }
                 }
 
-                // Void: lose 1 energy when drawn (via EffectFlags)
-                if card_flags.has(effects::registry::BIT_LOSE_ENERGY_ON_DRAW) {
-                    self.state.energy = (self.state.energy - 1).max(0);
-                }
-
-                // Endless Agony: add a copy to hand when drawn (via EffectFlags)
-                if card_flags.has(effects::registry::BIT_COPY_ON_DRAW) && self.state.hand.len() < 10 {
-                    self.state.hand.push(drawn);
-                }
-
-                // Deus Ex Machina: when drawn, add Miracles to hand and exhaust self
-                if card_flags.has(effects::registry::BIT_DEUS_EX_MACHINA) {
-                    let miracle_count = card_def.base_magic.max(1);
-                    // Remove from hand (it was just pushed) and exhaust
-                    if let Some(pos) = self.state.hand.iter().rposition(|c| c.def_id == drawn.def_id) {
-                        let removed = self.state.hand.remove(pos);
-                        self.state.exhaust_pile.push(removed);
-                        self.trigger_on_exhaust();
-                    }
-                    // Add Miracles to hand
-                    for _ in 0..miracle_count {
-                        if self.state.hand.len() < 10 {
-                            let miracle = self.temp_card("Miracle");
-                            self.state.hand.push(miracle);
-                        }
-                    }
-                }
+                self.on_card_drawn(drawn);
             }
         }
 
@@ -2283,7 +2569,10 @@ impl CombatEngine {
         // (Mental Fortress block, Rushdown draw, Teardrop Locket)
         {
             let ctx = crate::effects::trigger::TriggerContext::empty();
-            crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnStanceChange, &ctx);
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnStanceChange,
+                &ctx,
+            ));
         }
 
         // Flurry of Blows: return all copies from discard to hand on any stance change
@@ -2325,6 +2614,21 @@ impl CombatEngine {
         }
     }
 
+    /// Add temporary cards to hand, spilling overflow into discard.
+    pub fn add_temp_cards_to_hand(&mut self, base_id: &str, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        for _ in 0..amount {
+            let card = self.temp_card(base_id);
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            } else {
+                self.state.discard_pile.push(card);
+            }
+        }
+    }
+
     /// Perform Scry: reveal top N cards, let player choose which to discard.
     /// Triggers Nirvana (on_scry block) and Weave (return_on_scry) in resolve_scry.
     pub fn do_scry(&mut self, amount: i32) {
@@ -2351,7 +2655,34 @@ impl CombatEngine {
     /// (FeelNoPain block, DarkEmbrace draw, Charon's Ashes damage, Dead Branch card gen)
     pub fn trigger_on_exhaust(&mut self) {
         let ctx = crate::effects::trigger::TriggerContext::empty();
-        crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::OnCardExhaust, &ctx);
+        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::OnCardExhaust,
+            &ctx,
+        ));
+    }
+
+    /// Obtain a random potion into the first empty potion slot, respecting Sozu.
+    pub fn obtain_random_potion(&mut self) -> bool {
+        if self.state.has_relic("Sozu") {
+            return false;
+        }
+        let Some(slot) = self.state.potions.iter().position(|p| p.is_empty()) else {
+            return false;
+        };
+
+        let pool: Vec<&'static str> = crate::potions::defs::POTION_DEFS
+            .iter()
+            .map(|def| def.id)
+            .filter(|id| *id != "FairyPotion")
+            .collect();
+        if pool.is_empty() {
+            return false;
+        }
+
+        let potion_id = pool[self.rng_gen_range(0..pool.len())];
+        self.state.potions[slot] = potion_id.to_string();
+        self.rebuild_effect_runtime();
+        true
     }
 
     // =======================================================================
@@ -2430,7 +2761,10 @@ impl CombatEngine {
             // Fire on_victory relics via unified dispatch (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
             {
                 let ctx = crate::effects::trigger::TriggerContext::empty();
-                crate::effects::dispatch::dispatch_trigger(self, crate::effects::trigger::Trigger::CombatVictory, &ctx);
+                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                    crate::effects::trigger::Trigger::CombatVictory,
+                    &ctx,
+                ));
             }
             return true;
         }
@@ -2445,6 +2779,112 @@ impl CombatEngine {
         }
 
         false
+    }
+}
+
+fn runtime_power_status_for_tag(tag: &str) -> Option<StatusId> {
+    let canonical_tag = match tag {
+        "draw_on_power_play" => "heatsink",
+        "channel_lightning_on_power" => "storm",
+        "on_stance_change_block" => "mental_fortress",
+        "on_wrath_draw" => "rushdown",
+        "lightning_hits_all" => "electrodynamics",
+        "channel_lightning_on_damage" => "static_discharge",
+        "extra_draw_each_turn" => "draw",
+        other => other,
+    };
+
+    crate::powers::defs::POWER_DEFS
+        .iter()
+        .find(|def| def.id == canonical_tag)
+        .and_then(|def| def.status_guard)
+}
+
+#[cfg(test)]
+mod test_relic_runtime_wave4 {
+    use crate::actions::Action;
+    use crate::tests::support::{
+        combat_state_with, end_turn, engine_with_state, make_deck_n,
+    };
+
+    #[test]
+    fn velvet_choker_blocks_seventh_play_and_resets_next_turn() {
+        let mut state = combat_state_with(
+            make_deck_n("Defend_R", 20),
+            vec![crate::tests::support::enemy_no_intent("JawWorm", 120, 120)],
+            20,
+        );
+        state.relics.push("Velvet Choker".to_string());
+        let mut engine = engine_with_state(state);
+        engine.state.hand = make_deck_n("Defend_R", 7);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+
+        for expected in 1..=6 {
+            let hand_before = engine.state.hand.len();
+            engine.execute_action(&Action::PlayCard {
+                card_idx: 0,
+                target_idx: -1,
+            });
+            assert_eq!(engine.state.hand.len(), hand_before - 1);
+            assert_eq!(engine.state.cards_played_this_turn, expected);
+            assert_eq!(
+                engine.hidden_effect_value(
+                    "Velvet Choker",
+                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                    0,
+                ),
+                expected
+            );
+        }
+
+        let hand_before_blocked = engine.state.hand.len();
+        let energy_before_blocked = engine.state.energy;
+        let block_before_blocked = engine.state.player.block;
+        engine.execute_action(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        });
+        assert_eq!(engine.state.hand.len(), hand_before_blocked);
+        assert_eq!(engine.state.energy, energy_before_blocked);
+        assert_eq!(engine.state.player.block, block_before_blocked);
+        assert_eq!(engine.state.cards_played_this_turn, 6);
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                0,
+            ),
+            6
+        );
+
+        end_turn(&mut engine);
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                0,
+            ),
+            0
+        );
+
+        engine.state.energy = 3;
+        engine.state.hand = make_deck_n("Defend_R", 1);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        engine.execute_action(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        });
+        assert_eq!(engine.state.cards_played_this_turn, 1);
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                0,
+            ),
+            1
+        );
     }
 }
 

@@ -65,9 +65,15 @@ pub const BIT_DAMAGE_FROM_DRAW_PILE: u8 = 30;
 // ===========================================================================
 
 /// Can this card be played? Return false to block.
+///
+/// Production legality now lives in `engine.rs`; this remains as a helper-path
+/// oracle while card runtime cutover tests are still being ported.
 pub type CanPlayFn = fn(&CombatState, &CardDef, CardInstance, &CardRegistry) -> bool;
 
 /// Modify the effective cost of a card. Returns the new cost.
+///
+/// Production cost resolution now lives in `engine.rs`; this remains as a
+/// helper-path oracle while focused card parity tests still exercise it.
 pub type ModifyCostFn = fn(&CombatState, &CardDef, CardInstance, i32) -> i32;
 
 /// Pre-damage modifier. Returns adjustments to base damage / strength mult.
@@ -413,6 +419,7 @@ pub fn build_effect_flags(effects: &[&str]) -> EffectFlags {
 // ===========================================================================
 
 /// Check if a card can be played (all can_play hooks must return true).
+#[allow(dead_code)]
 pub fn dispatch_can_play(
     state: &CombatState,
     card: &CardDef,
@@ -436,6 +443,7 @@ pub fn dispatch_can_play(
 }
 
 /// Modify the effective cost of a card through all cost hooks.
+#[allow(dead_code)]
 pub fn dispatch_modify_cost(
     state: &CombatState,
     card: &CardDef,

@@ -515,7 +515,7 @@ mod interaction_tests {
         assert_eq!(engine.state.player.status(sid::BURST), 1,
             "Burst should set BURST status to 1");
 
-        let hand_before = engine.state.hand.len();
+        let _hand_before = engine.state.hand.len();
         ensure_in_hand(&mut engine, "Backflip");
         play_self(&mut engine, "Backflip");
 

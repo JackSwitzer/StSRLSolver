@@ -7,11 +7,27 @@
 //!
 //! Ascension 11+ reduces potion effectiveness. Call `apply_potion_scaled`
 //! with the run's ascension level, or use `apply_potion` for base potency.
+//!
+//! Production manual activation now routes through owner-aware runtime defs in
+//! `potions/defs`; `apply_potion` remains as an oracle/helper surface.
 
 pub mod defs;
 
 use crate::state::CombatState;
 use crate::status_ids::sid;
+
+#[cfg(test)]
+pub(crate) fn equip_potion_slot(
+    engine: &mut crate::engine::CombatEngine,
+    slot: usize,
+    potion_id: &str,
+) {
+    if slot >= engine.state.potions.len() {
+        return;
+    }
+    engine.state.potions[slot] = potion_id.to_string();
+    engine.rebuild_effect_runtime();
+}
 
 /// Result of using a potion, for the engine to process.
 pub struct PotionResult {
@@ -19,6 +35,64 @@ pub struct PotionResult {
     pub success: bool,
     /// Whether this potion targets an enemy (needs target_idx)
     pub requires_target: bool,
+}
+
+pub(crate) fn apply_ambrosia_effect(state: &mut CombatState) {
+    state.stance = crate::state::Stance::Divinity;
+}
+
+pub(crate) fn apply_stance_potion_effect(state: &mut CombatState) {
+    use crate::state::Stance;
+    match state.stance {
+        Stance::Calm => state.stance = Stance::Wrath,
+        _ => state.stance = Stance::Calm,
+    }
+}
+
+pub(crate) fn upgrade_hand_for_combat(state: &mut CombatState) {
+    let registry = crate::cards::global_registry();
+    for card in &mut state.hand {
+        registry.upgrade_card(card);
+    }
+}
+
+pub(crate) fn return_discard_to_hand(state: &mut CombatState, amount: i32) -> i32 {
+    let mut moved = 0;
+    for _ in 0..amount {
+        if state.discard_pile.is_empty() || state.hand.len() >= 10 {
+            break;
+        }
+        if let Some(card) = state.discard_pile.pop() {
+            state.hand.push(card);
+            moved += 1;
+        }
+    }
+    moved
+}
+
+pub(crate) fn proxy_distilled_chaos_to_hand(state: &mut CombatState, amount: i32) -> i32 {
+    let mut moved = 0;
+    for _ in 0..amount {
+        if state.draw_pile.is_empty() || state.hand.len() >= 10 {
+            break;
+        }
+        if let Some(card) = state.draw_pile.pop() {
+            state.hand.push(card);
+            moved += 1;
+        }
+    }
+    moved
+}
+
+pub(crate) fn fill_empty_potion_slots_with_proxy_rewards(state: &mut CombatState, potion_id: &str) -> i32 {
+    let mut filled = 0;
+    for slot in &mut state.potions {
+        if slot.is_empty() {
+            *slot = potion_id.to_string();
+            filled += 1;
+        }
+    }
+    filled
 }
 
 /// Check if a potion requires a target enemy.
@@ -82,6 +156,16 @@ fn effective_potency(potion_id: &str, ascension: i32, bark_mult: i32) -> i32 {
         }
         None => bark_mult,
     }
+}
+
+/// Runtime-facing potion potency helper for combat engine activation.
+///
+/// The current combat engine path does not thread ascension into `CombatState`,
+/// so owner-aware potion activation matches the existing base-potency combat
+/// behavior while still respecting Sacred Bark.
+pub fn effective_potency_runtime(state: &CombatState, potion_id: &str) -> i32 {
+    let bark_mult = if state.has_relic("SacredBark") { 2 } else { 1 };
+    effective_potency(potion_id, 0, bark_mult)
 }
 
 /// Apply a potion with ascension scaling.
@@ -304,16 +388,12 @@ pub fn apply_potion_scaled(
         // Discovery potions: handled below with proxy cards for MCTS
 
         "Ambrosia" => {
-            state.stance = crate::state::Stance::Divinity;
+            apply_ambrosia_effect(state);
             true
         }
 
         "StancePotion" => {
-            use crate::state::Stance;
-            match state.stance {
-                Stance::Calm => { state.stance = Stance::Wrath; }
-                _ => { state.stance = Stance::Calm; }
-            }
+            apply_stance_potion_effect(state);
             true
         }
 
@@ -324,11 +404,8 @@ pub fn apply_potion_scaled(
         }
 
         "BlessingOfTheForge" => {
-            // Upgrade ALL cards in hand
-            let registry = crate::cards::global_registry();
-            for card in &mut state.hand {
-                registry.upgrade_card(card);
-            }
+            // Oracle fallback only; production should use runtime manual activation.
+            upgrade_hand_for_combat(state);
             true
         }
 
@@ -339,28 +416,15 @@ pub fn apply_potion_scaled(
         }
 
         "LiquidMemories" => {
-            // Return card(s) from discard to hand
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            for _ in 0..potency {
-                if !state.discard_pile.is_empty() && state.hand.len() < 10 {
-                    if let Some(card) = state.discard_pile.pop() {
-                        state.hand.push(card);
-                    }
-                }
-            }
+            return_discard_to_hand(state, potency);
             true
         }
 
         "DistilledChaosPotion" | "DistilledChaos" => {
-            // Play top N cards from draw pile (MCTS: move to hand)
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            for _ in 0..potency {
-                if !state.draw_pile.is_empty() && state.hand.len() < 10 {
-                    if let Some(card) = state.draw_pile.pop() {
-                        state.hand.push(card);
-                    }
-                }
-            }
+            // Oracle fallback only; production uses the runtime manual path.
+            proxy_distilled_chaos_to_hand(state, potency);
             true
         }
 
@@ -375,12 +439,8 @@ pub fn apply_potion_scaled(
         }
 
         "EntropicBrew" => {
-            // Fill empty potion slots (MCTS: Block Potion as proxy)
-            for slot in &mut state.potions {
-                if slot.is_empty() {
-                    *slot = "Block Potion".to_string();
-                }
-            }
+            // Oracle fallback only; production uses runtime manual path.
+            fill_empty_potion_slots_with_proxy_rewards(state, "Block Potion");
             true
         }
 
@@ -501,7 +561,6 @@ pub fn consume_fairy(state: &mut CombatState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::CardRegistry;
     use crate::state::{CombatState, EnemyCombatState};
     use crate::tests::support::{make_deck, make_deck_n};
 

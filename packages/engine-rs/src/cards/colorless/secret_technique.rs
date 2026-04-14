@@ -1,17 +1,33 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Secret Technique: 0 cost, choose Skill from draw pile, put in hand, exhaust (upgrade: no exhaust)
+    // Secret Technique: 0 cost, choose a Skill from draw pile, put it in hand
     insert(cards, CardDef {
-                id: "Secret Technique", name: "Secret Technique", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["search_skill"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_search_skill),
-            });
+        id: "Secret Technique", name: "Secret Technique", card_type: CardType::Skill,
+        target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+        base_magic: -1, exhaust: true, enter_stance: None,
+        effects: &["search_skill"], effect_data: &[
+            E::ChooseCards {
+                source: P::Draw,
+                filter: CardFilter::Skills,
+                action: ChoiceAction::MoveToHand,
+                min_picks: A::Fixed(1),
+                max_picks: A::Fixed(1),
+            },
+        ], complex_hook: None,
+    });
     insert(cards, CardDef {
-                id: "Secret Technique+", name: "Secret Technique+", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["search_skill"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_search_skill),
-            });
+        id: "Secret Technique+", name: "Secret Technique+", card_type: CardType::Skill,
+        target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+        base_magic: -1, exhaust: false, enter_stance: None,
+        effects: &["search_skill"], effect_data: &[
+            E::ChooseCards {
+                source: P::Draw,
+                filter: CardFilter::Skills,
+                action: ChoiceAction::MoveToHand,
+                min_picks: A::Fixed(1),
+                max_picks: A::Fixed(1),
+            },
+        ], complex_hook: None,
+    });
 }

@@ -10,7 +10,7 @@ static EFFECTS: [Effect; 1] = [
 
 static TRIGGERS: [TriggeredEffect; 1] = [
     TriggeredEffect {
-        trigger: Trigger::TurnStart,
+        trigger: Trigger::TurnStartPostDrawLate,
         condition: TriggerCondition::Always,
         effects: &EFFECTS,
         counter: None,

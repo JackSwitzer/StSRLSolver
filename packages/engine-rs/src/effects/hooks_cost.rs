@@ -2,7 +2,6 @@
 
 use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
-use crate::powers;
 use crate::state::CombatState;
 use crate::status_ids::sid;
 
@@ -14,7 +13,7 @@ pub fn hook_cost_reduce_on_hp_loss(state: &CombatState, _card: &CardDef, _card_i
 
 /// Force Field: reduce cost by number of active powers on player.
 pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let power_count = powers::registry::count_active_powers(&state.player);
+    let power_count = crate::powers::registry::active_player_power_count(&state.player);
     (cost - power_count).max(0)
 }
 

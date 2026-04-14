@@ -8,7 +8,6 @@ use crate::enemies;
 use crate::engine::{CombatEngine, CombatPhase};
 use crate::potions;
 use crate::powers;
-use crate::relics;
 use crate::state::Stance;
 use crate::status_ids::sid;
 use smallvec::SmallVec;
@@ -36,57 +35,60 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             engine.state.enemies[i].entity.set_status(sid::INTANGIBLE, 1);
         }
 
-        // === POWER HOOKS: enemy turn start (via dispatch) ===
         let is_first = engine.state.enemies[i].first_turn;
-        let efx = powers::registry::dispatch_enemy_turn_start(
-            &mut engine.state.enemies[i].entity,
-            is_first,
-        );
+        engine.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::EnemyTurnStart,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: is_first,
+            target_idx: i as i32,
+            enemy_idx: i as i32,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
 
-        // Metallicize block
-        if efx.block_gain > 0 {
-            engine.state.enemies[i].entity.block += efx.block_gain;
+        // Legacy fallback for enemy powers not migrated into the owner-aware runtime yet.
+        let fading = engine.state.enemies[i].entity.status(sid::FADING);
+        if fading > 0 {
+            engine.state.enemies[i]
+                .entity
+                .set_status(sid::FADING, fading - 1);
+            if engine.state.enemies[i].entity.status(sid::FADING) <= 0 {
+                engine.state.enemies[i].entity.hp = 0;
+                continue;
+            }
         }
 
-        // Regeneration heal (capped at max_hp)
-        if efx.heal > 0 {
-            let max_hp = engine.state.enemies[i].entity.max_hp;
-            engine.state.enemies[i].entity.hp =
-                (engine.state.enemies[i].entity.hp + efx.heal).min(max_hp);
+        let bomb = engine.state.enemies[i].entity.status(sid::THE_BOMB);
+        if bomb > 0 {
+            engine.state.enemies[i]
+                .entity
+                .set_status(sid::THE_BOMB, bomb - 1);
+            if engine.state.enemies[i].entity.status(sid::THE_BOMB) <= 0 {
+                let intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
+                let has_tungsten = engine.state.has_relic("Tungsten Rod");
+                let hp_loss = damage::apply_hp_loss(40, intangible, has_tungsten);
+                engine.player_lose_hp(hp_loss);
+                if engine.state.combat_over {
+                    return;
+                }
+            }
         }
 
-        // Growth block (Strength already applied inside hook)
-        if efx.block_from_growth > 0 {
-            engine.state.enemies[i].entity.block += efx.block_from_growth;
-        }
-
-        // Fading: die at 0
-        if efx.faded {
+        if engine.state.enemies[i].entity.hp <= 0
+            && engine.state.enemies[i].entity.status(sid::REBIRTH_PENDING) <= 0
+        {
             engine.state.enemies[i].entity.hp = 0;
             continue;
-        }
-
-        // TheBomb: detonate dealing damage to player
-        if efx.bomb_damage > 0 {
-            let intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
-            let has_tungsten = engine.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(efx.bomb_damage, intangible, has_tungsten);
-            engine.state.player.hp -= hp_loss;
-            engine.state.total_damage_taken += hp_loss;
-            if engine.state.player.is_dead() {
-                engine.state.player.hp = 0;
-                engine.state.combat_over = true;
-                engine.state.player_won = false;
-                engine.phase = CombatPhase::CombatOver;
-                return;
-            }
         }
 
         // Poison tick — kept inline (complex death check + boss hooks)
         let poison_dmg = powers::tick_poison(&mut engine.state.enemies[i].entity);
         if poison_dmg > 0 {
             engine.state.total_damage_dealt += poison_dmg;
-            on_enemy_damaged(engine, i, poison_dmg);
+            engine.record_enemy_hp_damage(i, poison_dmg);
             if engine.state.enemies[i].entity.is_dead() {
                 engine.state.enemies[i].entity.hp = 0;
                 continue;
@@ -176,22 +178,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
             engine.state.player.block = result.block_remaining;
             if result.hp_loss > 0 {
-                engine.state.player.hp -= result.hp_loss;
-                engine.state.total_damage_taken += result.hp_loss;
-
-                // Fire on_hp_loss relics (via unified dispatch)
-                {
-                    let ctx = crate::effects::trigger::TriggerContext::empty();
-                    crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnPlayerHpLoss, &ctx);
+                engine.player_lose_hp(result.hp_loss);
+                if engine.state.combat_over {
+                    return;
                 }
 
-                // Rupture: gain Strength when losing HP from attack
-                let rupture = engine.state.player.status(sid::RUPTURE);
-                if rupture > 0 {
-                    engine.state.player.add_status(sid::STRENGTH, rupture);
-                }
-
-                // Plated Armor decrements on unblocked HP damage
+                // Plated Armor decrements on unblocked HP damage from enemy attacks.
                 let plated = engine.state.player.status(sid::PLATED_ARMOR);
                 if plated > 0 {
                     let new_plated = plated - 1;
@@ -216,8 +208,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                                 e.entity.block -= blocked_e;
                                 e.entity.hp -= hp_dmg_e;
                                 engine.state.total_damage_dealt += hp_dmg_e;
-                                if e.entity.hp <= 0 {
-                                    e.entity.hp = 0;
+                                if hp_dmg_e > 0 {
+                                    engine.record_enemy_hp_damage(target, hp_dmg_e);
                                 }
                             }
                         }
@@ -253,19 +245,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 e.entity.block -= blocked_t;
                 e.entity.hp -= hp_dmg_t;
                 engine.state.total_damage_dealt += hp_dmg_t;
-                if e.entity.hp <= 0 {
-                    e.entity.hp = 0;
-                    {
-                        let ctx = crate::effects::trigger::TriggerContext {
-                            card_type: None,
-                            is_first_turn: false,
-                            target_idx: enemy_idx as i32,
-                        };
-                        crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
-                    }
-                }
                 if hp_dmg_t > 0 {
-                    on_enemy_damaged(engine, enemy_idx, hp_dmg_t);
+                    engine.record_enemy_hp_damage(enemy_idx, hp_dmg_t);
                 }
             }
 
@@ -278,19 +259,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 e.entity.block -= blocked_f;
                 e.entity.hp -= hp_dmg_f;
                 engine.state.total_damage_dealt += hp_dmg_f;
-                if e.entity.hp <= 0 {
-                    e.entity.hp = 0;
-                    {
-                        let ctx = crate::effects::trigger::TriggerContext {
-                            card_type: None,
-                            is_first_turn: false,
-                            target_idx: enemy_idx as i32,
-                        };
-                        crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::OnEnemyDeath, &ctx);
-                    }
-                }
                 if hp_dmg_f > 0 {
-                    on_enemy_damaged(engine, enemy_idx, hp_dmg_f);
+                    engine.record_enemy_hp_damage(enemy_idx, hp_dmg_f);
                 }
             }
         }
@@ -362,9 +332,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         for i in 0..256 {
             if statuses[i] != 0 {
                 let sid = crate::ids::StatusId(i as u16);
-                let name = crate::status_ids::status_name(sid);
-                if crate::powers::registry::is_debuff(name)
-                {
+                if crate::powers::registry::status_is_debuff(sid) {
                     statuses[i] = 0;
                 }
             }

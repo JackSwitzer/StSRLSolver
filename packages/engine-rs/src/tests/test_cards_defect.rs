@@ -9,7 +9,7 @@ mod defect_card_java_parity_tests {
     use crate::actions::Action;
     use crate::orbs::OrbType;
     use crate::powers::{process_end_of_round, process_end_of_turn, process_start_of_turn};
-    use crate::state::{EnemyCombatState, Stance};
+    use crate::state::EnemyCombatState;
     use crate::tests::support::*;
 
     macro_rules! defect_test {

@@ -22,6 +22,9 @@ use crate::cards::CardType;
 pub enum Target {
     /// The player.
     Player,
+    /// The entity that owns the currently executing runtime effect.
+    /// Used by owner-aware relic/power runtime dispatch.
+    SelfEntity,
     /// The single selected enemy (from card play target_idx).
     SelectedEnemy,
     /// All living enemies.
@@ -68,6 +71,8 @@ pub enum AmountSource {
     DiscardPileSize,
     /// Current value of a status (e.g., read Metallicize stacks).
     StatusValue(crate::ids::StatusId),
+    /// Per-card mutable numeric state carried on `CardInstance.misc`.
+    CardMisc,
     /// Percentage of max HP (e.g., 7 = 7% of max HP).
     PercentMaxHp(i32),
     /// Draw pile size divided by N (Aggregate: draw_pile / 4).
@@ -80,6 +85,8 @@ pub enum AmountSource {
     /// The base potency is stored in the EntityDef; runtime resolves via
     /// `effective_potency(base, ascension, sacred_bark)`.
     PotionPotency,
+    /// Total unblocked damage dealt during the current card play.
+    TotalUnblockedDamage,
 }
 
 /// Boolean condition checked at runtime.
@@ -167,6 +174,40 @@ pub enum BoolFlag {
     BulletTime,
 }
 
+/// Runtime card-generation source pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedCardPool {
+    Attack,
+    Skill,
+    Power,
+    Colorless,
+}
+
+/// Temporary cost override applied to generated cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedCostRule {
+    Base,
+    ZeroThisTurn,
+    ZeroIfPositiveThisTurn,
+    /// Set generated cards to cost 0 this turn and upgrade the generated copy.
+    /// Used for Transmutation+ Java semantics.
+    ZeroThisTurnAndUpgradeGenerated,
+}
+
+/// Upgrade rule applied to generated cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedUpgradeRule {
+    Base,
+    Upgrade,
+}
+
+/// Destination for generated cards outside the fixed `Effect` enum surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedDestination {
+    Hand,
+    Draw,
+}
+
 // ===========================================================================
 // Effect enums — the core data types
 // ===========================================================================
@@ -212,6 +253,17 @@ pub enum SimpleEffect {
     ShuffleDiscardIntoDraw,
     /// Deal flat damage to a target (no strength/stance modifiers).
     DealDamage(Target, AmountSource),
+    /// Special-resolution attack used by Judgement:
+    /// if the selected enemy is at or below threshold, deal lethal damage equal
+    /// to current HP + block.
+    Judgement(AmountSource),
+    /// Trigger Mark damage across all enemies: each marked enemy loses HP equal
+    /// to its Mark stacks, bypassing block.
+    TriggerMarks,
+    /// Modify the played card instance's cost by a delta.
+    ModifyPlayedCardCost(AmountSource),
+    /// Modify the played card instance's current block by a delta.
+    ModifyPlayedCardBlock(AmountSource),
     /// Heal HP capped at max HP.
     HealHp(Target, AmountSource),
     /// Increment a counter status; fires associated effect at threshold.
@@ -265,6 +317,30 @@ pub enum Effect {
     /// Present N generated cards for the player to choose from.
     /// Covers: Discovery, Foreign Influence, Wish.
     Discover(&'static [&'static str]),
+
+    /// Present a named option menu for effects like Wish.
+    ChooseNamedOptions(&'static [&'static str]),
+
+    /// Generate random card(s) from a pool directly into hand.
+    GenerateRandomCardsToHand {
+        pool: GeneratedCardPool,
+        count: AmountSource,
+        cost_rule: GeneratedCostRule,
+    },
+
+    /// Generate random card(s) from a pool directly into the draw pile.
+    GenerateRandomCardsToDraw {
+        pool: GeneratedCardPool,
+        count: AmountSource,
+        cost_rule: GeneratedCostRule,
+    },
+
+    /// Present random cards from a pool for a Discovery-style choose-one menu.
+    GenerateDiscoveryChoice {
+        pool: GeneratedCardPool,
+        option_count: usize,
+        cost_rule: GeneratedCostRule,
+    },
 }
 
 // ===========================================================================

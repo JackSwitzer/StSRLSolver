@@ -6,11 +6,21 @@
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
+use crate::decision::{
+    build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
+    DecisionAction, DecisionContext, DecisionFrame, DecisionKind, DecisionStack, DecisionState,
+    EventDecisionContext, EventOptionContext, MapDecisionContext, RewardChoice,
+    RewardChoiceFrame, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
+    RewardScreenSource,
+};
 use crate::enemies;
 use crate::engine::CombatEngine;
+use crate::gameplay::registry::global_registry as gameplay_registry;
+use crate::gameplay::types::GameplayDomain;
 use crate::map::{generate_map, DungeonMap, RoomType};
-use crate::relics;
 use crate::state::{CombatState, EnemyCombatState};
 
 // ---------------------------------------------------------------------------
@@ -21,10 +31,15 @@ use crate::state::{CombatState, EnemyCombatState};
 pub enum RunAction {
     /// Choose a path on the map: index into available next nodes
     ChoosePath(usize),
-    /// Pick a card reward: index into offered cards, or skip
-    PickCard(usize),
-    /// Skip card reward
-    SkipCardReward,
+    /// Click or claim a reward item in the current ordered reward screen.
+    SelectRewardItem(usize),
+    /// Choose an option within the currently active reward item.
+    ChooseRewardOption {
+        item_index: usize,
+        choice_index: usize,
+    },
+    /// Skip a skippable reward item.
+    SkipRewardItem(usize),
     /// Campfire: rest (heal 30% max HP)
     CampfireRest,
     /// Campfire: upgrade a card (index into deck)
@@ -99,67 +114,6 @@ const WATCHER_RARE_CARDS: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Ironclad card pools
-// ---------------------------------------------------------------------------
-
-const IRONCLAD_COMMON_CARDS: &[&str] = &[
-    "Anger", "Armaments", "Body Slam", "Clash", "Cleave",
-    "Clothesline", "Flex", "Havoc", "Headbutt", "Heavy Blade",
-    "Iron Wave", "Perfected Strike", "Pommel Strike", "Shrug It Off",
-    "Sword Boomerang", "Thunderclap", "True Grit", "Twin Strike",
-    "Warcry", "Wild Strike",
-];
-
-const IRONCLAD_UNCOMMON_CARDS: &[&str] = &[
-    "Battle Trance", "Blood for Blood", "Bloodletting", "Burning Pact",
-    "Carnage", "Combust", "Dark Embrace", "Disarm", "Dropkick",
-    "Dual Wield", "Entrench", "Evolve", "Feel No Pain", "Fire Breathing",
-    "Flame Barrier", "Ghostly Armor", "Hemokinesis", "Infernal Blade",
-    "Inflame", "Intimidate", "Metallicize", "Power Through", "Pummel",
-    "Rage", "Rampage", "Reckless Charge", "Rupture", "Searing Blow",
-    "Second Wind", "Seeing Red", "Sentinel", "Sever Soul", "Shockwave",
-    "Spot Weakness", "Uppercut", "Whirlwind",
-];
-
-const IRONCLAD_RARE_CARDS: &[&str] = &[
-    "Barricade", "Berserk", "Bludgeon", "Brutality", "Corruption",
-    "Demon Form", "Double Tap", "Exhume", "Feed", "Fiend Fire",
-    "Immolate", "Impervious", "Juggernaut", "Limit Break", "Offering",
-    "Reaper",
-];
-
-// ---------------------------------------------------------------------------
-// Silent card pools
-// ---------------------------------------------------------------------------
-
-const SILENT_COMMON_CARDS: &[&str] = &[
-    "Acrobatics", "Backflip", "Bane", "Blade Dance", "Cloak and Dagger",
-    "Dagger Spray", "Dagger Throw", "Deadly Poison", "Deflect",
-    "Dodge and Roll", "Flying Knee", "Outmaneuver", "Piercing Wail",
-    "Poisoned Stab", "Prepared", "Quick Slash", "Slice",
-    "Sneaky Strike", "Sucker Punch",
-];
-
-const SILENT_UNCOMMON_CARDS: &[&str] = &[
-    "Accuracy", "All-Out Attack", "Backstab", "Blur", "Bouncing Flask",
-    "Calculated Gamble", "Caltrops", "Catalyst", "Choke", "Concentrate",
-    "Crippling Cloud", "Dash", "Distraction", "Endless Agony", "Envenom",
-    "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",
-    "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
-    "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
-    "Riddle with Holes", "Setup", "Skewer", "Tactician", "Terror",
-    "Well-Laid Plans",
-];
-
-const SILENT_RARE_CARDS: &[&str] = &[
-    "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
-    "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
-    "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
-    "Nightmare", "Phantasmal Killer", "Storm of Steel",
-    "Tools of the Trade", "Unload", "Wraith Form",
-];
-
-// ---------------------------------------------------------------------------
 // Act 1 encounter pools (simplified)
 // ---------------------------------------------------------------------------
 
@@ -214,8 +168,6 @@ const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
     &["TaskMaster"],
 ];
 
-const ACT2_BOSSES: &[&str] = &["BronzeAutomaton", "TheCollector", "TheChamp"];
-
 // ---------------------------------------------------------------------------
 // Act 3 encounter pools
 // ---------------------------------------------------------------------------
@@ -242,8 +194,6 @@ const ACT3_ELITE_ENCOUNTERS: &[&[&str]] = &[
     &["Reptomancer"],
 ];
 
-const ACT3_BOSSES: &[&str] = &["AwakenedOne", "TimeEater", "DonuAndDeca"];
-
 // ---------------------------------------------------------------------------
 // Act 4 encounters
 // ---------------------------------------------------------------------------
@@ -252,14 +202,15 @@ const ACT4_ELITE_ENCOUNTERS: &[&[&str]] = &[
     &["SpireShield", "SpireSpear"],
 ];
 
-const ACT4_BOSSES: &[&str] = &["CorruptHeart"];
-
 // ---------------------------------------------------------------------------
 // Event definitions
 // ---------------------------------------------------------------------------
 
 // Events are defined in the events module
-use crate::events::{EventDef, EventEffect, EventOption, events_for_act};
+use crate::events::{
+    typed_events_for_act, EventDeckMutation, EventProgramOp, EventReward, EventRuntimeStatus,
+    TypedEventDef,
+};
 
 
 // ---------------------------------------------------------------------------
@@ -314,6 +265,10 @@ pub struct RunState {
     // Relic flags (bitfield for O(1) relic checks)
     #[serde(skip)]
     pub relic_flags: crate::relic_flags::RelicFlags,
+
+    // Canonical owner-aware runtime state that persists across combats.
+    #[serde(default)]
+    pub persisted_effect_states: Vec<crate::effects::runtime::PersistedEffectState>,
 }
 
 impl RunState {
@@ -365,8 +320,51 @@ impl RunState {
             run_won: false,
             run_over: false,
             relic_flags,
+            persisted_effect_states: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct EngineStepResult {
+    pub reward: f32,
+    pub done: bool,
+    pub phase: RunPhase,
+    pub action_accepted: bool,
+    pub legal_actions: Vec<RunAction>,
+    pub decision_state: DecisionState,
+    pub decision_context: DecisionContext,
+    pub legal_decision_actions: Vec<DecisionAction>,
+    pub combat_events: Vec<crate::effects::runtime::GameEventRecord>,
+    pub combat_obs_v2: Option<Vec<f32>>,
+    pub combat_obs_version: u32,
+    pub combat_context: Option<CombatContext>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct PendingEventCombat {
+    enemies: Vec<String>,
+    on_win: crate::events::EventProgram,
+}
+
+enum EventProgramFlow {
+    Continue,
+    ContinueEvent(TypedEventDef),
+    Died,
+    EndRunVictory,
+    StartCombat(PendingEventCombat),
+    StartBossCombat,
+    StartFinalAct,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventCardRarity {
+    Curse,
+    Basic,
+    Common,
+    Special,
+    Uncommon,
+    Rare,
 }
 
 // ---------------------------------------------------------------------------
@@ -384,11 +382,17 @@ pub struct RunEngine {
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
 
-    // Card reward offerings (when in CardReward phase)
-    card_rewards: Vec<String>,
+    // Ordered reward screen state (when in CardReward phase).
+    reward_screen: Option<RewardScreen>,
+
+    // Canonical stack of active decisions.
+    decision_stack: DecisionStack,
 
     // Current event (when in Event phase)
-    current_event: Option<EventDef>,
+    current_event: Option<TypedEventDef>,
+
+    // Scripted event fight that resumes into an event-owned on-win program.
+    pending_event_combat: Option<PendingEventCombat>,
 
     // Current shop (when in Shop phase)
     current_shop: Option<ShopState>,
@@ -403,6 +407,7 @@ pub struct RunEngine {
 
     // Reward tracking
     pub total_reward: f32,
+    last_combat_events: Vec<crate::effects::runtime::GameEventRecord>,
 }
 
 impl RunEngine {
@@ -415,22 +420,27 @@ impl RunEngine {
         let boss_idx = rng.gen_range(0..ACT1_BOSSES.len());
         let boss_id = ACT1_BOSSES[boss_idx].to_string();
 
-        Self {
+        let mut engine = Self {
             run_state: RunState::new(ascension),
             map,
             phase: RunPhase::MapChoice,
             seed,
             rng,
             combat_engine: None,
-            card_rewards: Vec::new(),
+            reward_screen: None,
+            decision_stack: DecisionStack::new(),
             current_event: None,
+            pending_event_combat: None,
             current_shop: None,
             boss_id,
             weak_encounter_idx: 0,
             strong_encounter_idx: 0,
             elite_encounter_idx: 0,
             total_reward: 0.0,
-        }
+            last_combat_events: Vec::new(),
+        };
+        engine.refresh_decision_stack();
+        engine
     }
 
     /// Reset the engine to a fresh run with a new seed.
@@ -471,6 +481,188 @@ impl RunEngine {
         }
     }
 
+    pub fn get_legal_decision_actions(&self) -> Vec<DecisionAction> {
+        self.get_legal_actions()
+            .iter()
+            .map(|action| DecisionAction::from_run_action(action, self.phase))
+            .collect()
+    }
+
+    pub fn current_decision_state(&self) -> DecisionState {
+        DecisionState {
+            kind: self.current_decision_kind(),
+            phase: self.phase,
+            terminal: self.run_state.run_over,
+            room_type: self.current_room_type().to_string(),
+        }
+    }
+
+    pub fn current_decision_context(&self) -> DecisionContext {
+        DecisionContext {
+            kind: self.current_decision_kind(),
+            combat: if self.phase == RunPhase::Combat {
+                self.current_combat_context()
+            } else {
+                None
+            },
+            reward_screen: self.current_reward_screen(),
+            map: if self.phase == RunPhase::MapChoice {
+                Some(MapDecisionContext {
+                    available_paths: self.get_map_actions().len(),
+                })
+            } else {
+                None
+            },
+            event: if self.phase == RunPhase::Event {
+                self.current_event.as_ref().map(|event| EventDecisionContext {
+                    name: event.name.clone(),
+                    options: event
+                        .options
+                        .iter()
+                        .enumerate()
+                        .map(|(index, option)| EventOptionContext {
+                            index,
+                            label: option.text.clone(),
+                        })
+                        .collect(),
+                })
+            } else {
+                None
+            },
+            shop: if self.phase == RunPhase::Shop {
+                self.current_shop
+                    .as_ref()
+                    .map(|shop| build_shop_context(shop, self.run_state.gold, self.run_state.deck.len()))
+            } else {
+                None
+            },
+            campfire: if self.phase == RunPhase::Campfire {
+                Some(CampfireDecisionContext {
+                    can_rest: !self.run_state.relic_flags.has(crate::relic_flags::flag::COFFEE_DRIPPER),
+                    upgradable_cards: if self
+                        .run_state
+                        .relic_flags
+                        .has(crate::relic_flags::flag::FUSION_HAMMER)
+                    {
+                        Vec::new()
+                    } else {
+                        self.run_state
+                            .deck
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
+                            .collect()
+                    },
+                })
+            } else {
+                None
+            },
+        }
+    }
+
+    pub fn current_decision_kind(&self) -> DecisionKind {
+        if let Some(kind) = self.decision_stack.current_kind() {
+            return kind;
+        }
+        match self.phase {
+            RunPhase::MapChoice => DecisionKind::MapPath,
+            RunPhase::Combat => {
+                if self
+                    .combat_engine
+                    .as_ref()
+                    .and_then(|combat| combat.choice.as_ref())
+                    .is_some()
+                {
+                    DecisionKind::CombatChoice
+                } else {
+                    DecisionKind::CombatAction
+                }
+            }
+            RunPhase::CardReward => DecisionKind::RewardScreen,
+            RunPhase::Campfire => DecisionKind::CampfireAction,
+            RunPhase::Shop => DecisionKind::ShopAction,
+            RunPhase::Event => DecisionKind::EventOption,
+            RunPhase::GameOver => DecisionKind::GameOver,
+        }
+    }
+
+    fn refresh_decision_stack(&mut self) {
+        let reward_choice = self.decision_stack.current_reward_choice().cloned();
+
+        self.decision_stack.clear();
+        let root = match self.phase {
+            RunPhase::MapChoice => DecisionFrame::Map(MapDecisionContext {
+                available_paths: self.get_map_actions().len(),
+            }),
+            RunPhase::Combat => {
+                if let Some(context) = self.current_combat_context() {
+                    if context.choice.active {
+                        DecisionFrame::CombatChoice(context.choice)
+                    } else {
+                        DecisionFrame::Combat(context)
+                    }
+                } else {
+                    DecisionFrame::GameOver
+                }
+            }
+            RunPhase::CardReward => DecisionFrame::RewardScreen {
+                source: self
+                    .reward_screen
+                    .as_ref()
+                    .map(|screen| screen.source.clone())
+                    .unwrap_or(RewardScreenSource::Unknown),
+            },
+            RunPhase::Campfire => DecisionFrame::Campfire(CampfireDecisionContext {
+                can_rest: !self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::COFFEE_DRIPPER),
+                upgradable_cards: if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::FUSION_HAMMER)
+                {
+                    Vec::new()
+                } else {
+                    self.run_state
+                        .deck
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
+                        .collect()
+                },
+            }),
+            RunPhase::Shop => self
+                .current_shop
+                .as_ref()
+                .map(|shop| DecisionFrame::Shop(build_shop_context(shop, self.run_state.gold, self.run_state.deck.len())))
+                .unwrap_or(DecisionFrame::GameOver),
+            RunPhase::Event => self
+                .current_event
+                .as_ref()
+                .map(|event| DecisionFrame::Event(EventDecisionContext {
+                    name: event.name.clone(),
+                    options: event
+                        .options
+                        .iter()
+                        .enumerate()
+                        .map(|(index, option)| EventOptionContext {
+                            index,
+                            label: option.text.clone(),
+                        })
+                        .collect(),
+                }))
+                .unwrap_or(DecisionFrame::GameOver),
+            RunPhase::GameOver => DecisionFrame::GameOver,
+        };
+        self.decision_stack.push(root);
+        if let Some(choice) = reward_choice {
+            if matches!(self.phase, RunPhase::CardReward) {
+                self.decision_stack.push(DecisionFrame::RewardChoice(choice));
+            }
+        }
+    }
+
     fn get_map_actions(&self) -> Vec<RunAction> {
         if self.run_state.map_y < 0 {
             // First move: choose from starting nodes
@@ -497,13 +689,38 @@ impl RunEngine {
     }
 
     fn get_card_reward_actions(&self) -> Vec<RunAction> {
-        let mut actions: Vec<RunAction> = self
-            .card_rewards
-            .iter()
-            .enumerate()
-            .map(|(i, _)| RunAction::PickCard(i))
-            .collect();
-        actions.push(RunAction::SkipCardReward);
+        let Some(screen) = self.reward_screen.as_ref() else {
+            return Vec::new();
+        };
+
+        if let Some(choice_frame) = self.decision_stack.current_reward_choice() {
+            let Some(item) = screen.items.get(choice_frame.item_index) else {
+                return Vec::new();
+            };
+            let mut actions: Vec<RunAction> = choice_frame
+                .choices
+                .iter()
+                .enumerate()
+                .map(|(choice_index, _)| RunAction::ChooseRewardOption {
+                    item_index: item.index,
+                    choice_index,
+                })
+                .collect();
+            if choice_frame.skip_allowed {
+                actions.push(RunAction::SkipRewardItem(item.index));
+            }
+            return actions;
+        }
+
+        let mut actions = Vec::new();
+        for item in &screen.items {
+            if item.claimable {
+                actions.push(RunAction::SelectRewardItem(item.index));
+                if item.skip_allowed {
+                    actions.push(RunAction::SkipRewardItem(item.index));
+                }
+            }
+        }
         actions
     }
 
@@ -524,10 +741,6 @@ impl RunEngine {
             }
         }
 
-        // Must have at least one action
-        if actions.is_empty() {
-            actions.push(RunAction::CampfireRest);
-        }
         actions
     }
 
@@ -558,7 +771,7 @@ impl RunEngine {
                 .map(|(i, _)| RunAction::EventChoice(i))
                 .collect()
         } else {
-            vec![RunAction::EventChoice(0)]
+            Vec::new()
         }
     }
 
@@ -568,18 +781,57 @@ impl RunEngine {
 
     /// Execute an action and return (reward, done).
     pub fn step(&mut self, action: &RunAction) -> (f32, bool) {
-        let reward = match self.phase {
-            RunPhase::MapChoice => self.step_map(action),
-            RunPhase::Combat => self.step_combat(action),
-            RunPhase::CardReward => self.step_card_reward(action),
-            RunPhase::Campfire => self.step_campfire(action),
-            RunPhase::Shop => self.step_shop(action),
-            RunPhase::Event => self.step_event(action),
-            RunPhase::GameOver => 0.0,
+        let result = self.step_with_result(action);
+        (result.reward, result.done)
+    }
+
+    /// Execute an action and return the stable post-step RL contract.
+    pub fn step_with_result(&mut self, action: &RunAction) -> EngineStepResult {
+        self.last_combat_events.clear();
+        let legal_before = self.get_legal_actions();
+        let action_accepted = legal_before.contains(action);
+        let reward = if action_accepted {
+            match self.phase {
+                RunPhase::MapChoice => self.step_map(action),
+                RunPhase::Combat => self.step_combat(action),
+                RunPhase::CardReward => self.step_card_reward(action),
+                RunPhase::Campfire => self.step_campfire(action),
+                RunPhase::Shop => self.step_shop(action),
+                RunPhase::Event => self.step_event(action),
+                RunPhase::GameOver => 0.0,
+            }
+        } else {
+            0.0
         };
 
+        self.refresh_decision_stack();
         self.total_reward += reward;
-        (reward, self.run_state.run_over)
+        let combat_obs_v2 = if self.phase == RunPhase::Combat {
+            Some(crate::obs::encode_combat_state_v2(self).to_vec())
+        } else {
+            None
+        };
+        let combat_context = if self.phase == RunPhase::Combat {
+            self.current_combat_context()
+        } else {
+            None
+        };
+        let decision_state = self.current_decision_state();
+        let decision_context = self.current_decision_context();
+        EngineStepResult {
+            reward,
+            done: self.run_state.run_over,
+            phase: self.phase,
+            action_accepted,
+            legal_actions: self.get_legal_actions(),
+            decision_state,
+            decision_context,
+            legal_decision_actions: self.get_legal_decision_actions(),
+            combat_events: self.last_combat_events.clone(),
+            combat_obs_v2,
+            combat_obs_version: crate::obs::COMBAT_OBS_VERSION,
+            combat_context,
+        }
     }
 
     // =======================================================================
@@ -627,10 +879,22 @@ impl RunEngine {
                 self.enter_event();
             }
             RoomType::Treasure => {
-                // Gain gold + go to map
-                let gold = self.rng.gen_range(50..=80);
-                self.run_state.gold += gold;
-                self.phase = RunPhase::MapChoice;
+                if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MATRYOSHKA)
+                    && self.run_state.relic_flags.counters
+                        [crate::relic_flags::counter::MATRYOSHKA_USES]
+                        > 0
+                {
+                    self.build_treasure_reward_screen();
+                    self.phase = RunPhase::CardReward;
+                } else {
+                    // Gain gold + go to map
+                    let gold = self.rng.gen_range(50..=80);
+                    self.run_state.gold += gold;
+                    self.phase = RunPhase::MapChoice;
+                }
             }
             RoomType::Boss => {
                 self.enter_combat(false, true);
@@ -688,7 +952,10 @@ impl RunEngine {
             *counter += 1;
             pool[idx].iter().map(|s| s.to_string()).collect()
         };
+        self.enter_specific_combat(encounter);
+    }
 
+    fn enter_specific_combat(&mut self, encounter: Vec<String>) {
         // Expand composite encounters (DonuAndDeca → two enemies)
         let expanded: Vec<String> = encounter.iter().flat_map(|id| {
             match id.as_str() {
@@ -733,10 +1000,12 @@ impl RunEngine {
 
         let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
         let mut engine = CombatEngine::new(combat_state, combat_seed);
+        engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
 
         self.combat_engine = Some(engine);
         self.phase = RunPhase::Combat;
+        self.refresh_decision_stack();
     }
 
     fn roll_enemy_hp(&mut self, enemy_id: &str) -> (i32, i32) {
@@ -940,7 +1209,14 @@ impl RunEngine {
             Some(e) => e,
             None => return 0.0,
         };
+        let combat_enemy_ids: Vec<String> = engine
+            .state
+            .enemies
+            .iter()
+            .map(|enemy| enemy.id.clone())
+            .collect();
 
+        engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
 
@@ -950,12 +1226,6 @@ impl RunEngine {
             if engine.state.player_won {
                 // Combat win reward
                 reward += 1.0;
-
-                // Apply on_victory relic effects (via unified dispatch)
-                {
-                    let ctx = crate::effects::trigger::TriggerContext::empty();
-                    crate::effects::dispatch::dispatch_trigger(engine, crate::effects::trigger::Trigger::CombatVictory, &ctx);
-                }
 
                 // Self Repair: heal at end of combat
                 let self_repair = engine.state.player.status(crate::status_ids::sid::SELF_REPAIR);
@@ -967,9 +1237,76 @@ impl RunEngine {
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.potions = engine.state.potions.clone();
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
+                self.run_state.persisted_effect_states = engine.export_persisted_effects();
                 self.run_state.combats_won += 1;
+                self.last_combat_events = engine.take_event_log();
 
-                // Gold reward (Ectoplasm blocks, Golden Idol +25%)
+                if let Some(branch) = self.pending_event_combat.take() {
+                    let mut reward_items = Vec::new();
+                    let mut died = false;
+                    let mut run_won = false;
+                    let mut next_event = None;
+                    let mut next_combat = None;
+                    let mut start_boss_combat = false;
+                    let mut start_final_act = false;
+                    match self.apply_event_program(&branch.on_win, &mut reward_items) {
+                        EventProgramFlow::Continue => {}
+                        EventProgramFlow::ContinueEvent(event) => {
+                            next_event = Some(event);
+                        }
+                        EventProgramFlow::Died => {
+                            died = true;
+                        }
+                        EventProgramFlow::EndRunVictory => {
+                            run_won = true;
+                        }
+                        EventProgramFlow::StartCombat(branch) => {
+                            next_combat = Some(branch);
+                        }
+                        EventProgramFlow::StartBossCombat => {
+                            start_boss_combat = true;
+                        }
+                        EventProgramFlow::StartFinalAct => {
+                            start_final_act = true;
+                        }
+                    }
+
+                    self.combat_engine = None;
+                    if run_won {
+                        self.resolve_terminal_run_victory();
+                    } else if died {
+                        reward -= 1.0;
+                        self.run_state.current_hp = 0;
+                        self.run_state.run_over = true;
+                        self.phase = RunPhase::GameOver;
+                    } else if let Some(event) = next_event {
+                        self.current_event = Some(event);
+                        self.phase = RunPhase::Event;
+                    } else if let Some(branch) = next_combat {
+                        self.current_event = None;
+                        let resolved_enemies = self.resolve_event_combat_enemies(&branch.enemies);
+                        self.pending_event_combat = Some(branch);
+                        self.enter_specific_combat(resolved_enemies);
+                    } else if start_boss_combat {
+                        self.current_event = None;
+                        self.pending_event_combat = None;
+                        self.run_state.floor = 16;
+                        self.enter_specific_combat(vec![self.boss_id.clone()]);
+                    } else if start_final_act {
+                        self.current_event = None;
+                        self.pending_event_combat = None;
+                        self.start_final_act();
+                    } else if !reward_items.is_empty() {
+                        self.build_event_reward_screen(reward_items);
+                        self.phase = RunPhase::CardReward;
+                    } else {
+                        self.phase = RunPhase::MapChoice;
+                    }
+                    self.refresh_decision_stack();
+                    return reward;
+                }
+
+                // Gold reward is an automatic combat outcome, not a selectable reward action.
                 if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
                     let mut gold = self.rng.gen_range(10..=20);
                     if self.run_state.relic_flags.has(crate::relic_flags::flag::GOLDEN_IDOL) {
@@ -998,23 +1335,32 @@ impl RunEngine {
                 if is_boss {
                     self.run_state.bosses_killed += 1;
                     reward += 5.0; // Boss kill bonus
-                    // Run won!
-                    self.run_state.run_won = true;
-                    self.run_state.run_over = true;
+                    if self.run_state.act == 4
+                        && combat_enemy_ids.len() == 1
+                        && combat_enemy_ids[0] == "CorruptHeart"
+                    {
+                        self.combat_engine = None;
+                        self.resolve_terminal_run_victory();
+                        return reward;
+                    }
+                    self.build_boss_reward_screen();
                     self.combat_engine = None;
-                    self.phase = RunPhase::GameOver;
+                    self.phase = RunPhase::CardReward;
                     return reward;
                 }
 
-                // Generate card rewards
-                self.generate_card_rewards();
+                // Build the ordered post-combat reward screen.
+                self.build_combat_reward_screen(room_type);
                 self.combat_engine = None;
                 self.phase = RunPhase::CardReward;
             } else {
                 // Player died
                 reward -= 1.0;
                 self.run_state.current_hp = 0;
+                self.run_state.persisted_effect_states = engine.export_persisted_effects();
+                self.last_combat_events = engine.take_event_log();
                 self.run_state.run_over = true;
+                self.pending_event_combat = None;
                 self.combat_engine = None;
                 self.phase = RunPhase::GameOver;
             }
@@ -1025,15 +1371,15 @@ impl RunEngine {
                 let damage_ratio = (hp_before - hp_after) as f32 / self.run_state.max_hp as f32;
                 reward -= damage_ratio * 0.5;
             }
+            self.last_combat_events = engine.take_event_log();
         }
 
         reward
     }
 
-    fn generate_card_rewards(&mut self) {
-        // Generate 3 card choices: common/uncommon/rare distribution
+    fn generate_card_reward_choices(&mut self, count: usize) -> Vec<RewardChoice> {
         let mut cards = Vec::new();
-        for _ in 0..3 {
+        for choice_index in 0..count {
             let roll: f32 = self.rng.gen();
             let card = if roll < 0.6 {
                 // Common
@@ -1048,9 +1394,199 @@ impl RunEngine {
                 let idx = self.rng.gen_range(0..WATCHER_RARE_CARDS.len());
                 WATCHER_RARE_CARDS[idx]
             };
-            cards.push(card.to_string());
+            cards.push(RewardChoice::Card {
+                index: choice_index,
+                card_id: card.to_string(),
+            });
         }
-        self.card_rewards = cards;
+        cards
+    }
+
+    fn build_combat_reward_screen(&mut self, room_type: RoomType) {
+        let mut items = Vec::new();
+
+        if room_type == RoomType::Elite {
+            let relic_count = if self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::BLACK_STAR)
+            {
+                2
+            } else {
+                1
+            };
+            for reward_idx in 0..relic_count {
+                items.push(RewardItem {
+                    index: items.len(),
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: self.roll_reward_relic_id(),
+                    claimable: reward_idx == 0,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                });
+            }
+        }
+
+        if self.should_offer_potion_reward(room_type) {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Potion,
+                state: RewardItemState::Available,
+                label: self.roll_reward_potion_id(),
+                claimable: items.is_empty(),
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: Vec::new(),
+            });
+        }
+
+        let card_reward_count = if room_type == RoomType::Monster
+            && self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::PRAYER_WHEEL)
+        {
+            2
+        } else {
+            1
+        };
+        let card_choice_count = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::QUESTION_CARD)
+        {
+            4
+        } else {
+            3
+        };
+
+        for _ in 0..card_reward_count {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "card_reward".to_string(),
+                claimable: items.is_empty(),
+                active: false,
+                skip_allowed: true,
+                skip_label: Some(if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SINGING_BOWL)
+                {
+                    "+2 Max HP".to_string()
+                } else {
+                    "Skip".to_string()
+                }),
+                choices: self.generate_card_reward_choices(card_choice_count),
+            });
+        }
+
+        let mut screen = RewardScreen {
+            source: if self.run_state.floor >= 16 {
+                RewardScreenSource::BossCombat
+            } else {
+                RewardScreenSource::Combat
+            },
+            ordered: true,
+            active_item: None,
+            items,
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
+    fn build_boss_reward_screen(&mut self) {
+        let choices = self
+            .roll_boss_relic_choices(3)
+            .into_iter()
+            .enumerate()
+            .map(|(index, relic_id)| RewardChoice::Named {
+                index,
+                label: relic_id,
+            })
+            .collect();
+
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::BossCombat,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::Relic,
+                state: RewardItemState::Available,
+                label: "boss_relic_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices,
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
+    fn build_treasure_reward_screen(&mut self) {
+        let gold = self.rng.gen_range(50..=80);
+        let extra_relic = self.run_state.relic_flags.counters
+            [crate::relic_flags::counter::MATRYOSHKA_USES]
+            > 0;
+        if extra_relic {
+            self.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES] -= 1;
+        }
+
+        let mut items = vec![
+            RewardItem {
+                index: 0,
+                kind: RewardItemKind::Gold,
+                state: RewardItemState::Available,
+                label: gold.to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            },
+            RewardItem {
+                index: 1,
+                kind: RewardItemKind::Relic,
+                state: RewardItemState::Available,
+                label: self.roll_reward_relic_id(),
+                claimable: false,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            },
+        ];
+
+        if extra_relic {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Relic,
+                state: RewardItemState::Available,
+                label: self.roll_reward_relic_id(),
+                claimable: false,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            });
+        }
+
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Unknown,
+            ordered: true,
+            active_item: None,
+            items,
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
     }
 
     // =======================================================================
@@ -1059,34 +1595,579 @@ impl RunEngine {
 
     fn step_card_reward(&mut self, action: &RunAction) -> f32 {
         match action {
-            RunAction::PickCard(idx) => {
-                if *idx < self.card_rewards.len() {
-                    let card = self.card_rewards[*idx].clone();
-                    self.run_state.deck.push(card);
-                    // Ceramic Fish: +9g on card add
-                    if self.run_state.relic_flags.has(crate::relic_flags::flag::CERAMIC_FISH)
-                        && !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM)
-                    {
-                        self.run_state.gold += 9;
-                    }
-                }
-            }
-            RunAction::SkipCardReward => {}
+            RunAction::SelectRewardItem(item_index) => self.select_reward_item(*item_index),
+            RunAction::ChooseRewardOption {
+                item_index,
+                choice_index,
+            } => self.choose_reward_option(*item_index, *choice_index),
+            RunAction::SkipRewardItem(item_index) => self.skip_reward_item(*item_index),
             _ => {}
         }
 
-        self.card_rewards.clear();
+        let reward_complete = self.reward_screen.as_ref().is_none_or(|screen| {
+            screen
+                .items
+                .iter()
+                .all(|item| item.state != RewardItemState::Available)
+        });
+        if reward_complete {
+            let source = self
+                .reward_screen
+                .as_ref()
+                .map(|screen| screen.source.clone())
+                .unwrap_or(RewardScreenSource::Unknown);
+            self.reward_screen = None;
 
-        // Check if at last row (floor 15) — enter boss
-        if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
-            // Boss fight next
-            self.run_state.floor += 1;
-            self.enter_combat(false, true);
-            return 0.0;
+            if source == RewardScreenSource::BossCombat {
+                self.run_state.run_won = true;
+                self.run_state.run_over = true;
+                self.phase = RunPhase::GameOver;
+                self.refresh_decision_stack();
+                return 0.0;
+            }
+
+            // Check if at last row (floor 15) — enter boss
+            if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
+                // Boss fight next
+                self.run_state.floor += 1;
+                self.enter_combat(false, true);
+                self.refresh_decision_stack();
+                return 0.0;
+            }
+
+            self.phase = RunPhase::MapChoice;
+        }
+        self.refresh_decision_stack();
+        0.0
+    }
+
+    fn select_reward_item(&mut self, item_index: usize) {
+        let Some(screen) = self.reward_screen.as_ref() else {
+            return;
+        };
+        if self.decision_stack.current_reward_choice().is_some() {
+            return;
+        }
+        let Some(item) = screen.items.get(item_index) else {
+            return;
+        };
+        if item.index != item_index || !item.claimable || item.state != RewardItemState::Available {
+            return;
         }
 
-        self.phase = RunPhase::MapChoice;
-        0.0
+        if !item.choices.is_empty() {
+            self.decision_stack.push(DecisionFrame::RewardChoice(RewardChoiceFrame {
+                item_index,
+                item_kind: item.kind,
+                skip_allowed: item.skip_allowed,
+                choices: item.choices.clone(),
+            }));
+            return;
+        }
+
+        self.claim_reward_item(item_index);
+    }
+
+    fn choose_reward_option(&mut self, item_index: usize, choice_index: usize) {
+        let Some(choice_frame) = self.decision_stack.current_reward_choice().cloned() else {
+            return;
+        };
+        if choice_frame.item_index != item_index {
+            return;
+        }
+        let Some(screen) = self.reward_screen.as_ref() else {
+            return;
+        };
+        let Some(item) = screen.items.get(item_index) else {
+            return;
+        };
+        if item.state != RewardItemState::Available {
+            return;
+        }
+        let item_label = item.label.clone();
+        let Some(choice) = choice_frame.choices.get(choice_index).cloned() else {
+            return;
+        };
+        let kind = choice_frame.item_kind;
+
+        match (kind, choice) {
+            (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
+                if !self.resolve_event_deck_selection_choice(&item_label, &choice_frame, choice_index)
+                {
+                    self.add_card_reward(card_id);
+                }
+            }
+            (RewardItemKind::Relic, RewardChoice::Named { label, .. }) => {
+                self.add_relic_reward(&label);
+            }
+            (RewardItemKind::Potion, RewardChoice::Named { label, .. }) => {
+                self.add_potion_reward(&label);
+            }
+            (RewardItemKind::Gold, RewardChoice::Named { label, .. }) => {
+                if let Ok(amount) = label.parse::<i32>() {
+                    self.run_state.gold += amount.max(0);
+                }
+            }
+            (_, RewardChoice::Named { .. }) => {}
+            _ => {}
+        }
+
+        if let Some(screen) = self.reward_screen.as_mut() {
+            if let Some(item) = screen.items.get_mut(item_index) {
+                item.state = RewardItemState::Claimed;
+            }
+            Self::refresh_reward_screen(screen);
+        }
+        self.decision_stack.pop();
+    }
+
+    fn resolve_event_deck_selection_choice(
+        &mut self,
+        label: &str,
+        choice_frame: &RewardChoiceFrame,
+        choice_index: usize,
+    ) -> bool {
+        let Some(RewardChoice::Card {
+            index: deck_index,
+            card_id,
+        }) = choice_frame.choices.get(choice_index)
+        else {
+            return false;
+        };
+
+        match label {
+            "deck_selection_purge" => {
+                if *deck_index < self.run_state.deck.len() {
+                    self.run_state.deck.remove(*deck_index);
+                }
+                true
+            }
+            "deck_selection_bonfire_offer" => {
+                if *deck_index < self.run_state.deck.len() {
+                    self.run_state.deck.remove(*deck_index);
+                }
+                self.resolve_bonfire_offer(card_id);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn resolve_bonfire_offer(&mut self, card_id: &str) {
+        match event_card_rarity(card_id) {
+            Some(EventCardRarity::Curse) => {
+                if self
+                    .run_state
+                    .relics
+                    .iter()
+                    .any(|relic| matches!(relic.as_str(), "Spirit Poop" | "SpiritPoop"))
+                {
+                    self.add_relic_reward("Circlet");
+                } else {
+                    self.add_relic_reward("Spirit Poop");
+                }
+            }
+            Some(EventCardRarity::Basic) => {}
+            Some(EventCardRarity::Common) | Some(EventCardRarity::Special) => {
+                self.heal_run_player(5);
+            }
+            Some(EventCardRarity::Uncommon) => {
+                let missing_hp = self.run_state.max_hp - self.run_state.current_hp;
+                self.heal_run_player(missing_hp);
+            }
+            Some(EventCardRarity::Rare) => {
+                self.run_state.max_hp += 10;
+                self.run_state.current_hp = self.run_state.max_hp;
+            }
+            None => {}
+        }
+    }
+
+    fn skip_reward_item(&mut self, item_index: usize) {
+        let active_choice = self.decision_stack.current_reward_choice().cloned();
+        let Some(screen) = self.reward_screen.as_ref() else {
+            return;
+        };
+        let Some(item) = screen.items.get(item_index) else {
+            return;
+        };
+        if item.index != item_index || !item.skip_allowed || item.state != RewardItemState::Available {
+            return;
+        }
+        if let Some(choice_frame) = active_choice.as_ref() {
+            if choice_frame.item_index != item_index || !choice_frame.skip_allowed {
+                return;
+            }
+        } else if !item.claimable {
+            return;
+        }
+
+        if item.kind == RewardItemKind::CardChoice
+            && self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::SINGING_BOWL)
+        {
+            self.run_state.max_hp += 2;
+            self.run_state.current_hp += 2;
+        }
+
+        if let Some(screen) = self.reward_screen.as_mut() {
+            if let Some(item) = screen.items.get_mut(item_index) {
+                item.state = RewardItemState::Skipped;
+            }
+            Self::refresh_reward_screen(screen);
+        }
+        if active_choice.is_some() {
+            self.decision_stack.pop();
+        }
+    }
+
+    fn claim_reward_item(&mut self, item_index: usize) {
+        let Some(screen) = self.reward_screen.as_ref() else {
+            return;
+        };
+        let Some(item) = screen.items.get(item_index) else {
+            return;
+        };
+        let kind = item.kind;
+        let label = item.label.clone();
+
+        match kind {
+            RewardItemKind::Relic => self.add_relic_reward(&label),
+            RewardItemKind::Potion => self.add_potion_reward(&label),
+            RewardItemKind::Gold => {
+                if let Ok(amount) = label.parse::<i32>() {
+                    self.run_state.gold += amount.max(0);
+                }
+            }
+            _ => {}
+        }
+
+        if let Some(screen) = self.reward_screen.as_mut() {
+            if let Some(item) = screen.items.get_mut(item_index) {
+                item.state = RewardItemState::Claimed;
+            }
+            Self::refresh_reward_screen(screen);
+        }
+    }
+
+    fn add_card_reward(&mut self, card_id: String) {
+        let upgraded = self.upgrade_reward_card_if_needed(&card_id);
+        self.run_state.deck.push(upgraded);
+        // Ceramic Fish: +9g on card add
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::CERAMIC_FISH)
+            && !self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::ECTOPLASM)
+        {
+            self.run_state.gold += 9;
+        }
+    }
+
+    fn upgrade_reward_card_if_needed(&self, card_id: &str) -> String {
+        if card_id.ends_with('+') {
+            return card_id.to_string();
+        }
+
+        let registry = crate::cards::global_registry();
+        let Some(def) = registry.get(card_id) else {
+            return card_id.to_string();
+        };
+
+        let should_upgrade = match def.card_type {
+            crate::cards::CardType::Attack => self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::MOLTEN_EGG),
+            crate::cards::CardType::Skill => self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::TOXIC_EGG),
+            crate::cards::CardType::Power => self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::FROZEN_EGG),
+            _ => false,
+        };
+        if !should_upgrade {
+            return card_id.to_string();
+        }
+
+        let upgraded = format!("{card_id}+");
+        if registry.get(&upgraded).is_some() {
+            upgraded
+        } else {
+            card_id.to_string()
+        }
+    }
+
+    fn add_relic_reward(&mut self, relic_id: &str) {
+        self.run_state.relics.push(relic_id.to_string());
+        self.run_state.relic_flags.rebuild(&self.run_state.relics);
+        self.run_state.relic_flags.init_relic_counter(relic_id);
+
+        match relic_id {
+            "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
+            "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
+            _ => {}
+        }
+    }
+
+    fn remove_relic_reward(&mut self, relic_id: &str) {
+        let matches = |owned: &str| match relic_id {
+            "Golden Idol" | "GoldenIdol" => matches!(owned, "Golden Idol" | "GoldenIdol"),
+            _ => owned == relic_id,
+        };
+
+        if let Some(index) = self
+            .run_state
+            .relics
+            .iter()
+            .position(|owned| matches(owned.as_str()))
+        {
+            self.run_state.relics.remove(index);
+            self.run_state.relic_flags.rebuild(&self.run_state.relics);
+        }
+    }
+
+    fn heal_run_player(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+        {
+            return;
+        }
+
+        let mut heal = amount;
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MAGIC_FLOWER)
+        {
+            heal = (heal as f32 * 1.5) as i32;
+        }
+
+        self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+    }
+
+    fn add_potion_reward(&mut self, potion_id: &str) {
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::SOZU)
+        {
+            return;
+        }
+        if let Some(slot) = self.run_state.potions.iter().position(|p| p.is_empty()) {
+            self.run_state.potions[slot] = potion_id.to_string();
+        }
+    }
+
+    fn upgrade_random_cards_by_type(&mut self, card_type: crate::cards::CardType, count: usize) {
+        let registry = crate::cards::global_registry();
+        let mut eligible: Vec<usize> = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card_id)| {
+                if card_id.ends_with('+') {
+                    return None;
+                }
+                let def = registry.get(card_id)?;
+                if def.card_type == card_type && registry.get(&format!("{card_id}+")).is_some() {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for _ in 0..count {
+            if eligible.is_empty() {
+                break;
+            }
+            let pick = self.rng.gen_range(0..eligible.len());
+            let deck_idx = eligible.swap_remove(pick);
+            self.run_state.deck[deck_idx] = format!("{}+", self.run_state.deck[deck_idx]);
+        }
+    }
+
+    fn roll_reward_relic_id(&mut self) -> String {
+        const RELIC_REWARD_POOL: &[&str] = &[
+            "Vajra",
+            "Anchor",
+            "BagOfMarbles",
+            "QuestionCard",
+            "PrayerWheel",
+            "SingingBowl",
+            "Whetstone",
+            "WarPaint",
+            "MoltenEgg2",
+            "ToxicEgg2",
+            "FrozenEgg2",
+        ];
+
+        let mut candidates: Vec<&str> = RELIC_REWARD_POOL
+            .iter()
+            .copied()
+            .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
+            .collect();
+        if candidates.is_empty() {
+            candidates.extend(RELIC_REWARD_POOL.iter().copied());
+        }
+
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].to_string()
+    }
+
+    fn roll_reward_potion_id(&mut self) -> String {
+        const POTION_REWARD_POOL: &[&str] = &[
+            "Block Potion",
+            "Dexterity Potion",
+            "Energy Potion",
+            "Fire Potion",
+            "Fear Potion",
+            "Strength Potion",
+            "Swift Potion",
+            "Weak Potion",
+        ];
+
+        let registry = gameplay_registry();
+        let candidates: Vec<&str> = POTION_REWARD_POOL
+            .iter()
+            .copied()
+            .filter(|id| {
+                registry.get(GameplayDomain::Potion, id).is_some()
+                    || crate::potions::defs::potion_def_by_runtime_id(id).is_some()
+            })
+            .collect();
+        if candidates.is_empty() {
+            return "Block Potion".to_string();
+        }
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].to_string()
+    }
+
+    fn roll_boss_relic_choices(&mut self, count: usize) -> Vec<String> {
+        const BOSS_RELIC_POOL: &[&str] = &[
+            "Philosopher's Stone",
+            "Velvet Choker",
+            "Snecko Eye",
+        ];
+
+        let registry = gameplay_registry();
+        let mut candidates: Vec<&str> = BOSS_RELIC_POOL
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.len() < count {
+            candidates = BOSS_RELIC_POOL
+                .iter()
+                .copied()
+                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .collect();
+        }
+        if candidates.is_empty() {
+            return Vec::new();
+        }
+
+        let mut picks = Vec::new();
+        while !candidates.is_empty() && picks.len() < count {
+            let idx = self.rng.gen_range(0..candidates.len());
+            picks.push(candidates.swap_remove(idx).to_string());
+        }
+        picks
+    }
+
+    fn should_offer_potion_reward(&mut self, room_type: RoomType) -> bool {
+        if room_type == RoomType::Boss {
+            return false;
+        }
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::SOZU)
+        {
+            return false;
+        }
+        if !self.run_state.potions.iter().any(|p| p.is_empty()) {
+            return false;
+        }
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::WHITE_BEAST)
+        {
+            return true;
+        }
+        if room_type == RoomType::Elite {
+            return true;
+        }
+        self.rng.gen_bool(0.4)
+    }
+
+    fn can_enter_final_act(&self) -> bool {
+        self.run_state.has_ruby_key
+            && self.run_state.has_emerald_key
+            && self.run_state.has_sapphire_key
+    }
+
+    fn resolve_terminal_run_victory(&mut self) {
+        self.current_event = None;
+        self.pending_event_combat = None;
+        self.reward_screen = None;
+        self.combat_engine = None;
+        self.run_state.run_won = true;
+        self.run_state.run_over = true;
+        self.phase = RunPhase::GameOver;
+    }
+
+    fn start_final_act(&mut self) {
+        self.run_state.act = 4;
+        self.boss_id = "CorruptHeart".to_string();
+        self.pending_event_combat = Some(PendingEventCombat {
+            enemies: vec!["CorruptHeart".to_string()],
+            on_win: crate::events::EventProgram::from_ops(vec![EventProgramOp::StartBossCombat]),
+        });
+        self.enter_specific_combat(vec![
+            "SpireShield".to_string(),
+            "SpireSpear".to_string(),
+        ]);
+    }
+
+    fn refresh_reward_screen(screen: &mut RewardScreen) {
+        for item in &mut screen.items {
+            item.claimable = false;
+            item.active = false;
+        }
+
+        if screen.ordered {
+            if let Some(item) = screen
+                .items
+                .iter_mut()
+                .find(|item| item.state == RewardItemState::Available)
+            {
+                item.claimable = true;
+            }
+        } else {
+            for item in &mut screen.items {
+                if item.state == RewardItemState::Available {
+                    item.claimable = true;
+                }
+            }
+        }
     }
 
     // =======================================================================
@@ -1125,10 +2206,12 @@ impl RunEngine {
         if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
             self.run_state.floor += 1;
             self.enter_combat(false, true);
+            self.refresh_decision_stack();
             return 0.0;
         }
 
         self.phase = RunPhase::MapChoice;
+        self.refresh_decision_stack();
         0.0
     }
 
@@ -1183,6 +2266,7 @@ impl RunEngine {
             removal_used: false,
         });
         self.phase = RunPhase::Shop;
+        self.refresh_decision_stack();
 
         // Meal Ticket: heal 15 on shop enter
         if self.run_state.relic_flags.has(crate::relic_flags::flag::MEAL_TICKET)
@@ -1230,6 +2314,7 @@ impl RunEngine {
 
         self.current_shop = None;
         self.phase = RunPhase::MapChoice;
+        self.refresh_decision_stack();
         0.0
     }
 
@@ -1238,10 +2323,11 @@ impl RunEngine {
     // =======================================================================
 
     fn enter_event(&mut self) {
-        let events = events_for_act(self.run_state.act);
+        let events = typed_events_for_act(self.run_state.act);
         let idx = self.rng.gen_range(0..events.len());
         self.current_event = Some(events[idx].clone());
         self.phase = RunPhase::Event;
+        self.refresh_decision_stack();
     }
 
     fn step_event(&mut self, action: &RunAction) -> f32 {
@@ -1250,119 +2336,586 @@ impl RunEngine {
             _ => 0,
         };
 
-        if let Some(ref event) = self.current_event {
-            if choice_idx < event.options.len() {
-                let effect = &event.options[choice_idx].effect;
-                match effect {
-                    EventEffect::Hp(amount) => {
-                        self.run_state.current_hp = (self.run_state.current_hp + amount)
-                            .max(0)
-                            .min(self.run_state.max_hp);
-                    }
-                    EventEffect::Gold(amount) => {
-                        self.run_state.gold = (self.run_state.gold + amount).max(0);
-                    }
-                    EventEffect::GainCard => {
-                        let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                        self.run_state.deck.push(WATCHER_COMMON_CARDS[idx].to_string());
-                    }
-                    EventEffect::RemoveCard => {
-                        if self.run_state.deck.len() > 5 {
-                            let idx = self.rng.gen_range(0..self.run_state.deck.len());
-                            self.run_state.deck.remove(idx);
-                        }
-                    }
-                    EventEffect::GainRelic => {
-                        // Simplified: gain a placeholder relic
-                        self.run_state.relics.push("EventRelic".to_string());
-                        self.run_state.relic_flags.rebuild(&self.run_state.relics);
-                    }
-                    EventEffect::MaxHp(amount) => {
-                        self.run_state.max_hp += amount;
-                        self.run_state.current_hp += amount;
-                    }
-                    EventEffect::DamageAndGold(damage, gold) => {
-                        if *damage < 0 {
-                            self.run_state.current_hp = (self.run_state.current_hp + damage).max(0);
-                        }
-                        if *gold > 0 {
-                            self.run_state.gold += gold;
-                        }
-                        // Check death
-                        if self.run_state.current_hp <= 0 {
-                            self.run_state.run_over = true;
-                            self.phase = RunPhase::GameOver;
-                            return -1.0;
-                        }
-                    }
-                    EventEffect::GoldenIdolTake => {
-                        // Lose 25% max HP (rounded down), gain 300 gold
-                        let damage = self.run_state.max_hp / 4;
-                        self.run_state.current_hp = (self.run_state.current_hp - damage).max(0);
-                        self.run_state.gold += 300;
-                        if self.run_state.current_hp <= 0 {
-                            self.run_state.run_over = true;
-                            self.phase = RunPhase::GameOver;
-                            return -1.0;
-                        }
-                    }
-                    EventEffect::Nothing => {}
-                    EventEffect::UpgradeCard => {
-                        // Upgrade first non-upgraded card
-                        for card in &mut self.run_state.deck {
-                            if !card.ends_with('+') {
-                                *card = format!("{}+", card);
-                                break;
-                            }
-                        }
-                    }
-                    EventEffect::TransformCard => {
-                        if self.run_state.deck.len() > 5 {
-                            let idx = self.rng.gen_range(0..self.run_state.deck.len());
-                            self.run_state.deck.remove(idx);
-                        }
-                        let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                        self.run_state.deck.push(WATCHER_COMMON_CARDS[card_idx].to_string());
-                    }
-                    EventEffect::DuplicateCard => {
-                        if !self.run_state.deck.is_empty() {
-                            let idx = self.rng.gen_range(0..self.run_state.deck.len());
-                            let card = self.run_state.deck[idx].clone();
-                            self.run_state.deck.push(card);
-                        }
-                    }
-                    EventEffect::GainPotion => {
-                        if !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU) {
-                            // Find first empty potion slot
-                            if let Some(slot_idx) = self.run_state.potions.iter().position(|p| p.is_empty()) {
-                                let potions = ["Block Potion", "Dexterity Potion", "Energy Potion",
-                                    "Strength Potion", "Swift Potion", "Fear Potion",
-                                    "Fire Potion", "Weak Potion"];
-                                let idx = self.rng.gen_range(0..potions.len());
-                                self.run_state.potions[slot_idx] = potions[idx].to_string();
-                            }
-                        }
-                    }
-                    EventEffect::LosePercentHp(percent) => {
-                        let loss = (self.run_state.max_hp * percent) / 100;
-                        self.run_state.current_hp = (self.run_state.current_hp - loss.max(1)).max(0);
-                        if self.run_state.current_hp <= 0 {
-                            self.run_state.run_over = true;
-                            self.phase = RunPhase::GameOver;
-                            return -1.0;
-                        }
-                    }
-                    EventEffect::GoldAndCurse(gold) => {
-                        self.run_state.gold += gold;
-                        self.run_state.deck.push("Curse".to_string());
-                    }
+        let Some(event) = self.current_event.clone() else {
+            self.phase = RunPhase::MapChoice;
+            self.refresh_decision_stack();
+            return 0.0;
+        };
+        let Some(option) = event.options.get(choice_idx).cloned() else {
+            self.current_event = None;
+            self.phase = RunPhase::MapChoice;
+            self.refresh_decision_stack();
+            return 0.0;
+        };
+
+        let mut reward_items = Vec::new();
+        let mut died = false;
+        let mut run_won = false;
+        let mut combat_branch = None;
+        let mut next_event = None;
+        let mut start_boss_combat = false;
+        let mut start_final_act = false;
+        let blocked = matches!(option.status, EventRuntimeStatus::Blocked { .. });
+
+        if !blocked {
+            match self.apply_event_program(&option.program, &mut reward_items) {
+                EventProgramFlow::Continue => {}
+                EventProgramFlow::ContinueEvent(event) => {
+                    next_event = Some(event);
+                }
+                EventProgramFlow::Died => {
+                    died = true;
+                }
+                EventProgramFlow::EndRunVictory => {
+                    run_won = true;
+                }
+                EventProgramFlow::StartCombat(branch) => {
+                    combat_branch = Some(branch);
+                }
+                EventProgramFlow::StartBossCombat => {
+                    start_boss_combat = true;
+                }
+                EventProgramFlow::StartFinalAct => {
+                    start_final_act = true;
                 }
             }
         }
 
+        if let Some(branch) = combat_branch {
+            self.current_event = None;
+            let resolved_enemies = self.resolve_event_combat_enemies(&branch.enemies);
+            self.pending_event_combat = Some(branch.clone());
+            self.enter_specific_combat(resolved_enemies);
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
+        if let Some(event) = next_event {
+            self.current_event = Some(event);
+            self.phase = RunPhase::Event;
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
+        if start_boss_combat {
+            self.current_event = None;
+            self.pending_event_combat = None;
+            self.run_state.floor = 16;
+            self.enter_specific_combat(vec![self.boss_id.clone()]);
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
+        if start_final_act {
+            self.current_event = None;
+            self.pending_event_combat = None;
+            self.start_final_act();
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
         self.current_event = None;
-        self.phase = RunPhase::MapChoice;
+        if died {
+            self.run_state.run_over = true;
+            self.phase = RunPhase::GameOver;
+            self.refresh_decision_stack();
+            return -1.0;
+        }
+
+        if run_won {
+            self.resolve_terminal_run_victory();
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
+        if !reward_items.is_empty() {
+            self.build_event_reward_screen(reward_items);
+            self.phase = RunPhase::CardReward;
+        } else {
+            self.phase = RunPhase::MapChoice;
+        }
+        self.refresh_decision_stack();
         0.0
+    }
+
+    fn apply_event_program_op(
+        &mut self,
+        op: &EventProgramOp,
+        reward_items: &mut Vec<RewardItem>,
+    ) -> EventProgramFlow {
+        match op {
+            EventProgramOp::ContinueEvent { event } => {
+                EventProgramFlow::ContinueEvent((**event).clone())
+            }
+            EventProgramOp::ResolveFinalAct => {
+                if self.can_enter_final_act() {
+                    EventProgramFlow::StartFinalAct
+                } else {
+                    EventProgramFlow::EndRunVictory
+                }
+            }
+            EventProgramOp::CombatBranch { enemies, on_win } => {
+                EventProgramFlow::StartCombat(PendingEventCombat {
+                    enemies: enemies.clone(),
+                    on_win: *on_win.clone(),
+                })
+            }
+            EventProgramOp::StartBossCombat => EventProgramFlow::StartBossCombat,
+            EventProgramOp::RandomOutcomeTable { outcomes } => {
+                if outcomes.is_empty() {
+                    return EventProgramFlow::Continue;
+                }
+                let idx = self.rng.gen_range(0..outcomes.len());
+                self.apply_event_program(&outcomes[idx], reward_items)
+            }
+            EventProgramOp::DeckSelection { label } => {
+                if self.run_state.deck.is_empty() {
+                    return EventProgramFlow::Continue;
+                }
+                let choices = self
+                    .run_state
+                    .deck
+                    .iter()
+                    .enumerate()
+                    .map(|(index, card_id)| RewardChoice::Card {
+                        index,
+                        card_id: card_id.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::CardChoice,
+                    state: RewardItemState::Available,
+                    label: label.clone(),
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices,
+                });
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::AdjustHp { amount } => {
+                if *amount > 0 {
+                    self.heal_run_player(*amount);
+                } else {
+                    self.run_state.current_hp =
+                        (self.run_state.current_hp + amount).max(0).min(self.run_state.max_hp);
+                }
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::AdjustHpByAscension { base, asc15 } => {
+                let amount = if self.run_state.ascension >= 15 {
+                    *asc15
+                } else {
+                    *base
+                };
+                if amount > 0 {
+                    self.heal_run_player(amount);
+                } else {
+                    self.run_state.current_hp =
+                        (self.run_state.current_hp + amount).max(0).min(self.run_state.max_hp);
+                }
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::HealPercentHp { percent } => {
+                let heal = (self.run_state.max_hp * percent) / 100;
+                self.heal_run_player(heal);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::AdjustHpPercentByAscension {
+                heal,
+                base_percent,
+                asc15_percent,
+            } => {
+                let percent = if self.run_state.ascension >= 15 {
+                    *asc15_percent
+                } else {
+                    *base_percent
+                };
+                let amount = (self.run_state.max_hp * percent) / 100;
+                if *heal {
+                    self.heal_run_player(amount);
+                    EventProgramFlow::Continue
+                } else {
+                    self.run_state.current_hp = (self.run_state.current_hp - amount).max(0);
+                    if self.run_state.current_hp <= 0 {
+                        EventProgramFlow::Died
+                    } else {
+                        EventProgramFlow::Continue
+                    }
+                }
+            }
+            EventProgramOp::HealToFull => {
+                let missing_hp = self.run_state.max_hp - self.run_state.current_hp;
+                self.heal_run_player(missing_hp);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::AdjustGold { amount } => {
+                self.run_state.gold = (self.run_state.gold + amount).max(0);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::AdjustGoldByAct {
+                exordium,
+                city,
+                beyond,
+            } => {
+                let amount = match self.run_state.act {
+                    2 => *city,
+                    3 => *beyond,
+                    _ => *exordium,
+                };
+                self.run_state.gold = (self.run_state.gold + amount).max(0);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::AdjustMaxHp { amount } => {
+                self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
+                self.run_state.current_hp =
+                    (self.run_state.current_hp + amount).max(0).min(self.run_state.max_hp);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::AdjustMaxHpPercent { percent } => {
+                let amount = if *percent >= 0 {
+                    (self.run_state.max_hp * percent) / 100
+                } else {
+                    -((self.run_state.max_hp * (-percent)) / 100)
+                };
+                self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
+                self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::DamageAndGold { damage, gold } => {
+                if *damage < 0 {
+                    self.run_state.current_hp = (self.run_state.current_hp + damage).max(0);
+                }
+                self.run_state.gold = (self.run_state.gold + gold).max(0);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::LosePercentHp { percent } => {
+                let loss = ((self.run_state.max_hp * percent) / 100).max(1);
+                self.run_state.current_hp = (self.run_state.current_hp - loss).max(0);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::ResolveJoustBet { bet_on_owner } => {
+                self.run_state.gold = (self.run_state.gold - 50).max(0);
+                let owner_wins = self.rng.gen_bool(0.3);
+                if (*bet_on_owner && owner_wins) || (!*bet_on_owner && !owner_wins) {
+                    let payout = if *bet_on_owner { 250 } else { 100 };
+                    self.run_state.gold += payout;
+                }
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::RemoveRelic { label } => {
+                self.remove_relic_reward(label);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::DeckMutation(mutation) => {
+                self.apply_event_deck_mutation(mutation);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::Reward(reward) => {
+                self.apply_event_reward(reward, reward_items);
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::Nothing | EventProgramOp::BlockedPlaceholder { .. } => {
+                EventProgramFlow::Continue
+            }
+        }
+    }
+
+
+    fn apply_event_program(
+        &mut self,
+        program: &crate::events::EventProgram,
+        reward_items: &mut Vec<RewardItem>,
+    ) -> EventProgramFlow {
+        for op in &program.ops {
+            match self.apply_event_program_op(op, reward_items) {
+                EventProgramFlow::Continue => {}
+                other => return other,
+            }
+        }
+        EventProgramFlow::Continue
+    }
+
+    fn apply_event_deck_mutation(&mut self, mutation: &EventDeckMutation) {
+        match mutation {
+            EventDeckMutation::GainCard { count } => {
+                for _ in 0..*count {
+                    let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
+                    self.run_state.deck.push(WATCHER_COMMON_CARDS[idx].to_string());
+                }
+            }
+            EventDeckMutation::RemoveCard { count } => {
+                for _ in 0..*count {
+                    if self.run_state.deck.len() > 5 {
+                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        self.run_state.deck.remove(idx);
+                    }
+                }
+            }
+            EventDeckMutation::TransformCard { count } => {
+                for _ in 0..*count {
+                    if self.run_state.deck.len() > 5 {
+                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        self.run_state.deck.remove(idx);
+                    }
+                    let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
+                    self.run_state
+                        .deck
+                        .push(WATCHER_COMMON_CARDS[card_idx].to_string());
+                }
+            }
+            EventDeckMutation::DuplicateCard { count } => {
+                for _ in 0..*count {
+                    if !self.run_state.deck.is_empty() {
+                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        let card = self.run_state.deck[idx].clone();
+                        self.run_state.deck.push(card);
+                    }
+                }
+            }
+            EventDeckMutation::UpgradeCard { count } => {
+                for _ in 0..*count {
+                    if let Some(card) = self.run_state.deck.iter_mut().find(|card| !card.ends_with('+'))
+                    {
+                        *card = format!("{card}+");
+                    }
+                }
+            }
+        }
+    }
+
+    fn apply_event_reward(&mut self, reward: &EventReward, reward_items: &mut Vec<RewardItem>) {
+        match reward {
+            EventReward::Gold { amount } => {
+                self.run_state.gold = (self.run_state.gold + amount).max(0);
+            }
+            EventReward::MaxHp { amount } => {
+                self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
+                self.run_state.current_hp =
+                    (self.run_state.current_hp + amount).max(0).min(self.run_state.max_hp);
+            }
+            EventReward::Relic { label } => {
+                let relic_id = self.resolve_event_relic_reward_label(label);
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: relic_id,
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                });
+            }
+            EventReward::Potion { count } => {
+                for _ in 0..*count {
+                    reward_items.push(RewardItem {
+                        index: reward_items.len(),
+                        kind: RewardItemKind::Potion,
+                        state: RewardItemState::Available,
+                        label: self.roll_reward_potion_id(),
+                        claimable: reward_items.is_empty(),
+                        active: false,
+                        skip_allowed: false,
+                        skip_label: None,
+                        choices: Vec::new(),
+                    });
+                }
+            }
+            EventReward::Card { count } => {
+                for _ in 0..*count {
+                    reward_items.push(RewardItem {
+                        index: reward_items.len(),
+                        kind: RewardItemKind::CardChoice,
+                        state: RewardItemState::Available,
+                        label: "event_card_reward".to_string(),
+                        claimable: reward_items.is_empty(),
+                        active: false,
+                        skip_allowed: false,
+                        skip_label: None,
+                        choices: self.generate_card_reward_choices(3),
+                    });
+                }
+            }
+            EventReward::SpecificCards { labels } => {
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::CardChoice,
+                    state: RewardItemState::Available,
+                    label: "event_specific_card_reward".to_string(),
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: labels
+                        .iter()
+                        .enumerate()
+                        .map(|(index, card_id)| RewardChoice::Card {
+                            index,
+                            card_id: card_id.clone(),
+                        })
+                        .collect(),
+                });
+            }
+            EventReward::Curse { label } => {
+                self.run_state.deck.push(label.clone());
+            }
+            EventReward::Nothing => {}
+        }
+    }
+
+    fn resolve_event_combat_enemies(&mut self, enemies: &[String]) -> Vec<String> {
+        if enemies.len() == 1 && enemies[0] == "MindBloomAct1Boss" {
+            const ACT1_BOSS_POOL: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
+            let idx = self.rng.gen_range(0..ACT1_BOSS_POOL.len());
+            return vec![ACT1_BOSS_POOL[idx].to_string()];
+        }
+
+        enemies.to_vec()
+    }
+
+    fn resolve_event_relic_reward_label(&mut self, label: &str) -> String {
+        match label {
+            "random relic" => self.roll_reward_relic_id(),
+            "rare relic" => self.roll_rare_event_relic_id(),
+            "uncommon relic" => self.roll_uncommon_event_relic_id(),
+            "Cursed Tome reward" => self.roll_cursed_tome_book_id(),
+            other => other.to_string(),
+        }
+    }
+
+    fn roll_uncommon_event_relic_id(&mut self) -> String {
+        const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
+            "Anchor",
+            "BagOfMarbles",
+            "ClockworkSouvenir",
+            "DataDisk",
+            "HappyFlower",
+            "Lantern",
+            "OrnamentalFan",
+            "ThreadAndNeedle",
+        ];
+
+        let registry = gameplay_registry();
+        let mut candidates: Vec<&str> = UNCOMMON_EVENT_RELIC_POOL
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            candidates = UNCOMMON_EVENT_RELIC_POOL
+                .iter()
+                .copied()
+                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .collect();
+        }
+        if candidates.is_empty() {
+            return self.roll_reward_relic_id();
+        }
+
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].to_string()
+    }
+
+    fn roll_rare_event_relic_id(&mut self) -> String {
+        const RARE_EVENT_RELIC_POOL: &[&str] = &[
+            "Calipers",
+            "Ice Cream",
+            "Incense Burner",
+            "Tough Bandages",
+            "Tungsten Rod",
+        ];
+
+        let registry = gameplay_registry();
+        let mut candidates: Vec<&str> = RARE_EVENT_RELIC_POOL
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            candidates = RARE_EVENT_RELIC_POOL
+                .iter()
+                .copied()
+                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .collect();
+        }
+        if candidates.is_empty() {
+            return self.roll_reward_relic_id();
+        }
+
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].to_string()
+    }
+
+    fn roll_cursed_tome_book_id(&mut self) -> String {
+        const CURSED_TOME_BOOKS: &[&str] = &["Necronomicon", "Enchiridion", "Nilry's Codex"];
+
+        let registry = gameplay_registry();
+        let mut candidates: Vec<&str> = CURSED_TOME_BOOKS
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            candidates = CURSED_TOME_BOOKS
+                .iter()
+                .copied()
+                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .collect();
+        }
+        if candidates.is_empty() {
+            return "Circlet".to_string();
+        }
+
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].to_string()
+    }
+
+    fn build_event_reward_screen(&mut self, mut items: Vec<RewardItem>) {
+        for (index, item) in items.iter_mut().enumerate() {
+            item.index = index;
+            item.claimable = false;
+            item.active = false;
+        }
+
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items,
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
     }
 
     // =======================================================================
@@ -1383,9 +2936,31 @@ impl RunEngine {
         }
     }
 
-    /// Get card reward list (for observation encoding).
-    pub fn get_card_rewards(&self) -> &[String] {
-        &self.card_rewards
+    /// Get the currently visible card choices from the reward screen.
+    pub fn get_card_rewards(&self) -> Vec<String> {
+        self.reward_screen
+            .as_ref()
+            .and_then(|screen| {
+                self.decision_stack
+                    .current_reward_choice()
+                    .and_then(|choice| screen.items.get(choice.item_index))
+                    .or_else(|| {
+                        screen
+                            .items
+                            .iter()
+                            .find(|item| item.kind == RewardItemKind::CardChoice)
+                    })
+            })
+            .map(|item| {
+                item.choices
+                    .iter()
+                    .filter_map(|choice| match choice {
+                        RewardChoice::Card { card_id, .. } => Some(card_id.clone()),
+                        RewardChoice::Named { label, .. } => Some(label.clone()),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Get event options count.
@@ -1402,15 +2977,225 @@ impl RunEngine {
     pub fn get_combat_engine(&self) -> Option<&CombatEngine> {
         self.combat_engine.as_ref()
     }
+
+    pub fn current_combat_context(&self) -> Option<CombatContext> {
+        self.combat_engine.as_ref().map(build_combat_context)
+    }
+
+    pub fn current_reward_screen(&self) -> Option<RewardScreen> {
+        if self.phase != RunPhase::CardReward {
+            return None;
+        }
+        let mut screen = self.reward_screen.clone()?;
+        screen.active_item = self
+            .decision_stack
+            .current_reward_choice()
+            .map(|choice| choice.item_index);
+        for item in &mut screen.items {
+            item.active = screen.active_item == Some(item.index);
+        }
+        Some(screen)
+    }
+
+    pub fn decision_stack_depth(&self) -> usize {
+        self.decision_stack.depth()
+    }
+
+    pub(crate) fn pending_event_combat_summary(&self) -> Option<String> {
+        self.pending_event_combat
+            .as_ref()
+            .map(|branch| format!("{branch:?}"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_current_enemy_ids(&self) -> Vec<String> {
+        self.combat_engine
+            .as_ref()
+            .map(|engine| {
+                engine
+                    .state
+                    .enemies
+                    .iter()
+                    .map(|enemy| enemy.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn current_reward_choice_count(&self) -> usize {
+        self.decision_stack
+            .current_reward_choice()
+            .map(|choice| choice.choices.len())
+            .unwrap_or(0)
+    }
+
+    pub fn last_combat_events(&self) -> &[crate::effects::runtime::GameEventRecord] {
+        &self.last_combat_events
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_card_reward_screen(&mut self, rewards: Vec<String>) {
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Combat,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "card_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some(if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SINGING_BOWL)
+                {
+                    "+2 Max HP".to_string()
+                } else {
+                    "Skip".to_string()
+                }),
+                choices: rewards
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, card_id)| RewardChoice::Card { index, card_id })
+                    .collect(),
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_reward_screen(&mut self, mut screen: RewardScreen) {
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_build_combat_reward_screen(&mut self, room_type: RoomType) {
+        self.build_combat_reward_screen(room_type);
+        self.phase = RunPhase::CardReward;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_build_boss_reward_screen(&mut self) {
+        self.build_boss_reward_screen();
+        self.phase = RunPhase::CardReward;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_build_treasure_reward_screen(&mut self) {
+        self.build_treasure_reward_screen();
+        self.phase = RunPhase::CardReward;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_shop_state(&mut self, shop: ShopState) {
+        self.current_shop = Some(shop);
+        self.phase = RunPhase::Shop;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_event_state(&mut self, event: crate::events::EventDef) {
+        self.current_event = Some(TypedEventDef::from(event));
+        self.phase = RunPhase::Event;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_typed_event_state(&mut self, event: TypedEventDef) {
+        self.current_event = Some(event);
+        self.phase = RunPhase::Event;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_clear_event_state(&mut self) {
+        self.current_event = None;
+        self.phase = RunPhase::Event;
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_force_current_combat_outcome(&mut self, player_won: bool) {
+        let combat = self
+            .combat_engine
+            .as_mut()
+            .expect("expected active combat to force outcome");
+        combat.state.combat_over = true;
+        combat.state.player_won = player_won;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_resolve_current_combat_outcome(&mut self) -> f32 {
+        self.step_combat(&RunAction::CombatAction(crate::actions::Action::EndTurn))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_campfire_phase(&mut self) {
+        self.phase = RunPhase::Campfire;
+        self.refresh_decision_stack();
+    }
+}
+
+fn event_card_rarity(card_id: &str) -> Option<EventCardRarity> {
+    static CARD_RARITIES: OnceLock<HashMap<String, EventCardRarity>> = OnceLock::new();
+
+    CARD_RARITIES
+        .get_or_init(build_event_card_rarity_map)
+        .get(card_id.trim_end_matches('+'))
+        .copied()
+}
+
+fn build_event_card_rarity_map() -> HashMap<String, EventCardRarity> {
+    let mut map = HashMap::new();
+    for line in include_str!("../../engine/content/cards.py").lines() {
+        let Some((_, rest)) = line.split_once("id=\"") else {
+            continue;
+        };
+        let Some((card_id, _)) = rest.split_once('"') else {
+            continue;
+        };
+        let Some((_, rarity_rest)) = line.split_once("rarity=CardRarity.") else {
+            continue;
+        };
+        let rarity_token = rarity_rest
+            .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
+            .next()
+            .unwrap_or("");
+        let rarity = match rarity_token {
+            "CURSE" => EventCardRarity::Curse,
+            "BASIC" => EventCardRarity::Basic,
+            "COMMON" => EventCardRarity::Common,
+            "SPECIAL" => EventCardRarity::Special,
+            "UNCOMMON" => EventCardRarity::Uncommon,
+            "RARE" => EventCardRarity::Rare,
+            _ => continue,
+        };
+        map.insert(card_id.to_string(), rarity);
+    }
+    map
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::{EventDef, EventEffect, EventOption};
 
     #[test]
     fn test_run_engine_creation() {
@@ -1511,15 +3296,26 @@ mod tests {
     #[test]
     fn test_card_reward_pick() {
         let mut engine = RunEngine::new(42, 0);
-        engine.phase = RunPhase::CardReward;
-        engine.card_rewards = vec![
+        engine.debug_set_card_reward_screen(vec![
             "Eruption".to_string(),
             "Vigilance".to_string(),
             "Tantrum".to_string(),
-        ];
+        ]);
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::PickCard(1));
+        engine.step(&RunAction::SelectRewardItem(0));
+        assert_eq!(
+            engine.current_reward_screen().as_ref().and_then(|screen| screen.active_item),
+            Some(0)
+        );
+        assert!(engine
+            .get_legal_actions()
+            .iter()
+            .all(|action| matches!(action, RunAction::ChooseRewardOption { item_index: 0, .. } | RunAction::SkipRewardItem(0))));
+        engine.step(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 1,
+        });
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(engine.run_state.deck.last().unwrap(), "Vigilance");
     }
@@ -1527,14 +3323,13 @@ mod tests {
     #[test]
     fn test_card_reward_skip() {
         let mut engine = RunEngine::new(42, 0);
-        engine.phase = RunPhase::CardReward;
-        engine.card_rewards = vec![
+        engine.debug_set_card_reward_screen(vec![
             "Eruption".to_string(),
             "Vigilance".to_string(),
-        ];
+        ]);
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::SkipCardReward);
+        engine.step(&RunAction::SkipRewardItem(0));
         assert_eq!(engine.run_state.deck.len(), deck_before);
     }
 
@@ -1591,7 +3386,7 @@ mod tests {
         let gold_before = engine.run_state.gold;
 
         // Set up Golden Idol event manually
-        engine.current_event = Some(EventDef {
+        engine.debug_set_event_state(EventDef {
             name: "Golden Idol".to_string(),
             options: vec![
                 EventOption {
@@ -1604,7 +3399,6 @@ mod tests {
                 },
             ],
         });
-        engine.phase = RunPhase::Event;
 
         engine.step(&RunAction::EventChoice(0));
 

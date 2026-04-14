@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::cards::CardType;
-use crate::combat_types::{CardInstance, Intent, mfx};
+use crate::combat_types::{CardInstance, Intent};
 use crate::ids::StatusId;
 use crate::orbs::OrbSlots;
 use crate::status_ids::sid;

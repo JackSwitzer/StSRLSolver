@@ -15,3 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 effects: &["reboot"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_reboot),
             });
 }
+
+#[cfg(test)]
+#[path = "../../tests/test_card_runtime_defect_wave3.rs"]
+mod test_card_runtime_defect_wave3;

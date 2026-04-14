@@ -8,8 +8,9 @@
 //!   [206..226] Potion slots (5 x 4 = 20 dims)
 //!   [226..247] Map lookahead (3 x 7 = 21 dims)
 //!   [247..251] Progress features (4 dims)
-//!   [251..254] HP deficit + floor type flags (3 dims)
-//!   [254..260] Decision phase type (6 dims one-hot)
+//!   [251..260] Decision context tail:
+//!               hp deficit, stack depth, active choice count, reward source
+//!               one-hot (4), active reward item, reward item count
 //!   [260..480] Action encoding (10 x 22 = 220 dims)
 
 use crate::cards::{CardRegistry, CardType, CardTarget};
@@ -21,6 +22,8 @@ pub const STATE_DIM: usize = 260;
 pub const ACTION_DIM: usize = 220;
 pub const ACTION_SLOTS: usize = 10;
 pub const ACTION_FEAT_DIM: usize = 22;
+pub const RUN_DECISION_TAIL_OFFSET: usize = 251;
+pub const RUN_DECISION_TAIL_DIM: usize = 9;
 
 // Relic catalog — sorted list matching Python's sorted(ALL_RELICS.keys())
 // Generated from: sorted(ALL_RELICS.keys()) in packages/engine/content/relics.py
@@ -80,18 +83,6 @@ fn boss_id_index(name: &str) -> i32 {
         "Donu and Deca" => 8,
         "Corrupt Heart" => 9,
         _ => -1,
-    }
-}
-
-/// Phase type index matching Python's PHASE_TYPE_MAP.
-fn phase_type_index(phase: RunPhase) -> usize {
-    match phase {
-        RunPhase::MapChoice => 0,        // "path"
-        RunPhase::CardReward => 1,       // "card_pick"
-        RunPhase::Campfire => 2,         // "rest"
-        RunPhase::Shop => 3,             // "shop"
-        RunPhase::Event => 4,            // "event"
-        RunPhase::Combat | RunPhase::GameOver => 5, // "other"
     }
 }
 
@@ -330,17 +321,23 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     obs[off + 3] = if boss_id >= 0 { (boss_id + 1) as f32 / 11.0 } else { 0.0 };
     off += 4;
 
-    // --- HP deficit + floor type flags (3 dims) ---
+    // --- Decision context tail (9 dims) ---
     obs[off] = 1.0 - (rs.current_hp as f32 / max_hp);
-    let rt = engine.current_room_type().to_lowercase();
-    obs[off + 1] = if rt.contains("boss") { 1.0 } else { 0.0 };
-    obs[off + 2] = if rt == "elite" { 1.0 } else { 0.0 };
-    off += 3;
+    obs[off + 1] = (engine.decision_stack_depth().min(4) as f32) / 4.0;
+    obs[off + 2] = (engine.current_reward_choice_count().min(5) as f32) / 5.0;
 
-    // --- Phase type (6 dims one-hot) ---
-    let phase_idx = phase_type_index(engine.current_phase());
-    obs[off + phase_idx] = 1.0;
-    // off += 6; // = 260
+    if let Some(screen) = engine.current_reward_screen() {
+        match screen.source {
+            crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
+            crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
+            crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
+            crate::decision::RewardScreenSource::Unknown => obs[off + 6] = 1.0,
+        }
+        if let Some(active_item) = screen.active_item {
+            obs[off + 7] = ((active_item + 1) as f32) / screen.items.len().max(1) as f32;
+        }
+        obs[off + 8] = (screen.items.len().min(5) as f32) / 5.0;
+    }
 }
 
 fn encode_map_lookahead(engine: &RunEngine, obs: &mut [f32; RUN_DIM], off: usize) {
@@ -399,19 +396,34 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
 
         match engine.current_phase() {
             RunPhase::CardReward => {
-                obs[base] = 1.0; // is_card_pick
+                obs[base] = 1.0; // reward-screen action
+                let reward_screen = engine.current_reward_screen();
+                let reward_item = |item_index: usize| {
+                    reward_screen
+                        .as_ref()
+                        .and_then(|screen| screen.items.iter().find(|item| item.index == item_index))
+                };
                 match action {
-                    RunAction::PickCard(idx) => {
-                        let rewards = engine.get_card_rewards();
-                        if *idx < rewards.len() {
-                            let ev = card_effect_vector(&rewards[*idx], &registry);
-                            for j in 0..18 {
-                                obs[base + 4 + j] = ev[j];
-                            }
+                    RunAction::SelectRewardItem(item_index) => {
+                        obs[base + 1] = 1.0;
+                        if let Some(item) = reward_item(*item_index) {
+                            encode_reward_item_features(base, item, None, &registry, obs);
                         }
                     }
-                    RunAction::SkipCardReward => {
+                    RunAction::ChooseRewardOption {
+                        item_index,
+                        choice_index,
+                    } => {
+                        obs[base + 2] = 1.0;
+                        if let Some(item) = reward_item(*item_index) {
+                            encode_reward_item_features(base, item, Some(*choice_index), &registry, obs);
+                        }
+                    }
+                    RunAction::SkipRewardItem(item_index) => {
                         obs[base + 3] = 1.0; // skip marker
+                        if let Some(item) = reward_item(*item_index) {
+                            encode_reward_item_features(base, item, None, &registry, obs);
+                        }
                     }
                     _ => {}
                 }
@@ -449,11 +461,87 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
             }
             _ => {
                 // Combat or other — action index
-                if matches!(action, RunAction::SkipCardReward) {
+                if matches!(action, RunAction::SkipRewardItem(_)) {
                     obs[base + 3] = 0.5;
                 }
             }
         }
+    }
+}
+
+fn encode_reward_item_features(
+    base: usize,
+    item: &crate::decision::RewardItem,
+    choice_index: Option<usize>,
+    registry: &CardRegistry,
+    obs: &mut [f32; RUN_DIM],
+) {
+    match item.kind {
+        crate::decision::RewardItemKind::CardChoice => obs[base + 4] = 1.0,
+        crate::decision::RewardItemKind::Relic => obs[base + 5] = 1.0,
+        crate::decision::RewardItemKind::Potion => obs[base + 6] = 1.0,
+        crate::decision::RewardItemKind::Gold => obs[base + 7] = 1.0,
+        crate::decision::RewardItemKind::Key => obs[base + 8] = 1.0,
+        crate::decision::RewardItemKind::Unknown => {}
+    }
+    obs[base + 9] = if item.active { 1.0 } else { 0.0 };
+    obs[base + 10] = if item.claimable { 1.0 } else { 0.0 };
+    obs[base + 11] = if item.skip_allowed { 1.0 } else { 0.0 };
+
+    let selected_choice = choice_index.and_then(|idx| item.choices.get(idx));
+    let fallback_choice = item.choices.first();
+    match selected_choice.or(fallback_choice) {
+        Some(crate::decision::RewardChoice::Card { card_id, .. }) => {
+            let ev = card_effect_vector(card_id, registry);
+            for j in 0..10 {
+                obs[base + 12 + j] = ev[j];
+            }
+        }
+        Some(crate::decision::RewardChoice::Named { label, .. }) => {
+            encode_reward_label_payload(base, label, item.kind, obs);
+        }
+        None => encode_reward_label_payload(base, &item.label, item.kind, obs),
+    }
+}
+
+fn encode_reward_label_payload(
+    base: usize,
+    label: &str,
+    kind: crate::decision::RewardItemKind,
+    obs: &mut [f32; RUN_DIM],
+) {
+    match kind {
+        crate::decision::RewardItemKind::Potion => {
+            let pid = label.to_lowercase();
+            obs[base + 12] = 1.0;
+            if crate::potions::potion_requires_target(label) {
+                obs[base + 13] = 1.0;
+            }
+            if pid.contains("fire") || pid.contains("fear") || pid.contains("weak") {
+                obs[base + 14] = 1.0;
+            }
+            if pid.contains("block") || pid.contains("dexterity") || pid.contains("energy") || pid.contains("swift") {
+                obs[base + 15] = 1.0;
+            }
+            if pid.contains("strength") {
+                obs[base + 16] = 1.0;
+            }
+        }
+        crate::decision::RewardItemKind::Relic => {
+            obs[base + 12] = 1.0;
+            if label.contains("Egg") || label.contains("Egg2") {
+                obs[base + 13] = 1.0;
+            }
+            if label.contains("Stone") || label.contains("Choker") || label.contains("Eye") {
+                obs[base + 14] = 1.0;
+            }
+        }
+        crate::decision::RewardItemKind::Gold => {
+            if let Ok(amount) = label.parse::<f32>() {
+                obs[base + 12] = (amount / 200.0).clamp(0.0, 1.0);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -462,16 +550,27 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
 // ---------------------------------------------------------------------------
 
 pub const COMBAT_DIM: usize = 298;
+pub const COMBAT_OBS_VERSION: u32 = 3;
+pub const COMBAT_HIDDEN_COUNTER_DIM: usize = 18;
+pub const COMBAT_POTION_CONTEXT_DIM: usize = 12;
+pub const COMBAT_CHOICE_CONTEXT_DIM: usize = 24;
+pub const COMBAT_V2_EXTRA_DIM: usize =
+    COMBAT_HIDDEN_COUNTER_DIM + COMBAT_POTION_CONTEXT_DIM + COMBAT_CHOICE_CONTEXT_DIM;
+pub const COMBAT_V2_DIM: usize = COMBAT_DIM + COMBAT_V2_EXTRA_DIM;
 
 /// Encode combat state into a 298-dim vector matching Python's CombatStateEncoder.
 pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
+    let combat = match engine.get_combat_engine() {
+        Some(engine) => engine,
+        None => return [0.0f32; COMBAT_DIM],
+    };
+
+    encode_combat_state_from_combat(combat)
+}
+
+pub fn encode_combat_state_from_combat(combat: &crate::engine::CombatEngine) -> [f32; COMBAT_DIM] {
     let mut obs = [0.0f32; COMBAT_DIM];
     let registry = crate::cards::global_registry();
-
-    let combat = match engine.get_combat_engine() {
-        Some(e) => e,
-        None => return obs,
-    };
 
     let state = &combat.state;
     let player = &state.player;
@@ -589,6 +688,167 @@ pub fn encode_combat_state(engine: &RunEngine) -> [f32; COMBAT_DIM] {
     obs
 }
 
+/// Encode combat state plus owner-aware hidden runtime counters.
+///
+/// The extra tail dims expose counters that affect legality, timing, or
+/// future trigger behavior but are not always visible in player statuses.
+pub fn encode_combat_state_v2(engine: &RunEngine) -> [f32; COMBAT_V2_DIM] {
+    let combat = match engine.get_combat_engine() {
+        Some(engine) => engine,
+        None => return [0.0f32; COMBAT_V2_DIM],
+    };
+
+    encode_combat_state_v2_from_combat(combat)
+}
+
+pub fn encode_combat_state_v2_from_combat(
+    combat: &crate::engine::CombatEngine,
+) -> [f32; COMBAT_V2_DIM] {
+    let mut obs = [0.0f32; COMBAT_V2_DIM];
+    obs[..COMBAT_DIM].copy_from_slice(&encode_combat_state_from_combat(combat));
+
+    let state = &combat.state;
+    let mut off = COMBAT_DIM;
+
+    obs[off] = hidden_relic_value(combat, state, "Nunchaku", 0) as f32 / 10.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "InkBottle", 0) as f32 / 10.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Happy Flower", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Incense Burner", 0) as f32 / 6.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Sundial", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Letter Opener", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Ornamental Fan", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Kunai", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Shuriken", 0) as f32 / 3.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Velvet Choker", 0) as f32 / 6.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "OrangePellets", 0) as f32;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "OrangePellets", 1) as f32;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "OrangePellets", 2) as f32;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Pocketwatch", 0) as f32 / 10.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Pocketwatch", 1) as f32;
+    off += 1;
+    obs[off] = hidden_player_power_value(combat, "panache", 0) as f32 / 5.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "StoneCalendar", 0) as f32 / 7.0;
+    off += 1;
+    obs[off] = hidden_relic_value(combat, state, "Inserter", 0) as f32 / 2.0;
+    off += 1;
+
+    for potion in state.potions.iter().take(3) {
+        encode_potion_slot_features(potion, &mut obs, &mut off);
+    }
+
+    if let Some(choice) = &combat.choice {
+        obs[off] = 1.0;
+        off += 1;
+
+        if let Some(reason_idx) = choice_reason_index(&choice.reason) {
+            obs[off + reason_idx] = 1.0;
+        }
+        off += 19;
+
+        obs[off] = choice.options.len() as f32 / 10.0;
+        off += 1;
+        obs[off] = choice.selected.len() as f32 / 10.0;
+        off += 1;
+        obs[off] = choice.min_picks as f32 / 10.0;
+        off += 1;
+        obs[off] = choice.max_picks as f32 / 10.0;
+    }
+
+    obs
+}
+
+fn hidden_relic_value(
+    combat: &crate::engine::CombatEngine,
+    state: &crate::state::CombatState,
+    def_id: &str,
+    slot: usize,
+) -> i32 {
+    state.relics
+        .iter()
+        .enumerate()
+        .find(|(_, relic_id)| relic_id.as_str() == def_id)
+        .map(|(idx, _)| {
+            combat.hidden_effect_value(
+                def_id,
+                crate::effects::runtime::EffectOwner::PlayerRelic {
+                    slot: idx as u16,
+                },
+                slot,
+            )
+        })
+        .unwrap_or(0)
+}
+
+fn hidden_player_power_value(combat: &crate::engine::CombatEngine, def_id: &str, slot: usize) -> i32 {
+    combat.hidden_effect_value(
+        def_id,
+        crate::effects::runtime::EffectOwner::PlayerPower,
+        slot,
+    )
+}
+
+fn encode_potion_slot_features(potion: &str, obs: &mut [f32; COMBAT_V2_DIM], off: &mut usize) {
+    let base = *off;
+    if !potion.is_empty() {
+        obs[base] = 1.0;
+        let pid = potion.to_lowercase();
+        if pid.contains("fire")
+            || pid.contains("explosive")
+            || pid.contains("attack")
+            || pid.contains("poison")
+        {
+            obs[base + 1] = 1.0;
+        }
+        if pid.contains("fairy") || pid.contains("fruit") || pid.contains("blood") || pid.contains("regen") {
+            obs[base + 2] = 1.0;
+        }
+        if pid.contains("block") || pid.contains("ghost") || pid.contains("ancient") {
+            obs[base + 3] = 1.0;
+        }
+    }
+    *off += 4;
+}
+
+fn choice_reason_index(reason: &crate::engine::ChoiceReason) -> Option<usize> {
+    let idx = match reason {
+        crate::engine::ChoiceReason::Scry => 0,
+        crate::engine::ChoiceReason::DiscardFromHand => 1,
+        crate::engine::ChoiceReason::ExhaustFromHand => 2,
+        crate::engine::ChoiceReason::PutOnTopFromHand => 3,
+        crate::engine::ChoiceReason::PickFromDiscard => 4,
+        crate::engine::ChoiceReason::PickFromDrawPile => 5,
+        crate::engine::ChoiceReason::DiscoverCard => 6,
+        crate::engine::ChoiceReason::PickOption => 7,
+        crate::engine::ChoiceReason::PlayCardFree => 8,
+        crate::engine::ChoiceReason::DualWield => 9,
+        crate::engine::ChoiceReason::UpgradeCard => 10,
+        crate::engine::ChoiceReason::PickFromExhaust => 11,
+        crate::engine::ChoiceReason::SearchDrawPile => 12,
+        crate::engine::ChoiceReason::ReturnFromDiscard => 13,
+        crate::engine::ChoiceReason::ForethoughtPick => 14,
+        crate::engine::ChoiceReason::RecycleCard => 15,
+        crate::engine::ChoiceReason::DiscardForEffect => 16,
+        crate::engine::ChoiceReason::SetupPick => 17,
+        crate::engine::ChoiceReason::PlayCardFreeFromDraw => 18,
+    };
+    Some(idx)
+}
+
 // ---------------------------------------------------------------------------
 // Full observation (480 dims)
 // ---------------------------------------------------------------------------
@@ -639,9 +899,8 @@ mod tests {
     fn test_phase_encoding() {
         let engine = RunEngine::new(42, 20);
         let obs = get_observation(&engine);
-        // Phase = MapChoice = index 0
-        assert_eq!(obs[254], 1.0, "Phase dim 0 (path) should be 1.0");
-        assert_eq!(obs[255], 0.0);
+        assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 1], 0.25, "root decision stack should have depth 1");
+        assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 2], 0.0, "no active reward choice should be present");
     }
 
     #[test]

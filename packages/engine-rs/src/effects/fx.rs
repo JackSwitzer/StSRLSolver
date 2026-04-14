@@ -9,7 +9,6 @@ use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::engine::CombatEngine;
 use crate::ids::StatusId;
-use crate::powers;
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -20,7 +19,7 @@ use crate::status_ids::sid;
 /// Returns true if the debuff was actually applied (not blocked by Artifact).
 pub fn apply_debuff(engine: &mut CombatEngine, enemy_idx: usize, status: StatusId, amount: i32) -> bool {
     if enemy_idx < engine.state.enemies.len() {
-        powers::apply_debuff(&mut engine.state.enemies[enemy_idx].entity, status, amount)
+        engine.apply_player_debuff_to_enemy(enemy_idx, status, amount)
     } else {
         false
     }
@@ -30,7 +29,7 @@ pub fn apply_debuff(engine: &mut CombatEngine, enemy_idx: usize, status: StatusI
 pub fn apply_debuff_all(engine: &mut CombatEngine, status: StatusId, amount: i32) {
     let living = engine.state.living_enemy_indices();
     for idx in living {
-        powers::apply_debuff(&mut engine.state.enemies[idx].entity, status, amount);
+        engine.apply_player_debuff_to_enemy(idx, status, amount);
     }
 }
 

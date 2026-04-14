@@ -176,12 +176,6 @@ pub fn get_after_image_block(entity: &EntityState) -> i32 {
     entity.status(sid::AFTER_IMAGE)
 }
 
-/// A Thousand Cuts: returns damage to deal to ALL enemies per card played.
-
-pub fn get_thousand_cuts_damage(entity: &EntityState) -> i32 {
-    entity.status(sid::THOUSAND_CUTS)
-}
-
 /// Rage: returns block to gain when playing an Attack.
 
 pub fn get_rage_block(entity: &EntityState) -> i32 {
@@ -189,7 +183,7 @@ pub fn get_rage_block(entity: &EntityState) -> i32 {
 }
 
 /// BeatOfDeath: returns damage to deal to player per card played.
-
+#[cfg(test)]
 pub fn check_panache(entity: &mut EntityState) -> i32 {
     // Panache stores remaining count until trigger (starts at 5, decrements)
     // We use a secondary counter approach: sid::PANACHE_COUNT
@@ -208,7 +202,7 @@ pub fn check_panache(entity: &mut EntityState) -> i32 {
 
 /// DoubleTap: returns true if the next Attack should be played twice.
 /// Decrements the counter.
-
+#[cfg(test)]
 pub fn consume_double_tap(entity: &mut EntityState) -> bool {
     let dt = entity.status(sid::DOUBLE_TAP);
     if dt > 0 {
@@ -220,7 +214,7 @@ pub fn consume_double_tap(entity: &mut EntityState) -> bool {
 
 /// Burst: returns true if the next Skill should be played twice.
 /// Decrements the counter.
-
+#[cfg(test)]
 pub fn consume_burst(entity: &mut EntityState) -> bool {
     let b = entity.status(sid::BURST);
     if b > 0 {
@@ -228,18 +222,6 @@ pub fn consume_burst(entity: &mut EntityState) -> bool {
         return true;
     }
     false
-}
-
-/// Heatsink: returns cards to draw when playing a Power card.
-
-pub fn get_heatsink_draw(entity: &EntityState) -> i32 {
-    entity.status(sid::HEATSINK)
-}
-
-/// Storm: returns true if should channel Lightning when playing a Power.
-
-pub fn should_storm_channel(entity: &EntityState) -> bool {
-    entity.status(sid::STORM) > 0
 }
 
 /// Forcefield (Automaton): lose Block per card played.
@@ -1258,4 +1240,3 @@ mod tests {
         assert_eq!(entity.status(sid::LOCK_ON), 1);
     }
 }
-

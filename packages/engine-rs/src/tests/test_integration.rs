@@ -711,9 +711,12 @@ mod engine_integration_tests {
 
     // ---- Relic combat start + potion in same combat ----
     #[test] fn relic_and_potion_combined() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 5);
-        e.state.relics.push("Vajra".to_string());
-        crate::relics::apply_combat_start_relics(&mut e.state);
+        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
+        enemy.set_move(1, 5, 1, 0);
+        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
+        state.relics.push("Vajra".to_string());
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
         e.state.potions[0] = "Strength Potion".to_string();
         e.execute_action(&Action::UsePotion { potion_idx: 0, target_idx: -1 });
         assert_eq!(e.state.player.strength(), 3); // 1 Vajra + 2 potion
@@ -880,6 +883,48 @@ mod engine_integration_tests {
     }
 }
 
+#[cfg(test)]
+mod gameplay_registry_surface_tests {
+    use crate::gameplay::{global_registry, GameplayDomain};
+
+    #[test]
+    fn gameplay_registry_matches_card_and_enemy_domain_exports() {
+        let registry = global_registry();
+        let card_exports = crate::cards::gameplay_export_defs();
+        let enemy_exports = crate::enemies::gameplay_export_defs();
+
+        assert_eq!(registry.count_for_domain(GameplayDomain::Card), card_exports.len());
+        assert_eq!(registry.count_for_domain(GameplayDomain::Enemy), enemy_exports.len());
+
+        for expected in ["Strike_P", "Eruption", "Neutralize", "Zap"] {
+            let registry_def = registry.card(expected).expect("card in canonical registry");
+            let export_def = card_exports
+                .iter()
+                .find(|def| def.id == expected)
+                .expect("card export");
+            assert_eq!(registry_def, export_def);
+        }
+
+        for expected in ["JawWorm", "Cultist", "GremlinNob", "Sentry"] {
+            let registry_def = registry.enemy(expected).expect("enemy in canonical registry");
+            let export_def = enemy_exports
+                .iter()
+                .find(|def| def.id == expected)
+                .expect("enemy export");
+            assert_eq!(registry_def, export_def);
+        }
+    }
+
+    #[test]
+    fn gameplay_registry_tag_queries_include_enemy_exports() {
+        let registry = global_registry();
+        let enemy_defs: Vec<_> = registry.defs_for_tag("enemy").collect();
+
+        assert_eq!(enemy_defs.len(), registry.count_for_domain(GameplayDomain::Enemy));
+        assert!(enemy_defs.iter().any(|def| def.id == "JawWorm"));
+    }
+}
+
 // ==========================================================================
 // Bug fix regression tests
 // ==========================================================================
@@ -889,7 +934,6 @@ mod engine_integration_tests {
 mod bugfix_regression_tests {
     use crate::actions::Action;
     use crate::status_ids::sid;
-    use crate::cards::CardRegistry;
     use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};
@@ -1230,7 +1274,7 @@ mod combat_engine_p0_p1_regression {
     use crate::status_ids::sid;
     use crate::enemies;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::tests::support::{make_deck, make_deck_n};
+    use crate::tests::support::make_deck_n;
 
     /// Helper: create engine with specific enemy and deck.
     fn make_engine(
@@ -1690,7 +1734,7 @@ mod effect_handler_tests {
         let deck = make_deck_n("Wallop", 10);
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
-        let block_before = e.state.player.block;
+        let _block_before = e.state.player.block;
         play_card(&mut e, "Wallop", 0);
         // Wallop deals 9 damage, enemy has 0 block -> 9 unblocked
         // Player gains block = unblocked damage dealt (capped by enemy HP)
@@ -2327,8 +2371,6 @@ mod effect_handler_tests {
     #[test]
     fn slime_boss_split_spawns_large_slimes_with_current_hp() {
         use crate::enemies;
-        use crate::combat_hooks;
-
         let mut boss = enemies::create_enemy("SlimeBoss", 140, 140);
         boss.set_move(1, 0, 0, 0);
         let deck = make_deck_n("Strike_P", 10);
@@ -2395,8 +2437,6 @@ mod effect_handler_tests {
     // #4: Burn deals damage through block (not HP loss)
     #[test]
     fn burn_deals_damage_through_block() {
-        use crate::enemies;
-
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut deck: Vec<CardInstance> = make_deck_n("Burn", 5);
@@ -2409,7 +2449,7 @@ mod effect_handler_tests {
         // Put Burn in hand
         e.state.hand.push(e.card_registry.make_card("Burn"));
         let hp_before = e.state.player.hp;
-        let block_before = e.state.player.block;
+        let _block_before = e.state.player.block;
         // End turn triggers Burn damage (2) which should hit block first
         e.execute_action(&Action::EndTurn);
         // Block should have absorbed the 2 damage from Burn
@@ -2717,13 +2757,27 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Rampage");
         play_card(&mut e, "Rampage", 0);
         let dmg1 = hp0 - e.state.enemies[0].entity.hp;
-        assert_eq!(e.state.player.status(sid::RAMPAGE_BONUS), 5);
+        let played_once = e
+            .state
+            .discard_pile
+            .pop()
+            .expect("played Rampage should be in discard");
+        assert_eq!(played_once.misc, 13, "Rampage should store its next damage on the played copy");
+        e.state.hand.clear();
+        e.state.hand.push(played_once);
         let hp1 = e.state.enemies[0].entity.hp;
-        ensure_in_hand(&mut e, "Rampage");
         play_card(&mut e, "Rampage", 0);
         let dmg2 = hp1 - e.state.enemies[0].entity.hp;
         assert_eq!(dmg2, dmg1 + 5, "Rampage should deal 5 more on second play");
-        assert_eq!(e.state.player.status(sid::RAMPAGE_BONUS), 10);
+        assert_eq!(
+            e.state
+                .discard_pile
+                .last()
+                .expect("replayed Rampage should be in discard")
+                .misc,
+            18,
+            "Rampage should keep scaling on the same card instance",
+        );
     }
 
     #[test] fn glass_knife_loses_damage() {
@@ -2734,12 +2788,27 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Glass Knife");
         play_card(&mut e, "Glass Knife", 0);
         let dmg1 = hp0 - e.state.enemies[0].entity.hp;
-        assert_eq!(e.state.player.status(sid::GLASS_KNIFE_PENALTY), 2);
+        let played_once = e
+            .state
+            .discard_pile
+            .pop()
+            .expect("played Glass Knife should be in discard");
+        assert_eq!(played_once.misc, 6, "Glass Knife should store reduced per-hit damage on the played copy");
+        e.state.hand.clear();
+        e.state.hand.push(played_once);
         let hp1 = e.state.enemies[0].entity.hp;
-        ensure_in_hand(&mut e, "Glass Knife");
         play_card(&mut e, "Glass Knife", 0);
         let dmg2 = hp1 - e.state.enemies[0].entity.hp;
         assert_eq!(dmg2, dmg1 - 4, "Glass Knife should deal 4 less damage on second play (2 penalty * 2 hits): {} vs {}", dmg2, dmg1);
+        assert_eq!(
+            e.state
+                .discard_pile
+                .last()
+                .expect("replayed Glass Knife should be in discard")
+                .misc,
+            4,
+            "Glass Knife should keep reducing only the replayed instance",
+        );
     }
 
     #[test] fn genetic_algorithm_scales_block() {
@@ -2749,12 +2818,27 @@ mod effect_handler_tests {
         ensure_in_hand(&mut e, "Genetic Algorithm");
         play_card(&mut e, "Genetic Algorithm", -1);
         let block1 = e.state.player.block;
-        assert_eq!(e.state.player.status(sid::GENETIC_ALG_BONUS), 2);
+        let played_once = e
+            .state
+            .exhaust_pile
+            .pop()
+            .expect("played Genetic Algorithm should be in exhaust");
+        assert_eq!(played_once.misc, 3, "Genetic Algorithm should store its upgraded block on the played copy");
         e.state.player.block = 0;
-        ensure_in_hand(&mut e, "Genetic Algorithm");
+        e.state.hand.clear();
+        e.state.hand.push(played_once);
         play_card(&mut e, "Genetic Algorithm", -1);
         let block2 = e.state.player.block;
         assert_eq!(block2, block1 + 2, "Genetic Algorithm should gain 2 more block on second play: {} vs {}", block2, block1);
+        assert_eq!(
+            e.state
+                .exhaust_pile
+                .last()
+                .expect("replayed Genetic Algorithm should be in exhaust")
+                .misc,
+            5,
+            "Genetic Algorithm should keep scaling on the same card instance",
+        );
     }
 
     #[test] fn streamline_reduces_cost() {
@@ -2763,13 +2847,24 @@ mod effect_handler_tests {
         e.state.energy = 10;
         ensure_in_hand(&mut e, "Streamline");
         play_card(&mut e, "Streamline", 0);
-        let has_reduced = e.state.draw_pile.iter()
-            .chain(e.state.discard_pile.iter())
-            .any(|c| {
-                let name = e.card_registry.card_name(c.def_id);
-                name == "Streamline" && c.cost < 2
-            });
-        assert!(has_reduced, "Streamline copies should have reduced cost after play");
+        let played_once = e
+            .state
+            .discard_pile
+            .last()
+            .expect("played Streamline should be in discard");
+        assert_eq!(played_once.cost, 1, "played Streamline should reduce its own stored cost");
+        let untouched_copies = e
+            .state
+            .hand
+            .iter()
+            .chain(e.state.draw_pile.iter())
+            .chain(e.state.discard_pile.iter().take(e.state.discard_pile.len().saturating_sub(1)))
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Streamline")
+            .all(|card| card.cost == -1);
+        assert!(
+            untouched_copies,
+            "non-played Streamline copies should keep their base-cost sentinel"
+        );
     }
 
     #[test] fn card_gen_random_attack_to_hand() {
@@ -2888,7 +2983,7 @@ mod effect_handler_tests {
         e.state.energy = 10;
         let ta = e.card_registry.make_card("Thinking Ahead");
         e.state.hand.push(ta);
-        let hand_before = e.state.hand.len();
+        let _hand_before = e.state.hand.len();
         play_card(&mut e, "Thinking Ahead", -1);
         // Should have drawn 2 cards, then be awaiting choice to put 1 on top
         assert_eq!(e.phase, CombatPhase::AwaitingChoice);

@@ -6,8 +6,9 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "True Grit", name: "True Grit", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["exhaust_random"], effect_data: &[], complex_hook: None,
-                // exhaust_random is complex (RNG-based), leave for old path
+                effects: &[],
+                effect_data: &[E::Simple(SE::GainBlock(A::Block))],
+                complex_hook: Some(crate::effects::hooks_complex::hook_exhaust_random),
             });
     insert(cards, CardDef {
                 id: "True Grit+", name: "True Grit+", card_type: CardType::Skill,

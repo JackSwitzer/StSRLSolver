@@ -1,10 +1,9 @@
 #![cfg(test)]
 
 use crate::actions::Action;
-use crate::cards::CardRegistry;
 use crate::combat_types::CardInstance;
 use crate::engine::{CombatEngine, CombatPhase};
-use crate::run::{RunAction, RunEngine};
+use crate::run::RunEngine;
 use crate::state::{CombatState, EnemyCombatState, Stance};
 
 pub(crate) const TEST_SEED: u64 = 42;
@@ -49,14 +48,6 @@ pub(crate) fn engine_with(deck: Vec<CardInstance>, enemy_hp: i32, enemy_dmg: i32
     ))
 }
 
-pub(crate) fn engine_with_enemy_id(deck: Vec<CardInstance>, enemy_id: &str, enemy_hp: i32, enemy_dmg: i32) -> CombatEngine {
-    engine_with_state(combat_state_with(
-        deck,
-        vec![enemy(enemy_id, enemy_hp, enemy_hp, 1, enemy_dmg, 1)],
-        3,
-    ))
-}
-
 pub(crate) fn engine_with_enemies(deck: Vec<CardInstance>, enemies: Vec<EnemyCombatState>, energy: i32) -> CombatEngine {
     engine_with_state(combat_state_with(deck, enemies, energy))
 }
@@ -76,10 +67,6 @@ pub(crate) fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
     if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == card_id) {
         engine.state.hand.push(engine.card_registry.make_card(card_id));
     }
-}
-
-pub(crate) fn ensure_on_top_of_draw(engine: &mut CombatEngine, card_id: &str) {
-    engine.state.draw_pile.push(engine.card_registry.make_card(card_id));
 }
 
 pub(crate) fn play_card(engine: &mut CombatEngine, card_id: &str, target_idx: i32) -> bool {
@@ -129,20 +116,4 @@ pub(crate) fn set_stance(engine: &mut CombatEngine, stance: Stance) {
 
 pub(crate) fn run_engine(seed: u64, ascension: i32) -> RunEngine {
     RunEngine::new(seed, ascension)
-}
-
-pub(crate) fn choose_first_path(engine: &mut RunEngine) -> (f32, bool) {
-    engine.step(&RunAction::ChoosePath(0))
-}
-
-pub(crate) fn step_until_phase(engine: &mut RunEngine, phase: crate::run::RunPhase, max_steps: usize) {
-    for _ in 0..max_steps {
-        if engine.current_phase() == phase || engine.is_done() {
-            return;
-        }
-        let Some(action) = engine.get_legal_actions().into_iter().next() else {
-            return;
-        };
-        engine.step(&action);
-    }
 }

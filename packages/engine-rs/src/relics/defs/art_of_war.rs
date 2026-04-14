@@ -1,20 +1,55 @@
-//! Art of War: Initialize ART_OF_WAR_READY flag at combat start.
-//! If no attacks played during turn, gain energy next turn.
+//! Art of War: if no Attacks were played last turn, gain 1 energy next turn.
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::status_ids::sid;
+use crate::engine::CombatEngine;
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::ART_OF_WAR_READY, AmountSource::Fixed(1))),
-];
+fn hook(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    match event.kind {
+        Trigger::CombatStart => state.set(0, 1),
+        Trigger::TurnStart => {
+            if state.get(0) > 0 && engine.state.turn > 1 {
+                engine.state.energy += 1;
+            }
+            state.set(0, 1);
+        }
+        Trigger::OnUseCard if event.card_type == Some(crate::cards::CardType::Attack) => {
+            state.set(0, 0);
+        }
+        Trigger::CombatVictory => state.set(0, 0),
+        _ => {}
+    }
+}
 
-static TRIGGERS: [TriggeredEffect; 1] = [
+static TRIGGERS: [TriggeredEffect; 4] = [
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,
-        effects: &EFFECTS,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::OnUseCard,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::CombatVictory,
+        condition: TriggerCondition::Always,
+        effects: &[],
         counter: None,
     },
 ];
@@ -24,6 +59,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Art of War",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook),
     status_guard: None,
 };

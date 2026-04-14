@@ -1,35 +1,64 @@
-//! Pocketwatch: Track cards played per turn. If <= 3 cards played,
-//! draw 3 extra next turn.
-//!
-//! Counter increments on each card play. Turn-start logic checks previous
-//! turn's counter and grants extra draw. complex_hook needed for the
-//! turn-start draw decision.
+//! Pocketwatch: If <= 3 cards were played last turn, draw 3 extra this turn.
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::status_ids::sid;
+use crate::engine::CombatEngine;
 
-static INIT_EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::POCKETWATCH_COUNTER, AmountSource::Fixed(0))),
-    Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::POCKETWATCH_FIRST_TURN, AmountSource::Fixed(1))),
-];
+fn hook(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    match event.kind {
+        Trigger::CombatStart => {
+            state.set(0, 0);
+            state.set(1, 1);
+        }
+        Trigger::OnPlayCard => {
+            state.add(0, 1);
+        }
+        Trigger::TurnStartPostDraw => {
+            if engine.state.turn == 1 {
+                state.set(1, 0);
+            } else if state.get(1) > 0 {
+                state.set(1, 0);
+            } else if state.get(0) <= 3 {
+                engine.draw_cards(3);
+            }
+            state.set(0, 0);
+        }
+        Trigger::CombatVictory => {
+            state.set(0, -1);
+        }
+        _ => {}
+    }
+}
 
-static INCREMENT_EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::IncrementCounter(sid::POCKETWATCH_COUNTER, 1)),
-];
-
-static TRIGGERS: [TriggeredEffect; 2] = [
+static TRIGGERS: [TriggeredEffect; 4] = [
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,
-        effects: &INIT_EFFECTS,
+        effects: &[],
         counter: None,
     },
     TriggeredEffect {
-        trigger: Trigger::OnAnyCardPlayed,
+        trigger: Trigger::OnPlayCard,
         condition: TriggerCondition::Always,
-        effects: &INCREMENT_EFFECTS,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnStartPostDraw,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::CombatVictory,
+        condition: TriggerCondition::Always,
+        effects: &[],
         counter: None,
     },
 ];
@@ -39,6 +68,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Pocketwatch",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // TODO: wire complex_hook for turn-start draw logic
+    complex_hook: Some(hook),
     status_guard: None,
 };

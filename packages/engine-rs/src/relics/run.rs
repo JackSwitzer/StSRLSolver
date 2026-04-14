@@ -7,6 +7,8 @@ use crate::status_ids::sid;
 
 /// Apply relic effects when player loses HP.
 /// `damage` is the amount of HP lost.
+#[cfg(test)]
+#[allow(dead_code)]
 pub fn on_hp_loss(state: &mut CombatState, damage: i32) {
     if damage <= 0 {
         return;
@@ -46,124 +48,8 @@ pub fn on_hp_loss(state: &mut CombatState, damage: i32) {
 }
 
 // ==========================================================================
-// 6. ON SHUFFLE — onShuffle
+// 6. DAMAGE / FOLLOW-UP HELPERS
 // ==========================================================================
-
-/// Apply relic effects when draw pile is shuffled (discard into draw).
-pub fn on_shuffle(state: &mut CombatState) {
-    // Sundial: every 3 shuffles, +2 energy
-    if state.has_relic("Sundial") {
-        let counter = state.player.status(sid::SUNDIAL_COUNTER) + 1;
-        if counter >= 3 {
-            state.energy += 2;
-            state.player.set_status(sid::SUNDIAL_COUNTER, 0);
-        } else {
-            state.player.set_status(sid::SUNDIAL_COUNTER, counter);
-        }
-    }
-
-    // The Abacus: gain 6 Block on shuffle
-    if state.has_relic("TheAbacus") {
-        state.player.block += 6;
-    }
-
-    // Melange: scry 3 on shuffle (complex; Python handles)
-}
-
-// ==========================================================================
-// 7. ON ENEMY DEATH — onMonsterDeath
-// ==========================================================================
-
-/// Apply relic effects when an enemy dies.
-pub fn on_enemy_death(state: &mut CombatState, _dead_enemy_idx: usize) {
-    // Gremlin Horn: gain 1 energy and draw 1 card on non-minion death
-    if state.has_relic("Gremlin Horn") {
-        // Only if other enemies still alive
-        if state.enemies.iter().any(|e| e.is_alive()) {
-            state.energy += 1;
-            state.player.set_status(sid::GREMLIN_HORN_DRAW, 1);
-        }
-    }
-
-    // The Specimen: transfer Poison from killed enemy to random alive enemy
-    if state.has_relic("The Specimen") {
-        let dead_poison = state.enemies[_dead_enemy_idx].entity.status(sid::POISON);
-        if dead_poison > 0 {
-            // Find first alive enemy
-            if let Some(alive_idx) = state.enemies.iter()
-                .enumerate()
-                .find(|(i, e)| *i != _dead_enemy_idx && e.is_alive())
-                .map(|(i, _)| i)
-            {
-                state.enemies[alive_idx].entity.add_status(sid::POISON, dead_poison);
-            }
-        }
-    }
-}
-
-// ==========================================================================
-// 8. COMBAT END — onVictory
-// ==========================================================================
-
-/// Apply relic effects when combat is won.
-/// Returns HP to heal (0 if none).
-pub fn on_victory(state: &mut CombatState) -> i32 {
-    let mut heal = 0;
-
-    // Black Blood: heal 12 on victory (replaces Burning Blood)
-    if state.has_relic("Black Blood") {
-        heal += 12;
-    } else if state.has_relic("Burning Blood") {
-        // Burning Blood: heal 6 on victory (skipped if Black Blood present)
-        heal += 6;
-    }
-
-    // Meat on the Bone: if HP <= 50%, heal 12
-    if state.has_relic("Meat on the Bone") || state.has_relic("MeatOnTheBone") {
-        if state.player.hp <= state.player.max_hp / 2 {
-            heal += 12;
-        }
-    }
-
-    // Face of Cleric: +1 max HP on victory
-    if state.has_relic("FaceOfCleric") {
-        state.player.max_hp += 1;
-    }
-
-    heal
-}
-
-// ==========================================================================
-// 9. DAMAGE MODIFIERS
-// ==========================================================================
-
-/// Boot: if unblocked damage is > 0 and < 5, set to 5.
-pub fn apply_boot(state: &CombatState, unblocked_damage: i32) -> i32 {
-    if state.has_relic("Boot") && unblocked_damage > 0 && unblocked_damage < 5 {
-        5
-    } else {
-        unblocked_damage
-    }
-}
-
-/// Torii: if unblocked attack damage is > 1 and <= 5, reduce to 1.
-/// (Does NOT apply to HP_LOSS or THORNS damage types.)
-pub fn apply_torii(state: &CombatState, unblocked_damage: i32) -> i32 {
-    if state.has_relic("Torii") && unblocked_damage > 1 && unblocked_damage <= 5 {
-        1
-    } else {
-        unblocked_damage
-    }
-}
-
-/// Tungsten Rod: reduce all HP loss by 1 (minimum 0).
-pub fn apply_tungsten_rod(state: &CombatState, damage: i32) -> i32 {
-    if state.has_relic("TungstenRod") && damage > 0 {
-        (damage - 1).max(0)
-    } else {
-        damage
-    }
-}
 
 /// Champion's Belt: whenever applying Vulnerable, also apply 1 Weak.
 pub fn champion_belt_on_vulnerable(state: &CombatState) -> bool {
@@ -171,6 +57,7 @@ pub fn champion_belt_on_vulnerable(state: &CombatState) -> bool {
 }
 
 /// Charon's Ashes: deal 3 damage to all enemies whenever a card is exhausted.
+#[cfg(test)]
 pub fn charons_ashes_on_exhaust(state: &mut CombatState) {
     if !state.has_relic("Charon's Ashes") && !state.has_relic("CharonsAshes") {
         return;
@@ -192,11 +79,13 @@ pub fn charons_ashes_on_exhaust(state: &mut CombatState) {
 
 /// Dead Branch: when a card is exhausted, add a random card to hand.
 /// Returns true if Dead Branch should trigger (actual card generation by engine).
+#[cfg(test)]
 pub fn dead_branch_on_exhaust(state: &CombatState) -> bool {
     state.has_relic("Dead Branch")
 }
 
 /// Tough Bandages: gain 3 Block whenever a card is discarded manually.
+#[cfg(test)]
 pub fn tough_bandages_on_discard(state: &mut CombatState) {
     if state.has_relic("Tough Bandages") || state.has_relic("ToughBandages") {
         state.player.block += 3;
@@ -204,6 +93,7 @@ pub fn tough_bandages_on_discard(state: &mut CombatState) {
 }
 
 /// Tingsha: deal 3 damage to random enemy when card is discarded manually.
+#[cfg(test)]
 pub fn tingsha_on_discard(state: &mut CombatState) {
     if !state.has_relic("Tingsha") {
         return;
@@ -224,6 +114,7 @@ pub fn tingsha_on_discard(state: &mut CombatState) {
 }
 
 /// Toy Ornithopter: heal 5 HP whenever a potion is used.
+#[cfg(test)]
 pub fn toy_ornithopter_on_potion(state: &mut CombatState) {
     if state.has_relic("Toy Ornithopter") || state.has_relic("ToyOrnithopter") {
         state.heal_player(5);
@@ -231,6 +122,7 @@ pub fn toy_ornithopter_on_potion(state: &mut CombatState) {
 }
 
 /// Hand Drill: if attack breaks enemy Block, apply 2 Vulnerable.
+#[cfg(test)]
 pub fn hand_drill_on_block_break(state: &mut CombatState, enemy_idx: usize) {
     if state.has_relic("HandDrill") && enemy_idx < state.enemies.len() {
         state.enemies[enemy_idx].entity.add_status(sid::VULNERABLE, 2);
@@ -274,6 +166,7 @@ pub fn chemical_x_bonus(state: &CombatState) -> i32 {
 }
 
 /// Gold Plated Cables: if HP is full, orbs passive trigger extra.
+#[cfg(test)]
 pub fn gold_plated_cables_active(state: &CombatState) -> bool {
     state.has_relic("Cables") && state.player.hp == state.player.max_hp
 }
@@ -314,6 +207,7 @@ pub fn has_ice_cream(state: &CombatState) -> bool {
 }
 
 /// Sacred Bark: double potion effectiveness.
+#[cfg(test)]
 pub fn has_sacred_bark(state: &CombatState) -> bool {
     state.has_relic("SacredBark")
 }
@@ -337,4 +231,3 @@ pub fn necronomicon_reset(state: &mut CombatState) {
         state.player.set_status(sid::NECRONOMICON_USED, 0);
     }
 }
-

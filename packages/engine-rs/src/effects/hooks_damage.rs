@@ -47,25 +47,40 @@ pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, _card_inst: 
 }
 
 /// Rampage: scaling damage bonus from status counter.
-pub fn hook_rampage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+pub fn hook_rampage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc as i32
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::RAMPAGE_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }
 
 /// Glass Knife: damage decreases each play (negative bonus from penalty counter).
-pub fn hook_glass_knife(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+pub fn hook_glass_knife(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc as i32
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: -engine.state.player.status(sid::GLASS_KNIFE_PENALTY),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }
 
 /// Ritual Dagger: scaling damage bonus from kills.
-pub fn hook_ritual_dagger(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+pub fn hook_ritual_dagger(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc as i32
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::RITUAL_DAGGER_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }

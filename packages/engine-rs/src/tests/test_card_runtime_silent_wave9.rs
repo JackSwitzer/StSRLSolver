@@ -1,0 +1,129 @@
+#![cfg(test)]
+
+// Java oracle:
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/EndlessAgony.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/GrandFinale.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/MasterfulStab.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
+
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::tests::support::*;
+
+#[test]
+fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
+    let registry = global_registry();
+
+    let endless_agony = registry.get("Endless Agony").expect("Endless Agony should exist");
+    assert_eq!(endless_agony.card_type, CardType::Attack);
+    assert_eq!(endless_agony.target, CardTarget::Enemy);
+    assert!(endless_agony.exhaust);
+    assert!(endless_agony.effects.contains(&"copy_on_draw"));
+    assert_eq!(
+        endless_agony.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
+
+    let grand_finale = registry.get("Grand Finale").expect("Grand Finale should exist");
+    assert_eq!(grand_finale.target, CardTarget::AllEnemy);
+    assert!(grand_finale.effects.contains(&"only_empty_draw"));
+    assert_eq!(
+        grand_finale.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+    );
+
+    let masterful_stab = registry
+        .get("Masterful Stab")
+        .expect("Masterful Stab should exist");
+    assert!(masterful_stab.effects.contains(&"cost_increase_on_hp_loss"));
+    assert_eq!(
+        masterful_stab.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
+
+    let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
+    assert!(alchemize.effect_data.is_empty());
+    assert!(alchemize.effects.contains(&"alchemize"));
+
+    let reflex = registry.get("Reflex").expect("Reflex should exist");
+    assert!(reflex.effect_data.is_empty());
+    assert!(reflex.effects.contains(&"unplayable"));
+    assert!(reflex.effects.contains(&"draw_on_discard"));
+
+    let tactician = registry.get("Tactician").expect("Tactician should exist");
+    assert!(tactician.effect_data.is_empty());
+    assert!(tactician.effects.contains(&"unplayable"));
+    assert!(tactician.effects.contains(&"energy_on_discard"));
+}
+
+#[test]
+fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
+    let mut agony_engine = engine_with(make_deck(&["Endless Agony", "Strike_G"]), 40, 0);
+    agony_engine.state.hand = make_deck(&["Endless Agony"]);
+    let hp_before = agony_engine.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(&mut agony_engine, "Endless Agony", 0));
+    assert_eq!(agony_engine.state.enemies[0].entity.hp, hp_before - 4);
+    assert_eq!(exhaust_prefix_count(&agony_engine, "Endless Agony"), 1);
+
+    let mut finale_engine = engine_with(Vec::new(), 70, 0);
+    finale_engine.state.hand = make_deck(&["Grand Finale"]);
+    finale_engine.state.draw_pile.clear();
+    finale_engine.state.discard_pile.clear();
+    finale_engine.state.enemies.push(enemy_no_intent("Cultist", 55, 55));
+    assert!(play_self(&mut finale_engine, "Grand Finale"));
+    assert_eq!(finale_engine.state.enemies[0].entity.hp, 20);
+    assert_eq!(finale_engine.state.enemies[1].entity.hp, 5);
+
+    let mut stab_engine = engine_with(make_deck(&["Masterful Stab"]), 50, 0);
+    stab_engine.state.hand = make_deck(&["Masterful Stab"]);
+    stab_engine.state.total_damage_taken = 0;
+    let hp_before = stab_engine.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(&mut stab_engine, "Masterful Stab", 0));
+    assert_eq!(stab_engine.state.enemies[0].entity.hp, hp_before - 12);
+}
+
+#[test]
+fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
+    let mut agony_engine = engine_without_start(
+        make_deck(&["Endless Agony"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    agony_engine.state.hand.clear();
+    agony_engine.draw_cards(1);
+    assert_eq!(hand_count(&agony_engine, "Endless Agony"), 2);
+
+    let mut reflex_engine = engine_without_start(
+        make_deck(&["Strike_G", "Strike_G", "Strike_G"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    let reflex = reflex_engine.card_registry.make_card("Reflex+");
+    reflex_engine.state.discard_pile.push(reflex);
+    reflex_engine.on_card_discarded(reflex);
+    assert_eq!(reflex_engine.state.hand.len(), 3);
+
+    let mut tactician_engine = engine_without_start(
+        make_deck(&["Strike_G"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    let tactician = tactician_engine.card_registry.make_card("Tactician+");
+    tactician_engine.state.discard_pile.push(tactician);
+    tactician_engine.on_card_discarded(tactician);
+    assert_eq!(tactician_engine.state.energy, 3);
+}
+
+#[test]
+#[ignore = "Alchemize still needs a typed random-potion generation effect on the canonical runtime path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java"]
+fn silent_wave9_alchemize_needs_typed_random_potion_generation() {}
+
+#[test]
+#[ignore = "Reflex still needs a typed manual-discard reaction effect instead of tag-only behavior; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java"]
+fn silent_wave9_reflex_needs_typed_manual_discard_draw_reaction() {}
+
+#[test]
+#[ignore = "Tactician still needs a typed manual-discard reaction effect instead of tag-only behavior; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java"]
+fn silent_wave9_tactician_needs_typed_manual_discard_energy_reaction() {}

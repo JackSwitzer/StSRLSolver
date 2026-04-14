@@ -101,7 +101,7 @@ pub mod cracked_core;
 pub mod nuclear_battery;
 
 // ===========================================================================
-// Combat-start: card generation (complex_hook)
+// Combat-start: card generation (declarative)
 // ===========================================================================
 pub mod pure_water;
 pub mod ninja_scroll;
@@ -325,6 +325,10 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &blue_candle::DEF,
     &strange_spoon::DEF,
 ];
+
+pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {
+    RELIC_DEFS.iter().find(|def| def.id == id).copied()
+}
 
 // ===========================================================================
 // Lookup helper

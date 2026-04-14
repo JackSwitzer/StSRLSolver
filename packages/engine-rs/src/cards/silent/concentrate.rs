@@ -13,15 +13,15 @@ fn concentrate_hook(engine: &mut crate::engine::CombatEngine, ctx: &crate::effec
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     insert(cards, CardDef {
-                id: "Concentrate", name: "Concentrate", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["discard_gain_energy"], effect_data: &[], complex_hook: Some(concentrate_hook),
-            });
+        id: "Concentrate", name: "Concentrate", card_type: CardType::Skill,
+        target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+        base_magic: 3, exhaust: false, enter_stance: None,
+        effects: &["discard_gain_energy"], effect_data: &[], complex_hook: Some(concentrate_hook),
+    });
     insert(cards, CardDef {
-                id: "Concentrate+", name: "Concentrate+", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["discard_gain_energy"], effect_data: &[], complex_hook: Some(concentrate_hook),
-            });
+        id: "Concentrate+", name: "Concentrate+", card_type: CardType::Skill,
+        target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
+        base_magic: 2, exhaust: false, enter_stance: None,
+        effects: &["discard_gain_energy"], effect_data: &[], complex_hook: Some(concentrate_hook),
+    });
 }

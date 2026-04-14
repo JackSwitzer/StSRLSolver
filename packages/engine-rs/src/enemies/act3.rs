@@ -333,9 +333,7 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     for i in 0..256 {
         if enemy.entity.statuses[i] != 0 {
             let sid = crate::ids::StatusId(i as u16);
-            let name = crate::status_ids::status_name(sid);
-            if crate::powers::registry::is_debuff(name)
-            {
+            if crate::powers::registry::status_is_debuff(sid) {
                 enemy.entity.statuses[i] = 0;
             }
         }
@@ -412,4 +410,3 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
     }
 }
-

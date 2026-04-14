@@ -7,6 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 3, exhaust: false, enter_stance: None,
                 effects: &["mantra"], effect_data: &[
                     E::Simple(SE::GainMantra(A::Magic)),
+                    E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });
     insert(cards, CardDef {
@@ -15,6 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 4, exhaust: false, enter_stance: None,
                 effects: &["mantra"], effect_data: &[
                     E::Simple(SE::GainMantra(A::Magic)),
+                    E::Simple(SE::AddCard("Insight", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });
 }

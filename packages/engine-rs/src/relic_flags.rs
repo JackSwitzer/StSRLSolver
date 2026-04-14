@@ -33,8 +33,11 @@ pub mod flag {
     pub const MATRYOSHKA: u64       = 1 << 26;  // 2 free relics from first 2 chests
     pub const MARK_OF_BLOOM: u64    = 1 << 27;  // No healing
     pub const MAGIC_FLOWER: u64     = 1 << 28;  // 1.5x healing
-    pub const WHITE_BEAST: u64      = 1 << 29;  // Heal on potion use (ToyOrnithopter alias)
+    pub const WHITE_BEAST: u64      = 1 << 29;  // Guaranteed potion rewards after combat
     pub const TINY_CHEST: u64       = 1 << 30;  // Every 4th ? room has treasure
+    pub const MOLTEN_EGG: u64       = 1 << 31;  // Upgrade attacks when added to deck
+    pub const TOXIC_EGG: u64        = 1 << 32;  // Upgrade skills when added to deck
+    pub const FROZEN_EGG: u64       = 1 << 33;  // Upgrade powers when added to deck
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -103,7 +106,11 @@ impl RelicFlags {
                 "Matryoshka" => flag::MATRYOSHKA,
                 "MarkOfTheBloom" | "Mark of the Bloom" => flag::MARK_OF_BLOOM,
                 "MagicFlower" | "Magic Flower" => flag::MAGIC_FLOWER,
+                "WhiteBeast" | "White Beast Statue" => flag::WHITE_BEAST,
                 "TinyChest" | "Tiny Chest" => flag::TINY_CHEST,
+                "MoltenEgg2" | "Molten Egg 2" => flag::MOLTEN_EGG,
+                "ToxicEgg2" | "Toxic Egg 2" => flag::TOXIC_EGG,
+                "FrozenEgg2" | "Frozen Egg 2" => flag::FROZEN_EGG,
                 _ => 0,
             };
             self.flags |= f;
@@ -159,5 +166,12 @@ mod tests {
         let mut rf = RelicFlags::default();
         rf.init_relic_counter("Omamori");
         assert_eq!(rf.counters[counter::OMAMORI_USES], 2);
+    }
+
+    #[test]
+    fn test_matryoshka_init() {
+        let mut rf = RelicFlags::default();
+        rf.init_relic_counter("Matryoshka");
+        assert_eq!(rf.counters[counter::MATRYOSHKA_USES], 2);
     }
 }

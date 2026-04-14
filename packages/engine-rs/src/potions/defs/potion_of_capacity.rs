@@ -1,18 +1,18 @@
 use super::prelude::*;
-use crate::engine::CombatEngine;
-use crate::effects::trigger::TriggerContext;
+use crate::status_ids::sid;
 
-/// Potion of Capacity: Gain orb slots (2 base, 4 with Sacred Bark).
-/// complex_hook because it must call engine.add_orb_slot() repeatedly.
-fn potion_of_capacity_hook(_engine: &mut CombatEngine, _ctx: &TriggerContext) {
-    // Stub: actual logic adds potency orb slots via orb_slots.add_slot()
-}
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::ManualActivation,
+    condition: TriggerCondition::Always,
+    effects: &[E::Simple(SE::AddStatus(T::Player, sid::ORB_SLOTS, A::PotionPotency))],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "PotionOfCapacity",
     name: "Potion of Capacity",
     kind: EntityKind::Potion,
-    triggers: &[],
-    complex_hook: Some(potion_of_capacity_hook),
+    triggers: &TRIGGERS,
+    complex_hook: None,
     status_guard: None,
 };

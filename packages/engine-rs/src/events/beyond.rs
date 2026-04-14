@@ -1,74 +1,206 @@
-use super::{EventDef, EventOption, EventEffect};
+use super::{
+    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
+    TypedEventOption,
+};
 
-pub fn act3_events() -> Vec<EventDef> {
+#[cfg(test)]
+#[path = "../tests/test_event_runtime_wave7.rs"]
+mod test_event_runtime_wave7;
+
+#[cfg(test)]
+#[path = "../tests/test_event_runtime_wave8.rs"]
+mod test_event_runtime_wave8;
+
+#[cfg(test)]
+#[path = "../tests/test_event_runtime_wave13.rs"]
+mod test_event_runtime_wave13;
+
+fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
+    TypedEventOption::supported(text, EventProgram::from_ops(ops), effect)
+}
+
+fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
+    TypedEventDef {
+        name: name.to_string(),
+        options,
+    }
+}
+
+pub fn typed_act3_events() -> Vec<TypedEventDef> {
     vec![
-        EventDef {
-            name: "Mysterious Sphere".to_string(),
-            options: vec![
-                EventOption { text: "Open (gain relic, fight)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+        event(
+            "Mysterious Sphere",
+            vec![
+                supported(
+                    "Open (gain relic, fight)",
+                    vec![
+                        EventProgramOp::combat_branch(
+                            ["OrbWalker", "OrbWalker"],
+                            vec![EventProgramOp::gain_relic("random relic")],
+                        ),
+                    ],
+                    EventEffect::GainRelic,
+                ),
+                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
-        },
-        EventDef {
-            name: "Mind Bloom".to_string(),
-            options: vec![
-                EventOption { text: "I am War (fight Act 1 boss, gain rare relic)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "I am Awake (upgrade all, lose ability to heal)".into(), effect: EventEffect::UpgradeCard },
-                EventOption { text: "I am Rich (gain 999 gold)".into(), effect: EventEffect::Gold(999) },
+        ),
+        event(
+            "Mind Bloom",
+            vec![
+                supported(
+                    "I am War (fight Act 1 boss, gain rare relic)",
+                    vec![
+                        EventProgramOp::combat_branch(
+                            ["MindBloomAct1Boss"],
+                            vec![EventProgramOp::gain_relic("rare relic")],
+                        ),
+                    ],
+                    EventEffect::GainRelic,
+                ),
+                supported(
+                    "I am Awake (upgrade all, lose ability to heal)",
+                    vec![
+                        EventProgramOp::upgrade_card(999),
+                        EventProgramOp::gain_relic("Mark of the Bloom"),
+                    ],
+                    EventEffect::UpgradeCard,
+                ),
+                supported(
+                    "I am Rich (gain 999 gold)",
+                    vec![
+                        EventProgramOp::gold(999),
+                        EventProgramOp::Reward(EventReward::Curse {
+                            label: "Normality".to_string(),
+                        }),
+                        EventProgramOp::Reward(EventReward::Curse {
+                            label: "Normality".to_string(),
+                        }),
+                    ],
+                    EventEffect::Gold(999),
+                ),
             ],
-        },
-        EventDef {
-            name: "Tomb of Lord Red Mask".to_string(),
-            options: vec![
-                EventOption { text: "Don the mask (gain Red Mask)".into(), effect: EventEffect::GainRelic },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+        ),
+        event(
+            "Tomb of Lord Red Mask",
+            vec![
+                supported(
+                    "Don the mask (gain Red Mask)",
+                    vec![EventProgramOp::gain_relic("Red Mask")],
+                    EventEffect::GainRelic,
+                ),
+                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
-        },
-        EventDef {
-            name: "Sensory Stone".to_string(),
-            options: vec![
-                EventOption { text: "Focus (gain a card)".into(), effect: EventEffect::GainCard },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+        ),
+        event(
+            "Sensory Stone",
+            vec![
+                supported(
+                    "Focus (gain a card)",
+                    vec![EventProgramOp::gain_card_reward(1)],
+                    EventEffect::GainCard,
+                ),
+                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
-        },
-        EventDef {
-            name: "Secret Portal".to_string(),
-            options: vec![
-                EventOption { text: "Enter (skip to boss)".into(), effect: EventEffect::Nothing },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+        ),
+        event(
+            "Secret Portal",
+            vec![
+                supported(
+                    "Enter (skip to boss)",
+                    vec![EventProgramOp::start_boss_combat()],
+                    EventEffect::Nothing,
+                ),
+                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
-        },
-        // --- New events below (Java parity) ---
-        EventDef {
-            name: "Falling".to_string(),
-            options: vec![
-                EventOption { text: "Land on skill (lose a skill card)".into(), effect: EventEffect::RemoveCard },
-                EventOption { text: "Land on power (lose a power card)".into(), effect: EventEffect::RemoveCard },
-                EventOption { text: "Land on attack (lose an attack card)".into(), effect: EventEffect::RemoveCard },
+        ),
+        event(
+            "Falling",
+            vec![
+                supported(
+                    "Land on skill (lose a skill card)",
+                    vec![EventProgramOp::remove_card(1)],
+                    EventEffect::RemoveCard,
+                ),
+                supported(
+                    "Land on power (lose a power card)",
+                    vec![EventProgramOp::remove_card(1)],
+                    EventEffect::RemoveCard,
+                ),
+                supported(
+                    "Land on attack (lose an attack card)",
+                    vec![EventProgramOp::remove_card(1)],
+                    EventEffect::RemoveCard,
+                ),
             ],
-        },
-        EventDef {
-            name: "The Moai Head".to_string(),
-            options: vec![
-                EventOption { text: "Offer (lose max HP, heal to full)".into(), effect: EventEffect::MaxHp(-5) },
-                EventOption { text: "Give Golden Idol (gain 333 gold)".into(), effect: EventEffect::Gold(333) },
-                EventOption { text: "Leave".into(), effect: EventEffect::Nothing },
+        ),
+        event(
+            "The Moai Head",
+            vec![
+                supported(
+                    "Offer (lose max HP, heal to full)",
+                    vec![
+                        EventProgramOp::max_hp(-5),
+                        EventProgramOp::heal_to_full(),
+                    ],
+                    EventEffect::MaxHp(-5),
+                ),
+                supported(
+                    "Give Golden Idol (gain 333 gold)",
+                    vec![
+                        EventProgramOp::remove_relic("Golden Idol"),
+                        EventProgramOp::gold(333),
+                    ],
+                    EventEffect::Gold(333),
+                ),
+                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
-        },
-        EventDef {
-            name: "Spire Heart".to_string(),
-            options: vec![
-                EventOption { text: "Approach (deal score dmg, end run or enter Act 4)".into(), effect: EventEffect::Nothing },
+        ),
+        event(
+            "Spire Heart",
+            vec![
+                supported(
+                    "Approach (deal score dmg, end run or enter Act 4)",
+                    vec![EventProgramOp::resolve_final_act()],
+                    EventEffect::Nothing,
+                ),
             ],
-        },
-        EventDef {
-            name: "Winding Halls".to_string(),
-            options: vec![
-                EventOption { text: "Embrace madness (take dmg, gain 2 Madness)".into(), effect: EventEffect::Hp(-5) },
-                EventOption { text: "Retrace steps (heal, gain Writhe curse)".into(), effect: EventEffect::Hp(0) },
-                EventOption { text: "Press on (lose max HP)".into(), effect: EventEffect::MaxHp(-3) },
+        ),
+        event(
+            "Winding Halls",
+            vec![
+                supported(
+                    "Embrace madness (take dmg, gain 2 Madness)",
+                    vec![
+                        EventProgramOp::adjust_hp_percent_by_ascension(false, 12, 18),
+                        EventProgramOp::gain_specific_cards(["Madness"]),
+                        EventProgramOp::gain_specific_cards(["Madness"]),
+                    ],
+                    EventEffect::Hp(-5),
+                ),
+                supported(
+                    "Retrace steps (heal, gain Writhe curse)",
+                    vec![
+                        EventProgramOp::adjust_hp_percent_by_ascension(true, 25, 20),
+                        EventProgramOp::Reward(EventReward::Curse {
+                            label: "Writhe".to_string(),
+                        }),
+                    ],
+                    EventEffect::Hp(0),
+                ),
+                supported(
+                    "Press on (lose max HP)",
+                    vec![EventProgramOp::max_hp_percent(-5)],
+                    EventEffect::MaxHp(-3),
+                ),
             ],
-        },
+        ),
     ]
 }
 
+#[allow(dead_code)]
+pub fn act3_events() -> Vec<EventDef> {
+    typed_act3_events()
+        .into_iter()
+        .map(|event| event.legacy())
+        .collect()
+}

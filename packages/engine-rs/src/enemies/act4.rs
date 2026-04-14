@@ -1,6 +1,6 @@
 use crate::state::EnemyCombatState;
 use crate::combat_types::mfx;
-use super::{last_move, last_two_moves};
+use super::last_move;
 use super::move_ids;
 use crate::status_ids::sid;
 
@@ -124,4 +124,3 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
     }
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
-

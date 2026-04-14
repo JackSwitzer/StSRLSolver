@@ -1,7 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Melter: 1 cost, 10 dmg, remove all enemy block
+        // Melter: 1 cost, 10 dmg, remove all enemy block.
     insert(cards, CardDef {
                 id: "Melter", name: "Melter", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,

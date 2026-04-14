@@ -1,7 +1,7 @@
 //! Velvet Choker: Track cards played per turn (limit 6).
 //!
-//! This EntityDef handles the OnAnyCardPlayed counter increment.
-//! The actual card-play limit check is inline in the engine.
+//! This EntityDef handles the OnAnyCardPlayed counter increment and turn reset.
+//! The actual play gate reads that canonical counter directly in the engine.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

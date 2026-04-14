@@ -1,4 +1,13 @@
 use crate::cards::prelude::*;
+use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, Effect, Pile as P};
+
+static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
+    source: P::Hand,
+    filter: CardFilter::All,
+    action: ChoiceAction::PutOnBottomAtCostZero,
+    min_picks: A::Fixed(0),
+    max_picks: A::Fixed(99),
+}];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // Forethought: 0 cost, put card from hand to bottom of draw pile at 0 cost
@@ -12,6 +21,6 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Forethought+", name: "Forethought+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["forethought_all"], effect_data: &[], complex_hook: Some(crate::effects::hooks_complex::hook_forethought_all),
+                effects: &["forethought_all"], effect_data: &FORETHOUGHT_PLUS, complex_hook: None,
             });
 }

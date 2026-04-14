@@ -2,15 +2,19 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     insert(cards, CardDef {
-                id: "FlyingSleeves", name: "Flying Sleeves", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 1, base_damage: 4, base_block: -1,
-                base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[], complex_hook: None,
-            });
+        id: "FlyingSleeves", name: "Flying Sleeves", card_type: CardType::Attack,
+        target: CardTarget::Enemy, cost: 1, base_damage: 4, base_block: -1,
+        base_magic: 2, exhaust: false, enter_stance: None,
+        effects: &["multi_hit", "retain"], effect_data: &[
+            E::ExtraHits(A::Magic),
+        ], complex_hook: None,
+    });
     insert(cards, CardDef {
-                id: "FlyingSleeves+", name: "Flying Sleeves+", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
-                base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[], complex_hook: None,
-            });
+        id: "FlyingSleeves+", name: "Flying Sleeves+", card_type: CardType::Attack,
+        target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
+        base_magic: 2, exhaust: false, enter_stance: None,
+        effects: &["multi_hit", "retain"], effect_data: &[
+            E::ExtraHits(A::Magic),
+        ], complex_hook: None,
+    });
 }
