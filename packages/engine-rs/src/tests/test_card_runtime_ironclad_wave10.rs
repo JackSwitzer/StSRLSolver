@@ -51,9 +51,15 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
         .expect("True Grit should exist");
     assert_eq!(true_grit.card_type, CardType::Skill);
     assert_eq!(true_grit.target, CardTarget::SelfTarget);
-    assert_eq!(true_grit.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ExhaustRandomCardFromHand),
+        ]
+    );
     assert!(true_grit.uses_typed_primary_preamble());
-    assert!(true_grit.complex_hook.is_some());
+    assert!(true_grit.complex_hook.is_none());
 
     let true_grit_plus = global_registry()
         .get("True Grit+")
@@ -137,11 +143,16 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java random-exhaust parity for base True Grit; the card still uses the hook for its hand exhaust selection. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java"]
-fn ironclad_wave10_true_grit_base_exhaust_selection_stays_queued_until_random_exhaust_is_typed() {
+fn ironclad_wave10_true_grit_base_uses_the_typed_random_exhaust_surface() {
     let true_grit = global_registry()
         .get("True Grit")
         .expect("True Grit should exist");
-    assert_eq!(true_grit.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-    assert!(true_grit.complex_hook.is_some());
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ExhaustRandomCardFromHand),
+        ]
+    );
+    assert!(true_grit.complex_hook.is_none());
 }

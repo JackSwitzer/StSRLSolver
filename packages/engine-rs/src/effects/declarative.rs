@@ -248,6 +248,8 @@ pub enum SimpleEffect {
     DrawCards(AmountSource),
     /// Draw up to a target hand size.
     DrawToHandSize(AmountSource),
+    /// Exhaust 1 random card from hand.
+    ExhaustRandomCardFromHand,
     /// Set a random eligible card in hand to exact cost.
     SetRandomHandCardCost(i32),
     /// Obtain a random potion into the first empty slot, respecting Sozu and slot availability.

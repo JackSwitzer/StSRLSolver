@@ -502,11 +502,6 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     let prev_enemy_killed = engine.runtime_card_enemy_killed;
     engine.runtime_card_total_unblocked_damage = ctx.total_unblocked_damage;
     engine.runtime_card_enemy_killed = ctx.enemy_killed;
-    // ---- Exhaust random: True Grit (base) exhausts 1 random card from hand ----
-    if card.effects.contains(&"exhaust_random") {
-        crate::effects::hooks_complex::hook_exhaust_random(engine, &ctx);
-    }
-
     crate::effects::interpreter::execute_effects(engine, &mut ctx, card.effect_data);
     if let Some(hook) = card.complex_hook {
         hook(engine, &ctx);

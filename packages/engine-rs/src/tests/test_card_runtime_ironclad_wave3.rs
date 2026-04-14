@@ -63,8 +63,14 @@ mod ironclad_wave3_card_runtime_tests {
         assert_eq!(whirlwind.declared_all_enemy_damage(), Some(A::Damage));
 
         let true_grit = card("True Grit");
-        assert!(true_grit.effect_data.is_empty());
-        assert!(true_grit.complex_hook.is_some());
+        assert_eq!(
+            true_grit.effect_data,
+            &[
+                Effect::Simple(SE::GainBlock(A::Block)),
+                Effect::Simple(SE::ExhaustRandomCardFromHand),
+            ]
+        );
+        assert!(true_grit.complex_hook.is_none());
 
         let true_grit_plus = card("True Grit+");
         assert_eq!(
@@ -152,7 +158,7 @@ mod ironclad_wave3_card_runtime_tests {
     }
 
     #[test]
-    fn true_grit_base_stays_hook_backed_while_plus_uses_declared_exhaust_choice_data() {
+    fn true_grit_base_uses_the_typed_random_exhaust_surface_while_plus_uses_declared_exhaust_choice_data() {
         let mut engine = engine_without_start(
             Vec::new(),
             vec![enemy_no_intent("JawWorm", 40, 40)],

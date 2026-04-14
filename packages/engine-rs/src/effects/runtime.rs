@@ -776,6 +776,14 @@ impl EffectRuntime {
                     engine.draw_cards(to_draw);
                 }
             }
+            SimpleEffect::ExhaustRandomCardFromHand => {
+                if !engine.state.hand.is_empty() {
+                    let idx = engine.rng_gen_range(0..engine.state.hand.len());
+                    let exhausted = engine.state.hand.remove(idx);
+                    engine.state.exhaust_pile.push(exhausted);
+                    engine.trigger_on_exhaust();
+                }
+            }
             SimpleEffect::SetRandomHandCardCost(cost) => {
                 let eligible: Vec<usize> = engine.state.hand.iter()
                     .enumerate()

@@ -2,8 +2,9 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Common: True Grit ----
-    // Base True Grit keeps the typed block body and remains hook-backed for
-    // random exhaust; the upgrade already uses the typed choose-exhaust path.
+    // Base True Grit keeps the typed block body and now uses the typed
+    // random-exhaust primitive; the upgrade already uses the typed
+    // choose-exhaust path.
     insert(cards, CardDef {
         id: "True Grit",
         name: "True Grit",
@@ -16,8 +17,11 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &[],
-        effect_data: &[E::Simple(SE::GainBlock(A::Block))],
-        complex_hook: Some(crate::effects::hooks_complex::hook_exhaust_random),
+        effect_data: &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ExhaustRandomCardFromHand),
+        ],
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "True Grit+",

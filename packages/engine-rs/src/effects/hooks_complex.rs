@@ -293,20 +293,6 @@ pub fn hook_exhaust_choose(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     }
 }
 
-/// Exhaust random: exhaust 1 random card from hand.
-pub fn hook_exhaust_random(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    let count = 1; // Standard: exhaust 1 random card
-    for _ in 0..count {
-        if engine.state.hand.is_empty() {
-            break;
-        }
-        let idx = engine.rng_gen_range(0..engine.state.hand.len());
-        let exhausted = engine.state.hand.remove(idx);
-        engine.state.exhaust_pile.push(exhausted);
-        engine.trigger_on_exhaust();
-    }
-}
-
 /// Exhume: pick card from exhaust pile to return to hand.
 pub fn hook_exhume(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     if !engine.state.exhaust_pile.is_empty() {

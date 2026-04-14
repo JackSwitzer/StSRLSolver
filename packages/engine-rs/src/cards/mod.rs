@@ -403,6 +403,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ChangeStance(_)
         | SimpleEffect::SetFlag(_)
         | SimpleEffect::ShuffleDiscardIntoDraw
+        | SimpleEffect::ExhaustRandomCardFromHand
         | SimpleEffect::CopyThisCardTo(_)
         | SimpleEffect::GainBlockIfLastHandCardType(_, _)
         | SimpleEffect::DrawToHandSize(_)

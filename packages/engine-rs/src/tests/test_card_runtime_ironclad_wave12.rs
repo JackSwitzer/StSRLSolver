@@ -75,8 +75,14 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     assert!(havoc.complex_hook.is_none());
 
     let true_grit = global_registry().get("True Grit").expect("True Grit should exist");
-    assert_eq!(true_grit.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-    assert!(true_grit.complex_hook.is_some());
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ExhaustRandomCardFromHand),
+        ]
+    );
+    assert!(true_grit.complex_hook.is_none());
 
     let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
     assert!(dual_wield.effect_data.is_empty());
@@ -132,8 +138,17 @@ fn ironclad_wave12_sword_boomerang_uses_typed_random_enemy_extra_hits() {
 }
 
 #[test]
-#[ignore = "Blocked on Java random-exhaust parity for base True Grit; the current runtime still needs a dedicated random exhaust primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java"]
-fn ironclad_wave12_true_grit_base_stays_hook_backed_until_random_exhaust_is_typed() {}
+fn ironclad_wave12_true_grit_base_uses_the_typed_random_exhaust_surface() {
+    let true_grit = global_registry().get("True Grit").expect("True Grit");
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ExhaustRandomCardFromHand),
+        ]
+    );
+    assert!(true_grit.complex_hook.is_none());
+}
 
 #[test]
 #[ignore = "Blocked on Java attack-or-power union filtering for Dual Wield; the current declarative filter surface cannot express the card's option set. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/DualWield.java"]

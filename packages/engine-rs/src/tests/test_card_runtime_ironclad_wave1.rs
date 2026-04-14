@@ -60,11 +60,17 @@ mod ironclad_wave1_card_runtime_tests {
     }
 
     #[test]
-    fn true_grit_base_uses_a_real_complex_hook_and_upgrade_uses_declarative_choice_data() {
+    fn true_grit_base_uses_the_typed_random_exhaust_surface_and_upgrade_uses_declarative_choice_data() {
         let true_grit = card("True Grit");
         assert_eq!(true_grit.card_type, CardType::Skill);
-        assert!(true_grit.effect_data.is_empty());
-        assert!(true_grit.complex_hook.is_some());
+        assert_eq!(
+            true_grit.effect_data,
+            &[
+                Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)),
+                Effect::Simple(SimpleEffect::ExhaustRandomCardFromHand),
+            ]
+        );
+        assert!(true_grit.complex_hook.is_none());
 
         let true_grit_plus = card("True Grit+");
         assert_eq!(

@@ -62,10 +62,20 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
     assert!(havoc.complex_hook.is_none(), "Havoc should now be fully typed");
 
     let true_grit = global_registry().get("True Grit").expect("True Grit");
-    assert_eq!(true_grit.effect_data, &[crate::effects::declarative::Effect::Simple(
-        crate::effects::declarative::SimpleEffect::GainBlock(crate::effects::declarative::AmountSource::Block)
-    )]);
-    assert!(true_grit.complex_hook.is_some(), "True Grit base still needs the random exhaust primitive");
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::GainBlock(
+                    crate::effects::declarative::AmountSource::Block,
+                ),
+            ),
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::ExhaustRandomCardFromHand,
+            ),
+        ]
+    );
+    assert!(true_grit.complex_hook.is_none(), "True Grit base should now be fully typed");
 }
 
 #[test]
@@ -97,5 +107,20 @@ fn ironclad_wave14_fiend_fire_stays_explicitly_hook_backed() {}
 fn ironclad_wave14_second_wind_stays_explicitly_hook_backed() {}
 
 #[test]
-#[ignore = "Blocked on Java random-exhaust parity for base True Grit; the card still needs a random exhaust primitive rather than a choice-exhaust surface. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java"]
-fn ironclad_wave14_true_grit_base_stays_explicitly_hook_backed() {}
+fn ironclad_wave14_true_grit_base_uses_the_typed_random_exhaust_surface() {
+    let true_grit = global_registry().get("True Grit").expect("True Grit");
+    assert_eq!(
+        true_grit.effect_data,
+        &[
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::GainBlock(
+                    crate::effects::declarative::AmountSource::Block,
+                ),
+            ),
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::ExhaustRandomCardFromHand,
+            ),
+        ]
+    );
+    assert!(true_grit.complex_hook.is_none());
+}
