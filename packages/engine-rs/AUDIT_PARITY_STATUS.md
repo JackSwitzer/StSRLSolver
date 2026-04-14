@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- raw public card files with empty `effect_data`: `5`
-- raw public card files still using `complex_hook`: `2`
-- unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `2`
+- raw public card files with empty `effect_data`: `4`
+- raw public card files still using `complex_hook`: `1`
+- unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `1`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -57,8 +57,8 @@ Empty-`effect_data` card backlog by class:
 
 - Watcher: `1`
 - Defect: `1`
-- Silent: `3`
-- Ironclad: `1`
+- Silent: `2`
+- Ironclad: `0`
 - Colorless: `0`
 
 Additional shared-file tail outside the five main class folders:
@@ -68,16 +68,18 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level gameplay tail is now very small and concentrated in retained-state, generated-choice, and post-draw/exhaust sequencing families
-- the currently verified unresolved public gameplay-gap tail is: `Scrape` and `Fiend Fire`
+- the currently verified unresolved public gameplay-gap tail is: `Scrape`
   - `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
   - `Dual Wield` is now fully typed on the `AttackOrPower` choice path with copy-count routing through the choice context, so it no longer counts in the unresolved public-card tail
   - `Burning Pact` is now fully typed on the declarative choice-owned deferred-draw path, so it no longer counts in the hook-backed public-card tail
   - `Ritual Dagger` is now fully on the declarative path: its kill upgrade is expressed as an `EnemyKilled` conditional that mutates the played card through the existing `ModifyPlayedCardDamage` effect
+  - `Fiend Fire` is now fully typed on an exhaust-first declarative sequence with the hit count carried by the existing typed runtime surfaces
+  - `Nightmare` is now off `complex_hook` and on a typed/runtime-native delayed-copy path with next-turn copy install owned by the engine runtime
   - `Reflex`, `Tactician`, and `Deus Ex Machina` remain raw empty-`effect_data` cleanup shells, but they are excluded from the unresolved gameplay-gap tail because canonical engine-path proof already exists in `test_card_runtime_nonplay_triggers_wave1` plus the focused Silent / Watcher runtime suites
   - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment`, `Reboot`, `Fission`, base `True Grit`, and `Second Wind` are now on typed runtime/declarative paths, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
-- the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect frost/order, and Colorless utility/cost-mutation behavior
+- the only remaining true gameplay-gap card is now `Scrape`; the remaining raw empties are runtime-backed cleanup shells rather than missing gameplay behavior
 
 ## Why We Are Not Done Yet
 
@@ -339,7 +341,7 @@ Own:
 Goal:
 
 - finish the remaining low-risk utility/damage-follow-up cards that no longer need big architectural work
-- keep `Fiend Fire`, `Scrape`, and the remaining large sequencing cards queued behind their actual missing primitives
+- keep `Scrape` and the remaining real shared-runtime follow-up bugs queued behind their actual missing primitives
 
 ### Wave 2: final supported-event blocker
 
@@ -368,7 +370,7 @@ Goal:
 
 Goal:
 
-- retire the ignored `Emotion Chip`, `Liquid Memories`, `Scrape`, and `Fiend Fire` blocker cases
+- retire the ignored `Emotion Chip`, `Liquid Memories`, and `Scrape` blocker cases, then address the separate shared `AwaitingChoice` continuation bug family (`Third Eye`, `Foreign Influence`)
 - continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
 
 ### Wave 4: final dead-export cleanup
