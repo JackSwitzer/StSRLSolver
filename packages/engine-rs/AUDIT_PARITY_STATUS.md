@@ -45,8 +45,8 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `33`
-- card files still using `complex_hook`: `45`
+- card files with empty `effect_data`: `26`
+- card files still using `complex_hook`: `38`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -55,21 +55,21 @@ These counts come from the current verified production tree and are useful as a 
 Empty-`effect_data` card backlog by class:
 
 - Watcher: `2`
-- Defect: `9`
-- Silent: `8`
+- Defect: `7`
+- Silent: `7`
 - Ironclad: `4`
-- Colorless: `7`
+- Colorless: `6`
 
 Additional shared-file tail outside the five main class folders:
 
-- shared card modules and temp/status/curses files: `3`
+- shared card modules and temp/status/curses files: `2`
 
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, and post-damage-context families
 - the event runtime is fully supported for the current event set, with no remaining `EventProgramOp::blocked(...)` branches for supported content
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the remaining dead-system tail is mostly residual oracle scaffolding, ignored blocker tests, and cleanup of no-longer-needed bridge helpers
-- the easiest remaining non-hook empties are mostly Watcher residue plus a tiny Silent discard/reaction tail; the rest of the backlog is increasingly primitive-driven rather than simple port spam
+- the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
 
 ## Why We Are Not Done Yet
 

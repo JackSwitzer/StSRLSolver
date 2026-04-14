@@ -206,10 +206,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- relic helper cleanup and oracle retirement for the remaining internal parity surface in `src/relics/mod.rs` and `src/tests/test_relics_parity.rs`
-- colorless utility cleanup for `Forethought`, `Enlightenment`, `Impatience`, `Madness`, `Mind Blast`, `Ritual Dagger`, and `Violence`
-- Defect cleanup for `Blizzard`, `Double Energy`, `Genetic Algorithm`, and `Melter`
-- Watcher blocker tightening for `Deus Ex Machina`, `Judgement`, `Omniscience`, and `Wish`
+- Silent discard/queue primitive wave for `Calculated Gamble`, `Concentrate`, `Storm of Steel`, plus exact blocker handling for `Reflex` and `Tactician`
+- Ironclad tail-closure audit for `Dual Wield`, `Fiend Fire`, `Havoc`, `Second Wind`, `Burning Pact`, `Headbutt`, and `True Grit` without shared-core churn
+- Colorless tail-closure audit for `Forethought`, `Enlightenment`, `Impatience`, `Madness`, `Ritual Dagger`, and `Violence` without shared-core churn
+- relic dead-surface deletion and helper/oracle retirement in `src/relics/mod.rs`, `src/relics/combat.rs`, and the remaining helper-path relic tests
 
 Each worker must return:
 
@@ -225,7 +225,6 @@ These are the currently verified card-tail clusters that should drive the next p
   - `Alchemize`
   - `Calculated Gamble`
   - `Concentrate`
-  - `Expertise`
   - `Nightmare`
   - `Storm of Steel`
 - Ironclad exhaust/top-play cluster:
@@ -241,14 +240,11 @@ These are the currently verified card-tail clusters that should drive the next p
   - `Scrape`
 - Defect scaling/state cluster:
   - `Blizzard`
-  - `Double Energy`
   - `Genetic Algorithm`
   - `Melter`
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`
-  - `Judgement`
   - `Omniscience`
-  - `Pressure Points`
   - `Collect`
   - `Conjure Blade`
   - `Fasting`
@@ -258,9 +254,9 @@ These are the currently verified card-tail clusters that should drive the next p
   - `Enlightenment`
   - `Impatience`
   - `Madness`
-  - `Mind Blast`
   - `Ritual Dagger`
   - `Violence`
+  - `Mind Blast`
 
 The shared primitive themes behind those clusters are now clear:
 

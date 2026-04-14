@@ -428,7 +428,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 } else {
                     ctx.card.cost
                 };
-                card.cost = (current + delta).max(0) as i8;
+                let next = (current + delta).max(0) as i8;
+                card.cost = next;
+                ctx.card_inst.cost = next;
                 engine.runtime_played_card = Some(card);
             }
         }
@@ -441,7 +443,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 } else {
                     ctx.card.base_block.max(0)
                 };
-                card.misc = (current + delta).max(0) as i16;
+                let next = (current + delta).max(0) as i16;
+                card.misc = next;
+                ctx.card_inst.misc = next;
                 engine.runtime_played_card = Some(card);
             }
         }

@@ -784,7 +784,8 @@ impl EffectRuntime {
                     } else {
                         engine.card_registry.card_def_by_id(card.def_id).cost
                     };
-                    card.cost = (current + delta).max(0) as i8;
+                    let next = (current + delta).max(0) as i8;
+                    card.cost = next;
                     engine.runtime_played_card = Some(card);
                 }
             }
@@ -799,7 +800,8 @@ impl EffectRuntime {
                             .base_block
                             .max(0)
                     };
-                    card.misc = (current + delta).max(0) as i16;
+                    let next = (current + delta).max(0) as i16;
+                    card.misc = next;
                     engine.runtime_played_card = Some(card);
                 }
             }
