@@ -22,7 +22,6 @@ fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
     force_player_turn(&mut engine);
     engine
 }
-
 #[test]
 fn defect_wave12_registry_exports_surface_barrage_rip_and_tear_and_thunder_strike() {
     let reg = global_registry();
@@ -149,8 +148,8 @@ fn defect_wave12_chaos_channels_random_orbs_deterministically_for_identical_seed
     assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
 }
 
-#[test]
 #[ignore = "Blocked on zero-orb Barrage parity; Java BarrageAction deals no damage when the orb list is empty"]
+#[test]
 fn defect_wave12_barrage_zero_orb_count_still_needs_exact_no_damage_support() {
     let barrage = global_registry().get("Barrage").expect("Barrage");
     assert_eq!(
@@ -161,9 +160,8 @@ fn defect_wave12_barrage_zero_orb_count_still_needs_exact_no_damage_support() {
         ]
     );
 }
-
-#[test]
 #[ignore = "Blocked on a fresh random target per hit; Java NewRipAndTearAction selects a new enemy each time"]
+#[test]
 fn defect_wave12_rip_and_tear_still_needs_per_hit_random_target_selection() {
     let rip = global_registry().get("Rip and Tear").expect("Rip and Tear");
     assert_eq!(
@@ -174,9 +172,8 @@ fn defect_wave12_rip_and_tear_still_needs_per_hit_random_target_selection() {
         ]
     );
 }
-
-#[test]
 #[ignore = "Blocked on a fresh random target per hit and zero-lightning no-op parity; Java NewThunderStrikeAction chooses a new enemy for every lightning hit"]
+#[test]
 fn defect_wave12_thunder_strike_still_needs_per_hit_random_target_selection() {
     let thunder = global_registry().get("Thunder Strike").expect("Thunder Strike");
     assert_eq!(
@@ -186,20 +183,4 @@ fn defect_wave12_thunder_strike_still_needs_per_hit_random_target_selection() {
             E::ExtraHits(A::StatusValue(sid::LIGHTNING_CHANNELED)),
         ]
     );
-}
-
-#[test]
-#[ignore = "Blocked on a typed energy-doubling primitive; Java DoubleEnergyAction doubles the current energy directly"]
-fn defect_wave12_double_energy_still_needs_typed_energy_doubling() {
-    let double_energy = global_registry().get("Double Energy").expect("Double Energy");
-    assert!(double_energy.effect_data.is_empty());
-    assert!(double_energy.complex_hook.is_some());
-}
-
-#[test]
-#[ignore = "Melter still needs a pre-damage enemy block removal primitive; Java RemoveAllBlockAction clears the target's block before damage."]
-fn defect_wave12_melter_still_needs_pre_damage_enemy_block_removal() {
-    let melter = global_registry().get("Melter").expect("Melter");
-    assert!(melter.effect_data.is_empty());
-    assert!(melter.complex_hook.is_some());
 }

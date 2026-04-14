@@ -95,11 +95,3 @@ fn blizzard_current_hook_runtime_damages_all_enemies_when_frost_has_been_channel
 #[test]
 #[ignore = "Blizzard still needs a typed frost-scale AoE primitive; Java Blizzard.java uses per-combat Frost Channeled counting and the typed runtime proof does not yet reproduce it."]
 fn blizzard_still_needs_typed_frost_scale_aoe() {}
-
-#[test]
-#[ignore = "Double Energy still needs a typed energy-doubling primitive; Java DoubleEnergyAction doubles the current energy directly."]
-fn double_energy_still_needs_typed_energy_doubling() {}
-
-#[test]
-#[ignore = "Genetic Algorithm still needs card-owned current-block seeding plus replay-state mutation; Java IncreaseMiscAction mutates the played copy before future plays."]
-fn genetic_algorithm_still_needs_card_owned_misc_seeding() {}
