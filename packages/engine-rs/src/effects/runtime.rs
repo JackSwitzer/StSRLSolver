@@ -1316,6 +1316,7 @@ impl EffectRuntime {
             AmountSource::StatusValue(status_id) => {
                 self.read_status(engine, instance_idx, owner, status_id)
             }
+            AmountSource::StatusValueTimesMagic(_) => 0,
             AmountSource::PercentMaxHp(pct) => (engine.state.player.max_hp * pct) / 100,
             AmountSource::DrawPileDivN(n) => {
                 if n > 0 {

@@ -9,6 +9,7 @@
 use crate::cards::global_registry;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::orbs::OrbType;
+use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
 
 fn total_enemy_hp(engine: &crate::engine::CombatEngine) -> i32 {
@@ -23,12 +24,18 @@ fn total_enemy_hp(engine: &crate::engine::CombatEngine) -> i32 {
 #[test]
 fn defect_wave15_registry_exports_typed_and_blocked_cards_honestly() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.complex_hook.is_some());
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
 
     let blizzard_plus = global_registry().get("Blizzard+").expect("Blizzard+");
-    assert!(blizzard_plus.effect_data.is_empty());
-    assert!(blizzard_plus.complex_hook.is_some());
+    assert_eq!(
+        blizzard_plus.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard_plus.complex_hook.is_none());
 
     let double_energy = global_registry().get("Double Energy").expect("Double Energy");
     assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
@@ -71,7 +78,7 @@ fn blizzard_does_nothing_without_frost_channeled_this_combat() {
 }
 
 #[test]
-fn blizzard_current_hook_runtime_damages_all_enemies_when_frost_has_been_channeled() {
+fn blizzard_typed_runtime_damages_all_enemies_when_frost_has_been_channeled() {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![
@@ -93,5 +100,11 @@ fn blizzard_current_hook_runtime_damages_all_enemies_when_frost_has_been_channel
 }
 
 #[test]
-#[ignore = "Blizzard still needs a typed frost-scale AoE primitive; Java Blizzard.java uses per-combat Frost Channeled counting and the typed runtime proof does not yet reproduce it."]
-fn blizzard_still_needs_typed_frost_scale_aoe() {}
+fn blizzard_typed_registry_surface_is_present() {
+    let blizzard = global_registry().get("Blizzard").expect("Blizzard");
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
+}

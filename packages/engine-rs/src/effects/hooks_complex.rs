@@ -873,24 +873,6 @@ pub fn hook_doppelganger_set_bonuses(engine: &mut CombatEngine, ctx: &CardPlayCo
 }
 
 // =========================================================================
-// Defect: Blizzard — damage = magic * frost channeled this combat (AoE)
-// =========================================================================
-
-/// Blizzard: deal (base_magic * frost_channeled) flat damage to all enemies.
-/// The preamble base_damage is 0, so we handle all damage here.
-pub fn hook_blizzard(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let frost_count = engine.state.player.status(sid::FROST_CHANNELED);
-    let per_frost = ctx.card.base_magic.max(1);
-    let total_damage = frost_count * per_frost;
-    if total_damage > 0 {
-        let living = engine.state.living_enemy_indices();
-        for idx in living {
-            engine.deal_player_attack_hit_to_enemy(idx, total_damage);
-        }
-    }
-}
-
-// =========================================================================
 // Defect: Thunder Strike — deal base_damage per lightning channeled to random enemies
 // =========================================================================
 

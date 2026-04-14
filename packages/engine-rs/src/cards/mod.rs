@@ -216,7 +216,7 @@ fn find_declared_all_enemy_damage(effects: &[Effect]) -> Option<AmountSource> {
 fn find_declared_primary_attack_target(effects: &[Effect]) -> Option<Target> {
     for effect in effects {
         match effect {
-            Effect::Simple(SimpleEffect::DealDamage(target, AmountSource::Damage))
+            Effect::Simple(SimpleEffect::DealDamage(target, _))
                 if matches!(target, Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy) =>
             {
                 return Some(*target);

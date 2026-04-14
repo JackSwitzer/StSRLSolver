@@ -15,6 +15,7 @@ use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{
     AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
 };
+use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
@@ -66,8 +67,11 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
     assert!(streamline.complex_hook.is_none(), "Streamline is now on the played-card cost mutation surface");
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.complex_hook.is_some());
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
 
     let genetic = reg
         .get("Genetic Algorithm")
@@ -143,9 +147,11 @@ fn defect_wave11_steam_and_streamline_follow_typed_primary_effects_and_keep_inst
 }
 
 #[test]
-#[ignore = "Blocked on a typed frost-count damage primitive; Java Blizzard scales by frost channeled this combat before dealing AoE damage"]
-fn defect_wave11_blizzard_needs_typed_frost_count_damage_scaling() {
+fn defect_wave11_blizzard_uses_the_typed_frost_count_damage_scaling_surface() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.effects.contains(&"damage_per_frost_channeled"));
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
 }

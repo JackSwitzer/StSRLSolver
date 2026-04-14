@@ -11,6 +11,7 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
 fn single_enemy_engine() -> crate::engine::CombatEngine {
@@ -55,8 +56,11 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     assert_eq!(genetic_plus.base_block, 0);
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.complex_hook.is_some());
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
     assert_eq!(blizzard.card_type, CardType::Attack);
     assert_eq!(blizzard.target, CardTarget::AllEnemy);
 
@@ -118,8 +122,14 @@ fn genetic_algorithm_updates_the_played_copy_misc_and_future_plays_use_the_new_s
 }
 
 #[test]
-#[ignore = "Blizzard still needs a typed frost-count AoE primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Blizzard.java scales by Frost channeled this combat before dealing damage to all enemies."]
-fn blizzard_still_needs_typed_frost_count_aoe_primitive() {}
+fn blizzard_uses_the_typed_frost_count_aoe_primitive() {
+    let blizzard = global_registry().get("Blizzard").expect("Blizzard");
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
+}
 
 #[test]
 fn melter_removes_block_before_damage_on_the_typed_surface() {

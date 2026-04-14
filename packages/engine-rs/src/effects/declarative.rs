@@ -83,6 +83,9 @@ pub enum AmountSource {
     DiscardPileSize,
     /// Current value of a status (e.g., read Metallicize stacks).
     StatusValue(crate::ids::StatusId),
+    /// Current status value multiplied by the played card's base magic.
+    /// Used for Blizzard-style scaling attacks that depend on combat totals.
+    StatusValueTimesMagic(crate::ids::StatusId),
     /// Per-card mutable numeric state carried on `CardInstance.misc`.
     CardMisc,
     /// Number of cards currently in the draw pile.

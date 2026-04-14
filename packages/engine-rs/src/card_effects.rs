@@ -70,8 +70,7 @@ fn resolve_damage_modifiers(
     if card_flags.has(bits::BIT_CLAW_SCALING) {
         out.merge(hooks_damage::hook_claw_damage(engine, card, card_inst));
     }
-    if card_flags.has(bits::BIT_DAMAGE_PER_FROST)
-        || card_flags.has(bits::BIT_DAMAGE_PER_LIGHTNING)
+    if card_flags.has(bits::BIT_DAMAGE_PER_LIGHTNING)
         || card_flags.has(bits::BIT_DAMAGE_FROM_DRAW_PILE)
     {
         out.merge(hooks_damage::hook_skip_generic_damage(engine, card, card_inst));

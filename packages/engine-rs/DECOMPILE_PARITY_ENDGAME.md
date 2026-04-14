@@ -58,10 +58,11 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Lesson Learned`
 - `Reboot`
 - `Fission`
+- `Blizzard`
 - `True Grit`
 - `Second Wind`
 
-The currently verified unresolved public-card tail is `10` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
+The currently verified unresolved public-card tail is `9` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -236,7 +237,7 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared card-primitive follow-up centered on `Blizzard`, with `Dual Wield` and `Nightmare` queued behind it
+- shared card-primitive follow-up centered on `Ritual Dagger`, with `Dual Wield` and `Nightmare` queued behind it
 - isolated card-tail readiness packets for `Ritual Dagger`, the cleanup-only non-play trio (`Reflex`, `Tactician`, `Deus Ex Machina`), and the queued `Seek+` multi-pick runtime fix
 - read-only pathing for the first post-card-tail representative parity sweep once the unresolved public-card tail drops into single digits
 
@@ -260,8 +261,7 @@ These are the currently verified card-tail clusters that should drive the next p
   - `Dual Wield`
   - `Fiend Fire`
   - `Second Wind`
-- Defect frost/order cluster:
-  - `Blizzard`
+- Defect order cluster:
   - `Fission`
   - `Scrape`
 - Watcher decision/payload cluster:

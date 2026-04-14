@@ -917,6 +917,9 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::StatusValue(status_id) => {
             engine.state.player.status(status_id)
         }
+        AmountSource::StatusValueTimesMagic(status_id) => {
+            engine.state.player.status(status_id) * ctx.card.base_magic.max(0)
+        }
         AmountSource::PercentMaxHp(pct) => {
             (engine.state.player.max_hp * pct) / 100
         }

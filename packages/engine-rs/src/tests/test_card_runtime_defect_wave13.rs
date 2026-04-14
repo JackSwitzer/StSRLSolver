@@ -9,6 +9,7 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy};
 
 #[test]
@@ -28,8 +29,11 @@ fn test_card_runtime_defect_wave13_registry_exports_blocked_melter_surface() {
     assert_eq!(melter.target, CardTarget::Enemy);
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.complex_hook.is_some());
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
 
     let genetic = reg
         .get("Genetic Algorithm")
@@ -49,11 +53,13 @@ fn test_card_runtime_defect_wave13_registry_exports_blocked_melter_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on a typed frost-count damage primitive; Java Blizzard scales by frost channeled this combat before dealing AoE damage"]
-fn test_card_runtime_defect_wave13_blizzard_still_needs_typed_frost_count_damage_scaling() {
+fn test_card_runtime_defect_wave13_blizzard_uses_the_typed_frost_count_damage_scaling_surface() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
-    assert!(blizzard.effect_data.is_empty());
-    assert!(blizzard.effects.contains(&"damage_per_frost_channeled"));
+    assert_eq!(
+        blizzard.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+    );
+    assert!(blizzard.complex_hook.is_none());
 }
 
 #[test]
