@@ -53,6 +53,10 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
    - when a worker finishes, it should send that completion report right away instead of waiting for a follow-up prompt
    - after each accepted slice, immediately queue the next bounded wave unless the user explicitly pauses
    - immediately queue the next bounded wave after every accepted slice so the coordinator never goes idle
+   - keep up to 5 occupied worker slots whenever real work exists:
+     - at most 1 shared-runtime implementation worker touching `effects/**`, `engine.rs`, or `run.rs`
+     - 1-2 isolated implementation workers on disjoint per-card/test scopes
+     - remaining slots can be read-only audits or blocker-inventory passes
    - if all workers are idle or done, that is a notify-worthy loop gap and the next wave should be spawned right away
 
 9. Commit cadence is part of the loop.
