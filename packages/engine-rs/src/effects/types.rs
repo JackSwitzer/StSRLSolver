@@ -21,6 +21,8 @@ pub struct CardPlayContext<'a> {
     pub total_unblocked_damage: i32,
     /// Whether an enemy was killed during the damage loop (for Sunder, Ritual Dagger, Feed).
     pub enemy_killed: bool,
+    /// Hand size after the played card has been removed from hand.
+    pub hand_size_at_play: usize,
 }
 
 /// Damage modifier returned by modify_damage hooks.

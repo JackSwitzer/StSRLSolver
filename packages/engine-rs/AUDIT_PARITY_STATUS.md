@@ -45,8 +45,8 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `26`
-- card files still using `complex_hook`: `38`
+- card files with empty `effect_data`: `23`
+- card files still using `complex_hook`: `35`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -56,7 +56,7 @@ Empty-`effect_data` card backlog by class:
 
 - Watcher: `2`
 - Defect: `7`
-- Silent: `7`
+- Silent: `4`
 - Ironclad: `4`
 - Colorless: `6`
 
@@ -68,7 +68,7 @@ What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, and post-damage-context families
 - the event runtime is fully supported for the current event set, with no remaining `EventProgramOp::blocked(...)` branches for supported content
-- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the remaining dead-system tail is mostly residual oracle scaffolding, ignored blocker tests, and cleanup of no-longer-needed bridge helpers
+- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted in the working tree, and the remaining dead-system tail is mostly `relics/run.rs` bridge helpers plus ignored blocker tests
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
 
 ## Why We Are Not Done Yet

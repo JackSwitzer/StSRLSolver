@@ -718,6 +718,8 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
                 0
             }
         }
+        AmountSource::HandSizeAtPlay => ctx.hand_size_at_play as i32,
+        AmountSource::HandSizeAtPlayPlus(bonus) => ctx.hand_size_at_play as i32 + bonus,
         AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
         AmountSource::SkillsInHand => {
             engine.state.hand.iter()
@@ -826,6 +828,7 @@ pub fn execute_trigger_effects(
         vigor: 0,
         total_unblocked_damage: 0,
         enemy_killed: false,
+        hand_size_at_play: 0,
     };
 
     execute_effects(engine, &mut ctx, effects);
@@ -971,6 +974,7 @@ fn make_choice_option(source: Pile, index: usize) -> ChoiceOption {
 fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason {
     match action {
         ChoiceAction::Discard => ChoiceReason::DiscardFromHand,
+        ChoiceAction::DiscardForEffect => ChoiceReason::DiscardForEffect,
         ChoiceAction::Exhaust => match source {
             Pile::Hand => ChoiceReason::ExhaustFromHand,
             _ => ChoiceReason::DiscardForEffect,
@@ -1039,7 +1043,12 @@ fn execute_for_each(
                     discarded.push(pile_ref.remove(i));
                 }
             }
-            engine.state.discard_pile.extend(discarded);
+            for card in discarded {
+                engine.state.discard_pile.push(card);
+                if pile == Pile::Hand {
+                    engine.on_card_discarded(card);
+                }
+            }
         }
 
         BulkAction::Upgrade => {

@@ -2485,27 +2485,21 @@ mod effect_handler_tests {
     // #6: Chemical X adds +2 to X-cost cards
     #[test]
     fn chemical_x_adds_2_to_x_cost() {
-        let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
-        enemy.set_move(1, 0, 0, 0);
-        // Use Vault (X-cost skill: gain X Block where X = energy spent)
-        // Actually let's use a simpler X-cost: Brilliance won't work.
-        // Use "Omniscience" — no that's not X. Use WheelKick or Scrawl.
-        // Let's test with the block on a card that uses x_value for block.
-        let deck = make_deck_n("Protect", 10);
-        let state = CombatState::new(80, 80, vec![enemy], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
+        let mut e = CombatEngine::new(
+            CombatState::new(
+                80,
+                80,
+                vec![EnemyCombatState::new("JawWorm", 100, 100)],
+                make_deck_n("Collect", 10),
+                3,
+            ),
+            42,
+        );
         e.state.relics.push("Chemical X".to_string());
         e.start_combat();
-        // We need an actual X-cost card in hand. Let's add one manually.
-        e.state.hand.push(e.card_registry.make_card("Judgement")); // Not X-cost. Let's check what X-cost cards exist.
-        // Conjure Blade is X-cost. Actually we need to verify the bonus is added.
-        // Let's just verify the function returns correct value.
-        assert_eq!(crate::relics::chemical_x_bonus(&e.state), 2,
-            "Chemical X should provide +2 bonus");
-        // Without the relic
-        e.state.relics.clear();
-        assert_eq!(crate::relics::chemical_x_bonus(&e.state), 0,
-            "Without Chemical X, bonus should be 0");
+        ensure_in_hand(&mut e, "Collect");
+        crate::tests::support::play_self(&mut e, "Collect");
+        assert_eq!(e.state.player.status(sid::COLLECT_MIRACLES), 5);
     }
 
     // #7: Pain triggers on card play

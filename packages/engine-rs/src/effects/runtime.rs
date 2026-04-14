@@ -1091,6 +1091,10 @@ impl EffectRuntime {
                     0
                 }
             }
+            // Runtime entity handlers do not execute in the card-play pipeline, so these
+            // card-specific sources are intentionally inert on the owner-aware effect runtime.
+            AmountSource::HandSizeAtPlay => 0,
+            AmountSource::HandSizeAtPlayPlus(bonus) => bonus,
             AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
             AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
             AmountSource::SkillsInHand => engine

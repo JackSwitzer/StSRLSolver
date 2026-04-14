@@ -2,9 +2,6 @@
 
 // Java oracle:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Expertise.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
 
 use crate::cards::{global_registry, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
@@ -34,15 +31,3 @@ fn silent_wave13_expertise_moves_to_the_declarative_draw_to_n_surface() {
     assert_eq!(engine.state.hand.len(), 6);
     assert_eq!(discard_prefix_count(&engine, "Expertise"), 1);
 }
-
-#[test]
-#[ignore = "Calculated Gamble still needs the exact discard-then-draw Java queue semantics; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java"]
-fn silent_wave13_calculated_gamble_stays_explicit_blocker() {}
-
-#[test]
-#[ignore = "Concentrate still needs the exact discard-then-gain-energy Java queue semantics; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java"]
-fn silent_wave13_concentrate_stays_explicit_blocker() {}
-
-#[test]
-#[ignore = "Storm of Steel still needs the exact discard-hand-then-create-Shiv Java queue semantics; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java"]
-fn silent_wave13_storm_of_steel_stays_explicit_blocker() {}

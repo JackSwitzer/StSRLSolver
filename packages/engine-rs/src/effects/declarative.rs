@@ -67,6 +67,10 @@ pub enum AmountSource {
     UniqueOrbCount,
     /// Number of cards in hand.
     HandSize,
+    /// Number of cards in hand when the current card began resolving.
+    HandSizeAtPlay,
+    /// Number of cards in hand when the current card began resolving, plus N.
+    HandSizeAtPlayPlus(i32),
     /// Player's current block value.
     PlayerBlock,
     /// Discard pile size.
@@ -119,6 +123,8 @@ pub enum Condition {
 pub enum ChoiceAction {
     /// Discard the selected card(s).
     Discard,
+    /// Discard the selected card(s) and resolve the card's post-discard effect.
+    DiscardForEffect,
     /// Exhaust the selected card(s).
     Exhaust,
     /// Move selected card(s) to hand.

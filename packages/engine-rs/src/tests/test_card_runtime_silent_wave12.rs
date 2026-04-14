@@ -2,8 +2,6 @@
 
 // Java oracle:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
@@ -19,16 +17,6 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
     assert!(alchemize.effect_data.is_empty());
     assert!(alchemize.complex_hook.is_some());
-
-    let calculated_gamble = registry
-        .get("Calculated Gamble")
-        .expect("Calculated Gamble should exist");
-    assert!(calculated_gamble.effect_data.is_empty());
-    assert!(calculated_gamble.complex_hook.is_some());
-
-    let concentrate = registry.get("Concentrate").expect("Concentrate should exist");
-    assert!(concentrate.effect_data.is_empty());
-    assert!(concentrate.complex_hook.is_some());
 
     let nightmare = registry.get("Nightmare").expect("Nightmare should exist");
     assert!(nightmare.effect_data.is_empty());
@@ -77,14 +65,6 @@ fn silent_wave12_runtime_backed_residuals_still_follow_their_discard_hooks() {
 #[test]
 #[ignore = "Alchemize still needs a typed random-potion generation effect on the canonical runtime path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java"]
 fn silent_wave12_alchemize_needs_typed_random_potion_generation() {}
-
-#[test]
-#[ignore = "Calculated Gamble still needs a typed discard-then-draw-count primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java"]
-fn silent_wave12_calculated_gamble_needs_typed_discard_then_draw_count() {}
-
-#[test]
-#[ignore = "Concentrate still needs a typed discard-then-gain-energy post-choice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java"]
-fn silent_wave12_concentrate_needs_typed_discard_then_gain_energy() {}
 
 #[test]
 #[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java"]

@@ -206,10 +206,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- Silent discard/queue primitive wave for `Calculated Gamble`, `Concentrate`, `Storm of Steel`, plus exact blocker handling for `Reflex` and `Tactician`
-- Ironclad tail-closure audit for `Dual Wield`, `Fiend Fire`, `Havoc`, `Second Wind`, `Burning Pact`, `Headbutt`, and `True Grit` without shared-core churn
-- Colorless tail-closure audit for `Forethought`, `Enlightenment`, `Impatience`, `Madness`, `Ritual Dagger`, and `Violence` without shared-core churn
-- relic dead-surface deletion and helper/oracle retirement in `src/relics/mod.rs`, `src/relics/combat.rs`, and the remaining helper-path relic tests
+- play-top-card / discard-zone-top-of-draw primitive wave for `Havoc` and `Headbutt`
+- relic bridge-helper cleanup in `src/relics/run.rs` after the helper-path relic test modules were deleted
+- Defect blocker audit to group `Blizzard`, `Melter`, `Chaos`, `Fission`, `Reboot`, `Redo`, and `Scrape` by the next exact primitive
+- Colorless blocker audit to group `Forethought`, `Enlightenment`, `Impatience`, `Madness`, `Ritual Dagger`, and `Violence` by the next exact primitive
 
 Each worker must return:
 
