@@ -1,7 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Tactician ---- (cost -2, unplayable, gain 1 energy on discard; +1)
+        // ---- Silent Uncommon: Tactician ---- (cleanup-only empty shell; energy-on-discard runtime hook covers the real behavior. +1)
     insert(cards, CardDef {
                 id: "Tactician", name: "Tactician", card_type: CardType::Skill,
                 target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

@@ -1,7 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Rare: Deus Ex Machina ---- (cost -2 (unplayable), skill, exhaust, on draw: add 2 Miracles to hand; +1 magic upgrade)
+        // ---- Rare: Deus Ex Machina ---- (cleanup-only empty shell; on-draw runtime hook covers the miracle/exhaust behavior. +1 magic upgrade)
     insert(cards, CardDef {
                 id: "DeusExMachina", name: "Deus Ex Machina", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: -2, base_damage: -1, base_block: -1,

@@ -8,7 +8,9 @@ static ENLIGHTENMENT_PLUS: [Effect; 1] = [Effect::ForEachInPile {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Enlightenment: 0 cost, reduce cost of all cards in hand to 1 (this turn, upgrade: permanent)
+        // Enlightenment: 0 cost, reduce cost of all cards in hand to 1.
+        // Base remains blocked on a turn-only costForTurn lifetime primitive.
+        // Enlightenment+ stays the permanent reduction path.
     insert(cards, CardDef {
                 id: "Enlightenment", name: "Enlightenment", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
