@@ -1,13 +1,5 @@
 use crate::cards::prelude::*;
 
-fn fasting_hook(
-    engine: &mut crate::engine::CombatEngine,
-    _ctx: &crate::effects::types::CardPlayContext,
-) {
-    engine.state.max_energy -= 1;
-    engine.state.energy = engine.state.energy.min(engine.state.max_energy);
-}
-
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Rare (listed): Fasting ---- (Java: Uncommon, cost 2, power, +3 str/dex, -1 energy; +1 magic upgrade)
     insert(cards, CardDef {
@@ -17,7 +9,8 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 effects: &[], effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
                     E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-                ], complex_hook: Some(fasting_hook),
+                    E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Fasting2+", name: "Fasting+", card_type: CardType::Power,
@@ -26,6 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 effects: &[], effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
                     E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-                ], complex_hook: Some(fasting_hook),
+                    E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
+                ], complex_hook: None,
             });
 }

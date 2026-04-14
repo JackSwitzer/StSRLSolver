@@ -55,6 +55,8 @@ pub enum AmountSource {
     Fixed(i32),
     /// The X-cost value consumed when playing the card.
     XCost,
+    /// X-cost value plus a constant bonus (Collect, Conjure Blade upgrades).
+    XCostPlus(i32),
     /// base_magic + x_value (Doppelganger, Malaise).
     MagicPlusX,
     /// Number of living enemies.
@@ -73,6 +75,8 @@ pub enum AmountSource {
     StatusValue(crate::ids::StatusId),
     /// Per-card mutable numeric state carried on `CardInstance.misc`.
     CardMisc,
+    /// Number of cards currently in the draw pile.
+    DrawPileSize,
     /// Percentage of max HP (e.g., 7 = 7% of max HP).
     PercentMaxHp(i32),
     /// Draw pile size divided by N (Aggregate: draw_pile / 4).
@@ -226,8 +230,12 @@ pub enum SimpleEffect {
     MultiplyStatus(Target, StatusId, i32),
     /// Draw cards. Routes through engine.draw_cards() (handles reshuffle + onCardDraw).
     DrawCards(AmountSource),
+    /// Draw up to a target hand size.
+    DrawToHandSize(AmountSource),
     /// Gain energy.
     GainEnergy(AmountSource),
+    /// Double current energy.
+    DoubleEnergy,
     /// Gain block. Routes through engine.gain_block_player() (handles dex/frail + onGainBlock).
     GainBlock(AmountSource),
     /// Modify HP. Positive = heal, negative = lose HP.
@@ -239,6 +247,8 @@ pub enum SimpleEffect {
     Scry(AmountSource),
     /// Add a temp card to a pile. Routes through engine.temp_card() + pile push.
     AddCard(&'static str, Pile, AmountSource),
+    /// Add a temp card to a pile with explicit misc state.
+    AddCardWithMisc(&'static str, Pile, AmountSource, AmountSource),
     /// Copy the played card instance to a pile (Anger: copy to discard).
     CopyThisCardTo(Pile),
     /// Channel an orb. Routes through engine.channel_orb() (handles auto-evoke).
@@ -270,6 +280,8 @@ pub enum SimpleEffect {
     IncrementCounter(crate::ids::StatusId, i32),
     /// Modify max HP (positive = increase, negative = decrease).
     ModifyMaxHp(AmountSource),
+    /// Modify max energy (positive = increase, negative = decrease).
+    ModifyMaxEnergy(AmountSource),
     /// Modify gold (positive = gain, negative = lose).
     ModifyGold(AmountSource),
     /// End combat as a flee (player escapes).

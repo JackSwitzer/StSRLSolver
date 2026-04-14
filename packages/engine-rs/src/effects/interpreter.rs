@@ -91,6 +91,115 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
     }
 }
 
+fn execute_scaled_attack_damage(
+    engine: &mut CombatEngine,
+    ctx: &CardPlayContext,
+    target: Target,
+    base_damage: i32,
+) {
+    let player_strength = engine.state.player.strength();
+    let player_weak = engine.state.player.is_weak();
+    let weak_paper_crane = engine.state.has_relic("Paper Crane");
+    let stance_mult = engine.state.stance.outgoing_mult();
+    let pen_nib_active = ctx.pen_nib_active;
+    let vigor = ctx.vigor;
+
+    let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
+    if double_damage {
+        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
+        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
+    }
+
+    match target {
+        Target::SelectedEnemy => {
+            let idx = ctx.target_idx;
+            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+                let tidx = idx as usize;
+                let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
+                let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+                let vuln_paper_frog = engine.state.has_relic("Paper Frog");
+                let dmg = damage::calculate_damage_full(
+                    base_damage,
+                    player_strength,
+                    vigor,
+                    player_weak,
+                    weak_paper_crane,
+                    pen_nib_active,
+                    double_damage,
+                    stance_mult,
+                    enemy_vuln,
+                    vuln_paper_frog,
+                    false,
+                    enemy_intangible,
+                );
+                let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
+                let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
+                if block_return > 0 && hp_dmg > 0 {
+                    engine.gain_block_player(block_return);
+                }
+            }
+        }
+        Target::AllEnemies => {
+            let living = engine.state.living_enemy_indices();
+            for enemy_idx in living {
+                let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
+                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let vuln_paper_frog = engine.state.has_relic("Paper Frog");
+                let dmg = damage::calculate_damage_full(
+                    base_damage,
+                    player_strength,
+                    vigor,
+                    player_weak,
+                    weak_paper_crane,
+                    pen_nib_active,
+                    double_damage,
+                    stance_mult,
+                    enemy_vuln,
+                    vuln_paper_frog,
+                    false,
+                    enemy_intangible,
+                );
+                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
+                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+                if block_return > 0 && hp_dmg > 0 {
+                    engine.gain_block_player(block_return);
+                }
+            }
+        }
+        Target::RandomEnemy => {
+            let living = engine.state.living_enemy_indices();
+            if !living.is_empty() {
+                let enemy_idx = living[engine.rng_gen_range(0..living.len())];
+                let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
+                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let vuln_paper_frog = engine.state.has_relic("Paper Frog");
+                let dmg = damage::calculate_damage_full(
+                    base_damage,
+                    player_strength,
+                    vigor,
+                    player_weak,
+                    weak_paper_crane,
+                    pen_nib_active,
+                    double_damage,
+                    stance_mult,
+                    enemy_vuln,
+                    vuln_paper_frog,
+                    false,
+                    enemy_intangible,
+                );
+                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
+                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+                if block_return > 0 && hp_dmg > 0 {
+                    engine.gain_block_player(block_return);
+                }
+            }
+        }
+        Target::Player | Target::SelfEntity => {
+            engine.player_lose_hp(base_damage);
+        }
+    }
+}
+
 // ===========================================================================
 // SimpleEffect dispatch
 // ===========================================================================
@@ -118,10 +227,23 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.draw_cards(count);
         }
 
+        SimpleEffect::DrawToHandSize(ref amount_src) => {
+            let target = resolve_card_amount(engine, ctx, amount_src);
+            let to_draw = (target - engine.state.hand.len() as i32).max(0);
+            if to_draw > 0 {
+                engine.draw_cards(to_draw);
+            }
+        }
+
         // -- Energy --
         SimpleEffect::GainEnergy(ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.energy += amount;
+        }
+
+        // -- Double energy --
+        SimpleEffect::DoubleEnergy => {
+            engine.state.energy *= 2;
         }
 
         // -- Block (routes through dex/frail pipeline) --
@@ -174,6 +296,20 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        // -- Add temp card to a pile with explicit misc state --
+        SimpleEffect::AddCardWithMisc(name, pile, ref amount_src, ref misc_src) => {
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            let misc = resolve_card_amount(engine, ctx, misc_src).max(0) as i16;
+            for _ in 0..count {
+                let mut card = engine.temp_card(name);
+                card.misc = misc;
+                push_to_pile(engine, pile, card);
+            }
+            if pile == Pile::Draw && count > 0 {
+                engine.shuffle_draw_pile();
+            }
+        }
+
         // -- Copy played card to a pile (Anger: copy to discard) --
         SimpleEffect::CopyThisCardTo(pile) => {
             push_to_pile(engine, pile, ctx.card_inst);
@@ -217,6 +353,16 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Deal flat damage (no strength/stance modifiers) --
         SimpleEffect::DealDamage(target, ref amount_src) => {
+            if matches!(amount_src, AmountSource::DrawPileSize)
+                && matches!(
+                    target,
+                    Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
+                )
+            {
+                let amount = resolve_card_amount(engine, ctx, amount_src);
+                execute_scaled_attack_damage(engine, ctx, target, amount);
+                return;
+            }
             if matches!(*amount_src, AmountSource::Damage)
                 && matches!(
                     target,
@@ -320,6 +466,13 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if engine.state.player.hp > engine.state.player.max_hp {
                 engine.state.player.hp = engine.state.player.max_hp;
             }
+        }
+
+        // -- Modify max energy --
+        SimpleEffect::ModifyMaxEnergy(ref amount_src) => {
+            let amount = resolve_card_amount(engine, ctx, amount_src);
+            engine.state.max_energy = (engine.state.max_energy + amount).max(0);
+            engine.state.energy = engine.state.energy.min(engine.state.max_energy);
         }
 
         // -- Modify gold (no-op in combat context; wired in Wave 2) --
@@ -528,6 +681,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::Damage => ctx.card.base_damage.max(0),
         AmountSource::Fixed(n) => n,
         AmountSource::XCost => ctx.x_value,
+        AmountSource::XCostPlus(bonus) => ctx.x_value + bonus,
         AmountSource::MagicPlusX => ctx.card.base_magic.max(0) + ctx.x_value,
         AmountSource::LivingEnemyCount => engine.state.living_enemy_indices().len() as i32,
         AmountSource::OrbCount => engine.state.orb_slots.occupied_count() as i32,
@@ -552,6 +706,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::PlayerBlock => engine.state.player.block,
         AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
         AmountSource::CardMisc => ctx.card_inst.misc.max(0) as i32,
+        AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
         AmountSource::DrawPileDivN(n) => {
             if n > 0 {
                 engine.state.draw_pile.len() as i32 / n

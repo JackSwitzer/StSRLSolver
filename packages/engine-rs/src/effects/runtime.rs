@@ -769,6 +769,13 @@ impl EffectRuntime {
                     engine.draw_cards(count);
                 }
             }
+            SimpleEffect::DrawToHandSize(amount_src) => {
+                let target = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                let to_draw = (target - engine.state.hand.len() as i32).max(0);
+                if to_draw > 0 {
+                    engine.draw_cards(to_draw);
+                }
+            }
             SimpleEffect::ModifyPlayedCardCost(amount_src) => {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
@@ -799,6 +806,9 @@ impl EffectRuntime {
             SimpleEffect::GainEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.energy += amount;
+            }
+            SimpleEffect::DoubleEnergy => {
+                engine.state.energy *= 2;
             }
             SimpleEffect::GainBlock(amount_src) => {
                 let base = self.resolve_amount(engine, instance_idx, owner, amount_src);
@@ -846,6 +856,30 @@ impl EffectRuntime {
                 } else {
                     for _ in 0..count {
                         let card = engine.temp_card(card_name);
+                        push_to_pile(engine, pile, card);
+                    }
+                }
+                if pile == Pile::Draw && count > 0 {
+                    engine.shuffle_draw_pile();
+                }
+            }
+            SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
+                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0) as i16;
+                if pile == Pile::Hand {
+                    for _ in 0..count {
+                        let mut card = engine.temp_card(card_name);
+                        card.misc = misc;
+                        if engine.state.hand.len() < 10 {
+                            engine.state.hand.push(card);
+                        } else {
+                            engine.state.discard_pile.push(card);
+                        }
+                    }
+                } else {
+                    for _ in 0..count {
+                        let mut card = engine.temp_card(card_name);
+                        card.misc = misc;
                         push_to_pile(engine, pile, card);
                     }
                 }
@@ -958,6 +992,11 @@ impl EffectRuntime {
                     engine.state.player.hp = engine.state.player.max_hp;
                 }
             }
+            SimpleEffect::ModifyMaxEnergy(amount_src) => {
+                let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.state.max_energy = (engine.state.max_energy + amount).max(0);
+                engine.state.energy = engine.state.energy.min(engine.state.max_energy);
+            }
             SimpleEffect::ModifyGold(_amount_src) => {}
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;
@@ -1012,6 +1051,7 @@ impl EffectRuntime {
             AmountSource::Damage => 0,
             AmountSource::Fixed(value) => value,
             AmountSource::XCost => 0,
+            AmountSource::XCostPlus(bonus) => bonus,
             AmountSource::MagicPlusX => 0,
             AmountSource::LivingEnemyCount => engine.state.living_enemy_indices().len() as i32,
             AmountSource::OrbCount => engine.state.orb_slots.occupied_count() as i32,
@@ -1049,6 +1089,7 @@ impl EffectRuntime {
                     0
                 }
             }
+            AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
             AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
             AmountSource::SkillsInHand => engine
                 .state

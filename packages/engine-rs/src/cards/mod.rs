@@ -338,7 +338,10 @@ fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
 }
 
 fn amount_uses_x_cost(source: &AmountSource) -> bool {
-    matches!(source, AmountSource::XCost | AmountSource::MagicPlusX)
+    matches!(
+        source,
+        AmountSource::XCost | AmountSource::XCostPlus(_) | AmountSource::MagicPlusX
+    )
 }
 
 fn collect_declared_x_cost_amounts(effects: &[Effect], amounts: &mut Vec<AmountSource>) {
@@ -383,12 +386,14 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::GainMantra(source)
         | SimpleEffect::Scry(source)
         | SimpleEffect::AddCard(_, _, source)
+        | SimpleEffect::AddCardWithMisc(_, _, source, _)
         | SimpleEffect::ChannelOrb(_, source)
         | SimpleEffect::EvokeOrb(source)
         | SimpleEffect::DealDamage(_, source)
         | SimpleEffect::Judgement(source)
         | SimpleEffect::HealHp(_, source)
         | SimpleEffect::ModifyMaxHp(source)
+        | SimpleEffect::ModifyMaxEnergy(source)
         | SimpleEffect::ModifyGold(source) => {
             if amount_uses_x_cost(source) {
                 amounts.push(*source);
@@ -399,7 +404,9 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::SetFlag(_)
         | SimpleEffect::ShuffleDiscardIntoDraw
         | SimpleEffect::CopyThisCardTo(_)
+        | SimpleEffect::DrawToHandSize(_)
         | SimpleEffect::TriggerMarks
+        | SimpleEffect::DoubleEnergy
         | SimpleEffect::IncrementCounter(_, _)
         | SimpleEffect::ModifyPlayedCardCost(_)
         | SimpleEffect::ModifyPlayedCardBlock(_)

@@ -4,7 +4,6 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Expertise.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
@@ -30,10 +29,6 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     let concentrate = registry.get("Concentrate").expect("Concentrate should exist");
     assert!(concentrate.effect_data.is_empty());
     assert!(concentrate.complex_hook.is_some());
-
-    let expertise = registry.get("Expertise").expect("Expertise should exist");
-    assert!(expertise.effect_data.is_empty());
-    assert!(expertise.complex_hook.is_some());
 
     let nightmare = registry.get("Nightmare").expect("Nightmare should exist");
     assert!(nightmare.effect_data.is_empty());
@@ -90,10 +85,6 @@ fn silent_wave12_calculated_gamble_needs_typed_discard_then_draw_count() {}
 #[test]
 #[ignore = "Concentrate still needs a typed discard-then-gain-energy post-choice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java"]
 fn silent_wave12_concentrate_needs_typed_discard_then_gain_energy() {}
-
-#[test]
-#[ignore = "Expertise still needs a draw-to-N runtime primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Expertise.java"]
-fn silent_wave12_expertise_needs_draw_to_n_runtime_primitive() {}
 
 #[test]
 #[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java"]

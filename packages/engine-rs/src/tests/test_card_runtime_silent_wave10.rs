@@ -61,7 +61,11 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     );
 
     let expertise = registry.get("Expertise").expect("Expertise should exist");
-    assert!(expertise.effect_data.is_empty());
+    assert_eq!(
+        expertise.effect_data,
+        &[E::Simple(SE::DrawToHandSize(A::Magic))]
+    );
+    assert!(expertise.complex_hook.is_none());
     assert!(expertise.effects.contains(&"draw_to_n"));
 }
 
@@ -139,5 +143,17 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
 }
 
 #[test]
-#[ignore = "Expertise still needs a draw-to-N runtime primitive rather than fixed-count draw; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Expertise.java"]
-fn silent_wave10_expertise_needs_draw_to_n_runtime_primitive() {}
+fn silent_wave10_expertise_draws_to_n_on_engine_path() {
+    let mut engine = engine_without_start(
+        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Expertise"]);
+    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]);
+
+    assert!(play_self(&mut engine, "Expertise"));
+    assert_eq!(engine.state.hand.len(), 6);
+    assert_eq!(discard_prefix_count(&engine, "Expertise"), 1);
+}
