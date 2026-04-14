@@ -50,7 +50,7 @@ Conclusion:
 Priority task queue from this audit:
 
 1. Clean stale solved `#[ignore]` tests so the backlog is honest.
-2. Keep PR/docs explicit that `Scrap Ooze` and `Match and Keep!` remain unsupported.
+2. Keep PR/docs explicit that `Scrap Ooze` remains unsupported and that `Match and Keep!` is currently a temporary fixed-card approximation rather than the Java minigame.
 3. Decide whether the stronger all-content claim is needed now; if yes, finish the Java-cited semantic families in section 6 first.
 4. After merge readiness is settled, pivot to training-system redesign with the appendix recommendations in section 7.
 
@@ -62,7 +62,7 @@ Current live counts from the verified tree:
 - raw public card files with `complex_hook: Some(...)`: `0`
 - unresolved public gameplay-gap files: `0`
 - blocked supported event ops: `0`
-- unsupported blocked event branches still present in source: `2`
+- unsupported blocked event branches still present in source: `1`
 - total ignored tests in `packages/engine-rs/src/tests`: `92`
 
 Ignored-test bucket totals from the full classifier pass:
@@ -229,17 +229,6 @@ The branch is therefore merge-ready for the supported scope, with two caveats:
 - Test mapping: explicit source classification only; no supported-scope blocker suite currently fails here.
 - Worker slice: unsupported event backlog
 
-### Finding U2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: unsupported
-- Evidence: [`events/shrines.rs:153`](./src/events/shrines.rs#L153), [`events/shrines.rs:155`](./src/events/shrines.rs#L155)
-- Problem: `Match and Keep!` still contains an explicit blocked branch for the minigame flow.
-- Recommended fix: keep it out of the supported merge claim until the matching minigame and nested keep/discard selection exist.
-- Test mapping: explicit source classification only; no supported-scope blocker suite currently fails here.
-- Worker slice: unsupported event backlog
-
 ## 6. Post-Merge Backlog
 
 These are real Java-cited semantic families, but they do not currently block a supported-scope merge if scope stays honest.
@@ -309,6 +298,17 @@ These are real Java-cited semantic families, but they do not currently block a s
 - Recommended fix: keep these in a post-merge enhancement queue rather than pretending they are merge blockers for the current supported branch.
 - Test mapping: the suites above remain the active backlog inventory
 - Worker slice: post-merge enhancement backlog
+
+### Finding P7
+- Area: parity
+- Severity: low
+- Confidence: high
+- Scope: post-merge
+- Evidence: [`src/events/shrines.rs`](./src/events/shrines.rs), [`src/tests/test_event_runtime_wave19.rs`](./src/tests/test_event_runtime_wave19.rs), Java oracle `GremlinMatchGame.java`
+- Problem: `Match and Keep!` is now on the canonical event reward runtime, but only as a temporary fixed `Rushdown+` / `Adaptation+` reward instead of the Java card-matching minigame.
+- Recommended fix: keep the temporary path for starter-seed breadth, but replace it with a real minigame plus nested keep/discard resolution before claiming full Java parity for all shrine content.
+- Test mapping: `test_event_runtime_wave19`
+- Worker slice: shrine minigame parity
 
 ## 7. Training Appendix
 

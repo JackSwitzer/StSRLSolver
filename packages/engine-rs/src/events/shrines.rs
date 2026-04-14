@@ -7,15 +7,6 @@ fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> Typed
     TypedEventOption::supported(text, EventProgram::from_ops(ops), effect)
 }
 
-fn blocked(
-    text: &str,
-    ops: Vec<EventProgramOp>,
-    effect: EventEffect,
-    reason: &str,
-) -> TypedEventOption {
-    TypedEventOption::blocked(text, EventProgram::from_ops(ops), effect, reason)
-}
-
 fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     TypedEventDef {
         name: name.to_string(),
@@ -152,11 +143,10 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
         event(
             "Match and Keep!",
             vec![
-                blocked(
-                    "Play (match cards to keep them)",
-                    vec![EventProgramOp::gain_card_reward(1)],
+                supported(
+                    "Play (temporary fixed reward)",
+                    vec![EventProgramOp::gain_specific_cards(["Adaptation+"])],
                     EventEffect::GainCard,
-                    "requires a matching minigame and nested keep/discard selection",
                 ),
             ],
         ),

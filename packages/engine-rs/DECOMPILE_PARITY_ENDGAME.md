@@ -76,10 +76,11 @@ The raw public-card tail is `3` files, and the honest unresolved gameplay-gap ta
 Fresh audit framing:
 
 - supported-scope gameplay blockers: `0`
-- unsupported blocked event branches still present in source: `2` (`Scrap Ooze`, `Match and Keep!`)
+- unsupported blocked event branches still present in source: `1` (`Scrap Ooze`)
 - total ignored tests still present in `src/tests`: `92`
 - ignored-test classified buckets: `26` active parity blockers, `50` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
-- the remaining live semantic debt is now concentrated in generated-choice payload fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Neow's Lament`, and a post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
+- `Match and Keep!` is now temporarily routed through the canonical event reward runtime as a fixed `Rushdown+` / `Adaptation+` reward; it is no longer unsupported-source debt, but it remains approximation debt until the Java minigame lands
+- the remaining live semantic debt is now concentrated in generated-choice payload fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Neow's Lament`, `Scrap Ooze`, and a post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 

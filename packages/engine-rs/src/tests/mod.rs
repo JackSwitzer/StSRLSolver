@@ -120,6 +120,7 @@ mod test_event_runtime_wave15;
 mod test_event_runtime_wave16;
 mod test_event_runtime_wave17;
 mod test_event_runtime_wave18;
+mod test_event_runtime_wave19;
 mod test_entity_runtime;
 mod test_bosses;
 mod test_integration;
