@@ -51,3 +51,11 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
    - when a worker finishes, it should send that completion report right away instead of waiting for a follow-up prompt
    - after each accepted slice, immediately queue the next bounded wave unless the user explicitly pauses
    - immediately queue the next bounded wave after every accepted slice so the coordinator never goes idle
+
+9. Commit cadence is part of the loop.
+   - Do not wait for one giant end-of-cycle commit.
+   - After every meaningful verified batch, make a checkpoint commit on the active branch.
+   - Default cadence:
+     - commit after every 1-3 accepted worker slices, or
+     - commit immediately after any real primitive lands, any audited count drop, or any cleanup wave that materially reduces dead-system tail
+   - Keep the draft PR updated as those checkpoint commits land so git activity is a visible progress signal, not just local state.
