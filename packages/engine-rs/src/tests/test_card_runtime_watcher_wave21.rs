@@ -31,9 +31,5 @@ fn watcher_wave21_conjure_blade_stays_explicit_blocker_until_expunger_x_transfer
 fn watcher_wave21_fasting_stays_explicit_blocker_until_energy_down_effect_exists() {}
 
 #[test]
-#[ignore = "Lesson Learned still needs the kill-triggered random upgrade selection primitive from the watcher primitive wave; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java"]
-fn watcher_wave21_lesson_learned_stays_explicit_blocker_until_upgrade_on_kill_exists() {}
-
-#[test]
 #[ignore = "Omniscience still needs a typed draw-pile choice / play-twice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java"]
 fn watcher_wave21_omniscience_stays_explicit_blocker_until_choice_primitive_exists() {}

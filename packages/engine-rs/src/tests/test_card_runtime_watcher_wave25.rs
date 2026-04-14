@@ -9,6 +9,18 @@
 use crate::cards::global_registry;
 use crate::tests::support::{engine_with, hand_count, exhaust_prefix_count};
 
+static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
+    crate::effects::declarative::Pile::Draw,
+    crate::effects::declarative::Pile::Discard,
+];
+static LESSON_LEARNED_KILL_BRANCH: [crate::effects::declarative::Effect; 1] = [
+    crate::effects::declarative::Effect::Simple(
+        crate::effects::declarative::SimpleEffect::UpgradeRandomCardFromPiles(
+            &LESSON_LEARNED_UPGRADE_PILES,
+        ),
+    ),
+];
+
 #[test]
 fn watcher_wave25_deus_ex_machina_stays_engine_path_covered_on_draw() {
     let engine = engine_with(crate::tests::support::make_deck(&["DeusExMachina"]), 50, 0);
@@ -24,8 +36,23 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
     let lesson_learned = registry
         .get("LessonLearned")
         .expect("Lesson Learned should be registered");
-    assert_eq!(lesson_learned.effect_data.len(), 1);
-    assert!(lesson_learned.complex_hook.is_some());
+    assert_eq!(
+        lesson_learned.effect_data,
+        &[
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DealDamage(
+                    crate::effects::declarative::Target::SelectedEnemy,
+                    crate::effects::declarative::AmountSource::Damage,
+                ),
+            ),
+            crate::effects::declarative::Effect::Conditional(
+                crate::effects::declarative::Condition::EnemyKilled,
+                &LESSON_LEARNED_KILL_BRANCH,
+                &[],
+            ),
+        ]
+    );
+    assert!(lesson_learned.complex_hook.is_none());
 
     let omniscience = registry
         .get("Omniscience")
@@ -33,10 +60,6 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
     assert!(omniscience.effect_data.is_empty());
     assert!(omniscience.complex_hook.is_some());
 }
-
-#[test]
-#[ignore = "Lesson Learned still needs a kill-triggered random-upgrade primitive; Java upgrades a random unupgraded card from draw pile or discard after the enemy dies."]
-fn lesson_learned_still_needs_kill_triggered_random_upgrade_primitive() {}
 
 #[test]
 #[ignore = "Omniscience still needs a draw-pile card selection plus play-twice primitive; Java selects a card from the draw pile and uses it twice via UseCardAction semantics."]

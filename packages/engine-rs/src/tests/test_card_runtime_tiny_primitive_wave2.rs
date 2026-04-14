@@ -100,9 +100,12 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
     let escape_plan = reg.get("Escape Plan").expect("Escape Plan");
     assert_eq!(
         escape_plan.effect_data,
-        &[E::Simple(SE::DrawCards(A::Fixed(1)))]
+        &[
+            E::Simple(SE::DrawCards(A::Fixed(1))),
+            E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+        ]
     );
-    assert!(escape_plan.complex_hook.is_some());
+    assert!(escape_plan.complex_hook.is_none());
 
     let enlightenment = reg.get("Enlightenment").expect("Enlightenment");
     assert!(enlightenment.effect_data.is_empty());
@@ -156,7 +159,3 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
 #[test]
 #[ignore = "Blocked on Java turn-only cost-reduction lifetime semantics for Enlightenment base; the current runtime still needs a typed costForTurn lifetime primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java"]
 fn tiny_primitive_wave2_enlightenment_stays_explicitly_blocked() {}
-
-#[test]
-#[ignore = "Blocked on Java last-drawn-card inspection semantics for Escape Plan; the current runtime still needs a typed last-drawn-card predicate primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/EscapePlan.java"]
-fn tiny_primitive_wave2_escape_plan_stays_explicitly_blocked() {}

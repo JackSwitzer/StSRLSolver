@@ -10,6 +10,14 @@ use crate::cards::global_registry;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::tests::support::{enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy};
 
+static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
+    crate::effects::declarative::Pile::Draw,
+    crate::effects::declarative::Pile::Discard,
+];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomCardFromPiles(
+    &LESSON_LEARNED_UPGRADE_PILES,
+))];
+
 fn one_enemy_engine(enemy_hp: i32, enemy_block: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         Vec::new(),
@@ -28,38 +36,53 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
     let wallop = registry.get("Wallop").expect("Wallop should be registered");
     assert_eq!(
         wallop.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Simple(SE::GainBlock(A::TotalUnblockedDamage)),
+        ]
     );
-    assert!(wallop.complex_hook.is_some());
+    assert!(wallop.complex_hook.is_none());
 
     let wallop_plus = registry.get("Wallop+").expect("Wallop+ should be registered");
     assert_eq!(
         wallop_plus.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Simple(SE::GainBlock(A::TotalUnblockedDamage)),
+        ]
     );
-    assert!(wallop_plus.complex_hook.is_some());
+    assert!(wallop_plus.complex_hook.is_none());
 
     let lesson_learned = registry
         .get("LessonLearned")
         .expect("Lesson Learned should be registered");
     assert_eq!(
         lesson_learned.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(crate::effects::declarative::Condition::EnemyKilled, &LESSON_LEARNED_KILL_BRANCH, &[]),
+        ]
     );
-    assert!(lesson_learned.complex_hook.is_some());
+    assert!(lesson_learned.complex_hook.is_none());
 
     let lesson_learned_plus = registry
         .get("LessonLearned+")
         .expect("Lesson Learned+ should be registered");
     assert_eq!(
         lesson_learned_plus.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(crate::effects::declarative::Condition::EnemyKilled, &LESSON_LEARNED_KILL_BRANCH, &[]),
+        ]
     );
-    assert!(lesson_learned_plus.complex_hook.is_some());
+    assert!(lesson_learned_plus.complex_hook.is_none());
 
     let judgement = registry.get("Judgement").expect("Judgement should be registered");
-    assert!(judgement.effect_data.is_empty());
-    assert!(judgement.complex_hook.is_some());
+    assert_eq!(
+        judgement.effect_data,
+        &[E::Simple(SE::Judgement(A::Magic))]
+    );
+    assert!(judgement.complex_hook.is_none());
 
     let omniscience = registry
         .get("Omniscience")

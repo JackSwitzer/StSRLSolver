@@ -290,6 +290,18 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             let block = damage::calculate_block(base, dex, frail) * multiplier;
             engine.gain_block_player(block);
         }
+        SimpleEffect::GainBlockIfLastHandCardType(card_type, ref amount_src) => {
+            if let Some(last_card) = engine.state.hand.last() {
+                let last_type = engine.card_registry.card_def_by_id(last_card.def_id).card_type;
+                if last_type == card_type {
+                    let base = resolve_card_amount(engine, ctx, amount_src);
+                    let dex = engine.state.player.dexterity();
+                    let frail = engine.state.player.is_frail();
+                    let block = damage::calculate_block(base, dex, frail);
+                    engine.gain_block_player(block);
+                }
+            }
+        }
 
         // -- HP modification --
         SimpleEffect::ModifyHp(ref amount_src) => {
@@ -628,6 +640,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::FleeCombat => {
             engine.state.combat_over = true;
         }
+        SimpleEffect::UpgradeRandomCardFromPiles(piles) => {
+            upgrade_random_card_from_piles(engine, piles);
+        }
     }
 }
 
@@ -827,6 +842,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::XCost => ctx.x_value,
         AmountSource::XCostPlus(bonus) => ctx.x_value + bonus,
         AmountSource::MagicPlusX => ctx.card.base_magic.max(0) + ctx.x_value,
+        AmountSource::MagicPlusXNeg => -(ctx.card.base_magic.max(0) + ctx.x_value),
         AmountSource::LivingEnemyCount => engine.state.living_enemy_indices().len() as i32,
         AmountSource::OrbCount => engine.state.orb_slots.occupied_count() as i32,
         AmountSource::UniqueOrbCount => {
@@ -881,6 +897,36 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
             0
         }
         AmountSource::TotalUnblockedDamage => ctx.total_unblocked_damage.max(0),
+    }
+}
+
+fn upgrade_random_card_from_piles(engine: &mut CombatEngine, piles: &'static [Pile]) {
+    let mut eligible: Vec<(Pile, usize)> = Vec::new();
+    for pile in piles {
+        let cards = match pile {
+            Pile::Hand => &engine.state.hand,
+            Pile::Draw => &engine.state.draw_pile,
+            Pile::Discard => &engine.state.discard_pile,
+            Pile::Exhaust => &engine.state.exhaust_pile,
+        };
+        for (idx, card) in cards.iter().enumerate() {
+            if !card.is_upgraded() {
+                eligible.push((*pile, idx));
+            }
+        }
+    }
+    if eligible.is_empty() {
+        return;
+    }
+    let (pile, idx) = eligible[engine.rng_gen_range(0..eligible.len())];
+    let pile_vec = match pile {
+        Pile::Hand => &mut engine.state.hand,
+        Pile::Draw => &mut engine.state.draw_pile,
+        Pile::Discard => &mut engine.state.discard_pile,
+        Pile::Exhaust => &mut engine.state.exhaust_pile,
+    };
+    if idx < pile_vec.len() {
+        engine.card_registry.upgrade_card(&mut pile_vec[idx]);
     }
 }
 

@@ -59,6 +59,8 @@ pub enum AmountSource {
     XCostPlus(i32),
     /// base_magic + x_value (Doppelganger, Malaise).
     MagicPlusX,
+    /// -(base_magic + x_value) for cards like Malaise strength reduction.
+    MagicPlusXNeg,
     /// Number of living enemies.
     LivingEnemyCount,
     /// Number of channeled orbs.
@@ -258,6 +260,8 @@ pub enum SimpleEffect {
     DoubleEnergy,
     /// Gain block. Routes through engine.gain_block_player() (handles dex/frail + onGainBlock).
     GainBlock(AmountSource),
+    /// Gain block if the last card in hand is of the given type.
+    GainBlockIfLastHandCardType(CardType, AmountSource),
     /// Modify HP. Positive = heal, negative = lose HP.
     ModifyHp(AmountSource),
     /// Gain mantra. Routes through engine.gain_mantra() (handles Divinity at 10).
@@ -320,6 +324,8 @@ pub enum SimpleEffect {
     ModifyGold(AmountSource),
     /// End combat as a flee (player escapes).
     FleeCombat,
+    /// Upgrade a random eligible card from the supplied piles.
+    UpgradeRandomCardFromPiles(&'static [Pile]),
 }
 
 /// A card's effect — can be simple, conditional, choice-based, or complex.

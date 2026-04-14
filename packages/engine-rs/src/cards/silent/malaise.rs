@@ -1,12 +1,5 @@
 use crate::cards::prelude::*;
-
-fn malaise_hook(engine: &mut crate::engine::CombatEngine, ctx: &crate::effects::types::CardPlayContext) {
-    let amount = ctx.x_value + ctx.card.base_magic.max(0);
-    if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        engine.state.enemies[tidx].entity.add_status(sid::STRENGTH, -amount);
-    }
-}
+use crate::status_ids::sid;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     insert(cards, CardDef {
@@ -15,7 +8,8 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 0, exhaust: true, enter_stance: None,
                 effects: &["x_cost"], effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::MagicPlusX)),
-                ], complex_hook: Some(malaise_hook),
+                    E::Simple(SE::AddStatus(T::SelectedEnemy, sid::STRENGTH, A::MagicPlusXNeg)),
+                ], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Malaise+", name: "Malaise+", card_type: CardType::Skill,
@@ -23,6 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 1, exhaust: true, enter_stance: None,
                 effects: &["x_cost"], effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::MagicPlusX)),
-                ], complex_hook: Some(malaise_hook),
+                    E::Simple(SE::AddStatus(T::SelectedEnemy, sid::STRENGTH, A::MagicPlusXNeg)),
+                ], complex_hook: None,
             });
 }

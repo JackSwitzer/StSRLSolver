@@ -7,8 +7,13 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 use crate::tests::support::*;
+
+static LESSON_LEARNED_UPGRADE_PILES: [P; 2] = [P::Draw, P::Discard];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomCardFromPiles(
+    &LESSON_LEARNED_UPGRADE_PILES,
+))];
 
 #[test]
 fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_surface() {
@@ -73,7 +78,18 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
     let lesson_learned = registry
         .get("LessonLearned")
         .expect("Lesson Learned should exist");
-    assert!(lesson_learned.complex_hook.is_some());
+    assert_eq!(
+        lesson_learned.effect_data,
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Conditional(
+                Cond::EnemyKilled,
+                &LESSON_LEARNED_KILL_BRANCH,
+                &[],
+            ),
+        ]
+    );
+    assert!(lesson_learned.complex_hook.is_none());
 }
 
 #[test]
@@ -130,7 +146,3 @@ fn test_card_runtime_post_damage_wave1_reaper_heals_for_total_unblocked_damage()
     assert_eq!(engine.state.enemies[0].entity.hp, 16);
     assert_eq!(engine.state.enemies[1].entity.hp, 16);
 }
-
-#[test]
-#[ignore = "Lesson Learned still needs a kill-triggered random upgrade primitive over eligible draw/discard cards; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java"]
-fn test_card_runtime_post_damage_wave1_lesson_learned_needs_random_upgrade_primitive() {}

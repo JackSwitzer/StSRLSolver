@@ -4,7 +4,10 @@
 mod silent_wave4 {
     use crate::actions::Action;
     use crate::cards::{global_registry, CardTarget, CardType};
-    use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+    use crate::effects::declarative::{
+        AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P,
+        SimpleEffect as SE, Target as T,
+    };
     use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
     use crate::tests::support::{
@@ -57,23 +60,44 @@ mod silent_wave4 {
         assert!(bouncing_flask_plus.complex_hook.is_none());
 
         let calculated_gamble = reg.get("Calculated Gamble").expect("Calculated Gamble");
-        assert!(calculated_gamble.effect_data.is_empty());
-        assert!(
-            calculated_gamble.complex_hook.is_some(),
-            "Calculated Gamble still needs a missing discard-then-draw-count op",
+        assert_eq!(
+            calculated_gamble.effect_data,
+            &[
+                E::ForEachInPile {
+                    pile: P::Hand,
+                    filter: CardFilter::All,
+                    action: BulkAction::Discard,
+                },
+                E::Simple(SE::DrawCards(A::HandSizeAtPlay)),
+            ]
         );
+        assert!(calculated_gamble.complex_hook.is_none());
 
-        let concentrate = reg.get("Concentrate").expect("Concentrate");
-        assert!(concentrate.effect_data.is_empty());
-        assert!(
-            concentrate.complex_hook.is_some(),
-            "Concentrate still needs a typed discard-then-gain-energy op",
-        );
+    let concentrate = reg.get("Concentrate").expect("Concentrate");
+    assert_eq!(
+        concentrate.effect_data,
+        &[
+            E::ChooseCards {
+                source: P::Hand,
+                filter: CardFilter::All,
+                action: ChoiceAction::DiscardForEffect,
+                min_picks: A::Magic,
+                max_picks: A::Magic,
+            }
+        ]
+    );
+    assert!(concentrate.complex_hook.is_none());
 
         let dash = reg.get("Dash").expect("Dash");
         assert_eq!(dash.card_type, CardType::Attack);
         assert_eq!(dash.target, CardTarget::Enemy);
-        assert!(dash.effect_data.is_empty());
+        assert_eq!(
+            dash.effect_data,
+            &[
+                E::Simple(SE::GainBlock(A::Block)),
+                E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            ]
+        );
         assert!(dash.complex_hook.is_none());
 
         let defend = reg.get("Defend_G").expect("Defend_G");
@@ -82,14 +106,17 @@ mod silent_wave4 {
 
         let deflect = reg.get("Deflect").expect("Deflect");
         assert_eq!(deflect.cost, 0);
-        assert!(deflect.effect_data.is_empty());
+        assert_eq!(deflect.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
         let escape_plan = reg.get("Escape Plan").expect("Escape Plan");
-        assert!(escape_plan.effect_data.is_empty());
-        assert!(
-            escape_plan.complex_hook.is_some(),
-            "Escape Plan still needs a typed inspect-drawn-card conditional op",
+        assert_eq!(
+            escape_plan.effect_data,
+            &[
+                E::Simple(SE::DrawCards(A::Fixed(1))),
+                E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+            ]
         );
+        assert!(escape_plan.complex_hook.is_none());
     }
 
     #[test]

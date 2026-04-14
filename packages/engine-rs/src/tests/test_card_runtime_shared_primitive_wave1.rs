@@ -72,9 +72,5 @@ fn shared_primitive_wave1_reaper_heals_for_total_unblocked_damage() {
 fn shared_primitive_wave1_enlightenment_base_stays_explicitly_blocked() {}
 
 #[test]
-#[ignore = "Escape Plan still needs a typed last-drawn-card predicate primitive; Java gates the block gain off the card drawn by DrawCardAction. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/EscapePlan.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EscapePlanAction.java"]
-fn shared_primitive_wave1_escape_plan_stays_explicitly_blocked() {}
-
-#[test]
 #[ignore = "Omniscience still needs a draw-pile card selection plus play-twice primitive; Java selects a card from the draw pile and queues it multiple times via OmniscienceAction. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java"]
 fn shared_primitive_wave1_omniscience_stays_explicitly_blocked() {}

@@ -44,13 +44,20 @@ mod silent_wave3 {
         let malaise = reg.get("Malaise").expect("Malaise");
         assert_eq!(
             malaise.effect_data,
-            &[E::Simple(SE::AddStatus(
-                T::SelectedEnemy,
-                sid::WEAKENED,
-                A::MagicPlusX,
-            ))]
+            &[
+                E::Simple(SE::AddStatus(
+                    T::SelectedEnemy,
+                    sid::WEAKENED,
+                    A::MagicPlusX,
+                )),
+                E::Simple(SE::AddStatus(
+                    T::SelectedEnemy,
+                    sid::STRENGTH,
+                    A::MagicPlusXNeg,
+                )),
+            ]
         );
-        assert!(malaise.complex_hook.is_some());
+        assert!(malaise.complex_hook.is_none());
 
         let bane = reg.get("Bane").expect("Bane");
         assert_eq!(

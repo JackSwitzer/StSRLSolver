@@ -56,8 +56,12 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     assert_eq!(escape_plan.target, CardTarget::SelfTarget);
     assert_eq!(
         escape_plan.effect_data,
-        &[E::Simple(SE::DrawCards(A::Fixed(1)))]
+        &[
+            E::Simple(SE::DrawCards(A::Fixed(1))),
+            E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+        ]
     );
+    assert!(escape_plan.complex_hook.is_none());
 
     let flechettes = registry.get("Flechettes").expect("Flechettes should exist");
     assert_eq!(flechettes.card_type, CardType::Attack);
@@ -75,7 +79,10 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     assert_eq!(glass_knife.target, CardTarget::Enemy);
     assert_eq!(
         glass_knife.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Simple(SE::ModifyPlayedCardDamage(A::Fixed(-2))),
+        ]
     );
 
     let expertise = registry.get("Expertise").expect("Expertise should exist");
