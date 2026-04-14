@@ -133,11 +133,15 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     assert!(engine.state.discard_pile.is_empty());
     assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);
 
+    engine.init_defect_orbs(3);
     engine.state.hand.clear();
     engine.state.discard_pile.clear();
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Bash", "Inflame"]);
+    engine.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
     equip_potion(&mut engine, 0, "DistilledChaos");
     use_potion(&mut engine, 0, -1);
-    assert_eq!(hand_names(&engine), vec!["Inflame"]);
-    assert_eq!(engine.state.draw_pile.len(), 3);
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.draw_pile.len(), 0);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.enemies[0].entity.hp, 34);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
 }

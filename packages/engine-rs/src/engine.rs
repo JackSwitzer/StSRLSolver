@@ -709,9 +709,16 @@ impl CombatEngine {
 
     fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
         // Secret Weapon / Secret Technique: move selected card from draw pile to hand
-        if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
-                if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
+            if let ChoiceOption::DrawCard(idx) = ctx.options[i] { Some(idx) } else { None }
+        }).collect();
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        for idx in indices {
+            if idx < self.state.draw_pile.len() {
+                if self.state.hand.len() == 10 {
+                    let card = self.state.draw_pile.remove(idx);
+                    self.state.discard_pile.push(card);
+                } else {
                     let card = self.state.draw_pile.remove(idx);
                     self.state.hand.push(card);
                 }

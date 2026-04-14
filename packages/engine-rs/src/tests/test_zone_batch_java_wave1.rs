@@ -54,7 +54,7 @@ fn seek_plus_moves_two_chosen_cards_from_draw_pile_to_hand() {
     assert!(play_self(&mut engine, "Seek+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     let choice = engine.choice.as_ref().expect("seek choice");
-    assert_eq!(choice.reason, ChoiceReason::PickFromDrawPile);
+    assert_eq!(choice.reason, ChoiceReason::SearchDrawPile);
     assert_eq!(choice.min_picks, 1);
     assert_eq!(choice.max_picks, 2);
     assert_eq!(choice.options.len(), 3);
