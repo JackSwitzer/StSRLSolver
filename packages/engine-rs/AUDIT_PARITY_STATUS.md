@@ -68,7 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-  - the currently verified unresolved public-card tail is: `Enlightenment`, `Ritual Dagger`, `Blizzard`, `Fission`, `Reboot`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `True Grit`, `Escape Plan`, `Nightmare`, `Reflex`, `Tactician`, `Deus Ex Machina`, and `Omniscience`
+  - the currently verified unresolved public-card tail is: `Enlightenment`, `Ritual Dagger`, `Blizzard`, `Fission`, `Reboot`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `True Grit`, `Nightmare`, `Reflex`, `Tactician`, `Deus Ex Machina`, and `Omniscience`
   - `Ritual Dagger` is no longer an empty typed-program shell; it now carries a typed damage body while its kill-scaling misc propagation stays hook-backed behind a Java-cited blocker
   - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels
   - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Escape Plan` and `Omniscience` remain the immediate small-primitive blockers, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
