@@ -257,6 +257,8 @@ pub enum SimpleEffect {
     MultiplyStatus(Target, StatusId, i32),
     /// Draw cards. Routes through engine.draw_cards() (handles reshuffle + onCardDraw).
     DrawCards(AmountSource),
+    /// Draw cards, then discard the newly drawn cards whose current cost is > 0.
+    DrawCardsThenDiscardDrawnNonZeroCost(AmountSource),
     /// Draw up to a target hand size.
     DrawToHandSize(AmountSource),
     /// Exhaust 1 random card from hand.

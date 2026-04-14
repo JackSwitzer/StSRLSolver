@@ -243,6 +243,40 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.draw_cards(count);
         }
 
+        SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(ref amount_src) => {
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            let hand_before = engine.state.hand.len();
+            if count > 0 {
+                engine.draw_cards(count);
+            }
+            let hand_after = engine.state.hand.len();
+            if hand_after <= hand_before {
+                return;
+            }
+
+            let mut to_discard = Vec::new();
+            for idx in hand_before..hand_after {
+                if let Some(card) = engine.state.hand.get(idx) {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    let current_cost = if card.cost >= 0 {
+                        card.cost as i32
+                    } else {
+                        def.cost
+                    };
+                    if current_cost > 0 && !card.is_free() {
+                        to_discard.push(idx);
+                    }
+                }
+            }
+            for idx in to_discard.into_iter().rev() {
+                if idx < engine.state.hand.len() {
+                    let card = engine.state.hand.remove(idx);
+                    engine.state.discard_pile.push(card);
+                    engine.on_card_discarded(card);
+                }
+            }
+        }
+
         SimpleEffect::DrawToHandSize(ref amount_src) => {
             let target = resolve_card_amount(engine, ctx, amount_src);
             let to_draw = (target - engine.state.hand.len() as i32).max(0);

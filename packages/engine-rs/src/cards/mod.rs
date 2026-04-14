@@ -385,6 +385,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ModifyHp(source)
         | SimpleEffect::GainMantra(source)
         | SimpleEffect::Scry(source)
+        | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(source)
         | SimpleEffect::AddCard(_, _, source)
         | SimpleEffect::AddCardWithMisc(_, _, source, _)
         | SimpleEffect::ChannelOrb(_, source)

@@ -824,32 +824,6 @@ pub fn hook_thunder_strike(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     }
 }
 
-// =========================================================================
-// Defect: Scrape — draw N, discard drawn cards costing > 0
-// =========================================================================
-
-/// Scrape: draw base_magic cards, then discard any drawn cards with cost > 0.
-pub fn hook_scrape(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let draw_count = ctx.card.base_magic.max(1);
-    let hand_before = engine.state.hand.len();
-    engine.draw_cards(draw_count);
-    // Discard drawn cards that cost > 0
-    let hand_after = engine.state.hand.len();
-    let mut to_discard = Vec::new();
-    for i in hand_before..hand_after {
-        let def = engine.card_registry.card_def_by_id(engine.state.hand[i].def_id);
-        if def.cost > 0 {
-            to_discard.push(i);
-        }
-    }
-    // Remove in reverse order to preserve indices
-    for &i in to_discard.iter().rev() {
-        let card = engine.state.hand.remove(i);
-        engine.state.discard_pile.push(card);
-    }
-}
-
-// =========================================================================
 // Defect: Recursion (Redo) — evoke front orb, channel same type
 // =========================================================================
 

@@ -769,6 +769,10 @@ impl EffectRuntime {
                     engine.draw_cards(count);
                 }
             }
+            SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(amount_src) => {
+                let _ = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                // Card-play only effect. The owner-aware runtime keeps it inert.
+            }
             SimpleEffect::DrawToHandSize(amount_src) => {
                 let target = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 let to_draw = (target - engine.state.hand.len() as i32).max(0);

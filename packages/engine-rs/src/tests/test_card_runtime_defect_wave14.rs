@@ -120,8 +120,11 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     assert!(redo.complex_hook.is_none());
 
     let scrape = global_registry().get("Scrape").expect("Scrape");
-    assert!(scrape.effect_data.is_empty());
-    assert!(scrape.complex_hook.is_some());
+    assert_eq!(
+        scrape.effect_data,
+        &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))]
+    );
+    assert!(scrape.complex_hook.is_none());
 }
 
 #[test]
@@ -295,5 +298,22 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
 }
 
 #[test]
-#[ignore = "Scrape still needs a draw-then-discard-non-zero-cost follow-up primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeAction.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeFollowUpAction.java split the draw and follow-up discard after resolution."]
-fn scrape_still_needs_draw_then_discard_non_zero_cost_follow_up() {}
+fn scrape_draws_then_discards_only_newly_drawn_positive_cost_cards() {
+    let mut scrape = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut scrape);
+    scrape.state.hand = make_deck(&["Scrape", "Strike_B"]);
+    scrape.state.draw_pile = make_deck(&["Strike_B", "Turbo"]);
+
+    assert!(play_self(&mut scrape, "Scrape"));
+    assert_eq!(scrape.state.hand.len(), 2);
+    assert_eq!(hand_prefix_count(&scrape, "Strike_B"), 1);
+    assert_eq!(hand_prefix_count(&scrape, "Turbo"), 1);
+    assert_eq!(discard_prefix_count(&scrape, "Strike_B"), 1);
+    assert_eq!(discard_prefix_count(&scrape, "Scrape"), 1);
+    assert_eq!(discard_prefix_count(&scrape, "Turbo"), 0);
+    assert_eq!(scrape.state.discard_pile.len(), 2);
+}
