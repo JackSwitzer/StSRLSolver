@@ -264,7 +264,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     let x_value = if card.cost == -1 {
         let x = engine.state.energy;
         engine.state.energy = 0;
-        x + crate::relics::chemical_x_bonus(&engine.state)
+        x + if engine.state.has_relic("Chemical X") || engine.state.has_relic("ChemicalX") {
+            2
+        } else {
+            0
+        }
     } else {
         0
     };

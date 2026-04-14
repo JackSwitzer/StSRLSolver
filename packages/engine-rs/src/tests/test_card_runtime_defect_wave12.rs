@@ -7,6 +7,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewRipAndTearAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewThunderStrikeAction.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Chaos.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/DoubleEnergy.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DoubleEnergyAction.java
 
@@ -14,7 +15,7 @@ use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy};
+use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
@@ -62,9 +63,18 @@ fn defect_wave12_registry_exports_surface_barrage_rip_and_tear_and_thunder_strik
     assert_eq!(thunder.card_type, CardType::Attack);
     assert_eq!(thunder.target, CardTarget::AllEnemy);
 
+    let chaos = reg.get("Chaos").expect("Chaos");
+    assert_eq!(
+        chaos.effect_data,
+        &[E::Simple(SE::ChannelRandomOrb(A::Magic))]
+    );
+    assert!(chaos.complex_hook.is_none());
+    assert_eq!(chaos.card_type, CardType::Skill);
+    assert_eq!(chaos.target, CardTarget::SelfTarget);
+
     let double_energy = reg.get("Double Energy").expect("Double Energy");
-    assert!(double_energy.effect_data.is_empty());
-    assert!(double_energy.complex_hook.is_some());
+    assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
+    assert!(double_energy.complex_hook.is_none());
 }
 
 #[test]
@@ -117,6 +127,29 @@ fn defect_wave12_barrage_rip_and_tear_and_thunder_strike_follow_typed_primary_pa
 }
 
 #[test]
+fn defect_wave12_chaos_channels_random_orbs_deterministically_for_identical_seeds() {
+    let mut left = one_enemy_engine(60, 3);
+    left.init_defect_orbs(3);
+    left.state.hand = make_deck(&["Chaos", "Chaos+"]);
+
+    let mut right = one_enemy_engine(60, 3);
+    right.init_defect_orbs(3);
+    right.state.hand = make_deck(&["Chaos", "Chaos+"]);
+
+    assert!(play_self(&mut left, "Chaos"));
+    assert!(play_self(&mut right, "Chaos"));
+    assert_eq!(left.state.orb_slots.occupied_count(), 1);
+    assert_eq!(right.state.orb_slots.occupied_count(), 1);
+    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+
+    assert!(play_self(&mut left, "Chaos+"));
+    assert!(play_self(&mut right, "Chaos+"));
+    assert_eq!(left.state.orb_slots.occupied_count(), 3);
+    assert_eq!(right.state.orb_slots.occupied_count(), 3);
+    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+}
+
+#[test]
 #[ignore = "Blocked on zero-orb Barrage parity; Java BarrageAction deals no damage when the orb list is empty"]
 fn defect_wave12_barrage_zero_orb_count_still_needs_exact_no_damage_support() {
     let barrage = global_registry().get("Barrage").expect("Barrage");
@@ -161,4 +194,12 @@ fn defect_wave12_double_energy_still_needs_typed_energy_doubling() {
     let double_energy = global_registry().get("Double Energy").expect("Double Energy");
     assert!(double_energy.effect_data.is_empty());
     assert!(double_energy.complex_hook.is_some());
+}
+
+#[test]
+#[ignore = "Melter still needs a pre-damage enemy block removal primitive; Java RemoveAllBlockAction clears the target's block before damage."]
+fn defect_wave12_melter_still_needs_pre_damage_enemy_block_removal() {
+    let melter = global_registry().get("Melter").expect("Melter");
+    assert!(melter.effect_data.is_empty());
+    assert!(melter.complex_hook.is_some());
 }

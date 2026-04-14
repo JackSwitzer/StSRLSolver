@@ -259,6 +259,8 @@ pub enum SimpleEffect {
     CopyThisCardTo(Pile),
     /// Channel an orb. Routes through engine.channel_orb() (handles auto-evoke).
     ChannelOrb(OrbType, AmountSource),
+    /// Channel a random orb from the core set (Lightning/Frost/Dark/Plasma).
+    ChannelRandomOrb(AmountSource),
     /// Evoke the front orb N times.
     EvokeOrb(AmountSource),
     /// Change player stance.

@@ -824,7 +824,7 @@ impl CombatEngine {
         }
 
         // Reset energy — Ice Cream preserves unspent energy
-        if relics::has_ice_cream(&self.state) {
+        if self.state.has_relic("Ice Cream") || self.state.has_relic("IceCream") {
             self.state.energy += self.state.max_energy;
         } else {
             self.state.energy = self.state.max_energy;
@@ -2078,7 +2078,9 @@ impl CombatEngine {
 
         let mut applied_amount = amount;
         if status == sid::POISON {
-            applied_amount += crate::relics::snecko_skull_bonus(&self.state);
+            if self.state.has_relic("Snake Skull") || self.state.has_relic("SneckoSkull") {
+                applied_amount += 1;
+            }
         }
 
         let applied = powers::apply_debuff(
@@ -2102,7 +2104,7 @@ impl CombatEngine {
         }
         if applied
             && status == sid::VULNERABLE
-            && crate::relics::champion_belt_on_vulnerable(&self.state)
+            && self.state.has_relic("Champion Belt")
         {
             let extra_applied =
                 powers::apply_debuff(&mut self.state.enemies[enemy_idx].entity, sid::WEAKENED, 1);
@@ -2315,8 +2317,10 @@ impl CombatEngine {
             return damage;
         }
 
-        if self.card_registry.is_strike(card_inst.def_id) {
-            damage += crate::relics::strike_dummy_bonus(&self.state);
+        if self.card_registry.is_strike(card_inst.def_id)
+            && self.state.has_relic("StrikeDummy")
+        {
+            damage += 3;
         }
 
         let effective_cost = if card.cost == -1 {
@@ -2331,8 +2335,8 @@ impl CombatEngine {
         } else {
             card.cost
         };
-        if effective_cost == 0 {
-            damage += crate::relics::wrist_blade_bonus(&self.state);
+        if effective_cost == 0 && self.state.has_relic("WristBlade") {
+            damage += 4;
         }
 
         damage
@@ -2554,7 +2558,11 @@ impl CombatEngine {
 
         // Exit Calm: gain 2 energy (+ Violet Lotus bonus)
         if old_stance == Stance::Calm {
-            let bonus = relics::violet_lotus_calm_exit_bonus(&self.state);
+            let bonus = if self.state.has_relic("Violet Lotus") || self.state.has_relic("VioletLotus") {
+                1
+            } else {
+                0
+            };
             self.state.energy += 2 + bonus;
         }
 

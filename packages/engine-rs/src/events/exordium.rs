@@ -125,7 +125,7 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                         EventProgramOp::gain_relic("random relic"),
                     ],
                     EventEffect::DamageAndGold(0, 30),
-                    "requires persistent search-state tracking for encounter chance ramp plus shuffled one-shot reward pulls, then elite combat continuation with room rewards",
+                    "requires persistent search-state tracking plus a room-reward queue for the one-shot gold/relic pulls and elite-combat continuation",
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],

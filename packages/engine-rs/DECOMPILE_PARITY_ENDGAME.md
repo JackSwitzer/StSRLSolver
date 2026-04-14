@@ -206,10 +206,10 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- Defect tiny-primitive implementation wave for `Chaos` and `Melter`
-- Dead Adventurer event/runtime implementation wave
+- Defect follow-up wave for the remaining orb/order blockers after `Chaos`
+- Dead Adventurer event/runtime implementation wave narrowed to search-ramp plus room-reward queue semantics
 - RL/reward observability wave for treasure/chest source semantics and compact relic-counter visibility
-- relic bridge-helper reduction audit and follow-up deletion prep
+- relic bridge-helper reduction follow-up after the scalar-helper deletions
 
 Each worker must return:
 

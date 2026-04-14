@@ -909,6 +909,19 @@ impl EffectRuntime {
                     engine.channel_orb(orb_type);
                 }
             }
+            SimpleEffect::ChannelRandomOrb(amount_src) => {
+                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let orb_types = [
+                    crate::orbs::OrbType::Lightning,
+                    crate::orbs::OrbType::Frost,
+                    crate::orbs::OrbType::Dark,
+                    crate::orbs::OrbType::Plasma,
+                ];
+                for _ in 0..count {
+                    let idx = engine.rng_gen_range(0..orb_types.len());
+                    engine.channel_orb(orb_types[idx]);
+                }
+            }
             SimpleEffect::EvokeOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 if count > 0 {

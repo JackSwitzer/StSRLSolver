@@ -10,7 +10,7 @@
 //!   [247..251] Progress features (4 dims)
 //!   [251..260] Decision context tail:
 //!               hp deficit, stack depth, active choice count, reward source
-//!               one-hot (4), active reward item, reward item count
+//!               one-hot (combat/boss/event/treasure), active reward item, reward item count
 //!   [260..480] Action encoding (10 x 22 = 220 dims)
 
 use crate::cards::{CardRegistry, CardType, CardTarget};
@@ -327,18 +327,36 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     obs[off + 2] = (engine.current_reward_choice_count().min(5) as f32) / 5.0;
 
     if let Some(screen) = engine.current_reward_screen() {
-        match screen.source {
+        match &screen.source {
             crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
             crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
             crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
-            crate::decision::RewardScreenSource::Unknown => obs[off + 6] = 1.0,
+            crate::decision::RewardScreenSource::Unknown
+                if reward_screen_looks_like_treasure(&screen) =>
+            {
+                obs[off + 6] = 1.0;
+            }
+            crate::decision::RewardScreenSource::Unknown => {}
         }
         if let Some(active_item) = screen.active_item {
             obs[off + 7] = ((active_item + 1) as f32) / screen.items.len().max(1) as f32;
         }
         obs[off + 8] = (screen.items.len().min(5) as f32) / 5.0;
     }
+}
+
+fn reward_screen_looks_like_treasure(screen: &crate::decision::RewardScreen) -> bool {
+    if screen.items.len() < 2 {
+        return false;
+    }
+
+    matches!(screen.items.first().map(|item| item.kind), Some(crate::decision::RewardItemKind::Gold))
+        && screen
+            .items
+            .iter()
+            .skip(1)
+            .all(|item| matches!(item.kind, crate::decision::RewardItemKind::Relic))
 }
 
 fn encode_map_lookahead(engine: &RunEngine, obs: &mut [f32; RUN_DIM], off: usize) {

@@ -33,7 +33,7 @@ Area scores:
 - combat runtime parity: `98%`
 - RL combat surface: `98%`
 - run/reward/event decision parity: `99%`
-- dead-system retirement: `97%`
+- dead-system retirement: `98%`
 - architecture unification snapshot: `98%`
 
 Interpretation:
@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `22`
-- card files still using `complex_hook`: `31`
-- unresolved public card files (union of empty typed programs and hook-backed files): `34`
+- card files with empty `effect_data`: `21`
+- card files still using `complex_hook`: `30`
+- unresolved public card files (union of empty typed programs and hook-backed files): `33`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -56,9 +56,9 @@ These counts come from the current verified production tree and are useful as a 
 Empty-`effect_data` card backlog by class:
 
 - Watcher: `2`
-- Defect: `7`
+- Defect: `6`
 - Silent: `4`
-- Ironclad: `4`
+- Ironclad: `3`
 - Colorless: `6`
 
 Additional shared-file tail outside the five main class folders:
@@ -69,7 +69,7 @@ What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, and post-damage-context families
 - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, but `Dead Adventurer` still remains an explicit Java-cited parity gap rather than a silent approximation
-- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted in the working tree, and the remaining dead-system tail is mostly `relics/run.rs` bridge helpers plus ignored blocker tests
+- direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, several live scalar bridge helpers were removed from `relics/run.rs`, and the remaining dead-system tail is now concentrated in a smaller set of higher-latency turn/retention bridges plus ignored blocker tests
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect orb/order, and Colorless utility/cost-mutation behavior
 
 ## Why We Are Not Done Yet

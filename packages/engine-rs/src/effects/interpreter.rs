@@ -326,6 +326,20 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::ChannelRandomOrb(ref amount_src) => {
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            let orb_types = [
+                crate::orbs::OrbType::Lightning,
+                crate::orbs::OrbType::Frost,
+                crate::orbs::OrbType::Dark,
+                crate::orbs::OrbType::Plasma,
+            ];
+            for _ in 0..count {
+                let idx = engine.rng_gen_range(0..orb_types.len());
+                engine.channel_orb(orb_types[idx]);
+            }
+        }
+
         // -- Evoke front orb --
         SimpleEffect::EvokeOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);

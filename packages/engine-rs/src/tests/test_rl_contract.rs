@@ -7,8 +7,12 @@ use crate::obs::{
 };
 use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
 use crate::{PyRunEngine, COMBAT_BASE};
-use pyo3::Python;
-use pyo3::types::{PyAnyMethods, PyDictMethods};
+use std::sync::{Mutex, OnceLock};
+
+fn python_bridge_guard() -> std::sync::MutexGuard<'static, ()> {
+    static PYTHON_BRIDGE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    PYTHON_BRIDGE_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
 
 fn enter_test_combat(engine: &mut RunEngine) {
     let action = engine
@@ -23,6 +27,7 @@ fn enter_test_combat(engine: &mut RunEngine) {
 
 #[test]
 fn combat_action_encoding_stays_non_overlapping_for_large_hand_indices() {
+    let _guard = python_bridge_guard();
     let engine = PyRunEngine::new_py(42, 20);
 
     let play = RunAction::CombatAction(Action::PlayCard {
@@ -44,6 +49,7 @@ fn combat_action_encoding_stays_non_overlapping_for_large_hand_indices() {
 
 #[test]
 fn invalid_run_actions_are_rejected_by_step_result() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     enter_test_combat(&mut engine);
 
@@ -74,6 +80,7 @@ fn invalid_run_actions_are_rejected_by_step_result() {
 
 #[test]
 fn combat_obs_v3_exposes_potions_and_choice_context() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.deck = vec![
         "Strike_P".to_string(),
@@ -142,6 +149,7 @@ fn combat_obs_v3_exposes_potions_and_choice_context() {
 
 #[test]
 fn end_turn_encoding_stays_stable() {
+    let _guard = python_bridge_guard();
     let engine = PyRunEngine::new_py(42, 20);
     let action = RunAction::CombatAction(Action::EndTurn);
     let encoded = engine.encode_action(&action);
@@ -151,6 +159,7 @@ fn end_turn_encoding_stays_stable() {
 
 #[test]
 fn combat_decision_state_and_actions_are_exposed() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     enter_test_combat(&mut engine);
 
@@ -174,6 +183,7 @@ fn combat_decision_state_and_actions_are_exposed() {
 
 #[test]
 fn card_reward_decision_context_surfaces_structured_reward_screen() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.debug_set_card_reward_screen(vec![
         "TalkToTheHand".to_string(),
@@ -263,6 +273,7 @@ fn card_reward_decision_context_surfaces_structured_reward_screen() {
 
 #[test]
 fn shop_and_event_decision_contexts_are_stable_and_bridged() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.gold = 120;
     engine.debug_set_shop_state(ShopState {
@@ -317,6 +328,7 @@ fn shop_and_event_decision_contexts_are_stable_and_bridged() {
 
 #[test]
 fn reward_action_features_distinguish_potion_and_boss_relic_states() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("White Beast Statue".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
@@ -359,10 +371,28 @@ fn reward_action_features_distinguish_potion_and_boss_relic_states() {
     assert_eq!(boss_obs[boss_slot + 5], 1.0, "boss reward should encode as relic item");
     assert_eq!(boss_obs[boss_slot + 9], 1.0, "active boss reward item should be visible");
     assert_eq!(boss_obs[RUN_DECISION_TAIL_OFFSET + 4], 1.0, "boss reward source should be visible");
+
+    let mut treasure_engine = RunEngine::new(42, 20);
+    treasure_engine.run_state.relics.push("Matryoshka".to_string());
+    treasure_engine.run_state.relic_flags.rebuild(&treasure_engine.run_state.relics);
+    treasure_engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    treasure_engine.debug_build_treasure_reward_screen();
+    let treasure_obs = get_observation(&treasure_engine);
+    assert_eq!(
+        treasure_obs[RUN_DECISION_TAIL_OFFSET + 6],
+        1.0,
+        "treasure reward source should be visible in the RL tail"
+    );
+    assert_eq!(
+        treasure_obs[RUN_DECISION_TAIL_OFFSET + 8],
+        0.6,
+        "Matryoshka should expand the treasure reward item count"
+    );
 }
 
 #[test]
 fn rl_surface_does_not_fabricate_blocked_campfire_or_empty_event_actions() {
+    let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Coffee Dripper".to_string());
     engine.run_state.relics.push("Fusion Hammer".to_string());
@@ -384,93 +414,52 @@ fn rl_surface_does_not_fabricate_blocked_campfire_or_empty_event_actions() {
 }
 
 #[test]
-fn python_step_with_result_surfaces_illegal_actions_and_decision_context() {
-    Python::with_gil(|py| {
-        let mut engine = PyRunEngine::new_py(42, 20);
-        let first_map = engine
-            .get_legal_actions()
-            .into_iter()
-            .next()
-            .expect("expected a map action");
-        let combat_step = engine
-            .step_with_result(py, first_map)
-            .expect("expected legal map action to execute");
+fn step_with_result_surfaces_illegal_actions_and_decision_context() {
+    let _guard = python_bridge_guard();
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.deck = vec![
+        "Strike_P".to_string(),
+        "Defend_P".to_string(),
+        "Strike_P".to_string(),
+        "Defend_P".to_string(),
+        "Strike_P".to_string(),
+        "ThirdEye".to_string(),
+    ];
+    engine.run_state.potions[0] = "Block Potion".to_string();
+    let first_map = engine
+        .get_legal_actions()
+        .into_iter()
+        .next()
+        .expect("expected a map action");
+    let combat_step = engine.step_with_result(&first_map);
+    assert!(combat_step.action_accepted);
+    assert_eq!(combat_step.decision_state.kind, DecisionKind::CombatAction);
+    assert_eq!(combat_step.decision_state.phase, RunPhase::Combat);
+    assert!(combat_step.decision_context.combat.is_some());
+    assert_eq!(
+        combat_step
+            .decision_context
+            .combat
+            .as_ref()
+            .expect("combat context should exist")
+            .potions
+            .len(),
+        3
+    );
 
-        let accepted: bool = combat_step
-            .get_item("action_accepted")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be bool");
-        assert!(accepted);
-        let decision_kind: String = combat_step
-            .get_item("decision_kind")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be string");
-        assert_eq!(decision_kind, "combat_action");
-
-        let decision_state = combat_step
-            .get_item("decision_state")
-            .expect("dict lookup should succeed")
-            .expect("field should exist");
-        let phase: String = decision_state
-            .get_item("phase")
-            .expect("dict lookup should succeed")
-            .extract()
-            .expect("field should be string");
-        assert_eq!(phase, "combat");
-
-        let combat_context = combat_step
-            .get_item("decision_context")
-            .expect("dict lookup should succeed")
-            .expect("field should exist");
-        let combat = combat_context
-            .get_item("combat")
-            .expect("dict lookup should succeed")
-            ;
-        let potions_len = combat
-            .get_item("potions")
-            .expect("dict lookup should succeed")
-            .len()
-            .expect("potions should be sized");
-        assert_eq!(potions_len, 3);
-
-        let illegal_action_id = engine.encode_action(&RunAction::CombatAction(Action::PlayCard {
-            card_idx: 99,
-            target_idx: -1,
-        }));
-        let illegal_result = engine
-            .step_with_result(py, illegal_action_id)
-            .expect("decodable illegal action should still return canonical result");
-        let illegal_accepted: bool = illegal_result
-            .get_item("action_accepted")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be bool");
-        assert!(!illegal_accepted);
-        let reward_delta: f32 = illegal_result
-            .get_item("reward_delta")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be float");
-        assert_eq!(reward_delta, 0.0);
-        let legal_actions = illegal_result
-            .get_item("legal_actions")
-            .expect("dict lookup should succeed")
-            .expect("field should exist");
-        assert!(
-            legal_actions.len().expect("legal actions should be sized") > 0,
-            "illegal result should still surface the canonical legal action set"
-        );
+    let illegal_action = RunAction::CombatAction(Action::PlayCard {
+        card_idx: 99,
+        target_idx: -1,
     });
+    let illegal_result = engine.step_with_result(&illegal_action);
+    assert!(!illegal_result.action_accepted);
+    assert_eq!(illegal_result.reward, 0.0);
+    assert!(!illegal_result.legal_actions.is_empty());
 }
 
 #[test]
 fn python_bridge_rejects_illegal_and_unknown_step_ids() {
+    let _guard = python_bridge_guard();
     let mut engine = PyRunEngine::new_py(42, 20);
     let first_map = engine
         .get_legal_actions()
@@ -489,47 +478,44 @@ fn python_bridge_rejects_illegal_and_unknown_step_ids() {
 }
 
 #[test]
-fn python_bridge_decision_accessors_match_canonical_run_state() {
-    Python::with_gil(|py| {
-        let mut engine = PyRunEngine::new_py(7, 20);
-        let state = engine
-            .get_decision_state(py)
-            .expect("decision state should be available");
-        let kind: String = state
-            .get_item("kind")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be string");
-        assert_eq!(kind, "map_path");
+fn decision_accessors_match_canonical_run_state() {
+    let _guard = python_bridge_guard();
+    let mut engine = RunEngine::new(7, 20);
 
-        let legal = engine.get_legal_decision_actions();
-        assert_eq!(legal, engine.get_legal_actions());
+    let state = engine.current_decision_state();
+    assert_eq!(state.kind, DecisionKind::MapPath);
 
-        let first_map = legal[0];
-        engine
-            .step(first_map)
-            .expect("expected legal map action to execute");
+    let legal = engine.get_legal_decision_actions();
+    assert_eq!(
+        legal.iter().map(|action| action.to_run_action()).collect::<Vec<_>>(),
+        engine.get_legal_actions()
+    );
 
-        let context = engine
-            .get_decision_context(py)
-            .expect("decision context should be available");
-        let kind: String = context
-            .get_item("kind")
-            .expect("dict lookup should succeed")
-            .expect("field should exist")
-            .extract()
-            .expect("field should be string");
-        assert_eq!(kind, "combat_action");
+    let first_map = engine.get_legal_actions()[0].clone();
+    let result = engine.step_with_result(&first_map);
+    assert!(result.action_accepted);
+    assert!(result.reward >= 0.0);
 
-        let combat = context
-            .get_item("combat")
-            .expect("dict lookup should succeed")
-            .expect("combat context should exist");
-        let potions = combat
-            .get_item("potions")
-            .expect("dict lookup should succeed")
-            ;
-        assert_eq!(potions.len().expect("potions should be sized"), 3);
-    });
+    let context = engine.current_decision_context();
+    assert_eq!(context.kind, DecisionKind::CombatAction);
+    let combat = context
+        .combat
+        .as_ref()
+        .expect("combat context should exist");
+    assert_eq!(combat.potions.len(), 3);
+
+    engine.run_state.relics.push("Matryoshka".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    engine.debug_build_treasure_reward_screen();
+
+    let treasure_state = engine.current_decision_state();
+    assert_eq!(treasure_state.kind, DecisionKind::RewardScreen);
+    let treasure_context = engine.current_decision_context();
+    let treasure_screen = treasure_context
+        .reward_screen
+        .as_ref()
+        .expect("treasure reward screen should be available");
+    assert_eq!(treasure_screen.source, crate::decision::RewardScreenSource::Treasure);
+    assert_eq!(treasure_screen.items.len(), 3);
 }
