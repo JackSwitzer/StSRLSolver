@@ -203,7 +203,7 @@ mod silent_wave4 {
         assert_eq!(engine.phase, CombatPhase::PlayerTurn);
         assert_eq!(engine.state.energy, 3);
         assert_eq!(engine.state.hand.len(), 0);
-        assert_eq!(engine.state.discard_pile.len(), 3);
+        assert_eq!(engine.state.discard_pile.len(), 4);
     }
 
     #[test]

@@ -45,7 +45,10 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     assert_eq!(empty_fist.enter_stance, None);
     assert_eq!(
         empty_fist.effect_data,
-        &[E::Simple(SE::ChangeStance(Stance::Neutral))]
+        &[
+            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::ChangeStance(Stance::Neutral)),
+        ]
     );
 
     let empty_fist_plus = registry
@@ -54,7 +57,10 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     assert_eq!(empty_fist_plus.enter_stance, None);
     assert_eq!(
         empty_fist_plus.effect_data,
-        &[E::Simple(SE::ChangeStance(Stance::Neutral))]
+        &[
+            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::ChangeStance(Stance::Neutral)),
+        ]
     );
 }
 
@@ -120,7 +126,12 @@ fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
         third_eye.execute_action(&Action::Choose(i));
     }
     third_eye.execute_action(&Action::ConfirmSelection);
-    assert_eq!(third_eye.state.discard_pile.len(), 3);
+    assert_eq!(third_eye.state.discard_pile.len(), 4);
+    assert!(third_eye
+        .state
+        .discard_pile
+        .iter()
+        .any(|card| third_eye.card_registry.card_name(card.def_id) == "ThirdEye"));
 
     let mut wheel_kick = one_enemy_engine("JawWorm", 50, 0);
     wheel_kick.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
