@@ -57,12 +57,11 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Malaise`
 - `Lesson Learned`
 
-The currently verified unresolved public-card tail is `16` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
+The currently verified unresolved public-card tail is `15` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
 - `Enlightenment` base
-- `Omniscience`
 
 The recent non-play cleanup also retired the stale blocker sentinels for:
 
@@ -234,7 +233,7 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared card-primitive follow-up centered on `Enlightenment`, `Escape Plan`, `Deus Ex Machina`, and `Omniscience`; `Alchemize` and `Reaper` have landed on the typed primary surface in the current slice
+- shared card-primitive follow-up centered on `Enlightenment` and `Deus Ex Machina`; `Alchemize` and `Reaper` have landed on the typed primary surface in the current slice
 - isolated stale-cleanup / dead-shim follow-up centered on already-identified stale ignores and dead relic shim residue
 - read-only broad-audit preparation for the first representative parity sweep after the next 1-2 card landings
 
@@ -266,7 +265,6 @@ These are the currently verified card-tail clusters that should drive the next p
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`
   - `Lesson Learned`
-  - `Omniscience`
 - Colorless utility/scaling cluster:
   - `Enlightenment`
   - `Ritual Dagger`

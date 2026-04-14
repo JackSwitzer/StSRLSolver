@@ -7,7 +7,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::tests::support::{engine_with, hand_count, exhaust_prefix_count};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P};
+use crate::engine::{ChoiceReason, CombatPhase};
+use crate::tests::support::{enemy_no_intent, engine_with, engine_without_start, force_player_turn, exhaust_prefix_count, hand_count, make_deck, play_self};
 
 static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
     crate::effects::declarative::Pile::Draw,
@@ -57,10 +59,43 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
     let omniscience = registry
         .get("Omniscience")
         .expect("Omniscience should be registered");
-    assert!(omniscience.effect_data.is_empty());
-    assert!(omniscience.complex_hook.is_some());
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
 }
 
 #[test]
-#[ignore = "Omniscience still needs a draw-pile card selection plus play-twice primitive; Java selects a card from the draw pile and uses it twice via UseCardAction semantics."]
-fn omniscience_still_needs_draw_pile_play_twice_primitive() {}
+fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let mut engine = engine_without_start(
+        make_deck(&["Omniscience", "Strike_P", "Defend_P"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        4,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 4;
+    engine.state.hand = make_deck(&["Omniscience"]);
+    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+
+    assert!(play_self(&mut engine, "Omniscience"));
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(
+        engine.choice.as_ref().expect("Omniscience should open a choice").reason,
+        ChoiceReason::PlayCardFreeFromDraw
+    );
+
+    engine.execute_action(&crate::actions::Action::Choose(0));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.state.hand[0].cost, 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+}

@@ -1,21 +1,32 @@
 use crate::cards::prelude::*;
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect, Pile as P};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Rare: Omniscience ---- (cost 4, skill, exhaust, choose card from draw pile play it twice; upgrade: cost 3)
-        // complex_hook presents draw pile as choices, plays chosen card for free,
-        // then adds a cost-0 copy to hand (MCTS approximation of "play it twice").
     insert(cards, CardDef {
                 id: "Omniscience", name: "Omniscience", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 4, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["omniscience"], effect_data: &[],
-                complex_hook: Some(crate::effects::hooks_complex::hook_omniscience),
+                effects: &["omniscience"], effect_data: &[Effect::ChooseCards {
+                    source: P::Draw,
+                    filter: CardFilter::All,
+                    action: ChoiceAction::PlayForFree,
+                    min_picks: A::Fixed(1),
+                    max_picks: A::Fixed(1),
+                }],
+                complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Omniscience+", name: "Omniscience+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["omniscience"], effect_data: &[],
-                complex_hook: Some(crate::effects::hooks_complex::hook_omniscience),
+                effects: &["omniscience"], effect_data: &[Effect::ChooseCards {
+                    source: P::Draw,
+                    filter: CardFilter::All,
+                    action: ChoiceAction::PlayForFree,
+                    min_picks: A::Fixed(1),
+                    max_picks: A::Fixed(1),
+                }],
+                complex_hook: None,
             });
 }

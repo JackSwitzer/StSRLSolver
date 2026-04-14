@@ -7,8 +7,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
-use crate::tests::support::{enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::engine::{ChoiceReason, CombatPhase};
+use crate::tests::support::{enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy, play_self};
 
 static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
     crate::effects::declarative::Pile::Draw,
@@ -87,8 +88,17 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
     let omniscience = registry
         .get("Omniscience")
         .expect("Omniscience should be registered");
-    assert!(omniscience.effect_data.is_empty());
-    assert!(omniscience.complex_hook.is_some());
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
 }
 
 #[test]
@@ -127,5 +137,21 @@ fn watcher_wave15_wallop_and_lesson_learned_follow_engine_path() {
 fn watcher_wave15_judgement_stays_queued_until_threshold_kill_primitive_exists() {}
 
 #[test]
-#[ignore = "Omniscience still needs a typed draw-pile choice / play-twice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java"]
-fn watcher_wave15_omniscience_stays_queued_until_choice_primitive_exists() {}
+fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let mut engine = one_enemy_engine(40, 0);
+    engine.state.energy = 4;
+    ensure_in_hand(&mut engine, "Omniscience");
+    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+
+    assert!(play_self(&mut engine, "Omniscience"));
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(engine.choice.as_ref().expect("choice").reason, ChoiceReason::PlayCardFreeFromDraw);
+
+    engine.execute_action(&crate::actions::Action::Choose(0));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.state.hand[0].cost, 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+}

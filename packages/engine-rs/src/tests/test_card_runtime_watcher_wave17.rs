@@ -9,7 +9,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{Effect as E, GeneratedCardPool, GeneratedCostRule};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, GeneratedCardPool, GeneratedCostRule, Pile as P};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, ensure_in_hand, play_self};
 
@@ -116,8 +116,22 @@ fn watcher_wave17_deus_ex_machina_stays_queued_until_draw_trigger_card_instance_
 fn watcher_wave17_judgement_stays_queued_until_threshold_kill_primitive_exists() {}
 
 #[test]
-#[ignore = "Omniscience still needs a typed draw-pile choice / play-twice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java"]
-fn watcher_wave17_omniscience_stays_queued_until_choice_primitive_exists() {}
+fn watcher_wave17_omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let omniscience = global_registry()
+        .get("Omniscience")
+        .expect("Omniscience should be registered");
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
+}
 
 #[test]
 #[ignore = "Wish still needs payload-driven option resolution for Strength, Gold, and Plated Armor branches on the canonical decision surface; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wish.java"]

@@ -1192,7 +1192,10 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
             Pile::Discard => ChoiceReason::PickFromDiscard,
             _ => ChoiceReason::PutOnTopFromHand,
         },
-        ChoiceAction::PlayForFree => ChoiceReason::PlayCardFree,
+        ChoiceAction::PlayForFree => match source {
+            Pile::Draw => ChoiceReason::PlayCardFreeFromDraw,
+            _ => ChoiceReason::PlayCardFree,
+        },
         ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
         ChoiceAction::PutOnTopAtCostZero => ChoiceReason::SetupPick,

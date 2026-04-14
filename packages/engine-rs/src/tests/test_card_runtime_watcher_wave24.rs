@@ -7,9 +7,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
-use crate::tests::support::{engine_with, play_self};
+use crate::tests::support::{enemy_no_intent, engine_with, engine_without_start, force_player_turn, make_deck, play_self};
 
 #[test]
 fn watcher_wave24_registry_exports_match_typed_surface() {
@@ -78,6 +79,32 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
         ]
     );
     assert!(fasting_plus.complex_hook.is_none());
+
+    let omniscience = registry.get("Omniscience").expect("Omniscience should exist");
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
+
+    let omniscience_plus = registry.get("Omniscience+").expect("Omniscience+ should exist");
+    assert_eq!(
+        omniscience_plus.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience_plus.complex_hook.is_none());
 }
 
 #[test]
@@ -127,5 +154,29 @@ fn watcher_wave24_conjure_blade_follow_the_typed_generated_card_surface() {
 }
 
 #[test]
-#[ignore = "Omniscience still needs a typed draw-pile choice / play-twice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java"]
-fn watcher_wave24_omniscience_stays_queued_until_choice_primitive_exists() {}
+fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let mut engine = engine_without_start(
+        make_deck(&["Omniscience+", "Strike_P", "Defend_P"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        4,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 4;
+    engine.state.hand = make_deck(&["Omniscience+"]);
+    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+
+    assert!(play_self(&mut engine, "Omniscience+"));
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(
+        engine.choice.as_ref().expect("Omniscience+ should open a choice").reason,
+        ChoiceReason::PlayCardFreeFromDraw
+    );
+
+    engine.execute_action(&crate::actions::Action::Choose(0));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.state.hand[0].cost, 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+}

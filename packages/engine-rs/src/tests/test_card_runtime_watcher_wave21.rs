@@ -8,6 +8,8 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Fasting.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
 
+use crate::cards::global_registry;
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P};
 use crate::tests::support::*;
 
 #[test]
@@ -31,5 +33,19 @@ fn watcher_wave21_conjure_blade_stays_explicit_blocker_until_expunger_x_transfer
 fn watcher_wave21_fasting_stays_explicit_blocker_until_energy_down_effect_exists() {}
 
 #[test]
-#[ignore = "Omniscience still needs a typed draw-pile choice / play-twice primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java"]
-fn watcher_wave21_omniscience_stays_explicit_blocker_until_choice_primitive_exists() {}
+fn watcher_wave21_omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let omniscience = global_registry()
+        .get("Omniscience")
+        .expect("Omniscience should be registered");
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
+}

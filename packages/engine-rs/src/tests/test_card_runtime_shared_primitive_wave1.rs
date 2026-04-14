@@ -8,11 +8,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{
-    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
-};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::engine::{ChoiceReason, CombatPhase};
 use crate::tests::support::{
-    engine_without_start, enemy_no_intent, force_player_turn, make_deck, play_on_enemy, play_self,
+    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
 };
 
 #[test]
@@ -72,5 +71,41 @@ fn shared_primitive_wave1_reaper_heals_for_total_unblocked_damage() {
 fn shared_primitive_wave1_enlightenment_base_stays_explicitly_blocked() {}
 
 #[test]
-#[ignore = "Omniscience still needs a draw-pile card selection plus play-twice primitive; Java selects a card from the draw pile and queues it multiple times via OmniscienceAction. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java"]
-fn shared_primitive_wave1_omniscience_stays_explicitly_blocked() {}
+fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface() {
+    let omniscience = global_registry()
+        .get("Omniscience")
+        .expect("Omniscience should be registered");
+    assert_eq!(
+        omniscience.effect_data,
+        &[E::ChooseCards {
+            source: P::Draw,
+            filter: CardFilter::All,
+            action: ChoiceAction::PlayForFree,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(omniscience.complex_hook.is_none());
+
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Omniscience", "Strike_P", "Defend_P"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.state.energy = 4;
+    engine.state.hand = make_deck(&["Omniscience"]);
+    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+
+    assert!(play_self(&mut engine, "Omniscience"));
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(engine.choice.as_ref().expect("choice").reason, ChoiceReason::PlayCardFreeFromDraw);
+
+    engine.execute_action(&crate::actions::Action::Choose(0));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.state.hand[0].cost, 0);
+}
