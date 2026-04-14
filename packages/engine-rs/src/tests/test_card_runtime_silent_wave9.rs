@@ -115,11 +115,3 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
     tactician_engine.on_card_discarded(tactician);
     assert_eq!(tactician_engine.state.energy, 3);
 }
-
-#[test]
-#[ignore = "Reflex still needs a typed manual-discard reaction effect instead of tag-only behavior; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java"]
-fn silent_wave9_reflex_needs_typed_manual_discard_draw_reaction() {}
-
-#[test]
-#[ignore = "Tactician still needs a typed manual-discard reaction effect instead of tag-only behavior; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java"]
-fn silent_wave9_tactician_needs_typed_manual_discard_energy_reaction() {}
