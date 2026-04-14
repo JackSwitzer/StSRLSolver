@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `7`
-- card files still using `complex_hook`: `5`
-- unresolved public card files (union of empty typed programs and hook-backed files): `8`
+- card files with empty `effect_data`: `6`
+- card files still using `complex_hook`: `4`
+- unresolved public card files (union of empty typed programs and hook-backed files): `7`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -68,8 +68,9 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-- the currently verified unresolved public-card tail is: `Ritual Dagger`, `Scrape`, `Dual Wield`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
-- `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
+- the currently verified unresolved public-card tail is: `Ritual Dagger`, `Scrape`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
+  - `Blizzard` has now moved onto a typed `status count × card magic` damage source, so it no longer counts as a hook-backed or empty-program public card
+  - `Dual Wield` is now fully typed on the `AttackOrPower` choice path with copy-count routing through the choice context, so it no longer counts in the unresolved public-card tail
   - `Burning Pact` is now fully typed on the declarative choice-owned deferred-draw path, so it no longer counts in the hook-backed public-card tail
   - `Ritual Dagger` is no longer an empty typed-program shell; it now carries a typed damage body while its kill-scaling misc propagation stays hook-backed behind a Java-cited blocker
   - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels

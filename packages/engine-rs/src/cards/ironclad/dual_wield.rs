@@ -2,8 +2,6 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Uncommon: Dual Wield ----
-    // Still hook-backed until the shared attack-or-power union filter and
-    // copy-selection sequencing are fully typed.
     insert(cards, CardDef {
         id: "Dual Wield",
         name: "Dual Wield",
@@ -16,8 +14,15 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &["dual_wield"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_dual_wield),
+        effect_data: &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }],
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "Dual Wield+",
@@ -31,7 +36,14 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &["dual_wield"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_dual_wield),
+        effect_data: &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }],
+        complex_hook: None,
     });
 }

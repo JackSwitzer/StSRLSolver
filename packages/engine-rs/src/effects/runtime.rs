@@ -1209,6 +1209,12 @@ impl EffectRuntime {
             crate::effects::declarative::CardFilter::Attacks => {
                 engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Attack
             }
+            crate::effects::declarative::CardFilter::AttackOrPower => {
+                matches!(
+                    engine.card_registry.card_def_by_id(card.def_id).card_type,
+                    crate::cards::CardType::Attack | crate::cards::CardType::Power
+                )
+            }
             crate::effects::declarative::CardFilter::Skills => {
                 engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Skill
             }

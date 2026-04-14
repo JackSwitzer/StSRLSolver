@@ -10,7 +10,8 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{
-    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+    AmountSource as A, CardFilter, ChoiceAction, Condition as Cond, Effect as E, Pile as P,
+    SimpleEffect as SE, Target as T,
 };
 use crate::tests::support::*;
 
@@ -98,11 +99,20 @@ fn ironclad_wave13_feed_and_reaper_follow_the_typed_primary_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java attack-or-power union filtering for Dual Wield; the current declarative filter surface cannot express the card's option set. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/DualWield.java"]
-fn ironclad_wave13_dual_wield_stays_explicitly_hook_backed() {
+fn ironclad_wave13_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
     let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
-    assert!(dual_wield.effect_data.is_empty());
-    assert!(dual_wield.complex_hook.is_some());
+    assert_eq!(
+        dual_wield.effect_data,
+        &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }]
+    );
+    assert!(dual_wield.complex_hook.is_none());
 }
 
 #[test]

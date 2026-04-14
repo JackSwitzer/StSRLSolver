@@ -10,11 +10,28 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 
 #[test]
 fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
-    for card_id in ["Dual Wield", "Fiend Fire"] {
+    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield");
+    assert_eq!(
+        dual_wield.effect_data,
+        &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }]
+    );
+    assert!(dual_wield.complex_hook.is_none());
+
+    for card_id in ["Fiend Fire"] {
         let card = global_registry()
             .get(card_id)
             .unwrap_or_else(|| panic!("{card_id} should exist"));
@@ -98,8 +115,21 @@ fn ironclad_wave14_burning_pact_keeps_choice_body_with_choice_owned_draw_follow_
 }
 
 #[test]
-#[ignore = "Blocked on Java attack-or-power union filtering for Dual Wield; the current declarative filter surface cannot express the card's option set. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/DualWield.java"]
-fn ironclad_wave14_dual_wield_stays_explicitly_hook_backed() {}
+fn ironclad_wave14_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
+    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield");
+    assert_eq!(
+        dual_wield.effect_data,
+        &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }]
+    );
+    assert!(dual_wield.complex_hook.is_none());
+}
 
 #[test]
 #[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current hook still owns the hand-exhaust + per-card damage loop. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]

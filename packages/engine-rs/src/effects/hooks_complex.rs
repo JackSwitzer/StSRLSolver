@@ -308,33 +308,6 @@ pub fn hook_exhume(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     }
 }
 
-/// Dual Wield: copy a card from hand (choice).
-pub fn hook_dual_wield(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let copies = ctx.card.base_magic.max(1) as usize;
-    let options: Vec<ChoiceOption> = engine
-        .state
-        .hand
-        .iter()
-        .enumerate()
-        .filter(|(_, card)| {
-            matches!(
-                engine.card_registry.card_def_by_id(card.def_id).card_type,
-                CardType::Attack | CardType::Power
-            )
-        })
-        .map(|(i, _)| ChoiceOption::HandCard(i))
-        .collect();
-    if !options.is_empty() {
-        engine.begin_choice_with_aux(
-            ChoiceReason::DualWield,
-            options,
-            1,
-            1,
-            copies,
-        );
-    }
-}
-
 /// Armaments: upgrade one card in hand (choice).
 pub fn hook_upgrade_one_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let upgradeable: Vec<usize> = engine.state.hand.iter()
@@ -1232,20 +1205,5 @@ pub fn hook_glass_knife(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     };
     with_runtime_played_card_mut(engine, |card| {
         card.misc = (current_damage - 2).max(0) as i16;
-    });
-}
-
-/// Ritual Dagger: if the kill condition fired, increase the played instance's current damage.
-pub fn hook_ritual_dagger(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if !ctx.enemy_killed {
-        return;
-    }
-    let current_damage = if ctx.card_inst.misc >= 0 {
-        ctx.card_inst.misc as i32
-    } else {
-        ctx.card.base_damage
-    };
-    with_runtime_played_card_mut(engine, |card| {
-        card.misc = (current_damage + ctx.card.base_magic.max(1)) as i16;
     });
 }

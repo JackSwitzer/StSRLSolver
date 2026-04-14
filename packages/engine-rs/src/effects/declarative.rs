@@ -178,6 +178,8 @@ pub enum BulkAction {
 pub enum CardFilter {
     All,
     Attacks,
+    /// Attack or Power cards only.
+    AttackOrPower,
     Skills,
     NonAttacks,
     ZeroCost,

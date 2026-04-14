@@ -86,8 +86,18 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     assert!(true_grit.complex_hook.is_none());
 
     let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
-    assert!(dual_wield.effect_data.is_empty());
-    assert!(dual_wield.complex_hook.is_some());
+    assert_eq!(
+        dual_wield.effect_data,
+        &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }]
+    );
+    assert!(dual_wield.complex_hook.is_none());
 
     let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
     assert!(fiend_fire.effect_data.is_empty());
@@ -152,8 +162,21 @@ fn ironclad_wave12_true_grit_base_uses_the_typed_random_exhaust_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java attack-or-power union filtering for Dual Wield; the current declarative filter surface cannot express the card's option set. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/DualWield.java"]
-fn ironclad_wave12_dual_wield_stays_explicitly_hook_backed() {}
+fn ironclad_wave12_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
+    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield");
+    assert_eq!(
+        dual_wield.effect_data,
+        &[E::ChooseCards {
+            source: P::Hand,
+            filter: CardFilter::AttackOrPower,
+            action: ChoiceAction::CopyToHand,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+            post_choice_draw: A::Fixed(0),
+        }]
+    );
+    assert!(dual_wield.complex_hook.is_none());
+}
 
 #[test]
 #[ignore = "Blocked on Java exhaust/per-hit sequencing for Fiend Fire; the current declarative surface still lacks exhaust-before-damage ordering. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/FiendFire.java"]

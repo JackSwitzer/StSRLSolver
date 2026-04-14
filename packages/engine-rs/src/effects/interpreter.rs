@@ -1166,7 +1166,17 @@ fn execute_choose_cards(
     }
 
     let reason = choice_reason_for_action(action, source);
-    engine.begin_choice(reason, options, min_picks, max_picks);
+    if matches!(action, ChoiceAction::CopyToHand) {
+        engine.begin_choice_with_aux(
+            reason,
+            options,
+            min_picks,
+            max_picks,
+            ctx.card.base_magic.max(1) as usize,
+        );
+    } else {
+        engine.begin_choice(reason, options, min_picks, max_picks);
+    }
     if post_choice_draw_src != AmountSource::Fixed(0) {
         let post_choice_draw = resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0);
         if let Some(choice) = engine.choice.as_mut() {
@@ -1206,6 +1216,12 @@ fn matches_filter(
         CardFilter::All => true,
         CardFilter::Attacks => {
             engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
+        }
+        CardFilter::AttackOrPower => {
+            matches!(
+                engine.card_registry.card_def_by_id(card.def_id).card_type,
+                CardType::Attack | CardType::Power
+            )
         }
         CardFilter::Skills => {
             engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Skill
