@@ -206,10 +206,9 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- Defect frost/order follow-up centered on `Fission`, `Reboot`, and `Scrape`
 - Dead Adventurer event/runtime follow-up narrowed to the ascension-sensitive first-search roll
-- Colorless utility follow-up centered on `Enlightenment` and `Violence`
-- small-primitive Ironclad/Silent bundle centered on `Feed`, `Reaper`, `Alchemize`, `All-Out Attack`, `Bane`, `Escape Plan`, and `Malaise`
+- dead-export cleanup follow-up centered on `src/powers/registry.rs`, `src/powers/mod.rs`, and `src/effects/dispatch.rs`
+- read-only remaining-tail regroup and broad-audit preparation
 
 Each worker must return:
 
