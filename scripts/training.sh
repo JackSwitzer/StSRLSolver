@@ -28,8 +28,65 @@ mkdir -p "$PID_DIR" "logs/runs"
 
 # -- Helpers -------------------------------------------------------
 
+active_link_is_legacy_dir() {
+    [ -d "$ACTIVE_LINK" ] && [ ! -L "$ACTIVE_LINK" ]
+}
+
+resolve_active_run_dir() {
+    if [ -L "$ACTIVE_LINK" ]; then
+        (
+            cd "$(dirname "$ACTIVE_LINK")" &&
+            cd "$(readlink "$ACTIVE_LINK")" &&
+            pwd
+        )
+        return 0
+    fi
+
+    local latest_run
+    latest_run=$(ls -td logs/runs/run_* 2>/dev/null | head -1)
+    if [ -n "$latest_run" ] && [ -d "$latest_run" ]; then
+        (
+            cd "$latest_run" &&
+            pwd
+        )
+        return 0
+    fi
+
+    return 1
+}
+
+resolve_latest_run_with_file() {
+    local file_name="$1"
+    local run_dir
+    for run_dir in $(ls -td logs/runs/run_* 2>/dev/null); do
+        if [ -f "$run_dir/$file_name" ]; then
+            (
+                cd "$run_dir" &&
+                pwd
+            )
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+migrate_legacy_active_dir_if_needed() {
+    if ! active_link_is_legacy_dir; then
+        return 0
+    fi
+
+    local timestamp archive_dir
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    archive_dir="logs/archive/active_legacy_${timestamp}"
+    mkdir -p "logs/archive"
+    mv "$ACTIVE_LINK" "$archive_dir"
+    echo "Migrated legacy logs/active directory to $archive_dir" >&2
+}
+
 create_run_dir() {
     local label="${1:-}"
+    migrate_legacy_active_dir_if_needed
     local timestamp
     timestamp=$(date +%Y%m%d_%H%M%S)
     local name="run_${timestamp}"
@@ -172,7 +229,7 @@ cmd_start() {
     fi
 
     # Parse args
-    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog="" algorithm=""
+    local games=10000 workers=8 batch=256 asc=0 headless="" resume="" watchdog="" algorithm="" sweep_config=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --games)   games=$2; shift 2 ;;
@@ -185,6 +242,7 @@ cmd_start() {
             --overnight) weekend="--overnight"; shift ;;
             --watchdog) watchdog="1"; shift ;;
             --algorithm) algorithm="--algorithm $2"; shift 2 ;;
+            --sweep-config) sweep_config="--sweep-config $2"; shift 2 ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -219,6 +277,7 @@ cmd_start() {
         $resume \
         $weekend \
         $algorithm \
+        $sweep_config \
         > "$run_log" 2>&1 &
 
     local train_pid=$!
@@ -270,7 +329,14 @@ cmd_status() {
     echo ""
 
     # Read status from active run
-    local status_file="$ACTIVE_LINK/status.json"
+    local active_run_dir=""
+    active_run_dir=$(resolve_active_run_dir 2>/dev/null || true)
+    local status_run_dir="$active_run_dir"
+    if [ -z "$status_run_dir" ] || [ ! -f "$status_run_dir/status.json" ]; then
+        status_run_dir=$(resolve_latest_run_with_file "status.json" 2>/dev/null || true)
+    fi
+    local status_file=""
+    [ -n "$status_run_dir" ] && status_file="$status_run_dir/status.json"
     if [ -f "$status_file" ]; then
         echo "--- Latest Status ($status_file) ---"
         uv run python -c "
@@ -293,7 +359,12 @@ print(f'Config:      {s.get(\"config_name\", \"?\")}')
     echo ""
 
     # Tail log from active run, fallback to latest archived run
-    local latest_log="$ACTIVE_LINK/nohup.log"
+    local latest_log=""
+    local log_run_dir="$active_run_dir"
+    if [ -z "$log_run_dir" ] || [ ! -f "$log_run_dir/nohup.log" ]; then
+        log_run_dir=$(resolve_latest_run_with_file "nohup.log" 2>/dev/null || true)
+    fi
+    [ -n "$log_run_dir" ] && latest_log="$log_run_dir/nohup.log"
     if [ ! -f "$latest_log" ]; then
         latest_log=$(ls -t logs/runs/run_*/nohup.log 2>/dev/null | head -1)
     fi
@@ -377,8 +448,10 @@ cmd_resume() {
 
     # Look in active run first, then scan archived runs
     local latest_checkpoint=""
-    if [ -L "$ACTIVE_LINK" ]; then
-        latest_checkpoint=$(ls -t "$ACTIVE_LINK"/checkpoint_*.pt "$ACTIVE_LINK"/shutdown_checkpoint.pt 2>/dev/null | head -1)
+    local active_run_dir=""
+    active_run_dir=$(resolve_active_run_dir 2>/dev/null || true)
+    if [ -n "$active_run_dir" ]; then
+        latest_checkpoint=$(ls -t "$active_run_dir"/checkpoint_*.pt "$active_run_dir"/shutdown_checkpoint.pt 2>/dev/null | head -1)
     fi
     if [ -z "$latest_checkpoint" ]; then
         latest_checkpoint=$(ls -t logs/runs/*/checkpoint_*.pt logs/runs/*/shutdown_checkpoint.pt 2>/dev/null | head -1)
@@ -396,14 +469,12 @@ cmd_archive() {
     # Archive the current active run
     local label="${1:-}"
 
-    if [ ! -L "$ACTIVE_LINK" ]; then
-        echo "No active run to archive (logs/active symlink not found)."
+    local run_dir=""
+    run_dir=$(resolve_active_run_dir 2>/dev/null || true)
+    if [ -z "$run_dir" ]; then
+        echo "No active run to archive."
         return 1
     fi
-
-    # Resolve the symlink to an absolute path
-    local run_dir
-    run_dir=$(cd "$(dirname "$ACTIVE_LINK")" && cd "$(readlink "$ACTIVE_LINK")" && pwd)
 
     if [ ! -d "$run_dir" ]; then
         echo "Active run directory does not exist: $run_dir"

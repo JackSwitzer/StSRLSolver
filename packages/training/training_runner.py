@@ -1593,6 +1593,15 @@ def main():
     else:
         sweep = DEFAULT_SWEEP_CONFIGS
 
+    if args.sweep_config:
+        matching = [cfg for cfg in sweep if cfg.get("name") == args.sweep_config]
+        if not matching:
+            parser.error(
+                f"--sweep-config {args.sweep_config!r} not found in selected sweep set: "
+                f"{', '.join(cfg.get('name', '<unnamed>') for cfg in sweep)}"
+            )
+        sweep = matching
+
     # --algorithm flag overrides algorithm in all sweep configs
     if args.algorithm:
         sweep = [{**cfg, "algorithm": args.algorithm} for cfg in sweep]
