@@ -53,13 +53,15 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Reaper`
 - `Violence`
 - `Ritual Dagger` damage body
+- `Escape Plan`
+- `Malaise`
+- `Lesson Learned`
 
-The currently verified unresolved public-card tail is `19` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
+The currently verified unresolved public-card tail is `16` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
 - `Enlightenment` base
-- `Escape Plan`
 - `Omniscience`
 
 The recent non-play cleanup also retired the stale blocker sentinels for:
