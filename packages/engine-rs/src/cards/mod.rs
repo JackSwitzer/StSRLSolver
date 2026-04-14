@@ -420,6 +420,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ChannelRandomOrb(_)
         | SimpleEffect::DiscardRandomCardsFromPile(_, _)
         | SimpleEffect::PlayTopCardOfDraw
+        | SimpleEffect::ResolveFission { .. }
         | SimpleEffect::RemoveEnemyBlock(_)
         | SimpleEffect::UpgradeRandomCardFromPiles(_)
         | SimpleEffect::FleeCombat => {}

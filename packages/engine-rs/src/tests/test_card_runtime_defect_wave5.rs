@@ -36,15 +36,28 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     let reg = global_registry();
 
     let double_energy = reg.get("Double Energy").expect("Double Energy");
-    assert!(double_energy.effect_data.is_empty());
-    assert!(double_energy.complex_hook.is_some());
+    assert_eq!(
+        double_energy.effect_data,
+        &[E::Simple(SE::DoubleEnergy)]
+    );
+    assert!(double_energy.complex_hook.is_none());
 
     let fission = reg.get("Fission").expect("Fission");
-    assert!(fission.effect_data.is_empty());
-    assert!(fission.complex_hook.is_some());
+    assert_eq!(
+        fission.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: false })]
+    );
+    assert!(fission.complex_hook.is_none());
+
+    let fission_plus = reg.get("Fission+").expect("Fission+");
+    assert_eq!(
+        fission_plus.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: true })]
+    );
+    assert!(fission_plus.complex_hook.is_none());
 
     let force_field = reg.get("Force Field").expect("Force Field");
-    assert!(force_field.effect_data.is_empty());
+    assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(force_field.complex_hook.is_none());
     assert!(force_field.effects.contains(&"reduce_cost_per_power"));
 
@@ -64,7 +77,7 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     assert!(hello_world.complex_hook.is_none());
 
     let leap = reg.get("Leap+").expect("Leap+");
-    assert!(leap.effect_data.is_empty());
+    assert_eq!(leap.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(leap.complex_hook.is_none());
 
     let loop_card = reg.get("Loop+").expect("Loop+");
@@ -82,7 +95,7 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
         false,
         Some("Force Field"),
     );
-    assert_eq!(schema.declared_effect_count, 0);
+    assert_eq!(schema.declared_effect_count, 1);
 }
 
 #[test]

@@ -1153,6 +1153,7 @@ impl EffectRuntime {
                 engine.state.energy = engine.state.energy.min(engine.state.max_energy);
             }
             SimpleEffect::PlayTopCardOfDraw => {}
+            SimpleEffect::ResolveFission { .. } => {}
             SimpleEffect::ModifyGold(_amount_src) => {}
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;

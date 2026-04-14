@@ -411,6 +411,22 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        // -- Fission --
+        SimpleEffect::ResolveFission { evoke } => {
+            let orb_count = engine.state.orb_slots.occupied_count() as i32;
+            if evoke {
+                engine.evoke_all_orbs();
+            } else {
+                let max_slots = engine.state.orb_slots.max_slots;
+                engine.state.orb_slots.slots =
+                    vec![crate::orbs::Orb::new(crate::orbs::OrbType::Empty); max_slots];
+            }
+            if orb_count > 0 {
+                engine.state.energy += orb_count;
+                engine.draw_cards(orb_count);
+            }
+        }
+
         // -- Evoke front orb --
         SimpleEffect::EvokeOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);

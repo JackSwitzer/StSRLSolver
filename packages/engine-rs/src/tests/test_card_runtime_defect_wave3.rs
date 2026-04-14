@@ -91,6 +91,20 @@ fn test_card_runtime_defect_wave3_registry_exports_surface_x_cost_and_exhaust_hi
     );
     assert!(reboot_def.complex_hook.is_none());
 
+    let fission_def = crate::cards::global_registry().get("Fission").expect("Fission");
+    assert_eq!(
+        fission_def.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: false })]
+    );
+    assert!(fission_def.complex_hook.is_none());
+
+    let fission_plus_def = crate::cards::global_registry().get("Fission+").expect("Fission+");
+    assert_eq!(
+        fission_plus_def.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: true })]
+    );
+    assert!(fission_plus_def.complex_hook.is_none());
+
     let force_field = assert_gameplay_card_export(
         "Force Field+",
         CardType::Skill,

@@ -82,8 +82,18 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     assert!(darkness_plus.complex_hook.is_none());
 
     let fission = global_registry().get("Fission").expect("Fission");
-    assert!(fission.effect_data.is_empty());
-    assert!(fission.complex_hook.is_some());
+    assert_eq!(
+        fission.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: false })]
+    );
+    assert!(fission.complex_hook.is_none());
+
+    let fission_plus = global_registry().get("Fission+").expect("Fission+");
+    assert_eq!(
+        fission_plus.effect_data,
+        &[E::Simple(SE::ResolveFission { evoke: true })]
+    );
+    assert!(fission_plus.complex_hook.is_none());
 
     let reboot = global_registry().get("Reboot").expect("Reboot");
     assert_eq!(
@@ -258,10 +268,6 @@ fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
     assert_eq!(engine.state.orb_slots.front_orb_type(), OrbType::Plasma);
     assert_eq!(engine.state.energy, 4);
 }
-
-#[test]
-#[ignore = "Fission still needs a remove-all-orbs primitive before the energy/draw payload can be typed; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java removes or evokes all orbs first, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java as the card entry point."]
-fn fission_still_needs_remove_all_orbs_before_payload() {}
 
 #[test]
 fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {

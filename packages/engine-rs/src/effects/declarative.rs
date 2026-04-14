@@ -287,6 +287,8 @@ pub enum SimpleEffect {
     EvokeOrb(AmountSource),
     /// Evoke the front orb, then channel the same orb type back.
     EvokeAndRechannelFrontOrb,
+    /// Fission: remove or evoke all orbs, then gain energy and draw per occupied orb.
+    ResolveFission { evoke: bool },
     /// Change player stance.
     ChangeStance(Stance),
     /// Set a boolean flag on combat state.
