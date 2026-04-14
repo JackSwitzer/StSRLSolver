@@ -48,7 +48,3 @@ fn madness_sets_one_random_eligible_hand_card_to_zero_cost_and_exhausts() {
         1
     );
 }
-
-#[test]
-#[ignore = "Enlightenment still needs the turn-only cost-reduction primitive; Java updates costForTurn for the turn and only permanently reduces upgraded cards. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java"]
-fn enlightenment_still_needs_turn_only_cost_reduction_primitive() {}

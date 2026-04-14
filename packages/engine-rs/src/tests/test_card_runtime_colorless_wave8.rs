@@ -125,9 +125,5 @@ fn impatience_does_not_draw_when_an_attack_is_present() {
 }
 
 #[test]
-#[ignore = "Enlightenment still needs the turn-only cost-reduction primitive; Java updates costForTurn for the turn and only permanently reduces upgraded cards. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java"]
-fn enlightenment_still_needs_turn_only_cost_reduction_primitive() {}
-
-#[test]
 #[ignore = "Madness still needs a random-hand-card zero-cost primitive; Java repeatedly samples the hand until it finds a card that can be reduced. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Madness.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MadnessAction.java"]
 fn madness_still_needs_random_hand_card_zero_cost_primitive() {}

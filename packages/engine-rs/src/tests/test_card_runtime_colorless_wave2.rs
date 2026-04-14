@@ -92,10 +92,6 @@ fn apotheosis_upgrades_all_cards_across_all_piles() {
 }
 
 #[test]
-#[ignore = "Enlightenment still needs a turn-only cost-reduction primitive; Java uses costForTurn without permanently changing the underlying cost for non-upgraded cards."]
-fn enlightenment_still_needs_turn_only_cost_reduction() {}
-
-#[test]
 #[ignore = "Impatience still needs a no-attacks-in-hand primitive; Java checks the current hand contents before drawing."]
 fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 

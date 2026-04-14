@@ -72,10 +72,6 @@ fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
 fn forethought_still_needs_single_card_auto_resolve_primitive() {}
 
 #[test]
-#[ignore = "Enlightenment still needs a turn-only cost-reduction primitive; Java updates costForTurn for the turn and only permanently reduces upgraded cards."]
-fn enlightenment_still_needs_turn_only_cost_reduction_primitive() {}
-
-#[test]
 #[ignore = "Impatience still needs a no-attacks-in-hand primitive; Java checks the current hand contents before drawing."]
 fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 

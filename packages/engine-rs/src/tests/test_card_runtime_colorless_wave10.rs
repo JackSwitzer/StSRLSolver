@@ -12,7 +12,7 @@ use crate::engine::CombatPhase;
 use crate::tests::support::{end_turn, enemy_no_intent, force_player_turn, make_deck, play_self, TEST_SEED};
 
 #[test]
-fn violence_uses_the_typed_random_attack_fetch_surface() {
+fn colorless_wave10_registry_exports_enlightenment_and_violence_typed_surfaces() {
     let enlightenment = global_registry().get("Enlightenment").expect("Enlightenment");
     assert_eq!(
         enlightenment.effect_data,
