@@ -840,7 +840,9 @@ impl CombatEngine {
         self.state.player.set_status(sid::DISCARDED_THIS_TURN, 0);
 
         // Necronomicon reset
-        relics::necronomicon_reset(&mut self.state);
+        if self.state.has_relic("Necronomicon") {
+            self.state.player.set_status(sid::NECRONOMICON_USED, 0);
+        }
 
         // All turn-start relic + power effects via owner-aware runtime.
         self.emit_event(crate::effects::runtime::GameEvent {
@@ -1726,8 +1728,12 @@ impl CombatEngine {
         if !self.state.combat_over {
             let is_attack = card.card_type == CardType::Attack;
             let effective = self.effective_cost_inst(&card, card_inst);
-            if relics::necronomicon_should_trigger(&self.state, effective, is_attack) {
-                relics::necronomicon_mark_used(&mut self.state);
+            if self.state.has_relic("Necronomicon")
+                && is_attack
+                && effective >= 2
+                && self.state.player.status(sid::NECRONOMICON_USED) == 0
+            {
+                self.state.player.set_status(sid::NECRONOMICON_USED, 1);
                 crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
             }
         }

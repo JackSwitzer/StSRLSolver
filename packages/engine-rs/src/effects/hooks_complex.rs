@@ -607,22 +607,6 @@ pub fn hook_enlightenment(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     }
 }
 
-/// Madness: random card in hand costs 0 this combat.
-pub fn hook_madness(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    let eligible: Vec<usize> = engine.state.hand.iter()
-        .enumerate()
-        .filter(|(_, c)| {
-            let def = engine.card_registry.card_def_by_id(c.def_id);
-            def.cost > 0
-        })
-        .map(|(i, _)| i)
-        .collect();
-    if !eligible.is_empty() {
-        let idx = eligible[engine.rng_gen_range(0..eligible.len())];
-        engine.state.hand[idx].cost = 0;
-    }
-}
-
 // =========================================================================
 // Upgrade effects
 // =========================================================================

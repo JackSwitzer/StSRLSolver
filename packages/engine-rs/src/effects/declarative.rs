@@ -240,6 +240,8 @@ pub enum SimpleEffect {
     DrawCards(AmountSource),
     /// Draw up to a target hand size.
     DrawToHandSize(AmountSource),
+    /// Set a random eligible card in hand to exact cost.
+    SetRandomHandCardCost(i32),
     /// Gain energy.
     GainEnergy(AmountSource),
     /// Double current energy.
