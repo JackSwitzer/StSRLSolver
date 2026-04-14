@@ -419,6 +419,11 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::PlayTopCardOfDraw
         | SimpleEffect::RemoveEnemyBlock(_)
         | SimpleEffect::FleeCombat => {}
+        SimpleEffect::DrawRandomCardsFromPileToHand(_, _, source) => {
+            if amount_uses_x_cost(source) {
+                amounts.push(*source);
+            }
+        }
     }
 }
 

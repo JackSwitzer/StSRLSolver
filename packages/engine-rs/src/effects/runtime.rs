@@ -966,6 +966,42 @@ impl EffectRuntime {
                     engine.channel_orb(orb_types[idx]);
                 }
             }
+            SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, count_src) => {
+                let count = self.resolve_amount(engine, instance_idx, owner, count_src).max(0) as usize;
+                if count == 0 {
+                    return;
+                }
+                let mut picked = Vec::new();
+                let mut eligible: Vec<usize> = self
+                    .pile_ref(engine, pile)
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, card)| self.matches_filter(engine, card, filter))
+                    .map(|(idx, _)| idx)
+                    .collect();
+                for _ in 0..count {
+                    if eligible.is_empty() {
+                        break;
+                    }
+                    let choice_idx = engine.rng_gen_range(0..eligible.len());
+                    let idx = eligible.remove(choice_idx);
+                    let source = self.pile_ref_mut(engine, pile);
+                    if idx < source.len() {
+                        picked.push(source.remove(idx));
+                        eligible = eligible
+                            .into_iter()
+                            .map(|n| if n > idx { n - 1 } else { n })
+                            .collect();
+                    }
+                }
+                for card in picked {
+                    if engine.state.hand.len() < 10 {
+                        engine.state.hand.push(card);
+                    } else {
+                        engine.state.discard_pile.push(card);
+                    }
+                }
+            }
             SimpleEffect::RemoveOrbSlot => {
                 let focus = engine.state.player.focus();
                 let evoke = engine.state.orb_slots.remove_slot(focus);
@@ -1100,6 +1136,58 @@ impl EffectRuntime {
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;
             }
+        }
+    }
+
+    fn pile_ref<'a>(
+        &self,
+        engine: &'a CombatEngine,
+        pile: crate::effects::declarative::Pile,
+    ) -> &'a [crate::combat_types::CardInstance] {
+        match pile {
+            crate::effects::declarative::Pile::Hand => &engine.state.hand,
+            crate::effects::declarative::Pile::Draw => &engine.state.draw_pile,
+            crate::effects::declarative::Pile::Discard => &engine.state.discard_pile,
+            crate::effects::declarative::Pile::Exhaust => &engine.state.exhaust_pile,
+        }
+    }
+
+    fn pile_ref_mut<'a>(
+        &self,
+        engine: &'a mut CombatEngine,
+        pile: crate::effects::declarative::Pile,
+    ) -> &'a mut Vec<crate::combat_types::CardInstance> {
+        match pile {
+            crate::effects::declarative::Pile::Hand => &mut engine.state.hand,
+            crate::effects::declarative::Pile::Draw => &mut engine.state.draw_pile,
+            crate::effects::declarative::Pile::Discard => &mut engine.state.discard_pile,
+            crate::effects::declarative::Pile::Exhaust => &mut engine.state.exhaust_pile,
+        }
+    }
+
+    fn matches_filter(
+        &self,
+        engine: &CombatEngine,
+        card: &crate::combat_types::CardInstance,
+        filter: crate::effects::declarative::CardFilter,
+    ) -> bool {
+        match filter {
+            crate::effects::declarative::CardFilter::All => true,
+            crate::effects::declarative::CardFilter::Attacks => {
+                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Attack
+            }
+            crate::effects::declarative::CardFilter::Skills => {
+                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Skill
+            }
+            crate::effects::declarative::CardFilter::NonAttacks => {
+                engine.card_registry.card_def_by_id(card.def_id).card_type != crate::cards::CardType::Attack
+            }
+            crate::effects::declarative::CardFilter::ZeroCost => {
+                let def = engine.card_registry.card_def_by_id(card.def_id);
+                let current_cost = if card.cost >= 0 { card.cost as i32 } else { def.cost };
+                current_cost == 0
+            }
+            crate::effects::declarative::CardFilter::Upgradeable => !card.is_upgraded(),
         }
     }
 

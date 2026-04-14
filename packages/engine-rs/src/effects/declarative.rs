@@ -242,6 +242,8 @@ pub enum SimpleEffect {
     DrawToHandSize(AmountSource),
     /// Set a random eligible card in hand to exact cost.
     SetRandomHandCardCost(i32),
+    /// Move random matching cards from a pile to hand.
+    DrawRandomCardsFromPileToHand(Pile, CardFilter, AmountSource),
     /// Trigger Dark orb passive accumulation once.
     TriggerDarkPassive,
     /// Gain energy.

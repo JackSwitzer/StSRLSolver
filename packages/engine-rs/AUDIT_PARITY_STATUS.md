@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `16`
-- card files still using `complex_hook`: `23`
-- unresolved public card files (union of empty typed programs and hook-backed files): `26`
+- card files with empty `effect_data`: `15`
+- card files still using `complex_hook`: `22`
+- unresolved public card files (union of empty typed programs and hook-backed files): `25`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -59,7 +59,7 @@ Empty-`effect_data` card backlog by class:
 - Defect: `4`
 - Silent: `4`
 - Ironclad: `3`
-- Colorless: `3`
+- Colorless: `2`
 
 Additional shared-file tail outside the five main class folders:
 

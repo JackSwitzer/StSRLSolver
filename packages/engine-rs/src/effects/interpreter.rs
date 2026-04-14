@@ -257,6 +257,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, ref count_src) => {
+            execute_draw_random_cards_from_pile_to_hand(engine, ctx, pile, filter, *count_src);
+        }
+
         // -- Energy --
         SimpleEffect::GainEnergy(ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
@@ -1240,6 +1244,51 @@ fn execute_for_each(
             for card in moved {
                 engine.state.draw_pile.insert(0, card);
             }
+        }
+    }
+}
+
+fn execute_draw_random_cards_from_pile_to_hand(
+    engine: &mut CombatEngine,
+    ctx: &mut CardPlayContext,
+    pile: Pile,
+    filter: CardFilter,
+    count_src: AmountSource,
+) {
+    let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    if count == 0 {
+        return;
+    }
+
+    let mut picked = Vec::new();
+    let mut eligible: Vec<usize> = get_pile(engine, pile)
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| matches_filter(engine, card, filter))
+        .map(|(idx, _)| idx)
+        .collect();
+
+    for _ in 0..count {
+        if eligible.is_empty() {
+            break;
+        }
+        let choice_idx = engine.rng_gen_range(0..eligible.len());
+        let idx = eligible.remove(choice_idx);
+        let source = get_pile_mut(engine, pile);
+        if idx < source.len() {
+            picked.push(source.remove(idx));
+            eligible = eligible
+                .into_iter()
+                .map(|n| if n > idx { n - 1 } else { n })
+                .collect();
+        }
+    }
+
+    for card in picked {
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
         }
     }
 }
