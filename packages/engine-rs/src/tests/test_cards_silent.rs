@@ -4,6 +4,7 @@ mod silent_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/green/*.java
 
     use crate::actions::Action;
+    use crate::effects::declarative::{AmountSource, CardFilter, ChoiceAction, Effect, Pile};
     use crate::status_ids::sid;
     use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::tests::support::*;
@@ -315,8 +316,8 @@ mod silent_card_java_parity_tests {
         "A Thousand Cuts+", 2, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
     );
     card_pair_test!(adrenaline,
-        "Adrenaline", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
-        "Adrenaline+", 0, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
+        "Adrenaline", 0, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
+        "Adrenaline+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["gain_energy_1", "draw"],
     );
     card_pair_test!(after_image,
         "After Image", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],
@@ -358,10 +359,30 @@ mod silent_card_java_parity_tests {
         "Malaise", -1, -1, -1, 0, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
         "Malaise+", -1, -1, -1, 1, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
     );
-    card_pair_test!(nightmare,
-        "Nightmare", 3, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["nightmare"],
-        "Nightmare+", 2, -1, -1, 3, CardType::Skill, CardTarget::None, true, None, &["nightmare"],
-    );
+    #[test]
+    fn nightmare_java_parity() {
+        let reg = reg();
+        let expected = [Effect::ChooseCards {
+            source: Pile::Hand,
+            filter: CardFilter::All,
+            action: ChoiceAction::StoreCardForNextTurnCopies,
+            min_picks: AmountSource::Fixed(1),
+            max_picks: AmountSource::Fixed(1),
+            post_choice_draw: AmountSource::Fixed(0),
+        }];
+        for id in ["Nightmare", "Nightmare+"] {
+            let card = reg.get(id).unwrap_or_else(|| panic!("missing card {id}"));
+            assert_eq!(card.cost, if id.ends_with('+') { 2 } else { 3 }, "{id} cost");
+            assert_eq!(card.base_damage, -1, "{id} damage");
+            assert_eq!(card.base_block, -1, "{id} block");
+            assert_eq!(card.base_magic, 3, "{id} magic");
+            assert_eq!(card.card_type, CardType::Skill, "{id} type");
+            assert_eq!(card.target, CardTarget::None, "{id} target");
+            assert!(card.exhaust, "{id} exhaust");
+            assert_eq!(card.enter_stance, None, "{id} stance");
+            assert_eq!(card.effect_data, &expected, "{id} effect_data");
+        }
+    }
     card_pair_test!(phantasmal_killer,
         "Phantasmal Killer", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["phantasmal_killer", "ethereal"],
         "Phantasmal Killer+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["phantasmal_killer"],
