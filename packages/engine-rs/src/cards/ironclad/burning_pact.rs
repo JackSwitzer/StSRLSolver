@@ -2,7 +2,8 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Uncommon: Burning Pact ----
-    // cost 1, exhaust 1 card, draw 2; upgrade: draw 3
+    // Typed choice body is in place; the deferred draw after exhaustion still
+    // stays hook-backed until the shared post-choice sequencing primitive lands.
     insert(cards, CardDef {
         id: "Burning Pact",
         name: "Burning Pact",

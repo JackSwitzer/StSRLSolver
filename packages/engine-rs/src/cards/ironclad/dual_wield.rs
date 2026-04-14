@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Dual Wield ---- (cost 1, copy 1 attack/power in hand; upgrade: 2 copies)
+    // ---- Ironclad Uncommon: Dual Wield ----
+    // Still hook-backed until the shared attack-or-power union filter and
+    // copy-selection sequencing are fully typed.
     insert(cards, CardDef {
         id: "Dual Wield",
         name: "Dual Wield",
