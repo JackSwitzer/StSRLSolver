@@ -228,7 +228,6 @@ fn orb_wave1_emotion_chip_should_wait_until_next_turn_start_like_java() {
 }
 
 #[test]
-#[ignore = "blocked on shared reboot hook outside this slice: current runtime moves hand+discard into draw without the Java shuffle-before-draw step"]
 fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
     let mut engine = engine_without_start(
         Vec::new(),
@@ -239,6 +238,14 @@ fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
     engine.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
     engine.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
     assert!(play_self(&mut engine, "Reboot"));
+
+    assert_eq!(engine.state.hand.len(), 4);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.exhaust_pile[0].def_id),
+        "Reboot"
+    );
+    assert_eq!(engine.state.discard_pile.len(), 0);
 }
 
 #[test]

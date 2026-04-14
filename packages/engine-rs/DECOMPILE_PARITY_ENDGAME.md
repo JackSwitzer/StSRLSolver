@@ -181,7 +181,6 @@ Priority entities:
 - `Streamline`
 - `Chaos`
 - `Fission`
-- `Reboot`
 - `Barrage`
 - `Liquid Memories`
 - `Distilled Chaos`
@@ -260,7 +259,6 @@ These are the currently verified card-tail clusters that should drive the next p
 - Defect frost/order cluster:
   - `Blizzard`
   - `Fission`
-  - `Reboot`
   - `Scrape`
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`

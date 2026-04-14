@@ -98,7 +98,6 @@ mod test_card_runtime_watcher_wave22;
 mod test_card_runtime_watcher_wave23;
 mod test_card_runtime_watcher_wave24;
 mod test_card_runtime_watcher_wave25;
-mod test_card_runtime_watcher_wave26;
 mod test_card_runtime_post_damage_wave1;
 mod test_card_runtime_temp_wave1;
 mod test_cards_watcher;

@@ -10,7 +10,7 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
@@ -86,8 +86,19 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     assert!(fission.complex_hook.is_some());
 
     let reboot = global_registry().get("Reboot").expect("Reboot");
-    assert!(reboot.effect_data.is_empty());
-    assert!(reboot.complex_hook.is_some());
+    assert_eq!(
+        reboot.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::All,
+                action: BulkAction::Discard,
+            },
+            E::Simple(SE::ShuffleDiscardIntoDraw),
+            E::Simple(SE::DrawCards(A::Magic)),
+        ]
+    );
+    assert!(reboot.complex_hook.is_none());
 
     let redo = global_registry().get("Redo").expect("Redo");
     assert_eq!(
@@ -129,7 +140,7 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
 }
 
 #[test]
-fn fission_reboot_and_scrape_follow_the_current_hooked_defect_runtime_paths() {
+fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
     let mut fission = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 60, 60)],
@@ -253,8 +264,27 @@ fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
 fn fission_still_needs_remove_all_orbs_before_payload() {}
 
 #[test]
-#[ignore = "Reboot still needs a shuffle-hand-and-discard-into-draw primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java moves the whole hand and discard before drawing, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Reboot.java as the card entry point."]
-fn reboot_still_needs_shuffle_hand_and_discard_into_draw() {}
+fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
+    let mut reboot = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut reboot);
+    reboot.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    reboot.state.draw_pile.clear();
+    reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
+
+    assert!(play_self(&mut reboot, "Reboot"));
+
+    assert_eq!(reboot.state.hand.len(), 4);
+    assert_eq!(reboot.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        "Reboot"
+    );
+    assert_eq!(reboot.state.discard_pile.len(), 0);
+}
 
 #[test]
 #[ignore = "Scrape still needs a draw-then-discard-non-zero-cost follow-up primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeAction.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeFollowUpAction.java split the draw and follow-up discard after resolution."]

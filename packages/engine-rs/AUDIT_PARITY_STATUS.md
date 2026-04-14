@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `11`
-- card files still using `complex_hook`: `11`
-- unresolved public card files (union of empty typed programs and hook-backed files): `14`
+- card files with empty `effect_data`: `10`
+- card files still using `complex_hook`: `10`
+- unresolved public card files (union of empty typed programs and hook-backed files): `13`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -68,7 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-  - the currently verified unresolved public-card tail is: `Ritual Dagger`, `Blizzard`, `Fission`, `Reboot`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `True Grit`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
+  - the currently verified unresolved public-card tail is: `Ritual Dagger`, `Blizzard`, `Fission`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `True Grit`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
   - `Ritual Dagger` is no longer an empty typed-program shell; it now carries a typed damage body while its kill-scaling misc propagation stays hook-backed behind a Java-cited blocker
   - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels
   - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment` is now on the typed turn-only cost path, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
@@ -365,7 +365,7 @@ Goal:
 
 Goal:
 
-- retire the ignored `Emotion Chip`, `Liquid Memories`, `Blizzard`, `Fission`, `Reboot`, and `Scrape` blocker cases
+- retire the ignored `Emotion Chip`, `Liquid Memories`, `Blizzard`, `Fission`, and `Scrape` blocker cases
 - continue shrinking the `complex_hook` tail by adding shared primitives instead of bespoke patches
 
 ### Wave 4: final dead-export cleanup
@@ -400,7 +400,7 @@ These are the remaining coordinator-confirmed blockers on the integrated branch.
 ### Current queued blockers, not red integrated tests
 
 - `src/tests/test_orb_runtime_java_wave1.rs`
-  - `Emotion Chip`, `Liquid Memories`, and `Reboot` still need richer orb/choice timing primitives and remain explicit `#[ignore]` blockers.
+  - `Emotion Chip` and `Liquid Memories` still need richer orb/choice timing primitives and remain explicit `#[ignore]` blockers.
 - `src/tests/test_power_runtime_debuff_enemy.rs`
   - Still carries a legacy Time Warp expectation and should be migrated to the Java oracle at `decompiled/java-src/com/megacrit/cardcrawl/powers/TimeWarpPower.java`.
 - `src/events/exordium.rs`

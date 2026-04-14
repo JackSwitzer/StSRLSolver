@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::cards::{CardTarget, CardType};
-use crate::effects::declarative::AmountSource as A;
+use crate::effects::declarative::{AmountSource as A, BulkAction, CardFilter, Effect as E, Pile as P, SimpleEffect as SE};
 use crate::gameplay::GameplayProgramSource;
 use crate::orbs::OrbType;
 use crate::tests::support::{
@@ -71,7 +71,25 @@ fn test_card_runtime_defect_wave3_registry_exports_surface_x_cost_and_exhaust_hi
         true,
         Some("Reboot"),
     );
-    assert_eq!(reboot.declared_effect_count, 0);
+    assert_eq!(
+        reboot.declared_effect_count,
+        3,
+        "Reboot should expose discard/shuffle/draw effects"
+    );
+    let reboot_def = crate::cards::global_registry().get("Reboot").expect("Reboot");
+    assert_eq!(
+        reboot_def.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::All,
+                action: BulkAction::Discard,
+            },
+            E::Simple(SE::ShuffleDiscardIntoDraw),
+            E::Simple(SE::DrawCards(A::Magic)),
+        ]
+    );
+    assert!(reboot_def.complex_hook.is_none());
 
     let force_field = assert_gameplay_card_export(
         "Force Field+",
@@ -81,7 +99,7 @@ fn test_card_runtime_defect_wave3_registry_exports_surface_x_cost_and_exhaust_hi
         false,
         Some("Force Field"),
     );
-    assert_eq!(force_field.declared_effect_count, 0);
+    assert_eq!(force_field.declared_effect_count, 1);
 }
 
 #[test]
