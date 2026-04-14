@@ -57,6 +57,7 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
      - at most 1 shared-runtime implementation worker touching `effects/**`, `engine.rs`, or `run.rs`
      - 1-2 isolated implementation workers on disjoint per-card/test scopes
      - remaining slots can be read-only audits or blocker-inventory passes
+   - do not rely on heartbeat automation as the primary loop driver; the coordinator should directly poll workers, harvest completions, and refill open slots during active work
    - if all workers are idle or done, that is a notify-worthy loop gap and the next wave should be spawned right away
 
 9. Commit cadence is part of the loop.
