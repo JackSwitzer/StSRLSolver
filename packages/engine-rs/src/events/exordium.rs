@@ -107,7 +107,8 @@ fn dead_adventurer_page(
     )
 }
 
-fn dead_adventurer_intro() -> EventProgram {
+pub(crate) fn dead_adventurer_event(ascension_level: i32) -> TypedEventDef {
+    let encounter_chance = if ascension_level >= 15 { 35 } else { 25 };
     use DeadAdventurerReward::{Gold, Nothing, Relic};
 
     let permutations = [
@@ -127,11 +128,21 @@ fn dead_adventurer_intro() -> EventProgram {
         );
         let page3 = dead_adventurer_page(rewards, 2, success, 75);
         let page2 = dead_adventurer_page(rewards, 1, page3, 50);
-        let page1 = dead_adventurer_page(rewards, 0, page2, 25);
+        let page1 = dead_adventurer_page(rewards, 0, page2, encounter_chance);
         outcomes.push(page1.options[0].program.ops.clone());
     }
 
-    EventProgram::from_ops(vec![EventProgramOp::random_outcome_table(outcomes)])
+    event(
+        "Dead Adventurer",
+        vec![
+            supported(
+                "Search (risk elite fight, gain gold/relic)",
+                vec![EventProgramOp::random_outcome_table(outcomes)],
+                EventEffect::DamageAndGold(0, 30),
+            ),
+            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+        ],
+    )
 }
 
 pub fn typed_act1_events() -> Vec<TypedEventDef> {
@@ -228,15 +239,7 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
         ),
         event(
             "Dead Adventurer",
-            vec![
-                blocked(
-                    "Search (risk elite fight, gain gold/relic)",
-                    dead_adventurer_intro().ops,
-                    EventEffect::DamageAndGold(0, 30),
-                    "requires ascension-sensitive initial encounter chance (25%/35%) on the first search roll",
-                ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
+            dead_adventurer_event(25).options,
         ),
         event(
             "Golden Wing",

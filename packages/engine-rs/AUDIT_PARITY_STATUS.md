@@ -68,7 +68,7 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless utility residue
-- the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` remains the last explicit Java-cited supported-event parity gap rather than a silent approximation
+  - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect frost/order, and Colorless utility/cost-mutation behavior
 
@@ -172,7 +172,7 @@ What improved in the recent waves:
 - [`src/tests/test_events_parity.rs:103`](./src/tests/test_events_parity.rs#L103)
 - [`src/run.rs:1404`](./src/run.rs#L1404)
 
-The remaining blocked-op set for supported content is now empty, including `Spire Heart`, which now runs through the canonical final-act resolution path instead of an honest blocker. `Dead Adventurer` remains as an explicit typed-status blocker with one named ascension-sensitive search-roll gap rather than an opaque placeholder op.
+The remaining blocked-op set for supported content is now empty, including `Spire Heart`, which now runs through the canonical final-act resolution path instead of an honest blocker. `Dead Adventurer` now resolves its ascension-sensitive search roll through the canonical typed runtime instead of an opaque placeholder op.
 
 ### 7. Dead systems are reduced and mostly pruned, but one oracle family still remains
 
@@ -281,8 +281,8 @@ What improved in the recent waves:
 
 ### Coverage that still does not prove full parity
 
-- `Dead Adventurer` is still only partly behavioral:
-  - the typed program skeleton and blocker reporting are honest, but the ascension-sensitive first search roll still needs a shared event/search-state primitive
+- `Dead Adventurer` is now behavioral:
+  - the typed program skeleton, runtime normalization, and ascension-sensitive first search roll all run through the canonical typed path
 - a short card-tail still relies on hooks or empty programs:
   - the remaining files are concentrated in discard sequencing, orb-ordering, damage-follow-up, and Colorless utility/scaling families rather than broad architectural gaps
 
@@ -344,7 +344,7 @@ Own:
 
 Goal:
 
-- finish `Dead Adventurer` with the ascension-sensitive first-search roll while keeping the existing typed search ramp and reward-order skeleton
+- `Dead Adventurer` is complete on the supported typed path, including the ascension-sensitive first-search roll and existing search ramp / reward-order skeleton
 
 ### Wave 3: broad audit before final parity sweep
 
@@ -400,4 +400,4 @@ These are the remaining coordinator-confirmed blockers on the integrated branch.
 - `src/tests/test_power_runtime_debuff_enemy.rs`
   - Still carries a legacy Time Warp expectation and should be migrated to the Java oracle at `decompiled/java-src/com/megacrit/cardcrawl/powers/TimeWarpPower.java`.
 - `src/events/exordium.rs`
-  - `Dead Adventurer` still needs the ascension-sensitive first-search-roll primitive even though blocked event ops are otherwise at zero.
+  - `Dead Adventurer` now runs on the ascension-sensitive first-search-roll path, and blocked event ops remain at zero for supported content.

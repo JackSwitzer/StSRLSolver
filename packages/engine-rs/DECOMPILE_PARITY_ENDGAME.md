@@ -195,7 +195,6 @@ Target semantics:
 
 Priority entities:
 
-- `Dead Adventurer`
 - `Colosseum`
 - `Cursed Tome`
 - `Secret Portal`
@@ -206,7 +205,6 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- Dead Adventurer event/runtime follow-up narrowed to the ascension-sensitive first-search roll
 - dead-export cleanup follow-up centered on `src/powers/registry.rs`, `src/powers/mod.rs`, and `src/effects/dispatch.rs`
 - read-only remaining-tail regroup and broad-audit preparation
 
@@ -257,7 +255,7 @@ The shared primitive themes behind those clusters are now clear:
 - turn-only hand cost reduction
 - post-damage amount resolution from unblocked damage
 - draw-pile-size and card-owned misc scaling
-- event-local persistent search-state ramp and elite-combat continuation for `Dead Adventurer`
+- event-local persistent search-state ramp and elite-combat continuation for `Dead Adventurer` remains fully modeled on the typed path
 
 ## Test Policy
 

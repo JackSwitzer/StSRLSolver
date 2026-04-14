@@ -19,18 +19,6 @@ mod event_java_parity_tests {
             .unwrap_or_else(|| panic!("missing typed shrine event {name}"))
     }
 
-    fn assert_blocked(event: &TypedEventDef, option_index: usize, reason: &str) {
-        match &event.options[option_index].status {
-            EventRuntimeStatus::Blocked { reason: actual } => {
-                assert!(
-                    actual.contains(reason),
-                    "blocked reason `{actual}` did not contain `{reason}`"
-                );
-            }
-            other => panic!("expected blocked option, found {other:?}"),
-        }
-    }
-
     #[test]
     fn typed_and_legacy_catalog_sizes_match_current_port_target() {
         assert_eq!(typed_events_for_act(1).len(), events_for_act(1).len());
@@ -122,13 +110,16 @@ mod event_java_parity_tests {
     }
 
     #[test]
-    fn blocked_placeholder_events_are_explicit_in_the_typed_catalog() {
+    fn dead_adventurer_is_supported_in_the_typed_catalog() {
         let dead_adventurer = typed_event(1, "Dead Adventurer");
-        assert_blocked(
-            &dead_adventurer,
-            0,
-            "requires ascension-sensitive initial encounter chance",
-        );
+        assert!(matches!(
+            dead_adventurer.options[0].status,
+            EventRuntimeStatus::Supported
+        ));
+        assert!(matches!(
+            dead_adventurer.options[0].program.ops.as_slice(),
+            [EventProgramOp::RandomOutcomeTable { outcomes }] if outcomes.len() == 6
+        ));
     }
 
     #[test]

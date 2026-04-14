@@ -7,6 +7,8 @@ mod city;
 mod beyond;
 mod shrines;
 
+pub(crate) use exordium::dead_adventurer_event;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDef {
     pub name: String,

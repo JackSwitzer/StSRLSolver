@@ -2347,11 +2347,18 @@ impl RunEngine {
         }
     }
 
+    fn normalize_event_runtime_state(&self, event: &mut TypedEventDef) {
+        self.normalize_event_runtime_statuses(event);
+        if event.name == "Dead Adventurer" {
+            *event = crate::events::dead_adventurer_event(self.run_state.ascension);
+        }
+    }
+
     fn enter_event(&mut self) {
         let events = typed_events_for_act(self.run_state.act);
         let idx = self.rng.gen_range(0..events.len());
         let mut event = events[idx].clone();
-        self.normalize_event_runtime_statuses(&mut event);
+        self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
@@ -3135,7 +3142,7 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_set_event_state(&mut self, event: crate::events::EventDef) {
         let mut event = TypedEventDef::from(event);
-        self.normalize_event_runtime_statuses(&mut event);
+        self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
@@ -3144,10 +3151,15 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_set_typed_event_state(&mut self, event: TypedEventDef) {
         let mut event = event;
-        self.normalize_event_runtime_statuses(&mut event);
+        self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_current_event(&self) -> Option<TypedEventDef> {
+        self.current_event.clone()
     }
 
     #[cfg(test)]
