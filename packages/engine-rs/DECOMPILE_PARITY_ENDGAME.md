@@ -59,8 +59,9 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Reboot`
 - `Fission`
 - `True Grit`
+- `Second Wind`
 
-The currently verified unresolved public-card tail is `11` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
+The currently verified unresolved public-card tail is `10` files, plus `3` shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`).
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -235,8 +236,8 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- shared card-primitive follow-up centered on the exhaust/count family (`Fiend Fire`, `Second Wind`) with `Dual Wield` and `Blizzard` queued behind it
-- isolated card-tail readiness packets for `Nightmare` and `Ritual Dagger`, plus cleanup-trio recount hygiene for `Reflex`, `Tactician`, and `Deus Ex Machina`
+- shared card-primitive follow-up centered on `Blizzard`, with `Dual Wield` and `Nightmare` queued behind it
+- isolated card-tail readiness packets for `Ritual Dagger`, the cleanup-only non-play trio (`Reflex`, `Tactician`, `Deus Ex Machina`), and the queued `Seek+` multi-pick runtime fix
 - read-only pathing for the first post-card-tail representative parity sweep once the unresolved public-card tail drops into single digits
 
 Each worker must return:

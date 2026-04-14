@@ -14,6 +14,11 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
      - card files still using `complex_hook`
      - remaining `EventProgramOp::blocked(...)`
      - remaining relic helper/oracle references in `src/relics/mod.rs` and `src/tests/test_relics_parity.rs`
+   - For the public-card tail counts, exclude shared/support modules that are not public card implementations:
+     - `src/cards/mod.rs`
+     - `src/cards/status.rs`
+     - `src/cards/curses.rs`
+     - `src/cards/temp.rs`
 
 3. Convert every confirmed gap into one of two things only:
    - a landed engine-path test in the same wave

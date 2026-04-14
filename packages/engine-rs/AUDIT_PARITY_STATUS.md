@@ -45,9 +45,9 @@ Interpretation:
 
 These counts come from the current verified production tree and are useful as a hard baseline for future worker waves:
 
-- card files with empty `effect_data`: `9`
-- card files still using `complex_hook`: `8`
-- unresolved public card files (union of empty typed programs and hook-backed files): `11`
+- card files with empty `effect_data`: `8`
+- card files still using `complex_hook`: `7`
+- unresolved public card files (union of empty typed programs and hook-backed files): `10`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
@@ -58,7 +58,7 @@ Empty-`effect_data` card backlog by class:
 - Watcher: `1`
 - Defect: `2`
 - Silent: `3`
-- Ironclad: `3`
+- Ironclad: `2`
 - Colorless: `0`
 
 Additional shared-file tail outside the five main class folders:
@@ -68,10 +68,10 @@ Additional shared-file tail outside the five main class folders:
 What those numbers mean:
 
 - the card registry is broad, but the remaining file-level tail is now much smaller and concentrated in retained-state, generated-choice, orb-scaling, manual-discard, post-damage-context families, and a very short colorless / Watcher utility residue
-  - the currently verified unresolved public-card tail is: `Ritual Dagger`, `Blizzard`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Second Wind`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
+  - the currently verified unresolved public-card tail is: `Ritual Dagger`, `Blizzard`, `Scrape`, `Burning Pact`, `Dual Wield`, `Fiend Fire`, `Nightmare`, `Reflex`, `Tactician`, and `Deus Ex Machina`
   - `Ritual Dagger` is no longer an empty typed-program shell; it now carries a typed damage body while its kill-scaling misc propagation stays hook-backed behind a Java-cited blocker
   - `Reflex`, `Tactician`, and `Deus Ex Machina` are now carried by verified runtime draw/discard hook coverage rather than stale blocker sentinels
-  - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment`, `Reboot`, `Fission`, and base `True Grit` are now on typed runtime/declarative paths, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
+  - `Escape Plan`, `Malaise`, and `Lesson Learned` are now on typed runtime surfaces; `Enlightenment`, `Reboot`, `Fission`, base `True Grit`, and `Second Wind` are now on typed runtime/declarative paths, while `Malaise` / `Lesson Learned` have moved out of the hook-backed public-card tail
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
 - the easiest remaining non-hook empties are now concentrated in a few real primitive families: Silent discard/queue sequencing, Ironclad exhaust/top-play, Defect frost/order, and Colorless utility/cost-mutation behavior
