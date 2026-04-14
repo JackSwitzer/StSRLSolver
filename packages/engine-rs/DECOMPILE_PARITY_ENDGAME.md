@@ -43,14 +43,15 @@ Minimum worker acceptance:
 
 ## Current Checkpoint
 
-This slice moved the following cards onto the typed primary surface:
+Recent accepted card/runtime slices moved the following cards onto the typed primary surface:
 
 - `FTL`
 - `Bane`
 - `Feed`
 - `All-Out Attack`
+- `Violence`
 
-The remaining explicit blockers in this bundle are still Java-cited and intentional:
+The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
 - `Enlightenment` base
 - `Escape Plan`
@@ -219,8 +220,9 @@ Priority entities:
 
 These bundles are intentionally disjoint by write scope:
 
-- dead-export cleanup follow-up centered on `src/powers/registry.rs`, `src/powers/mod.rs`, and `src/effects/dispatch.rs`
-- read-only remaining-tail regroup and broad-audit preparation
+- shared card-primitive follow-up centered on `Enlightenment`, `Escape Plan`, `Alchemize`, `Reaper`, `Deus Ex Machina`, and `Omniscience`
+- isolated stale-cleanup / dead-shim follow-up centered on already-identified stale ignores and dead relic shim residue
+- read-only broad-audit preparation for the first representative parity sweep after the next 1-2 card landings
 
 Each worker must return:
 
@@ -240,16 +242,13 @@ These are the currently verified card-tail clusters that should drive the next p
 - Ironclad exhaust/top-play cluster:
   - `Burning Pact`
   - `Dual Wield`
-  - `Feed`
   - `Fiend Fire`
-  - `Reaper`
   - `Second Wind`
 - Defect frost/order cluster:
   - `Blizzard`
   - `Fission`
   - `Reboot`
   - `Scrape`
-  - `FTL`
 - Watcher decision/payload cluster:
   - `Deus Ex Machina`
   - `Lesson Learned`
@@ -257,7 +256,6 @@ These are the currently verified card-tail clusters that should drive the next p
 - Colorless utility/scaling cluster:
   - `Enlightenment`
   - `Ritual Dagger`
-  - `Violence`
 
 The shared primitive themes behind those clusters are now clear:
 

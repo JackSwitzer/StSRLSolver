@@ -30,6 +30,8 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
 5. Keep the coordinator on audit, verification, and worker slicing.
    - Subagents own bounded write scopes plus their focused tests.
    - Do not credit a worker slice until the integrated branch passes its wrapper checks locally.
+   - Maintain `3` occupied worker slots whenever real work exists.
+   - If one worker finishes while others are still running, immediately refill that empty slot with the next disjoint slice instead of waiting for the whole batch.
 
 6. Keep the parity source of truth explicit.
    - Java oracle: `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src`
@@ -51,6 +53,7 @@ Use this repo-level loop when working on `packages/engine-rs` parity and cleanup
    - when a worker finishes, it should send that completion report right away instead of waiting for a follow-up prompt
    - after each accepted slice, immediately queue the next bounded wave unless the user explicitly pauses
    - immediately queue the next bounded wave after every accepted slice so the coordinator never goes idle
+   - if all workers are idle or done, that is a notify-worthy loop gap and the next wave should be spawned right away
 
 9. Commit cadence is part of the loop.
    - Do not wait for one giant end-of-cycle commit.
