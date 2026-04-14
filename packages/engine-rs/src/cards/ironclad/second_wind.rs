@@ -2,8 +2,9 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Uncommon: Second Wind ----
-    // Still hook-backed until the shared exhaust-all-non-attacks + per-card
-    // block primitive is typed.
+    // Fully typed: exhaust all non-attacks, then gain block equal to the
+    // number of exhausted cards times the card's block value. The shared
+    // count-return primitive is carried by `AmountSource::LastBulkCount`.
     insert(cards, CardDef {
         id: "Second Wind",
         name: "Second Wind",
@@ -16,8 +17,15 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &["second_wind"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_second_wind),
+        effect_data: &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::NonAttacks,
+                action: crate::effects::declarative::BulkAction::Exhaust,
+            },
+            E::Simple(SE::GainBlock(A::LastBulkCountTimesBlock)),
+        ],
+        complex_hook: None,
     });
     insert(cards, CardDef {
         id: "Second Wind+",
@@ -31,7 +39,14 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
         effects: &["second_wind"],
-        effect_data: &[],
-        complex_hook: Some(crate::effects::hooks_complex::hook_second_wind),
+        effect_data: &[
+            E::ForEachInPile {
+                pile: P::Hand,
+                filter: CardFilter::NonAttacks,
+                action: crate::effects::declarative::BulkAction::Exhaust,
+            },
+            E::Simple(SE::GainBlock(A::LastBulkCountTimesBlock)),
+        ],
+        complex_hook: None,
     });
 }

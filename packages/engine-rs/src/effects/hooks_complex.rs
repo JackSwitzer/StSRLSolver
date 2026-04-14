@@ -527,30 +527,6 @@ pub fn hook_fiend_fire(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     }
 }
 
-/// Second Wind: exhaust all non-attack cards in hand, gain block per exhaust.
-pub fn hook_second_wind(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let block_per = ctx.card.base_block.max(5);
-    let dex = engine.state.player.dexterity();
-    let frail = engine.state.player.is_frail();
-    let mut to_exhaust = Vec::new();
-    let mut remaining = Vec::new();
-    for hand_card in engine.state.hand.drain(..) {
-        let is_attack = engine.card_registry.card_def_by_id(hand_card.def_id).card_type == CardType::Attack;
-        if is_attack {
-            remaining.push(hand_card);
-        } else {
-            to_exhaust.push(hand_card);
-        }
-    }
-    let exhaust_count = to_exhaust.len() as i32;
-    exhaust_pile_cards(engine, to_exhaust);
-    engine.state.hand = remaining;
-    if exhaust_count > 0 {
-        let block = damage::calculate_block(block_per * exhaust_count, dex, frail);
-        engine.gain_block_player(block);
-    }
-}
-
 /// Exhaust non-attacks from hand (e.g. Warcry variant).
 pub fn hook_exhaust_non_attacks(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let mut remaining = Vec::new();

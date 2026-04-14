@@ -1328,6 +1328,8 @@ impl EffectRuntime {
             // card-specific sources are intentionally inert on the owner-aware effect runtime.
             AmountSource::HandSizeAtPlay => 0,
             AmountSource::HandSizeAtPlayPlus(bonus) => bonus,
+            AmountSource::LastBulkCount => 0,
+            AmountSource::LastBulkCountTimesBlock => 0,
             AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
             AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
             AmountSource::SkillsInHand => engine

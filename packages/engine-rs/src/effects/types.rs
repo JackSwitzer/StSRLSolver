@@ -23,6 +23,8 @@ pub struct CardPlayContext<'a> {
     pub enemy_killed: bool,
     /// Hand size after the played card has been removed from hand.
     pub hand_size_at_play: usize,
+    /// Count recorded by the most recent bulk pile operation in this card play.
+    pub last_bulk_count: i32,
 }
 
 /// Damage modifier returned by modify_damage hooks.

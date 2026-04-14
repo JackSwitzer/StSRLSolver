@@ -14,7 +14,7 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 
 #[test]
 fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
-    for card_id in ["Dual Wield", "Fiend Fire", "Second Wind"] {
+    for card_id in ["Dual Wield", "Fiend Fire"] {
         let card = global_registry()
             .get(card_id)
             .unwrap_or_else(|| panic!("{card_id} should exist"));
@@ -103,8 +103,21 @@ fn ironclad_wave14_dual_wield_stays_explicitly_hook_backed() {}
 fn ironclad_wave14_fiend_fire_stays_explicitly_hook_backed() {}
 
 #[test]
-#[ignore = "Blocked on Java non-attack bulk exhaust sequencing for Second Wind; the current runtime still needs a typed exhaust-all-non-attacks + per-card block primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/SecondWind.java"]
-fn ironclad_wave14_second_wind_stays_explicitly_hook_backed() {}
+fn ironclad_wave14_second_wind_uses_the_typed_bulk_exhaust_and_count_return_surface() {
+    let second_wind = global_registry().get("Second Wind").expect("Second Wind");
+    assert_eq!(
+        second_wind.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: crate::effects::declarative::Pile::Hand,
+                filter: crate::effects::declarative::CardFilter::NonAttacks,
+                action: crate::effects::declarative::BulkAction::Exhaust,
+            },
+            E::Simple(SE::GainBlock(A::LastBulkCountTimesBlock)),
+        ]
+    );
+    assert!(second_wind.complex_hook.is_none());
+}
 
 #[test]
 fn ironclad_wave14_true_grit_base_uses_the_typed_random_exhaust_surface() {

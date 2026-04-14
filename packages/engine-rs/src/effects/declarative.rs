@@ -73,6 +73,10 @@ pub enum AmountSource {
     HandSizeAtPlay,
     /// Number of cards in hand when the current card began resolving, plus N.
     HandSizeAtPlayPlus(i32),
+    /// Number of cards matched by the most recent bulk pile action in this card play.
+    LastBulkCount,
+    /// Most recent bulk pile count multiplied by the card's base block.
+    LastBulkCountTimesBlock,
     /// Player's current block value.
     PlayerBlock,
     /// Discard pile size.
@@ -360,7 +364,8 @@ pub enum Effect {
 
     /// Apply a bulk action to all cards matching a filter in a pile.
     /// Covers: Apotheosis (upgrade all), Enlightenment (set cost 1), Second Wind,
-    /// All For One, Forethought+, etc.
+    /// All For One, Forethought+, etc. The matching count is stored for follow-up
+    /// effects via `AmountSource::LastBulkCount`.
     ForEachInPile {
         pile: Pile,
         filter: CardFilter,

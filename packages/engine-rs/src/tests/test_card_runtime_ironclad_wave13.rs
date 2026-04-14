@@ -121,9 +121,18 @@ fn ironclad_wave13_havoc_uses_the_typed_play_top_card_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java non-attack bulk exhaust sequencing for Second Wind; the current runtime still needs a typed exhaust-all-non-attacks + per-card block primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/SecondWind.java"]
-fn ironclad_wave13_second_wind_stays_explicitly_hook_backed() {
+fn ironclad_wave13_second_wind_uses_the_typed_bulk_exhaust_and_count_return_surface() {
     let second_wind = global_registry().get("Second Wind").expect("Second Wind should exist");
-    assert!(second_wind.effect_data.is_empty());
-    assert!(second_wind.complex_hook.is_some());
+    assert_eq!(
+        second_wind.effect_data,
+        &[
+            E::ForEachInPile {
+                pile: crate::effects::declarative::Pile::Hand,
+                filter: crate::effects::declarative::CardFilter::NonAttacks,
+                action: crate::effects::declarative::BulkAction::Exhaust,
+            },
+            E::Simple(SE::GainBlock(A::LastBulkCountTimesBlock)),
+        ]
+    );
+    assert!(second_wind.complex_hook.is_none());
 }
