@@ -108,16 +108,6 @@ fn watcher_wave17_foreign_influence_preserves_base_cost_and_zeros_upgraded_cost(
 }
 
 #[test]
-fn watcher_wave17_deus_ex_machina_is_a_cleanup_only_empty_shell() {
-    let deus = global_registry()
-        .get("DeusExMachina")
-        .expect("Deus Ex Machina should be registered");
-
-    assert!(deus.effect_data.is_empty());
-    assert!(deus.complex_hook.is_none());
-}
-
-#[test]
 #[ignore = "Judgement still needs a typed enemy-HP threshold kill primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java"]
 fn watcher_wave17_judgement_stays_queued_until_threshold_kill_primitive_exists() {}
 

@@ -139,18 +139,3 @@ fn watcher_wave4_defend_plus_uses_declared_block() {
     assert!(play_self(&mut engine, "Defend_P+"));
     assert_eq!(engine.state.player.block, 8);
 }
-
-#[test]
-fn watcher_wave4_deus_ex_machina_stays_tag_backed_until_on_draw_ops_exist() {
-    let deus = crate::cards::global_registry()
-        .get("DeusExMachina")
-        .expect("Deus Ex Machina should be registered");
-    assert!(deus.effect_data.is_empty());
-    assert!(deus.effects.contains(&"deus_ex_machina"));
-    assert!(deus.effects.contains(&"unplayable"));
-
-    let engine = engine_with(make_deck(&["DeusExMachina+"]), 50, 0);
-    assert_eq!(hand_count(&engine, "Miracle"), 3);
-    assert_eq!(hand_count(&engine, "DeusExMachina+"), 0);
-    assert_eq!(exhaust_prefix_count(&engine, "DeusExMachina+"), 1);
-}

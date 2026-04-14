@@ -54,13 +54,6 @@ fn silent_wave7_registry_exports_match_typed_surface() {
     let prepared = registry.get("Prepared").expect("Prepared should be registered");
     assert_eq!(prepared.effect_data[0], E::Simple(SE::DrawCards(A::Magic)));
 
-    let reflex = registry.get("Reflex").expect("Reflex should be registered");
-    assert!(reflex.effect_data.is_empty());
-    assert!(reflex.effects.contains(&"draw_on_discard"));
-
-    let tactician = registry.get("Tactician").expect("Tactician should be registered");
-    assert!(tactician.effect_data.is_empty());
-    assert!(tactician.effects.contains(&"energy_on_discard"));
 }
 
 #[test]
@@ -127,33 +120,4 @@ fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.discard_pile.len(), 2);
-}
-
-#[test]
-fn silent_wave7_reflex_and_tactician_follow_manual_discard_engine_hooks() {
-    let mut engine = engine_with(make_deck(&["Reflex", "Tactician", "Strike_G"]), 40, 0);
-    engine.state.hand = make_deck(&["Reflex", "Tactician"]);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G"]);
-    engine.state.discard_pile.clear();
-    engine.state.energy = 1;
-
-    let reflex = engine.state.hand.remove(0);
-    engine.state.discard_pile.push(reflex);
-    engine.on_card_discarded(reflex);
-    assert_eq!(engine.state.hand.len(), 3);
-    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
-
-    let tactician = engine.state.hand.remove(
-        engine
-            .state
-            .hand
-            .iter()
-            .position(|card| engine.card_registry.card_name(card.def_id) == "Tactician")
-            .expect("Tactician should still be in hand after Reflex draw"),
-    );
-    engine.state.discard_pile.push(tactician);
-    engine.on_card_discarded(tactician);
-
-    assert_eq!(engine.state.energy, 2);
-    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
 }

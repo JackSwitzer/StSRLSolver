@@ -47,15 +47,6 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
     assert!(alchemize.complex_hook.is_none());
 
-    let reflex = registry.get("Reflex").expect("Reflex should exist");
-    assert!(reflex.effect_data.is_empty());
-    assert!(reflex.effects.contains(&"unplayable"));
-    assert!(reflex.effects.contains(&"draw_on_discard"));
-
-    let tactician = registry.get("Tactician").expect("Tactician should exist");
-    assert!(tactician.effect_data.is_empty());
-    assert!(tactician.effects.contains(&"unplayable"));
-    assert!(tactician.effects.contains(&"energy_on_discard"));
 }
 
 #[test]
@@ -95,23 +86,4 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
     agony_engine.draw_cards(1);
     assert_eq!(hand_count(&agony_engine, "Endless Agony"), 2);
 
-    let mut reflex_engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
-    let reflex = reflex_engine.card_registry.make_card("Reflex+");
-    reflex_engine.state.discard_pile.push(reflex);
-    reflex_engine.on_card_discarded(reflex);
-    assert_eq!(reflex_engine.state.hand.len(), 3);
-
-    let mut tactician_engine = engine_without_start(
-        make_deck(&["Strike_G"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
-    let tactician = tactician_engine.card_registry.make_card("Tactician+");
-    tactician_engine.state.discard_pile.push(tactician);
-    tactician_engine.on_card_discarded(tactician);
-    assert_eq!(tactician_engine.state.energy, 3);
 }

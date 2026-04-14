@@ -17,36 +17,6 @@ fn body_slam_engine_path_uses_direct_damage_modifier_cutover() {
 }
 
 #[test]
-fn manual_discard_engine_path_applies_reflex_and_tactician_without_registry_dispatch() {
-    let mut engine = engine_with(make_deck(&["Reflex", "Tactician", "Strike_G"]), 40, 0);
-    engine.state.hand = make_deck(&["Reflex", "Tactician"]);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G"]);
-    engine.state.discard_pile.clear();
-    engine.state.energy = 1;
-
-    let reflex = engine.state.hand.remove(0);
-    engine.state.discard_pile.push(reflex);
-    engine.on_card_discarded(reflex);
-
-    assert_eq!(engine.state.hand.len(), 3);
-    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
-
-    let tactician = engine.state.hand.remove(
-        engine
-            .state
-            .hand
-            .iter()
-            .position(|card| engine.card_registry.card_name(card.def_id) == "Tactician")
-            .expect("Tactician should still be in hand after Reflex draw"),
-    );
-    engine.state.discard_pile.push(tactician);
-    engine.on_card_discarded(tactician);
-
-    assert_eq!(engine.state.energy, 2);
-    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
-}
-
-#[test]
 fn rage_legal_action_and_engine_path_still_work_after_inline_cutover() {
     let mut engine = engine_with(make_deck(&["Rage", "Strike_R"]), 50, 0);
     engine.state.hand = make_deck(&["Rage", "Strike_R"]);

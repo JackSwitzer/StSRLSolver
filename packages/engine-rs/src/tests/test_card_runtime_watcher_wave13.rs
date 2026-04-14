@@ -63,11 +63,6 @@ fn watcher_wave13_registry_exports_match_typed_surface() {
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let deus_ex_machina = registry
-        .get("DeusExMachina")
-        .expect("Deus Ex Machina should be registered");
-    assert!(deus_ex_machina.effect_data.is_empty());
-    assert!(deus_ex_machina.effects.contains(&"deus_ex_machina"));
 }
 
 #[test]

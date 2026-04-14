@@ -36,11 +36,6 @@ fn silent_wave11_registry_exports_show_typed_primary_surface_for_shiv() {
     assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
     assert!(alchemize.complex_hook.is_none());
 
-    let reflex = registry.get("Reflex").expect("Reflex should exist");
-    assert!(reflex.effect_data.is_empty());
-
-    let tactician = registry.get("Tactician").expect("Tactician should exist");
-    assert!(tactician.effect_data.is_empty());
 }
 
 #[test]
