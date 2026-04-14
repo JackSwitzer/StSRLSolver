@@ -9,7 +9,8 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java
 
 use crate::actions::Action;
-use crate::effects::declarative::{ChoiceAction, Effect, Pile};
+use crate::cards::global_registry;
+use crate::effects::declarative::{AmountSource as A, ChoiceAction, Effect, Pile};
 use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, force_player_turn, make_deck, play_self, TEST_SEED,
@@ -115,8 +116,20 @@ fn secret_technique_still_opens_a_skill_only_draw_pile_search_choice() {
 fn headbutt_remains_hook_backed_until_discard_to_top_of_draw_is_typed() {}
 
 #[test]
-#[ignore = "Burning Pact still needs post-choice follow-up sequencing on the declarative path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java"]
-fn burning_pact_remains_hook_backed_until_draw_after_choice_is_typed() {}
+fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
+    let burning_pact = global_registry().get("Burning Pact").expect("Burning Pact");
+    assert_eq!(
+        burning_pact.effect_data,
+        &[Effect::ChooseCards {
+            source: crate::effects::declarative::Pile::Hand,
+            filter: crate::effects::declarative::CardFilter::All,
+            action: crate::effects::declarative::ChoiceAction::Exhaust,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
+    assert!(burning_pact.complex_hook.is_some());
+}
 
 #[test]
 #[ignore = "Violence still needs a capped filtered draw-to-hand primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java"]

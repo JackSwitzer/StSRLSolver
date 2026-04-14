@@ -33,14 +33,23 @@ fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> Co
 }
 
 #[test]
-fn headbutt_now_exports_typed_primary_damage_while_kept_hook_backed_for_discard_choice() {
+fn headbutt_now_exports_typed_primary_damage_and_discard_choice() {
     let registry = crate::cards::global_registry();
     let headbutt = registry.get("Headbutt").expect("Headbutt should exist");
     assert_eq!(
         headbutt.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::ChooseCards {
+                source: crate::effects::declarative::Pile::Discard,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
+                min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            },
+        ]
     );
-    assert!(headbutt.complex_hook.is_some());
+    assert!(headbutt.complex_hook.is_none());
 }
 
 #[test]
@@ -83,13 +92,16 @@ fn secret_technique_still_uses_declarative_skill_search_and_finds_only_skills() 
 }
 
 #[test]
-fn tranquility_remains_honestly_on_shared_enter_stance_metadata_in_this_slice() {
+fn tranquility_uses_typed_change_stance_and_enter_stance_metadata() {
     let registry = crate::cards::global_registry();
     let tranquility = registry
         .get("ClearTheMind")
         .expect("Tranquility should exist under its Java id");
     assert_eq!(tranquility.enter_stance, Some("Calm"));
-    assert!(tranquility.effect_data.is_empty());
+    assert_eq!(
+        tranquility.effect_data,
+        &[E::Simple(SE::ChangeStance(crate::state::Stance::Calm))]
+    );
 
     let mut engine = engine_for(&["ClearTheMind+"], &[], &[], 3);
     set_stance(&mut engine, Stance::Wrath);
@@ -106,8 +118,22 @@ fn secret_technique_is_illegal_when_draw_pile_has_no_skills() {}
 fn violence_remains_hook_backed_until_capped_attack_fetch_is_typed() {}
 
 #[test]
-#[ignore = "Burning Pact still needs post-choice follow-up sequencing on the declarative path; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java"]
-fn burning_pact_remains_hook_backed_until_draw_after_choice_is_typed() {}
+fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
+    let burning_pact = crate::cards::global_registry()
+        .get("Burning Pact")
+        .expect("Burning Pact should exist");
+    assert_eq!(
+        burning_pact.effect_data,
+        &[crate::effects::declarative::Effect::ChooseCards {
+            source: crate::effects::declarative::Pile::Hand,
+            filter: crate::effects::declarative::CardFilter::All,
+            action: crate::effects::declarative::ChoiceAction::Exhaust,
+            min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+        }]
+    );
+    assert!(burning_pact.complex_hook.is_some());
+}
 
 #[test]
 #[ignore = "Tranquility still uses shared enter_stance metadata; moving it cleanly needs the coordinated metadata cleanup path in engine.rs and registry tests. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tranquility.java"]

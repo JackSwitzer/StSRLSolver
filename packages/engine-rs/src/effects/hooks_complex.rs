@@ -1106,13 +1106,14 @@ pub fn hook_jack_of_all_trades(engine: &mut CombatEngine, ctx: &CardPlayContext)
 // =========================================================================
 
 /// Burning Pact: choose 1 card to exhaust from hand, then draw base_magic cards.
-/// Sets PENDING_DRAW so resolve_exhaust_from_hand draws after the exhaust.
 pub fn hook_burning_pact(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let draw_count = ctx.card.base_magic.max(1);
     if !engine.state.hand.is_empty() {
-        engine.state.player.set_status(sid::PENDING_DRAW, draw_count);
         let options = hand_card_options(engine);
         engine.begin_choice(ChoiceReason::ExhaustFromHand, options, 1, 1);
+        if let Some(choice) = engine.choice.as_mut() {
+            choice.post_choice_draw = draw_count;
+        }
     }
 }
 

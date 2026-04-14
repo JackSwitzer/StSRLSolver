@@ -84,6 +84,9 @@ pub struct ChoiceContext {
     /// Used for cases like Dual Wield/Nightmare where the player picks one card
     /// and the engine later duplicates it N times.
     pub aux_count: usize,
+    /// Optional post-choice draw handoff owned by the choice itself.
+    /// Burning Pact uses this to draw after the exhaust choice resolves.
+    pub post_choice_draw: i32,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -374,6 +377,7 @@ impl CombatEngine {
             min_picks,
             max_picks,
             aux_count,
+            post_choice_draw: 0,
         });
     }
 
@@ -519,11 +523,9 @@ impl CombatEngine {
                 self.trigger_on_exhaust();
             }
         }
-        // Burning Pact: draw cards after exhaust choice resolves
-        let pending = self.state.player.status(sid::PENDING_DRAW);
-        if pending > 0 {
-            self.state.player.set_status(sid::PENDING_DRAW, 0);
-            self.draw_cards(pending);
+        // Burning Pact: draw cards after exhaust choice resolves.
+        if ctx.post_choice_draw > 0 {
+            self.draw_cards(ctx.post_choice_draw);
         }
     }
 

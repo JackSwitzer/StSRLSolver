@@ -92,12 +92,20 @@ fn ironclad_wave10_rampage_and_true_grit_follow_the_typed_primary_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java post-choice sequencing for Burning Pact; the declarative path still needs a typed deferred-draw primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java"]
-fn ironclad_wave10_burning_pact_stays_queued_until_post_choice_sequencing_is_typed() {
+fn ironclad_wave10_burning_pact_uses_choice_owned_deferred_draw_follow_up() {
     let burning_pact = global_registry()
         .get("Burning Pact")
         .expect("Burning Pact should exist");
-    assert!(burning_pact.effect_data.is_empty());
+    assert_eq!(
+        burning_pact.effect_data,
+        &[E::ChooseCards {
+            source: crate::effects::declarative::Pile::Hand,
+            filter: crate::effects::declarative::CardFilter::All,
+            action: crate::effects::declarative::ChoiceAction::Exhaust,
+            min_picks: A::Fixed(1),
+            max_picks: A::Fixed(1),
+        }]
+    );
     assert!(burning_pact.complex_hook.is_some());
 }
 

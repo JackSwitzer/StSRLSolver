@@ -35,7 +35,7 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
     );
     assert!(
         burning_pact.complex_hook.is_some(),
-        "Burning Pact still needs the deferred post-choice draw hook"
+        "Burning Pact keeps its hook for the choice opening path"
     );
 
     let headbutt = global_registry().get("Headbutt").expect("Headbutt");
@@ -69,8 +69,20 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
 }
 
 #[test]
-#[ignore = "Blocked on Java post-choice sequencing for Burning Pact; the declarative path still needs a typed deferred-draw primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java"]
-fn ironclad_wave14_burning_pact_stays_explicitly_hook_backed() {}
+fn ironclad_wave14_burning_pact_keeps_choice_body_with_choice_owned_draw_follow_up() {
+    let burning_pact = global_registry().get("Burning Pact").expect("Burning Pact");
+    assert_eq!(
+        burning_pact.effect_data,
+        &[E::ChooseCards {
+            source: crate::effects::declarative::Pile::Hand,
+            filter: crate::effects::declarative::CardFilter::All,
+            action: crate::effects::declarative::ChoiceAction::Exhaust,
+            min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+            max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+        }]
+    );
+    assert!(burning_pact.complex_hook.is_some());
+}
 
 #[test]
 #[ignore = "Blocked on Java attack-or-power union filtering for Dual Wield; the current declarative filter surface cannot express the card's option set. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/DualWield.java"]

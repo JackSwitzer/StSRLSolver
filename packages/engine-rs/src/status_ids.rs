@@ -310,7 +310,6 @@ pub mod sid {
     pub const SIMMERING_FURY: StatusId = StatusId(248);
     pub const FROST_CHANNELED: StatusId = StatusId(249);
     pub const CLAW_BONUS: StatusId = StatusId(250);
-    pub const PENDING_DRAW: StatusId = StatusId(251);
     pub const STEAM_BARRIER_LOSS: StatusId = StatusId(252);
 
     /// Total number of defined status IDs (exclusive upper bound).
