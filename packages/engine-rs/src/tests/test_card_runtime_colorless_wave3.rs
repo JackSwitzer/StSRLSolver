@@ -41,6 +41,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
         ritual_dagger.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
+    // Typed primary body is present; only the kill-context / misc propagation remains hooked.
     assert!(ritual_dagger.complex_hook.is_some());
 }
 
@@ -83,7 +84,7 @@ fn impatience_still_needs_no_attacks_in_hand_primitive() {}
 fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}
 
 #[test]
-#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java updates the played copy after a kill and carries the dagger's misc state forward."]
+#[ignore = "Ritual Dagger still needs kill-context and card-owned misc scaling propagation; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RitualDaggerAction.java updates the played copy after a kill and carries the dagger's misc state forward."]
 fn ritual_dagger_still_needs_kill_context_and_misc_scaling() {}
 
 #[test]

@@ -112,7 +112,7 @@ fn genetic_algorithm_updates_the_played_copy_misc_and_future_plays_use_the_new_s
 }
 
 #[test]
-#[ignore = "Blizzard still needs a typed frost-count AoE primitive; Java Blizzard.java scales by Frost channeled this combat before dealing damage to all enemies."]
+#[ignore = "Blizzard still needs a typed frost-count AoE primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Blizzard.java scales by Frost channeled this combat before dealing damage to all enemies."]
 fn blizzard_still_needs_typed_frost_count_aoe_primitive() {}
 
 #[test]

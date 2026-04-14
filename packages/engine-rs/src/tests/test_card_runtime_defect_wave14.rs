@@ -193,13 +193,13 @@ fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
 }
 
 #[test]
-#[ignore = "Fission still needs a remove-all-orbs primitive before the energy/draw payload can be typed; Java FissionAction removes or evokes all orbs first. See /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java."]
+#[ignore = "Fission still needs a remove-all-orbs primitive before the energy/draw payload can be typed; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java removes or evokes all orbs first, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java as the card entry point."]
 fn fission_still_needs_remove_all_orbs_before_payload() {}
 
 #[test]
-#[ignore = "Reboot still needs a shuffle-hand-and-discard-into-draw primitive; Java ShuffleAllAction moves the whole hand and discard before drawing."]
+#[ignore = "Reboot still needs a shuffle-hand-and-discard-into-draw primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java moves the whole hand and discard before drawing, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Reboot.java as the card entry point."]
 fn reboot_still_needs_shuffle_hand_and_discard_into_draw() {}
 
 #[test]
-#[ignore = "Scrape still needs a draw-then-discard-non-zero-cost follow-up primitive; Java ScrapeFollowUpAction discards the drawn non-zero-cost cards after the draw resolves."]
+#[ignore = "Scrape still needs a draw-then-discard-non-zero-cost follow-up primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeAction.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ScrapeFollowUpAction.java split the draw and follow-up discard after resolution."]
 fn scrape_still_needs_draw_then_discard_non_zero_cost_follow_up() {}

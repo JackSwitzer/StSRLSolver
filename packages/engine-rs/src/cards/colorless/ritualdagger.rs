@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Ritual Dagger: 1 cost, dmg from misc, gain 3 per kill, exhaust
+        // Ritual Dagger already has a typed damage primary body.
+        // The remaining blocker is kill-context / misc propagation inside the hook.
     insert(cards, CardDef {
                 id: "RitualDagger", name: "Ritual Dagger", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,

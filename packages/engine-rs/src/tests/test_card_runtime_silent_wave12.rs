@@ -76,5 +76,5 @@ fn silent_wave12_runtime_backed_residuals_still_follow_their_discard_hooks() {
 }
 
 #[test]
-#[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java"]
+#[ignore = "Nightmare still needs a delayed next-turn copy/install primitive; Java /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/NightmareAction.java define the delayed copy path, with /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java carrying the next-turn install."]
 fn silent_wave12_nightmare_needs_delayed_copy_install_primitive() {}
