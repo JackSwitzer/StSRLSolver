@@ -13,6 +13,10 @@ as the semantic source of truth for the remaining parity tail, while keeping the
 
 We copy Java semantics and timing, not Java architecture.
 
+Canonical audit output for the current tail:
+
+- [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
+
 ## What Counts As Done
 
 A migration slice only counts as done when all of the following are true:
@@ -68,6 +72,14 @@ Recent accepted card/runtime slices moved the following cards onto the typed pri
 - `Scrape`
 
 The raw public-card tail is `3` files, and the honest unresolved gameplay-gap tail is `0` after excluding the runtime-backed non-play cleanup shells `Reflex`, `Tactician`, and `Deus Ex Machina`. The separate shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`) are tracked as registry/support surfaces, not as unresolved public-card files.
+
+Fresh audit framing:
+
+- supported-scope gameplay blockers: `0`
+- unsupported blocked event branches still present in source: `2` (`Scrap Ooze`, `Match and Keep!`)
+- total ignored tests still present in `src/tests`: `92`
+- ignored-test classified buckets: `26` active parity blockers, `50` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
+- the remaining live semantic debt is now concentrated in generated-choice payload fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Neow's Lament`, and a post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
 
 The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
 
@@ -238,19 +250,15 @@ Priority entities:
 - `Bonfire Elementals`
 - `Wheel of Change`
 
-## Current Active Worker Wave
+## Current Audit Wave
 
-These bundles are intentionally disjoint by write scope:
+The active endgame work is now audit-first rather than primitive-first:
 
-- shared engine follow-up for the separate `AwaitingChoice` continuation bug family (`Third Eye`, `Foreign Influence`)
-- representative broad parity cleanup over stable event/relic/potion/RL surfaces now that the gameplay-gap tail is zero
-- cleanup-shell accounting / final merge narrative follow-up
-
-Each worker must return:
-
-1. changed files
-2. commands run plus results
-3. any remaining blockers mapped to ignored or queued tests
+- broad matrix verification over the stable green-core suites
+- ignored-test classification into active blocker vs stale solved vs cleanup-only vs post-merge enhancement
+- Java semantic review of the remaining real mismatch families
+- scope-honesty reconciliation for unsupported branches and cleanup shells
+- training appendix preparation for the post-merge training-system rewrite
 
 ## Immediate Blocker Map
 

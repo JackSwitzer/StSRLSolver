@@ -6,6 +6,7 @@ Branch: `codex/universal-gameplay-runtime`
 Execution map for the current decompile-backed endgame:
 
 - [`DECOMPILE_PARITY_ENDGAME.md`](./DECOMPILE_PARITY_ENDGAME.md)
+- [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
 
 ## Rubric
 
@@ -49,6 +50,14 @@ These counts come from the current verified production tree and are useful as a 
 - raw public card files still using `complex_hook`: `0`
 - unresolved public gameplay-gap files after excluding runtime-backed non-play cleanup shells: `0`
 - typed event placeholder branches still using `EventProgramOp::blocked(...)`: `0`
+- unsupported blocked event branches still present in source: `2`
+- total ignored tests in `src/tests`: `92`
+- ignored-test classified buckets:
+  - active parity blockers: `26`
+  - stale solved / noisy: `50`
+  - post-merge enhancements: `11`
+  - cleanup-only shell/accounting: `4`
+  - unsupported/out-of-scope: `1`
 - live production potion fallback callsites: `0`
 - other live production legacy dispatch/install callsites: `0`
 - confirmed Java-backed self-mutating card family still failing its dedicated engine-path suite: `0`
@@ -81,6 +90,8 @@ What those numbers mean:
   - the event runtime no longer relies on `EventProgramOp::blocked(...)` for supported content, and `Golden Wing` is now honest on the typed runtime path; `Dead Adventurer` now carries ascension-sensitive first-search normalization on the canonical typed event path
 - direct relic helper-path references in `src/tests/test_relics_parity.rs` and `src/relics/mod.rs` are now at `0`; the old helper-path relic test modules and `relics/combat.rs` are deleted, the final `Runic Pyramid` / `Unceasing Top` hand-lifecycle bridges are deleted from `relics/run.rs`, and the remaining dead-system tail is now mostly ignored blocker tests plus narrow oracle cleanup
 - there are no remaining public card gameplay gaps in the source tree; the remaining raw empties are runtime-backed cleanup shells rather than missing gameplay behavior
+- the new canonical audit source for the remaining `1%` is [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md), which separates supported-scope merge blockers from stale ignored-test noise, unsupported event backlog, and post-merge semantic families
+- the current merge claim should remain `supported runtime parity complete`; the stronger `all gameplay content complete` claim is still blocked by the classified post-merge semantic families in the inconsistency report
 
 ## Why We Are Not Done Yet
 
