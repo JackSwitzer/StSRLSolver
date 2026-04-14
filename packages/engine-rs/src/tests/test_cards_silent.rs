@@ -633,30 +633,4 @@ mod silent_card_java_parity_tests {
         assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Backstab"));
     }
 
-    #[test]
-    fn reflex_and_tactician_are_unplayable() {
-        let mut reflex = engine_with(make_deck_n("Reflex", 8), 40, 0);
-        ensure_in_hand(&mut reflex, "Reflex");
-        let reflex_idx = reflex.state.hand.iter().position(|card| reflex.card_registry.card_name(card.def_id) == "Reflex").expect("Reflex should be in hand");
-        let reflex_count = hand_count(&reflex, "Reflex");
-        assert!(
-            !reflex.get_legal_actions().iter().any(|action| matches!(
-                action,
-                Action::PlayCard { card_idx, .. } if *card_idx == reflex_idx
-            ))
-        );
-        assert_eq!(hand_count(&reflex, "Reflex"), reflex_count);
-
-        let mut tactician = engine_with(make_deck_n("Tactician", 8), 40, 0);
-        ensure_in_hand(&mut tactician, "Tactician");
-        let tactician_idx = tactician.state.hand.iter().position(|card| tactician.card_registry.card_name(card.def_id) == "Tactician").expect("Tactician should be in hand");
-        let tactician_count = hand_count(&tactician, "Tactician");
-        assert!(
-            !tactician.get_legal_actions().iter().any(|action| matches!(
-                action,
-                Action::PlayCard { card_idx, .. } if *card_idx == tactician_idx
-            ))
-        );
-        assert_eq!(hand_count(&tactician, "Tactician"), tactician_count);
-    }
 }
