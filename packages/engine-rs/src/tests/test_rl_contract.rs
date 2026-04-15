@@ -15,6 +15,17 @@ fn python_bridge_guard() -> std::sync::MutexGuard<'static, ()> {
 }
 
 fn enter_test_combat(engine: &mut RunEngine) {
+    if engine.current_phase() == RunPhase::Neow {
+        let neow = engine
+            .get_legal_actions()
+            .into_iter()
+            .next()
+            .expect("expected a Neow action");
+        let result = engine.step_with_result(&neow);
+        assert!(result.action_accepted);
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    }
+
     let action = engine
         .get_legal_actions()
         .into_iter()
@@ -426,6 +437,15 @@ fn step_with_result_surfaces_illegal_actions_and_decision_context() {
         "ThirdEye".to_string(),
     ];
     engine.run_state.potions[0] = "Block Potion".to_string();
+    let first_neow = engine
+        .get_legal_actions()
+        .into_iter()
+        .next()
+        .expect("expected a Neow action");
+    let neow_step = engine.step_with_result(&first_neow);
+    assert!(neow_step.action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
     let first_map = engine
         .get_legal_actions()
         .into_iter()
@@ -461,14 +481,14 @@ fn step_with_result_surfaces_illegal_actions_and_decision_context() {
 fn python_bridge_rejects_illegal_and_unknown_step_ids() {
     let _guard = python_bridge_guard();
     let mut engine = PyRunEngine::new_py(42, 20);
-    let first_map = engine
+    let first_neow = engine
         .get_legal_actions()
         .into_iter()
         .next()
-        .expect("expected a map action");
+        .expect("expected a neow action");
     engine
-        .step(first_map)
-        .expect("expected legal map action to execute");
+        .step(first_neow)
+        .expect("expected legal neow action to execute");
 
     let illegal = engine.step(COMBAT_BASE + (99 << 8));
     assert!(illegal.is_err(), "illegal actions should not be silent no-ops");
@@ -483,7 +503,19 @@ fn decision_accessors_match_canonical_run_state() {
     let mut engine = RunEngine::new(7, 20);
 
     let state = engine.current_decision_state();
-    assert_eq!(state.kind, DecisionKind::MapPath);
+    assert_eq!(state.kind, DecisionKind::NeowChoice);
+    assert_eq!(state.phase, RunPhase::Neow);
+
+    let context = engine.current_decision_context();
+    let neow = context
+        .neow
+        .as_ref()
+        .expect("neow context should exist at the start of the run");
+    assert_eq!(neow.options.len(), 4);
+    assert!(engine
+        .get_legal_decision_actions()
+        .iter()
+        .all(|action| matches!(action, DecisionAction::ChooseNeowOption(_))));
 
     let legal = engine.get_legal_decision_actions();
     assert_eq!(
@@ -491,14 +523,21 @@ fn decision_accessors_match_canonical_run_state() {
         engine.get_legal_actions()
     );
 
-    let first_map = engine.get_legal_actions()[0].clone();
-    let result = engine.step_with_result(&first_map);
+    let first_neow = engine.get_legal_actions()[0].clone();
+    let result = engine.step_with_result(&first_neow);
     assert!(result.action_accepted);
     assert!(result.reward >= 0.0);
 
     let context = engine.current_decision_context();
-    assert_eq!(context.kind, DecisionKind::CombatAction);
-    let combat = context
+    assert_eq!(context.kind, DecisionKind::MapPath);
+    assert!(context.neow.is_none());
+
+    let next_map = engine.get_legal_actions()[0].clone();
+    let result = engine.step_with_result(&next_map);
+    assert!(result.action_accepted);
+    assert_eq!(result.decision_state.kind, DecisionKind::CombatAction);
+    let combat = result
+        .decision_context
         .combat
         .as_ref()
         .expect("combat context should exist");

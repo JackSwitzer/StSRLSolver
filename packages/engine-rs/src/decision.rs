@@ -6,6 +6,7 @@ use crate::run::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecisionKind {
+    NeowChoice,
     CombatAction,
     CombatChoice,
     RewardScreen,
@@ -132,6 +133,17 @@ pub struct MapDecisionContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NeowOptionContext {
+    pub index: usize,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NeowDecisionContext {
+    pub options: Vec<NeowOptionContext>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventOptionContext {
     pub index: usize,
     pub label: String,
@@ -168,6 +180,7 @@ pub struct CampfireDecisionContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecisionContext {
     pub kind: DecisionKind,
+    pub neow: Option<NeowDecisionContext>,
     pub combat: Option<CombatContext>,
     pub reward_screen: Option<RewardScreen>,
     pub map: Option<MapDecisionContext>,
@@ -178,6 +191,7 @@ pub struct DecisionContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecisionFrame {
+    Neow(NeowDecisionContext),
     Combat(CombatContext),
     CombatChoice(CombatChoiceContext),
     RewardScreen { source: RewardScreenSource },
@@ -192,6 +206,7 @@ pub enum DecisionFrame {
 impl DecisionFrame {
     pub fn kind(&self) -> DecisionKind {
         match self {
+            Self::Neow(_) => DecisionKind::NeowChoice,
             Self::Combat(_) => DecisionKind::CombatAction,
             Self::CombatChoice(_) => DecisionKind::CombatChoice,
             Self::RewardScreen { .. } | Self::RewardChoice(_) => DecisionKind::RewardScreen,
@@ -263,6 +278,7 @@ impl DecisionStack {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DecisionAction {
+    ChooseNeowOption(usize),
     ChooseMapPath(usize),
     Combat(Action),
     ClaimRewardItem {
@@ -286,6 +302,7 @@ pub enum DecisionAction {
 impl DecisionAction {
     pub fn to_run_action(&self) -> RunAction {
         match self {
+            Self::ChooseNeowOption(idx) => RunAction::ChooseNeowOption(*idx),
             Self::ChooseMapPath(idx) => RunAction::ChoosePath(*idx),
             Self::Combat(action) => RunAction::CombatAction(action.clone()),
             Self::ClaimRewardItem { item_index } => RunAction::SelectRewardItem(*item_index),
@@ -308,6 +325,7 @@ impl DecisionAction {
 
     pub fn from_run_action(action: &RunAction, phase: RunPhase) -> Self {
         match action {
+            RunAction::ChooseNeowOption(idx) => Self::ChooseNeowOption(*idx),
             RunAction::ChoosePath(idx) => Self::ChooseMapPath(*idx),
             RunAction::SelectRewardItem(item_index) => Self::ClaimRewardItem {
                 item_index: *item_index,
@@ -536,5 +554,16 @@ mod tests {
             }],
         });
         assert_eq!(frame.kind(), DecisionKind::CombatChoice);
+    }
+
+    #[test]
+    fn decision_frame_kind_maps_neow_choice() {
+        let frame = DecisionFrame::Neow(NeowDecisionContext {
+            options: vec![NeowOptionContext {
+                index: 0,
+                label: "Gain 100 gold".to_string(),
+            }],
+        });
+        assert_eq!(frame.kind(), DecisionKind::NeowChoice);
     }
 }

@@ -818,6 +818,28 @@ impl StSEngine {
     }
 
     fn describe_action(&self, id: i32) -> ActionInfo {
+        if id >= NEOW_BASE {
+            let idx = (id - NEOW_BASE) as usize;
+            let label = self
+                .inner
+                .current_decision_context()
+                .neow
+                .and_then(|neow| {
+                    neow.options
+                        .get(idx)
+                        .map(|option| option.label.clone())
+                })
+                .unwrap_or_else(|| format!("neow_{}", idx));
+            return ActionInfo {
+                id,
+                name: format!("neow_{}", idx),
+                action_type: "neow".to_string(),
+                card_name: String::new(),
+                target: -1,
+                description: label,
+            };
+        }
+
         if id >= COMBAT_BASE {
             let combat_id = id - COMBAT_BASE;
             let Some(action) = decode_combat_action_id_in_run(combat_id) else {
@@ -965,6 +987,7 @@ impl StSEngine {
 
 fn phase_str(phase: run::RunPhase) -> &'static str {
     match phase {
+        run::RunPhase::Neow => "neow",
         run::RunPhase::MapChoice => "map",
         run::RunPhase::Combat => "combat",
         run::RunPhase::CardReward => "card_reward",
@@ -977,6 +1000,7 @@ fn phase_str(phase: run::RunPhase) -> &'static str {
 
 fn decision_kind_str(kind: crate::decision::DecisionKind) -> &'static str {
     match kind {
+        crate::decision::DecisionKind::NeowChoice => "neow_choice",
         crate::decision::DecisionKind::CombatAction => "combat_action",
         crate::decision::DecisionKind::CombatChoice => "combat_choice",
         crate::decision::DecisionKind::RewardScreen => "reward_screen",
@@ -1124,6 +1148,21 @@ fn build_decision_context_dict<'py>(
         dict.set_item("combat", py.None())?;
     }
 
+    if let Some(neow) = &context.neow {
+        let neow_dict = PyDict::new_bound(py);
+        let options = PyList::empty_bound(py);
+        for option in &neow.options {
+            let option_dict = PyDict::new_bound(py);
+            option_dict.set_item("index", option.index)?;
+            option_dict.set_item("label", &option.label)?;
+            options.append(option_dict)?;
+        }
+        neow_dict.set_item("options", options)?;
+        dict.set_item("neow", neow_dict)?;
+    } else {
+        dict.set_item("neow", py.None())?;
+    }
+
     if let Some(screen) = &context.reward_screen {
         dict.set_item("reward_screen", build_reward_screen_dict(py, screen)?)?;
     } else {
@@ -1202,6 +1241,7 @@ const REWARD_ITEM_SHIFT: i32 = 4;
 const REWARD_INDEX_MASK: i32 = 0x0f;
 const CAMP_REST: i32 = 200;
 const CAMP_UPGRADE_BASE: i32 = 201;
+const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
 const SHOP_REMOVE_BASE: i32 = 350;
 const SHOP_LEAVE: i32 = 399;
@@ -1472,6 +1512,7 @@ impl PyRunEngine {
 impl PyRunEngine {
     pub(crate) fn encode_action(&self, action: &run::RunAction) -> i32 {
         match action {
+            run::RunAction::ChooseNeowOption(i) => NEOW_BASE + *i as i32,
             run::RunAction::ChoosePath(i) => PATH_BASE + *i as i32,
             run::RunAction::SelectRewardItem(i) => REWARD_SELECT_BASE + *i as i32,
             run::RunAction::ChooseRewardOption {
@@ -1508,6 +1549,11 @@ impl PyRunEngine {
     }
 
     pub(crate) fn decode_action(&self, action_id: i32) -> Option<run::RunAction> {
+        if action_id >= NEOW_BASE {
+            return Some(run::RunAction::ChooseNeowOption(
+                (action_id - NEOW_BASE) as usize,
+            ));
+        }
         if action_id >= COMBAT_BASE {
             let combat_id = action_id - COMBAT_BASE;
             return decode_combat_action_id_in_run(combat_id).map(run::RunAction::CombatAction);

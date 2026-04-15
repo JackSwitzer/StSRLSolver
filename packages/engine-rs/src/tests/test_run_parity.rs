@@ -17,6 +17,25 @@ mod run_java_parity_tests {
         engine.map.rows[y][x].room_type = room_type;
     }
 
+    fn resolve_opening_neow(engine: &mut RunEngine) {
+        if engine.current_phase() == RunPhase::Neow {
+            let action = engine
+                .current_decision_context()
+                .neow
+                .and_then(|neow| {
+                    neow.options
+                        .iter()
+                        .position(|option| option.label == "Gain 100 gold")
+                })
+                .map(RunAction::ChooseNeowOption)
+                .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
+            let (reward, done) = engine.step(&action);
+            assert_eq!(reward, 0.0);
+            assert!(!done);
+            assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        }
+    }
+
     #[test]
     fn ascension_zero_watcher_run_starts_at_java_hp_and_gold() {
         let engine = RunEngine::new(42, 0);
@@ -37,6 +56,7 @@ mod run_java_parity_tests {
     #[test]
     fn first_path_choice_advances_to_floor_one() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         assert_eq!(engine.run_state.floor, 1);
@@ -45,6 +65,7 @@ mod run_java_parity_tests {
     #[test]
     fn treasure_room_grants_java_style_gold_band() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Treasure);
         let gold_before = engine.run_state.gold;
         let actions = engine.get_legal_actions();
@@ -58,6 +79,7 @@ mod run_java_parity_tests {
     fn shop_room_generates_five_cards_and_base_remove_price() {
         let mut engine = RunEngine::new(42, 0);
         set_first_reachable_room(&mut engine, RoomType::Shop);
+        resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
@@ -70,6 +92,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         engine.run_state.combats_won = 3;
         set_first_reachable_room(&mut engine, RoomType::Shop);
+        resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
@@ -79,6 +102,7 @@ mod run_java_parity_tests {
     #[test]
     fn shop_buy_card_spends_gold_and_removes_the_offer() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
@@ -100,6 +124,7 @@ mod run_java_parity_tests {
     #[test]
     fn shop_remove_card_spends_gold_and_disables_future_removal() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
         engine.run_state.deck.push("Tantrum".to_string());
         set_first_reachable_room(&mut engine, RoomType::Shop);
@@ -126,6 +151,7 @@ mod run_java_parity_tests {
     #[test]
     fn event_room_enters_event_phase_with_choices() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Event);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -136,6 +162,7 @@ mod run_java_parity_tests {
     #[test]
     fn event_choice_resolves_back_to_map_phase() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Event);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -172,6 +199,7 @@ mod run_java_parity_tests {
     #[test]
     fn shop_leave_returns_to_map_choice() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -182,6 +210,7 @@ mod run_java_parity_tests {
     #[test]
     fn monster_room_entry_creates_live_combat_engine() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -199,6 +228,7 @@ mod run_java_parity_tests {
     #[test]
     fn current_room_type_tracks_forced_shop_room() {
         let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -206,14 +236,19 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn java_neow_rewards_exist_but_rust_run_starts_post_neow() {
+    fn java_neow_rewards_exist_and_rust_run_exposes_the_start_phase() {
         let engine = RunEngine::new(42, 0);
-        assert_eq!(engine.run_state.floor, 0, "Rust run starts after Java Neow resolution");
+        assert_eq!(engine.phase, RunPhase::Neow);
+        assert_eq!(engine.current_room_type(), "neow");
+        assert_eq!(engine.current_choice_count(), 4);
+        assert_eq!(engine.run_state.floor, 0, "Rust run begins before the first map choice");
     }
 
     #[test]
-    fn rust_run_starts_in_act_one_map_choice() {
-        let engine = RunEngine::new(42, 0);
+    fn rust_run_enters_act_one_map_choice_after_neow() {
+        let mut engine = RunEngine::new(42, 0);
+        assert_eq!(engine.current_phase(), RunPhase::Neow);
+        resolve_opening_neow(&mut engine);
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert_eq!(engine.run_state.act, 1);
     }
@@ -222,6 +257,7 @@ mod run_java_parity_tests {
     fn wish_gold_branch_syncs_into_run_state_after_combat_resolution() {
         let mut engine = RunEngine::new(42, 0);
         engine.run_state.deck = vec!["Wish+".to_string(); 10];
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
 
         let actions = engine.get_legal_actions();

@@ -12,7 +12,8 @@ use std::sync::OnceLock;
 use crate::decision::{
     build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
     DecisionAction, DecisionContext, DecisionFrame, DecisionKind, DecisionStack, DecisionState,
-    EventDecisionContext, EventOptionContext, MapDecisionContext, RewardChoice,
+    EventDecisionContext, EventOptionContext, MapDecisionContext, NeowDecisionContext,
+    NeowOptionContext, RewardChoice,
     RewardChoiceFrame, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
     RewardScreenSource,
 };
@@ -29,6 +30,8 @@ use crate::state::{CombatState, EnemyCombatState};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RunAction {
+    /// Choose one of the opening Neow options.
+    ChooseNeowOption(usize),
     /// Choose a path on the map: index into available next nodes
     ChoosePath(usize),
     /// Click or claim a reward item in the current ordered reward screen.
@@ -62,6 +65,8 @@ pub enum RunAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RunPhase {
+    /// Opening Neow choice before the map starts.
+    Neow,
     /// Choose next room on map
     MapChoice,
     /// In combat
@@ -367,6 +372,20 @@ enum EventCardRarity {
     Rare,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NeowChoiceEffect {
+    GainCards,
+    GainGold,
+    UpgradeRandomCard,
+    GainRelic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NeowChoiceOption {
+    label: String,
+    effect: NeowChoiceEffect,
+}
+
 // ---------------------------------------------------------------------------
 // RunEngine — the full run simulation engine
 // ---------------------------------------------------------------------------
@@ -408,6 +427,9 @@ pub struct RunEngine {
     // Reward tracking
     pub total_reward: f32,
     last_combat_events: Vec<crate::effects::runtime::GameEventRecord>,
+
+    // Opening Neow choice before the map starts.
+    neow_options: Vec<NeowChoiceOption>,
 }
 
 impl RunEngine {
@@ -423,7 +445,7 @@ impl RunEngine {
         let mut engine = Self {
             run_state: RunState::new(ascension),
             map,
-            phase: RunPhase::MapChoice,
+            phase: RunPhase::Neow,
             seed,
             rng,
             combat_engine: None,
@@ -438,7 +460,9 @@ impl RunEngine {
             elite_encounter_idx: 0,
             total_reward: 0.0,
             last_combat_events: Vec::new(),
+            neow_options: Vec::new(),
         };
+        engine.neow_options = engine.build_neow_options();
         engine.refresh_decision_stack();
         engine
     }
@@ -447,6 +471,76 @@ impl RunEngine {
     pub fn reset(&mut self, seed: u64) {
         let ascension = self.run_state.ascension;
         *self = Self::new(seed, ascension);
+    }
+
+    fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
+        let mut options = vec![
+            NeowChoiceOption {
+                label: "Gain 100 gold".to_string(),
+                effect: NeowChoiceEffect::GainGold,
+            },
+            NeowChoiceOption {
+                label: "Gain 3 random cards".to_string(),
+                effect: NeowChoiceEffect::GainCards,
+            },
+            NeowChoiceOption {
+                label: "Upgrade a random card".to_string(),
+                effect: NeowChoiceEffect::UpgradeRandomCard,
+            },
+            NeowChoiceOption {
+                label: "Gain a random relic".to_string(),
+                effect: NeowChoiceEffect::GainRelic,
+            },
+        ];
+
+        for i in (1..options.len()).rev() {
+            let j = self.rng.gen_range(0..=i);
+            options.swap(i, j);
+        }
+
+        options
+    }
+
+    fn apply_neow_choice(&mut self, effect: NeowChoiceEffect) {
+        match effect {
+            NeowChoiceEffect::GainCards => self.apply_event_deck_mutation(&EventDeckMutation::GainCard { count: 3 }),
+            NeowChoiceEffect::GainGold => self.run_state.gold += 100,
+            NeowChoiceEffect::UpgradeRandomCard => self.upgrade_random_cards(1),
+            NeowChoiceEffect::GainRelic => {
+                let relic = self.roll_reward_relic_id();
+                self.add_relic_reward(&relic);
+            }
+        }
+    }
+
+    fn upgrade_random_cards(&mut self, count: usize) {
+        let registry = crate::cards::global_registry();
+        let mut eligible: Vec<usize> = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card_id)| {
+                if card_id.ends_with('+') {
+                    return None;
+                }
+                let upgraded = format!("{card_id}+");
+                if registry.get(&upgraded).is_some() {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for _ in 0..count {
+            if eligible.is_empty() {
+                break;
+            }
+            let pick = self.rng.gen_range(0..eligible.len());
+            let deck_idx = eligible.swap_remove(pick);
+            self.run_state.deck[deck_idx] = format!("{}+", self.run_state.deck[deck_idx]);
+        }
     }
 
     /// Get the current phase.
@@ -471,6 +565,7 @@ impl RunEngine {
     /// Get all legal actions in the current phase.
     pub fn get_legal_actions(&self) -> Vec<RunAction> {
         match self.phase {
+            RunPhase::Neow => self.get_neow_actions(),
             RunPhase::MapChoice => self.get_map_actions(),
             RunPhase::Combat => self.get_combat_actions(),
             RunPhase::CardReward => self.get_card_reward_actions(),
@@ -500,6 +595,21 @@ impl RunEngine {
     pub fn current_decision_context(&self) -> DecisionContext {
         DecisionContext {
             kind: self.current_decision_kind(),
+            neow: if self.phase == RunPhase::Neow {
+                Some(NeowDecisionContext {
+                    options: self
+                        .neow_options
+                        .iter()
+                        .enumerate()
+                        .map(|(index, option)| NeowOptionContext {
+                            index,
+                            label: option.label.clone(),
+                        })
+                        .collect(),
+                })
+            } else {
+                None
+            },
             combat: if self.phase == RunPhase::Combat {
                 self.current_combat_context()
             } else {
@@ -565,6 +675,7 @@ impl RunEngine {
             return kind;
         }
         match self.phase {
+            RunPhase::Neow => DecisionKind::NeowChoice,
             RunPhase::MapChoice => DecisionKind::MapPath,
             RunPhase::Combat => {
                 if self
@@ -591,6 +702,17 @@ impl RunEngine {
 
         self.decision_stack.clear();
         let root = match self.phase {
+            RunPhase::Neow => DecisionFrame::Neow(NeowDecisionContext {
+                options: self
+                    .neow_options
+                    .iter()
+                    .enumerate()
+                    .map(|(index, option)| NeowOptionContext {
+                        index,
+                        label: option.label.clone(),
+                    })
+                    .collect(),
+            }),
             RunPhase::MapChoice => DecisionFrame::Map(MapDecisionContext {
                 available_paths: self.get_map_actions().len(),
             }),
@@ -674,6 +796,14 @@ impl RunEngine {
             let next = self.map.get_next_nodes(x, y);
             next.iter().enumerate().map(|(i, _)| RunAction::ChoosePath(i)).collect()
         }
+    }
+
+    fn get_neow_actions(&self) -> Vec<RunAction> {
+        self.neow_options
+            .iter()
+            .enumerate()
+            .map(|(i, _)| RunAction::ChooseNeowOption(i))
+            .collect()
     }
 
     fn get_combat_actions(&self) -> Vec<RunAction> {
@@ -792,6 +922,7 @@ impl RunEngine {
         let action_accepted = legal_before.contains(action);
         let reward = if action_accepted {
             match self.phase {
+                RunPhase::Neow => self.step_neow(action),
                 RunPhase::MapChoice => self.step_map(action),
                 RunPhase::Combat => self.step_combat(action),
                 RunPhase::CardReward => self.step_card_reward(action),
@@ -915,6 +1046,22 @@ impl RunEngine {
         // Floor milestone reward
         let floor_reward = self.run_state.floor as f32 / 55.0;
         floor_reward
+    }
+
+    fn step_neow(&mut self, action: &RunAction) -> f32 {
+        let choice_idx = match action {
+            RunAction::ChooseNeowOption(idx) => *idx,
+            _ => return 0.0,
+        };
+        let Some(choice) = self.neow_options.get(choice_idx).cloned() else {
+            return 0.0;
+        };
+
+        self.apply_neow_choice(choice.effect);
+        self.neow_options.clear();
+        self.phase = RunPhase::MapChoice;
+        self.refresh_decision_stack();
+        0.0
     }
 
     // =======================================================================
@@ -2966,6 +3113,9 @@ impl RunEngine {
 
     /// Get the current room type string.
     pub fn current_room_type(&self) -> &str {
+        if self.phase == RunPhase::Neow {
+            return "neow";
+        }
         if self.run_state.map_y < 0 || self.run_state.map_x < 0 {
             return "none";
         }
@@ -3069,6 +3219,24 @@ impl RunEngine {
             .current_reward_choice()
             .map(|choice| choice.choices.len())
             .unwrap_or(0)
+    }
+
+    pub fn current_choice_count(&self) -> usize {
+        match self.phase {
+            RunPhase::Neow => self.neow_options.len(),
+            RunPhase::MapChoice => self.get_map_actions().len(),
+            RunPhase::Combat => self
+                .combat_engine
+                .as_ref()
+                .and_then(|combat| combat.choice.as_ref())
+                .map(|choice| choice.options.len())
+                .unwrap_or(0),
+            RunPhase::CardReward => self.current_reward_choice_count(),
+            RunPhase::Campfire => self.get_campfire_actions().len(),
+            RunPhase::Shop => self.get_shop_actions().len(),
+            RunPhase::Event => self.get_event_actions().len(),
+            RunPhase::GameOver => 0,
+        }
     }
 
     pub fn last_combat_events(&self) -> &[crate::effects::runtime::GameEventRecord] {
@@ -3248,12 +3416,32 @@ mod tests {
     use super::*;
     use crate::events::{EventDef, EventEffect, EventOption};
 
+    fn resolve_opening_neow(engine: &mut RunEngine) {
+        if engine.current_phase() == RunPhase::Neow {
+            let action = engine
+                .current_decision_context()
+                .neow
+                .and_then(|neow| {
+                    neow.options
+                        .iter()
+                        .position(|option| option.label == "Gain 100 gold")
+                })
+                .map(|idx| RunAction::ChooseNeowOption(idx))
+                .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
+            let (reward, done) = engine.step(&action);
+            assert_eq!(reward, 0.0);
+            assert!(!done);
+            assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        }
+    }
+
     #[test]
     fn test_run_engine_creation() {
         let engine = RunEngine::new(42, 20);
         assert_eq!(engine.run_state.current_hp, 68); // A14+ = 68
         assert_eq!(engine.run_state.deck.len(), 11); // 10 base + AscendersBane (A10+)
-        assert_eq!(engine.phase, RunPhase::MapChoice);
+        assert_eq!(engine.phase, RunPhase::Neow);
+        assert_eq!(engine.current_choice_count(), 4);
         assert!(!engine.is_done());
     }
 
@@ -3268,7 +3456,8 @@ mod tests {
 
     #[test]
     fn test_map_choice_actions() {
-        let engine = RunEngine::new(42, 20);
+        let mut engine = RunEngine::new(42, 20);
+        resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         assert!(!actions.is_empty(), "Should have map choice actions");
         for a in &actions {
@@ -3279,6 +3468,7 @@ mod tests {
     #[test]
     fn test_first_floor_is_combat() {
         let mut engine = RunEngine::new(42, 20);
+        resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         assert!(!actions.is_empty());
 

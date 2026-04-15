@@ -324,7 +324,7 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     // --- Decision context tail (9 dims) ---
     obs[off] = 1.0 - (rs.current_hp as f32 / max_hp);
     obs[off + 1] = (engine.decision_stack_depth().min(4) as f32) / 4.0;
-    obs[off + 2] = (engine.current_reward_choice_count().min(5) as f32) / 5.0;
+    obs[off + 2] = (engine.current_choice_count().min(5) as f32) / 5.0;
 
     if let Some(screen) = engine.current_reward_screen() {
         match &screen.source {
@@ -414,6 +414,10 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
         let action = &actions[i];
 
         match engine.current_phase() {
+            RunPhase::Neow => {
+                obs[base + 3] = 1.0; // is_other
+                obs[base + 4] = (i as f32 + 1.0) / n.max(1) as f32;
+            }
             RunPhase::CardReward => {
                 obs[base] = 1.0; // reward-screen action
                 let reward_screen = engine.current_reward_screen();
