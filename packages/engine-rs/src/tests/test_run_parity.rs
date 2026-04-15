@@ -153,14 +153,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
-        engine.run_state.deck = vec![
-            "Parasite".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
-        ];
+        engine.run_state.deck = vec!["Parasite".to_string()];
         engine.run_state.max_hp = 40;
         engine.run_state.current_hp = 40;
         set_first_reachable_room(&mut engine, RoomType::Shop);
@@ -174,9 +167,45 @@ mod run_java_parity_tests {
         assert_eq!(engine.run_state.max_hp, 37);
         assert_eq!(engine.run_state.current_hp, 37);
         assert_eq!(engine.run_state.gold, 999 - remove_price);
-        assert_eq!(engine.run_state.deck.len(), 5);
+        assert!(engine.run_state.deck.is_empty());
         assert!(!engine.run_state.deck.iter().any(|card| card == "Parasite"));
         assert!(engine.get_shop().expect("shop stays open").removal_used);
+    }
+
+    #[test]
+    fn shop_remove_has_no_deck_size_floor_when_card_is_purgeable() {
+        let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.gold = 999;
+        engine.run_state.deck = vec!["Strike_P".to_string()];
+        set_first_reachable_room(&mut engine, RoomType::Shop);
+        let actions = engine.get_legal_actions();
+        engine.step(&actions[0]);
+
+        let legal = engine.get_legal_actions();
+        assert!(legal.contains(&RunAction::ShopRemoveCard(0)));
+
+        engine.step(&RunAction::ShopRemoveCard(0));
+        assert!(engine.run_state.deck.is_empty());
+        assert!(engine.get_shop().expect("shop stays open").removal_used);
+    }
+
+    #[test]
+    fn shop_remove_excludes_unremovable_curses_from_legal_actions() {
+        let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.gold = 999;
+        engine.run_state.deck = vec!["AscendersBane".to_string(), "Strike_P".to_string()];
+        set_first_reachable_room(&mut engine, RoomType::Shop);
+        let actions = engine.get_legal_actions();
+        engine.step(&actions[0]);
+
+        let legal = engine.get_legal_actions();
+        assert!(!legal.contains(&RunAction::ShopRemoveCard(0)));
+        assert!(legal.contains(&RunAction::ShopRemoveCard(1)));
+
+        engine.step(&RunAction::ShopRemoveCard(1));
+        assert_eq!(engine.run_state.deck, vec!["AscendersBane".to_string()]);
     }
 
     #[test]

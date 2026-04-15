@@ -959,14 +959,20 @@ impl RunEngine {
                     actions.push(RunAction::ShopBuyCard(i));
                 }
             }
-            if !shop.removal_used && self.run_state.gold >= shop.remove_price && self.run_state.deck.len() > 5 {
-                for (i, _) in self.run_state.deck.iter().enumerate() {
-                    actions.push(RunAction::ShopRemoveCard(i));
+            if !shop.removal_used && self.run_state.gold >= shop.remove_price {
+                for (i, card_id) in self.run_state.deck.iter().enumerate() {
+                    if Self::is_purgeable_master_deck_card(card_id) {
+                        actions.push(RunAction::ShopRemoveCard(i));
+                    }
                 }
             }
         }
         actions.push(RunAction::ShopLeave);
         actions
+    }
+
+    fn is_purgeable_master_deck_card(card_id: &str) -> bool {
+        !matches!(card_id, "Necronomicurse" | "CurseOfTheBell" | "AscendersBane")
     }
 
     fn get_event_actions(&self) -> Vec<RunAction> {
@@ -2557,6 +2563,7 @@ impl RunEngine {
                 let remove_price = self.current_shop.as_ref().and_then(|shop| {
                     if !shop.removal_used
                         && *idx < self.run_state.deck.len()
+                        && Self::is_purgeable_master_deck_card(&self.run_state.deck[*idx])
                         && self.run_state.gold >= shop.remove_price
                     {
                         Some(shop.remove_price)
