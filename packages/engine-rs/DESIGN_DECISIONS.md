@@ -58,20 +58,23 @@ Canonical surfaces:
 
 ## 3. `Match and Keep!`
 
-Status: intentionally not claimed complete yet
+Status: canonical runtime implementation landed
 
 Policy:
 
-- We do not treat the old temporary fixed-card approximation as merge-ready parity.
-- Until the Java GremlinMatchGame runtime exists, `Match and Keep!` stays explicitly blocked in source and tests.
+- `Match and Keep!` runs as a real indexed reveal / match minigame inside the canonical event runtime.
+- The runtime exposes one decision per visible slot and returns the updated event state after each reveal or pair resolution.
+- The board is always `12` cards / `6` pairs with `5` attempts, and ascension `15+` replaces the colorless uncommon pair with a second curse pair.
 
 Why this choice:
 
-- a fake fixed reward path hides a real gameplay-state gap
-- the real event needs hidden tile state, reveal/match logic, and canonical event/reward integration
+- it keeps the minigame on the same event / decision / reward surfaces as the rest of the run engine
+- it gives the agent a clean observable loop: pick an index, observe the revealed state, keep matching if memory is good
+- it removes the old fake fixed-reward stopgap so parity claims can rely on actual gameplay state
 
 Canonical surfaces:
 
 - [shrines.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/events/shrines.rs:1)
+- [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:1)
 - [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
 - Java oracle: `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java`

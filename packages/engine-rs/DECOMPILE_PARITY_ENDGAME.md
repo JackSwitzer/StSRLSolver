@@ -19,7 +19,8 @@ What closed in the latest pass:
 
 - `Emotion Chip` now pulses on the following turn start instead of firing immediately on HP loss
 - `Liquid Memories` now opens a real discard choice, supports Sacred Bark multi-pick, and returns selected cards at zero cost
-- `Scrap Ooze` now resolves through the canonical event reward runtime
+- `Match and Keep!` now runs as a real indexed match/minigame loop on the canonical event runtime
+- `Scrap Ooze` now runs the Java-style retry / flee / escalating relic-chance loop on the canonical event runtime
 - `NoteForYourself` now runs as a real two-step shrine with cross-run card stash behavior inside the runtime
 - `Stance Potion` is fully green and `Smoke Bomb` legality/action-path behavior is green except for the explicit Java positional `BackAttack` caveat
 - the `Scrawl+` hand-limit and `Deus Ex Machina+` draw-order edge cases now have explicit engine-path proof
@@ -32,7 +33,7 @@ Live branch truth:
 | Raw public `complex_hook` card files | `0` |
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
-| Explicit blocked event branches | `1` |
+| Explicit blocked event branches | `0` |
 | Direct ignored tests | `74` |
 
 The raw empty public-card files are cleanup shells only:
@@ -45,27 +46,17 @@ The raw empty public-card files are cleanup shells only:
 
 These are the only meaningful remaining gameplay families:
 
-1. `Match and Keep!`
-   - still explicitly blocked
-   - needs a real GremlinMatchGame-style card-grid runtime
-   - current blocker proof lives in [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
-
-2. `Scrap Ooze`
-   - current runtime only models the first-success damage-plus-relic branch
-   - Java has a retry loop with escalating damage, escalating relic chance, and an explicit flee branch
-   - current simplified proof lives in [test_event_runtime_wave20.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave20.rs:1)
-
-3. Defect multi-hit family
+1. Defect multi-hit family
    - the typed `ExtraHits(...)` path currently clamps to at least one hit
    - Java does zero hits when Barrage has no orb slots and when Thunder Strike has zero Lightning channeled
    - `Target::RandomEnemy` is currently rolled once per card instead of once per hit, so `Rip and Tear` and `Thunder Strike` reuse a single target
    - current blocker proof lives in [test_card_runtime_defect_wave12.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave12.rs:1)
 
-4. `Reinforced Body`
+2. `Reinforced Body`
    - current Rust typing still models one block gain instead of Java repeated-block/X-cost resolution
    - current blocker proof lives in [test_card_runtime_defect_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave9.rs:1)
 
-5. `Smoke Bomb` positional legality
+3. `Smoke Bomb` positional legality
    - boss legality and regular flee behavior are correct
    - Java `BackAttack` / Surrounded caveat still needs positional combat state
    - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
@@ -74,13 +65,11 @@ These are the only meaningful remaining gameplay families:
 
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
-1. `Match and Keep!` minigame runtime
-2. `Scrap Ooze` retry/flee state machine
-3. Defect multi-hit fix for `Barrage` / `Rip and Tear` / `Thunder Strike`
-4. repeated-block / X-cost primitive for `Reinforced Body`
-5. positional legality state for `Smoke Bomb`
-6. ignored-test cleanup pass
-7. final audit refresh and PR readiness sweep
+1. Defect multi-hit fix for `Barrage` / `Rip and Tear` / `Thunder Strike`
+2. repeated-block / X-cost primitive for `Reinforced Body`
+3. positional legality state for `Smoke Bomb`
+4. ignored-test cleanup pass
+5. final audit refresh and PR readiness sweep
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 

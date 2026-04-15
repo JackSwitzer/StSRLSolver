@@ -215,6 +215,9 @@ mod event_java_parity_tests {
             scrap_ooze.options[0].status,
             EventRuntimeStatus::Supported
         ));
+        assert!(scrap_ooze.options[0]
+            .text
+            .contains("25% relic chance"));
 
         let spire_heart = typed_event(3, "Spire Heart");
         assert!(matches!(
@@ -234,7 +237,7 @@ mod event_java_parity_tests {
         let match_and_keep = typed_shrine_event("Match and Keep!");
         assert!(matches!(
             match_and_keep.options[0].status,
-            EventRuntimeStatus::Blocked { .. }
+            EventRuntimeStatus::Supported
         ));
     }
 
@@ -243,7 +246,7 @@ mod event_java_parity_tests {
         let match_and_keep = typed_shrine_event("Match and Keep!");
         assert!(matches!(
             match_and_keep.options[0].status,
-            EventRuntimeStatus::Blocked { .. }
+            EventRuntimeStatus::Supported
         ));
 
         let blocked_placeholder_count: usize = typed_events_for_act(1)
@@ -255,7 +258,7 @@ mod event_java_parity_tests {
             .flat_map(|option| option.program.ops.into_iter())
             .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
             .count();
-        assert_eq!(blocked_placeholder_count, 1);
+        assert_eq!(blocked_placeholder_count, 0);
     }
 
     #[test]

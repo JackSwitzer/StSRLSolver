@@ -3,7 +3,7 @@ use super::{
     TypedEventOption,
 };
 
-fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
+fn supported(text: impl Into<String>, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
     TypedEventOption::supported(text, EventProgram::from_ops(ops), effect)
 }
 
@@ -168,11 +168,8 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             "Scrap Ooze",
             vec![
                 supported(
-                    "Reach inside (take 3 dmg, gain relic)",
-                    vec![
-                        EventProgramOp::damage_and_gold(-3, 0),
-                        EventProgramOp::gain_relic("random relic"),
-                    ],
+                    "Reach inside (take 3 dmg, 25% relic chance)",
+                    vec![EventProgramOp::nothing()],
                     EventEffect::DamageAndGold(-3, 0),
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),

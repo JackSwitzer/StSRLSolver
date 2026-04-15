@@ -218,5 +218,22 @@ fn wave8_smoke_bomb_respects_java_can_use_restrictions() {
 }
 
 #[test]
-#[ignore = "Java BackAttack legality depends on Surrounded/position state that the current Rust combat model does not represent yet; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java"]
+fn wave8_smoke_bomb_stays_legal_against_normal_enemies() {
+    // Java oracle:
+    // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike_P"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "Smoke Bomb".to_string();
+
+    assert!(engine.get_legal_actions().contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    }));
+}
+
+#[test]
+#[ignore = "Java BackAttack legality depends on Surrounded/position state that the current Rust combat model does not represent yet; remaining blocker is the BackAttack branch only; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java"]
 fn wave8_smoke_bomb_back_attack_legality_remains_queued() {}

@@ -137,6 +137,34 @@ const WATCHER_RARE_CARDS: &[&str] = &[
     "Wish",
 ];
 
+const MATCH_AND_KEEP_COLORLESS_UNCOMMON_CARDS: &[&str] = &[
+    "Blind",
+    "Dark Shackles",
+    "Deep Breath",
+    "Discovery",
+    "Enlightenment",
+    "Finesse",
+    "Forethought",
+    "Impatience",
+    "Madness",
+    "Panacea",
+    "PanicButton",
+    "Purity",
+    "Trip",
+];
+
+const MATCH_AND_KEEP_CURSES: &[&str] = &[
+    "Clumsy",
+    "Decay",
+    "Doubt",
+    "Injury",
+    "Normality",
+    "Pain",
+    "Parasite",
+    "Regret",
+    "Writhe",
+];
+
 // ---------------------------------------------------------------------------
 // Act 1 encounter pools (simplified)
 // ---------------------------------------------------------------------------
@@ -371,6 +399,28 @@ struct PendingEventCombat {
     on_win: crate::events::EventProgram,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MatchAndKeepScreen {
+    Intro,
+    RuleExplanation,
+    Play,
+    Complete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MatchAndKeepState {
+    screen: MatchAndKeepScreen,
+    board: Vec<String>,
+    first_pick: Option<usize>,
+    attempts_left: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScrapOozeState {
+    damage: i32,
+    relic_chance: usize,
+}
+
 enum EventProgramFlow {
     Continue,
     ContinueEvent(TypedEventDef),
@@ -432,6 +482,11 @@ pub struct RunEngine {
     // Scripted event fight that resumes into an event-owned on-win program.
     pending_event_combat: Option<PendingEventCombat>,
 
+    // Dynamic event runtime sidecars for stateful event flows.
+    match_and_keep_state: Option<MatchAndKeepState>,
+    scrap_ooze_state: Option<ScrapOozeState>,
+    forced_event_rolls: Vec<usize>,
+
     // Current shop (when in Shop phase)
     current_shop: Option<ShopState>,
 
@@ -472,6 +527,9 @@ impl RunEngine {
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
+            match_and_keep_state: None,
+            scrap_ooze_state: None,
+            forced_event_rolls: Vec::new(),
             current_shop: None,
             boss_id,
             weak_encounter_idx: 0,
@@ -912,6 +970,14 @@ impl RunEngine {
     }
 
     fn get_event_actions(&self) -> Vec<RunAction> {
+        if let Some(state) = &self.match_and_keep_state {
+            if matches!(state.screen, MatchAndKeepScreen::Play) {
+                return (0..state.board.len())
+                    .filter(|idx| Some(*idx) != state.first_pick)
+                    .map(RunAction::EventChoice)
+                    .collect();
+            }
+        }
         if let Some(ref event) = self.current_event {
             event
                 .options
@@ -2535,14 +2601,272 @@ impl RunEngine {
         }
     }
 
+    fn random_card_from_pool(&mut self, pool: &[&str]) -> String {
+        let idx = self.rng.gen_range(0..pool.len());
+        pool[idx].to_string()
+    }
+
+    fn build_match_and_keep_board(&mut self) -> Vec<String> {
+        let mut unique_cards = vec![
+            self.random_card_from_pool(WATCHER_RARE_CARDS),
+            self.random_card_from_pool(WATCHER_UNCOMMON_CARDS),
+            self.random_card_from_pool(WATCHER_COMMON_CARDS),
+        ];
+        if self.run_state.ascension >= 15 {
+            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
+            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
+        } else {
+            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_COLORLESS_UNCOMMON_CARDS));
+            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
+        }
+        unique_cards.push("Eruption".to_string());
+
+        let mut board = unique_cards.clone();
+        board.extend(unique_cards);
+        for idx in (1..board.len()).rev() {
+            let swap_idx = self.rng.gen_range(0..=idx);
+            board.swap(idx, swap_idx);
+        }
+        board
+    }
+
+    fn match_and_keep_label(&self, card_id: &str) -> String {
+        gameplay_registry()
+            .card(card_id)
+            .map(|def| def.name.clone())
+            .unwrap_or_else(|| card_id.to_string())
+    }
+
+    fn sync_match_and_keep_event(&mut self) {
+        let Some(state) = &self.match_and_keep_state else {
+            return;
+        };
+
+        let options = match state.screen {
+            MatchAndKeepScreen::Intro => vec![crate::events::TypedEventOption::supported(
+                "Hear the rules",
+                crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                crate::events::EventEffect::Nothing,
+            )],
+            MatchAndKeepScreen::RuleExplanation => {
+                vec![crate::events::TypedEventOption::supported(
+                    "Begin the match game",
+                    crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                    crate::events::EventEffect::Nothing,
+                )]
+            }
+            MatchAndKeepScreen::Play => state
+                .board
+                .iter()
+                .enumerate()
+                .map(|(idx, card_id)| {
+                    let label = if state.first_pick == Some(idx) {
+                        format!(
+                            "Revealed slot {}: {} ({} attempts left)",
+                            idx + 1,
+                            self.match_and_keep_label(card_id),
+                            state.attempts_left
+                        )
+                    } else {
+                        format!("Pick slot {} ({} attempts left)", idx + 1, state.attempts_left)
+                    };
+                    crate::events::TypedEventOption::supported(
+                        label,
+                        crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                        crate::events::EventEffect::Nothing,
+                    )
+                })
+                .collect(),
+            MatchAndKeepScreen::Complete => vec![crate::events::TypedEventOption::supported(
+                "Leave",
+                crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                crate::events::EventEffect::Nothing,
+            )],
+        };
+
+        self.current_event = Some(TypedEventDef {
+            name: "Match and Keep!".to_string(),
+            options,
+        });
+    }
+
+    fn sync_scrap_ooze_event(&mut self) {
+        let Some(state) = &self.scrap_ooze_state else {
+            return;
+        };
+        self.current_event = Some(TypedEventDef {
+            name: "Scrap Ooze".to_string(),
+            options: vec![
+                crate::events::TypedEventOption::supported(
+                    format!(
+                        "Reach inside (take {} dmg, {}% relic chance)",
+                        state.damage, state.relic_chance
+                    ),
+                    crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                    crate::events::EventEffect::DamageAndGold(-state.damage, 0),
+                ),
+                crate::events::TypedEventOption::supported(
+                    "Leave",
+                    crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                    crate::events::EventEffect::Nothing,
+                ),
+            ],
+        });
+    }
+
+    fn next_event_roll_100(&mut self) -> usize {
+        if !self.forced_event_rolls.is_empty() {
+            return self.forced_event_rolls.remove(0).min(99);
+        }
+        self.rng.gen_range(0..100)
+    }
+
+    fn initialize_dynamic_event_state(&mut self) {
+        self.match_and_keep_state = None;
+        self.scrap_ooze_state = None;
+        if let Some(event_name) = self.current_event.as_ref().map(|event| event.name.clone()) {
+            if event_name == "Match and Keep!" {
+                self.match_and_keep_state = Some(MatchAndKeepState {
+                    screen: MatchAndKeepScreen::Intro,
+                    board: self.build_match_and_keep_board(),
+                    first_pick: None,
+                    attempts_left: 5,
+                });
+                self.sync_match_and_keep_event();
+            } else if event_name == "Scrap Ooze" {
+                self.scrap_ooze_state = Some(ScrapOozeState {
+                    damage: if self.run_state.ascension >= 15 { 5 } else { 3 },
+                    relic_chance: 25,
+                });
+                self.sync_scrap_ooze_event();
+            }
+        }
+    }
+
     fn enter_event(&mut self) {
         let events = typed_events_for_act(self.run_state.act);
         let idx = self.rng.gen_range(0..events.len());
         let mut event = events[idx].clone();
         self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
+        self.initialize_dynamic_event_state();
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
+    }
+
+    fn step_match_and_keep(&mut self, choice_idx: usize) -> f32 {
+        let Some(state) = self.match_and_keep_state.as_mut() else {
+            return 0.0;
+        };
+
+        match state.screen {
+            MatchAndKeepScreen::Intro => {
+                state.screen = MatchAndKeepScreen::RuleExplanation;
+                self.sync_match_and_keep_event();
+                self.phase = RunPhase::Event;
+                self.refresh_decision_stack();
+                0.0
+            }
+            MatchAndKeepScreen::RuleExplanation => {
+                state.screen = MatchAndKeepScreen::Play;
+                self.sync_match_and_keep_event();
+                self.phase = RunPhase::Event;
+                self.refresh_decision_stack();
+                0.0
+            }
+            MatchAndKeepScreen::Play => {
+                if choice_idx >= state.board.len() || state.first_pick == Some(choice_idx) {
+                    self.refresh_decision_stack();
+                    return 0.0;
+                }
+
+                if let Some(first_idx) = state.first_pick.take() {
+                    let first_card = state.board[first_idx].clone();
+                    let second_card = state.board[choice_idx].clone();
+                    if first_card == second_card {
+                        self.run_state.deck.push(first_card);
+                        let (hi, lo) = if first_idx > choice_idx {
+                            (first_idx, choice_idx)
+                        } else {
+                            (choice_idx, first_idx)
+                        };
+                        state.board.remove(hi);
+                        state.board.remove(lo);
+                    }
+                    state.attempts_left = state.attempts_left.saturating_sub(1);
+                    if state.attempts_left == 0 || state.board.is_empty() {
+                        state.screen = MatchAndKeepScreen::Complete;
+                    }
+                } else {
+                    state.first_pick = Some(choice_idx);
+                }
+
+                self.sync_match_and_keep_event();
+                self.phase = RunPhase::Event;
+                self.refresh_decision_stack();
+                0.0
+            }
+            MatchAndKeepScreen::Complete => {
+                self.current_event = None;
+                self.match_and_keep_state = None;
+                self.phase = RunPhase::MapChoice;
+                self.refresh_decision_stack();
+                0.0
+            }
+        }
+    }
+
+    fn step_scrap_ooze(&mut self, choice_idx: usize) -> f32 {
+        let Some(state_snapshot) = self.scrap_ooze_state.clone() else {
+            return 0.0;
+        };
+
+        match choice_idx {
+            0 => {
+                self.run_state.current_hp = (self.run_state.current_hp - state_snapshot.damage).max(0);
+                if self.run_state.current_hp <= 0 {
+                    self.current_event = None;
+                    self.scrap_ooze_state = None;
+                    self.run_state.run_over = true;
+                    self.phase = RunPhase::GameOver;
+                    self.refresh_decision_stack();
+                    return -1.0;
+                }
+
+                let threshold = 100usize.saturating_sub(state_snapshot.relic_chance.min(100));
+                let roll = self.next_event_roll_100();
+                if roll >= threshold {
+                    let mut reward_items = Vec::new();
+                    self.apply_event_reward(
+                        &EventReward::Relic {
+                            label: "random relic".to_string(),
+                        },
+                        &mut reward_items,
+                    );
+                    self.current_event = None;
+                    self.scrap_ooze_state = None;
+                    self.build_event_reward_screen(reward_items);
+                    self.phase = RunPhase::CardReward;
+                } else {
+                    self.scrap_ooze_state = Some(ScrapOozeState {
+                        damage: state_snapshot.damage + 1,
+                        relic_chance: state_snapshot.relic_chance + 10,
+                    });
+                    self.sync_scrap_ooze_event();
+                    self.phase = RunPhase::Event;
+                }
+                self.refresh_decision_stack();
+                0.0
+            }
+            1 => {
+                self.current_event = None;
+                self.scrap_ooze_state = None;
+                self.phase = RunPhase::MapChoice;
+                self.refresh_decision_stack();
+                0.0
+            }
+            _ => 0.0,
+        }
     }
 
     fn step_event(&mut self, action: &RunAction) -> f32 {
@@ -2550,6 +2874,13 @@ impl RunEngine {
             RunAction::EventChoice(idx) => *idx,
             _ => 0,
         };
+
+        if self.scrap_ooze_state.is_some() {
+            return self.step_scrap_ooze(choice_idx);
+        }
+        if self.match_and_keep_state.is_some() {
+            return self.step_match_and_keep(choice_idx);
+        }
 
         let Some(event) = self.current_event.clone() else {
             self.phase = RunPhase::MapChoice;
@@ -3367,6 +3698,7 @@ impl RunEngine {
         let mut event = TypedEventDef::from(event);
         self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
+        self.initialize_dynamic_event_state();
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
     }
@@ -3376,6 +3708,7 @@ impl RunEngine {
         let mut event = event;
         self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
+        self.initialize_dynamic_event_state();
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
     }
@@ -3403,8 +3736,27 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_clear_event_state(&mut self) {
         self.current_event = None;
+        self.match_and_keep_state = None;
+        self.scrap_ooze_state = None;
         self.phase = RunPhase::Event;
         self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_force_event_rolls(&mut self, rolls: &[usize]) {
+        self.forced_event_rolls = rolls.to_vec();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_match_and_keep_board(&self) -> Option<Vec<String>> {
+        self.match_and_keep_state.as_ref().map(|state| state.board.clone())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_match_and_keep_attempts_left(&self) -> Option<usize> {
+        self.match_and_keep_state
+            .as_ref()
+            .map(|state| state.attempts_left)
     }
 
     #[cfg(test)]

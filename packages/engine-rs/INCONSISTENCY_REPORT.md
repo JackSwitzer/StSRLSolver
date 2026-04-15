@@ -10,9 +10,9 @@ This is the canonical parity audit for `packages/engine-rs`. It reconciles live 
 Current read:
 
 - supported-scope runtime parity: `~99%`
-- all-content gameplay parity: `~97%`
+- all-content gameplay parity: `~98%`
 - supported-scope merge blockers: `0`
-- all-content blockers still open before we can honestly claim “full gameplay content complete”: `5`
+- all-content blockers still open before we can honestly claim “full gameplay content complete”: `3`
 
 What is truly done:
 
@@ -23,13 +23,12 @@ What is truly done:
 - potion legality / choose-one runtime path is landed
 - `Liquid Memories` discard-choice selection is landed
 - `Emotion Chip` timing is landed
-- `Scrap Ooze` first-success path is landed
+- `Match and Keep!` minigame runtime is landed
+- `Scrap Ooze` retry / flee / escalating relic-chance loop is landed
 - `NoteForYourself` now runs as a real cross-run card-stash flow inside the canonical event / reward runtime
 
 What is still open:
 
-- `Match and Keep!` still lacks the Java GremlinMatchGame minigame runtime
-- `Scrap Ooze` still lacks the Java retry/flee/escalation loop
 - the typed Defect multi-hit path still diverges from Java for `Barrage`, `Rip and Tear`, and `Thunder Strike`
 - `Reinforced Body` still lacks Java repeated-block/X-cost parity
 - `Smoke Bomb` still has one explicit positional caveat for Java `BackAttack` legality because the Rust combat model does not represent Surrounded/position state
@@ -39,7 +38,7 @@ Bottom line:
 - If the claim is `supported runtime parity complete`, this branch is ready after cleanup/doc sync.
 - If the claim is `all gameplay content complete`, that stronger claim is still false until section 3 is closed.
 - Zero-skip answer: `no` — there are still `74` explicit `#[ignore]` tests in `packages/engine-rs/src/tests`.
-- Java-clean answer: `no` — the `5` blockers above are still open on the current audited tree.
+- Java-clean answer: `no` — the `3` blockers above are still open on the current audited tree.
 
 ## 2. Quantified Baseline
 
@@ -55,7 +54,7 @@ Bottom line:
 | Cleanup-only empty shells | `3` | `Reflex`, `Tactician`, `Deus Ex Machina` |
 | Raw public `complex_hook` files | `0` | Current source scan |
 | Blocked supported event ops | `0` | Current source scan |
-| Explicit blocked event branches in source | `1` | `Match and Keep!` |
+| Explicit blocked event branches in source | `0` | none |
 | Direct `#[ignore]` count in `src/tests` | `74` | Current source scan |
 
 ### Current status table
@@ -64,15 +63,15 @@ Bottom line:
 | --- | --- |
 | Fully supported | public card gameplay behavior, supported event runtime, Neow 4-choice action surface, Emotion Chip timing, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit blocked / not yet closed | `Match and Keep!`, `Scrap Ooze`, Defect multi-hit family, `Reinforced Body` |
+| Explicit blocked / not yet closed | Defect multi-hit family, `Reinforced Body` |
 | Explicit semantic caveats | `Smoke Bomb` back-attack positional legality |
 
 ### Rust-vs-Java delta table
 
 | Subsystem | Rust today | Java expectation | Current read |
 | --- | --- | --- | --- |
-| Shrine minigames | `Match and Keep!` blocked placeholder | Full GremlinMatchGame card-grid runtime | real blocker |
-| Exordium event state | `Scrap Ooze` one-shot success path | retry / flee / escalating damage + relic chance | real blocker |
+| Shrine minigames | `Match and Keep!` indexed reveal/match loop | Java GremlinMatchGame-style hidden-card flow | closed in current branch |
+| Exordium event state | `Scrap Ooze` retry / flee / escalating damage + relic chance | Java retry / flee / escalating damage + relic chance | closed in current branch |
 | Defect multi-hit | zero-count hits clamped, random target reused per card | zero-hit no-op for some cards, fresh target per hit where applicable | real blocker |
 | Defect X-cost block | `Reinforced Body` typed as one block gain | repeated block resolution per energy spent | real blocker |
 | Potion legality | boss legality landed, no positional model | also forbid use under Java `BackAttack` / Surrounded caveat | explicit caveat |
@@ -93,7 +92,7 @@ Some raw counts are intentionally noisy unless classified:
 
 - the `3` raw empty public-card files are not gameplay gaps
 - the `74` ignored tests include a mix of live blockers, stale solved lines, and cleanup-only noise
-- `Match and Keep!` is the only remaining explicit blocked event branch in source
+- there are no longer any explicit blocked event branches in source
 
 ### Why we believe the engine works
 
@@ -108,10 +107,10 @@ These representative green suites were re-run on the current local tree during t
 | Search | `test_search_harness` | `5 passed` |
 | Rewards | `test_reward_runtime` | `10 passed` |
 | Events | `test_events_parity` | `7 passed` |
-| Events | `test_event_runtime_wave19` | `3 passed` |
-| Events | `test_event_runtime_wave20` | `2 passed` |
+| Events | `test_event_runtime_wave19` | `6 passed` |
+| Events | `test_event_runtime_wave20` | `3 passed` |
 | Events | `test_event_runtime_wave21` | `2 passed` |
-| Potions | `test_potion_runtime_wave8` | `6 passed, 1 ignored` |
+| Potions | `test_potion_runtime_wave8` | `7 passed, 1 ignored` |
 | Potions | `test_potion_runtime_action_path` | `15 passed` |
 | Relics | `test_relic_runtime_wave17` | `2 passed` |
 | Relics | `test_dead_system_cleanup_wave22` | `1 passed` |
@@ -125,28 +124,6 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 
 ### Finding G1
 - Area: parity
-- Severity: critical
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [shrines.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/events/shrines.rs:125), [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1), Java oracle `decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java`
-- Problem: `Match and Keep!` is still explicitly blocked. The Rust runtime does not yet model the Java card-grid reveal / match minigame.
-- Recommended fix: add a dedicated event minigame runtime with hidden tile state, reveal/match resolution, and canonical event/reward integration.
-- Test mapping: `test_event_runtime_wave19` should become behavioral minigame proof instead of blocker honesty.
-- Worker slice: event minigame runtime
-
-### Finding G2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [exordium.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/events/exordium.rs:167), [test_event_runtime_wave20.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave20.rs:1), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/events/exordium/ScrapOoze.java`
-- Problem: `Scrap Ooze` currently collapses into a one-shot damage-plus-relic branch. Java instead has a retry loop with escalating damage, escalating relic chance, and a flee branch.
-- Recommended fix: add the retry/flee state machine and replace the current one-shot proof with a behavioral suite that covers at least one failed search before success or flee.
-- Test mapping: expand `test_event_runtime_wave20` into a retry/flee behavioral suite.
-- Worker slice: `event/runtime exordium`
-
-### Finding G3
-- Area: parity
 - Severity: medium
 - Confidence: high
 - Scope: merge-gating
@@ -156,7 +133,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 - Test mapping: unignore or replace the zero-orb `Barrage`, per-hit-random `Rip and Tear`, and zero-Lightning / per-hit-random `Thunder Strike` cases in `test_card_runtime_defect_wave12`.
 - Worker slice: `damage-debuff-pipeline`
 
-### Finding G4
+### Finding G2
 - Area: parity
 - Severity: medium
 - Confidence: high
@@ -167,7 +144,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 - Test mapping: unignore `defect_wave9_reinforced_body_needs_typed_repeated_block_xcost_primitive` in `test_card_runtime_defect_wave9`.
 - Worker slice: `damage-debuff-pipeline`
 
-### Finding G5
+### Finding G3
 - Area: parity
 - Severity: medium
 - Confidence: high
@@ -217,9 +194,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 
 Current explicit unsupported / partially scoped items:
 
-- `Match and Keep!` Java minigame runtime
 - `Smoke Bomb` back-attack positional legality
-- `Scrap Ooze` retry/flee/escalation loop until the event runtime is expanded
 - Defect multi-hit parity for `Barrage`, `Rip and Tear`, and `Thunder Strike`
 - `Reinforced Body` repeated-block/X-cost parity
 
@@ -238,7 +213,6 @@ These items should not block the supported-scope merge if scope stays honest, bu
 - watcher stale-ignore cleanup for already landed `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike`
 - cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader Java edge sweeps for generated-choice / Watcher follow-up families
-- `Match and Keep!` full minigame if we choose to leave draft only after total all-content fidelity
 - positional combat state if we want full `Smoke Bomb` legality fidelity
 
 ## 7. Edge-Case Annex: `Scrawl+`

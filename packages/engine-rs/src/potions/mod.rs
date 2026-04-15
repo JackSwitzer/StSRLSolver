@@ -73,10 +73,15 @@ fn is_boss_enemy_id(enemy_id: &str) -> bool {
 
 pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
     match potion_id {
-        "SmokeBomb" | "Smoke Bomb" => !state
-            .enemies
-            .iter()
-            .any(|enemy| is_boss_enemy_id(enemy.id.as_str())),
+        "SmokeBomb" | "Smoke Bomb" => {
+            // Java blocks Smoke Bomb against bosses here. The remaining
+            // BackAttack/Surrounded edge needs positional combat state that
+            // this model does not yet expose.
+            !state
+                .enemies
+                .iter()
+                .any(|enemy| is_boss_enemy_id(enemy.id.as_str()))
+        }
         _ => true,
     }
 }
