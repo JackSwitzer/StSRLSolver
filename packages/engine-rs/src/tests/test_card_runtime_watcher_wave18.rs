@@ -78,21 +78,5 @@ fn test_card_runtime_watcher_wave18_registry_documents_the_remaining_hook_cleanu
 }
 
 #[test]
-#[ignore = "Collect still needs an upgrade-aware X-count primitive that can add one extra Miracle only on the upgraded card; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Collect.java"]
-fn test_card_runtime_watcher_wave18_collect_needs_upgrade_aware_xcount() {}
-
-#[test]
-#[ignore = "Conjure Blade still needs a generated-card payload primitive that can set Expunger.setX(energyOnUse + upgrade bonus); Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java"]
-fn test_card_runtime_watcher_wave18_conjure_blade_needs_generated_card_payload_with_x_hits() {}
-
-#[test]
-#[ignore = "Fasting still needs a post-install max-energy reduction primitive rather than a side-effect hook; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Fasting.java"]
-fn test_card_runtime_watcher_wave18_fasting_needs_post_install_max_energy_reduction() {}
-
-#[test]
 #[ignore = "Pressure Points still needs a mark-triggered HP-loss primitive that bypasses block after applying Mark; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java"]
 fn test_card_runtime_watcher_wave18_pressure_points_needs_mark_triggered_hp_loss() {}
-
-#[test]
-#[ignore = "Wallop still needs a post-damage block-gain primitive keyed off unblocked damage from the attack context; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wallop.java"]
-fn test_card_runtime_watcher_wave18_wallop_needs_post_damage_block_gain() {}

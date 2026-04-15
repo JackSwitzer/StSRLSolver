@@ -68,7 +68,6 @@ fn watcher_wave11_flurry_weave_signature_and_wireheading_follow_engine_path() {
     assert!(play_self(&mut wireheading, "Wireheading+"));
     assert_eq!(wireheading.state.player.status(sid::FORESIGHT), 4);
 }
-
 #[test]
 fn watcher_wave11_signature_move_legality_stays_hook_backed_and_java_correct() {
     let mut blocked = one_enemy_engine("JawWorm", 60, 0);
@@ -84,23 +83,3 @@ fn watcher_wave11_signature_move_legality_stays_hook_backed_and_java_correct() {
         Action::PlayCard { card_idx, .. } if *card_idx == signature_idx
     )));
 }
-
-#[test]
-#[ignore = "Brilliance still needs a typed mantra-gained-this-combat amount source; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Brilliance.java"]
-fn watcher_wave11_brilliance_remains_blocked_on_mantra_amount_source() {}
-
-#[test]
-#[ignore = "Halt still needs a typed block pipeline that can derive the Wrath bonus before resolution exactly like Java HaltAction; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Halt.java"]
-fn watcher_wave11_halt_remains_blocked_on_wrath_scaled_block_amount() {}
-
-#[test]
-#[ignore = "Perseverance still needs retained card-owned block growth rather than a shared metadata approximation; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java"]
-fn watcher_wave11_perseverance_remains_blocked_on_retained_card_state() {}
-
-#[test]
-#[ignore = "Sands of Time still needs retained card-owned cost reduction semantics; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SandsOfTime.java"]
-fn watcher_wave11_sands_of_time_remains_blocked_on_retained_cost_state() {}
-
-#[test]
-#[ignore = "Windmill Strike still needs retained card-owned damage growth semantics; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java"]
-fn watcher_wave11_windmill_strike_remains_blocked_on_retained_damage_state() {}

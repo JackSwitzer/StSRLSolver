@@ -111,7 +111,3 @@ fn test_card_runtime_watcher_wave19_wish_gold_branch_credits_pending_run_gold() 
 #[test]
 #[ignore = "Blocked on Java mark-triggered damage primitive for Pressure Points; the current runtime can apply Mark but cannot yet resolve enemy-specific mark damage that bypasses block. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java"]
 fn test_card_runtime_watcher_wave19_pressure_points_needs_mark_damage_primitive() {}
-
-#[test]
-#[ignore = "Blocked on Java enemy-hp-threshold kill primitive for Judgement; the current runtime can target and damage enemies but cannot yet perform a declarative kill-if-hp-below-threshold resolution. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java"]
-fn test_card_runtime_watcher_wave19_judgement_needs_threshold_kill_primitive() {}
