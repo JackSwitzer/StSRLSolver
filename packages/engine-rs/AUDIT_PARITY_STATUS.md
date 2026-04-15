@@ -14,16 +14,16 @@ Canonical audit outputs:
 Weighted completion toward `universal gameplay runtime + decision-complete RL loop`:
 
 - supported-scope runtime parity: `99%`
-- all-content gameplay parity: `98%`
+- all-content gameplay parity: `97%`
 - architecture unification snapshot: `99%`
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `99%` | Public gameplay-gap card tail is closed |
+| Combat runtime parity | `97%` | Public gameplay-gap card tail is closed, but the Defect multi-hit family and `Reinforced Body` still diverge from Java |
 | RL combat surface | `98%` | `Neow`, reward screen, decision context, and search surfaces are green |
-| Run / reward / event parity | `97%` | `NoteForYourself` lands cleanly; `Match and Keep!` is blocked and `Scrap Ooze` still lacks the Java retry/flee loop |
+| Run / reward / event parity | `96%` | `NoteForYourself` lands cleanly; `Match and Keep!` is blocked and `Scrap Ooze` still lacks the Java retry/flee loop |
 | Dead-system retirement | `98%` | Helper-path production debt is effectively gone |
 
 ## Current Quantified Backlog
@@ -50,12 +50,13 @@ All-content blockers still open:
 
 - `Match and Keep!` minigame runtime
 - `Scrap Ooze` retry / flee / escalating-relic-chance loop
-- `Barrage` / `Thunder Strike` zero-count no-op parity on the typed `ExtraHits(...)` path
+- `Barrage` / `Rip and Tear` / `Thunder Strike` typed multi-hit parity
+- `Reinforced Body` repeated-block / X-cost parity
 - `Smoke Bomb` back-attack positional legality
 
 Major stale/noisy debt still present:
 
-- watcher ignored placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, and `Wallop` now overstate the live parity tail
+- watcher ignored placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` now overstate the live parity tail
 
 ## Why The Branch Is Trusted
 
@@ -82,4 +83,6 @@ Representative green suites on the current audited tree:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is ready after cleanup/doc sync.
-- If the claim is `all gameplay content complete`, do not mark the PR ready yet; close the three blockers above first.
+- If the claim is `all gameplay content complete`, do not mark the PR ready yet; close the five blocker families above first.
+- Zero-skip answer: `no` — there are still `74` explicit `#[ignore]` tests in `src/tests`.
+- Java-clean answer: `no` — the five blocker families above are still open on the current audited tree.

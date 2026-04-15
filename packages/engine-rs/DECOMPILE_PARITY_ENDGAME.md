@@ -21,7 +21,7 @@ What closed in the latest pass:
 - `Liquid Memories` now opens a real discard choice, supports Sacred Bark multi-pick, and returns selected cards at zero cost
 - `Scrap Ooze` now resolves through the canonical event reward runtime
 - `NoteForYourself` now runs as a real two-step shrine with cross-run card stash behavior inside the runtime
-- `Stance Potion` and `Smoke Bomb` legality/action-path behavior are on the integrated branch and green
+- `Stance Potion` is fully green and `Smoke Bomb` legality/action-path behavior is green except for the explicit Java positional `BackAttack` caveat
 - the `Scrawl+` hand-limit and `Deus Ex Machina+` draw-order edge cases now have explicit engine-path proof
 
 Live branch truth:
@@ -55,12 +55,17 @@ These are the only meaningful remaining gameplay families:
    - Java has a retry loop with escalating damage, escalating relic chance, and an explicit flee branch
    - current simplified proof lives in [test_event_runtime_wave20.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave20.rs:1)
 
-3. `Barrage` / `Thunder Strike` zero-count parity
+3. Defect multi-hit family
    - the typed `ExtraHits(...)` path currently clamps to at least one hit
    - Java does zero hits when Barrage has no orb slots and when Thunder Strike has zero Lightning channeled
+   - `Target::RandomEnemy` is currently rolled once per card instead of once per hit, so `Rip and Tear` and `Thunder Strike` reuse a single target
    - current blocker proof lives in [test_card_runtime_defect_wave12.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave12.rs:1)
 
-4. `Smoke Bomb` positional legality
+4. `Reinforced Body`
+   - current Rust typing still models one block gain instead of Java repeated-block/X-cost resolution
+   - current blocker proof lives in [test_card_runtime_defect_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave9.rs:1)
+
+5. `Smoke Bomb` positional legality
    - boss legality and regular flee behavior are correct
    - Java `BackAttack` / Surrounded caveat still needs positional combat state
    - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
@@ -71,10 +76,11 @@ If the goal is to leave draft only after `all gameplay content complete`, the ne
 
 1. `Match and Keep!` minigame runtime
 2. `Scrap Ooze` retry/flee state machine
-3. zero-count `ExtraHits(...)` fix for `Barrage` / `Thunder Strike`
-4. positional legality state for `Smoke Bomb`
-5. ignored-test cleanup pass
-6. final audit refresh and PR readiness sweep
+3. Defect multi-hit fix for `Barrage` / `Rip and Tear` / `Thunder Strike`
+4. repeated-block / X-cost primitive for `Reinforced Body`
+5. positional legality state for `Smoke Bomb`
+6. ignored-test cleanup pass
+7. final audit refresh and PR readiness sweep
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
@@ -100,7 +106,7 @@ Representative currently green suites:
 - `test_event_runtime_wave19`
 - `test_event_runtime_wave20`
 - `test_event_runtime_wave21`
-- `test_event_runtime_wave20`
+- `test_card_runtime_defect_wave12`
 - `test_potion_runtime_wave8`
 - `test_potion_runtime_action_path`
 - `test_relic_runtime_wave17`
@@ -115,4 +121,5 @@ The latest partitioned Java audit also found a meaningful cleanup tail that shou
 
 - stale watcher ignored placeholders for `Collect`, `Conjure Blade`, `Fasting`
 - stale watcher ignored placeholders for `Judgement`, `Pressure Points`, and `Wallop`
+- stale watcher ignored placeholders for `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike`
 - these are already covered by later engine-path suites and should be removed in the next cleanup wave
