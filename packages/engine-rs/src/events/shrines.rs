@@ -143,10 +143,15 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
         event(
             "Match and Keep!",
             vec![
-                supported(
-                    "Play (temporary fixed reward)",
-                    vec![EventProgramOp::gain_specific_cards(["Adaptation+"])],
-                    EventEffect::GainCard,
+                TypedEventOption::blocked(
+                    "Play (blocked until GremlinMatchGame runtime lands)",
+                    EventProgram::from_ops(vec![EventProgramOp::BlockedPlaceholder {
+                        reason:
+                            "GremlinMatchGame needs a dedicated card-grid minigame runtime (decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java:32-243)"
+                                .to_string(),
+                    }]),
+                    EventEffect::Nothing,
+                    "GremlinMatchGame needs a dedicated card-grid minigame runtime (decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java:32-243)",
                 ),
             ],
         ),

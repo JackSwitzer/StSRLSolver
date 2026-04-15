@@ -210,6 +210,12 @@ mod event_java_parity_tests {
             EventRuntimeStatus::Supported
         ));
 
+        let scrap_ooze = typed_event(1, "Scrap Ooze");
+        assert!(matches!(
+            scrap_ooze.options[0].status,
+            EventRuntimeStatus::Supported
+        ));
+
         let spire_heart = typed_event(3, "Spire Heart");
         assert!(matches!(
             spire_heart.options[0].status,
@@ -224,10 +230,22 @@ mod event_java_parity_tests {
             bonfire.options[0].status,
             EventRuntimeStatus::Supported
         ));
+
+        let match_and_keep = typed_shrine_event("Match and Keep!");
+        assert!(matches!(
+            match_and_keep.options[0].status,
+            EventRuntimeStatus::Blocked { .. }
+        ));
     }
 
     #[test]
     fn blocked_placeholder_op_count_matches_remaining_shared_runtime_gaps() {
+        let match_and_keep = typed_shrine_event("Match and Keep!");
+        assert!(matches!(
+            match_and_keep.options[0].status,
+            EventRuntimeStatus::Blocked { .. }
+        ));
+
         let blocked_placeholder_count: usize = typed_events_for_act(1)
             .into_iter()
             .chain(typed_events_for_act(2))
@@ -237,7 +255,7 @@ mod event_java_parity_tests {
             .flat_map(|option| option.program.ops.into_iter())
             .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
             .count();
-        assert_eq!(blocked_placeholder_count, 0);
+        assert_eq!(blocked_placeholder_count, 1);
     }
 
     #[test]

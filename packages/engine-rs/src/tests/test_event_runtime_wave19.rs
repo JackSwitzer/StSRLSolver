@@ -1,12 +1,13 @@
-use crate::decision::{RewardItemKind, RewardScreenSource};
-use crate::events::{shrine_events, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
+use crate::events::{
+    shrine_events, typed_shrine_events, EventProgramOp, EventRuntimeStatus, TypedEventDef,
+};
 use crate::run::{RunAction, RunEngine, RunPhase};
 
-// Temporary parity note:
-// - Match and Keep! is not yet the Java minigame from
+// Blocker note:
+// - Match and Keep! is the full Java GremlinMatchGame minigame from
 //   /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java
-// - We currently support it through the canonical reward runtime as a fixed Rushdown+ reward
-//   so the event no longer remains unsupported in starter-seed/content-complete runs.
+// - The current runtime only has event-option and reward-screen flows, so we keep this event
+//   explicitly blocked until a dedicated card-grid event runtime lands.
 
 fn typed_shrine_event(name: &str) -> TypedEventDef {
     typed_shrine_events()
@@ -16,45 +17,32 @@ fn typed_shrine_event(name: &str) -> TypedEventDef {
 }
 
 #[test]
-fn match_and_keep_is_no_longer_blocked_in_the_typed_catalog() {
+fn match_and_keep_is_explicitly_blocked_until_the_match_game_runtime_lands() {
     let event = typed_shrine_event("Match and Keep!");
+    assert!(matches!(event.options[0].status, EventRuntimeStatus::Blocked { .. }));
     assert!(matches!(
-        event.options[0].status,
-        EventRuntimeStatus::Supported
+        event.options[0].program.ops.as_slice(),
+        [EventProgramOp::BlockedPlaceholder { .. }]
     ));
+    if let EventRuntimeStatus::Blocked { reason } = &event.options[0].status {
+        assert!(reason.contains("GremlinMatchGame"));
+    }
 }
 
 #[test]
-fn match_and_keep_temporary_reward_flows_through_event_reward_runtime() {
+fn match_and_keep_does_not_enter_the_temporary_reward_path_anymore() {
     let mut engine = RunEngine::new(421, 20);
+    let deck_before = engine.run_state.deck.clone();
     engine.debug_set_typed_event_state(typed_shrine_event("Match and Keep!"));
 
     let start = engine.step_with_result(&RunAction::EventChoice(0));
     assert!(start.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::CardReward);
-
-    let screen = engine
-        .current_reward_screen()
-        .expect("event reward screen should exist");
-    assert_eq!(screen.source, RewardScreenSource::Event);
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
-    assert!(screen.items[0].claimable);
-    assert_eq!(screen.items[0].choices.len(), 1);
-
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
-
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
-        item_index: 0,
-        choice_index: 0,
-    });
-    assert!(choose.action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
-    assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Adaptation+"));
+    assert_eq!(engine.current_reward_screen(), None);
+    assert_eq!(engine.run_state.deck, deck_before);
 }
 
 #[test]
-fn typed_and_legacy_shrine_catalog_sizes_still_match_after_match_and_keep_cutover() {
+fn typed_and_legacy_shrine_catalog_sizes_still_match_after_match_and_keep_blocker_cutover() {
     assert_eq!(typed_shrine_events().len(), shrine_events().len());
 }
