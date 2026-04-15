@@ -117,6 +117,19 @@ pub struct CombatSolver {
 
 #[pymethods]
 impl CombatSolver {
+    #[staticmethod]
+    fn from_snapshot_json(snapshot_json: &str) -> PyResult<Self> {
+        let snapshot: training_contract::CombatSnapshotV1 =
+            serde_json::from_str(snapshot_json).map_err(|err| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Failed to deserialize combat snapshot: {err}"
+                ))
+            })?;
+        Ok(Self {
+            engine: training_contract::combat_engine_from_snapshot(&snapshot),
+        })
+    }
+
     fn step(&mut self, action_id: i32) -> PyResult<(f32, bool)> {
         let action = decode_combat_action_id(action_id)?;
         if !self.engine.get_legal_actions().contains(&action) {
@@ -192,6 +205,16 @@ impl CombatSolver {
                 "Failed to serialize combat snapshot: {err}"
             ))
         })
+    }
+
+    #[pyo3(signature = (evaluator, config_json=None))]
+    fn run_combat_puct<'py>(
+        &self,
+        py: Python<'py>,
+        evaluator: Py<PyAny>,
+        config_json: Option<&str>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        run_combat_puct_with_python(py, &self.engine, evaluator, config_json)
     }
 
     /// Deep copy for MCTS tree branching.
@@ -314,6 +337,67 @@ fn parse_restriction_policy_json(
         }),
         _ => Ok(training_contract::RestrictionPolicyV1::default()),
     }
+}
+
+fn parse_puct_config_json(
+    config_json: Option<&str>,
+) -> PyResult<training_contract::CombatPuctConfigV1> {
+    match config_json {
+        Some(json) if !json.trim().is_empty() => serde_json::from_str(json).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid combat PUCT config JSON: {err}"
+            ))
+        }),
+        _ => Ok(training_contract::CombatPuctConfigV1::default()),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct PyCombatPuctEvaluation {
+    priors: Vec<f32>,
+    outcome: training_contract::CombatOutcomeVectorV1,
+}
+
+fn parse_puct_evaluation_response(
+    py: Python<'_>,
+    response: &Bound<'_, PyAny>,
+    expected_candidate_count: usize,
+) -> PyResult<search::CombatPuctLeafEvaluationV1> {
+    let json_module = py.import_bound("json")?;
+    let payload_json: String = json_module.call_method1("dumps", (response,))?.extract()?;
+    let payload: PyCombatPuctEvaluation = serde_json::from_str(&payload_json).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Invalid combat PUCT evaluator payload: {err}"
+        ))
+    })?;
+    if payload.priors.len() != expected_candidate_count {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Combat PUCT evaluator returned {} priors for {} legal candidates",
+            payload.priors.len(),
+            expected_candidate_count
+        )));
+    }
+    Ok(search::CombatPuctLeafEvaluationV1 {
+        candidate_priors: payload.priors,
+        outcome: payload.outcome,
+    })
+}
+
+fn run_combat_puct_with_python<'py>(
+    py: Python<'py>,
+    engine: &engine::CombatEngine,
+    evaluator: Py<PyAny>,
+    config_json: Option<&str>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let config = parse_puct_config_json(config_json)?;
+    let result = search::search_combat_puct(engine, config, encode_combat_action, |state| {
+        Python::with_gil(|py| {
+            let state_dict = serialize_to_py_dict(py, state)?;
+            let callback_result = evaluator.bind(py).call1((state_dict,))?;
+            parse_puct_evaluation_response(py, &callback_result, state.legal_candidates.len())
+        })
+    })?;
+    serialize_to_py_dict(py, &result)
 }
 
 fn json_value_to_pyobject(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
@@ -1510,6 +1594,19 @@ impl PyRunEngine {
         self.inner.get_combat_engine().map(|engine| CombatSolver {
             engine: engine.clone(),
         })
+    }
+
+    #[pyo3(signature = (evaluator, config_json=None))]
+    fn run_combat_puct<'py>(
+        &self,
+        py: Python<'py>,
+        evaluator: Py<PyAny>,
+        config_json: Option<&str>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let combat = self.inner.get_combat_engine().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("Combat PUCT is only available during combat")
+        })?;
+        run_combat_puct_with_python(py, combat, evaluator, config_json)
     }
 
     fn step_combat_training_action<'py>(

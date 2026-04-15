@@ -2,8 +2,14 @@ from packages.training.bridge import (
     load_combat_snapshot,
     load_combat_training_state,
     load_training_schema_versions,
+    run_combat_puct,
 )
-from packages.training.contracts import RestrictionBuiltin, RestrictionPolicy
+from packages.training.contracts import (
+    CombatPuctConfig,
+    CombatSearchStopReason,
+    RestrictionBuiltin,
+    RestrictionPolicy,
+)
 
 
 class _FakeEngine:
@@ -132,6 +138,27 @@ class _FakeEngine:
             "rng_counter": 0,
         }
 
+    def run_combat_puct(self, evaluator, config_json=None):
+        assert config_json is not None
+        evaluation = evaluator(self.get_combat_training_state(config_json))
+        assert len(evaluation["priors"]) == 0
+        return {
+            "chosen_action_id": None,
+            "root_action_ids": [],
+            "root_visits": [],
+            "root_visit_shares": [],
+            "root_priors": [],
+            "frontier": [],
+            "root_outcome": evaluation["outcome"],
+            "root_total_visits": 1,
+            "stable_windows": 0,
+            "nodes_expanded": 1,
+            "leaf_evaluations": 1,
+            "max_depth_reached": 0,
+            "elapsed_ms": 1,
+            "stop_reason": "Converged",
+        }
+
 
 def test_bridge_loaders_use_engine_session_surface():
     engine = _FakeEngine()
@@ -145,3 +172,25 @@ def test_bridge_loaders_use_engine_session_surface():
     assert state.context.floor == 3
     assert snapshot.player_hp == 72
     assert snapshot.rng_seed1 == 2
+
+
+def test_bridge_can_parse_combat_puct_results():
+    engine = _FakeEngine()
+    result = run_combat_puct(
+        engine,
+        lambda state: {
+            "priors": [],
+            "outcome": {
+                "solve_probability": 0.75,
+                "expected_hp_loss": 3.0,
+                "expected_turns": 4.0,
+                "potion_cost": 0.0,
+                "setup_value_delta": 0.5,
+                "persistent_scaling_delta": 0.0,
+            },
+        },
+        CombatPuctConfig(min_visits=8, visit_window=4, hard_visit_cap=16),
+    )
+    assert result.root_total_visits == 1
+    assert result.stop_reason is CombatSearchStopReason.CONVERGED
+    assert result.root_outcome.solve_probability == 0.75

@@ -13,6 +13,14 @@ class RestrictionBuiltin(str, Enum):
     UPGRADE_REMOVE_ONLY = "UpgradeRemoveOnly"
 
 
+class CombatSearchStopReason(str, Enum):
+    CONVERGED = "Converged"
+    HARD_VISIT_CAP = "HardVisitCap"
+    TIME_CAP = "TimeCap"
+    TERMINAL_ROOT = "TerminalRoot"
+    NO_LEGAL_ACTIONS = "NoLegalActions"
+
+
 @dataclass(frozen=True)
 class RestrictionPolicy:
     builtins: tuple[RestrictionBuiltin, ...] = ()
@@ -263,6 +271,53 @@ class CombatFrontierLine:
 class CombatFrontierSummary:
     capacity: int
     lines: tuple[CombatFrontierLine, ...] = ()
+
+
+@dataclass(frozen=True)
+class CombatPuctConfig:
+    cpuct: float = 1.35
+    frontier_capacity: int = 8
+    min_visits: int = 1024
+    visit_window: int = 256
+    hard_visit_cap: int = 4096
+    time_cap_ms: int = 1500
+    max_rollout_depth: int = 48
+    stable_windows_required: int = 3
+    best_visit_share_lead_threshold: float = 0.08
+    root_value_delta_threshold: float = 0.01
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CombatPuctLine:
+    line_index: int
+    action_prefix: tuple[int, ...]
+    visits: int
+    visit_share: float
+    prior: float
+    expanded_nodes: int
+    elapsed_ms: int
+    outcome: CombatOutcomeVector
+
+
+@dataclass(frozen=True)
+class CombatPuctResult:
+    chosen_action_id: int | None
+    root_action_ids: tuple[int, ...]
+    root_visits: tuple[int, ...]
+    root_visit_shares: tuple[float, ...]
+    root_priors: tuple[float, ...]
+    frontier: tuple[CombatPuctLine, ...]
+    root_outcome: CombatOutcomeVector
+    root_total_visits: int
+    stable_windows: int
+    nodes_expanded: int
+    leaf_evaluations: int
+    max_depth_reached: int
+    elapsed_ms: int
+    stop_reason: CombatSearchStopReason
 
 
 @dataclass(frozen=True)
@@ -527,4 +582,35 @@ def parse_combat_training_state(payload: Mapping[str, Any]) -> CombatTrainingSta
         context=CombatTrainingContext(**payload["context"]),
         observation=observation,
         legal_candidates=tuple(candidates),
+    )
+
+
+def parse_combat_puct_result(payload: Mapping[str, Any]) -> CombatPuctResult:
+    return CombatPuctResult(
+        chosen_action_id=payload.get("chosen_action_id"),
+        root_action_ids=tuple(int(value) for value in payload.get("root_action_ids", ())),
+        root_visits=tuple(int(value) for value in payload.get("root_visits", ())),
+        root_visit_shares=tuple(float(value) for value in payload.get("root_visit_shares", ())),
+        root_priors=tuple(float(value) for value in payload.get("root_priors", ())),
+        frontier=_tuple_of(
+            payload.get("frontier", []),
+            lambda item: CombatPuctLine(
+                line_index=int(item["line_index"]),
+                action_prefix=tuple(int(value) for value in item.get("action_prefix", ())),
+                visits=int(item.get("visits", 0)),
+                visit_share=float(item.get("visit_share", 0.0)),
+                prior=float(item.get("prior", 0.0)),
+                expanded_nodes=int(item.get("expanded_nodes", 0)),
+                elapsed_ms=int(item.get("elapsed_ms", 0)),
+                outcome=CombatOutcomeVector(**item["outcome"]),
+            ),
+        ),
+        root_outcome=CombatOutcomeVector(**payload["root_outcome"]),
+        root_total_visits=int(payload.get("root_total_visits", 0)),
+        stable_windows=int(payload.get("stable_windows", 0)),
+        nodes_expanded=int(payload.get("nodes_expanded", 0)),
+        leaf_evaluations=int(payload.get("leaf_evaluations", 0)),
+        max_depth_reached=int(payload.get("max_depth_reached", 0)),
+        elapsed_ms=int(payload.get("elapsed_ms", 0)),
+        stop_reason=CombatSearchStopReason(payload["stop_reason"]),
     )

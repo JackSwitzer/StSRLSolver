@@ -6,10 +6,13 @@ import json
 from typing import Any
 
 from .contracts import (
+    CombatPuctConfig,
+    CombatPuctResult,
     CombatSnapshot,
     CombatTrainingState,
     RestrictionPolicy,
     TrainingSchemaVersions,
+    parse_combat_puct_result as _parse_combat_puct_result,
     parse_combat_snapshot as _parse_combat_snapshot,
     parse_combat_training_state as _parse_combat_training_state,
     parse_training_schema_versions as _parse_training_schema_versions,
@@ -34,6 +37,10 @@ def parse_combat_snapshot(payload: dict[str, Any]) -> CombatSnapshot:
     return _parse_combat_snapshot(payload)
 
 
+def parse_combat_puct_result(payload: dict[str, Any]) -> CombatPuctResult:
+    return _parse_combat_puct_result(payload)
+
+
 def load_training_schema_versions(engine_session: Any) -> TrainingSchemaVersions:
     return parse_training_schema_versions(engine_session.get_training_schema_versions())
 
@@ -48,3 +55,13 @@ def load_combat_training_state(
 
 def load_combat_snapshot(engine_session: Any) -> CombatSnapshot:
     return parse_combat_snapshot(engine_session.get_combat_snapshot())
+
+
+def run_combat_puct(
+    engine_session: Any,
+    evaluator,
+    config: CombatPuctConfig | None = None,
+) -> CombatPuctResult:
+    config_json = None if config is None else json.dumps(config.to_dict())
+    payload = engine_session.run_combat_puct(evaluator, config_json)
+    return parse_combat_puct_result(payload)

@@ -172,6 +172,7 @@ mod test_rl_reward_obs_wave1;
 mod test_reward_runtime;
 mod test_rl_contract;
 mod test_run_parity;
+mod test_combat_puct;
 mod test_search_harness;
 mod test_state;
 mod test_interactions;

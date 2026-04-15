@@ -25,6 +25,7 @@ pub const GAMEPLAY_EXPORT_SCHEMA_VERSION: u32 = 1;
 pub const REPLAY_EVENT_TRACE_SCHEMA_VERSION: u32 = 1;
 pub const COMBAT_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const COMBAT_FRONTIER_CAPACITY: usize = 8;
+pub const COMBAT_PUCT_STABLE_WINDOWS: u32 = 3;
 
 const HAND_TOKEN_CAP: usize = 10;
 const ENEMY_TOKEN_CAP: usize = 5;
@@ -322,6 +323,133 @@ impl Default for CombatFrontierSummaryV1 {
             lines: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CombatSearchStopReasonV1 {
+    Converged,
+    HardVisitCap,
+    TimeCap,
+    TerminalRoot,
+    NoLegalActions,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CombatPuctConfigV1 {
+    pub cpuct: f32,
+    pub frontier_capacity: usize,
+    pub min_visits: u32,
+    pub visit_window: u32,
+    pub hard_visit_cap: u32,
+    pub time_cap_ms: u64,
+    pub max_rollout_depth: u32,
+    pub stable_windows_required: u32,
+    pub best_visit_share_lead_threshold: f32,
+    pub root_value_delta_threshold: f32,
+}
+
+impl CombatPuctConfigV1 {
+    pub const fn hallway_default() -> Self {
+        Self {
+            cpuct: 1.35,
+            frontier_capacity: COMBAT_FRONTIER_CAPACITY,
+            min_visits: 1_024,
+            visit_window: 256,
+            hard_visit_cap: 4_096,
+            time_cap_ms: 1_500,
+            max_rollout_depth: 48,
+            stable_windows_required: COMBAT_PUCT_STABLE_WINDOWS,
+            best_visit_share_lead_threshold: 0.08,
+            root_value_delta_threshold: 0.01,
+        }
+    }
+
+    pub const fn elite_default() -> Self {
+        Self {
+            cpuct: 1.35,
+            frontier_capacity: COMBAT_FRONTIER_CAPACITY,
+            min_visits: 2_048,
+            visit_window: 512,
+            hard_visit_cap: 8_192,
+            time_cap_ms: 4_000,
+            max_rollout_depth: 64,
+            stable_windows_required: COMBAT_PUCT_STABLE_WINDOWS,
+            best_visit_share_lead_threshold: 0.08,
+            root_value_delta_threshold: 0.01,
+        }
+    }
+
+    pub const fn boss_default() -> Self {
+        Self {
+            cpuct: 1.35,
+            frontier_capacity: COMBAT_FRONTIER_CAPACITY,
+            min_visits: 4_096,
+            visit_window: 1_024,
+            hard_visit_cap: 16_384,
+            time_cap_ms: 10_000,
+            max_rollout_depth: 96,
+            stable_windows_required: COMBAT_PUCT_STABLE_WINDOWS,
+            best_visit_share_lead_threshold: 0.08,
+            root_value_delta_threshold: 0.01,
+        }
+    }
+
+    pub fn normalized(&self) -> Self {
+        let frontier_capacity = self.frontier_capacity.max(1);
+        let min_visits = self.min_visits.max(1);
+        let visit_window = self.visit_window.max(1);
+        let hard_visit_cap = self.hard_visit_cap.max(min_visits);
+        let stable_windows_required = self.stable_windows_required.max(1);
+        let max_rollout_depth = self.max_rollout_depth.max(1);
+        Self {
+            cpuct: self.cpuct.max(0.01),
+            frontier_capacity,
+            min_visits,
+            visit_window,
+            hard_visit_cap,
+            time_cap_ms: self.time_cap_ms.max(1),
+            max_rollout_depth,
+            stable_windows_required,
+            best_visit_share_lead_threshold: self.best_visit_share_lead_threshold.clamp(0.0, 1.0),
+            root_value_delta_threshold: self.root_value_delta_threshold.max(0.0),
+        }
+    }
+}
+
+impl Default for CombatPuctConfigV1 {
+    fn default() -> Self {
+        Self::hallway_default()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CombatPuctLineV1 {
+    pub line_index: usize,
+    pub action_prefix: Vec<i32>,
+    pub visits: u32,
+    pub visit_share: f32,
+    pub prior: f32,
+    pub expanded_nodes: u32,
+    pub elapsed_ms: u64,
+    pub outcome: CombatOutcomeVectorV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CombatPuctResultV1 {
+    pub chosen_action_id: Option<i32>,
+    pub root_action_ids: Vec<i32>,
+    pub root_visits: Vec<u32>,
+    pub root_visit_shares: Vec<f32>,
+    pub root_priors: Vec<f32>,
+    pub frontier: Vec<CombatPuctLineV1>,
+    pub root_outcome: CombatOutcomeVectorV1,
+    pub root_total_visits: u32,
+    pub stable_windows: u32,
+    pub nodes_expanded: u32,
+    pub leaf_evaluations: u32,
+    pub max_depth_reached: u32,
+    pub elapsed_ms: u64,
+    pub stop_reason: CombatSearchStopReasonV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -976,8 +1104,7 @@ fn build_legal_action_candidates(
     engine: &CombatEngine,
     execution_id_for_action: impl Fn(&Action) -> i32,
 ) -> Vec<LegalActionCandidateV1> {
-    engine
-        .get_legal_actions()
+    crate::search::stable_combat_actions(engine)
         .iter()
         .enumerate()
         .map(|(dense_index, action)| {
