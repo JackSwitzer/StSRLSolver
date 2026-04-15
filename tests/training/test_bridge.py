@@ -1,4 +1,5 @@
 from packages.training.bridge import (
+    load_combat_snapshot,
     load_combat_training_state,
     load_training_schema_versions,
 )
@@ -97,6 +98,40 @@ class _FakeEngine:
             "legal_candidates": [],
         }
 
+    def get_combat_snapshot(self):
+        return {
+            "schema_version": 1,
+            "player_hp": 72,
+            "player_max_hp": 72,
+            "player_block": 0,
+            "energy": 3,
+            "max_energy": 3,
+            "turn": 1,
+            "cards_played_this_turn": 0,
+            "attacks_played_this_turn": 0,
+            "stance": "Neutral",
+            "mantra": 0,
+            "mantra_gained": 0,
+            "skip_enemy_turn": False,
+            "blasphemy_active": False,
+            "total_damage_dealt": 0,
+            "total_damage_taken": 0,
+            "total_cards_played": 0,
+            "player_effects": [],
+            "hand": [],
+            "draw_pile": [],
+            "discard_pile": [],
+            "exhaust_pile": [],
+            "enemies": [],
+            "potions": ["", "", ""],
+            "relics": [],
+            "relic_counters": [],
+            "orb_slots": 0,
+            "rng_seed0": 1,
+            "rng_seed1": 2,
+            "rng_counter": 0,
+        }
+
 
 def test_bridge_loaders_use_engine_session_surface():
     engine = _FakeEngine()
@@ -105,5 +140,8 @@ def test_bridge_loaders_use_engine_session_surface():
         engine,
         RestrictionPolicy((RestrictionBuiltin.NO_CARD_ADDS,)),
     )
+    snapshot = load_combat_snapshot(engine)
     assert versions.gameplay_export_schema_version == 1
     assert state.context.floor == 3
+    assert snapshot.player_hp == 72
+    assert snapshot.rng_seed1 == 2

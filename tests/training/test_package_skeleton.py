@@ -8,6 +8,7 @@ from packages.training import (
     CombatStateSummary,
     LegalCombatCandidate,
     LinearCombatModel,
+    SharedMemoryConfig,
     TrainingConfig,
 )
 
@@ -22,7 +23,7 @@ def test_training_config_defaults_are_combat_first() -> None:
 
 
 def test_shared_memory_batcher_packs_legal_candidates() -> None:
-    batcher = CombatSharedMemoryBatcher(max_batch_size=4)
+    batcher = CombatSharedMemoryBatcher.from_config(SharedMemoryConfig(max_batch_size=4))
     request = CombatSearchRequest(
         request_id="combat-1",
         state=CombatStateSummary(
@@ -52,10 +53,10 @@ def test_shared_memory_batcher_packs_legal_candidates() -> None:
     assert packed.candidate_ids == (("play-bash", "use-potion"),)
 
 
-def test_inference_service_scores_only_legal_candidates() -> None:
+def test_inference_service_scores_only_legal_candidates_and_preserves_frontier() -> None:
     service = CombatInferenceService.build(
         LinearCombatModel(state_scale=0.0, candidate_scale=1.0, legal_bias=0.0),
-        CombatSearchConfig(top_k=4),
+        CombatSearchConfig(top_k=2),
     )
     request = CombatSearchRequest(
         request_id="combat-2",
@@ -74,6 +75,7 @@ def test_inference_service_scores_only_legal_candidates() -> None:
             LegalCombatCandidate("illegal", "card", features=(100.0,), legal=False),
             LegalCombatCandidate("attack", "card", features=(1.0,), legal=True),
             LegalCombatCandidate("defend", "card", features=(0.5,), legal=True),
+            LegalCombatCandidate("setup", "card", features=(0.25,), legal=True),
         ),
     )
 
@@ -82,5 +84,5 @@ def test_inference_service_scores_only_legal_candidates() -> None:
     assert result.request_id == "combat-2"
     assert result.chosen_action_id == "attack"
     assert result.ranked_action_ids == ("attack", "defend")
+    assert result.frontier_action_ids == ("attack", "defend", "setup")
     assert result.ranked_scores[0] > result.ranked_scores[1]
-

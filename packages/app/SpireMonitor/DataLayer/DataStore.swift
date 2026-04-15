@@ -5,6 +5,12 @@ final class DataStore {
     var status: TrainingStatus?
     var recentEpisodes: [Episode] = []
     var topEpisodes: [Episode] = []
+    var runManifest: TrainingRunArtifactManifest?
+    var frontierReport: FrontierReportArtifact?
+    var benchmarkReports: [LocatedBenchmarkReport] = []
+    var artifactEpisodes: [LocatedEpisodeLog] = []
+    var eventStream: [TrainingEventRecord] = []
+    var metricStream: [TrainingMetricRecord] = []
     var floorCurve: [Double] = []
     var workers: [WorkerStatus] = []
     var lastStatusUpdate: Date?
@@ -30,6 +36,24 @@ final class DataStore {
         if let peak = status?.peakFloor ?? status?.replayBestFloor { return peak }
         return (recentEpisodes + topEpisodes)
             .max(by: { $0.effectiveFloor < $1.effectiveFloor })?.effectiveFloor ?? 0
+    }
+
+    var latestEvent: TrainingEventRecord? {
+        eventStream.last
+    }
+
+    var latestMetric: TrainingMetricRecord? {
+        metricStream.last
+    }
+
+    var currentBenchmarkReport: BenchmarkReportArtifact? {
+        benchmarkReports.first?.report
+    }
+
+    var currentFrontierRanking: [FrontierPointArtifact] {
+        guard let frontierReport else { return [] }
+        let lookup = Dictionary(uniqueKeysWithValues: frontierReport.points.map { ($0.label, $0) })
+        return frontierReport.ranking.compactMap { lookup[$0] }
     }
 
     func appendLoss(from status: TrainingStatus) {

@@ -1,6 +1,7 @@
 from packages.training.contracts import (
     RestrictionBuiltin,
     RestrictionPolicy,
+    parse_combat_snapshot,
     parse_combat_training_state,
     parse_training_schema_versions,
 )
@@ -191,3 +192,73 @@ def test_restriction_policy_serializes_builtin_values():
     assert policy.to_dict() == {
         "builtins": ["NoCardAdds", "UpgradeRemoveOnly"],
     }
+
+
+def test_parse_combat_snapshot_roundtrip_shape():
+    payload = {
+        "schema_version": 1,
+        "player_hp": 66,
+        "player_max_hp": 72,
+        "player_block": 4,
+        "energy": 3,
+        "max_energy": 3,
+        "turn": 1,
+        "cards_played_this_turn": 0,
+        "attacks_played_this_turn": 0,
+        "stance": "Neutral",
+        "mantra": 0,
+        "mantra_gained": 0,
+        "skip_enemy_turn": False,
+        "blasphemy_active": False,
+        "total_damage_dealt": 0,
+        "total_damage_taken": 0,
+        "total_cards_played": 0,
+        "player_effects": [],
+        "hand": [
+            {
+                "card_id": "Strike_P",
+                "cost_for_turn": 1,
+                "base_cost": 1,
+                "misc": -1,
+                "upgraded": False,
+                "free_to_play": False,
+                "retained": False,
+                "ethereal": False,
+            }
+        ],
+        "draw_pile": [],
+        "discard_pile": [],
+        "exhaust_pile": [],
+        "enemies": [
+            {
+                "enemy_index": 0,
+                "enemy_id": "Cultist",
+                "enemy_name": "Cultist",
+                "hp": 48,
+                "max_hp": 48,
+                "block": 0,
+                "back_attack": False,
+                "move_id": 1,
+                "intent_damage": 6,
+                "intent_hits": 1,
+                "intent_block": 0,
+                "first_turn": True,
+                "is_escaping": False,
+                "statuses": [],
+            }
+        ],
+        "potions": ["FlexPotion", "", ""],
+        "relics": ["PureWater"],
+        "relic_counters": [{"counter_name": "ink_bottle", "value": 6}],
+        "orb_slots": 0,
+        "rng_seed0": 11,
+        "rng_seed1": 22,
+        "rng_counter": 3,
+    }
+
+    snapshot = parse_combat_snapshot(payload)
+
+    assert snapshot.hand[0].card_id == "Strike_P"
+    assert snapshot.enemies[0].enemy_name == "Cultist"
+    assert snapshot.potions[0] == "FlexPotion"
+    assert snapshot.relic_counters[0].counter_name == "ink_bottle"

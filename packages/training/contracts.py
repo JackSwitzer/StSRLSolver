@@ -285,6 +285,70 @@ class CombatTrainingState:
 
 
 @dataclass(frozen=True)
+class CardSnapshot:
+    card_id: str
+    cost_for_turn: int
+    base_cost: int
+    misc: int
+    upgraded: bool
+    free_to_play: bool
+    retained: bool
+    ethereal: bool
+
+
+@dataclass(frozen=True)
+class EnemySnapshot:
+    enemy_index: int
+    enemy_id: str
+    enemy_name: str
+    hp: int
+    max_hp: int
+    block: int
+    back_attack: bool
+    move_id: int
+    intent_damage: int
+    intent_hits: int
+    intent_block: int
+    first_turn: bool
+    is_escaping: bool
+    statuses: tuple[StatusToken, ...] = ()
+
+
+@dataclass(frozen=True)
+class CombatSnapshot:
+    schema_version: int
+    player_hp: int
+    player_max_hp: int
+    player_block: int
+    energy: int
+    max_energy: int
+    turn: int
+    cards_played_this_turn: int
+    attacks_played_this_turn: int
+    stance: str
+    mantra: int
+    mantra_gained: int
+    skip_enemy_turn: bool
+    blasphemy_active: bool
+    total_damage_dealt: int
+    total_damage_taken: int
+    total_cards_played: int
+    player_effects: tuple[StatusToken, ...]
+    hand: tuple[CardSnapshot, ...]
+    draw_pile: tuple[CardSnapshot, ...]
+    discard_pile: tuple[CardSnapshot, ...]
+    exhaust_pile: tuple[CardSnapshot, ...]
+    enemies: tuple[EnemySnapshot, ...]
+    potions: tuple[str, ...]
+    relics: tuple[str, ...]
+    relic_counters: tuple[RelicCounterToken, ...]
+    orb_slots: int
+    rng_seed0: int
+    rng_seed1: int
+    rng_counter: int
+
+
+@dataclass(frozen=True)
 class RunManifest:
     git_sha: str
     git_dirty: bool
@@ -345,6 +409,49 @@ def _tuple_of(items: list[Any], ctor) -> tuple[Any, ...]:
 
 def parse_training_schema_versions(payload: Mapping[str, Any]) -> TrainingSchemaVersions:
     return TrainingSchemaVersions(**payload)
+
+
+def parse_combat_snapshot(payload: Mapping[str, Any]) -> CombatSnapshot:
+    return CombatSnapshot(
+        schema_version=payload["schema_version"],
+        player_hp=payload["player_hp"],
+        player_max_hp=payload["player_max_hp"],
+        player_block=payload["player_block"],
+        energy=payload["energy"],
+        max_energy=payload["max_energy"],
+        turn=payload["turn"],
+        cards_played_this_turn=payload["cards_played_this_turn"],
+        attacks_played_this_turn=payload["attacks_played_this_turn"],
+        stance=payload["stance"],
+        mantra=payload["mantra"],
+        mantra_gained=payload["mantra_gained"],
+        skip_enemy_turn=payload["skip_enemy_turn"],
+        blasphemy_active=payload["blasphemy_active"],
+        total_damage_dealt=payload["total_damage_dealt"],
+        total_damage_taken=payload["total_damage_taken"],
+        total_cards_played=payload["total_cards_played"],
+        player_effects=_tuple_of(payload["player_effects"], lambda item: StatusToken(**item)),
+        hand=_tuple_of(payload["hand"], lambda item: CardSnapshot(**item)),
+        draw_pile=_tuple_of(payload["draw_pile"], lambda item: CardSnapshot(**item)),
+        discard_pile=_tuple_of(payload["discard_pile"], lambda item: CardSnapshot(**item)),
+        exhaust_pile=_tuple_of(payload["exhaust_pile"], lambda item: CardSnapshot(**item)),
+        enemies=_tuple_of(
+            payload["enemies"],
+            lambda item: EnemySnapshot(
+                **{
+                    **item,
+                    "statuses": _tuple_of(item["statuses"], lambda status: StatusToken(**status)),
+                }
+            ),
+        ),
+        potions=tuple(payload["potions"]),
+        relics=tuple(payload["relics"]),
+        relic_counters=_tuple_of(payload["relic_counters"], lambda item: RelicCounterToken(**item)),
+        orb_slots=payload["orb_slots"],
+        rng_seed0=payload["rng_seed0"],
+        rng_seed1=payload["rng_seed1"],
+        rng_counter=payload["rng_counter"],
+    )
 
 
 def parse_combat_training_state(payload: Mapping[str, Any]) -> CombatTrainingState:

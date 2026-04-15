@@ -17,6 +17,7 @@ Contracts and schemas -- no implementation checklists.
 ## Reference Docs
 Prose design docs -- not checklisted.
 - [combat-logging](combat-logging.md) -- Combat replay and logging design
+- [combat-first-training-rebuild](combat-first-training-rebuild.md) -- Phase 1 contract, corpus, overnight loop, monitor model
 - [reward-tuning](reward-tuning.md) -- Reward shaping improvements
 - [solver-upgrade](solver-upgrade.md) -- Dynamic solver budget design
 - [training-profiling](training-profiling.md) -- Training bottleneck investigation

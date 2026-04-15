@@ -1,4 +1,4 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-python3 -m packages.training "$@"
+uv run python -m packages.training "$@"

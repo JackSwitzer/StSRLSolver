@@ -23,6 +23,7 @@ pub const COMBAT_OBSERVATION_SCHEMA_VERSION: u32 = 1;
 pub const ACTION_CANDIDATE_SCHEMA_VERSION: u32 = 1;
 pub const GAMEPLAY_EXPORT_SCHEMA_VERSION: u32 = 1;
 pub const REPLAY_EVENT_TRACE_SCHEMA_VERSION: u32 = 1;
+pub const COMBAT_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const COMBAT_FRONTIER_CAPACITY: usize = 8;
 
 const HAND_TOKEN_CAP: usize = 10;
@@ -361,6 +362,70 @@ pub struct CombatTrainingStateV1 {
     pub legal_candidates: Vec<LegalActionCandidateV1>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardSnapshotV1 {
+    pub card_id: String,
+    pub cost_for_turn: i32,
+    pub base_cost: i32,
+    pub misc: i32,
+    pub upgraded: bool,
+    pub free_to_play: bool,
+    pub retained: bool,
+    pub ethereal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnemySnapshotV1 {
+    pub enemy_index: usize,
+    pub enemy_id: String,
+    pub enemy_name: String,
+    pub hp: i32,
+    pub max_hp: i32,
+    pub block: i32,
+    pub back_attack: bool,
+    pub move_id: i32,
+    pub intent_damage: i32,
+    pub intent_hits: i32,
+    pub intent_block: i32,
+    pub first_turn: bool,
+    pub is_escaping: bool,
+    pub statuses: Vec<StatusTokenV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CombatSnapshotV1 {
+    pub schema_version: u32,
+    pub player_hp: i32,
+    pub player_max_hp: i32,
+    pub player_block: i32,
+    pub energy: i32,
+    pub max_energy: i32,
+    pub turn: i32,
+    pub cards_played_this_turn: i32,
+    pub attacks_played_this_turn: i32,
+    pub stance: String,
+    pub mantra: i32,
+    pub mantra_gained: i32,
+    pub skip_enemy_turn: bool,
+    pub blasphemy_active: bool,
+    pub total_damage_dealt: i32,
+    pub total_damage_taken: i32,
+    pub total_cards_played: i32,
+    pub player_effects: Vec<StatusTokenV1>,
+    pub hand: Vec<CardSnapshotV1>,
+    pub draw_pile: Vec<CardSnapshotV1>,
+    pub discard_pile: Vec<CardSnapshotV1>,
+    pub exhaust_pile: Vec<CardSnapshotV1>,
+    pub enemies: Vec<EnemySnapshotV1>,
+    pub potions: Vec<String>,
+    pub relics: Vec<String>,
+    pub relic_counters: Vec<RelicCounterTokenV1>,
+    pub orb_slots: usize,
+    pub rng_seed0: u64,
+    pub rng_seed1: u64,
+    pub rng_counter: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct RunManifestV1 {
     pub git_sha: String,
@@ -460,6 +525,153 @@ pub fn combat_training_state_from_run(
         observation: build_combat_observation(combat),
         legal_candidates,
     })
+}
+
+pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
+    let (rng_seed0, rng_seed1, rng_counter) = engine.rng.state_tuple();
+    let state = &engine.state;
+    CombatSnapshotV1 {
+        schema_version: COMBAT_SNAPSHOT_SCHEMA_VERSION,
+        player_hp: state.player.hp,
+        player_max_hp: state.player.max_hp,
+        player_block: state.player.block,
+        energy: state.energy,
+        max_energy: state.max_energy,
+        turn: state.turn,
+        cards_played_this_turn: state.cards_played_this_turn,
+        attacks_played_this_turn: state.attacks_played_this_turn,
+        stance: state.stance.as_str().to_string(),
+        mantra: state.mantra,
+        mantra_gained: state.mantra_gained,
+        skip_enemy_turn: state.skip_enemy_turn,
+        blasphemy_active: state.blasphemy_active,
+        total_damage_dealt: state.total_damage_dealt,
+        total_damage_taken: state.total_damage_taken,
+        total_cards_played: state.total_cards_played,
+        player_effects: collect_status_tokens(&state.player.statuses),
+        hand: state
+            .hand
+            .iter()
+            .map(|card| build_card_snapshot(engine, card))
+            .collect(),
+        draw_pile: state
+            .draw_pile
+            .iter()
+            .map(|card| build_card_snapshot(engine, card))
+            .collect(),
+        discard_pile: state
+            .discard_pile
+            .iter()
+            .map(|card| build_card_snapshot(engine, card))
+            .collect(),
+        exhaust_pile: state
+            .exhaust_pile
+            .iter()
+            .map(|card| build_card_snapshot(engine, card))
+            .collect(),
+        enemies: state
+            .enemies
+            .iter()
+            .enumerate()
+            .map(|(enemy_index, enemy)| EnemySnapshotV1 {
+                enemy_index,
+                enemy_id: enemy.id.clone(),
+                enemy_name: enemy.name.clone(),
+                hp: enemy.entity.hp,
+                max_hp: enemy.entity.max_hp,
+                block: enemy.entity.block,
+                back_attack: enemy.back_attack,
+                move_id: enemy.move_id,
+                intent_damage: enemy.move_damage(),
+                intent_hits: enemy.move_hits(),
+                intent_block: enemy.move_block(),
+                first_turn: enemy.first_turn,
+                is_escaping: enemy.is_escaping,
+                statuses: collect_status_tokens(&enemy.entity.statuses),
+            })
+            .collect(),
+        potions: state.potions.clone(),
+        relics: state.relics.clone(),
+        relic_counters: collect_relic_counter_tokens(&state.relic_counters),
+        orb_slots: state.orb_slots.max_slots,
+        rng_seed0,
+        rng_seed1,
+        rng_counter,
+    }
+}
+
+pub fn combat_snapshot_from_run(run: &RunEngine) -> Option<CombatSnapshotV1> {
+    run.get_combat_engine().map(combat_snapshot_from_combat)
+}
+
+pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine {
+    let mut enemies = Vec::with_capacity(snapshot.enemies.len());
+    for enemy in &snapshot.enemies {
+        let mut state =
+            crate::state::EnemyCombatState::new(&enemy.enemy_id, enemy.hp, enemy.max_hp);
+        state.name = enemy.enemy_name.clone();
+        state.entity.block = enemy.block;
+        apply_status_tokens(&mut state.entity.statuses, &enemy.statuses);
+        state.back_attack = enemy.back_attack;
+        state.set_move(
+            enemy.move_id,
+            enemy.intent_damage,
+            enemy.intent_hits,
+            enemy.intent_block,
+        );
+        state.first_turn = enemy.first_turn;
+        state.is_escaping = enemy.is_escaping;
+        enemies.push(state);
+    }
+
+    let registry = crate::cards::global_registry();
+    let mut state = CombatState::new(
+        snapshot.player_hp,
+        snapshot.player_max_hp,
+        enemies,
+        restore_card_snapshots(&registry, &snapshot.draw_pile),
+        snapshot.max_energy,
+    );
+    state.player.block = snapshot.player_block;
+    apply_status_tokens(&mut state.player.statuses, &snapshot.player_effects);
+    state.energy = snapshot.energy;
+    state.max_energy = snapshot.max_energy;
+    state.turn = snapshot.turn;
+    state.cards_played_this_turn = snapshot.cards_played_this_turn;
+    state.attacks_played_this_turn = snapshot.attacks_played_this_turn;
+    state.stance = crate::state::Stance::from_str(&snapshot.stance);
+    state.mantra = snapshot.mantra;
+    state.mantra_gained = snapshot.mantra_gained;
+    state.skip_enemy_turn = snapshot.skip_enemy_turn;
+    state.blasphemy_active = snapshot.blasphemy_active;
+    state.total_damage_dealt = snapshot.total_damage_dealt;
+    state.total_damage_taken = snapshot.total_damage_taken;
+    state.total_cards_played = snapshot.total_cards_played;
+    state.hand = restore_card_snapshots(&registry, &snapshot.hand);
+    state.draw_pile = restore_card_snapshots(&registry, &snapshot.draw_pile);
+    state.discard_pile = restore_card_snapshots(&registry, &snapshot.discard_pile);
+    state.exhaust_pile = restore_card_snapshots(&registry, &snapshot.exhaust_pile);
+    state.potions = snapshot.potions.clone();
+    state.relics = snapshot.relics.clone();
+    state.orb_slots = crate::orbs::OrbSlots::new(snapshot.orb_slots);
+    for counter in &snapshot.relic_counters {
+        if let Some(idx) = counter_index(&counter.counter_name) {
+            state.relic_counters[idx] = counter.value as i16;
+        }
+    }
+
+    let mut engine = CombatEngine::new(state, 0);
+    engine.rng = crate::seed::StsRandom::from_state(
+        snapshot.rng_seed0,
+        snapshot.rng_seed1,
+        snapshot.rng_counter,
+    );
+    engine.phase = if snapshot.turn <= 0 {
+        crate::engine::CombatPhase::NotStarted
+    } else {
+        crate::engine::CombatPhase::PlayerTurn
+    };
+    engine
 }
 
 pub fn restricted_legal_decision_actions(
@@ -605,6 +817,49 @@ fn build_card_token(
     }
 }
 
+fn build_card_snapshot(
+    engine: &CombatEngine,
+    card: &crate::combat_types::CardInstance,
+) -> CardSnapshotV1 {
+    let def = engine.card_registry.card_def_by_id(card.def_id);
+    CardSnapshotV1 {
+        card_id: def.id.to_string(),
+        cost_for_turn: card.cost.max(-1) as i32,
+        base_cost: card.base_cost.max(-1) as i32,
+        misc: card.misc as i32,
+        upgraded: card.is_upgraded(),
+        free_to_play: card.is_free(),
+        retained: card.is_retained(),
+        ethereal: card.is_ethereal(),
+    }
+}
+
+fn restore_card_snapshots(
+    registry: &crate::cards::CardRegistry,
+    cards: &[CardSnapshotV1],
+) -> Vec<crate::combat_types::CardInstance> {
+    cards
+        .iter()
+        .map(|card| {
+            let mut restored = registry.make_card(&card.card_id);
+            restored.cost = card.cost_for_turn as i8;
+            restored.base_cost = card.base_cost as i8;
+            restored.misc = card.misc as i16;
+            restored.set_retained(card.retained);
+            if card.upgraded {
+                restored.flags |= crate::combat_types::CardInstance::FLAG_UPGRADED;
+            }
+            if card.free_to_play {
+                restored.flags |= crate::combat_types::CardInstance::FLAG_FREE;
+            }
+            if card.ethereal {
+                restored.flags |= crate::combat_types::CardInstance::FLAG_ETHEREAL;
+            }
+            restored
+        })
+        .collect()
+}
+
 fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
     statuses
         .iter()
@@ -622,6 +877,16 @@ fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
             }
         })
         .collect()
+}
+
+fn apply_status_tokens(statuses: &mut [i16; 256], tokens: &[StatusTokenV1]) {
+    *statuses = [0; 256];
+    for token in tokens {
+        let idx = token.status_id as usize;
+        if idx < statuses.len() {
+            statuses[idx] = token.amount as i16;
+        }
+    }
 }
 
 fn collect_enemy_status_tokens(state: &CombatState) -> Vec<EnemyStatusTokenV1> {
@@ -663,6 +928,12 @@ fn collect_relic_counter_tokens(
             }
         })
         .collect()
+}
+
+fn counter_index(name: &str) -> Option<usize> {
+    counter_names()
+        .iter()
+        .position(|candidate| *candidate == name)
 }
 
 fn build_choice_context(engine: &CombatEngine) -> CombatChoiceContextV1 {
@@ -1119,5 +1390,30 @@ mod tests {
         assert!(filtered_campfire
             .iter()
             .all(|action| matches!(action, DecisionAction::CampfireUpgrade(_))));
+    }
+
+    #[test]
+    fn combat_snapshot_roundtrip_preserves_training_surface() {
+        let mut engine = engine_with(make_deck(&["Strike_P", "Defend_P", "Eruption"]), 30, 12);
+        engine.state.potions = vec!["FlexPotion".to_string(), "".to_string(), "".to_string()];
+        engine.state.relics = vec!["PureWater".to_string()];
+        engine.state.relic_counters[crate::relic_flags::counter::INK_BOTTLE] = 6;
+
+        let snapshot = combat_snapshot_from_combat(&engine);
+        let restored = combat_engine_from_snapshot(&snapshot);
+        let restored_state =
+            combat_training_state_from_combat(&restored, crate::encode_combat_action);
+
+        assert_eq!(snapshot.player_hp, restored.state.player.hp);
+        assert_eq!(snapshot.potions[0], "FlexPotion");
+        assert_eq!(restored_state.observation.relic_counters.len(), 1);
+        assert_eq!(
+            restored_state.observation.hand.len(),
+            engine.state.hand.len()
+        );
+        assert!(restored_state
+            .legal_candidates
+            .iter()
+            .any(|candidate| candidate.action_kind == "end_turn"));
     }
 }

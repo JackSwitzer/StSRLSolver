@@ -180,6 +180,20 @@ impl CombatSolver {
         serialize_to_py_dict(py, &state)
     }
 
+    fn get_combat_snapshot<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let snapshot = training_contract::combat_snapshot_from_combat(&self.engine);
+        serialize_to_py_dict(py, &snapshot)
+    }
+
+    fn get_combat_snapshot_json(&self) -> PyResult<String> {
+        let snapshot = training_contract::combat_snapshot_from_combat(&self.engine);
+        serde_json::to_string(&snapshot).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to serialize combat snapshot: {err}"
+            ))
+        })
+    }
+
     /// Deep copy for MCTS tree branching.
     fn clone_solver(&self) -> Self {
         Self {
@@ -337,7 +351,7 @@ fn json_value_to_pyobject(py: Python<'_>, value: &serde_json::Value) -> PyResult
     }
 }
 
-fn serialize_to_py_dict<'py, T: serde::Serialize>(
+pub(crate) fn serialize_to_py_dict<'py, T: serde::Serialize>(
     py: Python<'py>,
     value: &T,
 ) -> PyResult<Bound<'py, PyDict>> {
@@ -1452,6 +1466,30 @@ impl PyRunEngine {
             )
         })?;
         serialize_to_py_dict(py, &state)
+    }
+
+    fn get_combat_snapshot<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let snapshot =
+            training_contract::combat_snapshot_from_run(&self.inner).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "Combat snapshot is only available during combat",
+                )
+            })?;
+        serialize_to_py_dict(py, &snapshot)
+    }
+
+    fn get_combat_snapshot_json(&self) -> PyResult<String> {
+        let snapshot =
+            training_contract::combat_snapshot_from_run(&self.inner).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "Combat snapshot is only available during combat",
+                )
+            })?;
+        serde_json::to_string(&snapshot).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to serialize combat snapshot: {err}"
+            ))
+        })
     }
 
     #[pyo3(signature = (restriction_policy_json=None))]

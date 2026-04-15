@@ -70,9 +70,9 @@ struct ContentView: View {
                 case .training:
                     TrainingView()
                 case .analysis:
-                    PlaceholderView(name: "Analysis")
+                    ArtifactAnalysisView()
                 case .detail:
-                    PlaceholderView(name: "Detail")
+                    FrontierInspectorView()
                 case .replay:
                     ReplayView()
                 }

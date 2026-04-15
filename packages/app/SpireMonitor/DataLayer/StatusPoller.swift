@@ -90,6 +90,32 @@ actor StatusPoller {
             }
         }
 
+        // Reload artifact-driven training outputs every 4th poll (~10s)
+        if pollCount % 4 == 0 || pollCount == 1 {
+            async let manifest = ManifestLoader.load(from: logsURL)
+            async let frontier = FrontierReportLoader.load(from: logsURL)
+            async let benchmarkReports = BenchmarkReportLoader.loadAll(from: logsURL)
+            async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: logsURL)
+            async let events = EventStreamLoader.load(from: logsURL)
+            async let metricStream = MetricStreamLoader.load(from: logsURL)
+
+            let loadedManifest = await manifest
+            let loadedFrontier = await frontier
+            let loadedBenchmarkReports = await benchmarkReports
+            let loadedArtifactEpisodes = await artifactEpisodes
+            let loadedEvents = await events
+            let loadedMetricStream = await metricStream
+
+            await MainActor.run {
+                store.runManifest = loadedManifest
+                store.frontierReport = loadedFrontier
+                store.benchmarkReports = loadedBenchmarkReports
+                store.artifactEpisodes = loadedArtifactEpisodes
+                store.eventStream = loadedEvents
+                store.metricStream = loadedMetricStream
+            }
+        }
+
         // Scan workers/*.json
         let workersDir = logsURL.appending(path: "workers")
         if let files = try? FileManager.default.contentsOfDirectory(at: workersDir, includingPropertiesForKeys: nil) {

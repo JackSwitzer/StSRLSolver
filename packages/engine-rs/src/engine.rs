@@ -6,6 +6,7 @@
 //! - combat_hooks: enemy turns, boss damage hooks
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use rand::seq::SliceRandom;
 
 use crate::actions::{Action, PyAction};
@@ -162,9 +163,7 @@ impl CombatEngine {
         self.rebuild_effect_runtime();
     }
 
-    pub fn export_persisted_effects(
-        &self,
-    ) -> Vec<crate::effects::runtime::PersistedEffectState> {
+    pub fn export_persisted_effects(&self) -> Vec<crate::effects::runtime::PersistedEffectState> {
         self.effect_runtime.export_persisted_states()
     }
 
@@ -212,7 +211,12 @@ impl CombatEngine {
         self.runtime_play_stack.clear();
     }
 
-    pub fn hidden_effect_value(&self, def_id: &str, owner: crate::effects::runtime::EffectOwner, slot: usize) -> i32 {
+    pub fn hidden_effect_value(
+        &self,
+        def_id: &str,
+        owner: crate::effects::runtime::EffectOwner,
+        slot: usize,
+    ) -> i32 {
         self.effect_runtime.hidden_value(def_id, owner, slot)
     }
 
@@ -240,7 +244,9 @@ impl CombatEngine {
         }
         if self.state.player.status(sid::CHANNEL_LIGHTNING_START) > 0 {
             self.channel_orb(crate::orbs::OrbType::Lightning);
-            self.state.player.set_status(sid::CHANNEL_LIGHTNING_START, 0);
+            self.state
+                .player
+                .set_status(sid::CHANNEL_LIGHTNING_START, 0);
         }
         if self.state.player.status(sid::CHANNEL_PLASMA_START) > 0 {
             self.channel_orb(crate::orbs::OrbType::Plasma);
@@ -525,25 +531,25 @@ impl CombatEngine {
         match ctx.action {
             Some(ChoiceAction::StoreCardForNextTurnCopies) => self.resolve_nightmare(ctx),
             _ => match ctx.reason {
-            ChoiceReason::Scry => self.resolve_scry(ctx),
-            ChoiceReason::DiscardFromHand => self.resolve_discard_from_hand(ctx),
-            ChoiceReason::ExhaustFromHand => self.resolve_exhaust_from_hand(ctx),
-            ChoiceReason::PutOnTopFromHand => self.resolve_put_on_top(ctx),
-            ChoiceReason::PickFromDiscard => self.resolve_pick_from_discard(ctx),
-            ChoiceReason::PickFromDrawPile => self.resolve_pick_from_draw(ctx),
-            ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
-            ChoiceReason::PickOption => self.resolve_pick_option(ctx),
-            ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
-            ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
-            ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
-            ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
-            ChoiceReason::SearchDrawPile => self.resolve_search_draw_pile(ctx),
-            ChoiceReason::ReturnFromDiscard => self.resolve_return_from_discard(ctx),
-            ChoiceReason::ForethoughtPick => self.resolve_forethought(ctx),
-            ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
-            ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
-            ChoiceReason::SetupPick => self.resolve_setup(ctx),
-            ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
+                ChoiceReason::Scry => self.resolve_scry(ctx),
+                ChoiceReason::DiscardFromHand => self.resolve_discard_from_hand(ctx),
+                ChoiceReason::ExhaustFromHand => self.resolve_exhaust_from_hand(ctx),
+                ChoiceReason::PutOnTopFromHand => self.resolve_put_on_top(ctx),
+                ChoiceReason::PickFromDiscard => self.resolve_pick_from_discard(ctx),
+                ChoiceReason::PickFromDrawPile => self.resolve_pick_from_draw(ctx),
+                ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
+                ChoiceReason::PickOption => self.resolve_pick_option(ctx),
+                ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
+                ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
+                ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
+                ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
+                ChoiceReason::SearchDrawPile => self.resolve_search_draw_pile(ctx),
+                ChoiceReason::ReturnFromDiscard => self.resolve_return_from_discard(ctx),
+                ChoiceReason::ForethoughtPick => self.resolve_forethought(ctx),
+                ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
+                ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
+                ChoiceReason::SetupPick => self.resolve_setup(ctx),
+                ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
             },
         }
 
@@ -593,7 +599,11 @@ impl CombatEngine {
         // Weave: return from discard to hand on Scry
         let mut weave_indices = Vec::new();
         for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
-            if self.card_registry.card_name(card_inst.def_id).starts_with("Weave") {
+            if self
+                .card_registry
+                .card_name(card_inst.def_id)
+                .starts_with("Weave")
+            {
                 weave_indices.push(i);
             }
         }
@@ -607,9 +617,17 @@ impl CombatEngine {
 
     fn resolve_discard_from_hand(&mut self, ctx: ChoiceContext) {
         // Discard selected hand cards (process in reverse to maintain indices)
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::HandCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a)); // Reverse order
         let discard_count = indices.len();
         let mut discarded_cards = Vec::new();
@@ -634,9 +652,17 @@ impl CombatEngine {
     }
 
     fn resolve_exhaust_from_hand(&mut self, ctx: ChoiceContext) {
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::HandCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.hand.len() {
@@ -676,9 +702,17 @@ impl CombatEngine {
 
     fn resolve_pick_from_draw(&mut self, ctx: ChoiceContext) {
         // Seek: move selected card(s) from draw pile to hand
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::DrawCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::DrawCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
@@ -735,7 +769,9 @@ impl CombatEngine {
                     match payload.kind {
                         NamedOptionKind::AddStatus(status) => {
                             let current = self.state.player.status(status);
-                            self.state.player.set_status(status, current + payload.amount);
+                            self.state
+                                .player
+                                .set_status(status, current + payload.amount);
                         }
                         NamedOptionKind::GainRunGold => {
                             self.state.pending_run_gold += payload.amount.max(0);
@@ -774,7 +810,9 @@ impl CombatEngine {
                     let card = self.state.hand[idx];
                     let copies = ctx.aux_count.max(1);
                     for _ in 0..copies {
-                        if self.state.hand.len() >= 10 { break; }
+                        if self.state.hand.len() >= 10 {
+                            break;
+                        }
                         self.state.hand.push(card);
                     }
                 }
@@ -829,8 +867,17 @@ impl CombatEngine {
                     self.state.hand[idx].cost = 0;
                     self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
                     // Play it (target -1 = self; for targeted cards MCTS will handle)
-                    let target = if self.card_registry.card_def_by_id(self.state.hand[idx].def_id).target == CardTarget::Enemy {
-                        self.state.targetable_enemy_indices().first().copied().unwrap_or(0) as i32
+                    let target = if self
+                        .card_registry
+                        .card_def_by_id(self.state.hand[idx].def_id)
+                        .target
+                        == CardTarget::Enemy
+                    {
+                        self.state
+                            .targetable_enemy_indices()
+                            .first()
+                            .copied()
+                            .unwrap_or(0) as i32
                     } else {
                         -1
                     };
@@ -853,8 +900,17 @@ impl CombatEngine {
                     let copy = card;
                     self.state.hand.push(card);
                     let hand_idx = self.state.hand.len() - 1;
-                    let target = if self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id).target == CardTarget::Enemy {
-                        self.state.targetable_enemy_indices().first().copied().unwrap_or(0) as i32
+                    let target = if self
+                        .card_registry
+                        .card_def_by_id(self.state.hand[hand_idx].def_id)
+                        .target
+                        == CardTarget::Enemy
+                    {
+                        self.state
+                            .targetable_enemy_indices()
+                            .first()
+                            .copied()
+                            .unwrap_or(0) as i32
                     } else {
                         -1
                     };
@@ -873,9 +929,17 @@ impl CombatEngine {
 
     fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
         // Secret Weapon / Secret Technique: move selected card from draw pile to hand
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::DrawCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::DrawCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.draw_pile.len() {
@@ -892,9 +956,17 @@ impl CombatEngine {
 
     fn resolve_return_from_discard(&mut self, ctx: ChoiceContext) {
         // Hologram / Meditate: move selected card(s) from discard to hand
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::DiscardCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::DiscardCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a)); // remove from back to front
         for idx in indices {
             if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
@@ -913,9 +985,17 @@ impl CombatEngine {
     fn resolve_forethought(&mut self, ctx: ChoiceContext) {
         // Forethought: put selected card(s) on bottom of draw pile at 0 cost
         // Convention: last = top (pop draws), index 0 = bottom
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::HandCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.hand.len() {
@@ -961,9 +1041,17 @@ impl CombatEngine {
 
     fn resolve_discard_for_effect(&mut self, ctx: ChoiceContext) {
         // Concentrate: discard N cards, then gain energy
-        let mut indices: Vec<usize> = ctx.selected.iter().filter_map(|&i| {
-            if let ChoiceOption::HandCard(idx) = ctx.options[i] { Some(idx) } else { None }
-        }).collect();
+        let mut indices: Vec<usize> = ctx
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                if let ChoiceOption::HandCard(idx) = ctx.options[i] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         let mut discarded_cards = Vec::new();
         for idx in indices {
@@ -1059,7 +1147,9 @@ impl CombatEngine {
             // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
             if blur {
                 let blur_val = self.state.player.status(sid::BLUR);
-                self.state.player.set_status(sid::BLUR, (blur_val - 1).max(0));
+                self.state
+                    .player
+                    .set_status(sid::BLUR, (blur_val - 1).max(0));
             }
         }
 
@@ -1083,7 +1173,9 @@ impl CombatEngine {
         let bias_loss = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
         if bias_loss > 0 {
             let current_focus = self.state.player.focus();
-            self.state.player.set_status(sid::FOCUS, current_focus - bias_loss);
+            self.state
+                .player
+                .set_status(sid::FOCUS, current_focus - bias_loss);
         }
 
         // === POWER HOOKS handled by the owner-aware TurnStart event above:
@@ -1094,9 +1186,13 @@ impl CombatEngine {
         // One-shot statuses consumed by dispatch_trigger declarative effects need clearing:
         {
             let dd = self.state.player.status(sid::DOPPELGANGER_DRAW);
-            if dd > 0 { self.state.player.set_status(sid::DOPPELGANGER_DRAW, 0); }
+            if dd > 0 {
+                self.state.player.set_status(sid::DOPPELGANGER_DRAW, 0);
+            }
             let de = self.state.player.status(sid::DOPPELGANGER_ENERGY);
-            if de > 0 { self.state.player.set_status(sid::DOPPELGANGER_ENERGY, 0); }
+            if de > 0 {
+                self.state.player.set_status(sid::DOPPELGANGER_ENERGY, 0);
+            }
         }
 
         // ---- Start-of-turn orb passives (Plasma) ----
@@ -1189,7 +1285,6 @@ impl CombatEngine {
             amount: 0,
             replay_window: false,
         });
-
     }
 
     pub(crate) fn end_turn(&mut self) {
@@ -1227,19 +1322,21 @@ impl CombatEngine {
         // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
         for ei in 0..self.state.enemies.len() {
             if self.state.enemies[ei].is_alive() {
-                let tsl = self.state.enemies[ei].entity.status(sid::TEMP_STRENGTH_LOSS);
+                let tsl = self.state.enemies[ei]
+                    .entity
+                    .status(sid::TEMP_STRENGTH_LOSS);
                 if tsl > 0 {
                     self.state.enemies[ei].entity.add_status(sid::STRENGTH, tsl);
-                    self.state.enemies[ei].entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+                    self.state.enemies[ei]
+                        .entity
+                        .set_status(sid::TEMP_STRENGTH_LOSS, 0);
                 }
             }
         }
 
         // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
-        let player_died = status_effects::process_end_turn_hand_cards(
-            &mut self.state,
-            &self.card_registry,
-        );
+        let player_died =
+            status_effects::process_end_turn_hand_cards(&mut self.state, &self.card_registry);
         if player_died {
             self.phase = CombatPhase::CombatOver;
             return;
@@ -1377,9 +1474,7 @@ impl CombatEngine {
                         front.evoke_amount += gain;
                         PassiveEffect::None
                     }
-                    crate::orbs::OrbType::Plasma => {
-                        PassiveEffect::PlasmaEnergy(front.base_passive)
-                    }
+                    crate::orbs::OrbType::Plasma => PassiveEffect::PlasmaEnergy(front.base_passive),
                     crate::orbs::OrbType::Empty => PassiveEffect::None,
                 };
                 self.apply_passive_effect(effect);
@@ -1461,7 +1556,9 @@ impl CombatEngine {
         // Decrement player Intangible
         let intangible = self.state.player.status(sid::INTANGIBLE);
         if intangible > 0 {
-            self.state.player.set_status(sid::INTANGIBLE, intangible - 1);
+            self.state
+                .player
+                .set_status(sid::INTANGIBLE, intangible - 1);
         }
 
         // Check combat end
@@ -1508,10 +1605,10 @@ impl CombatEngine {
 
         // Normality curse: max 3 cards per turn when Normality is in hand
         if self.state.cards_played_this_turn >= 3 {
-                let has_normality = self.state.hand.iter().any(|c| {
-                    let def = self.card_registry.card_def_by_id(c.def_id);
-                    def.runtime_traits().limit_cards_per_turn
-                });
+            let has_normality = self.state.hand.iter().any(|c| {
+                let def = self.card_registry.card_def_by_id(c.def_id);
+                def.runtime_traits().limit_cards_per_turn
+            });
             if has_normality {
                 return false;
             }
@@ -1546,7 +1643,9 @@ impl CombatEngine {
         match filter {
             CardFilter::All => true,
             CardFilter::Attacks => def.card_type == CardType::Attack,
-            CardFilter::AttackOrPower => matches!(def.card_type, CardType::Attack | CardType::Power),
+            CardFilter::AttackOrPower => {
+                matches!(def.card_type, CardType::Attack | CardType::Power)
+            }
             CardFilter::Skills => def.card_type == CardType::Skill,
             CardFilter::NonAttacks => def.card_type != CardType::Attack,
             CardFilter::ZeroCost => {
@@ -1607,9 +1706,11 @@ impl CombatEngine {
             } = effect
             {
                 if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
-                    let min_required = self.choice_min_picks_for_legality(card, card_inst, *min_picks);
+                    let min_required =
+                        self.choice_min_picks_for_legality(card, card_inst, *min_picks);
                     if min_required > 0
-                        && self.available_choice_cards_in_pile(*source, *filter) < min_required as usize
+                        && self.available_choice_cards_in_pile(*source, *filter)
+                            < min_required as usize
                     {
                         return false;
                     }
@@ -1636,7 +1737,8 @@ impl CombatEngine {
         if card_inst.is_free() {
             return 0;
         }
-        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+        {
             return 0;
         }
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
@@ -1678,7 +1780,8 @@ impl CombatEngine {
         if card_inst.is_free() {
             return 0;
         }
-        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+        {
             return 0;
         }
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
@@ -1768,7 +1871,9 @@ impl CombatEngine {
                     &ctx,
                 ));
             }
-            if self.state.combat_over { return; }
+            if self.state.combat_over {
+                return;
+            }
             return;
         }
 
@@ -1851,16 +1956,16 @@ impl CombatEngine {
             let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
-                    self.state.draw_pile.push(self.card_registry.make_card("Daze"));
+                    self.state
+                        .draw_pile
+                        .push(self.card_registry.make_card("Daze"));
                 }
             }
         }
 
         // Pain curse: deal 1 HP loss per Pain card in hand on every card play
-        let pain_killed = status_effects::process_pain_on_card_play(
-            &mut self.state,
-            &self.card_registry,
-        );
+        let pain_killed =
+            status_effects::process_pain_on_card_play(&mut self.state, &self.card_registry);
         if pain_killed {
             self.phase = CombatPhase::CombatOver;
             self.clear_runtime_play_contexts();
@@ -1914,9 +2019,7 @@ impl CombatEngine {
                 &post_ctx,
             ));
         }
-        if self.state.combat_over
-            || self.state.turn != turn_before_after_use
-        {
+        if self.state.combat_over || self.state.turn != turn_before_after_use {
             self.clear_runtime_play_contexts();
             return;
         }
@@ -1962,7 +2065,8 @@ impl CombatEngine {
             card_inst = updated;
         }
 
-        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0 {
+        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+        {
             self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
         }
 
@@ -1996,8 +2100,7 @@ impl CombatEngine {
             self.state.draw_pile.push(card_inst);
             self.shuffle_draw_pile();
         } else if card.exhaust
-            || (card.card_type == CardType::Skill
-                && self.state.player.status(sid::CORRUPTION) > 0)
+            || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0)
         {
             if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
                 if self.rng.random(1) == 0 {
@@ -2055,7 +2158,8 @@ impl CombatEngine {
         self.rebuild_effect_runtime();
 
         let potion_id = self.state.potions[potion_idx].clone();
-        let can_use_runtime = crate::potions::defs::potion_uses_runtime_manual_activation(&potion_id);
+        let can_use_runtime =
+            crate::potions::defs::potion_uses_runtime_manual_activation(&potion_id);
         let success = if can_use_runtime {
             if !potions::potion_can_use_in_combat(&self.state, &potion_id) {
                 return;
@@ -2198,7 +2302,9 @@ impl CombatEngine {
         self.state.total_damage_taken += amount;
 
         // Track cumulative HP loss for Blood for Blood cost reduction
-        self.state.player.add_status(sid::HP_LOSS_THIS_COMBAT, amount);
+        self.state
+            .player
+            .add_status(sid::HP_LOSS_THIS_COMBAT, amount);
 
         // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull)
         {
@@ -2283,10 +2389,7 @@ impl CombatEngine {
                 replay_window: self.runtime_replay_window,
             });
         }
-        if applied
-            && status == sid::VULNERABLE
-            && self.state.has_relic("Champion Belt")
-        {
+        if applied && status == sid::VULNERABLE && self.state.has_relic("Champion Belt") {
             let extra_applied =
                 powers::apply_debuff(&mut self.state.enemies[enemy_idx].entity, sid::WEAKENED, 1);
             if extra_applied {
@@ -2355,7 +2458,8 @@ impl CombatEngine {
         };
 
         // Invincible: cap total HP loss per turn (Heart, Donu, Deca)
-        let capped_damage = powers::apply_invincible_cap_tracked(&mut enemy.entity, effective_damage);
+        let capped_damage =
+            powers::apply_invincible_cap_tracked(&mut enemy.entity, effective_damage);
 
         let blocked = enemy.entity.block.min(capped_damage);
         let hp_damage = capped_damage - blocked;
@@ -2369,14 +2473,18 @@ impl CombatEngine {
             let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
             if curl_up > 0 {
                 self.state.enemies[enemy_idx].entity.block += curl_up;
-                self.state.enemies[enemy_idx].entity.set_status(sid::CURL_UP, 0);
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::CURL_UP, 0);
             }
 
             // Malleable: gain escalating block on hit
             let malleable = self.state.enemies[enemy_idx].entity.status(sid::MALLEABLE);
             if malleable > 0 {
                 self.state.enemies[enemy_idx].entity.block += malleable;
-                self.state.enemies[enemy_idx].entity.add_status(sid::MALLEABLE, 1);
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .add_status(sid::MALLEABLE, 1);
             }
 
             // Sharp Hide: deal retaliation damage to player when attacked
@@ -2402,7 +2510,10 @@ impl CombatEngine {
 
         combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
         if self.state.enemies[enemy_idx].entity.hp <= 0
-            && self.state.enemies[enemy_idx].entity.status(sid::REBIRTH_PENDING) <= 0
+            && self.state.enemies[enemy_idx]
+                .entity
+                .status(sid::REBIRTH_PENDING)
+                <= 0
         {
             self.state.enemies[enemy_idx].entity.hp = 0;
             self.finalize_enemy_death(enemy_idx);
@@ -2415,7 +2526,9 @@ impl CombatEngine {
         }
 
         // Spore Cloud: apply Vulnerable to player on death.
-        let spore = self.state.enemies[enemy_idx].entity.status(sid::SPORE_CLOUD);
+        let spore = self.state.enemies[enemy_idx]
+            .entity
+            .status(sid::SPORE_CLOUD);
         if spore > 0 {
             powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
         }
@@ -2440,7 +2553,9 @@ impl CombatEngine {
         }
 
         // Corpse Explosion: deal damage equal to enemy max HP to all other enemies.
-        let ce = self.state.enemies[enemy_idx].entity.status(sid::CORPSE_EXPLOSION);
+        let ce = self.state.enemies[enemy_idx]
+            .entity
+            .status(sid::CORPSE_EXPLOSION);
         if ce > 0 {
             let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
             let living = self.state.living_enemy_indices();
@@ -2463,8 +2578,9 @@ impl CombatEngine {
         if self.state.has_relic("Boot") && unblocked > 0 && unblocked < 5 {
             hit_damage = enemy_block_before + 5;
         }
-        let block_broken =
-            self.state.has_relic("HandDrill") && enemy_block_before > 0 && hit_damage > enemy_block_before;
+        let block_broken = self.state.has_relic("HandDrill")
+            && enemy_block_before > 0
+            && hit_damage > enemy_block_before;
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
 
         self.deal_damage_to_enemy(enemy_idx, hit_damage);
@@ -2498,9 +2614,7 @@ impl CombatEngine {
             return damage;
         }
 
-        if self.card_registry.is_strike(card_inst.def_id)
-            && self.state.has_relic("StrikeDummy")
-        {
+        if self.card_registry.is_strike(card_inst.def_id) && self.state.has_relic("StrikeDummy") {
             damage += 3;
         }
 
@@ -2657,7 +2771,9 @@ impl CombatEngine {
         }
         let front_orb = &self.state.orb_slots.slots[0];
         let effect = match front_orb.orb_type {
-            crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(front_orb.base_passive),
+            crate::orbs::OrbType::Plasma => {
+                crate::orbs::PassiveEffect::PlasmaEnergy(front_orb.base_passive)
+            }
             _ => crate::orbs::PassiveEffect::None,
         };
         self.apply_passive_effect(effect);
@@ -2753,7 +2869,9 @@ impl CombatEngine {
 
                 // Fire Breathing: damage all enemies when drawing Status or Curse
                 let fire_breathing = self.state.player.status(sid::FIRE_BREATHING);
-                if fire_breathing > 0 && (card_type == CardType::Status || card_type == CardType::Curse) {
+                if fire_breathing > 0
+                    && (card_type == CardType::Status || card_type == CardType::Curse)
+                {
                     for i in 0..self.state.enemies.len() {
                         if self.state.enemies[i].is_targetable() {
                             self.deal_damage_to_enemy(i, fire_breathing);
@@ -2794,11 +2912,12 @@ impl CombatEngine {
 
         // Exit Calm: gain 2 energy (+ Violet Lotus bonus)
         if old_stance == Stance::Calm {
-            let bonus = if self.state.has_relic("Violet Lotus") || self.state.has_relic("VioletLotus") {
-                1
-            } else {
-                0
-            };
+            let bonus =
+                if self.state.has_relic("Violet Lotus") || self.state.has_relic("VioletLotus") {
+                    1
+                } else {
+                    0
+                };
             self.state.energy += 2 + bonus;
         }
 
@@ -2906,10 +3025,13 @@ impl CombatEngine {
             return;
         }
         // Take top N cards from draw pile (end = top) and present as choice
-        let revealed: Vec<CardInstance> = self.state.draw_pile
+        let revealed: Vec<CardInstance> = self
+            .state
+            .draw_pile
             .drain(self.state.draw_pile.len() - to_scry..)
             .collect();
-        let options: Vec<ChoiceOption> = revealed.into_iter()
+        let options: Vec<ChoiceOption> = revealed
+            .into_iter()
             .map(ChoiceOption::RevealedCard)
             .collect();
         // Multi-select: player picks any subset to discard (min 0 = can keep all)
@@ -3060,9 +3182,7 @@ impl CombatEngine {
 #[cfg(test)]
 mod test_relic_runtime_wave4 {
     use crate::actions::Action;
-    use crate::tests::support::{
-        combat_state_with, end_turn, engine_with_state, make_deck_n,
-    };
+    use crate::tests::support::{combat_state_with, end_turn, engine_with_state, make_deck_n};
 
     #[test]
     fn velvet_choker_blocks_seventh_play_and_resets_next_turn() {
@@ -3187,10 +3307,15 @@ impl RustCombatEngine {
             .collect();
 
         let registry = crate::cards::global_registry();
-        let deck_instances: Vec<CardInstance> = deck.iter()
-            .map(|name| registry.make_card(name))
-            .collect();
-        let mut state = CombatState::new(player_hp, player_max_hp, enemy_states, deck_instances, energy);
+        let deck_instances: Vec<CardInstance> =
+            deck.iter().map(|name| registry.make_card(name)).collect();
+        let mut state = CombatState::new(
+            player_hp,
+            player_max_hp,
+            enemy_states,
+            deck_instances,
+            energy,
+        );
         if let Some(r) = relics {
             state.relics = r;
         }
@@ -3200,9 +3325,51 @@ impl RustCombatEngine {
         }
     }
 
+    #[staticmethod]
+    fn from_combat_snapshot_json(snapshot_json: &str) -> PyResult<Self> {
+        let snapshot: crate::training_contract::CombatSnapshotV1 =
+            serde_json::from_str(snapshot_json).map_err(|err| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Failed to parse combat snapshot JSON: {err}"
+                ))
+            })?;
+        Ok(Self {
+            engine: crate::training_contract::combat_engine_from_snapshot(&snapshot),
+        })
+    }
+
     /// Start combat (shuffle + draw initial hand).
     fn start_combat(&mut self) {
         self.engine.start_combat();
+    }
+
+    fn get_training_schema_versions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        crate::serialize_to_py_dict(
+            py,
+            &crate::training_contract::TrainingSchemaVersionsV1::default(),
+        )
+    }
+
+    fn get_combat_training_state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let state = crate::training_contract::combat_training_state_from_combat(
+            &self.engine,
+            crate::encode_combat_action,
+        );
+        crate::serialize_to_py_dict(py, &state)
+    }
+
+    fn get_combat_snapshot<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let snapshot = crate::training_contract::combat_snapshot_from_combat(&self.engine);
+        crate::serialize_to_py_dict(py, &snapshot)
+    }
+
+    fn get_combat_snapshot_json(&self) -> PyResult<String> {
+        let snapshot = crate::training_contract::combat_snapshot_from_combat(&self.engine);
+        serde_json::to_string(&snapshot).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to serialize combat snapshot: {err}"
+            ))
+        })
     }
 
     /// Get legal actions as a list of Action objects.
@@ -3217,6 +3384,51 @@ impl RustCombatEngine {
     /// Execute an action.
     fn take_action(&mut self, action: &PyAction) {
         self.engine.execute_action(&action.inner);
+    }
+
+    fn step_training_action<'py>(
+        &mut self,
+        py: Python<'py>,
+        action_id: i32,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let action = self
+            .engine
+            .get_legal_actions()
+            .into_iter()
+            .find(|candidate| crate::encode_combat_action(candidate) == action_id)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Illegal combat training action id {action_id}"
+                ))
+            })?;
+        self.engine.execute_action(&action);
+        let result = PyDict::new_bound(py);
+        result.set_item("action_id", action_id)?;
+        result.set_item("done", self.engine.is_combat_over())?;
+        result.set_item("terminal", self.engine.is_combat_over())?;
+        result.set_item("won", self.engine.state.player_won)?;
+        result.set_item("turn", self.engine.state.turn)?;
+        result.set_item("hp", self.engine.state.player.hp)?;
+        result.set_item("energy", self.engine.state.energy)?;
+        result.set_item(
+            "legal_action_ids",
+            self.engine
+                .get_legal_actions()
+                .iter()
+                .map(crate::encode_combat_action)
+                .collect::<Vec<_>>(),
+        )?;
+        result.set_item(
+            "training_state",
+            crate::serialize_to_py_dict(
+                py,
+                &crate::training_contract::combat_training_state_from_combat(
+                    &self.engine,
+                    crate::encode_combat_action,
+                ),
+            )?,
+        )?;
+        Ok(result)
     }
 
     /// Check if combat is over.
@@ -3263,7 +3475,10 @@ impl RustCombatEngine {
     /// Get the current hand as list of card IDs.
     #[getter]
     fn hand(&self) -> Vec<String> {
-        self.engine.state.hand.iter()
+        self.engine
+            .state
+            .hand
+            .iter()
             .map(|c| self.engine.card_registry.card_name(c.def_id).to_string())
             .collect()
     }
@@ -3360,7 +3575,18 @@ mod tests {
     use crate::tests::support::make_deck;
 
     fn make_test_state() -> CombatState {
-        let deck = make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P", "Eruption", "Vigilance"]);
+        let deck = make_deck(&[
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+            "Defend_P",
+            "Defend_P",
+            "Defend_P",
+            "Defend_P",
+            "Eruption",
+            "Vigilance",
+        ]);
 
         let mut enemy = EnemyCombatState::new("JawWorm", 44, 44);
         enemy.set_move(1, 11, 1, 0); // 11 damage attack
@@ -3404,7 +3630,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -3427,7 +3658,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Defend"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Defend")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: defend_idx,
@@ -3538,7 +3774,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Defend"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Defend")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: defend_idx,
@@ -3566,7 +3807,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -3607,7 +3853,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -3668,7 +3919,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -3693,7 +3949,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -3755,14 +4016,24 @@ mod tests {
         let mut state = make_test_state();
         // Give player Rushdown power (draw 2 on Wrath entry)
         state.player.set_status(sid::RUSHDOWN, 2);
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&[
+            "Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P",
+        ]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
 
         // Ensure Eruption is in hand (RNG may not have drawn it)
-        if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Eruption") {
-            engine.state.hand.push(engine.card_registry.make_card("Eruption"));
+        if !engine
+            .state
+            .hand
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Eruption")
+        {
+            engine
+                .state
+                .hand
+                .push(engine.card_registry.make_card("Eruption"));
         }
 
         let hand_size_before = engine.state.hand.len();
@@ -3815,7 +4086,16 @@ mod tests {
     #[test]
     fn test_mantra_accumulation_to_divinity() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Prostrate", "Prostrate", "Prostrate", "Prostrate", "Prostrate", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&[
+            "Prostrate",
+            "Prostrate",
+            "Prostrate",
+            "Prostrate",
+            "Prostrate",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+        ]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3889,7 +4169,12 @@ mod tests {
         let energy_before = engine.state.energy; // 3
 
         // Play Worship: 5 + 5 = 10 mantra -> Divinity + 3 energy
-        if let Some(idx) = engine.state.hand.iter().position(|c| engine.card_registry.card_name(c.def_id) == "Worship") {
+        if let Some(idx) = engine
+            .state
+            .hand
+            .iter()
+            .position(|c| engine.card_registry.card_name(c.def_id) == "Worship")
+        {
             engine.execute_action(&Action::PlayCard {
                 card_idx: idx,
                 target_idx: -1,
@@ -3958,7 +4243,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,
@@ -4032,7 +4322,10 @@ mod tests {
             .iter()
             .filter(|a| {
                 if let Action::PlayCard { card_idx, .. } = a {
-                    engine.card_registry.card_name(engine.state.hand[*card_idx].def_id).starts_with("Strike")
+                    engine
+                        .card_registry
+                        .card_name(engine.state.hand[*card_idx].def_id)
+                        .starts_with("Strike")
                 } else {
                     false
                 }
@@ -4045,7 +4338,10 @@ mod tests {
             .iter()
             .filter(|a| {
                 if let Action::PlayCard { card_idx, .. } = a {
-                    engine.card_registry.card_name(engine.state.hand[*card_idx].def_id).starts_with("Defend")
+                    engine
+                        .card_registry
+                        .card_name(engine.state.hand[*card_idx].def_id)
+                        .starts_with("Defend")
                 } else {
                     false
                 }
@@ -4077,21 +4373,42 @@ mod tests {
         // Miracle costs 0, gives 1 energy
         assert_eq!(engine.state.energy, initial_energy + 1);
         // Miracle exhausts
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Miracle"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Miracle"));
     }
 
     #[test]
     fn test_inner_peace_in_calm_draws() {
         let mut state = make_test_state();
         state.stance = Stance::Calm;
-        state.draw_pile = make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&[
+            "InnerPeace",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+            "Defend_P",
+            "Defend_P",
+            "Defend_P",
+        ]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
 
         // Ensure InnerPeace is in hand (RNG may not have drawn it)
-        if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == "InnerPeace") {
-            engine.state.hand.push(engine.card_registry.make_card("InnerPeace"));
+        if !engine
+            .state
+            .hand
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "InnerPeace")
+        {
+            engine
+                .state
+                .hand
+                .push(engine.card_registry.make_card("InnerPeace"));
         }
 
         let hand_before = engine.state.hand.len();
@@ -4117,7 +4434,8 @@ mod tests {
     fn test_inner_peace_not_calm_enters_calm() {
         let mut state = make_test_state();
         state.stance = Stance::Neutral;
-        state.draw_pile = make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile =
+            make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4143,7 +4461,13 @@ mod tests {
     #[test]
     fn test_power_card_not_in_discard() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["MentalFortress", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&[
+            "MentalFortress",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+            "Strike_P",
+        ]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4163,7 +4487,8 @@ mod tests {
         assert!(!engine
             .state
             .discard_pile
-            .iter().any(|c| engine.card_registry.card_name(c.def_id) == "MentalFortress"));
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "MentalFortress"));
         // MentalFortress status installed
         assert_eq!(engine.state.player.status(sid::MENTAL_FORTRESS), 4);
     }
@@ -4182,7 +4507,12 @@ mod tests {
             .state
             .hand
             .iter()
-            .position(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
+            .position(|c| {
+                engine
+                    .card_registry
+                    .card_name(c.def_id)
+                    .starts_with("Strike")
+            })
             .unwrap();
         engine.execute_action(&Action::PlayCard {
             card_idx: strike_idx,

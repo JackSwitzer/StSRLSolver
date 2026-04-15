@@ -61,6 +61,14 @@ struct LiveView: View {
                 // LEFT: Charts
                 ScrollView {
                     VStack(spacing: 10) {
+                        ActiveRunSummaryView(
+                            manifest: store.runManifest,
+                            latestEvent: store.latestEvent,
+                            latestMetric: store.latestMetric,
+                            frontierReport: store.frontierReport,
+                            benchmarkReport: store.currentBenchmarkReport
+                        )
+
                         FloorCurveChart(data: floorCurveData,
                                         title: "Floor Curve (\(floorCurveMode.rawValue))")
                             .frame(minHeight: 160)

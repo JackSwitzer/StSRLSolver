@@ -24,6 +24,8 @@ enum AppView: String, CaseIterable, Identifiable {
 final class AppState {
     var selectedView: AppView = .live
     var selectedEpisode: Episode?
+    var selectedArtifactEpisode: LocatedEpisodeLog?
+    var selectedArtifactStepIndex: Int = 0
 
     let config = AppConfig()
     let store = DataStore()
@@ -40,6 +42,7 @@ final class AppState {
         Task { await m.start() }
 
         Task { await loadEpisodes() }
+        Task { await loadArtifacts() }
     }
 
     func stopPolling() {
@@ -56,7 +59,31 @@ final class AppState {
         store.topEpisodes = top
     }
 
+    func loadArtifacts() async {
+        async let manifest = ManifestLoader.load(from: config.logsPath)
+        async let frontier = FrontierReportLoader.load(from: config.logsPath)
+        async let benchmarkReports = BenchmarkReportLoader.loadAll(from: config.logsPath)
+        async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: config.logsPath)
+        async let events = EventStreamLoader.load(from: config.logsPath)
+        async let metrics = MetricStreamLoader.load(from: config.logsPath)
+
+        store.runManifest = await manifest
+        store.frontierReport = await frontier
+        store.benchmarkReports = await benchmarkReports
+        store.artifactEpisodes = await artifactEpisodes
+        store.eventStream = await events
+        store.metricStream = await metrics
+
+        if selectedArtifactEpisode == nil, let first = store.artifactEpisodes.first {
+            selectedArtifactEpisode = first
+            selectedArtifactStepIndex = first.episode.frontierSteps.first?.stepIndex ?? 0
+        }
+    }
+
     func refresh() {
-        Task { await loadEpisodes() }
+        Task {
+            await loadEpisodes()
+            await loadArtifacts()
+        }
     }
 }
