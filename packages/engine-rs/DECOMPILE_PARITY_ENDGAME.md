@@ -3,301 +3,100 @@
 Last updated: 2026-04-14  
 Branch: `codex/universal-gameplay-runtime`
 
-## Goal
-
-Use the local Java oracle at:
+Java oracle root:
 
 - `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src`
 
-as the semantic source of truth for the remaining parity tail, while keeping the Rust runtime owner-aware, typed, and RL-friendly.
+Canonical audit docs:
 
-We copy Java semantics and timing, not Java architecture.
-
-Canonical audit output for the current tail:
-
-- [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
-
-## What Counts As Done
-
-A migration slice only counts as done when all of the following are true:
-
-- production behavior runs through the canonical runtime/decision surface
-- the slice has focused engine-path test coverage
-- tests cite the exact Java source file(s) used as the parity oracle
-- no helper-path-only assertion is carrying that behavior
-- hidden counters/flags live in runtime state, not mirrored through accidental status hacks
-
-If a missing primitive blocks a slice, the next-best acceptable state is:
-
-- the primitive gap is named explicitly
-- a focused engine-path test lands as `#[ignore]` or a queued blocked case
-- the test cites the exact Java file proving expected behavior
-
-## Verification Substrate
-
-Use the repo-standard wrapper for all focused verification:
-
-- `/Users/jackswitzer/Desktop/SlayTheSpireRL/scripts/test_engine_rs.sh`
-
-Minimum worker acceptance:
-
-- `./scripts/test_engine_rs.sh check --lib`
-- `./scripts/test_engine_rs.sh test --lib --no-run`
-- one or more focused engine-path suites for the owned slice
+- [INCONSISTENCY_REPORT.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/INCONSISTENCY_REPORT.md:1)
+- [AUDIT_PARITY_STATUS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/AUDIT_PARITY_STATUS.md:1)
+- [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/DESIGN_DECISIONS.md:1)
 
 ## Current Checkpoint
 
-Recent accepted card/runtime slices moved the following cards onto the typed primary surface:
+What closed in the latest pass:
 
-- `FTL`
-- `Bane`
-- `Feed`
-- `All-Out Attack`
-- `Alchemize`
-- `Reaper`
-- `Violence`
-- `Ritual Dagger` damage body
-- `Escape Plan`
-- `Malaise`
-- `Lesson Learned`
-- `Reboot`
-- `Fission`
-- `Blizzard`
-- `True Grit`
-- `Second Wind`
-- `Burning Pact`
-- `Dual Wield`
-- `Fiend Fire`
-- `Nightmare`
-- `Scrape`
+- `Emotion Chip` now pulses on the following turn start instead of firing immediately on HP loss
+- `Scrap Ooze` now resolves through the canonical event reward runtime
+- `NoteForYourself` now runs as a real two-step shrine with cross-run card stash behavior inside the runtime
+- `Stance Potion` and `Smoke Bomb` legality/action-path behavior are on the integrated branch and green
+- the `Scrawl+` hand-limit and `Deus Ex Machina+` draw-order edge cases now have explicit engine-path proof
 
-The raw public-card tail is `3` files, and the honest unresolved gameplay-gap tail is `0` after excluding the runtime-backed non-play cleanup shells `Reflex`, `Tactician`, and `Deus Ex Machina`. The separate shared card modules (`cards/mod.rs`, `cards/curses.rs`, `cards/status.rs`) are tracked as registry/support surfaces, not as unresolved public-card files.
+Live branch truth:
 
-Fresh audit framing:
+| Metric | Value |
+| --- | ---: |
+| Raw public empty `effect_data` card files | `3` |
+| Raw public `complex_hook` card files | `0` |
+| Unresolved public gameplay-gap files | `0` |
+| Blocked supported event ops | `0` |
+| Explicit blocked event branches | `1` |
+| Direct ignored tests | `75` |
 
-- supported-scope gameplay blockers: `0`
-- unsupported blocked event branches still present in source: `1` (`Scrap Ooze`)
-- total ignored tests still present in `src/tests`: `78`
-- ignored-test classified buckets: `25` active parity blockers, `37` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
-- `Match and Keep!` is now temporarily routed through the canonical event reward runtime as a fixed `Rushdown+` / `Adaptation+` reward; it is no longer unsupported-source debt, but it remains approximation debt until the Java minigame lands
-- the remaining live semantic debt is now concentrated in `Neow` start/action-layer fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Scrap Ooze`, the temporary `Match and Keep!` minigame approximation, and the post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
-
-The remaining explicit blockers from those recent tiny-primitive waves are still Java-cited and intentional:
-
-- none for the current tiny-primitive wave; `Enlightenment` base is now on the typed turn-only cost path
-
-The recent non-play cleanup also retired the stale blocker sentinels for:
+The raw empty public-card files are cleanup shells only:
 
 - `Reflex`
 - `Tactician`
 - `Deus Ex Machina`
 
-## Translation Rules
+## What Still Blocks Full All-Content Parity
 
-Every migrated legacy registrar element should translate to one canonical runtime-backed definition with:
+These are the only meaningful remaining gameplay families:
 
-- domain
-- schema
-- handlers
-- state fields
-- canonical program/effect ops
-- optional typed complex hook only if a missing primitive still blocks full declarative expression
+1. `Match and Keep!`
+   - still explicitly blocked
+   - needs a real GremlinMatchGame-style card-grid runtime
+   - current blocker proof lives in [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
 
-Mapping rules:
+2. `Liquid Memories`
+   - current runtime returns top discard cards deterministically
+   - Java allows arbitrary discard-choice selection
+   - current blocker proof lives in [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:254)
 
-- Java hook methods map to typed event kinds, not string-tag side channels
-- Java action queue behavior maps to `EffectOp` or `DecisionFrame`, not inline engine match logic
-- Java private counters/booleans map to runtime `EffectState`
-- Java timing/order semantics should be preserved exactly where it affects parity or RL branching
-- cards, relics, powers, potions, events, and rewards should all produce engine-path tests through the same runtime surfaces
+3. `Smoke Bomb` positional legality
+   - boss legality and regular flee behavior are correct
+   - Java `BackAttack` / Surrounded caveat still needs positional combat state
+   - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
 
-## Remaining Primitive Families
+## Immediate Execution Order
 
-The remaining hook-heavy tail mostly compresses into these primitive families:
+If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
-1. Card-play phase fidelity
-2. Zone selection and batch pile movement
-3. Generated-choice and discover-style random generation
-4. Orb lifecycle and top-of-pile free play
-5. Damage / debuff / HP-loss follow-up payloads
-6. Reward / event / map transition edge branches
+1. `Match and Keep!` minigame runtime
+2. discard-choice primitive for `Liquid Memories`
+3. positional legality state for `Smoke Bomb`
+4. ignored-test cleanup pass
+5. final audit refresh and PR readiness sweep
 
-## Phase Order
+If the claim stays `supported runtime parity complete`, the next order should instead be:
 
-### Phase 0. Verification substrate
+1. docs / PR sync
+2. ignored-test cleanup
+3. training branch cut from this branch
 
-Already landed:
+## Verification Substrate
 
-- wrapper-based local Rust verification
-- Java decompile cache refresh path
+Worker acceptance remains:
 
-### Phase 1. Card-play phase fidelity
+- `./scripts/test_engine_rs.sh check --lib`
+- `./scripts/test_engine_rs.sh test --lib --no-run`
+- focused engine-path suites for the owned slice
 
-Target semantics:
+Representative currently green suites:
 
-- `onPlayCard`
-- `onUseCard`
-- `onAfterUseCard`
-- `onAfterCardPlayed`
-- replay-window semantics
-
-Priority entities:
-
-- `Time Warp`
-- `Echo Form`
-- `Double Tap`
-- `Burst`
-- `Panache`
-- `Thousand Cuts`
-- `Orange Pellets`
-- `Pocketwatch`
-
-### Phase 2. Zone selection and batch pile movement
-
-Target primitives:
-
-- select from zone
-- move selected card
-- move card batch
-- after-batch resolution
-
-Priority entities:
-
-- `Headbutt`
-- `True Grit`
-- `Burning Pact`
-- `Second Wind`
-- `Fiend Fire`
-- `Storm of Steel`
-- `Purity`
-- `Secret Technique`
-- `Violence`
-
-### Phase 3. Generated-choice and discovery
-
-Target primitives:
-
-- random generation to hand/discard/draw
-- discover-style choose-one generation
-- deterministic RNG labels by pool and choice index
-
-Status:
-
-- completed on the canonical runtime path for `Chrysalis`, `Metamorphosis`, `Transmutation`, and the discovery-style potion family
-- the remaining choice-related all-content debt is no longer in this phase; it has moved to `Neow` action-layer breadth and potion legality / choose-one edges
-
-### Phase 4. Orb lifecycle and pile-play
-
-Target primitives:
-
-- orb channel/evoke/passive/slot-change events
-- top-of-pile free play semantics
-- instance-scoped cost mutation
-
-Priority entities:
-
-- `Streamline`
-- `Chaos`
-- `Fission`
-- `Barrage`
-- `Liquid Memories`
-- `Distilled Chaos`
-- `Cracked Core`
-- `Frozen Core`
-- `Emotion Chip`
-
-### Phase 5. Damage / debuff / HP-loss follow-up
-
-Target payloads:
-
-- outgoing damage adjusted
-- incoming damage after block
-- HP lost
-- debuff applied
-- enemy death
-- victory
-
-Priority entities:
-
-- `Envenom`
-- `Sadistic Nature`
-- `The Specimen`
-- `Red Skull`
-- `Centennial Puzzle`
-- `Preserved Insect`
-- `Du-Vu Doll`
-- `Girya`
-- `Slaver's Collar`
-
-### Phase 6. Event / reward / map transition edges
-
-Target semantics:
-
-- scripted combat continuation
-- map-jump / boss-room transitions
-- minigame/random-table branches
-- reward branching that stays on the canonical reward runtime
-
-Priority entities:
-
-- `Colosseum`
-- `Cursed Tome`
-- `Secret Portal`
-- `Bonfire Elementals`
-- `Wheel of Change`
-
-## Current Audit Wave
-
-The active endgame work is now audit-first rather than primitive-first:
-
-- broad matrix verification over the stable green-core suites
-- ignored-test classification into active blocker vs stale solved vs cleanup-only vs post-merge enhancement
-- Java semantic review of the remaining real mismatch families
-- scope-honesty reconciliation for unsupported branches and cleanup shells
-- training appendix preparation for the post-merge training-system rewrite
-
-## Immediate Blocker Map
-
-These are the currently verified remaining behavior clusters:
-
-- `Neow` start/action-layer exposure
-- potion legality / choose-one edges
-- orb timing / `Emotion Chip`
-- unsupported event debt: `Scrap Ooze` and eventual full `Match and Keep!` minigame fidelity
-
-The shared primitive themes behind those clusters are now clear:
-
-- runtime-backed non-play trigger shells are no longer treated as unresolved gameplay gaps once engine-path proof exists
-
-- draw-to-N and no-attacks-in-hand checks
-- enemy-HP threshold kill
-- turn-only hand cost reduction
-- post-damage amount resolution from unblocked damage
-- draw-pile-size and card-owned misc scaling
-- event-local persistent search-state ramp and elite-combat continuation for `Dead Adventurer` remains fully modeled on the typed path
-
-## Test Policy
-
-Preferred assertions:
-
-- exact timing/order checks
-- exact legality checks
-- exact reward/choice sequencing
-- deterministic replay with the same seed and the same decision sequence
-- exact per-instance mutation behavior where Java tracks the played/generated card instance
-
-Avoid counting these as parity evidence:
-
-- helper-only oracle tests
-- registry-presence tests without behavior
-- tests that assert a placeholder reason but never exercise production behavior
-
-## Final Merge Bar
-
-Before opening the final merge-quality PR:
-
-- no live production callsites should depend on legacy dispatch/oracle paths
-- the remaining blocked-event count should be zero for supported content
-- the live potion fallback in `CombatEngine::use_potion` should stay gone
-- the hook tail should be reduced to cases with a documented primitive gap or a truly irreducible hook
-- scorecard and focused suites should reflect the production path, not test-only shims
+- `test_run_parity`
+- `test_rl_contract`
+- `test_search_harness`
+- `test_reward_runtime`
+- `test_events_parity`
+- `test_event_runtime_wave19`
+- `test_event_runtime_wave20`
+- `test_event_runtime_wave21`
+- `test_potion_runtime_wave8`
+- `test_potion_runtime_action_path`
+- `test_relic_runtime_wave17`
+- `test_dead_system_cleanup_wave22`
+- `test_generated_choice_java_wave3`
+- `test_orb_runtime_java_wave1`
+- `test_card_runtime_watcher_wave26`
