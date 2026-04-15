@@ -17,8 +17,8 @@ pub mod act4;
 /// Enemy ids currently reachable through the Rust run/combat engine.
 ///
 /// This list is intentionally scoped to the current encounter catalog rather
-/// than the full game database, and provides a stable adapter surface for the
-/// universal gameplay registry during the migration.
+/// than the full game database, and provides a stable registry surface for the
+/// universal gameplay export.
 pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
     &[
         ("Cultist", "Cultist"),

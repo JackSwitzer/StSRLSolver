@@ -758,7 +758,7 @@ fn apply_status(
             add_player_status(engine, status, amount);
         }
         // Card effects do not currently install owner-aware runtime handlers.
-        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             add_player_status(engine, status, amount);
         }
@@ -809,7 +809,7 @@ fn set_status(
             set_player_status(engine, status, value);
         }
         // Card effects do not currently install owner-aware runtime handlers.
-        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             set_player_status(engine, status, value);
         }
@@ -871,7 +871,7 @@ fn multiply_status(
             }
         }
         // Card effects do not currently install owner-aware runtime handlers.
-        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             let current = engine.state.player.status(status);
             if current > 0 {
@@ -1039,7 +1039,7 @@ fn deal_flat_damage(
             engine.player_lose_hp(amount);
         }
         // Card effects do not currently install owner-aware runtime handlers.
-        // Treat SelfEntity as player here to keep the legacy interpreter compatible.
+        // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             engine.player_lose_hp(amount);
         }

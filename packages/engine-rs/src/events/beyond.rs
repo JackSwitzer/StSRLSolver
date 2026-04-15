@@ -201,6 +201,6 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
 pub fn act3_events() -> Vec<EventDef> {
     typed_act3_events()
         .into_iter()
-        .map(|event| event.legacy())
+        .map(|event| event.summary_event())
         .collect()
 }

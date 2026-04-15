@@ -39,15 +39,15 @@ Live branch truth:
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
 | Direct ignored tests | `0` |
-| Final broad freeze | `2187 / 2187` |
+| Final broad freeze | `2188 / 2188` |
 
-The raw empty public-card files are cleanup shells only:
+The raw empty public-card files are intentional runtime-trigger-only cards:
 
 - `Reflex`
 - `Tactician`
 - `Deus Ex Machina`
 
-Those files are no longer semantic outliers: their live runtime behavior now comes from the typed runtime-trigger surface, and the remaining debt is just source-authoring normalization/optics.
+Those files are no longer semantic outliers: their live runtime behavior comes from the typed runtime-trigger surface, and `test_card_runtime_nonplay_triggers_wave1` now proves them as explicit runtime-only defs.
 
 ## Last Known Blocker Sweep
 
@@ -64,7 +64,7 @@ The gameplay-parity side is now through the endgame gate:
 
 1. training branch cut from this branch
 2. keep broad confidence audits running as non-blocking verification work
-3. optionally remove the remaining authoring shim from per-card source files later
+3. treat any further authoring cleanup as optional follow-on polish rather than parity work
 
 ## Verification Substrate
 
@@ -126,4 +126,4 @@ This pass removed the misleading “big unknown” feel from the tail:
 - generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by real passing tests
 - stale watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` are no longer overstating parity debt
 - stale colorless/choice placeholders for `Headbutt`, `Violence`, and `Secret Technique` legality are gone
-- the parity PR can now talk about a zero-skip audited matrix with a completed `2187 / 2187` broad freeze instead of a broad fuzzy backlog
+- the parity PR can now talk about a zero-skip audited matrix with a completed `2188 / 2188` broad freeze instead of a broad fuzzy backlog

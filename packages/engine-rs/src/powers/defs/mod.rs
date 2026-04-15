@@ -5,7 +5,7 @@
 //! complex powers (card replay, on-attacked reactions) use `complex_hook`.
 //! The owner-aware runtime in `effects::runtime` now executes the migrated
 //! subset directly, while `powers/registry.rs` remains as install-time
-//! metadata plus a shrinking legacy-oracle surface during the cutover.
+//! metadata plus a shrinking compatibility bridge during the remaining cleanup.
 
 mod turn_start;
 mod turn_end;

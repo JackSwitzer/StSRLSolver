@@ -312,7 +312,7 @@ impl EventProgram {
 pub struct TypedEventOption {
     pub text: String,
     pub program: EventProgram,
-    pub legacy_effect: EventEffect,
+    pub summary_effect: EventEffect,
     pub status: EventRuntimeStatus,
 }
 
@@ -320,12 +320,12 @@ impl TypedEventOption {
     pub fn supported(
         text: impl Into<String>,
         program: EventProgram,
-        legacy_effect: EventEffect,
+        summary_effect: EventEffect,
     ) -> Self {
         Self {
             text: text.into(),
             program,
-            legacy_effect,
+            summary_effect,
             status: EventRuntimeStatus::Supported,
         }
     }
@@ -333,23 +333,23 @@ impl TypedEventOption {
     pub fn blocked(
         text: impl Into<String>,
         program: EventProgram,
-        legacy_effect: EventEffect,
+        summary_effect: EventEffect,
         reason: impl Into<String>,
     ) -> Self {
         Self {
             text: text.into(),
             program,
-            legacy_effect,
+            summary_effect,
             status: EventRuntimeStatus::Blocked {
                 reason: reason.into(),
             },
         }
     }
 
-    pub fn legacy(&self) -> EventOption {
+    pub fn summary_option(&self) -> EventOption {
         EventOption {
             text: self.text.clone(),
-            effect: self.legacy_effect.clone(),
+            effect: self.summary_effect.clone(),
         }
     }
 }
@@ -361,20 +361,24 @@ pub struct TypedEventDef {
 }
 
 impl TypedEventDef {
-    pub fn legacy(&self) -> EventDef {
+    pub fn summary_event(&self) -> EventDef {
         EventDef {
             name: self.name.clone(),
-            options: self.options.iter().map(TypedEventOption::legacy).collect(),
+            options: self
+                .options
+                .iter()
+                .map(TypedEventOption::summary_option)
+                .collect(),
         }
     }
 
-    pub fn from_legacy(event: EventDef) -> Self {
+    pub fn from_summary_event(event: EventDef) -> Self {
         Self {
             name: event.name,
             options: event
                 .options
                 .into_iter()
-                .map(TypedEventOption::from_legacy)
+                .map(TypedEventOption::from_summary_option)
                 .collect(),
         }
     }
@@ -417,7 +421,7 @@ impl EventEffect {
 }
 
 impl TypedEventOption {
-    pub fn from_legacy(option: EventOption) -> Self {
+    pub fn from_summary_option(option: EventOption) -> Self {
         let program = option.effect.default_program();
         Self::supported(option.text, program, option.effect)
     }
@@ -425,7 +429,7 @@ impl TypedEventOption {
 
 impl From<EventDef> for TypedEventDef {
     fn from(value: EventDef) -> Self {
-        Self::from_legacy(value)
+        Self::from_summary_event(value)
     }
 }
 
@@ -446,7 +450,7 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
 pub fn events_for_act(act: i32) -> Vec<EventDef> {
     typed_events_for_act(act)
         .into_iter()
-        .map(|event| event.legacy())
+        .map(|event| event.summary_event())
         .collect()
 }
 
@@ -454,7 +458,7 @@ pub fn events_for_act(act: i32) -> Vec<EventDef> {
 pub fn shrine_events() -> Vec<EventDef> {
     typed_shrine_events()
         .into_iter()
-        .map(|event| event.legacy())
+        .map(|event| event.summary_event())
         .collect()
 }
 

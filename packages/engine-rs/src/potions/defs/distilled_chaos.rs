@@ -20,7 +20,7 @@ fn distilled_chaos_hook(
 ) {
     // Distilled Chaos is a fixed 3-card top-of-draw play in Java, doubled by
     // Sacred Bark. The shared runtime potency helper still falls back to 1
-    // for potions not listed in the legacy potency table, so keep the exact
+    // for potions not listed in the current potency table, so keep the exact
     // action-path behavior local here until that shared table is normalized.
     let potency = if engine.state.has_relic("SacredBark") { 6 } else { 3 };
     for _ in 0..potency {

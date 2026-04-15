@@ -19,7 +19,7 @@ What is truly done:
 - public gameplay-gap card tail: `0`
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
-- final broad freeze result: `2187 passed`, `0 failed`, `0 ignored`
+- final broad freeze result: `2188 passed`, `0 failed`, `0 ignored`
 - registry-backed secondary card behavior now runs through typed runtime-trigger metadata instead of raw registry/tag ownership
 - production/runtime/export code now has `0` raw `card.effects` reads and `0` live registry-dispatch symbols
 - gameplay export now carries structured `runtime_traits`, `runtime_triggers`, and `play_hints` rather than semantic effect tags
@@ -30,7 +30,6 @@ What is truly done:
 
 What is still open:
 
-- optional cleanup-shell and source-authoring normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader training-branch architecture planning now that the engine/export surface is typed and zero-skip green
 
 Bottom line:
@@ -50,8 +49,8 @@ Bottom line:
 | Typed event names | `52` | existing event inventory baseline; event catalog did not change in this wave |
 | Potion ids | `42` | source scan |
 | Relic ids | `102` | source scan |
-| Raw public gameplay-gap files | `0` | after excluding cleanup-only shells |
-| Cleanup-only empty shells | `3` | `Reflex`, `Tactician`, `Deus Ex Machina` |
+| Raw public gameplay-gap files | `0` | after excluding runtime-trigger-only non-play cards |
+| Runtime-trigger-only cards with empty primary play body | `3` | `Reflex`, `Tactician`, `Deus Ex Machina` |
 | Raw public `complex_hook` files | `0` | current source scan |
 | Blocked supported event ops | `0` | current source scan |
 | Explicit blocked event branches in source | `0` | current source scan |
@@ -59,14 +58,14 @@ Bottom line:
 | Production raw `card.effects` reads | `0` | current source scan |
 | Live registry-dispatch symbols | `0` | current source scan |
 | Typed runtime-trigger cutover | `landed` | migrated secondary behavior now reads from `CardRuntimeTraits` / `CardRuntimeTrigger` and not raw tag checks for the migrated families |
-| Final broad freeze | `2187 / 2187` | latest integrated local run |
+| Final broad freeze | `2188 / 2188` | latest integrated local run |
 
 ### Current status table
 
 | Bucket | Current state |
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
-| Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
+| Runtime-trigger-only cards | `Reflex`, `Tactician`, `Deus Ex Machina` |
 | Explicit gameplay blockers | none currently confirmed on the targeted blocker matrix or the broad freeze rerun |
 | Cleanup-only ignores | none |
 
@@ -95,7 +94,7 @@ Bottom line:
 
 Some raw counts are intentionally noisy unless classified:
 
-- the `3` raw empty public-card files are cleanup-only shells, not gameplay gaps; their runtime semantics now live in typed runtime-trigger metadata
+- the `3` raw empty public-card files are intentional runtime-trigger-only non-play cards, not gameplay gaps; their runtime semantics live in typed runtime-trigger metadata and are proven directly in `test_card_runtime_nonplay_triggers_wave1`
 - the ignore backlog is fully collapsed on the live source tree
 
 ### Why we believe the engine works
@@ -150,7 +149,7 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-There are no currently confirmed merge-gating findings on the integrated zero-skip tree after the final `2187 / 2187` broad freeze.
+There are no currently confirmed merge-gating findings on the integrated zero-skip tree after the final `2188 / 2188` broad freeze.
 
 The last known blocker sweep is now closed by passing engine-path proof:
 
@@ -188,22 +187,11 @@ The last known blocker sweep is now closed by passing engine-path proof:
 - Severity: low
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
-- Problem: the cleanup-shell trio still exists as raw empty `effect_data` files even though their runtime behavior now lives on the typed runtime-trigger surface and is already proven elsewhere.
-- Recommended fix: leave them documented as cleanup-only shells or collapse them into explicit runtime-owned marker defs in a later normalization pass.
-- Test mapping: non-play trigger/runtime suites
-- Worker slice: cleanup-shell normalization
-
-### Finding S4
-- Area: architecture
-- Severity: low
-- Confidence: high
-- Scope: cleanup-only
-- Evidence: [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1), [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:1)
-- Problem: the supported runtime/export surface is now typed, but the per-card authoring files still use a legacy `effects:` input shim during registry construction, which can look scarier than it is.
-- Recommended fix: treat the typed runtime/export surface as the shipped contract now, and optionally do a later source-authoring cleanup pass to remove the legacy input field from individual card files.
-- Test mapping: `test_runtime_inline_cutover_wave5`, `test_card_runtime_backend_wave1`, `test_card_runtime_backend_wave2`, `test_card_runtime_backend_wave3`, broad card parity suites
-- Worker slice: source-authoring normalization
+- Evidence: [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1), [test_card_runtime_nonplay_triggers_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_nonplay_triggers_wave1.rs:1)
+- Problem: three non-play cards still have empty primary play bodies in source, which can look suspicious if the typed runtime-trigger ownership is not documented alongside them.
+- Recommended fix: keep them documented and tested as intentional runtime-trigger-only card defs; no gameplay migration work remains for this trio.
+- Test mapping: `test_card_runtime_nonplay_triggers_wave1`
+- Worker slice: runtime-only authoring clarity
 
 ## 5. Intentional Deviations
 
@@ -219,7 +207,6 @@ See [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/eng
 These items should not block a supported-scope merge if scope stays honest, but they are still worth doing soon:
 
 - relic bridge retirement in dead-system cleanup waves `18` and `19`
-- cleanup-shell and source-authoring normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader generated-choice and generated-card fidelity sweeps as confidence work rather than blocker work
 - training-branch architecture planning now that the branch is zero-skip and broad-freeze green
 

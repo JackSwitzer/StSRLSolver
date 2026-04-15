@@ -7,6 +7,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeusExMachina.java
 
 use crate::tests::support::*;
+use crate::effects::types::{CardRuntimeTrigger, OnDiscardRule, OnDrawRule};
 
 #[test]
 fn nonplay_triggers_alchemize_obtains_a_random_potion_and_exhausts() {
@@ -63,4 +64,35 @@ fn nonplay_triggers_deus_ex_machina_draws_miracles_on_draw() {
     assert_eq!(hand_count(&engine, "Miracle"), 3);
     assert_eq!(hand_count(&engine, "DeusExMachina+"), 0);
     assert_eq!(exhaust_prefix_count(&engine, "DeusExMachina+"), 1);
+}
+
+#[test]
+fn nonplay_trigger_cards_are_explicit_runtime_only_defs() {
+    let registry = crate::cards::global_registry();
+
+    let reflex = registry.get("Reflex").expect("missing Reflex");
+    assert!(reflex.is_runtime_only());
+    assert!(reflex.runtime_traits().unplayable);
+    assert_eq!(
+        reflex.runtime_triggers(),
+        &[CardRuntimeTrigger::OnDiscard(OnDiscardRule::DrawCards)]
+    );
+
+    let tactician = registry.get("Tactician").expect("missing Tactician");
+    assert!(tactician.is_runtime_only());
+    assert!(tactician.runtime_traits().unplayable);
+    assert_eq!(
+        tactician.runtime_triggers(),
+        &[CardRuntimeTrigger::OnDiscard(OnDiscardRule::GainEnergy)]
+    );
+
+    let deus = registry
+        .get("DeusExMachina")
+        .expect("missing Deus Ex Machina");
+    assert!(deus.is_runtime_only());
+    assert!(deus.runtime_traits().unplayable);
+    assert_eq!(
+        deus.runtime_triggers(),
+        &[CardRuntimeTrigger::OnDraw(OnDrawRule::DeusExMachina)]
+    );
 }

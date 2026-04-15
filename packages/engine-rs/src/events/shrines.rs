@@ -316,6 +316,6 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
 pub fn shrine_events() -> Vec<EventDef> {
     typed_shrine_events()
         .into_iter()
-        .map(|event| event.legacy())
+        .map(|event| event.summary_event())
         .collect()
 }

@@ -1,7 +1,9 @@
-//! Card data and effects — minimal card registry for the core turn loop.
+//! Canonical card registry and typed card metadata for the Rust gameplay runtime.
 //!
-//! Only implements cards needed for the fast MCTS path. The Python engine
-//! handles the full ~350 card catalog with all edge cases.
+//! Card definitions carry:
+//! - primary declarative play bodies in `effect_data`
+//! - typed secondary/runtime behavior in `metadata`
+//! - optional irreducible on-play hooks in `complex_hook`
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -87,7 +89,7 @@ pub struct CardDef {
     pub enter_stance: Option<&'static str>,
     /// Canonical typed runtime metadata for card-owned secondary behavior.
     pub metadata: CardMetadata,
-    /// Declarative effect data for the new interpreter (parallel to string tags during migration).
+    /// Declarative effect data for the primary on-play body.
     /// Empty slice = the card has no primary declarative play body.
     #[serde(skip)]
     pub effect_data: &'static [crate::effects::declarative::Effect],
@@ -160,6 +162,13 @@ impl CardDef {
     /// Is this card an unplayable status/curse?
     pub fn is_unplayable(&self) -> bool {
         self.cost == -2 || self.runtime_traits().unplayable
+    }
+
+    pub fn is_runtime_only(&self) -> bool {
+        self.effect_data.is_empty()
+            && self.complex_hook.is_none()
+            && (self.runtime_traits() != CardRuntimeTraits::default()
+                || !self.runtime_triggers().is_empty())
     }
 
     pub fn declared_effect_count(&self) -> usize {
@@ -1294,20 +1303,20 @@ pub struct CardRegistry {
 
 impl CardRegistry {
     pub fn new() -> Self {
-        let mut legacy_cards: HashMap<&'static str, CardSpec> = HashMap::new();
+        let mut card_specs: HashMap<&'static str, CardSpec> = HashMap::new();
 
-        watcher::register_watcher(&mut legacy_cards);
-        ironclad::register_ironclad(&mut legacy_cards);
-        silent::register_silent(&mut legacy_cards);
-        defect::register_defect(&mut legacy_cards);
-        colorless::register_colorless(&mut legacy_cards);
-        curses::register_curses(&mut legacy_cards);
-        status::register_status(&mut legacy_cards);
-        temp::register_temp(&mut legacy_cards);
+        watcher::register_watcher(&mut card_specs);
+        ironclad::register_ironclad(&mut card_specs);
+        silent::register_silent(&mut card_specs);
+        defect::register_defect(&mut card_specs);
+        colorless::register_colorless(&mut card_specs);
+        curses::register_curses(&mut card_specs);
+        status::register_status(&mut card_specs);
+        temp::register_temp(&mut card_specs);
 
         // --- Build numeric ID mappings ---
         // Collect all names, sort so base cards come before their "+" upgrades.
-        let mut names: Vec<&'static str> = legacy_cards.keys().copied().collect();
+        let mut names: Vec<&'static str> = card_specs.keys().copied().collect();
         names.sort_unstable_by(|a, b| {
             let a_base = a.trim_end_matches('+');
             let b_base = b.trim_end_matches('+');
@@ -1325,9 +1334,9 @@ impl CardRegistry {
 
         for (idx, name) in names.iter().enumerate() {
             let id = idx as u16;
-            let def: CardDef = legacy_cards
+            let def: CardDef = card_specs
                 .remove(name)
-                .unwrap_or_else(|| panic!("missing legacy card def for {name}"))
+                .unwrap_or_else(|| panic!("missing staged card def for {name}"))
                 .into();
             cards.insert(*name, def.clone());
             id_to_def.push(def);

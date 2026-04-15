@@ -21,11 +21,11 @@ Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `100%` on the audited matrix | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the final broad freeze finished `2187 / 2187` green on the integrated branch |
+| Combat runtime parity | `100%` on the audited matrix | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the final broad freeze finished `2188 / 2188` green on the integrated branch |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
 | Run / reward / event parity | `100%` | `NoteForYourself`, `Match and Keep!`, `Scrap Ooze`, and persistent shop purge pricing now run on the canonical runtime path |
 | Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
-| Runtime-trigger unification | `100%` on the supported surface | production/runtime/export code no longer reads raw `card.effects` or the deleted registry-dispatch layer; the only legacy residue is the internal authoring shim still present in per-card source files |
+| Runtime-trigger unification | `100%` on the supported surface | production/runtime/export code no longer reads raw `card.effects` or the deleted registry-dispatch layer; the remaining raw-empty card defs are intentional runtime-trigger-only authoring files with explicit engine-path proof |
 
 ## Current Quantified Backlog
 
@@ -34,7 +34,7 @@ Area scores:
 | Raw public card files with empty `effect_data` | `3` |
 | Raw public card files with `complex_hook: Some(...)` | `0` |
 | Unresolved public gameplay-gap files | `0` |
-| Cleanup-only card shells | `3` |
+| Runtime-trigger-only cards with empty primary play body | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `0` |
 | Direct `#[ignore]` count in `src/tests` | `0` |
@@ -44,15 +44,15 @@ Area scores:
 | Direct relic helper-path refs | `0` |
 | Production raw `card.effects` reads | `0` |
 | Live registry-dispatch symbols | `0` |
-| Final broad freeze | `2187 / 2187` |
+| Final broad freeze | `2188 / 2188` |
 
-Cleanup-only card shells:
+Runtime-trigger-only card defs:
 
 - [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1)
 - [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1)
 - [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 
-These are now raw-empty metadata shells only. Their runtime semantics are owned by the typed runtime-trigger surface rather than raw string-tag dispatch. The remaining debt is source-authoring normalization, not gameplay behavior.
+These are intentional non-play cards. Their runtime semantics are owned by the typed runtime-trigger surface, and [test_card_runtime_nonplay_triggers_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_nonplay_triggers_wave1.rs:1) now proves them as explicit runtime-only defs rather than suspicious leftovers.
 
 Recently closed gameplay-gap families:
 
@@ -131,7 +131,7 @@ The main stale-test cleanup result from this pass:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
-- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the final broad freeze finished `2187 / 2187` green; the remaining work is optional cleanup-shell/source-authoring normalization plus training-branch planning, not live gameplay debt.
+- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the final broad freeze finished `2188 / 2188` green; the remaining work is training-branch planning and optional follow-on cleanup, not live gameplay debt.
 - Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
 - Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
-- Legacy semantic code answer: none remains in the supported Rust/runtime/export surface; the only legacy residue is the internal per-card authoring shim that still feeds the typed model during registry construction.
+- Legacy semantic code answer: none remains in the supported Rust/runtime/export surface. The remaining raw-empty card defs are intentional runtime-trigger-only authoring files, not semantic fallback paths.

@@ -2,7 +2,7 @@
 //!
 //! Potions with `ManualActivation` triggers execute through the owner-aware
 //! runtime first. `potions/mod.rs` remains as an oracle/helper surface for
-//! legacy tests and any unmigrated fallback callers.
+//! shared callers that have not been cut over yet.
 
 mod prelude;
 
@@ -139,7 +139,7 @@ pub fn potion_uses_runtime_manual_activation(id: &str) -> bool {
 
 /// Runtime-authoritative potions have full production behavior on the
 /// owner-aware manual-activation path and should never fall back to the
-/// legacy `apply_potion` oracle path.
+/// older `apply_potion` helper path.
 pub fn potion_runtime_manual_activation_is_authoritative(id: &str) -> bool {
     potion_def_by_runtime_id(id).is_some_and(|def| {
         matches!(
