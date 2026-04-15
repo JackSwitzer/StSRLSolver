@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Sever Soul", name: "Sever Soul", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 16, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["exhaust_non_attacks"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: crate::effects::declarative::CardFilter::NonAttacks,
@@ -18,7 +18,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Sever Soul+", name: "Sever Soul+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 22, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["exhaust_non_attacks"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: crate::effects::declarative::CardFilter::NonAttacks,

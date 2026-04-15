@@ -5,7 +5,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Recycle", name: "Recycle", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["recycle"], effect_data: &[
+                effect_data: &[
                     E::ChooseCards {
                         source: P::Hand, filter: CardFilter::All, action: ChoiceAction::ExhaustAndGainEnergy,
                         min_picks: A::Fixed(1), max_picks: A::Fixed(1),
@@ -17,7 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Recycle+", name: "Recycle+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["recycle"], effect_data: &[
+                effect_data: &[
                     E::ChooseCards {
                         source: P::Hand, filter: CardFilter::All, action: ChoiceAction::ExhaustAndGainEnergy,
                         min_picks: A::Fixed(1), max_picks: A::Fixed(1),

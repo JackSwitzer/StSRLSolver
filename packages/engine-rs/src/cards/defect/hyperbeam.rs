@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Hyperbeam", name: "Hyperbeam", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 2, base_damage: 26, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["lose_focus"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-3))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Hyperbeam+", name: "Hyperbeam+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 2, base_damage: 34, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["lose_focus"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::Fixed(-3))),
                 ], complex_hook: None,
             });

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Electrodynamics", name: "Electrodynamics", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["lightning_hits_all", "channel_lightning"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Electrodynamics+", name: "Electrodynamics+", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["lightning_hits_all", "channel_lightning"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Magic)),
                 ], complex_hook: None,
             });

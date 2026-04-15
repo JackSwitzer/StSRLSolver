@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thunderclap", name: "Thunderclap", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 4, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["vulnerable_all"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::AllEnemies, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thunderclap+", name: "Thunderclap+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 7, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["vulnerable_all"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::AllEnemies, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dagger Spray", name: "Dagger Spray", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 4, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dagger Spray+", name: "Dagger Spray+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 6, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,

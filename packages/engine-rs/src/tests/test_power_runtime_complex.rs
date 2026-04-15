@@ -37,7 +37,7 @@ fn thousand_cuts_runtime_hook_hits_all_living_enemies() {
         &DEF_THOUSAND_CUTS,
         &mut engine,
         EffectOwner::PlayerPower,
-        GameEvent::empty(Trigger::OnAnyCardPlayed),
+        GameEvent::empty(Trigger::OnAfterCardPlayed),
         &mut runtime_state,
     );
 
@@ -60,7 +60,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
             &DEF_PANACHE,
             &mut engine,
             EffectOwner::PlayerPower,
-            GameEvent::empty(Trigger::OnAnyCardPlayed),
+            GameEvent::empty(Trigger::OnUseCard),
             &mut runtime_state,
         );
         assert_eq!(runtime_state.get(0), expected_count);
@@ -72,7 +72,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
         &DEF_PANACHE,
         &mut engine,
         EffectOwner::PlayerPower,
-        GameEvent::empty(Trigger::OnAnyCardPlayed),
+        GameEvent::empty(Trigger::OnUseCard),
         &mut runtime_state,
     );
 

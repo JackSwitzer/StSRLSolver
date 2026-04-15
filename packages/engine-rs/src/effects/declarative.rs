@@ -479,7 +479,9 @@ mod tests {
     #[test]
     fn test_simple_effect_size() {
         let size = std::mem::size_of::<SimpleEffect>();
-        // Contains &'static str (16 bytes) in AddCard variant
-        assert!(size <= 32, "SimpleEffect is {} bytes, expected <= 32", size);
+        // After the typed metadata refactor, SimpleEffect also carries a few
+        // richer declarative hints like CardType-driven filters. Keep the
+        // enum comfortably bounded without forcing the old pre-refactor size.
+        assert!(size <= 48, "SimpleEffect is {} bytes, expected <= 48", size);
     }
 }

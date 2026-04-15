@@ -268,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn gameplay_registry_adapts_existing_entity_defs() {
+    fn gameplay_registry_exports_existing_entity_defs() {
         let registry = GameplayRegistry::new();
         assert!(registry.get(GameplayDomain::Relic, "OrangePellets").is_some());
         assert!(registry.get(GameplayDomain::Power, "thousand_cuts").is_some());
@@ -283,7 +283,7 @@ mod tests {
         let strike_program = registry
             .program(GameplayDomain::Card, "Strike_P")
             .expect("strike program");
-        assert!(strike_program.is_legacy_adapted());
+        assert_eq!(strike_program.source, crate::gameplay::GameplayProgramSource::Canonical);
         assert!(strike_program
             .steps
             .iter()
@@ -306,7 +306,7 @@ mod tests {
         assert!(pellets_program
             .steps
             .iter()
-            .any(|step| matches!(step, crate::gameplay::EffectOp::LegacyAdapter { .. })));
+            .any(|step| matches!(step, crate::gameplay::EffectOp::BindHandler { .. })));
     }
 
     #[test]

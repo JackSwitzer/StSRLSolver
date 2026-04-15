@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Sweeping Beam", name: "Sweeping Beam", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 6, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Sweeping Beam+", name: "Sweeping Beam+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 9, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                 ], complex_hook: None,
             });

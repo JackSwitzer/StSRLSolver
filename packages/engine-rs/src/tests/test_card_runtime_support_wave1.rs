@@ -8,10 +8,11 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
 
 use crate::cards::global_registry;
+use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, OnDrawRule, WhileInHandRule};
 use crate::tests::support::*;
 
 #[test]
-fn support_wave1_registry_keeps_shared_support_cards_tag_driven() {
+fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
     let registry = global_registry();
 
     for card_id in [
@@ -20,19 +21,55 @@ fn support_wave1_registry_keeps_shared_support_cards_tag_driven() {
         "Normality", "Pain", "Parasite", "Pride", "Writhe",
     ] {
         let card = registry.get(card_id).unwrap_or_else(|| panic!("{card_id} should exist"));
-        assert!(card.effect_data.is_empty(), "{card_id} should remain metadata-driven");
         assert!(card.complex_hook.is_none(), "{card_id} should stay non-bespoke");
     }
 
-    assert!(registry.get("Burn").unwrap().effects.contains(&"end_turn_damage"));
-    assert!(registry.get("Regret").unwrap().effects.contains(&"end_turn_regret"));
-    assert!(registry.get("Doubt").unwrap().effects.contains(&"end_turn_weak"));
-    assert!(registry.get("Shame").unwrap().effects.contains(&"end_turn_frail"));
-    assert!(registry.get("Pain").unwrap().effects.contains(&"damage_on_draw"));
-    assert!(registry.get("Parasite").unwrap().effects.contains(&"lose_max_hp_on_remove"));
-    assert!(registry.get("Void").unwrap().effects.contains(&"lose_energy_on_draw"));
-    assert!(registry.get("Daze").unwrap().effects.contains(&"ethereal"));
-    assert!(registry.get("Wound").unwrap().effects.contains(&"unplayable"));
+    let burn = registry.get("Burn").unwrap();
+    assert!(burn.runtime_traits().unplayable);
+    assert!(burn
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage))));
+
+    let regret = registry.get("Regret").unwrap();
+    assert!(regret.runtime_traits().unplayable);
+    assert!(regret
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Regret))));
+
+    let doubt = registry.get("Doubt").unwrap();
+    assert!(doubt.runtime_traits().unplayable);
+    assert!(doubt
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Weak))));
+
+    let shame = registry.get("Shame").unwrap();
+    assert!(shame.runtime_traits().unplayable);
+    assert!(shame
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail))));
+
+    let pain = registry.get("Pain").unwrap();
+    assert!(pain.runtime_traits().unplayable);
+    assert!(pain
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed))));
+
+    let void = registry.get("Void").unwrap();
+    assert!(void.runtime_traits().unplayable);
+    assert!(void.runtime_traits().ethereal);
+    assert!(void
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy))));
+
+    assert!(registry.get("Parasite").unwrap().runtime_traits().unplayable);
+    assert!(registry.get("Daze").unwrap().runtime_traits().ethereal);
+    assert!(registry.get("Wound").unwrap().runtime_traits().unplayable);
 }
 
 #[test]

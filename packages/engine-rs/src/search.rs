@@ -496,6 +496,8 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     engine.state.stance.hash(&mut hasher);
     format!("{:?}", engine.state.orb_slots).hash(&mut hasher);
     engine.runtime_played_card.hash(&mut hasher);
+    engine.runtime_play_target_idx.hash(&mut hasher);
+    engine.runtime_play_stack.hash(&mut hasher);
     engine.runtime_replay_window.hash(&mut hasher);
     format!("{:?}", engine.choice).hash(&mut hasher);
     for enemy in &engine.state.enemies {

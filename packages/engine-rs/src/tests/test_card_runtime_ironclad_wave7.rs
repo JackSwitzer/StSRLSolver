@@ -54,11 +54,11 @@ fn ironclad_wave7_registry_exports_match_typed_runtime_progress() {
     );
 
     let entrench = global_registry().get("Entrench").expect("Entrench should exist");
-    assert!(entrench.effect_data.is_empty());
-    assert!(
-        entrench.complex_hook.is_some(),
-        "Entrench should stay hook-backed until double-current-block is a typed primitive"
+    assert_eq!(
+        entrench.effect_data,
+        &[E::Simple(SE::GainBlock(A::PlayerBlock))]
     );
+    assert!(entrench.complex_hook.is_none());
 
     let inflame = global_registry().get("Inflame+").expect("Inflame+ should exist");
     assert_eq!(

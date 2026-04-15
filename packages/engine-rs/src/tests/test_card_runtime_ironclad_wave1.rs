@@ -43,7 +43,7 @@ mod ironclad_wave1_card_runtime_tests {
         let body_slam = card("Body Slam");
         assert_eq!(body_slam.card_type, CardType::Attack);
         assert_eq!(body_slam.target, CardTarget::Enemy);
-        assert!(body_slam.effects.is_empty());
+        assert!(body_slam.test_markers().is_empty());
         assert_eq!(
             body_slam.effect_data,
             &[Effect::Simple(SimpleEffect::DealDamage(

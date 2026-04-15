@@ -29,7 +29,7 @@ fn watcher_wave13_registry_exports_match_typed_surface() {
         brilliance.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
-    assert!(brilliance.effects.contains(&"damage_plus_mantra"));
+    assert!(brilliance.has_test_marker("damage_plus_mantra"));
 
     let expunger = registry.get("Expunger").expect("Expunger should be registered");
     assert_eq!(
@@ -39,7 +39,7 @@ fn watcher_wave13_registry_exports_match_typed_surface() {
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
-    assert!(expunger.effects.is_empty());
+    assert_eq!(expunger.declared_extra_hits(), Some(A::CardMisc));
 
     let perseverance = registry.get("Perseverance").expect("Perseverance should be registered");
     assert_eq!(perseverance.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);

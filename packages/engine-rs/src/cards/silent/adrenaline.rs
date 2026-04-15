@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Adrenaline", name: "Adrenaline", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 1, exhaust: true, enter_stance: None,
-        effects: &["draw"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::GainEnergy(A::Magic)),
             E::Simple(SE::DrawCards(A::Fixed(2))),
         ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Adrenaline+", name: "Adrenaline+", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 2, exhaust: true, enter_stance: None,
-        effects: &["draw"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::GainEnergy(A::Magic)),
             E::Simple(SE::DrawCards(A::Fixed(2))),
         ], complex_hook: None,

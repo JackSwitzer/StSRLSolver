@@ -14,8 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 2,
         exhaust: false,
         enter_stance: None,
-        effects: &["exhaust_choose", "draw"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::All,
             action: ChoiceAction::Exhaust,
@@ -36,8 +35,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 3,
         exhaust: false,
         enter_stance: None,
-        effects: &["exhaust_choose", "draw"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::All,
             action: ChoiceAction::Exhaust,

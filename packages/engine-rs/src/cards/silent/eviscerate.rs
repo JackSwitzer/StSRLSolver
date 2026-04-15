@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Eviscerate", name: "Eviscerate", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 3, base_damage: 7, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["multi_hit", "cost_reduce_on_discard"], effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
+                effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Eviscerate+", name: "Eviscerate+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 3, base_damage: 8, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["multi_hit", "cost_reduce_on_discard"], effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
+                effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
             });
 }

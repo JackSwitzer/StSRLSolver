@@ -1,5 +1,6 @@
 use crate::actions::Action;
 use crate::cards::CardType;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::effects::trigger::Trigger;
 use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
 
@@ -78,22 +79,35 @@ fn display_name_generation_potions_use_runtime_action_path() {
 
         use_potion(&mut engine, 0, -1);
 
-        assert_eq!(engine.state.hand.len(), 1, "{potion_name} should generate a card");
-        let generated = &engine.state.hand[0];
-        if let Some(card_type) = expected_type {
-            assert_eq!(
-                engine.card_registry.card_def_by_id(generated.def_id).card_type,
-                card_type,
-                "{potion_name} should generate a {card_type:?} card through runtime activation"
-            );
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        let choice = engine.choice.as_ref().expect("generated potion choice");
+        assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+        assert_eq!(choice.aux_count, 1, "{potion_name} should resolve one generated card");
+        assert_eq!(choice.options.len(), 3, "{potion_name} should offer three choices");
+        for option in &choice.options {
+            let ChoiceOption::GeneratedCard(card) = option else {
+                panic!("{potion_name} should use generated-card options");
+            };
+            if let Some(card_type) = expected_type {
+                assert_eq!(
+                    engine.card_registry.card_def_by_id(card.def_id).card_type,
+                    card_type,
+                    "{potion_name} should generate a {card_type:?} card through runtime activation"
+                );
+            }
+            if let Some(pool) = colorless_pool {
+                let generated_name = engine.card_registry.card_name(card.def_id);
+                assert!(
+                    pool.contains(&generated_name),
+                    "{potion_name} should draw from the colorless pool, got {generated_name}"
+                );
+            }
+            assert_eq!(card.cost, 0, "{potion_name} should zero generated card cost");
         }
-        if let Some(pool) = colorless_pool {
-            let generated_name = engine.card_registry.card_name(generated.def_id);
-            assert!(
-                pool.contains(&generated_name),
-                "{potion_name} should draw from the colorless pool, got {generated_name}"
-            );
-        }
+
+        engine.execute_action(&Action::Choose(0));
+
+        assert_eq!(engine.state.hand.len(), 1, "{potion_name} should add the chosen card");
         assert!(engine.state.potions[0].is_empty(), "{potion_name} should consume its slot");
         assert!(engine.event_log.iter().any(|record| {
             record.event == Trigger::ManualActivation && record.def_id == Some(expected_def_id)

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dark Shackles", name: "Dark Shackles", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 9, exhaust: true, enter_stance: None,
-                effects: &["reduce_str_this_turn"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOSE_STRENGTH, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dark Shackles+", name: "Dark Shackles+", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 15, exhaust: true, enter_stance: None,
-                effects: &["reduce_str_this_turn"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOSE_STRENGTH, A::Magic)),
                 ], complex_hook: None,
             });

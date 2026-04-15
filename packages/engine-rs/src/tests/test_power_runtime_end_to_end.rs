@@ -2,6 +2,7 @@
 
 use crate::actions::Action;
 use crate::effects::runtime::{EffectOwner, EventRecordPhase};
+use crate::effects::runtime::EffectExecutionPhase;
 use crate::effects::trigger::Trigger;
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
@@ -38,8 +39,9 @@ fn thousand_cuts_hits_all_enemies_via_engine_play_path() {
     let events = engine.take_event_log();
     assert!(events.iter().any(|record| {
         record.phase == EventRecordPhase::Handled
-            && record.event == Trigger::OnAnyCardPlayed
+            && record.event == Trigger::OnAfterCardPlayed
             && record.def_id == Some("thousand_cuts")
+            && record.execution == Some(EffectExecutionPhase::Hook)
     }));
 }
 

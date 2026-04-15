@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Metallicize", name: "Metallicize", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["metallicize"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::METALLICIZE, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Metallicize+", name: "Metallicize+", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["metallicize"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::METALLICIZE, A::Magic)),
                 ], complex_hook: None,
             });

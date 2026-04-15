@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Aggregate", name: "Aggregate", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["energy_per_cards_in_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainEnergy(A::DrawPileDivN(4))),
                 ], complex_hook: None,
             });
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Aggregate+", name: "Aggregate+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["energy_per_cards_in_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainEnergy(A::DrawPileDivN(3))),
                 ], complex_hook: None,
             });

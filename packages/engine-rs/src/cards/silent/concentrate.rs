@@ -5,8 +5,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Concentrate", name: "Concentrate", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 3, exhaust: false, enter_stance: None,
-        effects: &["discard_gain_energy"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::All,
             action: ChoiceAction::DiscardForEffect,
@@ -20,8 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Concentrate+", name: "Concentrate+", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 2, exhaust: false, enter_stance: None,
-        effects: &["discard_gain_energy"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::All,
             action: ChoiceAction::DiscardForEffect,

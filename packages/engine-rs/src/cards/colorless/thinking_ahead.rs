@@ -5,7 +5,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thinking Ahead", name: "Thinking Ahead", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["thinking_ahead"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Fixed(2))),
                     E::ChooseCards {
                         source: P::Hand, filter: CardFilter::All, action: ChoiceAction::PutOnTopOfDraw,
@@ -18,7 +18,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thinking Ahead+", name: "Thinking Ahead+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["thinking_ahead"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Fixed(2))),
                     E::ChooseCards {
                         source: P::Hand, filter: CardFilter::All, action: ChoiceAction::PutOnTopOfDraw,

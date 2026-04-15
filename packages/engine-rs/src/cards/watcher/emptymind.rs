@@ -5,7 +5,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "EmptyMind", name: "Empty Mind", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["draw", "exit_stance"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::Simple(SE::ChangeStance(Stance::Neutral)),
                 ], complex_hook: None,
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "EmptyMind+", name: "Empty Mind+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["draw", "exit_stance"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::Simple(SE::ChangeStance(Stance::Neutral)),
                 ], complex_hook: None,

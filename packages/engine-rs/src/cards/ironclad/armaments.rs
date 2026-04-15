@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Armaments", name: "Armaments", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["upgrade_one_card"], effect_data: &[
+                effect_data: &[
                     E::ChooseCards {
                         source: P::Hand,
                         filter: crate::effects::declarative::CardFilter::Upgradeable,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Armaments+", name: "Armaments+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["upgrade_all_cards"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: crate::effects::declarative::CardFilter::Upgradeable,

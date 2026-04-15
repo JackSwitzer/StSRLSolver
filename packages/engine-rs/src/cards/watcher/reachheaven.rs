@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "ReachHeaven", name: "Reach Heaven", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_through_violence_to_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "ReachHeaven+", name: "Reach Heaven+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_through_violence_to_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bash", name: "Bash", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 8, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bash+", name: "Bash+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });

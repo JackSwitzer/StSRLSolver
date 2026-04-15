@@ -21,12 +21,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "ForeignInfluence", name: "Foreign Influence", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["foreign_influence"], effect_data: &FOREIGN_INFLUENCE, complex_hook: None,
+                effect_data: &FOREIGN_INFLUENCE, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "ForeignInfluence+", name: "Foreign Influence+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["foreign_influence"], effect_data: &FOREIGN_INFLUENCE_PLUS, complex_hook: None,
+                effect_data: &FOREIGN_INFLUENCE_PLUS, complex_hook: None,
             });
 }

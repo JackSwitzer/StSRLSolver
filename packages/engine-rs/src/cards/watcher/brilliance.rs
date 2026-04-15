@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Brilliance", name: "Brilliance", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 12, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &["damage_plus_mantra"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Brilliance+", name: "Brilliance+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 16, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &["damage_plus_mantra"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                 ], complex_hook: None,
             });

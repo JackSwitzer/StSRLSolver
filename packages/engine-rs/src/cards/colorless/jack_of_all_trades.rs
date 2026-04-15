@@ -25,8 +25,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 1,
         exhaust: true,
         enter_stance: None,
-        effects: &["add_random_colorless"],
-        effect_data: &JACK_OF_ALL_TRADES,
+                effect_data: &JACK_OF_ALL_TRADES,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -40,8 +39,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 2,
         exhaust: true,
         enter_stance: None,
-        effects: &["add_random_colorless"],
-        effect_data: &JACK_OF_ALL_TRADES_PLUS,
+                effect_data: &JACK_OF_ALL_TRADES_PLUS,
         complex_hook: None,
     });
 }

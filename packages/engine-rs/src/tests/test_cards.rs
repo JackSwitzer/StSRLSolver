@@ -83,7 +83,7 @@ mod card_registry_tests {
         let c = reg().get("BowlingBash").unwrap().clone();
         assert_eq!(c.base_damage, 7);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"damage_per_enemy"));
+        assert!(c.has_test_marker("damage_per_enemy"));
     }
 
     #[test]
@@ -97,7 +97,7 @@ mod card_registry_tests {
         let c = reg().get("CrushJoints").unwrap().clone();
         assert_eq!(c.base_damage, 8);
         assert_eq!(c.base_magic, 1);
-        assert!(c.effects.contains(&"vuln_if_last_skill"));
+        assert!(c.has_test_marker("vuln_if_last_skill"));
     }
 
     #[test]
@@ -112,8 +112,8 @@ mod card_registry_tests {
         let c = reg().get("CutThroughFate").unwrap().clone();
         assert_eq!(c.base_damage, 7);
         assert_eq!(c.base_magic, 2);
-        assert!(c.effects.contains(&"scry"));
-        assert!(c.effects.contains(&"draw"));
+        assert!(c.has_test_marker("scry"));
+        assert!(c.has_test_marker("draw"));
     }
 
     #[test]
@@ -156,7 +156,7 @@ mod card_registry_tests {
         let c = reg().get("FlyingSleeves").unwrap().clone();
         assert_eq!(c.base_damage, 4);
         assert_eq!(c.base_magic, 2);
-        assert!(c.effects.contains(&"multi_hit"));
+        assert!(c.has_test_marker("multi_hit"));
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod card_registry_tests {
     fn follow_up_base() {
         let c = reg().get("FollowUp").unwrap().clone();
         assert_eq!(c.base_damage, 7);
-        assert!(c.effects.contains(&"energy_if_last_attack"));
+        assert!(c.has_test_marker("energy_if_last_attack"));
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod card_registry_tests {
         assert_eq!(c.base_block, 3);
         assert_eq!(c.base_magic, 9);
         assert_eq!(c.cost, 0);
-        assert!(c.effects.contains(&"extra_block_in_wrath"));
+        assert!(c.has_test_marker("extra_block_in_wrath"));
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod card_registry_tests {
         assert_eq!(c.base_block, 4);
         assert_eq!(c.base_magic, 2);
         assert_eq!(c.cost, 0);
-        assert!(c.effects.contains(&"mantra"));
+        assert!(c.has_test_marker("mantra"));
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod card_registry_tests {
         assert_eq!(c.base_damage, 3);
         assert_eq!(c.base_magic, 3);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"multi_hit"));
+        assert!(c.has_test_marker("multi_hit"));
         assert_eq!(c.enter_stance, Some("Wrath"));
     }
 
@@ -233,7 +233,7 @@ mod card_registry_tests {
         let c = reg().get("ThirdEye").unwrap().clone();
         assert_eq!(c.base_block, 7);
         assert_eq!(c.base_magic, 3);
-        assert!(c.effects.contains(&"scry"));
+        assert!(c.has_test_marker("scry"));
     }
 
     #[test]
@@ -250,7 +250,7 @@ mod card_registry_tests {
         let c = reg().get("InnerPeace").unwrap().clone();
         assert_eq!(c.base_magic, 3);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"if_calm_draw_else_calm"));
+        assert!(c.has_test_marker("if_calm_draw_else_calm"));
     }
 
     #[test]
@@ -265,7 +265,7 @@ mod card_registry_tests {
         assert_eq!(c.base_damage, 15);
         assert_eq!(c.cost, 2);
         assert_eq!(c.base_magic, 2);
-        assert!(c.effects.contains(&"draw"));
+        assert!(c.has_test_marker("draw"));
     }
 
     #[test]
@@ -280,7 +280,7 @@ mod card_registry_tests {
         assert_eq!(c.base_damage, 12);
         assert_eq!(c.cost, 1);
         assert_eq!(c.target, CardTarget::AllEnemy);
-        assert!(c.effects.contains(&"end_turn"));
+        assert!(c.has_test_marker("end_turn"));
     }
 
     #[test]
@@ -295,7 +295,7 @@ mod card_registry_tests {
         assert_eq!(c.base_damage, 5);
         assert_eq!(c.base_magic, 2);
         assert!(c.exhaust);
-        assert!(c.effects.contains(&"apply_block_return"));
+        assert!(c.has_test_marker("apply_block_return"));
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod card_registry_tests {
         let c = reg().get("Pray").unwrap().clone();
         assert_eq!(c.base_magic, 3);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"mantra"));
+        assert!(c.has_test_marker("mantra"));
     }
 
     #[test]
@@ -325,14 +325,14 @@ mod card_registry_tests {
         let c = reg().get("Worship").unwrap().clone();
         assert_eq!(c.base_magic, 5);
         assert_eq!(c.cost, 2);
-        assert!(c.effects.contains(&"mantra"));
+        assert!(c.has_test_marker("mantra"));
     }
 
     #[test]
     fn worship_upgraded_has_retain() {
         let c = reg().get("Worship+").unwrap().clone();
         assert_eq!(c.base_magic, 5);
-        assert!(c.effects.contains(&"retain"));
+        assert!(c.has_test_marker("retain"));
     }
 
     // ========== Power Cards ==========
@@ -343,7 +343,7 @@ mod card_registry_tests {
         assert_eq!(c.card_type, CardType::Power);
         assert_eq!(c.base_magic, 2);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"on_wrath_draw"));
+        assert!(c.has_test_marker("on_wrath_draw"));
     }
 
     #[test]
@@ -359,7 +359,7 @@ mod card_registry_tests {
         assert_eq!(c.card_type, CardType::Power);
         assert_eq!(c.base_magic, 4);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"on_stance_change_block"));
+        assert!(c.has_test_marker("on_stance_change_block"));
     }
 
     #[test]
@@ -395,7 +395,7 @@ mod card_registry_tests {
         assert_eq!(c.cost, 0);
         assert_eq!(c.base_magic, 1);
         assert!(c.exhaust);
-        assert!(c.effects.contains(&"gain_energy"));
+        assert!(c.has_test_marker("gain_energy"));
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod card_registry_tests {
         let c = reg().get("Smite").unwrap().clone();
         assert_eq!(c.base_damage, 12);
         assert_eq!(c.cost, 1);
-        assert!(c.effects.contains(&"retain"));
+        assert!(c.has_test_marker("retain"));
     }
 
     #[test]
@@ -434,7 +434,7 @@ mod card_registry_tests {
         let c = reg().get("Wound").unwrap().clone();
         assert_eq!(c.card_type, CardType::Status);
         assert_eq!(c.cost, -2);
-        assert!(c.effects.contains(&"unplayable"));
+        assert!(c.has_test_marker("unplayable"));
         assert!(c.is_unplayable());
     }
 
@@ -442,23 +442,23 @@ mod card_registry_tests {
     fn daze_is_unplayable_ethereal() {
         let c = reg().get("Daze").unwrap().clone();
         assert_eq!(c.cost, -2);
-        assert!(c.effects.contains(&"unplayable"));
-        assert!(c.effects.contains(&"ethereal"));
+        assert!(c.has_test_marker("unplayable"));
+        assert!(c.has_test_marker("ethereal"));
     }
 
     #[test]
     fn burn_is_unplayable() {
         let c = reg().get("Burn").unwrap().clone();
         assert_eq!(c.cost, -2);
-        assert!(c.effects.contains(&"unplayable"));
+        assert!(c.has_test_marker("unplayable"));
     }
 
     #[test]
     fn ascenders_bane_properties() {
         let c = reg().get("AscendersBane").unwrap().clone();
         assert_eq!(c.card_type, CardType::Curse);
-        assert!(c.effects.contains(&"unplayable"));
-        assert!(c.effects.contains(&"ethereal"));
+        assert!(c.has_test_marker("unplayable"));
+        assert!(c.has_test_marker("ethereal"));
     }
 
     // ========== Colorless ==========

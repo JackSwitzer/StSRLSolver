@@ -1,9 +1,10 @@
 #![cfg(test)]
 
 use crate::actions::Action;
+use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
 use crate::engine::{CombatEngine, CombatPhase};
-use crate::run::RunEngine;
+use crate::run::{RunAction, RunEngine, RunPhase};
 use crate::state::{CombatState, EnemyCombatState, Stance};
 
 pub(crate) const TEST_SEED: u64 = 42;
@@ -116,4 +117,33 @@ pub(crate) fn set_stance(engine: &mut CombatEngine, stance: Stance) {
 
 pub(crate) fn run_engine(seed: u64, ascension: i32) -> RunEngine {
     RunEngine::new(seed, ascension)
+}
+
+pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
+    if engine.current_phase() == RunPhase::Neow {
+        let action = engine
+            .current_decision_context()
+            .neow
+            .and_then(|neow| {
+                neow.options
+                    .iter()
+                    .position(|option| option.label == "Gain 100 gold")
+            })
+            .map(RunAction::ChooseNeowOption)
+            .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
+        let (reward, done) = engine.step(&action);
+        assert_eq!(reward, 0.0);
+        assert!(!done);
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    }
+}
+
+pub(crate) fn assert_card_markers_eq(card: &CardDef, expected: &[&str], label: &str) {
+    let actual = card.test_markers();
+    for marker in expected {
+        assert!(
+            actual.iter().any(|candidate| candidate == marker),
+            "{label} missing marker '{marker}'; actual={actual:?}"
+        );
+    }
 }

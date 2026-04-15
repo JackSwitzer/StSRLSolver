@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flame Barrier", name: "Flame Barrier", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 12,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["flame_barrier"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FLAME_BARRIER, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flame Barrier+", name: "Flame Barrier+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 16,
                 base_magic: 6, exhaust: false, enter_stance: None,
-                effects: &["flame_barrier"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FLAME_BARRIER, A::Magic)),
                 ], complex_hook: None,
             });

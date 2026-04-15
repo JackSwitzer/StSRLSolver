@@ -860,7 +860,7 @@ mod engine_integration_tests {
     #[test] fn worship_plus_has_retain_effect() {
         let reg = crate::cards::global_registry();
         let c = reg.get("Worship+").unwrap();
-        assert!(c.effects.contains(&"retain"));
+        assert!(c.has_test_marker("retain"));
     }
 
     // ---- Divinity outgoing damage 3x ----
@@ -2348,8 +2348,8 @@ mod effect_handler_tests {
         // Should consume all energy
         assert_eq!(e.state.energy, 0,
             "Conjure Blade should consume all energy");
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Expunger")),
-            "Conjure Blade should add Expunger to hand");
+        assert!(e.state.draw_pile.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Expunger")),
+            "Conjure Blade should add Expunger to draw pile");
     }
 
     // ===== 38. Mantra tracking for Brilliance =====

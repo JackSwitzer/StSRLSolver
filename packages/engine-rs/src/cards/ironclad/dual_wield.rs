@@ -13,8 +13,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 1,
         exhaust: false,
         enter_stance: None,
-        effects: &["dual_wield"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::AttackOrPower,
             action: ChoiceAction::CopyToHand,
@@ -35,8 +34,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 2,
         exhaust: false,
         enter_stance: None,
-        effects: &["dual_wield"],
-        effect_data: &[E::ChooseCards {
+                effect_data: &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::AttackOrPower,
             action: ChoiceAction::CopyToHand,

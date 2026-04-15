@@ -55,7 +55,7 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     let clash = global_registry().get("Clash").expect("Clash should exist");
     assert_eq!(clash.card_type, CardType::Attack);
     assert_eq!(clash.target, CardTarget::Enemy);
-    assert!(clash.effects.contains(&"only_attacks_in_hand"));
+    assert!(clash.has_test_marker("only_attacks_in_hand"));
     assert_eq!(
         clash.effect_data,
         &[crate::effects::declarative::Effect::Simple(
@@ -70,7 +70,7 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
         .get("Heavy Blade+")
         .expect("Heavy Blade+ should exist");
     assert_eq!(heavy_blade.base_magic, 5);
-    assert!(heavy_blade.effects.contains(&"heavy_blade"));
+    assert!(heavy_blade.has_test_marker("heavy_blade"));
     assert_eq!(
         heavy_blade.effect_data,
         &[crate::effects::declarative::Effect::Simple(
@@ -104,7 +104,7 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     );
 
     let carnage = global_registry().get("Carnage").expect("Carnage should exist");
-    assert!(carnage.effects.contains(&"ethereal"));
+    assert!(carnage.has_test_marker("ethereal"));
     assert_eq!(
         carnage.effect_data,
         &[crate::effects::declarative::Effect::Simple(
@@ -134,7 +134,7 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     let perfected_strike = global_registry()
         .get("Perfected Strike")
         .expect("Perfected Strike should exist");
-    assert!(perfected_strike.effects.contains(&"perfected_strike"));
+    assert!(perfected_strike.has_test_marker("perfected_strike"));
     assert_eq!(
         perfected_strike.effect_data,
         &[crate::effects::declarative::Effect::Simple(

@@ -20,7 +20,7 @@ fn assert_gameplay_card_export(
     let def = crate::gameplay::global_registry()
         .card(id)
         .unwrap_or_else(|| panic!("missing gameplay card export for {id}"));
-    assert_eq!(def.program_source(), GameplayProgramSource::AdaptedLegacy, "{id} source");
+    assert_eq!(def.program_source(), GameplayProgramSource::Canonical, "{id} source");
 
     let schema = def.card_schema().expect("card schema");
     assert_eq!(schema.card_type, Some(card_type), "{id} type");
@@ -59,7 +59,7 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     let force_field = reg.get("Force Field").expect("Force Field");
     assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(force_field.complex_hook.is_none());
-    assert!(force_field.effects.contains(&"reduce_cost_per_power"));
+    assert!(force_field.has_test_marker("reduce_cost_per_power"));
 
     let heatsinks = reg.get("Heatsinks+").expect("Heatsinks+");
     assert_eq!(
@@ -73,7 +73,7 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
         hello_world.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic))]
     );
-    assert!(hello_world.effects.contains(&"innate"));
+    assert!(hello_world.has_test_marker("innate"));
     assert!(hello_world.complex_hook.is_none());
 
     let leap = reg.get("Leap+").expect("Leap+");

@@ -24,7 +24,7 @@ fn assert_gameplay_card_export(
     let def = crate::gameplay::global_registry()
         .card(id)
         .unwrap_or_else(|| panic!("missing gameplay card export for {id}"));
-    assert_eq!(def.program_source(), GameplayProgramSource::AdaptedLegacy, "{id} source");
+    assert_eq!(def.program_source(), GameplayProgramSource::Canonical, "{id} source");
 
     let schema = def.card_schema().expect("card schema");
     assert_eq!(schema.card_type, Some(card_type), "{id} type");
@@ -61,12 +61,12 @@ fn watcher_wave4_registry_exports_surface_declared_block_stance_and_power_instal
         false,
         Some("Defend_P"),
     );
-    assert_eq!(defend.declared_effect_count, 0);
+    assert_eq!(defend.declared_effect_count, 1);
 
     let eruption = crate::cards::global_registry()
         .get("Eruption")
         .expect("Eruption should be registered");
-    assert_eq!(eruption.enter_stance, None);
+    assert_eq!(eruption.enter_stance, Some("Wrath"));
     assert_eq!(
         eruption.effect_data,
         &[E::Simple(SE::ChangeStance(Stance::Wrath))]
@@ -87,7 +87,7 @@ fn watcher_wave4_registry_exports_surface_declared_block_stance_and_power_instal
         deva_form.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM, A::Magic))]
     );
-    assert_eq!(deva_form.effects, &["ethereal"]);
+    assert!(deva_form.runtime_traits().ethereal);
 }
 
 #[test]

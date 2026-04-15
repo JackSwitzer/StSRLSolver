@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Purity", name: "Purity", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 3, exhaust: true, enter_stance: None,
-        effects: &["exhaust_from_hand"], effect_data: &[
+                effect_data: &[
             E::ChooseCards {
                 source: P::Hand,
                 filter: CardFilter::All,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Purity+", name: "Purity+", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: 5, exhaust: true, enter_stance: None,
-        effects: &["exhaust_from_hand"], effect_data: &[
+                effect_data: &[
             E::ChooseCards {
                 source: P::Hand,
                 filter: CardFilter::All,

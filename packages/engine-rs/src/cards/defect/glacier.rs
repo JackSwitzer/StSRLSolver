@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Glacier", name: "Glacier", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 7,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["channel_frost"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Glacier+", name: "Glacier+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 10,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["channel_frost"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Frost, A::Magic)),
                 ], complex_hook: None,
             });

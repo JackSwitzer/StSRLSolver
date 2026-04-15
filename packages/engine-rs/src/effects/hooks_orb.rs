@@ -62,8 +62,7 @@ pub fn hook_channel_frost_per_enemy(engine: &mut CombatEngine, _ctx: &CardPlayCo
 /// Dualcast: evoke the front orb. The tag can appear multiple times on a card
 /// (e.g. Dualcast evokes twice), so we count occurrences.
 pub fn hook_evoke_orb(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let evoke_count = ctx.card.effects.iter().filter(|&&e| e == "evoke_orb").count();
-    if evoke_count > 0 {
+    if let Some(crate::effects::types::CardEvokeHint::Fixed(evoke_count)) = ctx.card.evoke_hint() {
         let focus = engine.state.player.focus();
         for _ in 0..evoke_count {
             let effect = engine.state.orb_slots.evoke_front(focus);

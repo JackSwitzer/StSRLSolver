@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flex", name: "Flex", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["temp_strength"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
                     E::Simple(SE::AddStatus(T::Player, sid::TEMP_STRENGTH, A::Magic)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flex+", name: "Flex+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["temp_strength"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
                     E::Simple(SE::AddStatus(T::Player, sid::TEMP_STRENGTH, A::Magic)),
                 ], complex_hook: None,

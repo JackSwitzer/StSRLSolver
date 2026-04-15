@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "ClearTheMind", name: "Tranquility", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: Some("Calm"),
-                effects: &["retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChangeStance(Stance::Calm)),
                 ], complex_hook: None,
             });
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "ClearTheMind+", name: "Tranquility+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: Some("Calm"),
-                effects: &["retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChangeStance(Stance::Calm)),
                 ], complex_hook: None,
             });

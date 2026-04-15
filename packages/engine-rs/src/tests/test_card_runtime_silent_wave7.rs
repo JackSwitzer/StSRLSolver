@@ -116,5 +116,5 @@ fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.state.discard_pile.len(), 3);
 }

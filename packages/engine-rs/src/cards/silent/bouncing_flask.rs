@@ -10,7 +10,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Bouncing Flask", name: "Bouncing Flask", card_type: CardType::Skill,
         target: CardTarget::AllEnemy, cost: 2, base_damage: -1, base_block: -1,
         base_magic: 3, exhaust: false, enter_stance: None,
-        effects: &["poison_random_multi"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),
@@ -20,7 +20,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Bouncing Flask+", name: "Bouncing Flask+", card_type: CardType::Skill,
         target: CardTarget::AllEnemy, cost: 2, base_damage: -1, base_block: -1,
         base_magic: 4, exhaust: false, enter_stance: None,
-        effects: &["poison_random_multi"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),
             E::Simple(SE::AddStatus(T::RandomEnemy, sid::POISON, A::Fixed(3))),

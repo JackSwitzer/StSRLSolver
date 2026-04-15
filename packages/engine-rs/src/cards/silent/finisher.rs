@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Finisher", name: "Finisher", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["finisher"], effect_data: &[E::ExtraHits(A::AttacksThisTurn)], complex_hook: None,
+                effect_data: &[E::ExtraHits(A::AttacksThisTurn)], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Finisher+", name: "Finisher+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["finisher"], effect_data: &[E::ExtraHits(A::AttacksThisTurn)], complex_hook: None,
+                effect_data: &[E::ExtraHits(A::AttacksThisTurn)], complex_hook: None,
             });
 }

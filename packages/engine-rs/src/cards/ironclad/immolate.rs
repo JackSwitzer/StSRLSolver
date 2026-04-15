@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Immolate", name: "Immolate", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 2, base_damage: 21, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_burn_to_discard"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Burn", P::Discard, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Immolate+", name: "Immolate+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 2, base_damage: 28, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_burn_to_discard"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Burn", P::Discard, A::Fixed(1))),
                 ], complex_hook: None,
             });

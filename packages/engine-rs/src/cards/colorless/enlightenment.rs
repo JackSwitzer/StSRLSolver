@@ -19,12 +19,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Enlightenment", name: "Enlightenment", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["enlightenment_this_turn"], effect_data: &ENLIGHTENMENT_THIS_TURN, complex_hook: None,
+                effect_data: &ENLIGHTENMENT_THIS_TURN, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Enlightenment+", name: "Enlightenment+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["enlightenment_permanent"], effect_data: &ENLIGHTENMENT_PLUS, complex_hook: None,
+                effect_data: &ENLIGHTENMENT_PLUS, complex_hook: None,
             });
 }

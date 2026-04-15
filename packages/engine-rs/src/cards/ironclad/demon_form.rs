@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Demon Form", name: "Demon Form", card_type: CardType::Power,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["demon_form"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::DEMON_FORM, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Demon Form+", name: "Demon Form+", card_type: CardType::Power,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["demon_form"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::DEMON_FORM, A::Magic)),
                 ], complex_hook: None,
             });

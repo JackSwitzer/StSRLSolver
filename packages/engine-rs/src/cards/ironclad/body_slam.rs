@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Body Slam", name: "Body Slam", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 0, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::PlayerBlock)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Body Slam+", name: "Body Slam+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 0, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::PlayerBlock)),
                 ], complex_hook: None,
             });

@@ -3,7 +3,7 @@ mod ironclad_wave2_card_runtime_tests {
     use crate::actions::Action;
     use crate::cards::{CardDef, CardTarget, CardType};
     use crate::effects::declarative::{
-        AmountSource, Effect, Pile, SimpleEffect, Target, BoolFlag,
+        AmountSource, BoolFlag, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect, Target,
     };
     use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
@@ -63,12 +63,39 @@ mod ironclad_wave2_card_runtime_tests {
         );
 
         let headbutt = card("Headbutt");
-        assert!(headbutt.effect_data.is_empty());
-        assert!(headbutt.complex_hook.is_some());
+        assert_eq!(
+            headbutt.effect_data,
+            &[
+                Effect::Simple(SimpleEffect::DealDamage(
+                    Target::SelectedEnemy,
+                    AmountSource::Damage,
+                )),
+                Effect::ChooseCards {
+                    source: Pile::Discard,
+                    filter: CardFilter::All,
+                    action: ChoiceAction::PutOnTopOfDraw,
+                    min_picks: AmountSource::Fixed(1),
+                    max_picks: AmountSource::Fixed(1),
+                    post_choice_draw: AmountSource::Fixed(0),
+                },
+            ]
+        );
+        assert!(headbutt.complex_hook.is_none());
 
         let rampage = card("Rampage");
-        assert!(rampage.effect_data.is_empty());
-        assert!(rampage.complex_hook.is_some());
+        assert_eq!(
+            rampage.effect_data,
+            &[
+                Effect::Simple(SimpleEffect::DealDamage(
+                    Target::SelectedEnemy,
+                    AmountSource::Damage,
+                )),
+                Effect::Simple(SimpleEffect::ModifyPlayedCardDamage(
+                    AmountSource::Magic,
+                )),
+            ]
+        );
+        assert!(rampage.complex_hook.is_none());
 
         let pommel_strike = card("Pommel Strike");
         assert_eq!(

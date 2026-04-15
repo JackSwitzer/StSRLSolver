@@ -7,12 +7,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Scrape", name: "Scrape", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))], complex_hook: None,
+                effect_data: &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Scrape+", name: "Scrape+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
                 base_magic: 5, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))], complex_hook: None,
+                effect_data: &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))], complex_hook: None,
             });
 }

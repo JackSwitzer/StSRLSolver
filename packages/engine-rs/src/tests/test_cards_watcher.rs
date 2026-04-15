@@ -42,7 +42,7 @@ mod watcher_card_java_parity_tests {
         assert_eq!(card.target, target, "{id} target");
         assert_eq!(card.exhaust, exhaust, "{id} exhaust");
         assert_eq!(card.enter_stance, enter_stance, "{id} stance");
-        assert_eq!(card.effects, effects, "{id} effects");
+        assert_card_markers_eq(card, effects, id);
     }
 
     fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> CombatEngine {
@@ -126,8 +126,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         eruption_java_parity,
-        base = ("Eruption", "Eruption", 2, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
-        plus = ("Eruption+", "Eruption+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
+        base = ("Eruption", "Eruption", 2, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, Some("Wrath"), []),
+        plus = ("Eruption+", "Eruption+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, Some("Wrath"), []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "Eruption");
@@ -138,8 +138,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         vigilance_java_parity,
-        base = ("Vigilance", "Vigilance", 2, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
-        plus = ("Vigilance+", "Vigilance+", 2, -1, 12, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
+        base = ("Vigilance", "Vigilance", 2, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Calm"), []),
+        plus = ("Vigilance+", "Vigilance+", 2, -1, 12, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Calm"), []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "Vigilance");
@@ -189,8 +189,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         empty_body_java_parity,
-        base = ("EmptyBody", "Empty Body", 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["exit_stance"]),
-        plus = ("EmptyBody+", "Empty Body+", 1, -1, 10, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["exit_stance"]),
+        base = ("EmptyBody", "Empty Body", 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["exit_stance"]),
+        plus = ("EmptyBody+", "Empty Body+", 1, -1, 10, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["exit_stance"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Wrath);
@@ -264,8 +264,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         tantrum_java_parity,
-        base = ("Tantrum", "Tantrum", 1, 3, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "shuffle_self_into_draw"]),
-        plus = ("Tantrum+", "Tantrum+", 1, 3, -1, 4, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "shuffle_self_into_draw"]),
+        base = ("Tantrum", "Tantrum", 1, 3, -1, 3, CardType::Attack, CardTarget::Enemy, false, Some("Wrath"), ["multi_hit", "shuffle_self_into_draw"]),
+        plus = ("Tantrum+", "Tantrum+", 1, 3, -1, 4, CardType::Attack, CardTarget::Enemy, false, Some("Wrath"), ["multi_hit", "shuffle_self_into_draw"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 60, 0);
             ensure_in_hand(&mut engine, "Tantrum");
@@ -288,8 +288,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         crescendo_java_parity,
-        base = ("Crescendo", "Crescendo", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, ["retain"]),
-        plus = ("Crescendo+", "Crescendo+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, ["retain"]),
+        base = ("Crescendo", "Crescendo", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Wrath"), ["retain"]),
+        plus = ("Crescendo+", "Crescendo+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Wrath"), ["retain"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "Crescendo");
@@ -395,8 +395,8 @@ mod watcher_card_java_parity_tests {
     );
     watcher_test!(
         empty_mind_java_parity,
-        base = ("EmptyMind", "Empty Mind", 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, None, ["draw", "exit_stance"]),
-        plus = ("EmptyMind+", "Empty Mind+", 1, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, ["draw", "exit_stance"]),
+        base = ("EmptyMind", "Empty Mind", 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["draw", "exit_stance"]),
+        plus = ("EmptyMind+", "Empty Mind+", 1, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["draw", "exit_stance"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Calm);

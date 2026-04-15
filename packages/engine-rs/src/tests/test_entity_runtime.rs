@@ -10,7 +10,7 @@ use crate::status_ids::sid;
 
 use super::support::{
     combat_state_with, enemy, enemy_no_intent, end_turn, engine_with_state, engine_without_start,
-    make_deck, play_on_enemy, play_self,
+    make_deck, play_on_enemy, play_self, resolve_opening_neow,
 };
 
 #[test]
@@ -162,6 +162,7 @@ fn envenom_uses_runtime_damage_resolved_path_on_real_attack_hits() {
 #[test]
 fn step_result_exposes_events_and_v2_observation() {
     let mut engine = RunEngine::new(42, 20);
+    resolve_opening_neow(&mut engine);
     let map_action = engine.get_legal_actions()[0].clone();
     let _ = engine.step_with_result(&map_action);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Combat);
@@ -398,7 +399,15 @@ fn pocketwatch_grants_extra_draw_on_short_previous_turn() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.turn, 2);
-    assert_eq!(engine.state.hand.len(), 9);
+    assert_eq!(engine.state.hand.len(), 8);
+    assert_eq!(
+        engine.hidden_effect_value("Pocketwatch", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
+    assert_eq!(
+        engine.hidden_effect_value("Pocketwatch", EffectOwner::PlayerRelic { slot: 0 }, 1),
+        0
+    );
 }
 
 #[test]
@@ -437,7 +446,7 @@ fn centennial_puzzle_draws_only_on_first_hp_loss() {
 }
 
 #[test]
-fn emotion_chip_triggers_front_orb_passive_on_hp_loss() {
+fn emotion_chip_marks_a_next_turn_orb_pulse_on_hp_loss() {
     let mut state = combat_state_with(make_deck(&["Strike_B"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Emotion Chip".to_string());
 
@@ -448,7 +457,7 @@ fn emotion_chip_triggers_front_orb_passive_on_hp_loss() {
 
     engine.player_lose_hp(2);
 
-    assert!(engine.state.enemies[0].entity.hp < hp_before);
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_before);
     assert_eq!(engine.state.player.status(sid::EMOTION_CHIP_TRIGGER), 1);
 }
 
@@ -460,17 +469,26 @@ fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
 
     let mut engine = engine_with_state(state);
     assert_eq!(engine.state.player.strength(), 0);
-    assert_eq!(engine.state.player.status(sid::RED_SKULL_ACTIVE), 0);
+    assert_eq!(
+        engine.hidden_effect_value("Red Skull", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 
     engine.player_lose_hp(11);
     assert_eq!(engine.state.player.hp, 39);
     assert_eq!(engine.state.player.strength(), 3);
-    assert_eq!(engine.state.player.status(sid::RED_SKULL_ACTIVE), 1);
+    assert_eq!(
+        engine.hidden_effect_value("Red Skull", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
 
     engine.heal_player(5);
     assert_eq!(engine.state.player.hp, 44);
     assert_eq!(engine.state.player.strength(), 0);
-    assert_eq!(engine.state.player.status(sid::RED_SKULL_ACTIVE), 0);
+    assert_eq!(
+        engine.hidden_effect_value("Red Skull", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 }
 
 #[test]

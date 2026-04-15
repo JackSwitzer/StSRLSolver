@@ -6,7 +6,6 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flechettes", name: "Flechettes", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 4, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["flechettes"],
                 effect_data: &[
                     E::ExtraHits(A::SkillsInHand),
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
@@ -17,7 +16,6 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Flechettes+", name: "Flechettes+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["flechettes"],
                 effect_data: &[
                     E::ExtraHits(A::SkillsInHand),
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),

@@ -11,14 +11,10 @@ fn typed_event(act: i32, name: &str) -> TypedEventDef {
 }
 
 #[test]
-fn dead_adventurer_is_still_blocked_on_the_remaining_room_reward_queue_semantics() {
+fn dead_adventurer_no_longer_depends_on_blocked_room_reward_queue_semantics() {
     let dead_adventurer = typed_event(1, "Dead Adventurer");
-    match &dead_adventurer.options[0].status {
-        EventRuntimeStatus::Blocked { reason } => {
-            assert!(reason.contains("persistent search-state tracking"));
-            assert!(reason.contains("room-reward queue"));
-            assert!(reason.contains("elite-combat continuation"));
-        }
-        other => panic!("expected Dead Adventurer to remain blocked, found {other:?}"),
-    }
+    assert!(matches!(
+        dead_adventurer.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 }

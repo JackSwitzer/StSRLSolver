@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Alpha", name: "Alpha", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Beta", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Alpha+", name: "Alpha+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["innate"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Beta", P::Draw, A::Fixed(1))),
                 ], complex_hook: None,
             });

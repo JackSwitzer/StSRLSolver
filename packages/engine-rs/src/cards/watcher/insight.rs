@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Insight", name: "Insight", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["draw", "retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Insight+", name: "Insight+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: true, enter_stance: None,
-                effects: &["draw", "retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                 ], complex_hook: None,
             });

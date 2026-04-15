@@ -58,7 +58,7 @@ mod ironclad_wave4_card_runtime_tests {
         let blood_for_blood = card("Blood for Blood");
         assert_eq!(blood_for_blood.card_type, CardType::Attack);
         assert_eq!(blood_for_blood.target, CardTarget::Enemy);
-        assert!(blood_for_blood.effects.contains(&"cost_reduce_on_hp_loss"));
+        assert!(blood_for_blood.has_test_marker("cost_reduce_on_hp_loss"));
         assert_eq!(
             blood_for_blood.effect_data,
             &[crate::effects::declarative::Effect::Simple(
@@ -98,7 +98,7 @@ mod ironclad_wave4_card_runtime_tests {
         assert!(burning_pact.complex_hook.is_none());
 
         let carnage = card("Carnage");
-        assert!(carnage.effects.contains(&"ethereal"));
+        assert!(carnage.has_test_marker("ethereal"));
 
         let cleave = card("Cleave");
         assert_eq!(cleave.target, CardTarget::AllEnemy);
@@ -114,7 +114,7 @@ mod ironclad_wave4_card_runtime_tests {
 
         let ghostly_armor = card("Ghostly Armor");
         assert_eq!(ghostly_armor.card_type, CardType::Skill);
-        assert!(ghostly_armor.effects.contains(&"ethereal"));
+        assert!(ghostly_armor.has_test_marker("ethereal"));
 
         let headbutt = card("Headbutt");
         assert_eq!(

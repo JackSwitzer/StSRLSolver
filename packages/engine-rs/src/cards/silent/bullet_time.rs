@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bullet Time", name: "Bullet Time", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["bullet_time"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetFlag(BF::BulletTime)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bullet Time+", name: "Bullet Time+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["bullet_time"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetFlag(BF::BulletTime)),
                 ], complex_hook: None,
             });

@@ -14,19 +14,12 @@ fn typed_event(act: i32, name: &str) -> TypedEventDef {
 }
 
 #[test]
-fn dead_adventurer_remains_explicitly_blocked_in_the_typed_catalog() {
+fn dead_adventurer_is_supported_in_the_typed_catalog() {
     let dead_adventurer = typed_event(1, "Dead Adventurer");
     assert!(matches!(
         dead_adventurer.options[0].status,
-        EventRuntimeStatus::Blocked { .. }
+        EventRuntimeStatus::Supported
     ));
-    match &dead_adventurer.options[0].status {
-        EventRuntimeStatus::Blocked { reason } => {
-            assert!(reason.contains("persistent search-state tracking"));
-            assert!(reason.contains("elite combat continuation"));
-        }
-        other => panic!("expected blocked Dead Adventurer option, found {other:?}"),
-    }
 }
 
 #[test]

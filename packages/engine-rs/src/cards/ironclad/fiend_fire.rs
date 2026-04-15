@@ -16,8 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &[],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,
@@ -39,8 +38,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &[],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,

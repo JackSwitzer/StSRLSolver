@@ -20,7 +20,7 @@ mod event_java_parity_tests {
     }
 
     #[test]
-    fn typed_and_legacy_catalog_sizes_match_current_port_target() {
+    fn typed_and_compat_catalog_sizes_match_current_port_target() {
         assert_eq!(typed_events_for_act(1).len(), events_for_act(1).len());
         assert_eq!(typed_events_for_act(2).len(), events_for_act(2).len());
         assert_eq!(typed_events_for_act(3).len(), events_for_act(3).len());
@@ -262,7 +262,7 @@ mod event_java_parity_tests {
     }
 
     #[test]
-    fn legacy_effects_remain_available_for_run_rs_compatibility() {
+    fn compat_event_catalog_wrappers_remain_available_for_run_rs() {
         let big_fish = events_for_act(1)
             .into_iter()
             .find(|event| event.name == "Big Fish")

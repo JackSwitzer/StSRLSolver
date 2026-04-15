@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Twin Strike", name: "Twin Strike", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 5, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[
+                effect_data: &[
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Twin Strike+", name: "Twin Strike+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["multi_hit"], effect_data: &[
+                effect_data: &[
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,
             });

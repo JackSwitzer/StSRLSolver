@@ -10,16 +10,19 @@ This is the canonical parity audit for `packages/engine-rs`. It reflects the liv
 Current read:
 
 - supported-scope runtime parity: `~100%`
-- all-content gameplay parity: `~99%+`
+- all-content gameplay parity: `100%` on the current audited matrix
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `0` currently confirmed on the targeted blocker matrix or the latest broad freeze rerun
+- all-content merge blockers: `0`
 
 What is truly done:
 
 - public gameplay-gap card tail: `0`
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
+- final broad freeze result: `2187 passed`, `0 failed`, `0 ignored`
 - registry-backed secondary card behavior now runs through typed runtime-trigger metadata instead of raw registry/tag ownership
+- production/runtime/export code now has `0` raw `card.effects` reads and `0` live registry-dispatch symbols
+- gameplay export now carries structured `runtime_traits`, `runtime_triggers`, and `play_hints` rather than semantic effect tags
 - `Establishment` retained-cost parity is fixed
 - `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, `Mutagenic Strength`, `DiscoveryAction`, `Chrysalis`, `Metamorphosis`, `Collect` timing, free-play X-cost handling, and persistent shop purge pricing are all landed on the canonical runtime path
 - Neow action layer is real and intentionally always exposes `4` choices
@@ -27,13 +30,13 @@ What is truly done:
 
 What is still open:
 
-- doc / PR synchronization to match the blocker-free zero-skip matrix
-- optional cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
+- optional cleanup-shell and source-authoring normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
+- broader training-branch architecture planning now that the engine/export surface is typed and zero-skip green
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, there is no currently confirmed blocker left on the targeted matrix and the latest broad freeze rerun is green on the integrated branch.
+- If the claim is `all gameplay content complete`, the final broad freeze is green on the integrated branch and there is no currently confirmed blocker left on the audited matrix.
 - Zero-skip answer: `yes` — there are `0` explicit ignored tests.
 - Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
 
@@ -53,7 +56,10 @@ Bottom line:
 | Blocked supported event ops | `0` | current source scan |
 | Explicit blocked event branches in source | `0` | current source scan |
 | Direct ignored tests in `src/tests` | `0` | current source scan |
+| Production raw `card.effects` reads | `0` | current source scan |
+| Live registry-dispatch symbols | `0` | current source scan |
 | Typed runtime-trigger cutover | `landed` | migrated secondary behavior now reads from `CardRuntimeTraits` / `CardRuntimeTrigger` and not raw tag checks for the migrated families |
+| Final broad freeze | `2187 / 2187` | latest integrated local run |
 
 ### Current status table
 
@@ -144,7 +150,7 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-There are no currently confirmed merge-gating findings on the targeted blocker matrix or the latest broad freeze rerun.
+There are no currently confirmed merge-gating findings on the integrated zero-skip tree after the final `2187 / 2187` broad freeze.
 
 The last known blocker sweep is now closed by passing engine-path proof:
 
@@ -193,11 +199,11 @@ The last known blocker sweep is now closed by passing engine-path proof:
 - Severity: low
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1), [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:565)
-- Problem: broad repo metadata tags still exist, but the migrated secondary-trigger families now have a different semantic owner than older docs imply.
-- Recommended fix: treat typed runtime-trigger metadata as canonical for migrated families and keep compatibility tags as a derived view until any later metadata cleanup wave.
-- Test mapping: `test_runtime_inline_cutover_wave5`, broad card parity suites
-- Worker slice: architecture/doc reconciliation
+- Evidence: [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1), [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:1)
+- Problem: the supported runtime/export surface is now typed, but the per-card authoring files still use a legacy `effects:` input shim during registry construction, which can look scarier than it is.
+- Recommended fix: treat the typed runtime/export surface as the shipped contract now, and optionally do a later source-authoring cleanup pass to remove the legacy input field from individual card files.
+- Test mapping: `test_runtime_inline_cutover_wave5`, `test_card_runtime_backend_wave1`, `test_card_runtime_backend_wave2`, `test_card_runtime_backend_wave3`, broad card parity suites
+- Worker slice: source-authoring normalization
 
 ## 5. Intentional Deviations
 
@@ -213,7 +219,7 @@ See [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/eng
 These items should not block a supported-scope merge if scope stays honest, but they are still worth doing soon:
 
 - relic bridge retirement in dead-system cleanup waves `18` and `19`
-- cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
+- cleanup-shell and source-authoring normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader generated-choice and generated-card fidelity sweeps as confidence work rather than blocker work
 - training-branch architecture planning now that the branch is zero-skip and broad-freeze green
 

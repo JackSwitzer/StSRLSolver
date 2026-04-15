@@ -42,7 +42,7 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     assert!(bowling_bash_plus.complex_hook.is_none());
 
     let empty_fist = registry.get("EmptyFist").expect("Empty Fist should be registered");
-    assert_eq!(empty_fist.enter_stance, None);
+    assert_eq!(empty_fist.enter_stance, Some("Neutral"));
     assert_eq!(
         empty_fist.effect_data,
         &[
@@ -54,7 +54,7 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     let empty_fist_plus = registry
         .get("EmptyFist+")
         .expect("Empty Fist+ should be registered");
-    assert_eq!(empty_fist_plus.enter_stance, None);
+    assert_eq!(empty_fist_plus.enter_stance, Some("Neutral"));
     assert_eq!(
         empty_fist_plus.effect_data,
         &[

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Expunger", name: "Expunger", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::ExtraHits(A::CardMisc),
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Expunger+", name: "Expunger+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::ExtraHits(A::CardMisc),
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                 ], complex_hook: None,

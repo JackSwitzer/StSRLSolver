@@ -30,29 +30,35 @@ fn tantrum_and_empty_body_now_declare_stance_changes_in_effect_data() {
     let registry = global_registry();
 
     let tantrum = registry.get("Tantrum").expect("Tantrum should be registered");
-    assert_eq!(tantrum.enter_stance, None);
+    assert_eq!(tantrum.enter_stance, Some("Wrath"));
     assert_eq!(tantrum.effect_data, &[E::Simple(SE::ChangeStance(Stance::Wrath))]);
 
     let tantrum_plus = registry.get("Tantrum+").expect("Tantrum+ should be registered");
-    assert_eq!(tantrum_plus.enter_stance, None);
+    assert_eq!(tantrum_plus.enter_stance, Some("Wrath"));
     assert_eq!(tantrum_plus.effect_data, &[E::Simple(SE::ChangeStance(Stance::Wrath))]);
 
     let empty_body = registry
         .get("EmptyBody")
         .expect("Empty Body should be registered");
-    assert_eq!(empty_body.enter_stance, None);
+    assert_eq!(empty_body.enter_stance, Some("Neutral"));
     assert_eq!(
         empty_body.effect_data,
-        &[E::Simple(SE::ChangeStance(Stance::Neutral))]
+        &[
+            E::Simple(SE::GainBlock(crate::effects::declarative::AmountSource::Block)),
+            E::Simple(SE::ChangeStance(Stance::Neutral)),
+        ]
     );
 
     let empty_body_plus = registry
         .get("EmptyBody+")
         .expect("Empty Body+ should be registered");
-    assert_eq!(empty_body_plus.enter_stance, None);
+    assert_eq!(empty_body_plus.enter_stance, Some("Neutral"));
     assert_eq!(
         empty_body_plus.effect_data,
-        &[E::Simple(SE::ChangeStance(Stance::Neutral))]
+        &[
+            E::Simple(SE::GainBlock(crate::effects::declarative::AmountSource::Block)),
+            E::Simple(SE::ChangeStance(Stance::Neutral)),
+        ]
     );
 }
 

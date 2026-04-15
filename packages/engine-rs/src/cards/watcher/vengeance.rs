@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Vengeance", name: "Simmering Fury", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::SIMMERING_FURY, A::Magic)),
                 ], complex_hook: None,
             });
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Vengeance+", name: "Simmering Fury+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::SIMMERING_FURY, A::Magic)),
                 ], complex_hook: None,
             });

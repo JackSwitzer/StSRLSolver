@@ -24,7 +24,7 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     assert_eq!(dramatic_entrance.card_type, CardType::Attack);
     assert_eq!(dramatic_entrance.target, CardTarget::AllEnemy);
     assert!(dramatic_entrance.exhaust);
-    assert!(dramatic_entrance.effects.contains(&"innate"));
+    assert!(dramatic_entrance.has_test_marker("innate"));
     assert_eq!(
         dramatic_entrance.effect_data,
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]

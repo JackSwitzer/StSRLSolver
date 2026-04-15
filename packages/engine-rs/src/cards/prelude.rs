@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 
 pub use std::collections::HashMap;
-pub use super::{CardDef, CardType, CardTarget};
+pub use super::{CardSpec as CardDef, CardType, CardTarget};
 pub(crate) use super::insert;
 pub use crate::effects::declarative::{
     Effect as E, SimpleEffect as SE, Target as T, AmountSource as A,

@@ -12,6 +12,7 @@
 
 use crate::cards::{CardTarget, CardType, global_registry};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::types::{CardBlockHint, CardRuntimeTraits};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::*;
@@ -28,41 +29,32 @@ fn defect_wave6_registry_exports_honest_runtime_surface() {
     assert_eq!(strike.card_type, CardType::Attack);
     assert_eq!(strike.target, CardTarget::Enemy);
     assert_eq!(strike.base_damage, 9);
-    assert!(
-        strike.effect_data.is_empty(),
-        "Strike_B still relies on the generic attack preamble"
+    assert_eq!(
+        strike.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
     let defend = global_registry().get("Defend_B+").expect("Defend_B+ should exist");
     assert_eq!(defend.card_type, CardType::Skill);
     assert_eq!(defend.target, CardTarget::SelfTarget);
     assert_eq!(defend.base_block, 8);
-    assert!(
-        defend.effect_data.is_empty(),
-        "Defend_B still relies on the generic block preamble"
-    );
+    assert_eq!(defend.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let leap = global_registry().get("Leap+").expect("Leap+ should exist");
     assert_eq!(leap.base_block, 12);
-    assert!(
-        leap.effect_data.is_empty(),
-        "Leap still relies on the generic block preamble"
-    );
+    assert_eq!(leap.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let self_repair = global_registry().get("Self Repair+").expect("Self Repair+ should exist");
     assert_eq!(
         self_repair.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::SELF_REPAIR, A::Magic))]
     );
-    assert!(self_repair.effects.is_empty());
+    assert_eq!(self_repair.runtime_traits(), CardRuntimeTraits::default());
 
     let boot_sequence = global_registry().get("BootSequence+").expect("BootSequence+ should exist");
-    assert!(boot_sequence.effects.contains(&"innate"));
+    assert!(boot_sequence.runtime_traits().innate);
     assert!(boot_sequence.exhaust);
-    assert!(
-        boot_sequence.effect_data.is_empty(),
-        "Boot Sequence still relies on innate metadata plus the generic block preamble"
-    );
+    assert_eq!(boot_sequence.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let machine_learning = global_registry()
         .get("Machine Learning+")
@@ -71,18 +63,18 @@ fn defect_wave6_registry_exports_honest_runtime_surface() {
         machine_learning.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::DRAW, A::Magic))]
     );
-    assert_eq!(machine_learning.effects, &["innate"]);
+    assert!(machine_learning.runtime_traits().innate);
 
     let reinforced_body = global_registry()
         .get("Reinforced Body+")
         .expect("Reinforced Body+ should exist");
     assert_eq!(reinforced_body.cost, -1);
     assert_eq!(reinforced_body.base_block, 9);
-    assert!(reinforced_body.effects.contains(&"block_x_times"));
-    assert!(
-        reinforced_body.effect_data.is_empty(),
-        "Reinforced Body still relies on the shared X-cost block preamble"
+    assert_eq!(
+        reinforced_body.play_hints().block_hint,
+        Some(CardBlockHint::XTimes)
     );
+    assert_eq!(reinforced_body.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let static_discharge = global_registry()
         .get("Static Discharge+")
@@ -95,7 +87,7 @@ fn defect_wave6_registry_exports_honest_runtime_surface() {
             A::Magic,
         ))]
     );
-    assert!(static_discharge.effects.is_empty());
+    assert_eq!(static_discharge.runtime_traits(), CardRuntimeTraits::default());
 }
 
 #[test]

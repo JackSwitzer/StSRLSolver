@@ -14,18 +14,18 @@ Canonical audit outputs:
 Weighted toward `universal gameplay runtime + honest Java parity proof`:
 
 - supported-scope runtime parity: `100%`
-- all-content gameplay parity: `99%+`
-- architecture unification snapshot: `99%+`
+- all-content gameplay parity: `100%` on the current audited matrix
+- architecture unification snapshot: `100%` on the supported Rust/runtime/export surface
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `99%+` | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the latest broad freeze rerun is green on the integrated branch |
+| Combat runtime parity | `100%` on the audited matrix | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the final broad freeze finished `2187 / 2187` green on the integrated branch |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
 | Run / reward / event parity | `100%` | `NoteForYourself`, `Match and Keep!`, `Scrap Ooze`, and persistent shop purge pricing now run on the canonical runtime path |
 | Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
-| Runtime-trigger unification | `99%+` | registry-backed secondary behavior now runs through typed `CardRuntimeTraits` / `CardRuntimeTrigger`, while compatibility tags remain available for legacy consumers |
+| Runtime-trigger unification | `100%` on the supported surface | production/runtime/export code no longer reads raw `card.effects` or the deleted registry-dispatch layer; the only legacy residue is the internal authoring shim still present in per-card source files |
 
 ## Current Quantified Backlog
 
@@ -42,6 +42,9 @@ Area scores:
 | Cleanup-only ignore families | `0` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
+| Production raw `card.effects` reads | `0` |
+| Live registry-dispatch symbols | `0` |
+| Final broad freeze | `2187 / 2187` |
 
 Cleanup-only card shells:
 
@@ -49,14 +52,15 @@ Cleanup-only card shells:
 - [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1)
 - [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 
-These are now raw-empty metadata shells only. Their runtime semantics are owned by the typed runtime-trigger surface rather than raw string-tag dispatch.
+These are now raw-empty metadata shells only. Their runtime semantics are owned by the typed runtime-trigger surface rather than raw string-tag dispatch. The remaining debt is source-authoring normalization, not gameplay behavior.
 
 Recently closed gameplay-gap families:
 
 - `Parasite` master-deck removal now routes through a run-owned removal hook and has engine-path proof in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:151)
 - `Sentinel` under `Corruption` now uses a typed `on_exhaust` hook lane and is proven in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
 - `Expunger` / `Conjure Blade+` now use typed generated-card and card-owned X-count surfaces, including `Chemical X` coverage in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137)
-- registry-backed secondary behavior now runs through typed runtime-trigger metadata in [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1) and [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), with compatibility tags projected by [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:565)
+- registry-backed secondary behavior now runs through typed runtime-trigger metadata in [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1) and [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), while [gameplay/types.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/gameplay/types.rs:1) exports structured runtime traits/triggers/play hints instead of semantic effect tags
+- production Rust now has `0` raw `card.effects` reads and `0` live registry-dispatch symbols on the verified source audit
 
 Last known semantic blocker sweep now closed:
 
@@ -94,6 +98,9 @@ Representative green suites on the current tree:
 - `test_card_runtime_nonplay_triggers_wave1`
 - `test_card_runtime_support_wave1`
 - `test_runtime_inline_cutover_wave5`
+- `test_card_runtime_backend_wave1`
+- `test_card_runtime_backend_wave2`
+- `test_card_runtime_backend_wave3`
 - `test_card_runtime_watcher_wave5`
 - `test_card_runtime_watcher_wave14`
 - `test_card_runtime_watcher_wave15`
@@ -124,6 +131,7 @@ The main stale-test cleanup result from this pass:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
-- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the latest broad freeze rerun is green; the remaining work is doc/PR synchronization and optional cleanup-shell normalization, not live gameplay debt.
+- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the final broad freeze finished `2187 / 2187` green; the remaining work is optional cleanup-shell/source-authoring normalization plus training-branch planning, not live gameplay debt.
 - Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
 - Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
+- Legacy semantic code answer: none remains in the supported Rust/runtime/export surface; the only legacy residue is the internal per-card authoring shim that still feeds the typed model during registry construction.

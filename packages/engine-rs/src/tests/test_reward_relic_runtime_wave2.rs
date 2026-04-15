@@ -1,6 +1,7 @@
 use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
 use crate::map::RoomType;
 use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::tests::support::resolve_opening_neow;
 
 fn set_first_reachable_room(engine: &mut RunEngine, room_type: RoomType) {
     let start = engine.map.get_start_nodes()[0];
@@ -63,6 +64,7 @@ fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     engine.run_state.relics.push("Matryoshka".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Treasure);
 
     let actions = engine.get_legal_actions();
@@ -96,6 +98,7 @@ fn matryoshka_chest_rewards_preserve_gold_then_relic_then_extra_relic_order() {
     engine.run_state.relics.push("Matryoshka".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Treasure);
 
     let first_action = engine.get_legal_actions()[0].clone();

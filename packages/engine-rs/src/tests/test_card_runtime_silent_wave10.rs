@@ -91,7 +91,7 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
         &[E::Simple(SE::DrawToHandSize(A::Magic))]
     );
     assert!(expertise.complex_hook.is_none());
-    assert!(expertise.effects.contains(&"draw_to_n"));
+    assert!(expertise.has_test_marker("draw_to_n"));
 }
 
 #[test]

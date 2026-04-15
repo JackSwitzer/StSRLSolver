@@ -25,8 +25,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &[],
-        effect_data: &TRANSMUTATION,
+                effect_data: &TRANSMUTATION,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -40,8 +39,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &[],
-        effect_data: &TRANSMUTATION_PLUS,
+                effect_data: &TRANSMUTATION_PLUS,
         complex_hook: None,
     });
 }

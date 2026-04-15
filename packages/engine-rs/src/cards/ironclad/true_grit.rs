@@ -16,8 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &[],
-        effect_data: &[
+                effect_data: &[
             E::Simple(SE::GainBlock(A::Block)),
             E::Simple(SE::ExhaustRandomCardFromHand),
         ],
@@ -34,8 +33,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &["exhaust_choose"],
-        effect_data: &[
+                effect_data: &[
             E::ChooseCards {
                 source: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,

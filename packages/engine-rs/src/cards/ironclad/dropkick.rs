@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dropkick", name: "Dropkick", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 5, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["if_vulnerable_energy_draw"], effect_data: &[
+                effect_data: &[
                     E::Conditional(
                         crate::effects::declarative::Condition::EnemyHasStatus(sid::VULNERABLE),
                         &[E::Simple(SE::GainEnergy(A::Fixed(1))), E::Simple(SE::DrawCards(A::Fixed(1)))],
@@ -18,7 +18,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Dropkick+", name: "Dropkick+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["if_vulnerable_energy_draw"], effect_data: &[
+                effect_data: &[
                     E::Conditional(
                         crate::effects::declarative::Condition::EnemyHasStatus(sid::VULNERABLE),
                         &[E::Simple(SE::GainEnergy(A::Fixed(1))), E::Simple(SE::DrawCards(A::Fixed(1)))],

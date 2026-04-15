@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "CarveReality", name: "Carve Reality", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_smite_to_hand"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Smite", P::Hand, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "CarveReality+", name: "Carve Reality+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["add_smite_to_hand"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddCard("Smite", P::Hand, A::Fixed(1))),
                 ], complex_hook: None,
             });

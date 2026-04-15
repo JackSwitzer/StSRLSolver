@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Corpse Explosion", name: "Corpse Explosion", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 6, exhaust: false, enter_stance: None,
-                effects: &["corpse_explosion"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::CORPSE_EXPLOSION, A::Fixed(1))),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Corpse Explosion+", name: "Corpse Explosion+", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 9, exhaust: false, enter_stance: None,
-                effects: &["corpse_explosion"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::Magic)),
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::CORPSE_EXPLOSION, A::Fixed(1))),
                 ], complex_hook: None,

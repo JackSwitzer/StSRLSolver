@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Storm of Steel", name: "Storm of Steel", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["storm_of_steel"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: CardFilter::All,
@@ -19,7 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Storm of Steel+", name: "Storm of Steel+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["storm_of_steel"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: CardFilter::All,

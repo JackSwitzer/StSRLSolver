@@ -21,7 +21,9 @@ What closed in the latest cleanup pass:
 - `Parasite` now applies Java-style max-HP loss only when removed from the master deck
 - `Sentinel` under `Corruption` now refunds energy through a typed exhaust hook lane
 - `Expunger` / `Conjure Blade+` now preserve card-owned X-count semantics, including `Chemical X`
-- registry-backed secondary behavior now runs through typed runtime-trigger metadata plus derived compatibility tags instead of raw registry/tag ownership
+- registry-backed secondary behavior now runs through typed runtime-trigger metadata instead of raw registry/tag ownership
+- production/runtime/export code now has `0` raw `card.effects` reads and `0` live registry-dispatch symbols on the verified source audit
+- gameplay export now emits structured runtime traits/triggers/play hints instead of semantic effect tags
 - stale watcher/colorless/defect ignore noise was converted into real passing coverage
 - stale active assertions were fixed for `Consecrate`, `Purity`, and `Capacitor`
 - `Secret Technique` legality is now proven on the engine path instead of staying ignored
@@ -37,6 +39,7 @@ Live branch truth:
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
 | Direct ignored tests | `0` |
+| Final broad freeze | `2187 / 2187` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -44,7 +47,7 @@ The raw empty public-card files are cleanup shells only:
 - `Tactician`
 - `Deus Ex Machina`
 
-Those files are no longer semantic outliers: their live runtime behavior now comes from the typed runtime-trigger surface, and the remaining debt is just normalization/optics.
+Those files are no longer semantic outliers: their live runtime behavior now comes from the typed runtime-trigger surface, and the remaining debt is just source-authoring normalization/optics.
 
 ## Last Known Blocker Sweep
 
@@ -57,17 +60,11 @@ The last explicit semantic blocker sweep is now closed:
 
 ## Immediate Execution Order
 
-If the goal is to leave draft only after `all gameplay content complete`, the next order should be:
+The gameplay-parity side is now through the endgame gate:
 
-1. PR/body/doc reconciliation
-2. optional cleanup-shell normalization decision
-3. training branch cut from this branch
-
-If the claim stays `supported runtime parity complete`, the next order should instead be:
-
-1. docs / PR sync
-2. training branch cut from this branch
-3. keep broader parity sweeps running as confidence work rather than blocker work
+1. training branch cut from this branch
+2. keep broad confidence audits running as non-blocking verification work
+3. optionally remove the remaining authoring shim from per-card source files later
 
 ## Verification Substrate
 
@@ -129,4 +126,4 @@ This pass removed the misleading “big unknown” feel from the tail:
 - generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by real passing tests
 - stale watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` are no longer overstating parity debt
 - stale colorless/choice placeholders for `Headbutt`, `Violence`, and `Secret Technique` legality are gone
-- the parity PR can now talk about a zero-skip audited matrix instead of a broad fuzzy backlog
+- the parity PR can now talk about a zero-skip audited matrix with a completed `2187 / 2187` broad freeze instead of a broad fuzzy backlog

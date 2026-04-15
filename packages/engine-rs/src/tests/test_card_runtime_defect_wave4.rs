@@ -4,6 +4,7 @@ use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{
     AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
 };
+use crate::effects::types::CardRuntimeTraits;
 use crate::gameplay::GameplayProgramSource;
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
@@ -22,7 +23,7 @@ fn assert_gameplay_card_export(
     let def = crate::gameplay::global_registry()
         .card(id)
         .unwrap_or_else(|| panic!("missing gameplay card export for {id}"));
-    assert_eq!(def.program_source(), GameplayProgramSource::AdaptedLegacy, "{id} source");
+    assert_eq!(def.program_source(), GameplayProgramSource::Canonical, "{id} source");
 
     let schema = def.card_schema().expect("card schema");
     assert_eq!(schema.card_type, Some(card_type), "{id} type");
@@ -38,11 +39,14 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     let reg = global_registry();
 
     let boot = reg.get("BootSequence").expect("BootSequence");
-    assert!(boot.effects.contains(&"innate"));
-    assert!(boot.effect_data.is_empty());
+    assert_eq!(
+        boot.runtime_traits(),
+        CardRuntimeTraits { innate: true, ..CardRuntimeTraits::default() }
+    );
+    assert_eq!(boot.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let defend = reg.get("Defend_B").expect("Defend_B");
-    assert!(defend.effect_data.is_empty());
+    assert_eq!(defend.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(defend.complex_hook.is_none());
 
     let buffer = reg.get("Buffer").expect("Buffer");
@@ -53,7 +57,11 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     assert!(buffer.complex_hook.is_none());
 
     let chaos = reg.get("Chaos").expect("Chaos");
-    assert!(chaos.complex_hook.is_some(), "Chaos still needs a random-orb hook");
+    assert_eq!(
+        chaos.effect_data,
+        &[E::Simple(SE::ChannelRandomOrb(A::Magic))]
+    );
+    assert!(chaos.complex_hook.is_none());
 
     let ftl = reg.get("FTL").expect("FTL");
     assert_eq!(
@@ -84,7 +92,7 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
         false,
         Some("Capacitor"),
     );
-    assert_eq!(capacitor.declared_effect_count, 0);
+    assert_eq!(capacitor.declared_effect_count, 1);
 }
 
 #[test]

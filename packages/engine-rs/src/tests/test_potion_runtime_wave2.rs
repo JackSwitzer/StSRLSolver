@@ -1,5 +1,6 @@
 use crate::actions::Action;
 use crate::cards::CardType;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
@@ -70,10 +71,6 @@ const COLORLESS_CHOICES: &[&str] = &[
 
 #[test]
 fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
-    assert!(crate::potions::defs::potion_def_by_id("Ambrosia")
-        .unwrap()
-        .complex_hook
-        .is_none());
     assert!(crate::potions::defs::potion_def_by_id("StancePotion")
         .unwrap()
         .complex_hook
@@ -90,6 +87,10 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
         .unwrap()
         .complex_hook
         .is_none());
+    assert!(crate::potions::defs::potion_def_by_id("Ambrosia")
+        .unwrap()
+        .complex_hook
+        .is_some());
 
     let mut ambrosia = engine_with_state(combat_state_with(
         make_deck(&["Strike_P", "Defend_P", "Bash"]),
@@ -163,10 +164,31 @@ fn random_generation_potions_pick_the_right_card_families() {
 
         use_potion(&mut engine, 0, -1);
 
-        let generated = engine.state.hand.iter().map(|card| {
-            engine.card_registry.card_def_by_id(card.def_id).card_type
-        }).collect::<Vec<_>>();
-        assert_eq!(generated, vec![expected_type], "{potion_id} should generate one card of the requested type");
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        let choice = engine.choice.as_ref().expect("generated potion choice");
+        assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+        assert_eq!(choice.aux_count, 1, "{potion_id} should resolve one generated copy");
+        assert_eq!(choice.options.len(), 3, "{potion_id} should present three generated options");
+        for option in &choice.options {
+            let ChoiceOption::GeneratedCard(card) = option else {
+                panic!("{potion_id} should open generated-card options");
+            };
+            assert_eq!(
+                engine.card_registry.card_def_by_id(card.def_id).card_type,
+                expected_type,
+                "{potion_id} should generate one card of the requested type"
+            );
+            assert_eq!(card.cost, 0, "{potion_id} should zero generated card cost this turn");
+        }
+
+        engine.execute_action(&Action::Choose(0));
+        let generated = engine
+            .state
+            .hand
+            .iter()
+            .map(|card| engine.card_registry.card_def_by_id(card.def_id).card_type)
+            .collect::<Vec<_>>();
+        assert_eq!(generated, vec![expected_type], "{potion_id} should add the chosen card to hand");
     }
 
     engine.state.hand.clear();
@@ -174,11 +196,25 @@ fn random_generation_potions_pick_the_right_card_families() {
     equip_potion(&mut engine, 0, "ColorlessPotion");
     use_potion(&mut engine, 0, -1);
 
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("colorless potion choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+    assert_eq!(choice.options.len(), 3);
+    for option in &choice.options {
+        let ChoiceOption::GeneratedCard(card) = option else {
+            panic!("Colorless Potion should use generated-card options");
+        };
+        let generated_name = engine.card_registry.card_name(card.def_id);
+        assert!(
+            COLORLESS_CHOICES.contains(&generated_name),
+            "Colorless Potion should generate a colorless card, got {}",
+            generated_name
+        );
+        assert_eq!(card.cost, 0);
+    }
+
+    engine.execute_action(&Action::Choose(0));
     let hand = hand_names(&engine);
     assert_eq!(hand.len(), 1);
-    assert!(
-        COLORLESS_CHOICES.contains(&hand[0]),
-        "Colorless Potion should generate a colorless card, got {}",
-        hand[0]
-    );
+    assert!(COLORLESS_CHOICES.contains(&hand[0]));
 }

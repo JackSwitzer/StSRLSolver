@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Secret Technique", name: "Secret Technique", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: -1, exhaust: true, enter_stance: None,
-        effects: &["search_skill"], effect_data: &[
+                effect_data: &[
             E::ChooseCards {
                 source: P::Draw,
                 filter: CardFilter::Skills,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Secret Technique+", name: "Secret Technique+", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: -1, exhaust: false, enter_stance: None,
-        effects: &["search_skill"], effect_data: &[
+                effect_data: &[
             E::ChooseCards {
                 source: P::Draw,
                 filter: CardFilter::Skills,

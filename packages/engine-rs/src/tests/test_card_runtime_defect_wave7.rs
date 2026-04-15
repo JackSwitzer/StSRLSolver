@@ -11,6 +11,7 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -39,50 +40,47 @@ fn defect_wave7_registry_exports_match_typed_runtime_progress() {
             &[],
         )]
     );
-    assert!(auto_shields.effects.contains(&"block_if_no_block"));
+    assert_eq!(
+        auto_shields.play_hints().block_hint,
+        Some(CardBlockHint::IfNoBlock)
+    );
 
     let boot_sequence = reg.get("BootSequence+").expect("BootSequence+ should exist");
-    assert!(boot_sequence.effects.contains(&"innate"));
+    assert!(boot_sequence.runtime_traits().innate);
     assert!(boot_sequence.exhaust);
-    assert!(
-        boot_sequence.effect_data.is_empty(),
-        "Boot Sequence is blocked on a typed primitive to suppress the generic block preamble while preserving base_block metadata"
-    );
+    assert_eq!(boot_sequence.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let buffer = reg.get("Buffer+").expect("Buffer+ should exist");
     assert_eq!(
         buffer.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::BUFFER, A::Magic))]
     );
-    assert!(buffer.effects.is_empty());
+    assert_eq!(buffer.runtime_traits(), CardRuntimeTraits::default());
 
     let heatsinks = reg.get("Heatsinks+").expect("Heatsinks+ should exist");
     assert_eq!(
         heatsinks.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::HEATSINK, A::Magic))]
     );
-    assert!(heatsinks.effects.is_empty());
+    assert_eq!(heatsinks.runtime_traits(), CardRuntimeTraits::default());
 
     let hello_world = reg.get("Hello World+").expect("Hello World+ should exist");
     assert_eq!(
         hello_world.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic))]
     );
-    assert_eq!(hello_world.effects, &["innate"]);
+    assert!(hello_world.runtime_traits().innate);
 
     let leap = reg.get("Leap+").expect("Leap+ should exist");
     assert_eq!(leap.base_block, 12);
-    assert!(
-        leap.effect_data.is_empty(),
-        "Leap is blocked on a typed primitive to suppress the generic block preamble while preserving base_block metadata"
-    );
+    assert_eq!(leap.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let loop_card = reg.get("Loop+").expect("Loop+ should exist");
     assert_eq!(
         loop_card.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::LOOP, A::Magic))]
     );
-    assert!(loop_card.effects.is_empty());
+    assert_eq!(loop_card.runtime_traits(), CardRuntimeTraits::default());
 }
 
 #[test]

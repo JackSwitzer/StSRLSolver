@@ -198,15 +198,11 @@ fn runtime_instances_from_effects(
                 program: registry
                     .get(domain, instance.def.id)
                     .map(|def| def.program())
-                    .unwrap_or_else(|| GameplayProgram::adapted_legacy(vec![
+                    .unwrap_or_else(|| GameplayProgram::canonical(vec![
                         EffectOp::DeclareDefinition {
                             domain,
                             id: instance.def.id.to_string(),
                             name: instance.def.name.to_string(),
-                        },
-                        EffectOp::LegacyAdapter {
-                            label: instance.def.name.to_string(),
-                            reason: "missing registry definition".to_string(),
                         },
                     ])),
                 values: runtime_values(
@@ -392,7 +388,7 @@ mod tests {
     use crate::map::RoomType;
     use crate::run::RunPhase;
     use crate::status_ids::sid;
-    use crate::tests::support::{engine_with, run_engine};
+    use crate::tests::support::{engine_with, resolve_opening_neow, run_engine};
 
     fn set_first_reachable_room(engine: &mut RunEngine, room_type: RoomType) {
         let start = engine.map.get_start_nodes()[0];
@@ -424,7 +420,7 @@ mod tests {
         assert!(snapshot
             .instances
             .iter()
-            .any(|instance| instance.program.is_legacy_adapted()));
+            .all(|instance| instance.program.source == crate::gameplay::GameplayProgramSource::Canonical));
     }
 
     #[test]
@@ -468,6 +464,7 @@ mod tests {
     #[test]
     fn run_snapshot_matches_combat_snapshot_when_in_combat() {
         let mut engine = run_engine(42, 20);
+        resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
         let action = engine.get_legal_actions()[0].clone();
         let _ = engine.step_with_result(&action);

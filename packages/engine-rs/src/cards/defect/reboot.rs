@@ -24,8 +24,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 4,
         exhaust: true,
         enter_stance: None,
-        effects: &["reboot"],
-        effect_data: &REBOOT_EFFECTS,
+                effect_data: &REBOOT_EFFECTS,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -39,8 +38,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 6,
         exhaust: true,
         enter_stance: None,
-        effects: &["reboot"],
-        effect_data: &REBOOT_EFFECTS,
+                effect_data: &REBOOT_EFFECTS,
         complex_hook: None,
     });
 }

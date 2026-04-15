@@ -20,16 +20,6 @@ fn typed_shrine_event(name: &str) -> crate::events::TypedEventDef {
         .unwrap_or_else(|| panic!("missing typed shrine event {name}"))
 }
 
-fn blocked_reason(event: &crate::events::TypedEventDef, option_index: usize) -> &str {
-    match &event.options[option_index].status {
-        EventRuntimeStatus::Blocked { reason } => reason.as_str(),
-        other => panic!(
-            "expected blocked status for {} option {}, found {other:?}",
-            event.name, option_index
-        ),
-    }
-}
-
 #[test]
 fn bonfire_offer_branch_is_supported_and_uses_shared_deck_selection() {
     let bonfire = typed_shrine_event("Bonfire Elementals");
@@ -155,10 +145,10 @@ fn bonfire_curse_offer_grants_spirit_poop_then_circlet_if_repeated() {
 }
 
 #[test]
-fn remaining_blocked_placeholder_ops_are_one_and_name_shared_missing_primitives() {
-    let blocked = [typed_event(3, "Spire Heart")];
+fn spire_heart_no_longer_uses_blocked_placeholder_ops() {
+    let events = [typed_event(3, "Spire Heart")];
 
-    let placeholder_count: usize = blocked
+    let placeholder_count: usize = events
         .iter()
         .map(|event| {
             event.options[0]
@@ -169,6 +159,6 @@ fn remaining_blocked_placeholder_ops_are_one_and_name_shared_missing_primitives(
                 .count()
         })
         .sum();
-    assert_eq!(placeholder_count, 1);
-    assert!(blocked_reason(&blocked[0], 0).contains("Act 4 unlock flow"));
+    assert_eq!(placeholder_count, 0);
+    assert!(matches!(events[0].options[0].status, EventRuntimeStatus::Supported));
 }

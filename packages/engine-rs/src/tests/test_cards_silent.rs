@@ -35,7 +35,7 @@ mod silent_card_java_parity_tests {
         assert_eq!(card.target, target, "{id} target");
         assert_eq!(card.exhaust, exhaust, "{id} exhaust");
         assert_eq!(card.enter_stance, enter_stance, "{id} stance");
-        assert_eq!(card.effects, effects, "{id} effects");
+        assert_card_markers_eq(card, effects, id);
     }
 
     macro_rules! card_pair_test {

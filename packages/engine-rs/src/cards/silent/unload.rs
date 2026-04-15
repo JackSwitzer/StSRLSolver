@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Unload", name: "Unload", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 14, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["discard_non_attacks"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: CardFilter::NonAttacks,
@@ -18,7 +18,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Unload+", name: "Unload+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 18, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["discard_non_attacks"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile {
                         pile: P::Hand,
                         filter: CardFilter::NonAttacks,

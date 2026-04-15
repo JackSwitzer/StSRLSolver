@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Rip and Tear", name: "Rip and Tear", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 7, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,
@@ -16,7 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Rip and Tear+", name: "Rip and Tear+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 9, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
                     E::ExtraHits(A::Magic),
                 ], complex_hook: None,

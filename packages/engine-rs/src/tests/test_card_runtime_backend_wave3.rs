@@ -37,7 +37,7 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
         ghostly_armor.effect_data,
         &[E::Simple(SE::GainBlock(A::Block))]
     );
-    assert!(ghostly_armor.effects.contains(&"ethereal"));
+    assert!(ghostly_armor.has_test_marker("ethereal"));
 
     let dagger_spray = registry.get("Dagger Spray").expect("Dagger Spray should exist");
     assert_eq!(
@@ -56,7 +56,7 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
 
     let boot_sequence = registry.get("BootSequence").expect("BootSequence should exist");
     assert_eq!(boot_sequence.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-    assert!(boot_sequence.effects.contains(&"innate"));
+    assert!(boot_sequence.has_test_marker("innate"));
     assert!(boot_sequence.exhaust);
 
     let defend_p = registry.get("Defend_P").expect("Defend_P should exist");

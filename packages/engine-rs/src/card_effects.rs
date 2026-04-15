@@ -102,9 +102,9 @@ pub(crate) fn execute_primary_attack(
         } else {
             resolved.max(1)
         }
-    } else if card.effects.contains(&"x_cost") && card.cost == -1 {
+    } else if card.uses_x_cost() && card.cost == -1 {
         ctx.x_value
-    } else if card.effects.contains(&"multi_hit") && card.base_magic > 0 {
+    } else if card.uses_multi_hit_hint() && card.base_magic > 0 {
         card.base_magic
     } else {
         1
@@ -279,7 +279,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         0
     };
 
-    // ---- Damage modifiers via registry dispatch ----
+    // ---- Damage modifiers via typed runtime triggers ----
     let dmg_mod = resolve_damage_modifiers(engine, card, card_inst);
 
     let body_slam_damage = dmg_mod.base_damage_override;
@@ -361,9 +361,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
         let hits = if let Some(amount_src) = card.declared_extra_hits() {
             crate::effects::interpreter::resolve_card_amount(engine, &pre_damage_ctx, &amount_src).max(1)
-        } else if card.effects.contains(&"x_cost") && card.cost == -1 {
+        } else if card.uses_x_cost() && card.cost == -1 {
             x_value
-        } else if card.effects.contains(&"multi_hit") && card.base_magic > 0 {
+        } else if card.uses_multi_hit_hint() && card.base_magic > 0 {
             card.base_magic
         } else {
             1
@@ -460,15 +460,16 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // This runs BEFORE the interpreter fallthrough because block from base_block
     // is a preamble operation, not a post-damage effect.
     if card.base_block >= 0 && !has_typed_primary_block {
-        let block_multiplier = if card.effects.contains(&"block_x_times") {
+        let block_multiplier = if card.has_block_hint(crate::effects::types::CardBlockHint::XTimes) {
             x_value
         } else {
             1
         };
-        if !card.effects.contains(&"block_if_skill") && !card.effects.contains(&"block_if_no_block") && !card.effects.contains(&"second_wind") {
-            let current_base_block = if card.effects.contains(&"genetic_algorithm")
-                || card.effects.contains(&"lose_block_each_play")
-            {
+        if !card.has_block_hint(crate::effects::types::CardBlockHint::IfSkill)
+            && !card.has_block_hint(crate::effects::types::CardBlockHint::IfNoBlock)
+            && !card.has_block_hint(crate::effects::types::CardBlockHint::BulkCountTimesBaseBlock)
+        {
+            let current_base_block = if card.has_block_hint(crate::effects::types::CardBlockHint::UsesCardMisc) {
                 if card_inst.misc >= 0 {
                     card_inst.misc as i32
                 } else {

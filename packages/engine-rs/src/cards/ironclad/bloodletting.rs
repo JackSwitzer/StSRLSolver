@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bloodletting", name: "Bloodletting", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["lose_hp_gain_energy"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ModifyHp(A::Fixed(-3))),
                     E::Simple(SE::GainEnergy(A::Magic)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Bloodletting+", name: "Bloodletting+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["lose_hp_gain_energy"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ModifyHp(A::Fixed(-3))),
                     E::Simple(SE::GainEnergy(A::Magic)),
                 ], complex_hook: None,

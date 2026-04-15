@@ -81,13 +81,22 @@ mod ironclad_wave3_card_runtime_tests {
                 action: ChoiceAction::Exhaust,
                 min_picks: A::Fixed(1),
                 max_picks: A::Fixed(1),
-                post_choice_draw: A::Magic,
+                post_choice_draw: A::Fixed(0),
             }]
         );
 
         let clash = card("Clash");
-        assert!(clash.effect_data.is_empty());
-        assert!(clash.effects.contains(&"only_attacks_in_hand"));
+        assert_eq!(
+            clash.effect_data,
+            &[Effect::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        );
+        assert!(
+            clash
+                .runtime_triggers()
+                .contains(&crate::effects::types::CardRuntimeTrigger::CanPlay(
+                    crate::effects::types::CanPlayRule::OnlyAttacksInHand,
+                ))
+        );
     }
 
     #[test]
@@ -186,7 +195,7 @@ mod ironclad_wave3_card_runtime_tests {
                 action: ChoiceAction::Exhaust,
                 min_picks: A::Fixed(1),
                 max_picks: A::Fixed(1),
-                post_choice_draw: A::Magic,
+                post_choice_draw: A::Fixed(0),
             }]
         );
 

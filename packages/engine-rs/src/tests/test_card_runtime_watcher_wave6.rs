@@ -42,11 +42,11 @@ fn watcher_wave6_registry_exports_match_declared_runtime_surface() {
     let registry = global_registry();
 
     let flying_sleeves = registry.get("FlyingSleeves").expect("FlyingSleeves should be registered");
-    assert!(flying_sleeves.effects.contains(&"retain"));
+    assert!(flying_sleeves.has_test_marker("retain"));
     assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Magic));
 
     let vigilance = registry.get("Vigilance").expect("Vigilance should be registered");
-    assert_eq!(vigilance.enter_stance, None);
+    assert_eq!(vigilance.enter_stance, Some("Calm"));
     assert_eq!(vigilance.declared_stance_change(), Some(Stance::Calm));
 
     let nirvana = registry.get("Nirvana").expect("Nirvana should be registered");

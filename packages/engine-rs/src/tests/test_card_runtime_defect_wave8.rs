@@ -47,11 +47,11 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
         storm.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::STORM, A::Magic))]
     );
-    assert_eq!(storm.effects, &["innate"]);
+    assert_eq!(storm.test_markers(), vec!["innate"]);
 
     let force_field = reg.get("Force Field+").expect("Force Field+");
     assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-    assert!(force_field.effects.contains(&"reduce_cost_per_power"));
+    assert!(force_field.has_test_marker("reduce_cost_per_power"));
     assert!(force_field.uses_typed_primary_preamble());
 
     let rebound = reg.get("Rebound+").expect("Rebound+");
@@ -59,7 +59,7 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
         rebound.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
-    assert!(rebound.effects.contains(&"next_card_to_top"));
+    assert!(rebound.has_test_marker("next_card_to_top"));
     assert!(rebound.uses_typed_primary_preamble());
 }
 

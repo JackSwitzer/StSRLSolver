@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Battle Trance", name: "Battle Trance", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["draw", "no_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::Simple(SE::SetFlag(BF::NoDraw)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Battle Trance+", name: "Battle Trance+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["draw", "no_draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::Simple(SE::SetFlag(BF::NoDraw)),
                 ], complex_hook: None,

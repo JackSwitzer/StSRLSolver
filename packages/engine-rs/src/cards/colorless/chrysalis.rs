@@ -19,8 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 3,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_skills_to_draw"],
-        effect_data: &CHRYSALIS,
+                effect_data: &CHRYSALIS,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -34,8 +33,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 5,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_skills_to_draw"],
-        effect_data: &CHRYSALIS,
+                effect_data: &CHRYSALIS,
         complex_hook: None,
     });
 }

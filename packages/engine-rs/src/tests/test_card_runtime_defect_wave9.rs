@@ -6,6 +6,7 @@
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::types::{CardBlockHint, CardRuntimeTraits};
 use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
 
@@ -25,7 +26,7 @@ fn defect_wave9_capacitor_moves_to_typed_orb_slot_effect() {
         capacitor.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::ORB_SLOTS, A::Magic))]
     );
-    assert!(capacitor.effects.is_empty());
+    assert_eq!(capacitor.runtime_traits(), CardRuntimeTraits::default());
 }
 
 #[test]
@@ -56,5 +57,8 @@ fn defect_wave9_reinforced_body_uses_the_typed_xcost_block_surface() {
         reinforced_body.effect_data,
         &[E::Simple(SE::GainBlock(A::Block))]
     );
-    assert!(reinforced_body.effects.is_empty());
+    assert_eq!(
+        reinforced_body.play_hints().block_hint,
+        Some(CardBlockHint::XTimes)
+    );
 }

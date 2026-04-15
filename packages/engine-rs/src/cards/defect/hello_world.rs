@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Hello World", name: "Hello World", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
         base_magic: 1, exhaust: false, enter_stance: None,
-        effects: &[], effect_data: &[
+                effect_data: &[
             E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic)),
         ], complex_hook: None,
     });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Hello World+", name: "Hello World+", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
         base_magic: 1, exhaust: false, enter_stance: None,
-        effects: &["innate"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic)),
         ], complex_hook: None,
     });

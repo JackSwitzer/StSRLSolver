@@ -90,14 +90,18 @@ fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.discard_pile.len(), 1);
-    assert_eq!(
-        engine.card_registry.card_name(engine.state.discard_pile.last().expect("remaining discard card").def_id),
-        "Defend_R"
-    );
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
         engine.card_registry.card_name(engine.state.draw_pile.last().expect("top draw card").def_id),
         "Strike_R"
     );
+    let discard_names: Vec<&str> = engine
+        .state
+        .discard_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert!(discard_names.contains(&"Defend_R"));
+    assert!(discard_names.contains(&"Headbutt"));
+    assert!(!discard_names.contains(&"Strike_R"));
 }

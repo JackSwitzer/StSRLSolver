@@ -4,7 +4,7 @@
 mod silent_wave2 {
     use crate::actions::Action;
     use crate::cards::{global_registry, CardType};
-    use crate::effects::declarative::{AmountSource as A, Effect};
+    use crate::effects::declarative::{AmountSource as A, Effect, SimpleEffect as SE, Target as T};
     use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
     use crate::tests::support::{
@@ -54,7 +54,13 @@ mod silent_wave2 {
         assert_eq!(blade_dance.base_magic, 3);
 
         let dagger_spray = reg.get("Dagger Spray").expect("Dagger Spray should exist");
-        assert_eq!(dagger_spray.effect_data, &[Effect::ExtraHits(A::Magic)]);
+        assert_eq!(
+            dagger_spray.effect_data,
+            &[
+                Effect::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+                Effect::ExtraHits(A::Magic),
+            ]
+        );
 
         let deadly_poison = reg.get("Deadly Poison").expect("Deadly Poison should exist");
         assert_eq!(deadly_poison.base_magic, 5);
@@ -204,7 +210,10 @@ mod silent_wave2 {
 
         assert_eq!(
             reg.get("Dagger Spray+").expect("Dagger Spray+").effect_data,
-            &[Effect::ExtraHits(A::Magic)]
+            &[
+                Effect::Simple(SE::DealDamage(T::AllEnemies, A::Damage)),
+                Effect::ExtraHits(A::Magic),
+            ]
         );
         assert_eq!(reg.get("Blade Dance+").expect("Blade Dance+").base_magic, 4);
         assert_eq!(reg.get("Deadly Poison+").expect("Deadly Poison+").base_magic, 7);

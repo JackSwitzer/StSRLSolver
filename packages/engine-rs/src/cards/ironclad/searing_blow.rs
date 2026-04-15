@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Searing Blow", name: "Searing Blow", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["searing_blow"], effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
+                effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Searing Blow+", name: "Searing Blow+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 16, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["searing_blow"], effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
+                effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
             });
 }

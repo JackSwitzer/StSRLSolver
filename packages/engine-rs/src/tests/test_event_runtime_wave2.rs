@@ -116,7 +116,10 @@ fn winding_halls_supported_branches_apply_heal_curse_and_max_hp_changes() {
     let heal_step = heal_engine.step_with_result(&RunAction::EventChoice(1));
     assert!(heal_step.action_accepted);
     assert_eq!(heal_engine.current_phase(), RunPhase::MapChoice);
-    assert_eq!(heal_engine.run_state.current_hp, heal_engine.run_state.max_hp);
+    assert_eq!(
+        heal_engine.run_state.current_hp,
+        12 + (heal_engine.run_state.max_hp * 20 / 100)
+    );
     assert!(heal_engine.run_state.deck.iter().any(|card| card == "Writhe"));
 
     let mut max_hp_engine = RunEngine::new(11, 20);
@@ -152,36 +155,37 @@ fn woman_in_blue_routes_potion_rewards_through_ordered_event_screen() {
 }
 
 #[test]
-fn blocked_map_or_combat_event_branches_no_op_and_return_to_map() {
+fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     let mut portal_engine = RunEngine::new(23, 20);
     let portal = typed_event(3, "Secret Portal");
     assert!(matches!(
         portal.options[0].status,
-        EventRuntimeStatus::Blocked { .. }
+        EventRuntimeStatus::Supported
     ));
     let floor_before = portal_engine.run_state.floor;
-    let hp_before = portal_engine.run_state.current_hp;
     portal_engine.debug_set_typed_event_state(portal);
 
     let step = portal_engine.step_with_result(&RunAction::EventChoice(0));
     assert!(step.action_accepted);
-    assert_eq!(portal_engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(portal_engine.current_phase(), RunPhase::Combat);
     assert!(portal_engine.current_reward_screen().is_none());
-    assert_eq!(portal_engine.run_state.floor, floor_before);
-    assert_eq!(portal_engine.run_state.current_hp, hp_before);
+    assert_eq!(portal_engine.run_state.floor, 16);
+    assert_ne!(portal_engine.run_state.floor, floor_before);
+    assert!(portal_engine.get_combat_engine().is_some());
 
     let mut sphere_engine = RunEngine::new(29, 20);
     let sphere = typed_event(3, "Mysterious Sphere");
     assert!(matches!(
         sphere.options[0].status,
-        EventRuntimeStatus::Blocked { .. }
+        EventRuntimeStatus::Supported
     ));
     let relic_count_before = sphere_engine.run_state.relics.len();
     sphere_engine.debug_set_typed_event_state(sphere);
 
     let sphere_step = sphere_engine.step_with_result(&RunAction::EventChoice(0));
     assert!(sphere_step.action_accepted);
-    assert_eq!(sphere_engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(sphere_engine.current_phase(), RunPhase::Combat);
     assert!(sphere_engine.current_reward_screen().is_none());
     assert_eq!(sphere_engine.run_state.relics.len(), relic_count_before);
+    assert!(sphere_engine.get_combat_engine().is_some());
 }

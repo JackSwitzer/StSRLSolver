@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Lockon", name: "Lock-On", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["apply_lock_on"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOCK_ON, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Lockon+", name: "Lock-On+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["apply_lock_on"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::LOCK_ON, A::Magic)),
                 ], complex_hook: None,
             });

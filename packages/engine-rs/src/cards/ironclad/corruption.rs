@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Corruption", name: "Corruption", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["corruption"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::CORRUPTION, A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Corruption+", name: "Corruption+", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["corruption"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::CORRUPTION, A::Fixed(1))),
                 ], complex_hook: None,
             });

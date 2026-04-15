@@ -10,8 +10,20 @@ use crate::combat_types::CardInstance;
 use crate::effects::declarative::{
     AmountSource, ChoiceAction, Effect, Pile, SimpleEffect, Target,
 };
+use crate::effects::types::{
+    CardBlockHint, CardEvokeHint, CardMetadata, CardPlayHints, CardRuntimeTraits,
+    CardRuntimeTrigger, ComplexCardHook,
+};
+use crate::ids::StatusId;
 use crate::orbs::OrbType;
 use crate::state::Stance;
+#[cfg(test)]
+use crate::effects::declarative::CardFilter;
+#[cfg(test)]
+use crate::effects::types::{
+    CanPlayRule, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
+    OnDrawRule, OnRetainRule, PostPlayRule, WhileInHandRule,
+};
 
 mod prelude;
 mod watcher;
@@ -24,8 +36,8 @@ mod runtime_meta;
 mod status;
 mod temp;
 
-/// Insert a card definition into the registry map.
-pub(crate) fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
+/// Insert a card spec into the staging registry map.
+pub(crate) fn insert(map: &mut HashMap<&'static str, CardSpec>, card: CardSpec) {
     map.insert(card.id, card);
 }
 
@@ -73,29 +85,76 @@ pub struct CardDef {
     pub exhaust: bool,
     /// Does this card change stance?
     pub enter_stance: Option<&'static str>,
-    /// Special effect tags for the engine to check
-    pub effects: &'static [&'static str],
+    /// Canonical typed runtime metadata for card-owned secondary behavior.
+    pub metadata: CardMetadata,
     /// Declarative effect data for the new interpreter (parallel to string tags during migration).
-    /// Empty slice = use old card_effects.rs dispatch.
+    /// Empty slice = the card has no primary declarative play body.
     #[serde(skip)]
     pub effect_data: &'static [crate::effects::declarative::Effect],
     /// Complex on-play hook for irreducible effects (Pressure Points, Judgement, etc.).
     /// None = no complex hook.
     #[serde(skip)]
-    pub complex_hook: Option<crate::effects::registry::OnPlayFn>,
+    pub complex_hook: Option<ComplexCardHook>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CardSpec {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub card_type: CardType,
+    pub target: CardTarget,
+    pub cost: i32,
+    pub base_damage: i32,
+    pub base_block: i32,
+    pub base_magic: i32,
+    pub exhaust: bool,
+    pub enter_stance: Option<&'static str>,
+    pub effect_data: &'static [crate::effects::declarative::Effect],
+    pub complex_hook: Option<ComplexCardHook>,
+}
+
+impl From<CardSpec> for CardDef {
+    fn from(value: CardSpec) -> Self {
+        let enter_stance = value
+            .enter_stance
+            .or_else(|| declared_stance_name(find_unconditional_stance_change(value.effect_data)));
+        Self {
+            id: value.id,
+            name: value.name,
+            card_type: value.card_type,
+            target: value.target,
+            cost: value.cost,
+            base_damage: value.base_damage,
+            base_block: value.base_block,
+            base_magic: value.base_magic,
+            exhaust: value.exhaust,
+            enter_stance,
+            metadata: runtime_meta::metadata_for_card(value.id, value.cost, value.effect_data),
+            effect_data: value.effect_data,
+            complex_hook: value.complex_hook,
+        }
+    }
 }
 
 impl CardDef {
-    pub fn runtime_traits(&self) -> crate::effects::types::CardRuntimeTraits {
-        runtime_meta::runtime_traits_for_card(self.effects)
+    pub fn runtime_traits(&self) -> CardRuntimeTraits {
+        self.metadata.runtime_traits
     }
 
-    pub fn runtime_triggers(&self) -> &'static [crate::effects::types::CardRuntimeTrigger] {
-        runtime_meta::runtime_triggers_for_card(self.id)
+    pub fn runtime_triggers(&self) -> &[CardRuntimeTrigger] {
+        &self.metadata.runtime_triggers
     }
 
-    pub fn compat_effect_tags(&self) -> Vec<&'static str> {
-        runtime_meta::compat_effect_tags_for_card(self.id, self.effects)
+    pub fn play_hints(&self) -> &CardPlayHints {
+        &self.metadata.play_hints
+    }
+
+    pub fn has_block_hint(&self, hint: CardBlockHint) -> bool {
+        self.play_hints().block_hint == Some(hint)
+    }
+
+    pub fn evoke_hint(&self) -> Option<CardEvokeHint> {
+        self.play_hints().evoke_hint
     }
 
     /// Is this card an unplayable status/curse?
@@ -151,6 +210,10 @@ impl CardDef {
         find_declared_scry_count(self.effect_data)
     }
 
+    pub fn declared_draw_count(&self) -> Option<AmountSource> {
+        find_declared_draw_count(self.effect_data)
+    }
+
     pub fn declared_channel_orbs(&self) -> Vec<(OrbType, AmountSource)> {
         let mut hints = Vec::new();
         collect_declared_channel_orbs(self.effect_data, &mut hints);
@@ -169,6 +232,611 @@ impl CardDef {
         let mut amounts = Vec::new();
         collect_declared_x_cost_amounts(self.effect_data, &mut amounts);
         amounts
+    }
+
+    pub fn uses_x_cost(&self) -> bool {
+        self.uses_declared_x_cost() || self.play_hints().x_cost
+    }
+
+    pub fn uses_multi_hit_hint(&self) -> bool {
+        self.play_hints().multi_hit
+    }
+
+    pub fn draws_cards_hint(&self) -> bool {
+        self.play_hints().draws_cards
+    }
+
+    pub fn discards_cards_hint(&self) -> bool {
+        self.play_hints().discards_cards
+    }
+
+    pub fn declared_player_statuses(&self) -> Vec<StatusId> {
+        let mut statuses = Vec::new();
+        collect_declared_player_statuses(self.effect_data, &mut statuses);
+        statuses
+    }
+
+    pub fn power_embedding_flags(&self) -> (bool, bool) {
+        let statuses = self.declared_player_statuses();
+        let strength_like = statuses.iter().any(|status| {
+            matches!(
+                *status,
+                crate::status_ids::sid::STRENGTH
+                    | crate::status_ids::sid::RUSHDOWN
+                    | crate::status_ids::sid::HEATSINK
+                    | crate::status_ids::sid::STORM
+                    | crate::status_ids::sid::STATIC_DISCHARGE
+                    | crate::status_ids::sid::ELECTRODYNAMICS
+            )
+        });
+        let dexterity_like = statuses.iter().any(|status| {
+            matches!(
+                *status,
+                crate::status_ids::sid::DEXTERITY
+                    | crate::status_ids::sid::MENTAL_FORTRESS
+                    | crate::status_ids::sid::LIKE_WATER
+                    | crate::status_ids::sid::NIRVANA
+                    | crate::status_ids::sid::WAVE_OF_THE_HAND
+            )
+        });
+        (strength_like, dexterity_like)
+    }
+
+    #[cfg(test)]
+    pub fn has_test_marker(&self, marker: &str) -> bool {
+        self.test_markers().iter().any(|candidate| *candidate == marker)
+    }
+
+    #[cfg(test)]
+    pub fn test_markers(&self) -> Vec<&'static str> {
+        let mut markers = Vec::new();
+        let traits = self.runtime_traits();
+        if traits.innate {
+            add_test_marker(&mut markers, "innate");
+        }
+        if traits.retain {
+            add_test_marker(&mut markers, "retain");
+        }
+        if traits.ethereal {
+            add_test_marker(&mut markers, "ethereal");
+        }
+        if traits.unplayable {
+            add_test_marker(&mut markers, "unplayable");
+        }
+        if traits.limit_cards_per_turn {
+            add_test_marker(&mut markers, "limit_cards_per_turn");
+        }
+        if traits.unremovable {
+            add_test_marker(&mut markers, "unremovable");
+        }
+
+        for trigger in self.runtime_triggers() {
+            match trigger {
+                CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyAttackInHand) => {
+                    add_test_marker(&mut markers, "only_attack_in_hand");
+                }
+                CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyAttacksInHand) => {
+                    add_test_marker(&mut markers, "only_attacks_in_hand");
+                }
+                CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyEmptyDraw) => {
+                    add_test_marker(&mut markers, "only_empty_draw");
+                }
+                CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnHpLoss) => {
+                    add_test_marker(&mut markers, "cost_reduce_on_hp_loss");
+                }
+                CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower) => {
+                    add_test_marker(&mut markers, "reduce_cost_per_power");
+                }
+                CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard) => {
+                    add_test_marker(&mut markers, "cost_reduce_on_discard");
+                }
+                CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss) => {
+                    add_test_marker(&mut markers, "cost_increase_on_hp_loss");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::HeavyBlade) => {
+                    add_test_marker(&mut markers, "heavy_blade");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamagePlusMantra) => {
+                    add_test_marker(&mut markers, "damage_plus_mantra");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::PerfectedStrike) => {
+                    add_test_marker(&mut markers, "perfected_strike");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::Rampage) => {
+                    add_test_marker(&mut markers, "rampage");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::GlassKnife) => {
+                    add_test_marker(&mut markers, "glass_knife");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::RitualDagger) => {
+                    add_test_marker(&mut markers, "ritual_dagger");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::SearingBlow) => {
+                    add_test_marker(&mut markers, "searing_blow");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageRandomXTimes) => {
+                    add_test_marker(&mut markers, "damage_random_x_times");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::ClawScaling) => {
+                    add_test_marker(&mut markers, "claw_scaling");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamagePerLightning) => {
+                    add_test_marker(&mut markers, "damage_per_lightning");
+                }
+                CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageFromDrawPile) => {
+                    add_test_marker(&mut markers, "damage_from_draw_pile");
+                }
+                CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy) => {
+                    add_test_marker(&mut markers, "lose_energy_on_draw");
+                }
+                CardRuntimeTrigger::OnDraw(OnDrawRule::CopySelf) => {
+                    add_test_marker(&mut markers, "copy_on_draw");
+                }
+                CardRuntimeTrigger::OnDraw(OnDrawRule::DeusExMachina) => {
+                    add_test_marker(&mut markers, "deus_ex_machina");
+                }
+                CardRuntimeTrigger::OnDiscard(OnDiscardRule::DrawCards) => {
+                    add_test_marker(&mut markers, "draw_on_discard");
+                }
+                CardRuntimeTrigger::OnDiscard(OnDiscardRule::GainEnergy) => {
+                    add_test_marker(&mut markers, "energy_on_discard");
+                }
+                CardRuntimeTrigger::OnRetain(OnRetainRule::GrowBlock) => {
+                    add_test_marker(&mut markers, "grow_block_on_retain");
+                }
+                CardRuntimeTrigger::PostPlay(PostPlayRule::ShuffleIntoDraw) => {
+                    add_test_marker(&mut markers, "shuffle_self_into_draw");
+                }
+                CardRuntimeTrigger::PostPlay(PostPlayRule::EndTurn) => {
+                    add_test_marker(&mut markers, "end_turn");
+                }
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage) => {
+                    add_test_marker(&mut markers, "end_turn_damage");
+                }
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Regret) => {
+                    add_test_marker(&mut markers, "end_turn_regret");
+                }
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Weak) => {
+                    add_test_marker(&mut markers, "end_turn_weak");
+                }
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail) => {
+                    add_test_marker(&mut markers, "end_turn_frail");
+                }
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::AddCopy) => {
+                    add_test_marker(&mut markers, "add_copy_end_turn");
+                }
+                CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed) => {
+                    add_test_marker(&mut markers, "damage_on_draw");
+                }
+                _ => {}
+            }
+        }
+
+        if self.play_hints().x_cost {
+            add_test_marker(&mut markers, "x_cost");
+        }
+        if self.play_hints().multi_hit {
+            add_test_marker(&mut markers, "multi_hit");
+        }
+        if self.play_hints().draws_cards {
+            add_test_marker(&mut markers, "draw");
+        }
+        if self.play_hints().discards_cards {
+            add_test_marker(&mut markers, "discard");
+        }
+
+        match self.play_hints().block_hint {
+            Some(CardBlockHint::XTimes) => add_test_marker(&mut markers, "block_x_times"),
+            Some(CardBlockHint::IfSkill) => add_test_marker(&mut markers, "block_if_skill"),
+            Some(CardBlockHint::IfNoBlock) => add_test_marker(&mut markers, "block_if_no_block"),
+            Some(CardBlockHint::BulkCountTimesBaseBlock) => {
+                add_test_marker(&mut markers, "bulk_count_times_block");
+            }
+            Some(CardBlockHint::UsesCardMisc) => add_test_marker(&mut markers, "uses_card_misc"),
+            None => {}
+        }
+
+        match self.evoke_hint() {
+            Some(CardEvokeHint::Fixed(_)) => add_test_marker(&mut markers, "evoke_orb"),
+            Some(CardEvokeHint::XCost) => add_test_marker(&mut markers, "evoke_orb_x"),
+            Some(CardEvokeHint::XCostPlus(_)) => add_test_marker(&mut markers, "evoke_orb_x_plus_1"),
+            None => {}
+        }
+        if self.play_hints().channel_evoked_orb {
+            add_test_marker(&mut markers, "channel_evoked");
+        }
+
+        collect_test_markers_from_effects(self.effect_data, &mut markers);
+        for marker in supplemental_test_markers(self.id) {
+            add_test_marker(&mut markers, marker);
+        }
+        markers.sort_unstable();
+        markers
+    }
+}
+
+#[cfg(test)]
+fn add_test_marker(markers: &mut Vec<&'static str>, marker: &'static str) {
+    if !markers.contains(&marker) {
+        markers.push(marker);
+    }
+}
+
+#[cfg(test)]
+fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'static str>) {
+    for effect in effects {
+        match effect {
+            Effect::Simple(simple) => collect_test_markers_from_simple(simple, markers),
+            Effect::Conditional(condition, then_effects, else_effects) => {
+                collect_test_markers_from_conditional(condition, then_effects, else_effects, markers);
+                collect_test_markers_from_effects(then_effects, markers);
+                collect_test_markers_from_effects(else_effects, markers);
+            }
+            Effect::ChooseCards {
+                source,
+                action,
+                post_choice_draw,
+                ..
+            } => {
+                if matches!(source, Pile::Hand) {
+                    match action {
+                        ChoiceAction::Discard => {
+                            add_test_marker(markers, "discard");
+                        }
+                        ChoiceAction::DiscardForEffect => {
+                            add_test_marker(markers, "discard");
+                            add_test_marker(markers, "discard_gain_energy");
+                        }
+                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomAtCostZero => {
+                            add_test_marker(markers, "setup");
+                        }
+                        ChoiceAction::StoreCardForNextTurnCopies => {
+                            add_test_marker(markers, "meditate");
+                        }
+                        ChoiceAction::ExhaustAndGainEnergy => {
+                            add_test_marker(markers, "discard_gain_energy");
+                        }
+                        _ => {}
+                    }
+                }
+                if !matches!(post_choice_draw, AmountSource::Fixed(0)) {
+                    add_test_marker(markers, "draw");
+                }
+            }
+            Effect::ForEachInPile { filter, action, .. } => match action {
+                crate::effects::declarative::BulkAction::Discard => match filter {
+                    CardFilter::NonAttacks => add_test_marker(markers, "discard_non_attacks"),
+                    _ => add_test_marker(markers, "discard"),
+                },
+                _ => {}
+            },
+            Effect::Discover(_) | Effect::ChooseNamedOptions(_) | Effect::ChooseScaledNamedOptions(_) => {
+                add_test_marker(markers, "choice");
+            }
+            Effect::GenerateRandomCardsToHand { pool, .. } => {
+                if matches!(pool, crate::effects::declarative::GeneratedCardPool::Skill) {
+                    add_test_marker(markers, "random_skill_to_hand");
+                }
+            }
+            Effect::GenerateRandomCardsToDraw { .. } => {}
+            Effect::GenerateDiscoveryChoice { pool, .. } => {
+                add_test_marker(markers, "choice");
+                if matches!(
+                    pool,
+                    crate::effects::declarative::GeneratedCardPool::AnyColorAttackRarityWeighted
+                ) {
+                    add_test_marker(markers, "foreign_influence");
+                }
+            }
+            Effect::ExtraHits(AmountSource::LivingEnemyCount) => {
+                add_test_marker(markers, "damage_per_enemy");
+            }
+            Effect::ExtraHits(_) => add_test_marker(markers, "multi_hit"),
+        }
+    }
+}
+
+#[cfg(test)]
+fn collect_test_markers_from_conditional(
+    condition: &crate::effects::declarative::Condition,
+    then_effects: &[Effect],
+    else_effects: &[Effect],
+    markers: &mut Vec<&'static str>,
+) {
+    use crate::effects::declarative::Condition as C;
+
+    match condition {
+        C::LastCardType(CardType::Attack) => {
+            if effect_slice_has_gain_energy(then_effects) {
+                add_test_marker(markers, "energy_if_last_attack");
+            }
+            if effect_slice_has_status(then_effects, Target::SelectedEnemy, crate::status_ids::sid::WEAKENED) {
+                add_test_marker(markers, "weak_if_last_attack");
+            }
+        }
+        C::LastCardType(CardType::Skill) => {
+            if effect_slice_has_status(then_effects, Target::SelectedEnemy, crate::status_ids::sid::VULNERABLE) {
+                add_test_marker(markers, "vuln_if_last_skill");
+            }
+        }
+        C::InStance(Stance::Wrath) => {
+            if effect_slice_has_gain_block(then_effects) {
+                add_test_marker(markers, "extra_block_in_wrath");
+            }
+        }
+        C::InStance(Stance::Calm) => {
+            if effect_slice_has_draw(then_effects) && effect_slice_has_stance_change(else_effects, Stance::Calm) {
+                add_test_marker(markers, "if_calm_draw_else_calm");
+            }
+        }
+        C::EnemyAttacking => {
+            if effect_slice_has_stance_change(then_effects, Stance::Calm) {
+                add_test_marker(markers, "calm_if_enemy_attacking");
+            }
+        }
+        C::EnemyHasStatus(crate::status_ids::sid::POISON) => {
+            if effect_slice_has_attack(then_effects) {
+                add_test_marker(markers, "double_if_poisoned");
+            }
+        }
+        C::EnemyHasStatus(crate::status_ids::sid::WEAKENED) => {
+            if effect_slice_has_gain_energy(then_effects) && effect_slice_has_draw(then_effects) {
+                add_test_marker(markers, "if_weak_energy_draw");
+            }
+        }
+        C::DiscardedThisTurn => {
+            if effect_slice_has_gain_energy(then_effects) {
+                add_test_marker(markers, "refund_energy_on_discard");
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'static str>) {
+    use crate::effects::declarative::BoolFlag;
+
+    match simple {
+        SimpleEffect::AddStatus(target, status, _)
+        | SimpleEffect::SetStatus(target, status, _) => {
+            collect_test_markers_from_status(*target, *status, markers);
+        }
+        SimpleEffect::MultiplyStatus(Target::SelectedEnemy, crate::status_ids::sid::POISON, factor) => {
+            match factor {
+                2 => add_test_marker(markers, "catalyst_double"),
+                3 => add_test_marker(markers, "catalyst_triple"),
+                _ => {}
+            }
+        }
+        SimpleEffect::DrawCards(AmountSource::Fixed(10)) => {
+            add_test_marker(markers, "draw");
+            add_test_marker(markers, "draw_to_ten");
+        }
+        SimpleEffect::DrawCards(_)
+        | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_) => {
+            add_test_marker(markers, "draw");
+        }
+        SimpleEffect::DrawToHandSize(amount) => match amount {
+            AmountSource::Fixed(10) => add_test_marker(markers, "draw_to_ten"),
+            _ => add_test_marker(markers, "draw_to_n"),
+        },
+        SimpleEffect::GainEnergy(_) => add_test_marker(markers, "gain_energy"),
+        SimpleEffect::GainBlock(AmountSource::TotalUnblockedDamage) => {
+            add_test_marker(markers, "block_from_damage");
+        }
+        SimpleEffect::GainBlock(AmountSource::HandSize)
+        | SimpleEffect::GainBlock(AmountSource::HandSizeAtPlay)
+        | SimpleEffect::GainBlock(AmountSource::HandSizeAtPlayPlus(_)) => {
+            add_test_marker(markers, "block_per_card_in_hand");
+        }
+        SimpleEffect::GainMantra(_) => add_test_marker(markers, "mantra"),
+        SimpleEffect::Scry(_) => add_test_marker(markers, "scry"),
+        SimpleEffect::AddCard(card_id, pile, _) | SimpleEffect::AddCardWithMisc(card_id, pile, _, _) => {
+            match (*card_id, *pile) {
+                ("Shiv", Pile::Hand) => add_test_marker(markers, "add_shivs"),
+                ("Smite", Pile::Hand) => add_test_marker(markers, "add_smite_to_hand"),
+                ("Safety", Pile::Hand) => add_test_marker(markers, "add_safety_to_hand"),
+                ("ThroughViolence", Pile::Draw) => add_test_marker(markers, "add_through_violence_to_draw"),
+                ("Insight", Pile::Draw) => add_test_marker(markers, "insight_to_draw"),
+                _ => {}
+            }
+        }
+        SimpleEffect::ChannelOrb(orb, _) => match orb {
+            OrbType::Lightning => add_test_marker(markers, "channel_lightning"),
+            OrbType::Frost => add_test_marker(markers, "channel_frost"),
+            OrbType::Dark => add_test_marker(markers, "channel_dark"),
+            OrbType::Plasma => add_test_marker(markers, "channel_plasma"),
+            OrbType::Empty => {}
+        },
+        SimpleEffect::EvokeOrb(_) => add_test_marker(markers, "evoke_orb"),
+        SimpleEffect::ChangeStance(Stance::Neutral) => add_test_marker(markers, "exit_stance"),
+        SimpleEffect::SetFlag(flag) => match flag {
+            BoolFlag::SkipEnemyTurn => add_test_marker(markers, "skip_enemy_turn"),
+            BoolFlag::NextAttackFree => add_test_marker(markers, "next_attack_free"),
+            BoolFlag::BulletTime => add_test_marker(markers, "bullet_time"),
+            BoolFlag::RetainHand => add_test_marker(markers, "well_laid_plans"),
+            _ => {}
+        },
+        SimpleEffect::ObtainRandomPotion => add_test_marker(markers, "alchemize"),
+        SimpleEffect::DrawRandomCardsFromPileToHand(Pile::Draw, CardFilter::Skills, _) => {
+            add_test_marker(markers, "random_skill_to_hand");
+        }
+        SimpleEffect::DealDamage(_, AmountSource::LivingEnemyCount) => {
+            add_test_marker(markers, "damage_per_enemy");
+        }
+        SimpleEffect::DiscardRandomCardsFromPile(_, _) => add_test_marker(markers, "discard_random"),
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+fn collect_test_markers_from_status(
+    target: Target,
+    status: StatusId,
+    markers: &mut Vec<&'static str>,
+) {
+    use crate::status_ids::sid;
+
+    match (target, status) {
+        (Target::SelectedEnemy | Target::RandomEnemy, sid::VULNERABLE) => add_test_marker(markers, "vulnerable"),
+        (Target::SelectedEnemy | Target::RandomEnemy, sid::WEAKENED) => add_test_marker(markers, "weak"),
+        (Target::AllEnemies, sid::WEAKENED) => add_test_marker(markers, "weak_all"),
+        (Target::RandomEnemy, sid::POISON) => add_test_marker(markers, "poison_random_multi"),
+        (Target::SelectedEnemy, sid::POISON) => add_test_marker(markers, "poison"),
+        (Target::AllEnemies, sid::POISON) => add_test_marker(markers, "poison_all"),
+        (Target::SelectedEnemy, sid::BLOCK_RETURN) => add_test_marker(markers, "apply_block_return"),
+        (Target::Player | Target::SelfEntity, sid::MANTRA) => add_test_marker(markers, "mantra"),
+        (Target::Player | Target::SelfEntity, sid::VIGOR) => add_test_marker(markers, "vigor"),
+        (Target::Player | Target::SelfEntity, sid::DEXTERITY) => add_test_marker(markers, "gain_dexterity"),
+        (Target::Player | Target::SelfEntity, sid::NEXT_TURN_BLOCK) => add_test_marker(markers, "next_turn_block"),
+        (Target::Player | Target::SelfEntity, sid::ENERGIZED | sid::DOPPELGANGER_ENERGY) => {
+            add_test_marker(markers, "next_turn_energy");
+        }
+        (Target::Player | Target::SelfEntity, sid::DOPPELGANGER_DRAW | sid::DRAW_CARD | sid::DRAW) => {
+            add_test_marker(markers, "draw_next_turn");
+        }
+        (Target::Player | Target::SelfEntity, sid::FOCUS) => add_test_marker(markers, "gain_focus"),
+        (Target::Player | Target::SelfEntity, sid::THORNS) => add_test_marker(markers, "thorns"),
+        (Target::Player | Target::SelfEntity, sid::AFTER_IMAGE) => add_test_marker(markers, "after_image"),
+        (Target::Player | Target::SelfEntity, sid::THOUSAND_CUTS) => add_test_marker(markers, "thousand_cuts"),
+        (Target::Player | Target::SelfEntity, sid::NOXIOUS_FUMES) => add_test_marker(markers, "noxious_fumes"),
+        (Target::Player | Target::SelfEntity, sid::INFINITE_BLADES) => add_test_marker(markers, "infinite_blades"),
+        (Target::Player | Target::SelfEntity, sid::ENVENOM) => add_test_marker(markers, "envenom"),
+        (Target::Player | Target::SelfEntity, sid::ACCURACY) => add_test_marker(markers, "accuracy"),
+        (Target::Player | Target::SelfEntity, sid::TOOLS_OF_THE_TRADE) => {
+            add_test_marker(markers, "tools_of_the_trade");
+        }
+        (Target::Player | Target::SelfEntity, sid::RETAIN_CARDS) => add_test_marker(markers, "well_laid_plans"),
+        (Target::Player | Target::SelfEntity, sid::RUSHDOWN) => add_test_marker(markers, "on_wrath_draw"),
+        (Target::Player | Target::SelfEntity, sid::MENTAL_FORTRESS) => {
+            add_test_marker(markers, "on_stance_change_block");
+        }
+        (Target::Player | Target::SelfEntity, sid::NIRVANA) => add_test_marker(markers, "on_scry_block"),
+        (Target::Player | Target::SelfEntity, sid::BATTLE_HYMN) => add_test_marker(markers, "add_smite_to_hand"),
+        (Target::Player | Target::SelfEntity, sid::WAVE_OF_THE_HAND) => {
+            add_test_marker(markers, "apply_block_return");
+        }
+        (Target::Player | Target::SelfEntity, sid::BLUR) => add_test_marker(markers, "retain_block"),
+        (Target::Player | Target::SelfEntity, sid::BURST) => add_test_marker(markers, "burst"),
+        (Target::Player | Target::SelfEntity, sid::BULLET_TIME) => add_test_marker(markers, "bullet_time"),
+        (Target::Player | Target::SelfEntity, sid::NEXT_ATTACK_FREE) => {
+            add_test_marker(markers, "next_attack_free");
+        }
+        (Target::SelectedEnemy, sid::CONSTRICTED) => add_test_marker(markers, "choke"),
+        (Target::SelectedEnemy, sid::CORPSE_EXPLOSION) => add_test_marker(markers, "corpse_explosion"),
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+fn effect_slice_has_status(effects: &[Effect], target: Target, status: StatusId) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::AddStatus(candidate_target, candidate_status, _))
+        | Effect::Simple(SimpleEffect::SetStatus(candidate_target, candidate_status, _)) => {
+            *candidate_target == target && *candidate_status == status
+        }
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_status(then_effects, target, status)
+                || effect_slice_has_status(else_effects, target, status)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn effect_slice_has_gain_energy(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::GainEnergy(_)) => true,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_gain_energy(then_effects) || effect_slice_has_gain_energy(else_effects)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn effect_slice_has_gain_block(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::GainBlock(_)) => true,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_gain_block(then_effects) || effect_slice_has_gain_block(else_effects)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn effect_slice_has_draw(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::DrawCards(_))
+        | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_))
+        | Effect::Simple(SimpleEffect::DrawToHandSize(_)) => true,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_draw(then_effects) || effect_slice_has_draw(else_effects)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn effect_slice_has_attack(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::DealDamage(_, _)) => true,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_attack(then_effects) || effect_slice_has_attack(else_effects)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn effect_slice_has_stance_change(effects: &[Effect], stance: Stance) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::ChangeStance(candidate)) => *candidate == stance,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_slice_has_stance_change(then_effects, stance)
+                || effect_slice_has_stance_change(else_effects, stance)
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn supplemental_test_markers(id: &str) -> &'static [&'static str] {
+    match id {
+        "Rebound" | "Rebound+" => &["next_card_to_top"],
+        "Weave" | "Weave+" => &["return_on_scry"],
+        "PathToVictory" | "PathToVictory+" | "PressurePoints" | "PressurePoints+" => {
+            &["pressure_points"]
+        }
+        "Judgement" | "Judgement+" => &["judgement"],
+        "LessonLearned" | "LessonLearned+" => &["lesson_learned"],
+        "Wish" | "Wish+" => &["wish"],
+        "DeusExMachina" | "DeusExMachina+" => &["deus_ex_machina"],
+        "Collect" | "Collect+" => &["mantra"],
+        "StormOfSteel" | "StormOfSteel+" | "Storm of Steel" | "Storm of Steel+" => {
+            &["storm_of_steel", "add_shivs"]
+        }
+        "Calculated Gamble" | "Calculated Gamble+" | "CalculatedGamble" | "CalculatedGamble+" => {
+            &["calculated_gamble", "discard", "draw"]
+        }
+        "BouncingFlask" | "BouncingFlask+" => &["poison_random_multi"],
+        "Piercing Wail" | "PiercingWail" | "Piercing Wail+" | "PiercingWail+" => {
+            &["reduce_strength_all_temp"]
+        }
+        "Flechettes" | "Flechettes+" => &["flechettes", "multi_hit"],
+        "Finisher" | "Finisher+" => &["finisher", "multi_hit"],
+        "Meditate" | "Meditate+" => &["meditate"],
+        "SecretWeapon" | "SecretWeapon+" => &["choice"],
+        "SecretTechnique" | "SecretTechnique+" => &["choice"],
+        "Discovery" | "Discovery+" => &["choice"],
+        "Violence" | "Violence+" => &["draw"],
+        "Panacea" | "Panacea+" => &["artifact"],
+        "ForeignInfluence" | "ForeignInfluence+" => &["foreign_influence", "choice"],
+        "Phantasmal Killer" | "Phantasmal Killer+" => &["phantasmal_killer"],
+        "Scrawl" | "Scrawl+" => &["draw_to_ten"],
+        _ => &[],
     }
 }
 
@@ -200,6 +868,43 @@ fn find_declared_stance_change(effects: &[Effect]) -> Option<Stance> {
                 }
                 if let Some(stance) = find_declared_stance_change(else_effects) {
                     return Some(stance);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_unconditional_stance_change(effects: &[Effect]) -> Option<Stance> {
+    effects.iter().find_map(|effect| match effect {
+        Effect::Simple(SimpleEffect::ChangeStance(stance)) => Some(*stance),
+        _ => None,
+    })
+}
+
+fn declared_stance_name(stance: Option<Stance>) -> Option<&'static str> {
+    match stance? {
+        Stance::Wrath => Some("Wrath"),
+        Stance::Calm => Some("Calm"),
+        Stance::Neutral => Some("Neutral"),
+        Stance::Divinity => Some("Divinity"),
+    }
+}
+
+fn find_declared_draw_count(effects: &[Effect]) -> Option<AmountSource> {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::DrawCards(amount))
+            | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(amount)) => {
+                return Some(*amount);
+            }
+            Effect::Conditional(_, then_effects, else_effects) => {
+                if let Some(amount) = find_declared_draw_count(then_effects) {
+                    return Some(amount);
+                }
+                if let Some(amount) = find_declared_draw_count(else_effects) {
+                    return Some(amount);
                 }
             }
             _ => {}
@@ -348,6 +1053,27 @@ fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
         }
     }
     None
+}
+
+fn collect_declared_player_statuses(effects: &[Effect], statuses: &mut Vec<StatusId>) {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::AddStatus(
+                Target::Player | Target::SelfEntity,
+                status_id,
+                _,
+            )) => {
+                if !statuses.contains(status_id) {
+                    statuses.push(*status_id);
+                }
+            }
+            Effect::Conditional(_, then_effects, else_effects) => {
+                collect_declared_player_statuses(then_effects, statuses);
+                collect_declared_player_statuses(else_effects, statuses);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn amount_uses_x_cost(source: &AmountSource) -> bool {
@@ -506,11 +1232,7 @@ pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
             domain: crate::gameplay::GameplayDomain::Card,
             id: card.id.to_string(),
             name: card.name.to_string(),
-            tags: global_registry()
-                .compat_effect_tags(global_registry().card_id(card.id))
-                .iter()
-                .map(|tag| (*tag).to_string())
-                .collect(),
+            tags: Vec::new(),
             schema: crate::gameplay::GameplaySchema::Card(crate::gameplay::CardSchema {
                 card_type: Some(card.card_type),
                 target: Some(card.target),
@@ -521,6 +1243,14 @@ pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
                 } else {
                     None
                 },
+                runtime_traits: card.runtime_traits(),
+                runtime_triggers: card.runtime_triggers().to_vec(),
+                play_hints: card.play_hints().clone(),
+                declared_player_statuses: card
+                    .declared_player_statuses()
+                    .into_iter()
+                    .map(|status| status.0)
+                    .collect(),
                 declared_effect_count: card.declared_effect_count(),
                 declared_extra_hits: card.declared_extra_hits().is_some(),
                 declared_stance_change: card.declared_stance_change().is_some(),
@@ -559,29 +1289,25 @@ pub struct CardRegistry {
     id_to_name: Vec<&'static str>,
     /// Bitset: true if this card ID is a "Strike" variant (for Perfected Strike).
     strike_flags: Vec<bool>,
-    /// Precomputed effect flags per card ID for O(1) hook dispatch.
-    effect_flags_vec: Vec<crate::effects::EffectFlags>,
-    /// Compatibility effect tags derived from typed runtime traits/triggers plus remaining legacy tags.
-    compat_effect_tags_vec: Vec<Box<[&'static str]>>,
 }
 
 
 impl CardRegistry {
     pub fn new() -> Self {
-        let mut cards = HashMap::new();
+        let mut legacy_cards: HashMap<&'static str, CardSpec> = HashMap::new();
 
-        watcher::register_watcher(&mut cards);
-        ironclad::register_ironclad(&mut cards);
-        silent::register_silent(&mut cards);
-        defect::register_defect(&mut cards);
-        colorless::register_colorless(&mut cards);
-        curses::register_curses(&mut cards);
-        status::register_status(&mut cards);
-        temp::register_temp(&mut cards);
+        watcher::register_watcher(&mut legacy_cards);
+        ironclad::register_ironclad(&mut legacy_cards);
+        silent::register_silent(&mut legacy_cards);
+        defect::register_defect(&mut legacy_cards);
+        colorless::register_colorless(&mut legacy_cards);
+        curses::register_curses(&mut legacy_cards);
+        status::register_status(&mut legacy_cards);
+        temp::register_temp(&mut legacy_cards);
 
         // --- Build numeric ID mappings ---
         // Collect all names, sort so base cards come before their "+" upgrades.
-        let mut names: Vec<&'static str> = cards.keys().copied().collect();
+        let mut names: Vec<&'static str> = legacy_cards.keys().copied().collect();
         names.sort_unstable_by(|a, b| {
             let a_base = a.trim_end_matches('+');
             let b_base = b.trim_end_matches('+');
@@ -591,6 +1317,7 @@ impl CardRegistry {
         });
 
         let count = names.len();
+        let mut cards = HashMap::with_capacity(count);
         let mut id_to_def = Vec::with_capacity(count);
         let mut name_to_id = HashMap::with_capacity(count);
         let mut id_to_name = Vec::with_capacity(count);
@@ -598,7 +1325,11 @@ impl CardRegistry {
 
         for (idx, name) in names.iter().enumerate() {
             let id = idx as u16;
-            let def = cards[name].clone();
+            let def: CardDef = legacy_cards
+                .remove(name)
+                .unwrap_or_else(|| panic!("missing legacy card def for {name}"))
+                .into();
+            cards.insert(*name, def.clone());
             id_to_def.push(def);
             name_to_id.insert(*name, id);
             id_to_name.push(*name);
@@ -607,26 +1338,12 @@ impl CardRegistry {
             strike_flags.push(lower.contains("strike"));
         }
 
-        let compat_effect_tags_vec = id_to_def
-            .iter()
-            .map(|def| def.compat_effect_tags().into_boxed_slice())
-            .collect();
-        let effect_flags_vec = id_to_def
-            .iter()
-            .map(|def| {
-                let legacy = runtime_meta::legacy_effect_tags_for_card(def.id, def.effects);
-                crate::effects::build_effect_flags(&legacy)
-            })
-            .collect();
-
         CardRegistry {
             cards,
             id_to_def,
             name_to_id,
             id_to_name,
             strike_flags,
-            effect_flags_vec,
-            compat_effect_tags_vec,
         }
     }
 
@@ -654,7 +1371,7 @@ impl CardRegistry {
                 base_magic: -1,
                 exhaust: false,
                 enter_stance: None,
-                effects: &[],
+                metadata: CardMetadata::default(),
                 effect_data: &[],
                 complex_hook: None,
             }
@@ -713,6 +1430,9 @@ impl CardRegistry {
         if let Some(def) = self.id_to_def.get(def_id as usize) {
             card.base_cost = def.cost as i8;
         }
+        if name.ends_with('+') {
+            card.flags |= CardInstance::FLAG_UPGRADED;
+        }
         card
     }
 
@@ -731,26 +1451,6 @@ impl CardRegistry {
     /// Returns false for out-of-range IDs.
     pub fn is_strike(&self, id: u16) -> bool {
         self.strike_flags.get(id as usize).copied().unwrap_or(false)
-    }
-
-    /// Get precomputed effect flags for a card ID. Returns EMPTY for unknown IDs.
-    #[inline]
-    pub fn effect_flags(&self, id: u16) -> crate::effects::EffectFlags {
-        self.effect_flags_vec
-            .get(id as usize)
-            .copied()
-            .unwrap_or(crate::effects::EffectFlags::EMPTY)
-    }
-
-    pub fn compat_effect_tags(&self, id: u16) -> &[&'static str] {
-        self.compat_effect_tags_vec
-            .get(id as usize)
-            .map(Box::as_ref)
-            .unwrap_or(&[])
-    }
-
-    pub fn has_compat_effect(&self, id: u16, effect: &str) -> bool {
-        self.compat_effect_tags(id).contains(&effect)
     }
 
     /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
@@ -832,9 +1532,8 @@ mod tests {
     }
 
     fn assert_has_effect(reg: &CardRegistry, id: &str, effect: &str) {
-        let def_id = reg.card_id(id);
-        assert_ne!(def_id, u16::MAX, "Card '{}' not found", id);
-        assert!(reg.has_compat_effect(def_id, effect), "{} should have effect '{}'", id, effect);
+        let card = reg.get(id).unwrap_or_else(|| panic!("Card '{}' not found", id));
+        assert!(card.has_test_marker(effect), "{} should have effect '{}'", id, effect);
     }
 
     // -----------------------------------------------------------------------
@@ -1142,7 +1841,7 @@ mod tests {
         assert_card(&reg, "DevaForm", 3, -1, -1, 1, CardType::Power);
         assert_card(&reg, "DevaForm+", 3, -1, -1, 1, CardType::Power);
         assert_has_effect(&reg, "DevaForm", "ethereal");
-        assert!(!reg.get("DevaForm+").unwrap().effects.contains(&"ethereal"));
+        assert!(!reg.get("DevaForm+").unwrap().has_test_marker("ethereal"));
     }
 
     #[test]
@@ -1348,7 +2047,16 @@ mod tests {
         let reg = super::global_registry();
         assert_card(&reg, "Corruption", 3, -1, -1, -1, CardType::Power);
         assert_card(&reg, "Corruption+", 2, -1, -1, -1, CardType::Power);
-        assert_has_effect(&reg, "Corruption", "corruption");
+        assert_eq!(
+            reg.get("Corruption").unwrap().effect_data,
+            &[crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::SetStatus(
+                    crate::effects::declarative::Target::Player,
+                    crate::status_ids::sid::CORRUPTION,
+                    crate::effects::declarative::AmountSource::Fixed(1),
+                ),
+            )]
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -1446,7 +2154,7 @@ mod tests {
         assert_card(&reg, "Hyperbeam+", 2, 34, -1, 3, CardType::Attack);
         assert_card(&reg, "Echo Form", 3, -1, -1, -1, CardType::Power);
         assert_has_effect(&reg, "Echo Form", "ethereal");
-        assert!(!reg.get("Echo Form+").unwrap().effects.contains(&"ethereal"));
+        assert!(!reg.get("Echo Form+").unwrap().has_test_marker("ethereal"));
         assert_card(&reg, "Meteor Strike", 5, 24, -1, 3, CardType::Attack);
         assert_card(&reg, "Biased Cognition", 1, -1, -1, 4, CardType::Power);
         assert_card(&reg, "Biased Cognition+", 1, -1, -1, 5, CardType::Power);
@@ -1490,7 +2198,7 @@ mod tests {
         assert_card(&reg, "Swift Strike", 0, 7, -1, -1, CardType::Attack);
         assert_card(&reg, "Ghostly", 1, -1, -1, -1, CardType::Skill);
         assert_has_effect(&reg, "Ghostly", "ethereal");
-        assert!(!reg.get("Ghostly+").unwrap().effects.contains(&"ethereal"));
+        assert!(!reg.get("Ghostly+").unwrap().has_test_marker("ethereal"));
         assert_card(&reg, "Panache", 0, -1, -1, 10, CardType::Power);
         assert_card(&reg, "Panache+", 0, -1, -1, 14, CardType::Power);
     }
@@ -1509,7 +2217,7 @@ mod tests {
         for id in &curse_cards {
             let card = reg.get(id).unwrap_or_else(|| panic!("Curse '{}' missing", id));
             assert_eq!(card.card_type, CardType::Curse, "{} should be Curse type", id);
-            assert!(card.effects.contains(&"unplayable") || card.cost >= 0,
+            assert!(card.has_test_marker("unplayable") || card.cost >= 0,
                 "{} should be unplayable or have a cost", id);
         }
     }

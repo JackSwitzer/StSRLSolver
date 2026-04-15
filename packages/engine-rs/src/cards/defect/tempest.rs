@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Tempest", name: "Tempest", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: -1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["channel_lightning_x"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Lightning, A::XCost)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Tempest+", name: "Tempest+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: -1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["channel_lightning_x_plus_1"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ChannelOrb(OrbType::Lightning, A::XCost)),
                     E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(1))),
                 ], complex_hook: None,

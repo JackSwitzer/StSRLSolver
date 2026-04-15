@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Beam Cell", name: "Beam Cell", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["apply_vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Beam Cell+", name: "Beam Cell+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["apply_vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });

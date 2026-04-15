@@ -88,13 +88,13 @@ mod silent_wave3 {
         assert!(all_out_attack.complex_hook.is_none());
 
         let backstab = reg.get("Backstab").expect("Backstab");
-        assert!(backstab.effects.contains(&"innate"));
+        assert!(backstab.has_test_marker("innate"));
 
         let die_die_die = reg.get("Die Die Die").expect("Die Die Die");
         assert_eq!(die_die_die.target, crate::cards::CardTarget::AllEnemy);
 
         let masterful = reg.get("Masterful Stab").expect("Masterful Stab");
-        assert!(masterful.effects.contains(&"cost_increase_on_hp_loss"));
+        assert!(masterful.has_test_marker("cost_increase_on_hp_loss"));
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod silent_wave3 {
     fn silent_wave3_backstab_is_innate_and_exhausts_after_use() {
         let reg = global_registry();
         let backstab = reg.get("Backstab").expect("Backstab");
-        assert!(backstab.effects.contains(&"innate"));
+        assert!(backstab.has_test_marker("innate"));
 
         let mut engine = engine_for(
             &["Backstab"],

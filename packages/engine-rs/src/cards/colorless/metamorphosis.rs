@@ -19,8 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 3,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_attacks_to_draw"],
-        effect_data: &METAMORPHOSIS,
+                effect_data: &METAMORPHOSIS,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -34,8 +33,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 5,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_attacks_to_draw"],
-        effect_data: &METAMORPHOSIS,
+                effect_data: &METAMORPHOSIS,
         complex_hook: None,
     });
 }

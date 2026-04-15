@@ -20,7 +20,7 @@ fn temp_wave1_registry_exports_typed_surface_for_live_temp_cards() {
     assert_eq!(safety.card_type, CardType::Skill);
     assert_eq!(safety.target, CardTarget::SelfTarget);
     assert!(safety.exhaust);
-    assert!(safety.effects.contains(&"retain"));
+    assert!(safety.has_test_marker("retain"));
     assert_eq!(safety.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let through_violence = registry
@@ -29,7 +29,7 @@ fn temp_wave1_registry_exports_typed_surface_for_live_temp_cards() {
     assert_eq!(through_violence.card_type, CardType::Attack);
     assert_eq!(through_violence.target, CardTarget::Enemy);
     assert!(through_violence.exhaust);
-    assert!(through_violence.effects.contains(&"retain"));
+    assert!(through_violence.has_test_marker("retain"));
     assert_eq!(
         through_violence.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]

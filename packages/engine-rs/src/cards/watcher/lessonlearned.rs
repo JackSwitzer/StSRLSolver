@@ -19,12 +19,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "LessonLearned", name: "Lesson Learned", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["lesson_learned"], effect_data: &LESSON_LEARNED_EFFECTS, complex_hook: None,
+                effect_data: &LESSON_LEARNED_EFFECTS, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "LessonLearned+", name: "Lesson Learned+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 13, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["lesson_learned"], effect_data: &LESSON_LEARNED_EFFECTS, complex_hook: None,
+                effect_data: &LESSON_LEARNED_EFFECTS, complex_hook: None,
             });
 }

@@ -25,12 +25,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Forethought", name: "Forethought", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["forethought"], effect_data: &FORETHOUGHT_BASE, complex_hook: None,
+                effect_data: &FORETHOUGHT_BASE, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Forethought+", name: "Forethought+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["forethought_all"], effect_data: &FORETHOUGHT_PLUS, complex_hook: None,
+                effect_data: &FORETHOUGHT_PLUS, complex_hook: None,
             });
 }

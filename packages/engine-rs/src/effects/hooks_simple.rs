@@ -76,7 +76,7 @@ pub fn hook_mantra(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 pub fn hook_scry(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     if ctx.card.base_magic > 0 {
         engine.do_scry(ctx.card.base_magic);
-        // Scry triggers AwaitingChoice -- the dispatch_on_play loop
+        // Scry triggers AwaitingChoice; the normal card-resolution loop
         // will check engine.phase and return early if needed.
     }
 }

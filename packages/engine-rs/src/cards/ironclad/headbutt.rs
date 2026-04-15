@@ -14,8 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &[],
-        effect_data: &[
+                effect_data: &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ChooseCards {
                 source: crate::effects::declarative::Pile::Discard,
@@ -39,8 +38,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &[],
-        effect_data: &[
+                effect_data: &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ChooseCards {
                 source: crate::effects::declarative::Pile::Discard,

@@ -1083,7 +1083,8 @@ pub fn execute_trigger_effects(
     // Build a minimal synthetic CardPlayContext.
     // Card-relative AmountSource variants (Magic, Block, Damage) will
     // resolve to 0/1 — callers should use Fixed() for trigger effects.
-    static EMPTY_CARD: crate::cards::CardDef = crate::cards::CardDef {
+    static EMPTY_CARD: OnceLock<crate::cards::CardDef> = OnceLock::new();
+    let empty_card = EMPTY_CARD.get_or_init(|| crate::cards::CardDef {
         id: "",
         name: "",
         card_type: CardType::Skill,
@@ -1094,13 +1095,13 @@ pub fn execute_trigger_effects(
         base_magic: 0,
         exhaust: false,
         enter_stance: None,
-        effects: &[],
+        metadata: crate::effects::types::CardMetadata::default(),
         effect_data: &[],
         complex_hook: None,
-    };
+    });
 
     let mut ctx = CardPlayContext {
-        card: &EMPTY_CARD,
+        card: empty_card,
         card_inst: crate::combat_types::CardInstance::new(0),
         target_idx: trigger_ctx.target_idx,
         x_value: 0,

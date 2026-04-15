@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Intimidate", name: "Intimidate", card_type: CardType::Skill,
                 target: CardTarget::AllEnemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 1, exhaust: true, enter_stance: None,
-                effects: &["weak_all"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::AllEnemies, sid::WEAKENED, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Intimidate+", name: "Intimidate+", card_type: CardType::Skill,
                 target: CardTarget::AllEnemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["weak_all"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::AllEnemies, sid::WEAKENED, A::Magic)),
                 ], complex_hook: None,
             });

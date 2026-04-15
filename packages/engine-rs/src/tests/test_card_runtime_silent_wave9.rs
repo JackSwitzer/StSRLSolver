@@ -18,7 +18,7 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     assert_eq!(endless_agony.card_type, CardType::Attack);
     assert_eq!(endless_agony.target, CardTarget::Enemy);
     assert!(endless_agony.exhaust);
-    assert!(endless_agony.effects.contains(&"copy_on_draw"));
+    assert!(endless_agony.has_test_marker("copy_on_draw"));
     assert_eq!(
         endless_agony.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
@@ -26,7 +26,7 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
 
     let grand_finale = registry.get("Grand Finale").expect("Grand Finale should exist");
     assert_eq!(grand_finale.target, CardTarget::AllEnemy);
-    assert!(grand_finale.effects.contains(&"only_empty_draw"));
+    assert!(grand_finale.has_test_marker("only_empty_draw"));
     assert_eq!(
         grand_finale.effect_data,
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
@@ -35,7 +35,7 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     let masterful_stab = registry
         .get("Masterful Stab")
         .expect("Masterful Stab should exist");
-    assert!(masterful_stab.effects.contains(&"cost_increase_on_hp_loss"));
+    assert!(masterful_stab.has_test_marker("cost_increase_on_hp_loss"));
     assert_eq!(
         masterful_stab.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]

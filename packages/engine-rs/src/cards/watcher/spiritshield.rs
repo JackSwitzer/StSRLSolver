@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "SpiritShield", name: "Spirit Shield", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["block_per_card_in_hand"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainBlock(A::HandSize)),
                     E::Simple(SE::GainBlock(A::HandSize)),
                     E::Simple(SE::GainBlock(A::HandSize)),
@@ -17,7 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "SpiritShield+", name: "Spirit Shield+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effects: &["block_per_card_in_hand"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainBlock(A::HandSize)),
                     E::Simple(SE::GainBlock(A::HandSize)),
                     E::Simple(SE::GainBlock(A::HandSize)),

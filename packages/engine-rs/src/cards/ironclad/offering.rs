@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Offering", name: "Offering", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: true, enter_stance: None,
-                effects: &["offering"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ModifyHp(A::Fixed(-6))),
                     E::Simple(SE::GainEnergy(A::Fixed(2))),
                     E::Simple(SE::DrawCards(A::Magic)),
@@ -16,7 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Offering+", name: "Offering+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 5, exhaust: true, enter_stance: None,
-                effects: &["offering"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::ModifyHp(A::Fixed(-6))),
                     E::Simple(SE::GainEnergy(A::Fixed(2))),
                     E::Simple(SE::DrawCards(A::Magic)),

@@ -222,20 +222,51 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_potions_have_hooks_or_empty_triggers() {
-        let complex_ids = [
-            "Elixir", "GamblersBrew", "EntropicBrew",
-            "BottledMiracle", "CunningPotion", "Ambrosia",
-            "BlessingOfTheForge", "LiquidMemories",
-            "DistilledChaos", "EssenceOfDarkness",
-            "AttackPotion", "SkillPotion", "PowerPotion",
-            "ColorlessPotion", "PotionOfCapacity",
+    fn test_complex_potions_have_hooks_or_declarative_triggers() {
+        let hook_backed_ids = [
+            "Elixir",
+            "GamblersBrew",
+            "EntropicBrew",
+            "Ambrosia",
+            "BlessingOfTheForge",
+            "LiquidMemories",
+            "DistilledChaos",
+            "EssenceOfDarkness",
+            "AttackPotion",
+            "SkillPotion",
+            "PowerPotion",
+            "ColorlessPotion",
         ];
-        for id in &complex_ids {
+        for id in &hook_backed_ids {
             let def = potion_def_by_id(id)
                 .unwrap_or_else(|| panic!("missing potion def: {}", id));
             assert!(def.complex_hook.is_some(), "no complex_hook for {}", id);
         }
+
+        let declarative_ids = [
+            "BottledMiracle",
+            "CunningPotion",
+            "StancePotion",
+            "PotionOfCapacity",
+        ];
+        for id in &declarative_ids {
+            let def = potion_def_by_id(id)
+                .unwrap_or_else(|| panic!("missing potion def: {}", id));
+            assert!(def.complex_hook.is_none(), "unexpected complex_hook for {}", id);
+            assert!(
+                def.triggers
+                    .iter()
+                    .any(|trigger| trigger.trigger == Trigger::ManualActivation),
+                "{id} should still advertise runtime manual activation"
+            );
+        }
+
+        let fairy = potion_def_by_id("FairyPotion").expect("missing FairyPotion");
+        assert!(fairy.complex_hook.is_none());
+        assert!(
+            fairy.triggers.is_empty(),
+            "FairyPotion should stay passive rather than manual-activation driven"
+        );
     }
 
     #[test]

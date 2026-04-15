@@ -1,7 +1,10 @@
+use crate::effects::declarative::{
+    AmountSource, BulkAction, ChoiceAction, Effect, Pile, SimpleEffect,
+};
 use crate::effects::types::{
-    CanPlayRule, CardRuntimeTraits, CardRuntimeTrigger, CostModifierRule, DamageModifierRule,
-    EndTurnHandRule, OnDiscardRule, OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule,
-    WhileInHandRule,
+    CanPlayRule, CardBlockHint, CardEvokeHint, CardMetadata, CardPlayHints, CardRuntimeTraits,
+    CardRuntimeTrigger, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
+    OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule, WhileInHandRule,
 };
 
 const EMPTY_TRIGGERS: &[CardRuntimeTrigger] = &[];
@@ -83,14 +86,77 @@ const PRIDE_TRIGGERS: &[CardRuntimeTrigger] =
 const PAIN_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed)];
 
-pub fn runtime_traits_for_card(legacy_effects: &[&'static str]) -> CardRuntimeTraits {
+pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
     CardRuntimeTraits {
-        innate: legacy_effects.contains(&"innate"),
-        retain: legacy_effects.contains(&"retain"),
-        ethereal: legacy_effects.contains(&"ethereal"),
-        unplayable: legacy_effects.contains(&"unplayable"),
-        limit_cards_per_turn: legacy_effects.contains(&"limit_cards_per_turn"),
-        unremovable: false,
+        innate: matches!(
+            id,
+            "Dramatic Entrance"
+                | "Dramatic Entrance+"
+                | "Mind Blast"
+                | "Mind Blast+"
+                | "BootSequence"
+                | "BootSequence+"
+                | "Chill+"
+                | "Hello World+"
+                | "Machine Learning+"
+                | "Storm+"
+                | "Brutality+"
+                | "Backstab"
+                | "Backstab+"
+                | "Infinite Blades+"
+                | "Alpha+"
+                | "BattleHymn+"
+                | "Establishment+"
+                | "Pride"
+                | "Writhe"
+        ),
+        retain: matches!(
+            id,
+            "Crescendo"
+                | "Crescendo+"
+                | "FlyingSleeves"
+                | "FlyingSleeves+"
+                | "HolyWater"
+                | "HolyWater+"
+                | "Insight"
+                | "Insight+"
+                | "Perseverance"
+                | "Perseverance+"
+                | "Protect"
+                | "Protect+"
+                | "Safety"
+                | "Safety+"
+                | "SandsOfTime"
+                | "SandsOfTime+"
+                | "Smite"
+                | "Smite+"
+                | "ThroughViolence"
+                | "ThroughViolence+"
+                | "ClearTheMind"
+                | "ClearTheMind+"
+                | "WindmillStrike"
+                | "WindmillStrike+"
+                | "Worship+"
+                | "Blasphemy+"
+        ),
+        ethereal: matches!(
+            id,
+            "Daze"
+                | "Void"
+                | "AscendersBane"
+                | "Clumsy"
+                | "Ghostly"
+                | "Carnage"
+                | "Carnage+"
+                | "Ghostly Armor"
+                | "Ghostly Armor+"
+                | "Phantasmal Killer"
+                | "DevaForm"
+                | "Echo Form"
+        ),
+        unplayable: cost == -2,
+        limit_cards_per_turn: matches!(id, "Normality"),
+        unremovable: matches!(id, "AscendersBane" | "CurseOfTheBell" | "Necronomicurse"),
     }
 }
 
@@ -130,7 +196,7 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
             RITUAL_DAGGER_TRIGGERS
         }
         "Searing Blow" => SEARING_BLOW_TRIGGERS,
-        "Claw" | "Claw+" => CLAW_TRIGGERS,
+        "Claw" | "Claw+" | "Gash" | "Gash+" => CLAW_TRIGGERS,
         "Mind Blast" | "Mind Blast+" => MIND_BLAST_TRIGGERS,
         "Brilliance" | "Brilliance+" => BRILLIANCE_TRIGGERS,
         "Burn" | "Burn+" => BURN_TRIGGERS,
@@ -144,126 +210,112 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
     }
 }
 
-fn runtime_trait_tag_names(traits: CardRuntimeTraits) -> [Option<&'static str>; 5] {
-    [
-        traits.innate.then_some("innate"),
-        traits.retain.then_some("retain"),
-        traits.ethereal.then_some("ethereal"),
-        traits.unplayable.then_some("unplayable"),
-        traits.limit_cards_per_turn.then_some("limit_cards_per_turn"),
-    ]
-}
-
-fn runtime_trigger_tag_names(trigger: CardRuntimeTrigger) -> &'static [&'static str] {
-    match trigger {
-        CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyAttackInHand) => &["only_attack_in_hand"],
-        CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyAttacksInHand) => &["only_attacks_in_hand"],
-        CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyEmptyDraw) => &["only_empty_draw"],
-        CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnHpLoss) => {
-            &["cost_reduce_on_hp_loss"]
-        }
-        CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower) => {
-            &["reduce_cost_per_power"]
-        }
-        CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard) => {
-            &["cost_reduce_on_discard"]
-        }
-        CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss) => {
-            &["cost_increase_on_hp_loss"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::HeavyBlade) => &["heavy_blade"],
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageEqualsBlock) => {
-            &["damage_equals_block"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamagePlusMantra) => {
-            &["damage_plus_mantra"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::PerfectedStrike) => {
-            &["perfected_strike"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::Rampage) => &["rampage"],
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::GlassKnife) => &["glass_knife"],
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::RitualDagger) => {
-            &["ritual_dagger"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::SearingBlow) => {
-            &["searing_blow"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageRandomXTimes) => {
-            &["damage_random_x_times"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::WindmillStrike) => {
-            &["grow_damage_on_retain"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::ClawScaling) => &["claw_scaling"],
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamagePerLightning) => {
-            &["damage_per_lightning_channeled"]
-        }
-        CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageFromDrawPile) => {
-            &["damage_from_draw_pile"]
-        }
-        CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy) => &["lose_energy_on_draw"],
-        CardRuntimeTrigger::OnDraw(OnDrawRule::CopySelf) => &["copy_on_draw"],
-        CardRuntimeTrigger::OnDraw(OnDrawRule::DeusExMachina) => &["deus_ex_machina"],
-        CardRuntimeTrigger::OnDiscard(OnDiscardRule::DrawCards) => &["draw_on_discard"],
-        CardRuntimeTrigger::OnDiscard(OnDiscardRule::GainEnergy) => &["energy_on_discard"],
-        CardRuntimeTrigger::OnRetain(OnRetainRule::ReduceCost) => &["reduce_cost_on_retain"],
-        CardRuntimeTrigger::OnRetain(OnRetainRule::GrowBlock) => &["grow_block_on_retain"],
-        CardRuntimeTrigger::OnRetain(OnRetainRule::GrowDamage) => &["grow_damage_on_retain"],
-        CardRuntimeTrigger::OnExhaust(OnExhaustRule::GainEnergy) => &["energy_on_exhaust"],
-        CardRuntimeTrigger::PostPlay(PostPlayRule::ShuffleIntoDraw) => &["shuffle_self_into_draw"],
-        CardRuntimeTrigger::PostPlay(PostPlayRule::EndTurn) => &["end_turn"],
-        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage) => &["end_turn_damage"],
-        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Regret) => &["end_turn_regret"],
-        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Weak) => &["end_turn_weak"],
-        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail) => &["end_turn_frail"],
-        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::AddCopy) => &["add_copy_end_turn"],
-        CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed) => {
-            &["damage_on_draw"]
-        }
+pub fn play_hints_for_card(id: &str, cost: i32, effects: &[Effect]) -> CardPlayHints {
+    CardPlayHints {
+        draws_cards: effect_draws_cards(effects),
+        discards_cards: effect_discards_cards(effects),
+        x_cost: cost == -1,
+        // A small number of cards express repeated hits through typed card-owned
+        // modifiers instead of declarative ExtraHits.
+        multi_hit: effect_has_extra_hits(effects)
+            || matches!(id, "Tantrum" | "Tantrum+" | "Glass Knife" | "Glass Knife+"),
+        block_hint: match id {
+            "ReinforcedBody" | "ReinforcedBody+" | "Reinforced Body" | "Reinforced Body+" => {
+                Some(CardBlockHint::XTimes)
+            }
+            "Escape Plan" | "Escape Plan+" => Some(CardBlockHint::IfSkill),
+            "Auto Shields" | "Auto Shields+" => Some(CardBlockHint::IfNoBlock),
+            "Second Wind" | "Second Wind+" => Some(CardBlockHint::BulkCountTimesBaseBlock),
+            "Genetic Algorithm" | "Genetic Algorithm+" | "SteamBarrier" | "SteamBarrier+" => {
+                Some(CardBlockHint::UsesCardMisc)
+            }
+            _ => None,
+        },
+        evoke_hint: derive_evoke_hint(effects),
+        channel_evoked_orb: matches!(id, "Redo" | "Redo+"),
     }
 }
 
-fn dedupe(tags: &mut Vec<&'static str>) {
-    let mut seen = Vec::new();
-    tags.retain(|tag| {
-        if seen.contains(tag) {
-            false
-        } else {
-            seen.push(*tag);
-            true
-        }
-    });
+pub fn metadata_for_card(id: &str, cost: i32, effects: &[Effect]) -> CardMetadata {
+    CardMetadata {
+        runtime_traits: runtime_traits_for_card(id, cost),
+        runtime_triggers: runtime_triggers_for_card(id).to_vec().into_boxed_slice(),
+        play_hints: play_hints_for_card(id, cost, effects),
+    }
 }
 
-pub fn compat_effect_tags_for_card(id: &str, legacy_effects: &[&'static str]) -> Vec<&'static str> {
-    let mut tags = legacy_effect_tags_for_card(id, legacy_effects);
-    let traits = runtime_traits_for_card(legacy_effects);
-    for tag in runtime_trait_tag_names(traits).into_iter().flatten() {
-        tags.push(tag);
-    }
-    for trigger in runtime_triggers_for_card(id) {
-        tags.extend_from_slice(runtime_trigger_tag_names(*trigger));
-    }
-    dedupe(&mut tags);
-    tags
+fn effect_draws_cards(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(
+            SimpleEffect::DrawCards(_)
+            | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_)
+            | SimpleEffect::DrawToHandSize(_)
+            | SimpleEffect::DrawRandomCardsFromPileToHand(_, _, _),
+        ) => true,
+        Effect::ChooseCards {
+            post_choice_draw, ..
+        } => !matches!(post_choice_draw, AmountSource::Fixed(0)),
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_draws_cards(then_effects) || effect_draws_cards(else_effects)
+        }
+        _ => false,
+    })
 }
 
-pub fn legacy_effect_tags_for_card(id: &str, legacy_effects: &[&'static str]) -> Vec<&'static str> {
-    let traits = runtime_traits_for_card(legacy_effects);
-    let mut filtered = Vec::with_capacity(legacy_effects.len());
-    for tag in legacy_effects {
-        let stripped_trait = matches!(
-            *tag,
-            "innate" | "retain" | "ethereal" | "unplayable" | "limit_cards_per_turn"
-        ) && runtime_trait_tag_names(traits).into_iter().flatten().any(|candidate| candidate == *tag);
-        let stripped_trigger = runtime_triggers_for_card(id)
-            .iter()
-            .flat_map(|trigger| runtime_trigger_tag_names(*trigger).iter().copied())
-            .any(|candidate| candidate == *tag);
-        if !stripped_trait && !stripped_trigger {
-            filtered.push(*tag);
+fn effect_discards_cards(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::Simple(SimpleEffect::DiscardRandomCardsFromPile(_, _)) => true,
+        Effect::ChooseCards { source, action, .. } => {
+            matches!(source, Pile::Hand)
+                && matches!(action, ChoiceAction::Discard | ChoiceAction::DiscardForEffect)
+        }
+        Effect::ForEachInPile { action, .. } => matches!(action, BulkAction::Discard),
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_discards_cards(then_effects) || effect_discards_cards(else_effects)
+        }
+        _ => false,
+    })
+}
+
+fn effect_has_extra_hits(effects: &[Effect]) -> bool {
+    effects.iter().any(|effect| match effect {
+        Effect::ExtraHits(_) => true,
+        Effect::Conditional(_, then_effects, else_effects) => {
+            effect_has_extra_hits(then_effects) || effect_has_extra_hits(else_effects)
+        }
+        _ => false,
+    })
+}
+
+fn derive_evoke_hint(effects: &[Effect]) -> Option<CardEvokeHint> {
+    let mut fixed_count: u8 = 0;
+    let mut x_hint = None;
+    collect_evoke_hint(effects, &mut fixed_count, &mut x_hint);
+    x_hint.or_else(|| (fixed_count > 0).then_some(CardEvokeHint::Fixed(fixed_count)))
+}
+
+fn collect_evoke_hint(
+    effects: &[Effect],
+    fixed_count: &mut u8,
+    x_hint: &mut Option<CardEvokeHint>,
+) {
+    for effect in effects {
+        match effect {
+            Effect::Simple(SimpleEffect::EvokeOrb(amount)) => match amount {
+                AmountSource::Fixed(count) if *count > 0 => {
+                    *fixed_count = fixed_count.saturating_add(*count as u8);
+                }
+                AmountSource::XCost => *x_hint = Some(CardEvokeHint::XCost),
+                AmountSource::XCostPlus(count) if *count > 0 => {
+                    *x_hint = Some(CardEvokeHint::XCostPlus(*count as u8));
+                }
+                _ => {}
+            },
+            Effect::Conditional(_, then_effects, else_effects) => {
+                collect_evoke_hint(then_effects, fixed_count, x_hint);
+                collect_evoke_hint(else_effects, fixed_count, x_hint);
+            }
+            _ => {}
         }
     }
-    filtered
 }

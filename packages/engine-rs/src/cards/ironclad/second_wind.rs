@@ -16,8 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &["second_wind"],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::NonAttacks,
@@ -38,8 +37,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &["second_wind"],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::NonAttacks,

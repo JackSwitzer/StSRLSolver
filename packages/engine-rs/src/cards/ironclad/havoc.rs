@@ -6,12 +6,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Havoc", name: "Havoc", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["play_top_card"], effect_data: &[E::Simple(SE::PlayTopCardOfDraw)], complex_hook: None,
+                effect_data: &[E::Simple(SE::PlayTopCardOfDraw)], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Havoc+", name: "Havoc+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["play_top_card"], effect_data: &[E::Simple(SE::PlayTopCardOfDraw)], complex_hook: None,
+                effect_data: &[E::Simple(SE::PlayTopCardOfDraw)], complex_hook: None,
             });
 }

@@ -27,12 +27,12 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Wish", name: "Wish", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: 3, base_block: 6,
                 base_magic: 25, exhaust: true, enter_stance: None,
-                effects: &["wish"], effect_data: &WISH_EFFECTS, complex_hook: None,
+                effect_data: &WISH_EFFECTS, complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Wish+", name: "Wish+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: 4, base_block: 8,
                 base_magic: 30, exhaust: true, enter_stance: None,
-                effects: &["wish"], effect_data: &WISH_EFFECTS, complex_hook: None,
+                effect_data: &WISH_EFFECTS, complex_hook: None,
             });
 }

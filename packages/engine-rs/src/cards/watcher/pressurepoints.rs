@@ -8,7 +8,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "PathToVictory", name: "Pressure Points", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 8, exhaust: false, enter_stance: None,
-                effects: &["pressure_points"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::MARK, A::Magic)),
                     E::Simple(SE::TriggerMarks),
                 ], complex_hook: None,
@@ -17,7 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "PathToVictory+", name: "Pressure Points+", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 11, exhaust: false, enter_stance: None,
-                effects: &["pressure_points"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::MARK, A::Magic)),
                     E::Simple(SE::TriggerMarks),
                 ], complex_hook: None,

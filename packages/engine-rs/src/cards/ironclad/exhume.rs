@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Exhume", name: "Exhume", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["exhume"], effect_data: &[
+                effect_data: &[
                     E::ChooseCards {
                         source: P::Exhaust,
                         filter: crate::effects::declarative::CardFilter::All,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Exhume+", name: "Exhume+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: None,
-                effects: &["exhume"], effect_data: &[
+                effect_data: &[
                     E::ChooseCards {
                         source: P::Exhaust,
                         filter: crate::effects::declarative::CardFilter::All,

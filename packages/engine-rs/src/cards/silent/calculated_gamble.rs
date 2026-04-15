@@ -6,8 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Calculated Gamble", name: "Calculated Gamble", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: -1, exhaust: true, enter_stance: None,
-        effects: &["calculated_gamble"],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,
@@ -21,8 +20,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "Calculated Gamble+", name: "Calculated Gamble+", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
         base_magic: -1, exhaust: false, enter_stance: None,
-        effects: &["calculated_gamble"],
-        effect_data: &[
+                effect_data: &[
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,

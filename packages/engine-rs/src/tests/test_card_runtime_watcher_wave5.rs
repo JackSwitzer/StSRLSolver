@@ -37,7 +37,10 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         conclude.effect_data,
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
     );
-    assert!(conclude.effects.contains(&"end_turn"));
+    assert!(conclude
+        .runtime_triggers()
+        .iter()
+        .any(|trigger| matches!(trigger, crate::effects::types::CardRuntimeTrigger::PostPlay(crate::effects::types::PostPlayRule::EndTurn))));
 
     let consecrate = global_registry().get("Consecrate").expect("Consecrate should be registered");
     assert_eq!(consecrate.card_type, CardType::Attack);
@@ -52,8 +55,8 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         crescendo.effect_data,
         &[E::Simple(SE::ChangeStance(Stance::Wrath))]
     );
-    assert_eq!(crescendo.enter_stance, None);
-    assert!(crescendo.effects.contains(&"retain"));
+    assert_eq!(crescendo.enter_stance, Some("Wrath"));
+    assert!(crescendo.runtime_traits().retain);
 
     let establishment = global_registry()
         .get("Establishment+")
@@ -62,7 +65,7 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         establishment.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::ESTABLISHMENT, A::Magic))]
     );
-    assert_eq!(establishment.effects, &["innate"]);
+    assert!(establishment.runtime_traits().innate);
 
     let fasting = global_registry().get("Fasting2").expect("Fasting should be registered");
     assert_eq!(
@@ -77,7 +80,7 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
 
     let holy_water = global_registry().get("HolyWater").expect("Holy Water should be registered");
     assert_eq!(holy_water.base_block, 5);
-    assert!(holy_water.effects.contains(&"retain"));
+    assert!(holy_water.runtime_traits().retain);
     assert_eq!(holy_water.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let judgement = global_registry().get("Judgement").expect("Judgement should be registered");

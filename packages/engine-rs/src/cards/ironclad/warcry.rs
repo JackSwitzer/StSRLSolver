@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Warcry", name: "Warcry", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 1, exhaust: true, enter_stance: None,
-                effects: &["draw", "put_card_on_top"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::ChooseCards {
                         source: P::Hand,
@@ -22,7 +22,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Warcry+", name: "Warcry+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["draw", "put_card_on_top"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Magic)),
                     E::ChooseCards {
                         source: P::Hand,

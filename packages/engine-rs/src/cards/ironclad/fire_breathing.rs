@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Fire Breathing", name: "Fire Breathing", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 6, exhaust: false, enter_stance: None,
-                effects: &["fire_breathing"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FIRE_BREATHING, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Fire Breathing+", name: "Fire Breathing+", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 10, exhaust: false, enter_stance: None,
-                effects: &["fire_breathing"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::Player, sid::FIRE_BREATHING, A::Magic)),
                 ], complex_hook: None,
             });

@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Perseverance", name: "Perseverance", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["retain", "grow_block_on_retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainBlock(A::Block)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Perseverance+", name: "Perseverance+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effects: &["retain", "grow_block_on_retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::GainBlock(A::Block)),
                 ], complex_hook: None,
             });

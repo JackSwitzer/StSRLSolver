@@ -141,8 +141,8 @@ fn card_effect_vector_from_def(card: &crate::cards::CardDef, _card_id: &str, v: 
         v[2] = card.base_block as f32 / 30.0;
     }
 
-    // [3] draw (from effects)
-    if card.effects.contains(&"draw") && card.base_magic > 0 {
+    // [3] draw (from typed metadata / declarative body)
+    if (card.draws_cards_hint() || card.declared_draw_count().is_some()) && card.base_magic > 0 {
         v[3] = card.base_magic as f32 / 5.0;
     }
 
@@ -157,8 +157,8 @@ fn card_effect_vector_from_def(card: &crate::cards::CardDef, _card_id: &str, v: 
     // [6] exhaust
     v[6] = if card.exhaust { 1.0 } else { 0.0 };
 
-    // [7] ethereal (simplified: status cards)
-    if card.card_type == CardType::Status {
+    // [7] ethereal
+    if card.runtime_traits().ethereal {
         v[7] = 1.0;
     }
 
@@ -181,15 +181,13 @@ fn card_effect_vector_from_def(card: &crate::cards::CardDef, _card_id: &str, v: 
     }
     // exit_stance not tracked in CardDef, skip v[14]
 
-    // [15-17] power embedding (simplified)
-    for effect in card.effects {
-        let e = effect.to_lowercase();
-        if e.contains("strength") || e.contains("rushdown") || e.contains("on_wrath") {
-            v[15] = 1.0;
-        }
-        if e.contains("dexterity") || e.contains("mental") || e.contains("on_stance") {
-            v[16] = 1.0;
-        }
+    // [15-17] power embedding (simplified typed status families)
+    let (strength_like, dexterity_like) = card.power_embedding_flags();
+    if strength_like {
+        v[15] = 1.0;
+    }
+    if dexterity_like {
+        v[16] = 1.0;
     }
     if card.card_type == CardType::Power && card.base_magic > 0 {
         v[17] = card.base_magic as f32 / 10.0;
@@ -894,6 +892,7 @@ pub fn get_observation(engine: &RunEngine) -> [f32; RUN_DIM] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::support::resolve_opening_neow;
 
     #[test]
     fn test_observation_dim() {
@@ -923,12 +922,13 @@ mod tests {
         let engine = RunEngine::new(42, 20);
         let obs = get_observation(&engine);
         assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 1], 0.25, "root decision stack should have depth 1");
-        assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 2], 0.0, "no active reward choice should be present");
+        assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 2], 0.8, "Neow start should expose four opening choices");
     }
 
     #[test]
     fn test_combat_encoding_dims() {
         let mut engine = RunEngine::new(42, 20);
+        resolve_opening_neow(&mut engine);
         // Enter combat
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);

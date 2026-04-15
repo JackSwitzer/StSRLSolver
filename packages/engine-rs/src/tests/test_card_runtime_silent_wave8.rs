@@ -53,7 +53,7 @@ fn silent_wave8_registry_exports_match_typed_primary_surface() {
 
     let backstab = registry.get("Backstab").expect("Backstab should exist");
     assert!(backstab.exhaust);
-    assert!(backstab.effects.contains(&"innate"));
+    assert!(backstab.has_test_marker("innate"));
     assert_eq!(
         backstab.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]

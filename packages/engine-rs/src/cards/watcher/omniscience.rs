@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Omniscience", name: "Omniscience", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 4, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["omniscience"], effect_data: &[Effect::ChooseCards {
+                effect_data: &[Effect::ChooseCards {
                     source: P::Draw,
                     filter: CardFilter::All,
                     action: ChoiceAction::PlayForFree,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Omniscience+", name: "Omniscience+", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: true, enter_stance: None,
-                effects: &["omniscience"], effect_data: &[Effect::ChooseCards {
+                effect_data: &[Effect::ChooseCards {
                     source: P::Draw,
                     filter: CardFilter::All,
                     action: ChoiceAction::PlayForFree,

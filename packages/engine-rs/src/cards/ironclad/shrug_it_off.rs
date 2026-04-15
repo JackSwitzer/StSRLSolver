@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Shrug It Off", name: "Shrug It Off", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Fixed(1))),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Shrug It Off+", name: "Shrug It Off+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 11,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["draw"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DrawCards(A::Fixed(1))),
                 ], complex_hook: None,
             });

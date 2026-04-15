@@ -52,7 +52,7 @@ fn backend_card(
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &[],
+        metadata: crate::effects::types::CardMetadata::default(),
         effect_data,
         complex_hook: None,
     }

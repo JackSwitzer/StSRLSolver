@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Wallop", name: "Wallop", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 9, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["block_from_damage"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                     E::Simple(SE::GainBlock(A::TotalUnblockedDamage)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Wallop+", name: "Wallop+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["block_from_damage"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                     E::Simple(SE::GainBlock(A::TotalUnblockedDamage)),
                 ], complex_hook: None,

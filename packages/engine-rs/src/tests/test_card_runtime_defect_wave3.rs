@@ -28,7 +28,7 @@ fn assert_gameplay_card_export(
     let def = crate::gameplay::global_registry()
         .card(id)
         .unwrap_or_else(|| panic!("missing gameplay card export for {id}"));
-    assert_eq!(def.program_source(), GameplayProgramSource::AdaptedLegacy, "{id} source");
+    assert_eq!(def.program_source(), GameplayProgramSource::Canonical, "{id} source");
 
     let schema = def.card_schema().expect("card schema");
     assert_eq!(schema.card_type, Some(card_type), "{id} type");

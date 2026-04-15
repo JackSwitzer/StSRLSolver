@@ -13,8 +13,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &["double_block"],
-        effect_data: &[E::Simple(SE::GainBlock(A::PlayerBlock))],
+                effect_data: &[E::Simple(SE::GainBlock(A::PlayerBlock))],
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -28,8 +27,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: false,
         enter_stance: None,
-        effects: &["double_block"],
-        effect_data: &[E::Simple(SE::GainBlock(A::PlayerBlock))],
+                effect_data: &[E::Simple(SE::GainBlock(A::PlayerBlock))],
         complex_hook: None,
     });
 }

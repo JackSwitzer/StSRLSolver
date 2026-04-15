@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "ThroughViolence", name: "Through Violence", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 0, base_damage: 20, base_block: -1,
         base_magic: -1, exhaust: true, enter_stance: None,
-        effects: &["retain"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ], complex_hook: None,
     });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         id: "ThroughViolence+", name: "Through Violence+", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 0, base_damage: 30, base_block: -1,
         base_magic: -1, exhaust: true, enter_stance: None,
-        effects: &["retain"], effect_data: &[
+                effect_data: &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ], complex_hook: None,
     });

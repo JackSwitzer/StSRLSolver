@@ -7,7 +7,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "All For One", name: "All For One", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["return_zero_cost_from_discard"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile { pile: P::Discard, filter: CardFilter::ZeroCost, action: BulkAction::MoveToHand },
                 ], complex_hook: None,
             });
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "All For One+", name: "All For One+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 14, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
-                effects: &["return_zero_cost_from_discard"], effect_data: &[
+                effect_data: &[
                     E::ForEachInPile { pile: P::Discard, filter: CardFilter::ZeroCost, action: BulkAction::MoveToHand },
                 ], complex_hook: None,
             });

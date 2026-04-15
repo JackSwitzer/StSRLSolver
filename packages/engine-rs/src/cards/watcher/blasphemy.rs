@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Blasphemy", name: "Blasphemy", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: Some("Divinity"),
-                effects: &["die_next_turn"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetFlag(BF::Blasphemy)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Blasphemy+", name: "Blasphemy+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: -1, exhaust: true, enter_stance: Some("Divinity"),
-                effects: &["die_next_turn", "retain"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::SetFlag(BF::Blasphemy)),
                 ], complex_hook: None,
             });

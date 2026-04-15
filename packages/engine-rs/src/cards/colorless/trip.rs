@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Trip", name: "Trip", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["apply_vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });
@@ -14,7 +14,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Trip+", name: "Trip+", card_type: CardType::Skill,
                 target: CardTarget::AllEnemy, cost: 0, base_damage: -1, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["apply_vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::AllEnemies, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
             });

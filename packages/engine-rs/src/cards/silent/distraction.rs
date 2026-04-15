@@ -19,8 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_skill_to_hand"],
-        effect_data: &DISTRACTION,
+                effect_data: &DISTRACTION,
         complex_hook: None,
     });
     insert(cards, CardDef {
@@ -34,8 +33,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: -1,
         exhaust: true,
         enter_stance: None,
-        effects: &["random_skill_to_hand"],
-        effect_data: &DISTRACTION,
+                effect_data: &DISTRACTION,
         complex_hook: None,
     });
 }

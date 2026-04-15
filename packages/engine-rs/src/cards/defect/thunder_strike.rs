@@ -8,7 +8,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thunder Strike", name: "Thunder Strike", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 7, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
                     E::ExtraHits(A::StatusValue(sid::LIGHTNING_CHANNELED)),
                 ], complex_hook: None,
@@ -17,7 +17,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Thunder Strike+", name: "Thunder Strike+", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 9, base_block: -1,
                 base_magic: 0, exhaust: false, enter_stance: None,
-                effects: &[], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
                     E::ExtraHits(A::StatusValue(sid::LIGHTNING_CHANNELED)),
                 ], complex_hook: None,

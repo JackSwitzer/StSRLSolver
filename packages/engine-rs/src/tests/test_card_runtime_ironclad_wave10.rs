@@ -42,7 +42,7 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
             card.uses_typed_primary_preamble(),
             "{card_id} should use the typed primary preamble"
         );
-        assert!(card.effects.contains(&"rampage"));
+        assert!(card.has_test_marker("rampage"));
         assert!(card.complex_hook.is_none(), "{card_id} should be fully typed");
     }
 

@@ -9,7 +9,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Omega", name: "Omega", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,
             base_magic: 50, exhaust: false, enter_stance: None,
-            effects: &[], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::AddStatus(T::Player, sid::OMEGA, A::Magic)),
             ], complex_hook: None,
         });
@@ -17,7 +17,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Omega+", name: "Omega+", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,
             base_magic: 60, exhaust: false, enter_stance: None,
-            effects: &[], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::AddStatus(T::Player, sid::OMEGA, A::Magic)),
             ], complex_hook: None,
         });
@@ -26,7 +26,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Expunger", name: "Expunger", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
             base_magic: 0, exhaust: false, enter_stance: None,
-            effects: &[], effect_data: &[
+                effect_data: &[
                 E::ExtraHits(A::CardMisc),
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
@@ -35,7 +35,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Expunger+", name: "Expunger+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,
             base_magic: 0, exhaust: false, enter_stance: None,
-            effects: &[], effect_data: &[
+                effect_data: &[
                 E::ExtraHits(A::CardMisc),
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
@@ -47,7 +47,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Safety", name: "Safety", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 12,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["retain"], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::GainBlock(A::Block)),
             ], complex_hook: None,
         });
@@ -55,7 +55,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "Safety+", name: "Safety+", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 16,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["retain"], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::GainBlock(A::Block)),
             ], complex_hook: None,
         });
@@ -64,7 +64,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "ThroughViolence", name: "Through Violence", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 20, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["retain"], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
         });
@@ -72,7 +72,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
             id: "ThroughViolence+", name: "Through Violence+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 30, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
-            effects: &["retain"], effect_data: &[
+                effect_data: &[
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
         });
@@ -80,19 +80,17 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
         insert(cards, CardDef {
             id: "Shiv", name: "Shiv", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,
-            base_magic: -1, exhaust: true, enter_stance: None, effects: &[], effect_data: &[
+            base_magic: -1, exhaust: true, enter_stance: None,
+                effect_data: &[
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
         });
         insert(cards, CardDef {
             id: "Shiv+", name: "Shiv+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 6, base_block: -1,
-            base_magic: -1, exhaust: true, enter_stance: None, effects: &[], effect_data: &[
+            base_magic: -1, exhaust: true, enter_stance: None,
+                effect_data: &[
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
         });
-}
-
-fn insert(map: &mut HashMap<&'static str, CardDef>, card: CardDef) {
-    map.insert(card.id, card);
 }

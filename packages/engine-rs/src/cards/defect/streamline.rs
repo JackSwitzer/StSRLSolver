@@ -12,7 +12,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Streamline", name: "Streamline", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["reduce_cost_each_play"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                     E::Simple(SE::ModifyPlayedCardCost(A::Fixed(-1))),
                 ], complex_hook: None,
@@ -21,7 +21,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Streamline+", name: "Streamline+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 20, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["reduce_cost_each_play"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
                     E::Simple(SE::ModifyPlayedCardCost(A::Fixed(-1))),
                 ], complex_hook: None,

@@ -18,7 +18,6 @@ use crate::effects::declarative::{
     AmountSource, CardFilter, ChoiceAction, Effect, GeneratedCostRule, NamedOptionKind, Pile,
 };
 use crate::effects::types::CardPlayContext;
-use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
@@ -122,6 +121,7 @@ pub struct CombatEngine {
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
+    pub(crate) runtime_play_stack: Vec<(CardInstance, i32)>,
     pub runtime_replay_window: bool,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
@@ -143,6 +143,7 @@ impl CombatEngine {
             event_log: Vec::new(),
             runtime_played_card: None,
             runtime_play_target_idx: None,
+            runtime_play_stack: Vec::new(),
             runtime_replay_window: false,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
@@ -184,6 +185,31 @@ impl CombatEngine {
 
     pub fn clear_event_log(&mut self) {
         self.event_log.clear();
+    }
+
+    fn begin_runtime_play_context(&mut self, card_inst: CardInstance, target_idx: i32) {
+        if let Some(current) = self.runtime_played_card {
+            self.runtime_play_stack
+                .push((current, self.runtime_play_target_idx.unwrap_or(-1)));
+        }
+        self.runtime_played_card = Some(card_inst);
+        self.runtime_play_target_idx = Some(target_idx);
+    }
+
+    fn finish_runtime_play_context(&mut self) {
+        if let Some((card_inst, target_idx)) = self.runtime_play_stack.pop() {
+            self.runtime_played_card = Some(card_inst);
+            self.runtime_play_target_idx = Some(target_idx);
+        } else {
+            self.runtime_played_card = None;
+            self.runtime_play_target_idx = None;
+        }
+    }
+
+    fn clear_runtime_play_contexts(&mut self) {
+        self.runtime_played_card = None;
+        self.runtime_play_target_idx = None;
+        self.runtime_play_stack.clear();
     }
 
     pub fn hidden_effect_value(&self, def_id: &str, owner: crate::effects::runtime::EffectOwner, slot: usize) -> i32 {
@@ -363,6 +389,7 @@ impl CombatEngine {
             event_log: self.event_log.clone(),
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
+            runtime_play_stack: self.runtime_play_stack.clone(),
             runtime_replay_window: self.runtime_replay_window,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
@@ -526,8 +553,7 @@ impl CombatEngine {
 
         self.phase = CombatPhase::PlayerTurn;
         if self.state.combat_over {
-            self.runtime_played_card = None;
-            self.runtime_play_target_idx = None;
+            self.clear_runtime_play_contexts();
             return;
         }
         if self.runtime_played_card.is_some() {
@@ -1756,8 +1782,7 @@ impl CombatEngine {
         // Carry the played instance through the rest of the play pipeline so
         // self-mutating cards can write back to the exact copy that is about to
         // land in discard/exhaust.
-        self.runtime_played_card = Some(card_inst);
-        self.runtime_play_target_idx = Some(target_idx);
+        self.begin_runtime_play_context(card_inst, target_idx);
 
         // Track counters
         self.state.cards_played_this_turn += 1;
@@ -1838,8 +1863,7 @@ impl CombatEngine {
         );
         if pain_killed {
             self.phase = CombatPhase::CombatOver;
-            self.runtime_played_card = None;
-            self.runtime_play_target_idx = None;
+            self.clear_runtime_play_contexts();
             return;
         }
 
@@ -1893,8 +1917,7 @@ impl CombatEngine {
         if self.state.combat_over
             || self.state.turn != turn_before_after_use
         {
-            self.runtime_played_card = None;
-            self.runtime_play_target_idx = None;
+            self.clear_runtime_play_contexts();
             return;
         }
         if self.phase != CombatPhase::PlayerTurn {
@@ -1923,8 +1946,7 @@ impl CombatEngine {
             },
         ));
         if self.state.combat_over || self.phase != CombatPhase::PlayerTurn {
-            self.runtime_played_card = None;
-            self.runtime_play_target_idx = None;
+            self.clear_runtime_play_contexts();
             return;
         }
 
@@ -1992,13 +2014,11 @@ impl CombatEngine {
             self.state.discard_pile.push(card_inst);
         }
 
-        self.runtime_played_card = None;
-        self.runtime_play_target_idx = None;
+        self.finish_runtime_play_context();
 
         if post_play_dest == crate::effects::types::PostPlayDestination::EndTurn {
             self.end_turn();
-            self.runtime_played_card = None;
-            self.runtime_play_target_idx = None;
+            self.clear_runtime_play_contexts();
             return;
         }
 
@@ -2013,34 +2033,8 @@ impl CombatEngine {
     }
 
     /// Install a power card as a permanent status effect.
-    /// Uses canonical power install metadata for tag->StatusId lookup.
     fn install_power(&mut self, card: &CardDef) {
-        for effect in card.effects {
-            if let Some(status_id) = runtime_power_status_for_tag(effect) {
-                if !card_declares_player_status(card, status_id) {
-                    let amt = card.base_magic.max(1);
-                    self.state.player.add_status(status_id, amt);
-                }
-                continue;
-            }
-            // Special cases that need engine context
-            match *effect {
-                "fasting" => {
-                    let amount = card.base_magic.max(1);
-                    self.state.player.add_status(sid::STRENGTH, amount);
-                    self.state.player.add_status(sid::DEXTERITY, amount);
-                    self.state.max_energy -= 1;
-                    self.state.energy = self.state.energy.min(self.state.max_energy);
-                }
-                "gain_orb_slots" => {
-                    let slots = card.base_magic.max(1);
-                    for _ in 0..slots {
-                        self.state.orb_slots.add_slot();
-                    }
-                }
-                _ => {}
-            }
-        }
+        let _ = card;
         self.rebuild_effect_runtime();
     }
 
@@ -3061,40 +3055,6 @@ impl CombatEngine {
 
         false
     }
-}
-
-fn runtime_power_status_for_tag(tag: &str) -> Option<StatusId> {
-    let canonical_tag = match tag {
-        "draw_on_power_play" => "heatsink",
-        "channel_lightning_on_power" => "storm",
-        "on_stance_change_block" => "mental_fortress",
-        "on_wrath_draw" => "rushdown",
-        "lightning_hits_all" => "electrodynamics",
-        "channel_lightning_on_damage" => "static_discharge",
-        "extra_draw_each_turn" => "draw",
-        other => other,
-    };
-
-    crate::powers::defs::POWER_DEFS
-        .iter()
-        .find(|def| def.id == canonical_tag)
-        .and_then(|def| def.status_guard)
-}
-
-fn card_declares_player_status(card: &CardDef, status_id: StatusId) -> bool {
-    card.effect_data.iter().any(|effect| {
-        matches!(
-            effect,
-            crate::effects::declarative::Effect::Simple(
-                crate::effects::declarative::SimpleEffect::AddStatus(
-                    crate::effects::declarative::Target::Player
-                        | crate::effects::declarative::Target::SelfEntity,
-                    declared_status,
-                    _,
-                )
-            ) if *declared_status == status_id
-        )
-    })
 }
 
 #[cfg(test)]

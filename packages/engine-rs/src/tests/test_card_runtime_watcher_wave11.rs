@@ -32,18 +32,18 @@ fn watcher_wave11_registry_exports_safe_typed_surface_moves() {
 
     let signature = registry.get("SignatureMove").expect("SignatureMove should be registered");
     assert_eq!(signature.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
-    assert!(signature.effects.contains(&"only_attack_in_hand"));
+    assert!(signature.has_test_marker("only_attack_in_hand"));
 
     let weave = registry.get("Weave").expect("Weave should be registered");
     assert_eq!(weave.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
-    assert!(weave.effects.contains(&"return_on_scry"));
+    assert!(weave.has_test_marker("return_on_scry"));
 
     let wireheading = registry.get("Wireheading").expect("Wireheading should be registered");
     assert_eq!(
         wireheading.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::FORESIGHT, A::Magic))]
     );
-    assert!(wireheading.effects.is_empty());
+    assert!(wireheading.test_markers().is_empty());
 }
 
 #[test]

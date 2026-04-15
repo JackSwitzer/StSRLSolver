@@ -6,7 +6,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Uppercut", name: "Uppercut", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 13, base_block: -1,
                 base_magic: 1, exhaust: false, enter_stance: None,
-                effects: &["weak", "vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,
@@ -15,7 +15,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 id: "Uppercut+", name: "Uppercut+", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 13, base_block: -1,
                 base_magic: 2, exhaust: false, enter_stance: None,
-                effects: &["weak", "vulnerable"], effect_data: &[
+                effect_data: &[
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::WEAKENED, A::Magic)),
                     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::VULNERABLE, A::Magic)),
                 ], complex_hook: None,

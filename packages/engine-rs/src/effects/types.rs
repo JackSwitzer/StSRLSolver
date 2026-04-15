@@ -4,10 +4,15 @@
 //! The engine applies effects after dispatch — hooks never mutate state directly
 //! (except complex on_play hooks which get &mut CombatEngine).
 
+use serde::{Deserialize, Serialize};
+
 use crate::combat_types::CardInstance;
 use crate::cards::CardDef;
+use crate::engine::CombatEngine;
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub type ComplexCardHook = fn(&mut CombatEngine, &CardPlayContext);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardRuntimeTraits {
     pub innate: bool,
     pub retain: bool,
@@ -17,14 +22,14 @@ pub struct CardRuntimeTraits {
     pub unremovable: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CanPlayRule {
     OnlyAttackInHand,
     OnlyAttacksInHand,
     OnlyEmptyDraw,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CostModifierRule {
     ReduceOnHpLoss,
     ReducePerPower,
@@ -32,7 +37,7 @@ pub enum CostModifierRule {
     IncreaseOnHpLoss,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DamageModifierRule {
     HeavyBlade,
     DamageEqualsBlock,
@@ -49,38 +54,38 @@ pub enum DamageModifierRule {
     DamageFromDrawPile,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnDrawRule {
     LoseEnergy,
     CopySelf,
     DeusExMachina,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnDiscardRule {
     DrawCards,
     GainEnergy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnRetainRule {
     ReduceCost,
     GrowBlock,
     GrowDamage,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnExhaustRule {
     GainEnergy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PostPlayRule {
     ShuffleIntoDraw,
     EndTurn,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EndTurnHandRule {
     Damage,
     Regret,
@@ -89,12 +94,12 @@ pub enum EndTurnHandRule {
     AddCopy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WhileInHandRule {
     PainOnOtherCardPlayed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CardRuntimeTrigger {
     CanPlay(CanPlayRule),
     ModifyCost(CostModifierRule),
@@ -106,6 +111,40 @@ pub enum CardRuntimeTrigger {
     PostPlay(PostPlayRule),
     EndTurnInHand(EndTurnHandRule),
     WhileInHand(WhileInHandRule),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardBlockHint {
+    XTimes,
+    IfSkill,
+    IfNoBlock,
+    BulkCountTimesBaseBlock,
+    UsesCardMisc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardEvokeHint {
+    Fixed(u8),
+    XCost,
+    XCostPlus(u8),
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardPlayHints {
+    pub draws_cards: bool,
+    pub discards_cards: bool,
+    pub x_cost: bool,
+    pub multi_hit: bool,
+    pub block_hint: Option<CardBlockHint>,
+    pub evoke_hint: Option<CardEvokeHint>,
+    pub channel_evoked_orb: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardMetadata {
+    pub runtime_traits: CardRuntimeTraits,
+    pub runtime_triggers: Box<[CardRuntimeTrigger]>,
+    pub play_hints: CardPlayHints,
 }
 
 /// Context passed to card effect hooks during play.

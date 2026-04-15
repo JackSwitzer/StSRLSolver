@@ -58,7 +58,6 @@ pub enum Lifetime {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameplayProgramSource {
     Canonical,
-    AdaptedLegacy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,7 +123,17 @@ pub enum GameplayEventKind {
     ShopRemoval,
     CampfireAction,
     MapAdvance,
-    Legacy(crate::effects::trigger::Trigger),
+    TurnStartLate,
+    TurnEndPostOrbs,
+    CardCommitted,
+    CardUsed,
+    CardAfterUse,
+    CardAfterPlayed,
+    AttackCardPlayed,
+    SkillCardPlayed,
+    PowerCardPlayed,
+    AnyCardPlayed,
+    PoisonApplied,
 }
 
 impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
@@ -134,10 +143,20 @@ impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
             crate::effects::trigger::Trigger::CombatStartPreDraw => Self::CombatStartPreDraw,
             crate::effects::trigger::Trigger::TurnStart => Self::TurnStart,
             crate::effects::trigger::Trigger::TurnStartPostDraw => Self::TurnStartPostDraw,
+            crate::effects::trigger::Trigger::TurnStartPostDrawLate => Self::TurnStartLate,
             crate::effects::trigger::Trigger::TurnEnd => Self::TurnEnd,
+            crate::effects::trigger::Trigger::TurnEndPostOrbs => Self::TurnEndPostOrbs,
             crate::effects::trigger::Trigger::CombatVictory => Self::CombatVictory,
             crate::effects::trigger::Trigger::OnCardPlayedPre => Self::CardPrePlay,
+            crate::effects::trigger::Trigger::OnPlayCard => Self::CardCommitted,
+            crate::effects::trigger::Trigger::OnUseCard => Self::CardUsed,
             crate::effects::trigger::Trigger::OnCardPlayedPost => Self::CardResolved,
+            crate::effects::trigger::Trigger::OnAfterUseCard => Self::CardAfterUse,
+            crate::effects::trigger::Trigger::OnAfterCardPlayed => Self::CardAfterPlayed,
+            crate::effects::trigger::Trigger::OnAttackPlayed => Self::AttackCardPlayed,
+            crate::effects::trigger::Trigger::OnSkillPlayed => Self::SkillCardPlayed,
+            crate::effects::trigger::Trigger::OnPowerPlayed => Self::PowerCardPlayed,
+            crate::effects::trigger::Trigger::OnAnyCardPlayed => Self::AnyCardPlayed,
             crate::effects::trigger::Trigger::OnCardExhaust => Self::CardExhausted,
             crate::effects::trigger::Trigger::OnCardDiscard => Self::CardDiscarded,
             crate::effects::trigger::Trigger::OnPlayerHpLoss => Self::HpLoss,
@@ -151,7 +170,7 @@ impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
             crate::effects::trigger::Trigger::OnDebuffApplied => Self::DebuffApplied,
             crate::effects::trigger::Trigger::OnBlockBroken => Self::BlockBroken,
             crate::effects::trigger::Trigger::DamageCalculation => Self::OutgoingHitCalculated,
-            other => Self::Legacy(other),
+            crate::effects::trigger::Trigger::OnPoisonApplied => Self::PoisonApplied,
         }
     }
 }
@@ -174,17 +193,6 @@ impl GameplayProgram {
             source: GameplayProgramSource::Canonical,
             steps,
         }
-    }
-
-    pub fn adapted_legacy(steps: Vec<EffectOp>) -> Self {
-        Self {
-            source: GameplayProgramSource::AdaptedLegacy,
-            steps,
-        }
-    }
-
-    pub fn is_legacy_adapted(&self) -> bool {
-        matches!(self.source, GameplayProgramSource::AdaptedLegacy)
     }
 }
 
@@ -233,10 +241,6 @@ pub enum EffectOp {
         uses_x_cost: bool,
         declared_x_cost_amounts: Vec<AmountSource>,
     },
-    LegacyAdapter {
-        label: String,
-        reason: String,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,6 +262,10 @@ pub struct CardSchema {
     pub cost: Option<i32>,
     pub exhausts: bool,
     pub upgraded_from: Option<String>,
+    pub runtime_traits: crate::effects::types::CardRuntimeTraits,
+    pub runtime_triggers: Vec<crate::effects::types::CardRuntimeTrigger>,
+    pub play_hints: crate::effects::types::CardPlayHints,
+    pub declared_player_statuses: Vec<u16>,
     pub declared_effect_count: usize,
     pub declared_extra_hits: bool,
     pub declared_stance_change: bool,
@@ -329,14 +337,7 @@ pub struct GameplayDef {
 
 impl GameplayDef {
     pub fn program_source(&self) -> GameplayProgramSource {
-        match self.domain {
-            GameplayDomain::Event | GameplayDomain::RunEffect => GameplayProgramSource::Canonical,
-            GameplayDomain::Card
-            | GameplayDomain::Relic
-            | GameplayDomain::Power
-            | GameplayDomain::Potion
-            | GameplayDomain::Enemy => GameplayProgramSource::AdaptedLegacy,
-        }
+        GameplayProgramSource::Canonical
     }
 
     pub fn program(&self) -> GameplayProgram {
@@ -400,36 +401,15 @@ impl GameplayDef {
                     label: self.name.clone(),
                     option_count: schema.option_count,
                 });
-                steps.push(EffectOp::LegacyAdapter {
-                    label: self.name.clone(),
-                    reason: if schema.shrine {
-                        "event shrine flow".to_string()
-                    } else {
-                        "event option flow".to_string()
-                    },
-                });
             }
-            GameplaySchema::RunEffect(schema) => {
-                steps.push(EffectOp::LegacyAdapter {
-                    label: schema.source.clone(),
-                    reason: "run effect adapter".to_string(),
-                });
-            }
+            GameplaySchema::RunEffect(_schema) => {}
             GameplaySchema::Relic(_)
             | GameplaySchema::Power(_)
             | GameplaySchema::Potion(_)
-            | GameplaySchema::Enemy(_) => {
-                steps.push(EffectOp::LegacyAdapter {
-                    label: self.name.clone(),
-                    reason: "legacy-adapted entity runtime".to_string(),
-                });
-            }
+            | GameplaySchema::Enemy(_) => {}
         }
 
-        match self.program_source() {
-            GameplayProgramSource::Canonical => GameplayProgram::canonical(steps),
-            GameplayProgramSource::AdaptedLegacy => GameplayProgram::adapted_legacy(steps),
-        }
+        GameplayProgram::canonical(steps)
     }
 
     pub fn state_field(&self, id: &str) -> Option<&GameplayStateField> {

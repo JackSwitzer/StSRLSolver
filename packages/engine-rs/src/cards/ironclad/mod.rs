@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::CardDef;
+use super::CardSpec as CardDef;
 
 mod anger;
 mod armaments;
