@@ -156,6 +156,32 @@ fn watcher_wave24_conjure_blade_follow_the_typed_generated_card_surface() {
 }
 
 #[test]
+fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
+    let mut engine = engine_with(crate::tests::support::make_deck(&["ConjureBlade+"]), 90, 0);
+    engine.state.relics.push("Chemical X".to_string());
+
+    assert!(play_self(&mut engine, "ConjureBlade+"));
+
+    let expunger = engine
+        .state
+        .draw_pile
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "Expunger")
+        .copied()
+        .expect("Conjure Blade+ should add Expunger to draw pile");
+    assert_eq!(expunger.misc, 6, "Chemical X should add +2 before Conjure Blade+ adds its extra hit");
+
+    engine.state.draw_pile.retain(|card| {
+        !(engine.card_registry.card_name(card.def_id) == "Expunger" && card.misc == expunger.misc)
+    });
+    engine.state.hand.push(expunger);
+    engine.state.energy = 1;
+
+    assert!(crate::tests::support::play_on_enemy(&mut engine, "Expunger", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 36);
+}
+
+#[test]
 fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = engine_without_start(
         make_deck(&["Omniscience+", "Strike_P", "Defend_P"]),

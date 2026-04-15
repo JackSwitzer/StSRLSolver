@@ -20,7 +20,7 @@ What is truly done:
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
 - `Establishment` retained-cost parity is fixed
-- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, and `Mutagenic Strength` are all landed on the canonical runtime path
+- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, `Mutagenic Strength`, `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` are all landed on the canonical runtime path
 - Neow action layer is real and intentionally always exposes `4` choices
 - the stale solved ignore pile collapsed from `69` to `5`
 
