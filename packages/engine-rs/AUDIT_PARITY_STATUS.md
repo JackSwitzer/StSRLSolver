@@ -14,14 +14,14 @@ Canonical audit outputs:
 Weighted completion toward `universal gameplay runtime + decision-complete RL loop`:
 
 - supported-scope runtime parity: `99%`
-- all-content gameplay parity: `99%`
+- all-content gameplay parity: `98%`
 - architecture unification snapshot: `99%`
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `99%` | Public gameplay-gap card tail is closed and the former Defect multi-hit / X-cost blockers are green on engine-path suites |
+| Combat runtime parity | `98%` | Major blocker families are closed, but `Establishment` still mismatches Java and a small ignored-family tail is not re-frozen yet |
 | RL combat surface | `98%` | `Neow`, reward screen, decision context, and search surfaces are green |
 | Run / reward / event parity | `99%` | `NoteForYourself`, `Match and Keep!`, and `Scrap Ooze` now run on canonical event/runtime paths |
 | Dead-system retirement | `98%` | Helper-path production debt is effectively gone |
@@ -36,7 +36,7 @@ Area scores:
 | Cleanup-only card shells | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `0` |
-| Direct `#[ignore]` count in `src/tests` | `73` |
+| Direct `#[ignore]` count in `src/tests` | `69` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
 
@@ -48,7 +48,8 @@ Cleanup-only card shells:
 
 Known gameplay blockers still open:
 
-- none currently confirmed on the integrated branch
+- `Establishment` retained-card cost reduction still misses the Java end-of-turn cost drop
+- ignored-family tail still lacking fresh green engine-path proof: `Headbutt`, `Violence`, `Secret Technique` legality, `Mind Blast`, `Pressure Points`, `Sentinel` under `Corruption`
 
 Remaining merge-readiness work:
 
@@ -83,10 +84,11 @@ Representative green suites on the current audited tree:
 - `test_card_runtime_xcount_wave2` `3 passed`
 - `test_card_runtime_defect_wave9` `3 passed`
 - `test_card_runtime_watcher_wave26` `3 passed`
+- `test_card_runtime_watcher_wave5` currently fails on `Establishment` and a stale `Consecrate` registry assertion
 
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is ready after cleanup/doc sync.
-- If the claim is `all gameplay content complete`, the known gameplay blockers are closed, but the PR still needs one final audit and ignored-test cleanup before we call it ready.
-- Zero-skip answer: `no` — there are still `73` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: `not yet formally re-frozen` — the known gameplay blockers are closed, but the final audit sweep still needs to refresh the branch-wide claim.
+- If the claim is `all gameplay content complete`, do not mark the PR ready yet; `Establishment` plus the small ignored-family tail still need closure or explicit reclassification.
+- Zero-skip answer: `no` — there are still `69` explicit `#[ignore]` tests in `src/tests`.
+- Java-clean answer: `no` — the branch still has one confirmed active mismatch and several ignored Java-cited families that have not been re-frozen.

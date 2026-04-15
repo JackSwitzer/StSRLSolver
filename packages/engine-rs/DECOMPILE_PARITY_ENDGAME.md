@@ -36,7 +36,7 @@ Live branch truth:
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
-| Direct ignored tests | `73` |
+| Direct ignored tests | `69` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -46,19 +46,22 @@ The raw empty public-card files are cleanup shells only:
 
 ## What Still Blocks Full All-Content Parity
 
-There are no currently confirmed gameplay blockers on the integrated branch. The remaining work is:
+The final audit turned up one confirmed active mismatch plus a small ignored-family tail:
 
-1. final ignored-test cleanup and reclassification
-2. one more full Java audit freeze now that the last blocker families are landed
-3. PR-readiness cleanup and training-branch handoff
+1. `Establishment` retained-card cost reduction still misses the Java end-of-turn cost drop
+2. ignored-family tail still awaiting fresh green proof: `Headbutt`, `Violence`, `Secret Technique` legality, `Mind Blast`, `Pressure Points`, `Sentinel` under `Corruption`
+3. stale ignored-test cleanup and reclassification
+4. one more full Java audit freeze after the audit-hygiene cleanup
 
 ## Immediate Execution Order
 
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
-1. ignored-test cleanup pass
-2. final audit refresh and PR readiness sweep
-3. training branch cut from this branch
+1. fix `Establishment`
+2. resolve or explicitly reclassify the small ignored-family tail
+3. ignored-test cleanup pass
+4. final audit refresh and PR readiness sweep
+5. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
