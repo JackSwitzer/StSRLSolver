@@ -37,6 +37,7 @@ from .inference_service import (
     TrainingConfig,
 )
 from .selector import FrontierSelection, rank_frontier_lines, select_frontier, select_frontier_line
+from .seed_suite import ValidationSeed, default_watcher_validation_seed_suite
 from .shared_memory import CombatSearchRequest, CombatSharedMemoryBatch, CombatSharedMemoryBatcher, SharedMemoryConfig
 
 __all__ = [
@@ -74,9 +75,11 @@ __all__ = [
     "TrainingSchemaVersions",
     "TrainingStackConfig",
     "TrainingTopology",
+    "ValidationSeed",
     "build_frontier_report",
     "build_phase1_requests",
     "default_watcher_a0_act1_corpus_plan",
+    "default_watcher_validation_seed_suite",
     "frontier_score",
     "load_combat_training_state",
     "load_training_schema_versions",

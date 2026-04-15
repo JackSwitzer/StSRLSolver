@@ -68,8 +68,9 @@ Current case slices are grouped as:
 - `frontier-harvest-hard`
   - hard elite/boss cases harvested from search disagreement or weak solve rates
 
-The current placeholder seed inventory is intentionally marked for replacement by
-mined easy seeds from overnight harvests.
+The current placeholder seed inventory has been replaced by an explicit external
+Watcher validation suite, but the synthetic-first corpus still remains the
+primary training source.
 
 ## Overnight Phase-1 Loop
 
@@ -115,7 +116,11 @@ The runtime artifact tree is append-only and intentionally simple:
 - `frontier_report.json`
 - `frontier_report.md`
 - `frontier_groups.json`
+- `benchmark_report.json`
 - `episodes.jsonl`
+- `dataset.jsonl`
+- `checkpoint.json`
+- `summary.json`
 
 What each file is for:
 
@@ -129,8 +134,16 @@ What each file is for:
   - frontier ranking, best-by-metric, and group summaries
 - `frontier_groups.json`
   - machine-readable corpus grouping for dashboards
+- `benchmark_report.json`
+  - benchmark slice results and promotion gates
 - `episodes.jsonl`
   - episode traces with corpus slice/case provenance
+- `dataset.jsonl`
+  - reanalysis examples captured for model updates
+- `checkpoint.json`
+  - lightweight phase-1 model weights
+- `summary.json`
+  - single-run completion summary
 
 Episode provenance should carry:
 
@@ -143,12 +156,32 @@ Episode provenance should carry:
 - `seed_source`
 - `neow_source`
 
+## Canonical Run Flow
+
+Default overnight smoke / bring-up command:
+
+```bash
+mkdir -p logs/active logs/runs
+./scripts/training.sh run-phase1-overnight \
+  --output-dir logs/active \
+  --epochs 1 \
+  --target-requests 24 \
+  --backend linear
+```
+
+Monitor flow:
+
+```bash
+cd packages/app
+swift build
+open SpireMonitor
+```
+
+The app is configured to read `logs/active` via `.spire-monitor.json`.
+
 ## What This Phase Is Not
 
 - Not a whole-run A20 training benchmark.
 - Not a generic engine parity exercise.
 - Not a cross-repo Python rewrite.
 - Not a legacy stack continuation.
-
-The old training code lives in `packages/training_legacy` and should be treated as
-reference material only.

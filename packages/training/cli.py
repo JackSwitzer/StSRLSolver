@@ -43,6 +43,7 @@ from .manifests import (
 )
 from .selector import select_frontier
 from .run_logging import TrainingArtifacts, TrainingRunLogger
+from .seed_suite import default_watcher_validation_seed_suite
 from .shared_memory import CombatSearchRequest
 from .combat_model import LinearCombatModel, MLXCombatModel
 
@@ -54,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("print-default-config", help="Print the phase-1 bring-up config")
     subparsers.add_parser("print-stack-config", help="Print the wider training stack scaffold config")
     subparsers.add_parser("print-corpus-plan", help="Print the phase-1 Watcher A0 corpus plan")
+    subparsers.add_parser("print-seed-suite", help="Print the external Watcher validation seed suite")
 
     select_frontier_parser = subparsers.add_parser("select-frontier", help="Select deterministically from a search frontier")
     select_frontier_parser.add_argument("--input", required=True, help="JSON file containing frontier lines")
@@ -717,6 +719,16 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 asdict(default_watcher_a0_act1_corpus_plan()),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "print-seed-suite":
+        print(
+            json.dumps(
+                [seed.to_dict() for seed in default_watcher_validation_seed_suite()],
                 indent=2,
                 sort_keys=True,
             )

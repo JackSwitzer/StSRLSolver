@@ -5,7 +5,6 @@ actor StatusPoller {
     private let store: DataStore
     private var isRunning = false
     private var pollTask: Task<Void, Never>?
-    private var pollCount = 0
 
     init(config: AppConfig, store: DataStore) {
         self.config = config
@@ -34,102 +33,27 @@ actor StatusPoller {
     private func poll() async {
         let logsURL = config.logsPath
 
-        // Read status.json -- check file mtime to detect stale data
-        let statusURL = logsURL.appending(path: "status.json")
-        if let data = try? Data(contentsOf: statusURL),
-           let status = try? JSONDecoder().decode(TrainingStatus.self, from: data) {
-            let mtime = (try? FileManager.default.attributesOfItem(atPath: statusURL.path())[.modificationDate] as? Date) ?? .distantPast
-            await MainActor.run {
-                store.status = status
-                store.lastStatusUpdate = mtime
-                store.appendLoss(from: status)
-                store.appendDiagnostics(from: status)
+        async let manifest = ManifestLoader.load(from: logsURL)
+        async let frontier = FrontierReportLoader.load(from: logsURL)
+        async let benchmarkReports = BenchmarkReportLoader.loadAll(from: logsURL)
+        async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: logsURL)
+        async let events = EventStreamLoader.load(from: logsURL)
+        async let metricStream = MetricStreamLoader.load(from: logsURL)
 
-                if let config = status.configName {
-                    var stats = store.configHistory[config] ?? ConfigStats(
-                        name: config, games: 0, avgFloor: 0, peakFloor: 0, isActive: false
-                    )
-                    stats.games = status.totalGames ?? 0
-                    stats.avgFloor = status.avgFloor100 ?? 0
-                    stats.peakFloor = status.peakFloor ?? 0
-                    stats.lastLoss = status.totalLoss
-                    stats.phase = status.sweepPhase
-                    stats.isActive = true
-                    for key in store.configHistory.keys {
-                        store.configHistory[key]?.isActive = (key == config)
-                    }
-                    store.configHistory[config] = stats
-                }
-            }
-        }
+        let loadedManifest = await manifest
+        let loadedFrontier = await frontier
+        let loadedBenchmarkReports = await benchmarkReports
+        let loadedArtifactEpisodes = await artifactEpisodes
+        let loadedEvents = await events
+        let loadedMetricStream = await metricStream
 
-        // Read floor_curve.json
-        if let data = try? Data(contentsOf: logsURL.appending(path: "floor_curve.json")),
-           let curve = try? JSONDecoder().decode([Double].self, from: data) {
-            await MainActor.run {
-                store.floorCurve = curve
-            }
-        }
-
-        // Reload episodes every 4th poll (~10s) to pick up new data
-        pollCount += 1
-        if pollCount % 4 == 0 {
-            let recent = await EpisodeLoader.loadRecent(from: logsURL)
-            let top = await EpisodeLoader.loadTop(from: logsURL)
-            await MainActor.run {
-                if !recent.isEmpty { store.recentEpisodes = recent }
-                if !top.isEmpty { store.topEpisodes = top }
-            }
-        }
-
-        // Reload metrics history every 12th poll (~30s)
-        if pollCount % 12 == 0 || pollCount == 1 {
-            let metrics = await MetricsHistoryLoader.load(from: logsURL)
-            await MainActor.run {
-                if !metrics.isEmpty { store.metricsHistory = metrics }
-            }
-        }
-
-        // Reload artifact-driven training outputs every 4th poll (~10s)
-        if pollCount % 4 == 0 || pollCount == 1 {
-            async let manifest = ManifestLoader.load(from: logsURL)
-            async let frontier = FrontierReportLoader.load(from: logsURL)
-            async let benchmarkReports = BenchmarkReportLoader.loadAll(from: logsURL)
-            async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: logsURL)
-            async let events = EventStreamLoader.load(from: logsURL)
-            async let metricStream = MetricStreamLoader.load(from: logsURL)
-
-            let loadedManifest = await manifest
-            let loadedFrontier = await frontier
-            let loadedBenchmarkReports = await benchmarkReports
-            let loadedArtifactEpisodes = await artifactEpisodes
-            let loadedEvents = await events
-            let loadedMetricStream = await metricStream
-
-            await MainActor.run {
-                store.runManifest = loadedManifest
-                store.frontierReport = loadedFrontier
-                store.benchmarkReports = loadedBenchmarkReports
-                store.artifactEpisodes = loadedArtifactEpisodes
-                store.eventStream = loadedEvents
-                store.metricStream = loadedMetricStream
-            }
-        }
-
-        // Scan workers/*.json
-        let workersDir = logsURL.appending(path: "workers")
-        if let files = try? FileManager.default.contentsOfDirectory(at: workersDir, includingPropertiesForKeys: nil) {
-            var newWorkers: [WorkerStatus] = []
-            for file in files where file.pathExtension == "json" {
-                if let data = try? Data(contentsOf: file),
-                   let worker = try? JSONDecoder().decode(WorkerStatus.self, from: data) {
-                    newWorkers.append(worker)
-                }
-            }
-            let sorted = newWorkers.sorted { ($0.workerID ?? 0) < ($1.workerID ?? 0) }
-            await MainActor.run {
-                store.workers = sorted
-            }
+        await MainActor.run {
+            store.runManifest = loadedManifest
+            store.frontierReport = loadedFrontier
+            store.benchmarkReports = loadedBenchmarkReports
+            store.artifactEpisodes = loadedArtifactEpisodes
+            store.eventStream = loadedEvents
+            store.metricStream = loadedMetricStream
         }
     }
 }

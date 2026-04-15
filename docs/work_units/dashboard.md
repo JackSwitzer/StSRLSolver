@@ -1,61 +1,49 @@
 ---
 status: active
 priority: P1
-pr: null
-title: Dashboard — Decision Quality, Training Curves, Data Inventory
+pr: 133
+title: SpireMonitor Artifact Views
 scope: visibility
 layer: dashboard
-created: 2026-03-25
+created: 2026-04-15
 completed: null
-depends_on: [data-pipeline]
+depends_on: [combat-first-training-rebuild]
 assignee: claude
 tags: [app, swiftui, visualization]
 ---
 
-# Dashboard
+# SpireMonitor Artifact Views
 
-Improvements to the SwiftUI macOS monitoring dashboard for training visibility.
+The monitor on this branch is artifact-first.
 
-## Current State
+## Current Surfaces
 
-The dashboard already has:
-- DiagnosticsCharts view
-- SweepComparison view
-- CardPickSummary view
-- Episode logging integration (PR #62)
+- active run summary
+- benchmark slice dashboard
+- frontier inspector
+- event stream
+- metric stream
+- system stats
 
-## Decision Quality
+## Required Inputs
 
-- Per-decision breakdown: chosen action vs optimal action, model confidence
-- Card pick analysis: offered cards vs chosen, model probability distribution
-- Path choice visualization: which paths the model prefers and why
-- Event decision tracking: choices made at each event node
+- `manifest.json`
+- `events.jsonl`
+- `metrics.jsonl`
+- `frontier_report.json`
+- `benchmark_report.json`
+- `episodes.jsonl`
+- `summary.json`
 
-## Training Convergence
+## What The App Should Make Easy
 
-- Live loss curves: policy loss, value loss, entropy, total loss
-- Clip fraction over time (PPO health indicator)
-- Value accuracy: predicted vs actual returns
-- Anomaly detection: alert on loss spikes, clip fraction > 0.3, value divergence
-- Learning rate schedule visualization
+- compare chosen frontier lines to alternatives
+- inspect replayable frontier-bearing episode steps
+- slice benchmark performance by deck family and enemy
+- verify a run is active and writing artifacts to `logs/active`
 
-## Data Inventory
+## Near-Term Polish
 
-- How much data exists per tier (raw, filtered, curated, expert)
-- Quality distribution: histogram of game lengths, win rates by config
-- Data freshness: when was each tier last updated
-- Disk usage breakdown by data category
-
-## Run Comparison
-
-- Side-by-side config comparison on same seeds
-- Overlay training curves from different experiments
-- Statistical significance testing (are differences real or noise)
-- Export comparison reports
-
-## UI Improvements
-
-- Cleaner drill-in menus for per-game inspection
-- Better controls: date range filters, config selectors, search
-- Keyboard shortcuts for common operations
-- Dark mode refinements
+- better replay detail for frontier-bearing steps
+- clearer benchmark grouping labels
+- clearer run provenance presentation from the manifest

@@ -1,21 +1,17 @@
 import Foundation
 
 enum AppView: String, CaseIterable, Identifiable {
-    case live = "Live"
-    case training = "Training"
-    case analysis = "Analysis"
-    case detail = "Detail"
-    case replay = "Replay"
+    case live = "Run"
+    case analysis = "Benchmarks"
+    case frontier = "Frontier"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
         case .live: "play.circle.fill"
-        case .training: "brain"
         case .analysis: "chart.bar.xaxis"
-        case .detail: "doc.text.magnifyingglass"
-        case .replay: "film"
+        case .frontier: "doc.text.magnifyingglass"
         }
     }
 }
@@ -23,7 +19,6 @@ enum AppView: String, CaseIterable, Identifiable {
 @MainActor @Observable
 final class AppState {
     var selectedView: AppView = .live
-    var selectedEpisode: Episode?
     var selectedArtifactEpisode: LocatedEpisodeLog?
     var selectedArtifactStepIndex: Int = 0
 
@@ -41,7 +36,6 @@ final class AppState {
         sysMonitor = m
         Task { await m.start() }
 
-        Task { await loadEpisodes() }
         Task { await loadArtifacts() }
     }
 
@@ -50,13 +44,6 @@ final class AppState {
             await poller?.stop()
             await sysMonitor?.stop()
         }
-    }
-
-    func loadEpisodes() async {
-        let recent = await EpisodeLoader.loadRecent(from: config.logsPath)
-        let top = await EpisodeLoader.loadTop(from: config.logsPath)
-        store.recentEpisodes = recent
-        store.topEpisodes = top
     }
 
     func loadArtifacts() async {
@@ -82,7 +69,6 @@ final class AppState {
 
     func refresh() {
         Task {
-            await loadEpisodes()
             await loadArtifacts()
         }
     }

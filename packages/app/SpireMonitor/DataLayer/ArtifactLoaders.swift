@@ -59,7 +59,7 @@ enum ArtifactEpisodeLogLoader {
                     continue
                 }
 
-                // Filter out legacy episode lines by requiring explicit step payloads.
+                // Only accept structured artifact episodes with explicit step payloads.
                 guard !decoded.steps.isEmpty else { continue }
                 decoded = ArtifactEpisodeLog(
                     manifest: decoded.manifest,
