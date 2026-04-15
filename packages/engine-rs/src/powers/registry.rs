@@ -1,8 +1,6 @@
 //! Minimal production power metadata helpers.
 //!
-//! The old hook-table registry was retired once power helper-path tests moved
-//! onto engine-path/runtime coverage. The only helpers still needed by live
-//! code are:
+//! The only helpers still needed by live code are:
 //! - `status_is_debuff` for enemy debuff-clearing and combat hooks
 //! - `active_player_power_count` for Force Field style cost reduction
 

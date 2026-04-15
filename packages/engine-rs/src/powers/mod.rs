@@ -2,8 +2,8 @@
 //!
 //! Visible power stacks still live on `EntityState.statuses`, while
 //! `defs/` and `effects::runtime` now own production trigger dispatch.
-//! `registry.rs` now only exposes the small production helper surface that
-//! remains relevant to the runtime.
+//! `registry.rs` exposes the remaining runtime helper queries used by the
+//! production engine.
 
 // ---------------------------------------------------------------------------
 // PowerType — buff vs debuff

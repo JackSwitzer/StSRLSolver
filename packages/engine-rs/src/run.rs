@@ -426,6 +426,7 @@ struct MatchAndKeepState {
 struct ScrapOozeState {
     damage: i32,
     relic_chance: usize,
+    leave_only: bool,
 }
 
 enum EventProgramFlow {
@@ -446,6 +447,16 @@ enum EventCardRarity {
     Special,
     Uncommon,
     Rare,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum EventCardColor {
+    Red,
+    Green,
+    Blue,
+    Purple,
+    Colorless,
+    Curse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2644,25 +2655,26 @@ impl RunEngine {
         }
     }
 
-    fn random_card_from_pool(&mut self, pool: &[&str]) -> String {
-        let idx = self.rng.gen_range(0..pool.len());
-        pool[idx].to_string()
-    }
-
     fn build_match_and_keep_board(&mut self) -> Vec<String> {
+        let color = self.current_event_player_color();
         let mut unique_cards = vec![
-            self.random_card_from_pool(WATCHER_RARE_CARDS),
-            self.random_card_from_pool(WATCHER_UNCOMMON_CARDS),
-            self.random_card_from_pool(WATCHER_COMMON_CARDS),
+            self.random_match_and_keep_colored_card(color, EventCardRarity::Rare),
+            self.random_match_and_keep_colored_card(color, EventCardRarity::Uncommon),
+            self.random_match_and_keep_colored_card(color, EventCardRarity::Common),
         ];
         if self.run_state.ascension >= 15 {
-            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
-            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
+            unique_cards.push(self.random_match_and_keep_curse());
+            unique_cards.push(self.random_match_and_keep_curse());
         } else {
-            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_COLORLESS_UNCOMMON_CARDS));
-            unique_cards.push(self.random_card_from_pool(MATCH_AND_KEEP_CURSES));
+            unique_cards.push(
+                self.random_match_and_keep_colored_card(
+                    EventCardColor::Colorless,
+                    EventCardRarity::Uncommon,
+                ),
+            );
+            unique_cards.push(self.random_match_and_keep_curse());
         }
-        unique_cards.push("Eruption".to_string());
+        unique_cards.push(self.match_and_keep_starter_card(color).to_string());
 
         let mut board = unique_cards.clone();
         board.extend(unique_cards);
@@ -2678,6 +2690,97 @@ impl RunEngine {
             .card(card_id)
             .map(|def| def.name.clone())
             .unwrap_or_else(|| card_id.to_string())
+    }
+
+    fn current_event_player_color(&self) -> EventCardColor {
+        let relics = &self.run_state.relics;
+        if relics.iter().any(|relic| matches!(relic.as_str(), "Burning Blood" | "Black Blood")) {
+            return EventCardColor::Red;
+        }
+        if relics
+            .iter()
+            .any(|relic| matches!(relic.as_str(), "Ring of the Snake" | "Ring of the Serpent"))
+        {
+            return EventCardColor::Green;
+        }
+        if relics
+            .iter()
+            .any(|relic| matches!(relic.as_str(), "Cracked Core" | "Nuclear Battery"))
+        {
+            return EventCardColor::Blue;
+        }
+        if relics
+            .iter()
+            .any(|relic| matches!(relic.as_str(), "PureWater" | "VioletLotus" | "Damaru"))
+        {
+            return EventCardColor::Purple;
+        }
+
+        let deck = &self.run_state.deck;
+        if deck.iter().any(|card| matches!(card.as_str(), "Bash" | "Strike_R" | "Defend_R")) {
+            return EventCardColor::Red;
+        }
+        if deck
+            .iter()
+            .any(|card| matches!(card.as_str(), "Neutralize" | "Strike_G" | "Defend_G"))
+        {
+            return EventCardColor::Green;
+        }
+        if deck.iter().any(|card| matches!(card.as_str(), "Zap" | "Strike_B" | "Defend_B")) {
+            return EventCardColor::Blue;
+        }
+        if deck
+            .iter()
+            .any(|card| matches!(card.as_str(), "Eruption" | "Strike_P" | "Defend_P"))
+        {
+            return EventCardColor::Purple;
+        }
+
+        EventCardColor::Purple
+    }
+
+    fn match_and_keep_starter_card(&self, color: EventCardColor) -> &'static str {
+        match color {
+            EventCardColor::Red => "Bash",
+            EventCardColor::Green => "Neutralize",
+            EventCardColor::Blue => "Zap",
+            EventCardColor::Purple | EventCardColor::Colorless | EventCardColor::Curse => "Eruption",
+        }
+    }
+
+    fn random_match_and_keep_colored_card(
+        &mut self,
+        color: EventCardColor,
+        rarity: EventCardRarity,
+    ) -> String {
+        let mut candidates = matching_event_cards(color, rarity);
+        if candidates.is_empty() {
+            candidates = match (color, rarity) {
+                (EventCardColor::Purple, EventCardRarity::Common) => {
+                    WATCHER_COMMON_CARDS.iter().map(|id| (*id).to_string()).collect()
+                }
+                (EventCardColor::Purple, EventCardRarity::Uncommon) => {
+                    WATCHER_UNCOMMON_CARDS.iter().map(|id| (*id).to_string()).collect()
+                }
+                (EventCardColor::Purple, EventCardRarity::Rare) => {
+                    WATCHER_RARE_CARDS.iter().map(|id| (*id).to_string()).collect()
+                }
+                (EventCardColor::Colorless, EventCardRarity::Uncommon) => {
+                    MATCH_AND_KEEP_COLORLESS_UNCOMMON_CARDS
+                        .iter()
+                        .map(|id| (*id).to_string())
+                        .collect()
+                }
+                _ => vec![self.match_and_keep_starter_card(color).to_string()],
+            };
+        }
+        let idx = self.rng.gen_range(0..candidates.len());
+        candidates[idx].clone()
+    }
+
+    fn random_match_and_keep_curse(&mut self) -> String {
+        let idx = self.rng.gen_range(0..MATCH_AND_KEEP_CURSES.len());
+        MATCH_AND_KEEP_CURSES[idx].to_string()
     }
 
     fn sync_match_and_keep_event(&mut self) {
@@ -2737,9 +2840,14 @@ impl RunEngine {
         let Some(state) = &self.scrap_ooze_state else {
             return;
         };
-        self.current_event = Some(TypedEventDef {
-            name: "Scrap Ooze".to_string(),
-            options: vec![
+        let options = if state.leave_only {
+            vec![crate::events::TypedEventOption::supported(
+                "Leave",
+                crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+                crate::events::EventEffect::Nothing,
+            )]
+        } else {
+            vec![
                 crate::events::TypedEventOption::supported(
                     format!(
                         "Reach inside (take {} dmg, {}% relic chance)",
@@ -2753,7 +2861,11 @@ impl RunEngine {
                     crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
                     crate::events::EventEffect::Nothing,
                 ),
-            ],
+            ]
+        };
+        self.current_event = Some(TypedEventDef {
+            name: "Scrap Ooze".to_string(),
+            options,
         });
     }
 
@@ -2780,6 +2892,7 @@ impl RunEngine {
                 self.scrap_ooze_state = Some(ScrapOozeState {
                     damage: if self.run_state.ascension >= 15 { 5 } else { 3 },
                     relic_chance: 25,
+                    leave_only: false,
                 });
                 self.sync_scrap_ooze_event();
             }
@@ -2864,6 +2977,14 @@ impl RunEngine {
             return 0.0;
         };
 
+        if state_snapshot.leave_only {
+            self.current_event = None;
+            self.scrap_ooze_state = None;
+            self.phase = RunPhase::MapChoice;
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
         match choice_idx {
             0 => {
                 self.run_state.current_hp = (self.run_state.current_hp - state_snapshot.damage).max(0);
@@ -2879,21 +3000,20 @@ impl RunEngine {
                 let threshold = 100usize.saturating_sub(state_snapshot.relic_chance.min(100));
                 let roll = self.next_event_roll_100();
                 if roll >= threshold {
-                    let mut reward_items = Vec::new();
-                    self.apply_event_reward(
-                        &EventReward::Relic {
-                            label: "random relic".to_string(),
-                        },
-                        &mut reward_items,
-                    );
-                    self.current_event = None;
-                    self.scrap_ooze_state = None;
-                    self.build_event_reward_screen(reward_items);
-                    self.phase = RunPhase::CardReward;
+                    let relic_id = self.roll_reward_relic_id();
+                    self.add_relic_reward(&relic_id);
+                    self.scrap_ooze_state = Some(ScrapOozeState {
+                        damage: state_snapshot.damage,
+                        relic_chance: state_snapshot.relic_chance,
+                        leave_only: true,
+                    });
+                    self.sync_scrap_ooze_event();
+                    self.phase = RunPhase::Event;
                 } else {
                     self.scrap_ooze_state = Some(ScrapOozeState {
                         damage: state_snapshot.damage + 1,
                         relic_chance: state_snapshot.relic_chance + 10,
+                        leave_only: false,
                     });
                     self.sync_scrap_ooze_event();
                     self.phase = RunPhase::Event;
@@ -2902,9 +3022,13 @@ impl RunEngine {
                 0.0
             }
             1 => {
-                self.current_event = None;
-                self.scrap_ooze_state = None;
-                self.phase = RunPhase::MapChoice;
+                self.scrap_ooze_state = Some(ScrapOozeState {
+                    damage: state_snapshot.damage,
+                    relic_chance: state_snapshot.relic_chance,
+                    leave_only: true,
+                });
+                self.sync_scrap_ooze_event();
+                self.phase = RunPhase::Event;
                 self.refresh_decision_stack();
                 0.0
             }
@@ -3838,34 +3962,118 @@ fn event_card_rarity(card_id: &str) -> Option<EventCardRarity> {
         .copied()
 }
 
+#[derive(Debug, Clone)]
+struct EventCardCatalogEntry {
+    id: String,
+    name: Option<String>,
+    rarity: EventCardRarity,
+    color: EventCardColor,
+}
+
+fn parse_event_card_catalog() -> Vec<EventCardCatalogEntry> {
+    include_str!("../../engine/content/cards.py")
+        .split("\n)\n")
+        .filter_map(|block| {
+            let Some((_, id_rest)) = block.split_once("id=\"") else {
+                return None;
+            };
+            let Some((card_id, _)) = id_rest.split_once('"') else {
+                return None;
+            };
+            let card_name = block
+                .split_once("name=\"")
+                .and_then(|(_, rest)| rest.split_once('"'))
+                .map(|(name, _)| name.to_string());
+            let rarity = block
+                .split_once("rarity=CardRarity.")
+                .and_then(|(_, rarity_rest)| {
+                    Some(
+                        match rarity_rest
+                            .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
+                            .next()
+                            .unwrap_or("")
+                        {
+                            "CURSE" => EventCardRarity::Curse,
+                            "BASIC" => EventCardRarity::Basic,
+                            "COMMON" => EventCardRarity::Common,
+                            "SPECIAL" => EventCardRarity::Special,
+                            "UNCOMMON" => EventCardRarity::Uncommon,
+                            "RARE" => EventCardRarity::Rare,
+                            _ => return None,
+                        },
+                    )
+                })?;
+            let color = if let Some((_, color_rest)) = block.split_once("color=CardColor.") {
+                match color_rest
+                    .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
+                    .next()
+                    .unwrap_or("")
+                {
+                    "RED" => EventCardColor::Red,
+                    "GREEN" => EventCardColor::Green,
+                    "BLUE" => EventCardColor::Blue,
+                    "PURPLE" => EventCardColor::Purple,
+                    "COLORLESS" => EventCardColor::Colorless,
+                    "CURSE" => EventCardColor::Curse,
+                    _ => EventCardColor::Purple,
+                }
+            } else {
+                EventCardColor::Purple
+            };
+
+            Some(EventCardCatalogEntry {
+                id: card_id.to_string(),
+                name: card_name,
+                rarity,
+                color,
+            })
+        })
+        .collect()
+}
+
 fn build_event_card_rarity_map() -> HashMap<String, EventCardRarity> {
     let mut map = HashMap::new();
-    for line in include_str!("../../engine/content/cards.py").lines() {
-        let Some((_, rest)) = line.split_once("id=\"") else {
-            continue;
-        };
-        let Some((card_id, _)) = rest.split_once('"') else {
-            continue;
-        };
-        let Some((_, rarity_rest)) = line.split_once("rarity=CardRarity.") else {
-            continue;
-        };
-        let rarity_token = rarity_rest
-            .split(|ch: char| !matches!(ch, 'A'..='Z' | '_'))
-            .next()
-            .unwrap_or("");
-        let rarity = match rarity_token {
-            "CURSE" => EventCardRarity::Curse,
-            "BASIC" => EventCardRarity::Basic,
-            "COMMON" => EventCardRarity::Common,
-            "SPECIAL" => EventCardRarity::Special,
-            "UNCOMMON" => EventCardRarity::Uncommon,
-            "RARE" => EventCardRarity::Rare,
-            _ => continue,
-        };
-        map.insert(card_id.to_string(), rarity);
+    for entry in parse_event_card_catalog() {
+        map.insert(entry.id, entry.rarity);
+        if let Some(card_name) = entry.name {
+            map.insert(card_name, entry.rarity);
+        }
     }
     map
+}
+
+fn event_card_color(card_id: &str) -> Option<EventCardColor> {
+    static CARD_COLORS: OnceLock<HashMap<String, EventCardColor>> = OnceLock::new();
+
+    CARD_COLORS
+        .get_or_init(build_event_card_color_map)
+        .get(card_id.trim_end_matches('+'))
+        .copied()
+}
+
+fn build_event_card_color_map() -> HashMap<String, EventCardColor> {
+    let mut map = HashMap::new();
+    for entry in parse_event_card_catalog() {
+        map.insert(entry.id, entry.color);
+        if let Some(card_name) = entry.name {
+            map.insert(card_name, entry.color);
+        }
+    }
+    map
+}
+
+fn matching_event_cards(color: EventCardColor, rarity: EventCardRarity) -> Vec<String> {
+    let registry = gameplay_registry();
+    let mut cards: Vec<String> = registry
+        .defs_for_domain(GameplayDomain::Card)
+        .filter(|def| {
+            event_card_color(def.id.as_str()) == Some(color)
+                && event_card_rarity(def.id.as_str()) == Some(rarity)
+        })
+        .map(|def| def.id.clone())
+        .collect();
+    cards.sort();
+    cards
 }
 
 // ---------------------------------------------------------------------------

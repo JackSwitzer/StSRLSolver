@@ -420,7 +420,7 @@ mod tests {
         assert!(snapshot
             .instances
             .iter()
-            .all(|instance| instance.program.source == crate::gameplay::GameplayProgramSource::Canonical));
+            .all(|instance| !instance.program.steps.is_empty()));
     }
 
     #[test]

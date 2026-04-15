@@ -1,8 +1,7 @@
 //! Boot: Minimum 5 damage per hit (if unblocked damage is 1-4, becomes 5).
 //!
-//! Damage modifier: called from the damage pipeline inline, not via
-//! dispatch_trigger. EntityDef serves as documentation for future migration.
-//! Old dispatch: apply_boot() in run.rs checks unblocked_damage range.
+//! Damage modifier: owned by the canonical inline damage pipeline.
+//! This EntityDef records the trigger surface for export/runtime snapshots.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
@@ -21,6 +20,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Boot",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // Wired later when damage pipeline migrates
+    complex_hook: None,
     status_guard: None,
 };

@@ -88,12 +88,6 @@ impl GameplayRegistry {
         self.get(GameplayDomain::Potion, id)
     }
 
-    pub fn defs_for_tag<'a>(&'a self, tag: &'a str) -> impl Iterator<Item = &'a GameplayDef> + 'a {
-        self.defs
-            .iter()
-            .filter(move |def| def.tags.iter().any(|candidate| candidate == tag))
-    }
-
     pub fn program(&self, domain: GameplayDomain, id: &str) -> Option<GameplayProgram> {
         self.get(domain, id).map(|def| def.program())
     }
@@ -283,7 +277,6 @@ mod tests {
         let strike_program = registry
             .program(GameplayDomain::Card, "Strike_P")
             .expect("strike program");
-        assert_eq!(strike_program.source, crate::gameplay::GameplayProgramSource::Canonical);
         assert!(strike_program
             .steps
             .iter()
@@ -294,7 +287,6 @@ mod tests {
             .next()
             .expect("event def")
             .program();
-        assert_eq!(event_program.source, crate::gameplay::GameplayProgramSource::Canonical);
         assert!(event_program
             .steps
             .iter()

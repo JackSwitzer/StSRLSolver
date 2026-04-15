@@ -55,11 +55,6 @@ pub enum Lifetime {
     Charges(u16),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GameplayProgramSource {
-    Canonical,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameplayStateField {
     pub id: &'static str,
@@ -183,16 +178,12 @@ pub struct GameplayHandler {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameplayProgram {
-    pub source: GameplayProgramSource,
     pub steps: Vec<EffectOp>,
 }
 
 impl GameplayProgram {
     pub fn canonical(steps: Vec<EffectOp>) -> Self {
-        Self {
-            source: GameplayProgramSource::Canonical,
-            steps,
-        }
+        Self { steps }
     }
 }
 
@@ -336,10 +327,6 @@ pub struct GameplayDef {
 }
 
 impl GameplayDef {
-    pub fn program_source(&self) -> GameplayProgramSource {
-        GameplayProgramSource::Canonical
-    }
-
     pub fn program(&self) -> GameplayProgram {
         let mut steps = vec![EffectOp::DeclareDefinition {
             domain: self.domain,

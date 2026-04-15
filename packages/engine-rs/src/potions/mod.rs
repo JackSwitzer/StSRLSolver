@@ -9,11 +9,13 @@
 //! with the run's ascension level, or use `apply_potion` for base potency.
 //!
 //! Production manual activation now routes through owner-aware runtime defs in
-//! `potions/defs`; `apply_potion` remains as an oracle/helper surface.
+//! `potions/defs`; the helper functions in this module are retained only for
+//! shared internal callers and direct tests.
 
 pub mod defs;
 
 use crate::state::CombatState;
+#[cfg(test)]
 use crate::status_ids::sid;
 
 #[cfg(test)]
@@ -41,6 +43,7 @@ pub(crate) fn apply_ambrosia_effect(state: &mut CombatState) {
     state.stance = crate::state::Stance::Divinity;
 }
 
+#[cfg(test)]
 pub(crate) fn apply_stance_potion_effect(state: &mut CombatState) {
     use crate::state::Stance;
     match state.stance {
@@ -108,6 +111,7 @@ pub(crate) fn return_discard_to_hand(state: &mut CombatState, amount: i32) -> i3
     moved
 }
 
+#[cfg(test)]
 pub(crate) fn proxy_distilled_chaos_to_hand(state: &mut CombatState, amount: i32) -> i32 {
     let mut moved = 0;
     for _ in 0..amount {
@@ -209,7 +213,8 @@ pub fn effective_potency_runtime(state: &CombatState, potion_id: &str) -> i32 {
 /// Apply a potion with ascension scaling.
 /// `ascension`: the run's ascension level (0-20). At A11+ potency is reduced.
 /// Returns true if the potion was successfully consumed.
-pub fn apply_potion_scaled(
+#[cfg(test)]
+pub(crate) fn apply_potion_scaled(
     state: &mut CombatState,
     potion_id: &str,
     target_idx: i32,
@@ -442,7 +447,7 @@ pub fn apply_potion_scaled(
         }
 
         "BlessingOfTheForge" => {
-            // Oracle fallback only; production should use runtime manual activation.
+            // Test-only helper path; production uses the owner-aware runtime.
             upgrade_hand_for_combat(state);
             true
         }
@@ -461,7 +466,7 @@ pub fn apply_potion_scaled(
 
         "DistilledChaosPotion" | "DistilledChaos" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
-            // Oracle fallback only; production uses the runtime manual path.
+            // Test-only helper path; production uses the owner-aware runtime.
             proxy_distilled_chaos_to_hand(state, potency);
             true
         }
@@ -477,7 +482,7 @@ pub fn apply_potion_scaled(
         }
 
         "EntropicBrew" => {
-            // Oracle fallback only; production uses runtime manual path.
+            // Test-only helper path; production uses the owner-aware runtime.
             fill_empty_potion_slots_with_proxy_rewards(state, "Block Potion");
             true
         }
@@ -520,15 +525,16 @@ pub fn apply_potion_scaled(
     }
 }
 
-/// Apply a potion's effect to the combat state (base potency, no ascension scaling).
-/// Returns true if the potion was successfully consumed.
-/// Backward-compatible wrapper: passes ascension=0 (no A11 reduction).
-pub fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -> bool {
+/// Apply a potion's effect to the combat state using base potency only.
+/// This helper is retained for direct internal tests.
+#[cfg(test)]
+pub(crate) fn apply_potion(state: &mut CombatState, potion_id: &str, target_idx: i32) -> bool {
     apply_potion_scaled(state, potion_id, target_idx, 0)
 }
 
 /// Deal damage to a specific enemy (used by damage potions).
 /// Respects Vulnerable, Intangible, and Invincible.
+#[cfg(test)]
 fn deal_damage_to_enemy(state: &mut CombatState, idx: usize, dmg: i32) {
     let enemy = &mut state.enemies[idx];
     if !enemy.is_alive() {

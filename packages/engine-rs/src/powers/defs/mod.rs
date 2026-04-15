@@ -3,9 +3,9 @@
 //! Each power is expressed as a static `EntityDef` with triggered effects
 //! that describe WHEN and WHAT happens. Simple powers are fully declarative;
 //! complex powers (card replay, on-attacked reactions) use `complex_hook`.
-//! The owner-aware runtime in `effects::runtime` now executes the migrated
-//! subset directly, while `powers/registry.rs` remains as install-time
-//! metadata plus a shrinking compatibility bridge during the remaining cleanup.
+//! The owner-aware runtime in `effects::runtime` executes these defs directly,
+//! while `powers/registry.rs` supplies the small helper surface still needed
+//! by the live engine.
 
 mod turn_start;
 mod turn_end;

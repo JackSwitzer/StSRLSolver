@@ -1,8 +1,8 @@
 //! Declarative potion definitions using the owner-aware EntityDef runtime.
 //!
 //! Potions with `ManualActivation` triggers execute through the owner-aware
-//! runtime first. `potions/mod.rs` remains as an oracle/helper surface for
-//! shared callers that have not been cut over yet.
+//! runtime. `potions/mod.rs` now only retains the shared internal helpers that
+//! support tests and the remaining non-runtime utility paths.
 
 mod prelude;
 

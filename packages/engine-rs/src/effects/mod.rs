@@ -6,7 +6,7 @@
 pub mod types;
 pub mod card_runtime;
 
-// Hook implementation files (Step 1)
+// Hook implementation files used by the canonical typed runtime.
 pub mod hooks_can_play;
 pub mod hooks_cost;
 pub mod hooks_retain;
@@ -23,7 +23,7 @@ pub mod trigger;
 pub mod entity_def;
 pub mod runtime;
 
-// Future hook files (Step 3):
+// Additional hook modules kept alongside the typed runtime.
 pub mod hooks_simple;
 // pub mod hooks_debuff;
 // pub mod hooks_generate;

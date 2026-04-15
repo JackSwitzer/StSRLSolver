@@ -1,8 +1,7 @@
 //! Wrist Blade: +4 damage for 0-cost attacks.
 //!
-//! Passive damage bonus: called inline from damage calculation, not via
-//! dispatch_trigger. EntityDef serves as documentation for future migration.
-//! Old dispatch: wrist_blade_bonus() in run.rs returns +4 if owned.
+//! Passive damage bonus: owned by the canonical inline damage calculation path.
+//! This EntityDef records the trigger surface for export/runtime snapshots.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
@@ -21,6 +20,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Wrist Blade",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // Wired later when damage pipeline migrates
+    complex_hook: None,
     status_guard: None,
 };

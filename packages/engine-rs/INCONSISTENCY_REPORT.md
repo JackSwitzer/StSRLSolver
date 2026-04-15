@@ -3,14 +3,14 @@
 Last updated: 2026-04-15  
 Branch: `codex/universal-gameplay-runtime`
 
-This is the canonical parity audit for `packages/engine-rs`. It reflects the live source tree after the staged runtime-trigger refactor, the stale-test cleanup wave, and the latest broad zero-skip freeze rerun.
+This is the canonical parity audit for `packages/engine-rs`. It reflects the live source tree after the staged runtime-trigger refactor, the stale-test cleanup wave, the final engine-PR cleanup pass, and the latest broad zero-skip freeze rerun.
 
 ## 1. Executive Summary
 
 Current read:
 
-- supported-scope runtime parity: `~100%`
-- all-content gameplay parity: `100%` on the current audited matrix
+- supported-scope runtime parity: `100%` on the audited matrix with documented intentional deviations
+- all-content gameplay parity: `100%` on the audited matrix with documented intentional deviations
 - supported-scope merge blockers: `0`
 - all-content merge blockers: `0`
 
@@ -19,7 +19,7 @@ What is truly done:
 - public gameplay-gap card tail: `0`
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
-- final broad freeze result: `2188 passed`, `0 failed`, `0 ignored`
+- final broad freeze result: `2189 passed`, `0 failed`, `0 ignored`
 - registry-backed secondary card behavior now runs through typed runtime-trigger metadata instead of raw registry/tag ownership
 - production/runtime/export code now has `0` raw `card.effects` reads and `0` live registry-dispatch symbols
 - gameplay export now carries structured `runtime_traits`, `runtime_triggers`, and `play_hints` rather than semantic effect tags
@@ -31,13 +31,14 @@ What is truly done:
 What is still open:
 
 - broader training-branch architecture planning now that the engine/export surface is typed and zero-skip green
+- optional source-authoring cleanup outside the supported runtime surface
 
 Bottom line:
 
-- If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, the final broad freeze is green on the integrated branch and there is no currently confirmed blocker left on the audited matrix.
+- If the claim is `supported runtime parity complete`, this branch is ready to serve as the training-rebuild base after reviewer sign-off.
+- If the claim is `all gameplay content complete`, the final broad freeze is green on the integrated branch and there is no currently confirmed unintended blocker left on the audited matrix.
 - Zero-skip answer: `yes` — there are `0` explicit ignored tests.
-- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
+- Java-clean answer: no currently confirmed unintended discrepancy remains on the targeted blocker matrix or the latest broad freeze rerun; intentional RL-facing deviations are documented in `DESIGN_DECISIONS.md`.
 
 ## 2. Quantified Baseline
 
@@ -58,7 +59,7 @@ Bottom line:
 | Production raw `card.effects` reads | `0` | current source scan |
 | Live registry-dispatch symbols | `0` | current source scan |
 | Typed runtime-trigger cutover | `landed` | migrated secondary behavior now reads from `CardRuntimeTraits` / `CardRuntimeTrigger` and not raw tag checks for the migrated families |
-| Final broad freeze | `2188 / 2188` | latest integrated local run |
+| Final broad freeze | `2189 / 2189` | latest integrated local run |
 
 ### Current status table
 
@@ -149,7 +150,7 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-There are no currently confirmed merge-gating findings on the integrated zero-skip tree after the final `2188 / 2188` broad freeze.
+There are no currently confirmed merge-gating findings on the integrated zero-skip tree after the final `2189 / 2189` broad freeze.
 
 The last known blocker sweep is now closed by passing engine-path proof:
 

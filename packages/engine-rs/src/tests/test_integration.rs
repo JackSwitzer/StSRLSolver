@@ -916,9 +916,9 @@ mod gameplay_registry_surface_tests {
     }
 
     #[test]
-    fn gameplay_registry_tag_queries_include_enemy_exports() {
+    fn gameplay_registry_domain_queries_include_enemy_exports() {
         let registry = global_registry();
-        let enemy_defs: Vec<_> = registry.defs_for_tag("enemy").collect();
+        let enemy_defs: Vec<_> = registry.defs_for_domain(GameplayDomain::Enemy).collect();
 
         assert_eq!(enemy_defs.len(), registry.count_for_domain(GameplayDomain::Enemy));
         assert!(enemy_defs.iter().any(|def| def.id == "JawWorm"));

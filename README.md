@@ -24,9 +24,8 @@ uv sync
 uv run pytest tests/ -q
 
 # Rust engine tests
-./scripts/test_engine_rs.sh --lib
-./scripts/test_engine_rs.sh test --lib --no-run
-./scripts/test_engine_rs.sh check --lib
+export PATH="$HOME/.cargo/bin:$PATH" PYO3_PYTHON=.venv/bin/python3
+cargo test --lib --manifest-path packages/engine-rs/Cargo.toml
 
 # Start training
 ./scripts/training.sh start

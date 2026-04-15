@@ -32,7 +32,7 @@ fn engine_without_start_with_relics(
 }
 
 #[test]
-fn dead_cleanup_wave9_runtime_combat_start_families_replace_helper_contracts() {
+fn dead_cleanup_wave9_runtime_combat_start_families_match_canonical_runtime() {
     let mut bag = engine_without_start_with_relics(&["Bag of Preparation"], 8);
     bag.start_combat();
     assert_eq!(bag.state.player.status(sid::BAG_OF_PREP_DRAW), 0);
@@ -56,7 +56,7 @@ fn dead_cleanup_wave9_mutagenic_strength_applies_at_combat_start_like_java() {
 }
 
 #[test]
-fn dead_cleanup_wave9_runtime_card_play_families_replace_helper_contracts() {
+fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     let mut kunai_state = combat_state_with(
         make_deck_n("Strike_R", 6),
         vec![enemy_no_intent("JawWorm", 40, 40)],

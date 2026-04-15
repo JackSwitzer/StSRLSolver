@@ -39,7 +39,7 @@ Live branch truth:
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
 | Direct ignored tests | `0` |
-| Final broad freeze | `2188 / 2188` |
+| Final broad freeze | `2189 / 2189` |
 
 The raw empty public-card files are intentional runtime-trigger-only cards:
 
@@ -62,9 +62,9 @@ The last explicit semantic blocker sweep is now closed:
 
 The gameplay-parity side is now through the endgame gate:
 
-1. training branch cut from this branch
-2. keep broad confidence audits running as non-blocking verification work
-3. treat any further authoring cleanup as optional follow-on polish rather than parity work
+1. finish PR cleanup and reviewer sign-off on this engine branch
+2. cut the training-rebuild branch from this cleaned engine base
+3. merge to `main` only when both the engine PR and the training follow-on are ready
 
 ## Verification Substrate
 
@@ -126,4 +126,4 @@ This pass removed the misleading “big unknown” feel from the tail:
 - generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by real passing tests
 - stale watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` are no longer overstating parity debt
 - stale colorless/choice placeholders for `Headbutt`, `Violence`, and `Secret Technique` legality are gone
-- the parity PR can now talk about a zero-skip audited matrix with a completed `2188 / 2188` broad freeze instead of a broad fuzzy backlog
+- the parity PR can now talk about a zero-skip audited matrix with a completed `2189 / 2189` broad freeze instead of a broad fuzzy backlog

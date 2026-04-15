@@ -152,7 +152,7 @@ fn wave8_ambrosia_entropic_darkness_capacity_and_gamblers_brew_use_runtime_path(
 }
 
 #[test]
-fn wave8_smoke_bomb_flees_without_legacy_apply_potion_fallback() {
+fn wave8_smoke_bomb_flees_on_the_canonical_runtime_path() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
     let mut engine = engine_with_state(combat_state_with(

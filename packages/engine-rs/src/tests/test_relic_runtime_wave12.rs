@@ -23,7 +23,7 @@ use crate::tests::support::{
 };
 
 #[test]
-fn relic_wave12_runtime_combat_start_buffs_and_debuffs_replace_helper_contracts() {
+fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime() {
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
@@ -43,7 +43,7 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_replace_helper_contracts(
 }
 
 #[test]
-fn relic_wave12_runtime_combat_start_temp_cards_replace_helper_contracts() {
+fn relic_wave12_runtime_combat_start_temp_cards_match_canonical_runtime() {
     let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics = vec!["PureWater".to_string()];
 
@@ -60,7 +60,7 @@ fn relic_wave12_runtime_combat_start_temp_cards_replace_helper_contracts() {
 }
 
 #[test]
-fn relic_wave12_runtime_hp_loss_families_replace_helper_contracts() {
+fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
     let mut state = combat_state_with(
         make_deck(&["Strike_R"; 10]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -105,7 +105,7 @@ fn relic_wave12_runtime_hp_loss_families_replace_helper_contracts() {
 }
 
 #[test]
-fn relic_wave12_runtime_shuffle_and_enemy_death_families_replace_helper_contracts() {
+fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime() {
     let mut shuffle = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     shuffle.state.relics = vec!["Sundial".to_string(), "TheAbacus".to_string()];
     shuffle.rebuild_effect_runtime();
@@ -143,7 +143,7 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_replace_helper_contract
 }
 
 #[test]
-fn relic_wave12_runtime_victory_families_replace_helper_contracts() {
+fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     let mut burn_state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     burn_state.relics = vec!["Burning Blood".to_string()];
     burn_state.player.hp = 60;

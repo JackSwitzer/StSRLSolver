@@ -2,9 +2,7 @@
 //!
 //! Each relic's entire declarative behavior lives in one file.
 //! The RELIC_DEFS registry collects all definitions for dispatch.
-//!
-//! Phase 1: definitions only -- old dispatch in combat.rs/run.rs
-//! stays alongside these defs until the trigger interpreter is wired.
+//! These defs are the canonical relic runtime metadata surface.
 
 use crate::effects::entity_def::EntityDef;
 
@@ -333,16 +331,6 @@ pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {
 }
 
 // ===========================================================================
-// Lookup helper
-// ===========================================================================
-
-/// Find a relic definition by ID string.
-/// Returns None if the relic has no EntityDef yet (still in old dispatch).
-pub fn find_relic_def(id: &str) -> Option<&'static EntityDef> {
-    RELIC_DEFS.iter().find(|def| def.id == id).copied()
-}
-
-// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -373,21 +361,21 @@ mod tests {
     }
 
     #[test]
-    fn test_find_relic_def() {
-        assert!(find_relic_def("Vajra").is_some());
-        assert!(find_relic_def("Nonexistent").is_none());
+    fn test_relic_def_by_id() {
+        assert!(relic_def_by_id("Vajra").is_some());
+        assert!(relic_def_by_id("Nonexistent").is_none());
     }
 
     #[test]
     fn test_vajra_has_combat_start_trigger() {
-        let def = find_relic_def("Vajra").unwrap();
+        let def = relic_def_by_id("Vajra").unwrap();
         assert_eq!(def.triggers.len(), 1);
         assert_eq!(def.triggers[0].trigger, crate::effects::trigger::Trigger::CombatStart);
     }
 
     #[test]
     fn test_ornamental_fan_has_counter() {
-        let def = find_relic_def("Ornamental Fan").unwrap();
+        let def = relic_def_by_id("Ornamental Fan").unwrap();
         assert_eq!(def.triggers.len(), 2); // OnAttackPlayed counter + TurnStart reset
         let te = &def.triggers[0];
         assert_eq!(te.trigger, crate::effects::trigger::Trigger::OnAttackPlayed);
@@ -401,13 +389,13 @@ mod tests {
 
     #[test]
     fn test_orichalcum_has_no_block_condition() {
-        let def = find_relic_def("Orichalcum").unwrap();
+        let def = relic_def_by_id("Orichalcum").unwrap();
         assert_eq!(def.triggers[0].condition, crate::effects::trigger::TriggerCondition::NoBlock);
     }
 
     #[test]
     fn test_lantern_has_first_turn_condition() {
-        let def = find_relic_def("Lantern").unwrap();
+        let def = relic_def_by_id("Lantern").unwrap();
         assert_eq!(def.triggers[0].condition, crate::effects::trigger::TriggerCondition::FirstTurn);
     }
 
@@ -415,20 +403,20 @@ mod tests {
     fn test_simple_defs_have_no_complex_hook() {
         let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Mercury Hourglass", "Kunai"];
         for name in simple_relics {
-            let def = find_relic_def(name).unwrap();
+            let def = relic_def_by_id(name).unwrap();
             assert!(def.complex_hook.is_none(), "{} should not have a complex_hook", name);
         }
     }
 
     #[test]
     fn test_brimstone_has_two_effects() {
-        let def = find_relic_def("Brimstone").unwrap();
+        let def = relic_def_by_id("Brimstone").unwrap();
         assert_eq!(def.triggers[0].effects.len(), 2);
     }
 
     #[test]
     fn test_mutagenic_strength_has_two_effects() {
-        let def = find_relic_def("MutagenicStrength").unwrap();
+        let def = relic_def_by_id("MutagenicStrength").unwrap();
         assert_eq!(def.triggers[0].effects.len(), 2);
     }
 }

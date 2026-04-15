@@ -9,7 +9,7 @@ use crate::tests::support::{
 };
 
 #[test]
-fn power_card_install_rebuilds_runtime_without_legacy_tag_lookup() {
+fn power_card_install_rebuilds_runtime_from_typed_metadata() {
     let mut engine = engine_with_state(combat_state_with(
         Vec::new(),
         vec![create_enemy("JawWorm", 40, 40)],

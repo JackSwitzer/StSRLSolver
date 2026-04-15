@@ -57,7 +57,7 @@ fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
 }
 
 #[test]
-fn relic_wave11_runtime_end_turn_and_post_draw_paths_replace_helper_contracts() {
+fn relic_wave11_runtime_end_turn_and_post_draw_paths_match_canonical_runtime() {
     let mut state = combat_state_with(
         make_deck(&["Defend_P", "Defend_P", "Defend_P"]),
         vec![enemy("JawWorm", 60, 60, 1, 5, 1)],

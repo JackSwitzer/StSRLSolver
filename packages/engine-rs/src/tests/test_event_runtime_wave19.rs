@@ -60,8 +60,12 @@ fn match_and_keep_reveals_the_selected_card_by_index() {
 
     let ctx = engine.current_decision_context();
     let event = ctx.event.expect("match event context");
+    let expected_label = crate::gameplay::global_registry()
+        .card(&board[0])
+        .map(|def| def.name.clone())
+        .unwrap_or_else(|| board[0].clone());
     assert!(event.options[0].label.contains("Revealed slot 1"));
-    assert!(event.options[0].label.contains(&board[0]));
+    assert!(event.options[0].label.contains(&expected_label));
 }
 
 #[test]
@@ -81,6 +85,36 @@ fn match_and_keep_board_starts_with_six_pairs_and_five_attempts() {
     assert!(counts.values().all(|count| *count == 2));
     assert_eq!(counts.get("Eruption"), Some(&2));
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(5));
+}
+
+#[test]
+fn match_and_keep_uses_the_current_run_class_for_the_starter_pair() {
+    let mut engine = RunEngine::new(421, 10);
+    engine.run_state.deck = vec![
+        "Strike_G".to_string(),
+        "Strike_G".to_string(),
+        "Strike_G".to_string(),
+        "Strike_G".to_string(),
+        "Defend_G".to_string(),
+        "Defend_G".to_string(),
+        "Defend_G".to_string(),
+        "Defend_G".to_string(),
+        "Neutralize".to_string(),
+        "Survivor".to_string(),
+    ];
+    engine.run_state.relics = vec!["Ring of the Snake".to_string()];
+    enter_match_and_keep(&mut engine);
+
+    let board = engine
+        .debug_match_and_keep_board()
+        .expect("match board should exist");
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for card_id in board {
+        *counts.entry(card_id).or_insert(0) += 1;
+    }
+
+    assert_eq!(counts.get("Neutralize"), Some(&2));
+    assert!(!counts.contains_key("Eruption"));
 }
 
 #[test]

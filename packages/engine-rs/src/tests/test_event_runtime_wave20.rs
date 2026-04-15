@@ -1,4 +1,3 @@
-use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, EventRuntimeStatus, TypedEventDef};
 use crate::run::{RunAction, RunEngine, RunPhase};
 
@@ -41,22 +40,27 @@ fn scrap_ooze_retries_with_escalating_damage_and_relic_chance_before_rewarding_a
 
     let second = engine.step_with_result(&RunAction::EventChoice(0));
     assert!(second.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 69);
+    assert_eq!(engine.event_option_count(), 1);
+    assert!(engine.current_reward_screen().is_none());
 
-    let screen = engine
-        .current_reward_screen()
-        .expect("scrap ooze reward screen should exist");
-    assert_eq!(screen.source, RewardScreenSource::Event);
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
-    assert!(screen.items[0].claimable);
+    let leave_ctx = engine.current_decision_context();
+    let leave_event = leave_ctx.event.expect("scrap ooze leave event");
+    assert_eq!(leave_event.options.len(), 1);
+    assert_eq!(leave_event.options[0].label, "Leave");
 
-    let relic_id = screen.items[0].label.clone();
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    let relic_id = engine
+        .run_state
+        .relics
+        .last()
+        .expect("scrap ooze should grant a relic immediately")
+        .clone();
     assert!(engine.run_state.relics.iter().any(|relic| relic == &relic_id));
+
+    let leave = engine.step_with_result(&RunAction::EventChoice(0));
+    assert!(leave.action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 }
 
 #[test]
@@ -68,7 +72,12 @@ fn scrap_ooze_leave_exits_without_damage_or_reward() {
 
     let leave = engine.step_with_result(&RunAction::EventChoice(1));
     assert!(leave.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(engine.event_option_count(), 1);
     assert!(engine.current_reward_screen().is_none());
     assert_eq!(engine.run_state.current_hp, 80);
+
+    let final_leave = engine.step_with_result(&RunAction::EventChoice(0));
+    assert!(final_leave.action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 }

@@ -1,8 +1,7 @@
 //! Hand Drill: Apply 2 Vulnerable when an enemy's block is broken.
 //!
-//! Block-break modifier: called inline in damage pipeline, not via
-//! dispatch_trigger. EntityDef serves as documentation for future migration.
-//! Old dispatch: hand_drill_on_block_break() in run.rs.
+//! Block-break modifier: owned by the canonical inline damage pipeline.
+//! This EntityDef records the trigger surface for export/runtime snapshots.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
@@ -21,6 +20,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Hand Drill",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,
-    complex_hook: None, // Wired later when damage pipeline migrates
+    complex_hook: None,
     status_guard: None,
 };

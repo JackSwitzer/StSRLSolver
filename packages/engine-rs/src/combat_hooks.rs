@@ -49,7 +49,7 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             replay_window: false,
         });
 
-        // Legacy fallback for enemy powers not migrated into the owner-aware runtime yet.
+        // Enemy status countdowns still modeled directly in the turn-flow loop.
         let fading = engine.state.enemies[i].entity.status(sid::FADING);
         if fading > 0 {
             engine.state.enemies[i]

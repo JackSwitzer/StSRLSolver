@@ -13,15 +13,15 @@ Canonical audit outputs:
 
 Weighted toward `universal gameplay runtime + honest Java parity proof`:
 
-- supported-scope runtime parity: `100%`
-- all-content gameplay parity: `100%` on the current audited matrix
-- architecture unification snapshot: `100%` on the supported Rust/runtime/export surface
+- supported-scope runtime parity: `100%` on the audited matrix with documented intentional deviations
+- all-content gameplay parity: `100%` on the audited matrix with documented intentional deviations
+- architecture unification snapshot: `100%` semantic ownership on the supported Rust/runtime/export surface
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `100%` on the audited matrix | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the final broad freeze finished `2188 / 2188` green on the integrated branch |
+| Combat runtime parity | `100%` on the audited matrix | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the final broad freeze finished `2189 / 2189` green on the integrated branch |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
 | Run / reward / event parity | `100%` | `NoteForYourself`, `Match and Keep!`, `Scrap Ooze`, and persistent shop purge pricing now run on the canonical runtime path |
 | Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
@@ -44,7 +44,7 @@ Area scores:
 | Direct relic helper-path refs | `0` |
 | Production raw `card.effects` reads | `0` |
 | Live registry-dispatch symbols | `0` |
-| Final broad freeze | `2188 / 2188` |
+| Final broad freeze | `2189 / 2189` |
 
 Runtime-trigger-only card defs:
 
@@ -131,7 +131,7 @@ The main stale-test cleanup result from this pass:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
-- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the final broad freeze finished `2188 / 2188` green; the remaining work is training-branch planning and optional follow-on cleanup, not live gameplay debt.
+- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the final broad freeze finished `2189 / 2189` green; the remaining work is training-branch planning and optional follow-on cleanup, not live gameplay debt.
 - Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
+- Java-clean answer: no currently confirmed unintended discrepancy remains on the targeted blocker matrix or the latest broad freeze rerun; intentional RL-facing deviations are tracked in `DESIGN_DECISIONS.md`.
 - Legacy semantic code answer: none remains in the supported Rust/runtime/export surface. The remaining raw-empty card defs are intentional runtime-trigger-only authoring files, not semantic fallback paths.
