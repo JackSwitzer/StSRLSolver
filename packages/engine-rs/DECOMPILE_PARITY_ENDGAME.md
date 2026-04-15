@@ -21,6 +21,7 @@ What closed in the latest cleanup pass:
 - `Parasite` now applies Java-style max-HP loss only when removed from the master deck
 - `Sentinel` under `Corruption` now refunds energy through a typed exhaust hook lane
 - `Expunger` / `Conjure Blade+` now preserve card-owned X-count semantics, including `Chemical X`
+- registry-backed secondary behavior now runs through typed runtime-trigger metadata plus derived compatibility tags instead of raw registry/tag ownership
 - stale watcher/colorless/defect ignore noise was converted into real passing coverage
 - stale active assertions were fixed for `Consecrate`, `Purity`, and `Capacitor`
 - `Secret Technique` legality is now proven on the engine path instead of staying ignored
@@ -43,6 +44,8 @@ The raw empty public-card files are cleanup shells only:
 - `Tactician`
 - `Deus Ex Machina`
 
+Those files are no longer semantic outliers: their live runtime behavior now comes from the typed runtime-trigger surface, and the remaining debt is just normalization/optics.
+
 ## Last Known Blocker Sweep
 
 The last explicit semantic blocker sweep is now closed:
@@ -56,8 +59,8 @@ The last explicit semantic blocker sweep is now closed:
 
 If the goal is to leave draft only after `all gameplay content complete`, the next order should be:
 
-1. rerun the broad audit on the zero-skip tree
-2. PR/body/doc reconciliation
+1. PR/body/doc reconciliation
+2. optional cleanup-shell normalization decision
 3. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
@@ -92,6 +95,13 @@ Representative currently green suites:
 - `test_orb_runtime_java_wave1`
 - `test_card_runtime_watcher_wave24`
 - `test_card_runtime_xcount_wave1`
+- `test_runtime_inline_cutover_wave5`
+- `test_card_runtime_nonplay_triggers_wave1`
+- `test_card_runtime_support_wave1`
+- `test_cards_ironclad`
+- `test_cards_defect`
+- `test_cards_silent`
+- `test_cards_watcher`
 - `test_card_runtime_watcher_wave5`
 - `test_card_runtime_watcher_wave14`
 - `test_card_runtime_watcher_wave15`

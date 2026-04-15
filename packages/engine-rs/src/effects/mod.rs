@@ -8,6 +8,7 @@
 pub mod flags;
 pub mod types;
 pub mod registry;
+pub mod card_runtime;
 
 // Hook implementation files (Step 1)
 pub mod hooks_can_play;

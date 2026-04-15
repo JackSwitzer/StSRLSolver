@@ -123,7 +123,7 @@ fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
     assert!(play_on_enemy(&mut engine, "Feed", 0));
     assert!(engine.state.enemies[0].entity.is_dead());
     assert_eq!(engine.state.player.max_hp, max_hp_before + 3);
-    assert_eq!(engine.state.player.hp, hp_before);
+    assert_eq!(engine.state.player.hp, hp_before + 3);
 }
 
 #[test]

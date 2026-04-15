@@ -42,18 +42,28 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     let cleave = global_registry().get("Cleave").expect("Cleave should exist");
     assert_eq!(cleave.card_type, CardType::Attack);
     assert_eq!(cleave.target, CardTarget::AllEnemy);
-    assert!(
-        cleave.effect_data.is_empty(),
-        "Cleave still relies on the generic attack preamble for AoE damage"
+    assert_eq!(
+        cleave.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::AllEnemies,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
     );
 
     let clash = global_registry().get("Clash").expect("Clash should exist");
     assert_eq!(clash.card_type, CardType::Attack);
     assert_eq!(clash.target, CardTarget::Enemy);
     assert!(clash.effects.contains(&"only_attacks_in_hand"));
-    assert!(
-        clash.effect_data.is_empty(),
-        "Clash still needs the shared can-play gate plus generic attack preamble"
+    assert_eq!(
+        clash.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
     );
 
     let heavy_blade = global_registry()
@@ -61,9 +71,14 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
         .expect("Heavy Blade+ should exist");
     assert_eq!(heavy_blade.base_magic, 5);
     assert!(heavy_blade.effects.contains(&"heavy_blade"));
-    assert!(
-        heavy_blade.effect_data.is_empty(),
-        "Heavy Blade still relies on the shared strength-scaling damage hook"
+    assert_eq!(
+        heavy_blade.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
     );
 
     let iron_wave = global_registry().get("Iron Wave").expect("Iron Wave should exist");
@@ -71,16 +86,33 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     assert_eq!(iron_wave.target, CardTarget::Enemy);
     assert_eq!(iron_wave.base_damage, 5);
     assert_eq!(iron_wave.base_block, 5);
-    assert!(
-        iron_wave.effect_data.is_empty(),
-        "Iron Wave still relies on the generic attack and block preambles"
+    assert_eq!(
+        iron_wave.effect_data,
+        &[
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::GainBlock(
+                    crate::effects::declarative::AmountSource::Block,
+                ),
+            ),
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DealDamage(
+                    crate::effects::declarative::Target::SelectedEnemy,
+                    crate::effects::declarative::AmountSource::Damage,
+                ),
+            ),
+        ]
     );
 
     let carnage = global_registry().get("Carnage").expect("Carnage should exist");
     assert!(carnage.effects.contains(&"ethereal"));
-    assert!(
-        carnage.effect_data.is_empty(),
-        "Carnage still relies on the generic attack preamble"
+    assert_eq!(
+        carnage.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
     );
 
     let impervious = global_registry()
@@ -90,25 +122,42 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
     assert_eq!(impervious.target, CardTarget::SelfTarget);
     assert!(impervious.exhaust);
     assert_eq!(impervious.base_block, 40);
-    assert!(
-        impervious.effect_data.is_empty(),
-        "Impervious still relies on the generic block preamble"
+    assert_eq!(
+        impervious.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::GainBlock(
+                crate::effects::declarative::AmountSource::Block,
+            ),
+        )]
     );
 
     let perfected_strike = global_registry()
         .get("Perfected Strike")
         .expect("Perfected Strike should exist");
     assert!(perfected_strike.effects.contains(&"perfected_strike"));
-    assert!(
-        perfected_strike.effect_data.is_empty(),
-        "Perfected Strike still relies on the shared strike-count damage hook"
+    assert_eq!(
+        perfected_strike.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
     );
 
     let bludgeon = global_registry().get("Bludgeon").expect("Bludgeon should exist");
     assert_eq!(bludgeon.card_type, CardType::Attack);
     assert_eq!(bludgeon.target, CardTarget::Enemy);
     assert_eq!(bludgeon.base_damage, 32);
-    assert!(bludgeon.effect_data.is_empty());
+    assert_eq!(
+        bludgeon.effect_data,
+        &[crate::effects::declarative::Effect::Simple(
+            crate::effects::declarative::SimpleEffect::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                crate::effects::declarative::AmountSource::Damage,
+            ),
+        )]
+    );
 }
 
 #[test]

@@ -20,6 +20,7 @@ mod silent;
 pub(crate) mod defect;
 mod colorless;
 mod curses;
+mod runtime_meta;
 mod status;
 mod temp;
 
@@ -85,9 +86,21 @@ pub struct CardDef {
 }
 
 impl CardDef {
+    pub fn runtime_traits(&self) -> crate::effects::types::CardRuntimeTraits {
+        runtime_meta::runtime_traits_for_card(self.effects)
+    }
+
+    pub fn runtime_triggers(&self) -> &'static [crate::effects::types::CardRuntimeTrigger] {
+        runtime_meta::runtime_triggers_for_card(self.id)
+    }
+
+    pub fn compat_effect_tags(&self) -> Vec<&'static str> {
+        runtime_meta::compat_effect_tags_for_card(self.id, self.effects)
+    }
+
     /// Is this card an unplayable status/curse?
     pub fn is_unplayable(&self) -> bool {
-        self.cost == -2
+        self.cost == -2 || self.runtime_traits().unplayable
     }
 
     pub fn declared_effect_count(&self) -> usize {
@@ -493,7 +506,11 @@ pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
             domain: crate::gameplay::GameplayDomain::Card,
             id: card.id.to_string(),
             name: card.name.to_string(),
-            tags: card.effects.iter().map(|tag| (*tag).to_string()).collect(),
+            tags: global_registry()
+                .compat_effect_tags(global_registry().card_id(card.id))
+                .iter()
+                .map(|tag| (*tag).to_string())
+                .collect(),
             schema: crate::gameplay::GameplaySchema::Card(crate::gameplay::CardSchema {
                 card_type: Some(card.card_type),
                 target: Some(card.target),
@@ -544,6 +561,8 @@ pub struct CardRegistry {
     strike_flags: Vec<bool>,
     /// Precomputed effect flags per card ID for O(1) hook dispatch.
     effect_flags_vec: Vec<crate::effects::EffectFlags>,
+    /// Compatibility effect tags derived from typed runtime traits/triggers plus remaining legacy tags.
+    compat_effect_tags_vec: Vec<Box<[&'static str]>>,
 }
 
 
@@ -588,12 +607,27 @@ impl CardRegistry {
             strike_flags.push(lower.contains("strike"));
         }
 
+        let compat_effect_tags_vec = id_to_def
+            .iter()
+            .map(|def| def.compat_effect_tags().into_boxed_slice())
+            .collect();
         let effect_flags_vec = id_to_def
             .iter()
-            .map(|def| crate::effects::build_effect_flags(def.effects))
+            .map(|def| {
+                let legacy = runtime_meta::legacy_effect_tags_for_card(def.id, def.effects);
+                crate::effects::build_effect_flags(&legacy)
+            })
             .collect();
 
-        CardRegistry { cards, id_to_def, name_to_id, id_to_name, strike_flags, effect_flags_vec }
+        CardRegistry {
+            cards,
+            id_to_def,
+            name_to_id,
+            id_to_name,
+            strike_flags,
+            effect_flags_vec,
+            compat_effect_tags_vec,
+        }
     }
 
 
@@ -708,6 +742,17 @@ impl CardRegistry {
             .unwrap_or(crate::effects::EffectFlags::EMPTY)
     }
 
+    pub fn compat_effect_tags(&self, id: u16) -> &[&'static str] {
+        self.compat_effect_tags_vec
+            .get(id as usize)
+            .map(Box::as_ref)
+            .unwrap_or(&[])
+    }
+
+    pub fn has_compat_effect(&self, id: u16, effect: &str) -> bool {
+        self.compat_effect_tags(id).contains(&effect)
+    }
+
     /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
     pub fn upgrade_card(&self, card: &mut CardInstance) {
         if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
@@ -787,8 +832,9 @@ mod tests {
     }
 
     fn assert_has_effect(reg: &CardRegistry, id: &str, effect: &str) {
-        let card = reg.get(id).unwrap_or_else(|| panic!("Card '{}' not found", id));
-        assert!(card.effects.contains(&effect), "{} should have effect '{}'", id, effect);
+        let def_id = reg.card_id(id);
+        assert_ne!(def_id, u16::MAX, "Card '{}' not found", id);
+        assert!(reg.has_compat_effect(def_id, effect), "{} should have effect '{}'", id, effect);
     }
 
     // -----------------------------------------------------------------------

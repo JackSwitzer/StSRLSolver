@@ -1163,9 +1163,9 @@ impl EffectRuntime {
             SimpleEffect::ModifyMaxHp(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-                if engine.state.player.hp > engine.state.player.max_hp {
-                    engine.state.player.hp = engine.state.player.max_hp;
-                }
+                engine.state.player.hp = (engine.state.player.hp + amount)
+                    .max(0)
+                    .min(engine.state.player.max_hp);
             }
             SimpleEffect::ModifyMaxEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);

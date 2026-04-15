@@ -100,7 +100,7 @@ fn watcher_wave13_typed_surface_cards_follow_engine_path() {
         .iter()
         .find(|card| sands.card_registry.card_name(card.def_id) == "SandsOfTime")
         .expect("Sands of Time should stay in hand");
-    assert_eq!(sands_card.cost, 0);
+    assert_eq!(sands_card.cost, 3);
 
     let mut tranquility = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut tranquility, "ClearTheMind");

@@ -321,9 +321,11 @@ mod ironclad_card_java_parity_tests {
     #[test]
     fn warcry_draws_and_exhausts_itself() {
         let mut e = engine_for(&["Warcry"], &["Strike_P"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
-        let hand = e.state.hand.len();
         assert!(play_self(&mut e, "Warcry"));
-        assert_eq!(e.state.hand.len(), hand);
+        assert_eq!(e.phase, crate::engine::CombatPhase::AwaitingChoice);
+        e.execute_action(&Action::Choose(0));
+        assert_eq!(e.state.hand.len(), 0);
+        assert_eq!(e.state.draw_pile.len(), 1);
         assert_eq!(exhaust_prefix_count(&e, "Warcry"), 1);
     }
 

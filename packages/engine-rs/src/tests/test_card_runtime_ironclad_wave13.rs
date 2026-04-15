@@ -88,7 +88,7 @@ fn ironclad_wave13_feed_and_reaper_follow_the_typed_primary_surface() {
     ensure_in_hand(&mut feed, "Feed");
     assert!(play_on_enemy(&mut feed, "Feed", 0));
     assert_eq!(feed.state.player.max_hp, 63);
-    assert_eq!(feed.state.player.hp, 40);
+    assert_eq!(feed.state.player.hp, 43);
 
     let mut reaper = two_enemy_engine(8, 3, 7, 0, 3);
     reaper.state.player.hp = 30;

@@ -59,12 +59,28 @@ mod ironclad_wave4_card_runtime_tests {
         assert_eq!(blood_for_blood.card_type, CardType::Attack);
         assert_eq!(blood_for_blood.target, CardTarget::Enemy);
         assert!(blood_for_blood.effects.contains(&"cost_reduce_on_hp_loss"));
-        assert!(blood_for_blood.effect_data.is_empty());
+        assert_eq!(
+            blood_for_blood.effect_data,
+            &[crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DealDamage(
+                    crate::effects::declarative::Target::SelectedEnemy,
+                    crate::effects::declarative::AmountSource::Damage,
+                ),
+            )]
+        );
 
         let bludgeon = card("Bludgeon");
         assert_eq!(bludgeon.card_type, CardType::Attack);
         assert_eq!(bludgeon.target, CardTarget::Enemy);
-        assert!(bludgeon.effect_data.is_empty());
+        assert_eq!(
+            bludgeon.effect_data,
+            &[crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DealDamage(
+                    crate::effects::declarative::Target::SelectedEnemy,
+                    crate::effects::declarative::AmountSource::Damage,
+                ),
+            )]
+        );
         assert!(bludgeon.complex_hook.is_none());
 
         let burning_pact = card("Burning Pact");
@@ -86,15 +102,41 @@ mod ironclad_wave4_card_runtime_tests {
 
         let cleave = card("Cleave");
         assert_eq!(cleave.target, CardTarget::AllEnemy);
-        assert!(cleave.effect_data.is_empty());
+        assert_eq!(
+            cleave.effect_data,
+            &[crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DealDamage(
+                    crate::effects::declarative::Target::AllEnemies,
+                    crate::effects::declarative::AmountSource::Damage,
+                ),
+            )]
+        );
 
         let ghostly_armor = card("Ghostly Armor");
         assert_eq!(ghostly_armor.card_type, CardType::Skill);
         assert!(ghostly_armor.effects.contains(&"ethereal"));
 
         let headbutt = card("Headbutt");
-        assert!(headbutt.effect_data.is_empty());
-        assert!(headbutt.complex_hook.is_some());
+        assert_eq!(
+            headbutt.effect_data,
+            &[
+                crate::effects::declarative::Effect::Simple(
+                    crate::effects::declarative::SimpleEffect::DealDamage(
+                        crate::effects::declarative::Target::SelectedEnemy,
+                        crate::effects::declarative::AmountSource::Damage,
+                    ),
+                ),
+                crate::effects::declarative::Effect::ChooseCards {
+                    source: crate::effects::declarative::Pile::Discard,
+                    filter: crate::effects::declarative::CardFilter::All,
+                    action: crate::effects::declarative::ChoiceAction::PutOnTopOfDraw,
+                    min_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                    max_picks: crate::effects::declarative::AmountSource::Fixed(1),
+                    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
+                },
+            ]
+        );
+        assert!(headbutt.complex_hook.is_none());
     }
 
     #[test]

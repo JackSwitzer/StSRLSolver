@@ -31,51 +31,8 @@ fn resolve_damage_modifiers(
     engine: &CombatEngine,
     card: &CardDef,
     card_inst: CardInstance,
-    card_flags: crate::effects::EffectFlags,
 ) -> DamageModifier {
-    use crate::effects::hooks_damage;
-    use crate::effects::registry as bits;
-
-    let mut out = DamageModifier::default();
-    if card_flags.has(bits::BIT_HEAVY_BLADE) {
-        out.merge(hooks_damage::hook_heavy_blade(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_DAMAGE_EQUALS_BLOCK) {
-        out.merge(hooks_damage::hook_damage_equals_block(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_DAMAGE_PLUS_MANTRA) {
-        out.merge(hooks_damage::hook_damage_plus_mantra(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_PERFECTED_STRIKE) {
-        out.merge(hooks_damage::hook_perfected_strike(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_RAMPAGE) {
-        out.merge(hooks_damage::hook_rampage(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_GLASS_KNIFE) {
-        out.merge(hooks_damage::hook_glass_knife(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_RITUAL_DAGGER) {
-        out.merge(hooks_damage::hook_ritual_dagger(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_SEARING_BLOW) {
-        out.merge(hooks_damage::hook_searing_blow(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_DAMAGE_RANDOM_X_TIMES) {
-        out.merge(hooks_damage::hook_damage_random_x_times(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_GROW_DAMAGE_ON_RETAIN) {
-        out.merge(hooks_damage::hook_windmill_strike_damage(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_CLAW_SCALING) {
-        out.merge(hooks_damage::hook_claw_damage(engine, card, card_inst));
-    }
-    if card_flags.has(bits::BIT_DAMAGE_PER_LIGHTNING)
-        || card_flags.has(bits::BIT_DAMAGE_FROM_DRAW_PILE)
-    {
-        out.merge(hooks_damage::hook_skip_generic_damage(engine, card, card_inst));
-    }
-    out
+    crate::effects::card_runtime::resolve_damage_modifiers(engine, card, card_inst)
 }
 
 fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
@@ -104,8 +61,7 @@ pub(crate) fn execute_primary_attack(
     let card = ctx.card;
     let card_inst = ctx.card_inst;
     let card_id = engine.card_registry.card_name(card_inst.def_id);
-    let card_flags = engine.card_registry.effect_flags(card_inst.def_id);
-    let dmg_mod = resolve_damage_modifiers(engine, card, card_inst, card_flags);
+    let dmg_mod = resolve_damage_modifiers(engine, card, card_inst);
 
     let body_slam_damage = dmg_mod.base_damage_override;
     let heavy_blade_mult = dmg_mod.strength_multiplier;
@@ -121,8 +77,14 @@ pub(crate) fn execute_primary_attack(
         }
     }
 
-    let grand_finale_blocked = card_flags.has(crate::effects::registry::BIT_ONLY_EMPTY_DRAW)
-        && !engine.state.draw_pile.is_empty();
+    let grand_finale_blocked = card.runtime_triggers().iter().any(|trigger| {
+        matches!(
+            trigger,
+            crate::effects::types::CardRuntimeTrigger::CanPlay(
+                crate::effects::types::CanPlayRule::OnlyEmptyDraw
+            )
+        )
+    }) && !engine.state.draw_pile.is_empty();
     if dmg_mod.skip_generic_damage || grand_finale_blocked {
         return;
     }
@@ -318,8 +280,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     };
 
     // ---- Damage modifiers via registry dispatch ----
-    let card_flags = engine.card_registry.effect_flags(card_inst.def_id);
-    let dmg_mod = resolve_damage_modifiers(engine, card, card_inst, card_flags);
+    let dmg_mod = resolve_damage_modifiers(engine, card, card_inst);
 
     let body_slam_damage = dmg_mod.base_damage_override;
     let heavy_blade_mult = dmg_mod.strength_multiplier;
@@ -339,11 +300,24 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     }
 
     // ---- Grand Finale: only deal damage if draw pile is empty ----
-    let grand_finale_blocked = card_flags.has(crate::effects::registry::BIT_ONLY_EMPTY_DRAW)
-        && !engine.state.draw_pile.is_empty();
+    let grand_finale_blocked = card.runtime_triggers().iter().any(|trigger| {
+        matches!(
+            trigger,
+            crate::effects::types::CardRuntimeTrigger::CanPlay(
+                crate::effects::types::CanPlayRule::OnlyEmptyDraw
+            )
+        )
+    }) && !engine.state.draw_pile.is_empty();
 
     // ---- Perseverance: scaling block bonus from retaining ----
-    let perseverance_block_bonus = if card_flags.has(crate::effects::registry::BIT_GROW_BLOCK_ON_RETAIN) {
+    let perseverance_block_bonus = if card.runtime_triggers().iter().any(|trigger| {
+        matches!(
+            trigger,
+            crate::effects::types::CardRuntimeTrigger::OnRetain(
+                crate::effects::types::OnRetainRule::GrowBlock
+            )
+        )
+    }) {
         engine.state.player.status(sid::PERSEVERANCE_BONUS)
     } else {
         0

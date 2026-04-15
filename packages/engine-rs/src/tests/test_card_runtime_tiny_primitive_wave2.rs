@@ -154,7 +154,7 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     let hp_before = feed.state.player.hp;
     assert!(play_on_enemy(&mut feed, "Feed", 0));
     assert_eq!(feed.state.player.max_hp, max_hp_before + 3);
-    assert_eq!(feed.state.player.hp, hp_before);
+    assert_eq!(feed.state.player.hp, hp_before + 3);
 
     let mut all_out_attack = single_enemy_engine(40, 3);
     all_out_attack.state.hand = make_deck(&["All-Out Attack", "Strike_G"]);

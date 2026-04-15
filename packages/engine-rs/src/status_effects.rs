@@ -5,6 +5,7 @@
 
 use crate::cards::CardRegistry;
 use crate::damage;
+use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, WhileInHandRule};
 use crate::potions;
 use crate::powers;
 use crate::state::CombatState;
@@ -29,66 +30,45 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
     for card_inst in &hand {
         let card = card_registry.card_def_by_id(card_inst.def_id);
 
-        // Burn (2), Burn+ (4), Decay (2): end-of-turn DAMAGE (goes through Block)
-        if card.effects.contains(&"end_turn_damage") {
-            // Burn/Burn+ have correct base_magic (2/4).
-            // Decay curse re-registration has base_magic=-1, so hardcode 2.
-            let raw = if card.base_magic > 0 {
-                card.base_magic
-            } else {
-                2 // Decay fallback
-            };
-            // Correct order: Intangible cap BEFORE block absorption (matches calculate_incoming_damage)
-            let mut dmg = raw;
-
-            // 1. Intangible caps total damage to 1
-            if intangible && dmg > 1 {
-                dmg = 1;
+        for trigger in card.runtime_triggers() {
+            if let CardRuntimeTrigger::EndTurnInHand(rule) = trigger {
+                match rule {
+                    EndTurnHandRule::Damage => {
+                        let raw = if card.base_magic > 0 { card.base_magic } else { 2 };
+                        let mut dmg = raw;
+                        if intangible && dmg > 1 {
+                            dmg = 1;
+                        }
+                        let blocked = state.player.block.min(dmg);
+                        let mut hp_damage = dmg - blocked;
+                        state.player.block -= blocked;
+                        if tungsten && hp_damage > 0 {
+                            hp_damage = (hp_damage - 1).max(0);
+                        }
+                        if hp_damage > 0 {
+                            state.player.hp -= hp_damage;
+                            state.total_damage_taken += hp_damage;
+                        }
+                    }
+                    EndTurnHandRule::Regret => {
+                        let raw = hand_size;
+                        let hp_loss = damage::apply_hp_loss(raw, intangible, tungsten);
+                        if hp_loss > 0 {
+                            state.player.hp -= hp_loss;
+                            state.total_damage_taken += hp_loss;
+                        }
+                    }
+                    EndTurnHandRule::Weak => {
+                        powers::apply_debuff(&mut state.player, sid::WEAKENED, 1);
+                    }
+                    EndTurnHandRule::Frail => {
+                        powers::apply_debuff(&mut state.player, sid::FRAIL, 1);
+                    }
+                    EndTurnHandRule::AddCopy => {
+                        state.draw_pile.push(*card_inst);
+                    }
+                }
             }
-
-            // 2. Block absorption
-            let blocked = state.player.block.min(dmg);
-            let mut hp_damage = dmg - blocked;
-            state.player.block -= blocked;
-
-            // 3. Tungsten Rod (-1 HP loss)
-            if tungsten && hp_damage > 0 {
-                hp_damage = (hp_damage - 1).max(0);
-            }
-
-            if hp_damage > 0 {
-                state.player.hp -= hp_damage;
-                state.total_damage_taken += hp_damage;
-            }
-        }
-
-        // Regret: lose HP equal to number of cards in hand (HP_LOSS type)
-        // Matches both effect tags for robustness across card registrations.
-        if card.effects.contains(&"end_turn_regret")
-            || card.effects.contains(&"end_turn_hp_loss_per_card")
-        {
-            let raw = hand_size;
-            let hp_loss = damage::apply_hp_loss(raw, intangible, tungsten);
-            if hp_loss > 0 {
-                state.player.hp -= hp_loss;
-                state.total_damage_taken += hp_loss;
-            }
-        }
-
-        // Doubt: apply 1 Weak
-        if card.effects.contains(&"end_turn_weak") {
-            powers::apply_debuff(&mut state.player, sid::WEAKENED, 1);
-        }
-
-        // Shame: apply 1 Frail
-        if card.effects.contains(&"end_turn_frail") {
-            powers::apply_debuff(&mut state.player, sid::FRAIL, 1);
-        }
-
-        // Pride: add a copy of Pride to draw pile at end of turn
-        if card.effects.contains(&"add_copy_end_turn") {
-            let copy = *card_inst;
-            state.draw_pile.push(copy);
         }
     }
 
@@ -126,8 +106,12 @@ pub fn process_pain_on_card_play(state: &mut CombatState, card_registry: &CardRe
         .iter()
         .filter(|c| {
             let card = card_registry.card_def_by_id(c.def_id);
-            card.effects.contains(&"damage_on_draw")
-                || card_registry.card_name(c.def_id) == "Pain"
+            card.runtime_triggers().iter().any(|trigger| {
+                matches!(
+                    trigger,
+                    CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed)
+                )
+            }) || card_registry.card_name(c.def_id) == "Pain"
         })
         .count() as i32;
 

@@ -7,6 +7,107 @@
 use crate::combat_types::CardInstance;
 use crate::cards::CardDef;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct CardRuntimeTraits {
+    pub innate: bool,
+    pub retain: bool,
+    pub ethereal: bool,
+    pub unplayable: bool,
+    pub limit_cards_per_turn: bool,
+    pub unremovable: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanPlayRule {
+    OnlyAttackInHand,
+    OnlyAttacksInHand,
+    OnlyEmptyDraw,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CostModifierRule {
+    ReduceOnHpLoss,
+    ReducePerPower,
+    ReduceOnDiscard,
+    IncreaseOnHpLoss,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DamageModifierRule {
+    HeavyBlade,
+    DamageEqualsBlock,
+    DamagePlusMantra,
+    PerfectedStrike,
+    Rampage,
+    GlassKnife,
+    RitualDagger,
+    SearingBlow,
+    DamageRandomXTimes,
+    WindmillStrike,
+    ClawScaling,
+    DamagePerLightning,
+    DamageFromDrawPile,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnDrawRule {
+    LoseEnergy,
+    CopySelf,
+    DeusExMachina,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnDiscardRule {
+    DrawCards,
+    GainEnergy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnRetainRule {
+    ReduceCost,
+    GrowBlock,
+    GrowDamage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnExhaustRule {
+    GainEnergy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostPlayRule {
+    ShuffleIntoDraw,
+    EndTurn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EndTurnHandRule {
+    Damage,
+    Regret,
+    Weak,
+    Frail,
+    AddCopy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhileInHandRule {
+    PainOnOtherCardPlayed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardRuntimeTrigger {
+    CanPlay(CanPlayRule),
+    ModifyCost(CostModifierRule),
+    ModifyDamage(DamageModifierRule),
+    OnDraw(OnDrawRule),
+    OnDiscard(OnDiscardRule),
+    OnRetain(OnRetainRule),
+    OnExhaust(OnExhaustRule),
+    PostPlay(PostPlayRule),
+    EndTurnInHand(EndTurnHandRule),
+    WhileInHand(WhileInHandRule),
+}
+
 /// Context passed to card effect hooks during play.
 /// Contains all pre-computed values from the damage preamble.
 #[derive(Debug, Clone)]

@@ -706,9 +706,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::ModifyMaxHp(ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-            if engine.state.player.hp > engine.state.player.max_hp {
-                engine.state.player.hp = engine.state.player.max_hp;
-            }
+            engine.state.player.hp = (engine.state.player.hp + amount)
+                .max(0)
+                .min(engine.state.player.max_hp);
         }
 
         // -- Modify max energy --

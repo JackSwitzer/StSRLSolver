@@ -3,7 +3,7 @@
 Last updated: 2026-04-15  
 Branch: `codex/universal-gameplay-runtime`
 
-This is the canonical parity audit for `packages/engine-rs`. It reflects the live source tree after the stale-test cleanup wave, not the older `69`-ignore / `Establishment`-blocked snapshot.
+This is the canonical parity audit for `packages/engine-rs`. It reflects the live source tree after the staged runtime-trigger refactor, the stale-test cleanup wave, and the latest broad zero-skip freeze rerun.
 
 ## 1. Executive Summary
 
@@ -12,13 +12,14 @@ Current read:
 - supported-scope runtime parity: `~100%`
 - all-content gameplay parity: `~99%+`
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `0` currently confirmed on the targeted blocker matrix
+- all-content merge blockers: `0` currently confirmed on the targeted blocker matrix or the latest broad freeze rerun
 
 What is truly done:
 
 - public gameplay-gap card tail: `0`
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
+- registry-backed secondary card behavior now runs through typed runtime-trigger metadata instead of raw registry/tag ownership
 - `Establishment` retained-cost parity is fixed
 - `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, `Mutagenic Strength`, `DiscoveryAction`, `Chrysalis`, `Metamorphosis`, `Collect` timing, free-play X-cost handling, and persistent shop purge pricing are all landed on the canonical runtime path
 - Neow action layer is real and intentionally always exposes `4` choices
@@ -26,16 +27,15 @@ What is truly done:
 
 What is still open:
 
-- one final broad parity freeze on the zero-skip tree
-- doc / PR synchronization to match the new blocker-free targeted matrix
+- doc / PR synchronization to match the blocker-free zero-skip matrix
 - optional cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, there is no currently confirmed blocker left on the targeted matrix, but the honest last step is still one final comprehensive freeze before that claim should leave draft status.
+- If the claim is `all gameplay content complete`, there is no currently confirmed blocker left on the targeted matrix and the latest broad freeze rerun is green on the integrated branch.
 - Zero-skip answer: `yes` — there are `0` explicit ignored tests.
-- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix, but the branch still owes one final broad freeze before that claim should be treated as settled.
+- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
 
 ## 2. Quantified Baseline
 
@@ -53,6 +53,7 @@ Bottom line:
 | Blocked supported event ops | `0` | current source scan |
 | Explicit blocked event branches in source | `0` | current source scan |
 | Direct ignored tests in `src/tests` | `0` | current source scan |
+| Typed runtime-trigger cutover | `landed` | migrated secondary behavior now reads from `CardRuntimeTraits` / `CardRuntimeTrigger` and not raw tag checks for the migrated families |
 
 ### Current status table
 
@@ -60,7 +61,7 @@ Bottom line:
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit gameplay blockers | none currently confirmed on the targeted blocker matrix |
+| Explicit gameplay blockers | none currently confirmed on the targeted blocker matrix or the broad freeze rerun |
 | Cleanup-only ignores | none |
 
 ### Rust-vs-Java delta table
@@ -72,6 +73,7 @@ Bottom line:
 | Defect multi-hit | zero-hit and per-hit-target behavior covered | zero-hit no-op where appropriate, fresh target semantics where applicable | closed |
 | Potion legality | boss and `BackAttack` legality covered | forbid use under Java legality gates | closed |
 | Retain-cost powers | `Establishment` modifies retained-card combat cost across turns | Java `EstablishmentPower` does the same | closed |
+| Secondary card-runtime ownership | typed runtime-trigger metadata plus derived compat tags | card-owned secondary behavior without registry/tag ambiguity | closed for the migrated families |
 | RL opening policy | Neow always exposes `4` choices | vanilla Java gates options by prior run state | intentional deviation |
 
 ### Ignored-test family summary
@@ -87,7 +89,7 @@ Bottom line:
 
 Some raw counts are intentionally noisy unless classified:
 
-- the `3` raw empty public-card files are cleanup-only shells, not gameplay gaps
+- the `3` raw empty public-card files are cleanup-only shells, not gameplay gaps; their runtime semantics now live in typed runtime-trigger metadata
 - the ignore backlog is fully collapsed on the live source tree
 
 ### Why we believe the engine works
@@ -112,6 +114,15 @@ Representative green suites on the current local tree:
 | Dead-system | `test_dead_system_cleanup_wave22` | green |
 | Generated choice | `test_generated_choice_java_wave3` | green |
 | Orb timing | `test_orb_runtime_java_wave1` | green |
+| Runtime-trigger cutover | `test_runtime_inline_cutover_wave5` | green |
+| Runtime-trigger cutover | `test_card_runtime_nonplay_triggers_wave1` | green |
+| Runtime-trigger cutover | `test_card_runtime_support_wave1` | green |
+| Broad class parity | `test_cards_ironclad` | green |
+| Broad class parity | `test_cards_defect` | green |
+| Broad class parity | `test_cards_silent` | green |
+| Broad class parity | `test_cards_watcher` | green |
+| Watcher integration | `test_card_runtime_watcher_wave24` | green |
+| X-count integration | `test_card_runtime_xcount_wave1` | green |
 | Watcher retain / registry cleanup | `test_card_runtime_watcher_wave5` | green |
 | Watcher stale-ignore cleanup | `test_card_runtime_watcher_wave14` | green |
 | Watcher stale-ignore cleanup | `test_card_runtime_watcher_wave15` | green |
@@ -133,7 +144,7 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-There are no currently confirmed merge-gating findings on the targeted blocker matrix.
+There are no currently confirmed merge-gating findings on the targeted blocker matrix or the latest broad freeze rerun.
 
 The last known blocker sweep is now closed by passing engine-path proof:
 
@@ -172,10 +183,21 @@ The last known blocker sweep is now closed by passing engine-path proof:
 - Confidence: high
 - Scope: cleanup-only
 - Evidence: [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
-- Problem: the cleanup-shell trio still exists as raw empty `effect_data` files even though their runtime behavior is already proven elsewhere.
+- Problem: the cleanup-shell trio still exists as raw empty `effect_data` files even though their runtime behavior now lives on the typed runtime-trigger surface and is already proven elsewhere.
 - Recommended fix: leave them documented as cleanup-only shells or collapse them into explicit runtime-owned marker defs in a later normalization pass.
 - Test mapping: non-play trigger/runtime suites
 - Worker slice: cleanup-shell normalization
+
+### Finding S4
+- Area: architecture
+- Severity: low
+- Confidence: high
+- Scope: cleanup-only
+- Evidence: [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1), [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:565)
+- Problem: broad repo metadata tags still exist, but the migrated secondary-trigger families now have a different semantic owner than older docs imply.
+- Recommended fix: treat typed runtime-trigger metadata as canonical for migrated families and keep compatibility tags as a derived view until any later metadata cleanup wave.
+- Test mapping: `test_runtime_inline_cutover_wave5`, broad card parity suites
+- Worker slice: architecture/doc reconciliation
 
 ## 5. Intentional Deviations
 
@@ -193,7 +215,7 @@ These items should not block a supported-scope merge if scope stays honest, but 
 - relic bridge retirement in dead-system cleanup waves `18` and `19`
 - cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader generated-choice and generated-card fidelity sweeps as confidence work rather than blocker work
-- broad audit freezing now that the branch is completely ignore-free
+- training-branch architecture planning now that the branch is zero-skip and broad-freeze green
 
 ## 7. Edge-Case Annex: `Scrawl+`
 

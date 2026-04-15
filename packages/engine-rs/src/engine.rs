@@ -229,7 +229,7 @@ impl CombatEngine {
         let mut innate_indices = Vec::new();
         for (i, card) in self.state.draw_pile.iter().enumerate() {
             let def = self.card_registry.card_def_by_id(card.def_id);
-            if def.effects.contains(&"innate") {
+            if def.runtime_traits().innate {
                 innate_indices.push(i);
             }
         }
@@ -1229,7 +1229,7 @@ impl CombatEngine {
             let mut kept = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if card.effects.contains(&"ethereal") {
+                if card.runtime_traits().ethereal {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
                 } else {
@@ -1252,11 +1252,11 @@ impl CombatEngine {
             let mut retained = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if retain_all || card.effects.contains(&"retain") || card_inst.is_retained() {
+                if retain_all || card.runtime_traits().retain || card_inst.is_retained() {
                     let mut retained_inst = card_inst;
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
-                } else if card.effects.contains(&"ethereal") {
+                } else if card.runtime_traits().ethereal {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
                 } else {
@@ -1289,7 +1289,6 @@ impl CombatEngine {
         let establishment = self.state.player.status(sid::ESTABLISHMENT);
         for card_inst in self.state.hand.iter_mut() {
             let card_def = self.card_registry.card_def_by_id(card_inst.def_id);
-            let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
             // Establishment uses Java's modifyCostForCombat semantics, so the
             // retained-card discount persists across turns instead of being a
@@ -1305,19 +1304,17 @@ impl CombatEngine {
                 }
             }
 
-            // Sands of Time: reduce cost on retain
-            if card_flags.has(effects::registry::BIT_REDUCE_COST_ON_RETAIN) {
-                card_inst.cost = (card_inst.cost - 1).max(0);
+            let (perseverance_bonus, windmill_bonus) =
+                effects::card_runtime::apply_on_retain(card_inst, card_def);
+            if perseverance_bonus > 0 {
+                self.state
+                    .player
+                    .add_status(sid::PERSEVERANCE_BONUS, perseverance_bonus);
             }
-
-            // Perseverance: grow block bonus on retain
-            if card_flags.has(effects::registry::BIT_GROW_BLOCK_ON_RETAIN) {
-                self.state.player.add_status(sid::PERSEVERANCE_BONUS, card_def.base_magic);
-            }
-
-            // Windmill Strike: grow damage bonus on retain
-            if card_flags.has(effects::registry::BIT_GROW_DAMAGE_ON_RETAIN) {
-                self.state.player.add_status(sid::WINDMILL_STRIKE_BONUS, card_def.base_magic);
+            if windmill_bonus > 0 {
+                self.state
+                    .player
+                    .add_status(sid::WINDMILL_STRIKE_BONUS, windmill_bonus);
             }
         }
 
@@ -1464,7 +1461,7 @@ impl CombatEngine {
 
     fn can_play_card_inst(&self, card: &CardDef, card_inst: CardInstance) -> bool {
         // Unplayable cards -- unless Medical Kit (Status) or Blue Candle (Curse)
-        if card.cost == -2 || card.effects.contains(&"unplayable") {
+        if card.cost == -2 || card.runtime_traits().unplayable {
             if card.card_type == CardType::Status
                 && (self.state.has_relic("Medical Kit") || self.state.has_relic("MedicalKit"))
             {
@@ -1485,10 +1482,10 @@ impl CombatEngine {
 
         // Normality curse: max 3 cards per turn when Normality is in hand
         if self.state.cards_played_this_turn >= 3 {
-            let has_normality = self.state.hand.iter().any(|c| {
-                let def = self.card_registry.card_def_by_id(c.def_id);
-                def.effects.contains(&"limit_cards_per_turn")
-            });
+                let has_normality = self.state.hand.iter().any(|c| {
+                    let def = self.card_registry.card_def_by_id(c.def_id);
+                    def.runtime_traits().limit_cards_per_turn
+                });
             if has_normality {
                 return false;
             }
@@ -1511,8 +1508,7 @@ impl CombatEngine {
             return false;
         }
 
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        if !self.card_runtime_allows_play(card, card_inst, card_flags) {
+        if !self.card_runtime_allows_play(card, card_inst) {
             return false;
         }
 
@@ -1572,36 +1568,10 @@ impl CombatEngine {
         crate::effects::interpreter::resolve_card_amount(self, &ctx, &min_picks).max(0)
     }
 
-    fn card_runtime_allows_play(
-        &self,
-        card: &CardDef,
-        card_inst: CardInstance,
-        card_flags: effects::EffectFlags,
-    ) -> bool {
-        if card_flags.has(effects::registry::BIT_ONLY_ATTACK_IN_HAND) {
-            let has_other_attack = self.state.hand.iter().any(|candidate| {
-                let def = self.card_registry.card_def_by_id(candidate.def_id);
-                def.card_type == CardType::Attack && candidate.def_id != card_inst.def_id
-            });
-            if has_other_attack {
-                return false;
-            }
-        }
-
-        if card_flags.has(effects::registry::BIT_ONLY_ATTACKS_IN_HAND) {
-            let has_non_attack = self.state.hand.iter().any(|candidate| {
-                let def = self.card_registry.card_def_by_id(candidate.def_id);
-                def.card_type != CardType::Attack
-            });
-            if has_non_attack {
-                return false;
-            }
-        }
-
-        if card_flags.has(effects::registry::BIT_ONLY_EMPTY_DRAW) && !self.state.draw_pile.is_empty() {
+    fn card_runtime_allows_play(&self, card: &CardDef, card_inst: CardInstance) -> bool {
+        if !effects::card_runtime::allows_play(self, card, card_inst) {
             return false;
         }
-
         for effect in card.effect_data {
             if let Effect::ChooseCards {
                 source,
@@ -1665,8 +1635,7 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        cost = self.apply_card_runtime_cost_modifiers(card_flags, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, cost);
 
         cost
     }
@@ -1708,39 +1677,13 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        cost = self.apply_card_runtime_cost_modifiers(card_flags, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, cost);
 
         cost
     }
 
-    fn apply_card_runtime_cost_modifiers(
-        &self,
-        card_flags: effects::EffectFlags,
-        base_cost: i32,
-    ) -> i32 {
-        let mut cost = base_cost;
-
-        if card_flags.has(effects::registry::BIT_COST_REDUCE_ON_HP_LOSS) {
-            let hp_lost = self.state.player.status(sid::HP_LOSS_THIS_COMBAT);
-            cost = (cost - hp_lost).max(0);
-        }
-
-        if card_flags.has(effects::registry::BIT_REDUCE_COST_PER_POWER) {
-            let power_count = crate::powers::registry::active_player_power_count(&self.state.player);
-            cost = (cost - power_count).max(0);
-        }
-
-        if card_flags.has(effects::registry::BIT_COST_REDUCE_ON_DISCARD) {
-            let discarded = self.state.player.status(sid::DISCARDED_THIS_TURN);
-            cost = (cost - discarded).max(0);
-        }
-
-        if card_flags.has(effects::registry::BIT_COST_INCREASE_ON_HP_LOSS) {
-            cost += self.state.total_damage_taken;
-        }
-
-        cost
+    fn apply_card_runtime_cost_modifiers(&self, card: &CardDef, base_cost: i32) -> i32 {
+        effects::card_runtime::apply_cost_modifiers(self, card, base_cost)
     }
 
     pub(crate) fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
@@ -1750,7 +1693,6 @@ impl CombatEngine {
 
         let card_inst = self.state.hand[hand_idx]; // Copy, no clone needed
         let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
-        let _card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
         if !self.can_play_card_inst(&card, card_inst) {
             return;
@@ -1968,8 +1910,6 @@ impl CombatEngine {
         };
         let target_idx = self.runtime_play_target_idx.unwrap_or(-1);
         let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-
         if let Some(updated) = self.runtime_played_card {
             card_inst = updated;
         }
@@ -2017,6 +1957,8 @@ impl CombatEngine {
             }
         }
 
+        let post_play_dest = effects::card_runtime::post_play_destination(&card);
+
         if card.card_type == CardType::Power {
             self.install_power(&card);
             let post_ctx = crate::effects::trigger::TriggerContext {
@@ -2028,7 +1970,7 @@ impl CombatEngine {
                 crate::effects::trigger::Trigger::OnPowerPlayed,
                 &post_ctx,
             ));
-        } else if card_flags.has(effects::registry::BIT_SHUFFLE_SELF_INTO_DRAW) {
+        } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
             self.state.draw_pile.push(card_inst);
             self.shuffle_draw_pile();
         } else if card.exhaust
@@ -2053,7 +1995,7 @@ impl CombatEngine {
         self.runtime_played_card = None;
         self.runtime_play_target_idx = None;
 
-        if card_flags.has(effects::registry::BIT_END_TURN) {
+        if post_play_dest == crate::effects::types::PostPlayDestination::EndTurn {
             self.end_turn();
             self.runtime_played_card = None;
             self.runtime_play_target_idx = None;
@@ -2075,8 +2017,10 @@ impl CombatEngine {
     fn install_power(&mut self, card: &CardDef) {
         for effect in card.effects {
             if let Some(status_id) = runtime_power_status_for_tag(effect) {
-                let amt = card.base_magic.max(1);
-                self.state.player.add_status(status_id, amt);
+                if !card_declares_player_status(card, status_id) {
+                    let amt = card.base_magic.max(1);
+                    self.state.player.add_status(status_id, amt);
+                }
                 continue;
             }
             // Special cases that need engine context
@@ -2190,21 +2134,14 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
-        let card_flags = self.card_registry.effect_flags(card.def_id);
-        let card_def = self.card_registry.card_def_by_id(card.def_id);
+        let discard_effect = effects::card_runtime::apply_on_discard(self, card);
 
-        if card_flags.has(effects::registry::BIT_DRAW_ON_DISCARD) {
-            let draw = card_def.base_magic;
-            if draw > 0 {
-                self.draw_cards(draw);
-            }
+        if discard_effect.draw > 0 {
+            self.draw_cards(discard_effect.draw);
         }
 
-        if card_flags.has(effects::registry::BIT_ENERGY_ON_DISCARD) {
-            let energy = card_def.base_magic;
-            if energy > 0 {
-                self.state.energy += energy;
-            }
+        if discard_effect.energy > 0 {
+            self.state.energy += discard_effect.energy;
         }
 
         // Track discard count this turn (for Sneaky Strike, Eviscerate)
@@ -2222,8 +2159,7 @@ impl CombatEngine {
 
     /// Called when a card is drawn into hand.
     fn on_card_drawn(&mut self, card: CardInstance) {
-        let card_flags = self.card_registry.effect_flags(card.def_id);
-        effects::registry::dispatch_on_draw(self, card, card_flags);
+        effects::card_runtime::apply_on_draw(self, card);
     }
 
     // =======================================================================
@@ -3002,8 +2938,7 @@ impl CombatEngine {
 
     pub(crate) fn trigger_card_on_exhaust(&mut self, card_inst: CardInstance) {
         let card = self.card_registry.card_def_by_id(card_inst.def_id);
-        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
-        crate::effects::registry::dispatch_on_exhaust(self, card, card_inst, card_flags);
+        crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
         self.trigger_on_exhaust();
     }
 
@@ -3144,6 +3079,22 @@ fn runtime_power_status_for_tag(tag: &str) -> Option<StatusId> {
         .iter()
         .find(|def| def.id == canonical_tag)
         .and_then(|def| def.status_guard)
+}
+
+fn card_declares_player_status(card: &CardDef, status_id: StatusId) -> bool {
+    card.effect_data.iter().any(|effect| {
+        matches!(
+            effect,
+            crate::effects::declarative::Effect::Simple(
+                crate::effects::declarative::SimpleEffect::AddStatus(
+                    crate::effects::declarative::Target::Player
+                        | crate::effects::declarative::Target::SelfEntity,
+                    declared_status,
+                    _,
+                )
+            ) if *declared_status == status_id
+        )
+    })
 }
 
 #[cfg(test)]

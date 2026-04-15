@@ -15,16 +15,17 @@ Weighted toward `universal gameplay runtime + honest Java parity proof`:
 
 - supported-scope runtime parity: `100%`
 - all-content gameplay parity: `99%+`
-- architecture unification snapshot: `99%`
+- architecture unification snapshot: `99%+`
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `99%+` | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions; the remaining work is one last broad freeze |
+| Combat runtime parity | `99%+` | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions, and the latest broad freeze rerun is green on the integrated branch |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
 | Run / reward / event parity | `100%` | `NoteForYourself`, `Match and Keep!`, `Scrap Ooze`, and persistent shop purge pricing now run on the canonical runtime path |
 | Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
+| Runtime-trigger unification | `99%+` | registry-backed secondary behavior now runs through typed `CardRuntimeTraits` / `CardRuntimeTrigger`, while compatibility tags remain available for legacy consumers |
 
 ## Current Quantified Backlog
 
@@ -48,11 +49,14 @@ Cleanup-only card shells:
 - [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1)
 - [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 
+These are now raw-empty metadata shells only. Their runtime semantics are owned by the typed runtime-trigger surface rather than raw string-tag dispatch.
+
 Recently closed gameplay-gap families:
 
 - `Parasite` master-deck removal now routes through a run-owned removal hook and has engine-path proof in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:151)
 - `Sentinel` under `Corruption` now uses a typed `on_exhaust` hook lane and is proven in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
 - `Expunger` / `Conjure Blade+` now use typed generated-card and card-owned X-count surfaces, including `Chemical X` coverage in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137)
+- registry-backed secondary behavior now runs through typed runtime-trigger metadata in [runtime_meta.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/runtime_meta.rs:1) and [card_runtime.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/effects/card_runtime.rs:1), with compatibility tags projected by [cards/mod.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/mod.rs:565)
 
 Last known semantic blocker sweep now closed:
 
@@ -83,6 +87,13 @@ Representative green suites on the current tree:
 - `test_orb_runtime_java_wave1`
 - `test_card_runtime_watcher_wave24`
 - `test_card_runtime_xcount_wave1`
+- `test_cards_ironclad`
+- `test_cards_defect`
+- `test_cards_silent`
+- `test_cards_watcher`
+- `test_card_runtime_nonplay_triggers_wave1`
+- `test_card_runtime_support_wave1`
+- `test_runtime_inline_cutover_wave5`
 - `test_card_runtime_watcher_wave5`
 - `test_card_runtime_watcher_wave14`
 - `test_card_runtime_watcher_wave15`
@@ -113,6 +124,6 @@ The main stale-test cleanup result from this pass:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
-- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed; one final comprehensive freeze is still the honest next step before taking the PR out of draft.
+- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed and the latest broad freeze rerun is green; the remaining work is doc/PR synchronization and optional cleanup-shell normalization, not live gameplay debt.
 - Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix, but the branch still owes one final broad freeze before that claim should be treated as settled.
+- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix or the latest broad freeze rerun.
