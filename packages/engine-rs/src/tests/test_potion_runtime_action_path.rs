@@ -427,6 +427,7 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
         3,
     ));
     engine.state.stance = Stance::Calm;
+    engine.state.energy = 0;
     engine.state.potions[0] = "StancePotion".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -443,6 +444,7 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
     assert_eq!(labels, vec!["Wrath", "Calm"]);
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.stance, Stance::Wrath);
+    assert_eq!(engine.state.energy, 2);
     assert!(engine.state.potions[0].is_empty());
 
     engine.state.potions[0] = "StancePotion".to_string();

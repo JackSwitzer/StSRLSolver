@@ -7,7 +7,7 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use crate::decision::{
     build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
@@ -23,6 +23,25 @@ use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
 use crate::map::{generate_map, DungeonMap, RoomType};
 use crate::state::{CombatState, EnemyCombatState};
+
+static NOTE_FOR_YOURSELF_CARD: OnceLock<Mutex<String>> = OnceLock::new();
+
+fn note_for_yourself_slot() -> &'static Mutex<String> {
+    NOTE_FOR_YOURSELF_CARD.get_or_init(|| Mutex::new("IronWave".to_string()))
+}
+
+fn current_note_for_yourself_card() -> String {
+    note_for_yourself_slot()
+        .lock()
+        .expect("note-for-yourself mutex poisoned")
+        .clone()
+}
+
+fn set_note_for_yourself_card(card_id: String) {
+    *note_for_yourself_slot()
+        .lock()
+        .expect("note-for-yourself mutex poisoned") = card_id;
+}
 
 // ---------------------------------------------------------------------------
 // Run-level action (distinct from combat Action)
@@ -1904,6 +1923,13 @@ impl RunEngine {
                 self.resolve_bonfire_offer(card_id);
                 true
             }
+            "deck_selection_note_for_yourself" => {
+                if *deck_index < self.run_state.deck.len() {
+                    self.run_state.deck.remove(*deck_index);
+                }
+                set_note_for_yourself_card(card_id.clone());
+                true
+            }
             _ => false,
         }
     }
@@ -2661,7 +2687,7 @@ impl RunEngine {
                 if self.run_state.deck.is_empty() {
                     return EventProgramFlow::Continue;
                 }
-                let choices = self
+                let mut choices = self
                     .run_state
                     .deck
                     .iter()
@@ -2671,6 +2697,13 @@ impl RunEngine {
                         card_id: card_id.clone(),
                     })
                     .collect::<Vec<_>>();
+                if label == "deck_selection_note_for_yourself" {
+                    let reward_card = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                    choices.push(RewardChoice::Card {
+                        index: choices.len(),
+                        card_id: reward_card,
+                    });
+                }
                 reward_items.push(RewardItem {
                     index: reward_items.len(),
                     kind: RewardItemKind::CardChoice,
@@ -2952,6 +2985,20 @@ impl RunEngine {
                         choices: self.generate_card_reward_choices(3),
                     });
                 }
+            }
+            EventReward::StoredNoteCard => {
+                let card_id = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::CardChoice,
+                    state: RewardItemState::Available,
+                    label: "event_stored_note_reward".to_string(),
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: vec![RewardChoice::Card { index: 0, card_id }],
+                });
             }
             EventReward::SpecificCards { labels } => {
                 reward_items.push(RewardItem {
@@ -3336,6 +3383,21 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_current_event(&self) -> Option<TypedEventDef> {
         self.current_event.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_current_note_for_yourself_card(&self) -> String {
+        current_note_for_yourself_card()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_note_for_yourself_card(&mut self, card_id: &str) {
+        set_note_for_yourself_card(card_id.to_string());
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_reset_note_for_yourself_card(&mut self) {
+        set_note_for_yourself_card("IronWave".to_string());
     }
 
     #[cfg(test)]

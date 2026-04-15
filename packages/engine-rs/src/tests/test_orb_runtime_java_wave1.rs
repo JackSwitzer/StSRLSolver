@@ -13,11 +13,10 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/EmotionChip.java
 
 use crate::actions::Action;
-use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::orbs::OrbType;
 use crate::tests::support::{
-    combat_state_with, enemy, enemy_no_intent, engine_with_state, engine_without_start,
+    combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, engine_without_start,
     force_player_turn, make_deck, play_on_enemy, play_self,
 };
 
@@ -208,8 +207,7 @@ fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
 }
 
 #[test]
-#[ignore = "blocked on engine.rs: Emotion Chip currently fires passive immediately in player_lose_hp instead of pulsing for next turn start"]
-fn orb_wave1_emotion_chip_should_wait_until_next_turn_start_like_java() {
+fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
@@ -217,14 +215,18 @@ fn orb_wave1_emotion_chip_should_wait_until_next_turn_start_like_java() {
     );
     engine.init_defect_orbs(1);
     engine.state.relics.push("Emotion Chip".to_string());
-    engine.state.enemies[0].first_turn = false;
     engine.channel_orb(OrbType::Lightning);
     engine.start_combat();
 
     let hp_before = engine.state.enemies[0].entity.hp;
-    combat_hooks::do_enemy_turns(&mut engine);
+    end_turn(&mut engine);
 
-    assert_eq!(engine.state.enemies[0].entity.hp, hp_before, "Java Emotion Chip should not trigger the passive until next turn start");
+    assert_eq!(
+        engine.state.enemies[0].entity.hp,
+        hp_before - 6,
+        "Java Emotion Chip should pulse the front orb passive on the following turn start"
+    );
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
 }
 
 #[test]

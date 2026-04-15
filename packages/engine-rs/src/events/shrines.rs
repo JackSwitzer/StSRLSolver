@@ -14,6 +14,27 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+fn note_for_yourself_choose_state() -> TypedEventDef {
+    event(
+        "NoteForYourself",
+        vec![
+            supported(
+                "Take (claim the stored note, then leave one card for a future run)",
+                vec![
+                    EventProgramOp::Reward(EventReward::StoredNoteCard),
+                    EventProgramOp::deck_selection("deck_selection_note_for_yourself"),
+                ],
+                EventEffect::GainCard,
+            ),
+            supported(
+                "Leave (ignore the note)",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            ),
+        ],
+    )
+}
+
 pub fn typed_shrine_events() -> Vec<TypedEventDef> {
     vec![
         event(
@@ -208,11 +229,10 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             "NoteForYourself",
             vec![
                 supported(
-                    "Take (take the note card)",
-                    vec![EventProgramOp::gain_card_reward(1)],
-                    EventEffect::GainCard,
+                    "Read the note",
+                    vec![EventProgramOp::continue_event(note_for_yourself_choose_state())],
+                    EventEffect::Nothing,
                 ),
-                supported("Leave (leave a new note)", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
         ),
         event(

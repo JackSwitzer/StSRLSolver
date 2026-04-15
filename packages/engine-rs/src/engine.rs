@@ -296,6 +296,9 @@ impl CombatEngine {
         // Potion uses
         for (pot_idx, potion_id) in self.state.potions.iter().enumerate() {
             if !potion_id.is_empty() {
+                if !potions::potion_can_use_in_combat(&self.state, potion_id) {
+                    continue;
+                }
                 if potions::potion_requires_target(potion_id) {
                     // Targeted potion: one action per living enemy
                     for &enemy_idx in &living {
@@ -702,6 +705,9 @@ impl CombatEngine {
                         NamedOptionKind::GainRunGold => {
                             self.state.pending_run_gold += payload.amount.max(0);
                         }
+                        NamedOptionKind::SetStance(stance) => {
+                            self.change_stance(stance);
+                        }
                     }
                     return;
                 }
@@ -1055,6 +1061,26 @@ impl CombatEngine {
 
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
+
+        // Emotion Chip: pulse the front orb passive on the next turn start after HP loss.
+        {
+            let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
+            if ect > 0 {
+                self.state.player.set_status(sid::EMOTION_CHIP_TRIGGER, 0);
+                if self.state.orb_slots.occupied_count() > 0 {
+                    let front_orb = &self.state.orb_slots.slots[0];
+                    let focus = self.state.player.focus();
+                    let val = front_orb.passive_with_focus(focus);
+                    let effect = match front_orb.orb_type {
+                        crate::orbs::OrbType::Lightning => crate::orbs::PassiveEffect::LightningDamage(val),
+                        crate::orbs::OrbType::Frost => crate::orbs::PassiveEffect::FrostBlock(val),
+                        crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(val),
+                        _ => crate::orbs::PassiveEffect::None,
+                    };
+                    self.apply_passive_effect(effect);
+                }
+            }
+        }
 
         // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
         let ml = self.state.player.status(sid::DRAW);
@@ -2007,6 +2033,9 @@ impl CombatEngine {
         let potion_id = self.state.potions[potion_idx].clone();
         let can_use_runtime = crate::potions::defs::potion_uses_runtime_manual_activation(&potion_id);
         let success = if can_use_runtime {
+            if !potions::potion_can_use_in_combat(&self.state, &potion_id) {
+                return;
+            }
             if !self.effect_runtime.has_instance(
                 &potion_id,
                 crate::effects::runtime::EffectOwner::PotionSlot {
@@ -2155,7 +2184,7 @@ impl CombatEngine {
         // Track cumulative HP loss for Blood for Blood cost reduction
         self.state.player.add_status(sid::HP_LOSS_THIS_COMBAT, amount);
 
-        // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull, Emotion Chip)
+        // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull)
         {
             let ctx = crate::effects::trigger::TriggerContext::empty();
             self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
@@ -2175,20 +2204,6 @@ impl CombatEngine {
             self.state.player.set_status(sid::RUNIC_CUBE_DRAW, 0);
             self.draw_cards(1);
         }
-        let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
-        if ect > 0 && self.state.orb_slots.occupied_count() > 0 {
-            let front_orb = &self.state.orb_slots.slots[0];
-            let focus = self.state.player.focus();
-            let val = front_orb.passive_with_focus(focus);
-            let effect = match front_orb.orb_type {
-                crate::orbs::OrbType::Lightning => crate::orbs::PassiveEffect::LightningDamage(val),
-                crate::orbs::OrbType::Frost => crate::orbs::PassiveEffect::FrostBlock(val),
-                crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(val),
-                _ => crate::orbs::PassiveEffect::None,
-            };
-            self.apply_passive_effect(effect);
-        }
-
         // Fairy revive check
         if self.state.player.hp <= 0 {
             self.check_fairy_revive();

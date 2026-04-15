@@ -77,6 +77,7 @@ pub enum EventReward {
     Relic { label: String },
     Potion { count: usize },
     Card { count: usize },
+    StoredNoteCard,
     SpecificCards { labels: Vec<String> },
     Curse { label: String },
     Nothing,

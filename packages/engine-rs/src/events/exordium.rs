@@ -7,15 +7,6 @@ fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> Typed
     TypedEventOption::supported(text, EventProgram::from_ops(ops), effect)
 }
 
-fn blocked(
-    text: &str,
-    ops: Vec<EventProgramOp>,
-    effect: EventEffect,
-    reason: &str,
-) -> TypedEventOption {
-    TypedEventOption::blocked(text, EventProgram::from_ops(ops), effect, reason)
-}
-
 fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     TypedEventDef {
         name: name.to_string(),
@@ -176,14 +167,13 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
         event(
             "Scrap Ooze",
             vec![
-                blocked(
+                supported(
                     "Reach inside (take 3 dmg, gain relic)",
                     vec![
                         EventProgramOp::damage_and_gold(-3, 0),
                         EventProgramOp::gain_relic("random relic"),
                     ],
                     EventEffect::DamageAndGold(-3, 0),
-                    "requires a fight branch plus a relic reward primitive",
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
