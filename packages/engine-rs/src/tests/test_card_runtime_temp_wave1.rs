@@ -97,9 +97,27 @@ fn temp_wave1_omega_installs_runtime_status_and_deals_turn_end_damage() {
 }
 
 #[test]
-#[ignore = "Blocked on typed X-count / repeated-hit temp-card semantics; Java Expunger uses setX(amount) and repeats damage magicNumber times before preserving that state on copies"]
-fn temp_wave1_expunger_waits_for_typed_x_count_surface() {
+fn temp_wave1_expunger_exports_typed_x_count_surface() {
     let registry = global_registry();
     let expunger = registry.get("Expunger").expect("Expunger should exist");
-    assert_eq!(expunger.effect_data.len(), 1, "queued once Expunger leaves tag-backed multi_hit");
+    assert_eq!(expunger.card_type, CardType::Attack);
+    assert_eq!(expunger.target, CardTarget::Enemy);
+    assert_eq!(
+        expunger.effect_data,
+        &[
+            E::ExtraHits(A::CardMisc),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+        ]
+    );
+
+    let expunger_plus = registry.get("Expunger+").expect("Expunger+ should exist");
+    assert_eq!(expunger_plus.card_type, CardType::Attack);
+    assert_eq!(expunger_plus.target, CardTarget::Enemy);
+    assert_eq!(
+        expunger_plus.effect_data,
+        &[
+            E::ExtraHits(A::CardMisc),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+        ]
+    );
 }
