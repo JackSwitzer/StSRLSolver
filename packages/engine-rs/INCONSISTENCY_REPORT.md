@@ -10,9 +10,9 @@ This is the canonical parity audit for `packages/engine-rs`. It reconciles live 
 Current read:
 
 - supported-scope runtime parity: `~99%`
-- all-content gameplay parity: `~98%`
+- all-content gameplay parity: `~99%`
 - supported-scope merge blockers: `0`
-- all-content blockers still open before we can honestly claim “full gameplay content complete”: `3`
+- all-content blockers still open before we can honestly claim “full gameplay content complete”: `0` known gameplay blockers
 
 What is truly done:
 
@@ -25,20 +25,22 @@ What is truly done:
 - `Emotion Chip` timing is landed
 - `Match and Keep!` minigame runtime is landed
 - `Scrap Ooze` retry / flee / escalating relic-chance loop is landed
+- Defect multi-hit parity for `Barrage`, `Rip and Tear`, and `Thunder Strike` is landed
+- `Reinforced Body` X-cost block parity is landed
+- `Smoke Bomb` boss and `BackAttack` legality are landed
 - `NoteForYourself` now runs as a real cross-run card-stash flow inside the canonical event / reward runtime
 
 What is still open:
 
-- the typed Defect multi-hit path still diverges from Java for `Barrage`, `Rip and Tear`, and `Thunder Strike`
-- `Reinforced Body` still lacks Java repeated-block/X-cost parity
-- `Smoke Bomb` still has one explicit positional caveat for Java `BackAttack` legality because the Rust combat model does not represent Surrounded/position state
+- stale ignored-test cleanup and reclassification
+- one final branch-wide Java audit freeze after the latest landed fixes
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after cleanup/doc sync.
-- If the claim is `all gameplay content complete`, that stronger claim is still false until section 3 is closed.
-- Zero-skip answer: `no` — there are still `74` explicit `#[ignore]` tests in `packages/engine-rs/src/tests`.
-- Java-clean answer: `no` — the `3` blockers above are still open on the current audited tree.
+- If the claim is `all gameplay content complete`, the known gameplay blockers are closed, but we still want one final audit freeze and ignored-test cleanup before calling the PR ready.
+- Zero-skip answer: `no` — there are still `73` explicit `#[ignore]` tests in `packages/engine-rs/src/tests`.
+- Java-clean answer: `not yet formally re-frozen` — the known gameplay blockers are closed, but the final audit sweep still needs to refresh the branch-wide claim.
 
 ## 2. Quantified Baseline
 
@@ -55,7 +57,7 @@ Bottom line:
 | Raw public `complex_hook` files | `0` | Current source scan |
 | Blocked supported event ops | `0` | Current source scan |
 | Explicit blocked event branches in source | `0` | none |
-| Direct `#[ignore]` count in `src/tests` | `74` | Current source scan |
+| Direct `#[ignore]` count in `src/tests` | `73` | Current source scan |
 
 ### Current status table
 
@@ -63,8 +65,8 @@ Bottom line:
 | --- | --- |
 | Fully supported | public card gameplay behavior, supported event runtime, Neow 4-choice action surface, Emotion Chip timing, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit blocked / not yet closed | Defect multi-hit family, `Reinforced Body` |
-| Explicit semantic caveats | `Smoke Bomb` back-attack positional legality |
+| Explicit blocked / not yet closed | none currently confirmed |
+| Explicit semantic caveats | none currently confirmed on the integrated branch |
 
 ### Rust-vs-Java delta table
 
@@ -72,9 +74,9 @@ Bottom line:
 | --- | --- | --- | --- |
 | Shrine minigames | `Match and Keep!` indexed reveal/match loop | Java GremlinMatchGame-style hidden-card flow | closed in current branch |
 | Exordium event state | `Scrap Ooze` retry / flee / escalating damage + relic chance | Java retry / flee / escalating damage + relic chance | closed in current branch |
-| Defect multi-hit | zero-count hits clamped, random target reused per card | zero-hit no-op for some cards, fresh target per hit where applicable | real blocker |
-| Defect X-cost block | `Reinforced Body` typed as one block gain | repeated block resolution per energy spent | real blocker |
-| Potion legality | boss legality landed, no positional model | also forbid use under Java `BackAttack` / Surrounded caveat | explicit caveat |
+| Defect multi-hit | zero-hit / per-hit-random behavior is now covered | zero-hit no-op for some cards, fresh target per hit where applicable | closed in current branch |
+| Defect X-cost block | `Reinforced Body` typed X-cost block is covered | repeated block resolution per energy spent | closed in current branch |
+| Potion legality | boss legality and `BackAttack` legality are both covered | forbid use under Java `BackAttack` / Surrounded caveat | closed in current branch |
 | RL opening policy | Neow always exposes `4` choices | vanilla Java gates options by prior run state | intentional deviation |
 
 ### Ignored-test family summary
@@ -91,7 +93,7 @@ Bottom line:
 Some raw counts are intentionally noisy unless classified:
 
 - the `3` raw empty public-card files are not gameplay gaps
-- the `74` ignored tests include a mix of live blockers, stale solved lines, and cleanup-only noise
+- the `73` ignored tests include a mix of stale solved lines and cleanup-only noise that still need reclassification
 - there are no longer any explicit blocked event branches in source
 
 ### Why we believe the engine works
@@ -110,7 +112,7 @@ These representative green suites were re-run on the current local tree during t
 | Events | `test_event_runtime_wave19` | `6 passed` |
 | Events | `test_event_runtime_wave20` | `3 passed` |
 | Events | `test_event_runtime_wave21` | `2 passed` |
-| Potions | `test_potion_runtime_wave8` | `7 passed, 1 ignored` |
+| Potions | `test_potion_runtime_wave8` | `8 passed` |
 | Potions | `test_potion_runtime_action_path` | `15 passed` |
 | Relics | `test_relic_runtime_wave17` | `2 passed` |
 | Relics | `test_dead_system_cleanup_wave22` | `1 passed` |
@@ -120,40 +122,7 @@ These representative green suites were re-run on the current local tree during t
 
 ## 3. Merge-Gating Inconsistencies
 
-These are the remaining blockers if we want the stronger claim `all gameplay content complete`.
-
-### Finding G1
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:120), [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:211), [test_card_runtime_defect_wave12.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave12.rs:151), Java oracles `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Barrage.java`, `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java`, and `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewRipAndTearAction.java`
-- Problem: the typed Defect multi-hit path diverges from Java in two ways. It clamps declared extra-hit counts with `.max(1)`, so zero-orb `Barrage` and zero-Lightning `Thunder Strike` still hit once in Rust. It also rolls `Target::RandomEnemy` only once per card, so `Rip and Tear` and `Thunder Strike` reuse one random target for every hit instead of retargeting per hit the way Java does.
-- Recommended fix: allow zero-hit resolution for amount sources whose Java behavior is naturally a no-op at zero, and reroll random-enemy selection per hit for the affected Defect multi-hit cards.
-- Test mapping: unignore or replace the zero-orb `Barrage`, per-hit-random `Rip and Tear`, and zero-Lightning / per-hit-random `Thunder Strike` cases in `test_card_runtime_defect_wave12`.
-- Worker slice: `damage-debuff-pipeline`
-
-### Finding G2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [reinforced_body.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/defect/reinforced_body.rs:1), [test_card_runtime_defect_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave9.rs:47), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java`
-- Problem: `Reinforced Body` is still typed as a single `GainBlock(A::Block)` effect, but Java resolves block repeatedly through `ReinforcedBodyAction` based on energy spent. The current Rust surface does not yet model the repeated-block/X-cost semantics.
-- Recommended fix: add a typed repeated-block/X-cost primitive and replace the blocker test with engine-path coverage for base and upgraded `Reinforced Body`.
-- Test mapping: unignore `defect_wave9_reinforced_body_needs_typed_repeated_block_xcost_primitive` in `test_card_runtime_defect_wave9`.
-- Worker slice: `damage-debuff-pipeline`
-
-### Finding G3
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: unsupported
-- Evidence: [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218), Java oracle `decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java`
-- Problem: `Smoke Bomb` legality is correct for bosses and normal combats, but the Java `BackAttack` / Surrounded positional caveat is still unmodeled because the Rust combat state has no positional representation.
-- Recommended fix: either add positional combat state and close the caveat, or keep this limitation explicit in scope and docs.
-- Test mapping: `wave8_smoke_bomb_back_attack_legality_remains_queued`
-- Worker slice: positional combat state
+There are no currently confirmed merge-gating gameplay findings on the integrated branch. The remaining work is cleanup and final audit freeze.
 
 ## 4. Stale / Noisy Debt
 
@@ -162,7 +131,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 - Severity: medium
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: current direct ignore count `74`, family table above, plus the cleanup-only card shells in [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
+- Evidence: current direct ignore count `73`, family table above, plus the cleanup-only card shells in [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 - Problem: the raw ignored backlog still overstates live parity debt. A meaningful portion is stale solved noise or cleanup-shell accounting rather than missing gameplay behavior, including watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` that are already covered by later engine-path suites.
 - Recommended fix: run one follow-up ignored-test cleanup wave and re-bucket each ignored line into `live blocker`, `stale solved`, `cleanup-only`, or `post-merge enhancement`.
 - Test mapping: source-wide `rg '#\\[ignore' packages/engine-rs/src/tests`
@@ -194,9 +163,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 
 Current explicit unsupported / partially scoped items:
 
-- `Smoke Bomb` back-attack positional legality
-- Defect multi-hit parity for `Barrage`, `Rip and Tear`, and `Thunder Strike`
-- `Reinforced Body` repeated-block/X-cost parity
+- none currently confirmed for the claimed gameplay surface
 
 Intentional RL-facing deviations that are documented rather than treated as parity bugs:
 
@@ -213,7 +180,7 @@ These items should not block the supported-scope merge if scope stays honest, bu
 - watcher stale-ignore cleanup for already landed `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike`
 - cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader Java edge sweeps for generated-choice / Watcher follow-up families
-- positional combat state if we want full `Smoke Bomb` legality fidelity
+- one final ignored-test cleanup and audit freeze before PR readiness
 
 ## 7. Edge-Case Annex: `Scrawl+`
 

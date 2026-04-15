@@ -21,8 +21,10 @@ What closed in the latest pass:
 - `Liquid Memories` now opens a real discard choice, supports Sacred Bark multi-pick, and returns selected cards at zero cost
 - `Match and Keep!` now runs as a real indexed match/minigame loop on the canonical event runtime
 - `Scrap Ooze` now runs the Java-style retry / flee / escalating relic-chance loop on the canonical event runtime
+- Defect multi-hit parity is now closed for `Barrage`, `Rip and Tear`, and `Thunder Strike`
+- `Reinforced Body` already matches the typed X-cost block surface and the stale blocker is removed
 - `NoteForYourself` now runs as a real two-step shrine with cross-run card stash behavior inside the runtime
-- `Stance Potion` is fully green and `Smoke Bomb` legality/action-path behavior is green except for the explicit Java positional `BackAttack` caveat
+- `Stance Potion` and `Smoke Bomb` legality/action-path behavior are fully green
 - the `Scrawl+` hand-limit and `Deus Ex Machina+` draw-order edge cases now have explicit engine-path proof
 
 Live branch truth:
@@ -34,7 +36,7 @@ Live branch truth:
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
-| Direct ignored tests | `74` |
+| Direct ignored tests | `73` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -44,32 +46,19 @@ The raw empty public-card files are cleanup shells only:
 
 ## What Still Blocks Full All-Content Parity
 
-These are the only meaningful remaining gameplay families:
+There are no currently confirmed gameplay blockers on the integrated branch. The remaining work is:
 
-1. Defect multi-hit family
-   - the typed `ExtraHits(...)` path currently clamps to at least one hit
-   - Java does zero hits when Barrage has no orb slots and when Thunder Strike has zero Lightning channeled
-   - `Target::RandomEnemy` is currently rolled once per card instead of once per hit, so `Rip and Tear` and `Thunder Strike` reuse a single target
-   - current blocker proof lives in [test_card_runtime_defect_wave12.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave12.rs:1)
-
-2. `Reinforced Body`
-   - current Rust typing still models one block gain instead of Java repeated-block/X-cost resolution
-   - current blocker proof lives in [test_card_runtime_defect_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave9.rs:1)
-
-3. `Smoke Bomb` positional legality
-   - boss legality and regular flee behavior are correct
-   - Java `BackAttack` / Surrounded caveat still needs positional combat state
-   - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
+1. final ignored-test cleanup and reclassification
+2. one more full Java audit freeze now that the last blocker families are landed
+3. PR-readiness cleanup and training-branch handoff
 
 ## Immediate Execution Order
 
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
-1. Defect multi-hit fix for `Barrage` / `Rip and Tear` / `Thunder Strike`
-2. repeated-block / X-cost primitive for `Reinforced Body`
-3. positional legality state for `Smoke Bomb`
-4. ignored-test cleanup pass
-5. final audit refresh and PR readiness sweep
+1. ignored-test cleanup pass
+2. final audit refresh and PR readiness sweep
+3. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
@@ -96,6 +85,7 @@ Representative currently green suites:
 - `test_event_runtime_wave20`
 - `test_event_runtime_wave21`
 - `test_card_runtime_defect_wave12`
+- `test_card_runtime_xcount_wave2`
 - `test_potion_runtime_wave8`
 - `test_potion_runtime_action_path`
 - `test_relic_runtime_wave17`

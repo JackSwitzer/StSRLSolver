@@ -44,16 +44,17 @@ fn defect_wave9_capacitor_engine_path_adds_orb_slots_from_typed_effect() {
 }
 
 #[test]
-#[ignore = "Blocked on a typed repeated-block/X-cost op; Java uses ReinforcedBodyAction with per-energy block resolution"]
-fn defect_wave9_reinforced_body_needs_typed_repeated_block_xcost_primitive() {
+fn defect_wave9_reinforced_body_uses_the_typed_xcost_block_surface() {
     let reinforced_body = global_registry()
         .get("Reinforced Body+")
         .expect("Reinforced Body+");
     assert_eq!(reinforced_body.cost, -1);
     assert_eq!(reinforced_body.base_block, 9);
-    assert!(
-        reinforced_body.effect_data.is_empty(),
-        "Reinforced Body should stay off the typed surface until the repeated-block/X-cost primitive lands"
+    assert_eq!(reinforced_body.card_type, CardType::Skill);
+    assert_eq!(reinforced_body.target, CardTarget::SelfTarget);
+    assert_eq!(
+        reinforced_body.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
     );
-    assert!(reinforced_body.effects.contains(&"block_x_times"));
+    assert!(reinforced_body.effects.is_empty());
 }

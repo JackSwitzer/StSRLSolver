@@ -14,14 +14,14 @@ Canonical audit outputs:
 Weighted completion toward `universal gameplay runtime + decision-complete RL loop`:
 
 - supported-scope runtime parity: `99%`
-- all-content gameplay parity: `98%`
+- all-content gameplay parity: `99%`
 - architecture unification snapshot: `99%`
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `98%` | Public gameplay-gap card tail is closed; the remaining gameplay tail is the Defect multi-hit family plus `Reinforced Body` |
+| Combat runtime parity | `99%` | Public gameplay-gap card tail is closed and the former Defect multi-hit / X-cost blockers are green on engine-path suites |
 | RL combat surface | `98%` | `Neow`, reward screen, decision context, and search surfaces are green |
 | Run / reward / event parity | `99%` | `NoteForYourself`, `Match and Keep!`, and `Scrap Ooze` now run on canonical event/runtime paths |
 | Dead-system retirement | `98%` | Helper-path production debt is effectively gone |
@@ -36,7 +36,7 @@ Area scores:
 | Cleanup-only card shells | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `0` |
-| Direct `#[ignore]` count in `src/tests` | `74` |
+| Direct `#[ignore]` count in `src/tests` | `73` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
 
@@ -46,11 +46,14 @@ Cleanup-only card shells:
 - [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1)
 - [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 
-All-content blockers still open:
+Known gameplay blockers still open:
 
-- `Barrage` / `Rip and Tear` / `Thunder Strike` typed multi-hit parity
-- `Reinforced Body` repeated-block / X-cost parity
-- `Smoke Bomb` back-attack positional legality
+- none currently confirmed on the integrated branch
+
+Remaining merge-readiness work:
+
+- stale ignored-test cleanup and reclassification
+- one final full Java audit sweep after the latest landed fixes
 
 Major stale/noisy debt still present:
 
@@ -70,17 +73,20 @@ Representative green suites on the current audited tree:
 - `test_event_runtime_wave19` `6 passed`
 - `test_event_runtime_wave20` `3 passed`
 - `test_event_runtime_wave21` `2 passed`
-- `test_potion_runtime_wave8` `7 passed, 1 ignored`
+- `test_potion_runtime_wave8` `8 passed`
 - `test_potion_runtime_action_path` `15 passed`
 - `test_relic_runtime_wave17` `2 passed`
 - `test_dead_system_cleanup_wave22` `1 passed`
 - `test_generated_choice_java_wave3` `7 passed`
 - `test_orb_runtime_java_wave1` `9 passed`
+- `test_card_runtime_defect_wave12` `7 passed`
+- `test_card_runtime_xcount_wave2` `3 passed`
+- `test_card_runtime_defect_wave9` `3 passed`
 - `test_card_runtime_watcher_wave26` `3 passed`
 
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is ready after cleanup/doc sync.
-- If the claim is `all gameplay content complete`, do not mark the PR ready yet; close the three blocker families above first.
-- Zero-skip answer: `no` — there are still `74` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: `no` — the three blocker families above are still open on the current audited tree.
+- If the claim is `all gameplay content complete`, the known gameplay blockers are closed, but the PR still needs one final audit and ignored-test cleanup before we call it ready.
+- Zero-skip answer: `no` — there are still `73` explicit `#[ignore]` tests in `src/tests`.
+- Java-clean answer: `not yet formally re-frozen` — the known gameplay blockers are closed, but the final audit sweep still needs to refresh the branch-wide claim.
