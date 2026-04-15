@@ -46,8 +46,14 @@ fn dead_cleanup_wave9_runtime_combat_start_families_replace_helper_contracts() {
 }
 
 #[test]
-#[ignore = "blocked on combat-start temporary strength runtime parity; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/MutagenicStrength.java"]
-fn dead_cleanup_wave9_mutagenic_strength_remains_queued_until_start_of_combat_runtime_is_authoritative() {}
+fn dead_cleanup_wave9_mutagenic_strength_applies_at_combat_start_like_java() {
+    let mut mutagenic = engine_without_start_with_relics(&["MutagenicStrength"], 8);
+
+    mutagenic.start_combat();
+
+    assert_eq!(mutagenic.state.player.status(sid::STRENGTH), 3);
+    assert_eq!(mutagenic.state.player.status(sid::LOSE_STRENGTH), 3);
+}
 
 #[test]
 fn dead_cleanup_wave9_runtime_card_play_families_replace_helper_contracts() {

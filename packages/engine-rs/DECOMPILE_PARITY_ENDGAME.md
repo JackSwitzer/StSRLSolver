@@ -21,6 +21,7 @@ What closed in the latest cleanup pass:
 - stale watcher/colorless/defect ignore noise was converted into real passing coverage
 - stale active assertions were fixed for `Consecrate`, `Purity`, and `Capacitor`
 - `Secret Technique` legality is now proven on the engine path instead of staying ignored
+- `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` are now covered by real passing generated-choice tests instead of ignored placeholders
 
 Live branch truth:
 
@@ -31,7 +32,7 @@ Live branch truth:
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
-| Direct ignored tests | `9` |
+| Direct ignored tests | `5` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -44,12 +45,8 @@ The raw empty public-card files are cleanup shells only:
 The real remaining gameplay tail is now:
 
 1. `Parasite` master-deck removal max-HP semantics
-2. `DiscoveryAction` potency-sensitive generation count
-3. `Chrysalis` upgraded random Skill generation fidelity
-4. `Metamorphosis` upgraded random Attack generation fidelity
-5. `Sentinel` under `Corruption`
-6. `Expunger` temp-card X-count / repeated-hit state fidelity
-7. `Mutagenic Strength` combat-start temporary Strength timing
+2. `Sentinel` under `Corruption`
+3. `Expunger` temp-card X-count / repeated-hit state fidelity
 
 Cleanup-only remaining ignores:
 
@@ -60,19 +57,14 @@ Cleanup-only remaining ignores:
 
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
-1. generated-choice/generated-card family
-   - `DiscoveryAction`
-   - `Chrysalis`
-   - `Metamorphosis`
-2. exhaust / temp-card family
+1. exhaust / temp-card family
    - `Sentinel` under `Corruption`
    - `Expunger`
-3. relic / curse follow-up family
-   - `Mutagenic Strength`
+2. relic / curse follow-up family
    - `Parasite`
-4. dead-system bridge retirement
-5. final audit refresh and PR readiness sweep
-6. training branch cut from this branch
+3. dead-system bridge retirement
+4. final audit refresh and PR readiness sweep
+5. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
@@ -127,7 +119,8 @@ Representative currently green suites:
 
 This pass removed the misleading “big unknown” feel from the tail:
 
-- direct ignored tests dropped from `69` to `9`
+- direct ignored tests dropped from `69` to `5`
+- generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by real passing tests
 - stale watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` are no longer overstating parity debt
 - stale colorless/choice placeholders for `Headbutt`, `Violence`, and `Secret Technique` legality are gone
 - the parity PR can now talk about a short explicit tail instead of a broad fuzzy backlog

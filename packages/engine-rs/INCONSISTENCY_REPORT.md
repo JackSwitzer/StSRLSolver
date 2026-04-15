@@ -12,7 +12,7 @@ Current read:
 - supported-scope runtime parity: `~99%`
 - all-content gameplay parity: `~99%`
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `7` gameplay families plus `2` cleanup-only bridge-retirement ignores
+- all-content merge blockers: `3` gameplay families plus `2` cleanup-only bridge-retirement ignores
 
 What is truly done:
 
@@ -20,26 +20,22 @@ What is truly done:
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
 - `Establishment` retained-cost parity is fixed
-- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, and `Reinforced Body` are all landed on the canonical runtime path
+- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, and `Mutagenic Strength` are all landed on the canonical runtime path
 - Neow action layer is real and intentionally always exposes `4` choices
-- the stale solved ignore pile collapsed from `69` to `9`
+- the stale solved ignore pile collapsed from `69` to `5`
 
 What is still open:
 
 - `Parasite` master-deck removal max-HP semantics
-- `DiscoveryAction` potency-sensitive generated-choice count
-- `Chrysalis` upgraded random Skill generation fidelity
-- `Metamorphosis` upgraded random Attack generation fidelity
 - `Sentinel` under `Corruption`
 - `Expunger` typed X-count / repeated-hit temp-card semantics
-- `Mutagenic Strength` combat-start temporary Strength timing
 - cleanup-only relic bridge retirement in dead-system waves `18` and `19`
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, that stronger claim is still false until the `7` gameplay families above are closed.
-- Zero-skip answer: `no` — there are still `9` explicit ignored tests.
+- If the claim is `all gameplay content complete`, that stronger claim is still false until the `3` gameplay families above are closed.
+- Zero-skip answer: `no` — there are still `5` explicit ignored tests.
 - Java-clean answer: `no` — the remaining mismatch surface is now small and explicit rather than broad or unknown.
 
 ## 2. Quantified Baseline
@@ -57,7 +53,7 @@ Bottom line:
 | Raw public `complex_hook` files | `0` | current source scan |
 | Blocked supported event ops | `0` | current source scan |
 | Explicit blocked event branches in source | `0` | current source scan |
-| Direct ignored tests in `src/tests` | `9` | current source scan |
+| Direct ignored tests in `src/tests` | `5` | current source scan |
 
 ### Current status table
 
@@ -65,7 +61,7 @@ Bottom line:
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit gameplay blockers | `Parasite`, `DiscoveryAction`, `Chrysalis`, `Metamorphosis`, `Sentinel` under `Corruption`, `Expunger`, `Mutagenic Strength` |
+| Explicit gameplay blockers | `Parasite`, `Sentinel` under `Corruption`, `Expunger` |
 | Cleanup-only ignores | dead-system bridge retirement in waves `18` and `19` |
 
 ### Rust-vs-Java delta table
@@ -83,8 +79,8 @@ Bottom line:
 
 | Family | Current direct ignored count |
 | --- | ---: |
-| Generated choice / card generation | `3` |
-| Card runtime parity | `4` |
+| Generated choice / card generation | `0` |
+| Card runtime parity | `3` |
 | Dead-system cleanup | `2` |
 | Watcher stale solved noise | `0` |
 | Colorless stale solved noise | `0` |
@@ -93,7 +89,7 @@ Bottom line:
 Some raw counts are intentionally noisy unless classified:
 
 - the `3` raw empty public-card files are cleanup-only shells, not gameplay gaps
-- the `9` ignored tests are now almost entirely explicit and specific rather than a mixed stale backlog
+- the `5` ignored tests are now almost entirely explicit and specific rather than a mixed stale backlog
 
 ### Why we believe the engine works
 
@@ -149,39 +145,6 @@ Representative green suites on the current local tree:
 - Test mapping: `parasite_removed_from_master_deck_reduces_max_hp_once`
 - Worker slice: curse-removal / master-deck hook
 
-### Finding G2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_generated_choice_java_wave2.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_generated_choice_java_wave2.rs:105), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java`
-- Problem: `DiscoveryAction` is potency-sensitive in Java and can generate more than the base one-copy choice shape the current runtime exposes.
-- Recommended fix: extend generated-choice count handling to honor potency-sensitive copy count.
-- Test mapping: `discovery_action_scales_generated_count_with_potency`
-- Worker slice: generated-choice count pipeline
-
-### Finding G3
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_generated_choice_java_wave2.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_generated_choice_java_wave2.rs:212), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ChrysalisAction.java`
-- Problem: `Chrysalis` should generate upgraded random Skills into the draw pile; the current runtime still uses a fixed approximation.
-- Recommended fix: replace the approximation with Java-style random upgraded Skill generation into draw.
-- Test mapping: `chrysalis_generates_upgraded_random_skills`
-- Worker slice: generated-card pool fidelity
-
-### Finding G4
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_generated_choice_java_wave2.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_generated_choice_java_wave2.rs:226), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MetamorphosisAction.java`
-- Problem: `Metamorphosis` should generate upgraded random Attacks into the draw pile; the current runtime still uses a fixed approximation.
-- Recommended fix: replace the approximation with Java-style random upgraded Attack generation into draw.
-- Test mapping: `metamorphosis_generates_upgraded_random_attacks`
-- Worker slice: generated-card pool fidelity
-
 ### Finding G5
 - Area: parity
 - Severity: medium
@@ -204,17 +167,6 @@ Representative green suites on the current local tree:
 - Test mapping: `expunger_uses_preserved_x_count_for_repeated_hits`
 - Worker slice: temp-card X-count runtime
 
-### Finding G7
-- Area: parity
-- Severity: low
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_dead_system_cleanup_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave9.rs:49), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/MutagenicStrength.java`
-- Problem: `Mutagenic Strength` combat-start temporary Strength timing is still not proven on the canonical runtime path.
-- Recommended fix: land or verify the combat-start temporary Strength sequencing and convert this ignored blocker into a passing proof.
-- Test mapping: `mutagenic_strength_applies_temporary_strength_only_for_the_first_turn`
-- Worker slice: combat-start relic timing
-
 ## 4. Stale / Noisy Debt
 
 ### Finding S1
@@ -222,9 +174,9 @@ Representative green suites on the current local tree:
 - Severity: low
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: current direct ignore count `9`; prior stale-ignore baseline `69`
+- Evidence: current direct ignore count `5`; prior stale-ignore baseline `69`
 - Problem: the branch no longer has a huge stale-ignore backlog, but older docs and review context still describe that larger stale world.
-- Recommended fix: keep the canonical docs and PR body synced to the new `9`-ignore baseline and stop referencing the old `69` count.
+- Recommended fix: keep the canonical docs and PR body synced to the new `5`-ignore baseline and stop referencing the old `69` count.
 - Test mapping: source-wide ignore scan
 - Worker slice: audit/doc reconciliation
 

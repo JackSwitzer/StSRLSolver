@@ -36,8 +36,8 @@ Area scores:
 | Cleanup-only card shells | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `0` |
-| Direct `#[ignore]` count in `src/tests` | `9` |
-| Live gameplay-blocking ignore families | `7` |
+| Direct `#[ignore]` count in `src/tests` | `5` |
+| Live gameplay-blocking ignore families | `3` |
 | Cleanup-only ignore families | `2` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
@@ -51,12 +51,8 @@ Cleanup-only card shells:
 Remaining real gameplay blocker families:
 
 - `Parasite` master-deck removal max-HP semantics
-- `DiscoveryAction` potency-sensitive generation count
-- `Chrysalis` random upgraded Skill generation fidelity
-- `Metamorphosis` random upgraded Attack generation fidelity
 - `Sentinel` under `Corruption` exhaust-trigger energy refund parity
 - `Expunger` temp-card X-count / repeated-hit state fidelity
-- `Mutagenic Strength` combat-start temporary Strength timing
 
 Cleanup-only remaining ignores:
 
@@ -104,13 +100,14 @@ Representative green suites on the current tree:
 
 The main stale-test cleanup result from this pass:
 
-- direct ignored tests dropped from `69` to `9`
+- direct ignored tests dropped from `69` to `5`
+- generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by passing tests instead of ignores
 - stale active failures removed: `Consecrate`, `Purity`, `Capacitor`
 - real runtime fix landed: `Establishment`
 
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is effectively there.
-- If the claim is `all gameplay content complete`, the branch still needs the `7` remaining gameplay families above.
-- Zero-skip answer: `no` — there are still `9` explicit `#[ignore]` tests in `src/tests`.
+- If the claim is `all gameplay content complete`, the branch still needs the `3` remaining gameplay families above.
+- Zero-skip answer: `no` — there are still `5` explicit `#[ignore]` tests in `src/tests`.
 - Java-clean answer: `no` — the branch still has a small, explicit Java-cited tail rather than a broad unknown.
