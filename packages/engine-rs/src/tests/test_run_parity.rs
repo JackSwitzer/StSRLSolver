@@ -149,6 +149,37 @@ mod run_java_parity_tests {
     }
 
     #[test]
+    fn shop_remove_parasite_reduces_max_hp_and_clamps_current_hp() {
+        let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.gold = 999;
+        engine.run_state.deck = vec![
+            "Parasite".to_string(),
+            "Strike_P".to_string(),
+            "Strike_P".to_string(),
+            "Strike_P".to_string(),
+            "Defend_P".to_string(),
+            "Defend_P".to_string(),
+        ];
+        engine.run_state.max_hp = 40;
+        engine.run_state.current_hp = 40;
+        set_first_reachable_room(&mut engine, RoomType::Shop);
+        let actions = engine.get_legal_actions();
+        engine.step(&actions[0]);
+
+        let remove_price = engine.get_shop().expect("shop should exist").remove_price;
+
+        engine.step(&RunAction::ShopRemoveCard(0));
+
+        assert_eq!(engine.run_state.max_hp, 37);
+        assert_eq!(engine.run_state.current_hp, 37);
+        assert_eq!(engine.run_state.gold, 999 - remove_price);
+        assert_eq!(engine.run_state.deck.len(), 5);
+        assert!(!engine.run_state.deck.iter().any(|card| card == "Parasite"));
+        assert!(engine.get_shop().expect("shop stays open").removal_used);
+    }
+
+    #[test]
     fn event_room_enters_event_phase_with_choices() {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);

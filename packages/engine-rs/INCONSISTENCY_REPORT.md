@@ -12,7 +12,7 @@ Current read:
 - supported-scope runtime parity: `~99%`
 - all-content gameplay parity: `~99%`
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `3` gameplay families plus `2` cleanup-only bridge-retirement ignores
+- all-content merge blockers: `0` currently confirmed gameplay blockers in the audited matrix
 
 What is truly done:
 
@@ -26,17 +26,16 @@ What is truly done:
 
 What is still open:
 
-- `Parasite` master-deck removal max-HP semantics
-- `Sentinel` under `Corruption`
-- `Expunger` typed X-count / repeated-hit temp-card semantics
-- cleanup-only relic bridge retirement in dead-system waves `18` and `19`
+- a final broad parity freeze to strengthen confidence on the now zero-skip tree
+- review/doc synchronization so the draft PR reflects the audited branch truth
+- training-boundary planning, which is separate from engine legality itself
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, that stronger claim is still false until the `3` gameplay families above are closed.
-- Zero-skip answer: `no` — there are still `5` explicit ignored tests.
-- Java-clean answer: `no` — the remaining mismatch surface is now small and explicit rather than broad or unknown.
+- If the claim is `all gameplay content complete`, there is no currently confirmed gameplay blocker left in the audited matrix.
+- Zero-skip answer: `yes` — there are `0` explicit ignored tests.
+- Java-clean answer: `no currently confirmed discrepancy remains in the audited matrix`; the remaining risk is confidence breadth rather than a known blocker list.
 
 ## 2. Quantified Baseline
 
@@ -53,7 +52,7 @@ Bottom line:
 | Raw public `complex_hook` files | `0` | current source scan |
 | Blocked supported event ops | `0` | current source scan |
 | Explicit blocked event branches in source | `0` | current source scan |
-| Direct ignored tests in `src/tests` | `5` | current source scan |
+| Direct ignored tests in `src/tests` | `0` | current source scan |
 
 ### Current status table
 
@@ -61,8 +60,8 @@ Bottom line:
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit gameplay blockers | `Parasite`, `Sentinel` under `Corruption`, `Expunger` |
-| Cleanup-only ignores | dead-system bridge retirement in waves `18` and `19` |
+| Explicit gameplay blockers | none currently confirmed in the audited matrix |
+| Cleanup-only ignores | none |
 
 ### Rust-vs-Java delta table
 
@@ -80,8 +79,8 @@ Bottom line:
 | Family | Current direct ignored count |
 | --- | ---: |
 | Generated choice / card generation | `0` |
-| Card runtime parity | `3` |
-| Dead-system cleanup | `2` |
+| Card runtime parity | `0` |
+| Dead-system cleanup | `0` |
 | Watcher stale solved noise | `0` |
 | Colorless stale solved noise | `0` |
 | Defect stale solved noise | `0` |
@@ -89,7 +88,7 @@ Bottom line:
 Some raw counts are intentionally noisy unless classified:
 
 - the `3` raw empty public-card files are cleanup-only shells, not gameplay gaps
-- the `5` ignored tests are now almost entirely explicit and specific rather than a mixed stale backlog
+- the ignore backlog is fully collapsed on the live source tree
 
 ### Why we believe the engine works
 
@@ -134,38 +133,13 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-### Finding G1
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_card_runtime_support_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_support_wave1.rs:87), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java`
-- Problem: `Parasite` still relies on tag-driven behavior and does not yet prove Java's “lose Max HP when removed from the master deck” semantics on the canonical engine path.
-- Recommended fix: add a typed or runtime-owned master-deck removal hook and land an engine-path proof for max-HP loss only on real deck removal.
-- Test mapping: `parasite_removed_from_master_deck_reduces_max_hp_once`
-- Worker slice: curse-removal / master-deck hook
+There is no currently confirmed merge-gating gameplay discrepancy left in the audited matrix.
 
-### Finding G5
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java`
-- Problem: the current engine path does not yet refund `Sentinel` energy when the card exhausts via `Corruption`.
-- Recommended fix: wire Java `triggerOnExhaust` parity for `Sentinel` into the exhaust pipeline used by `Corruption`.
-- Test mapping: `sentinel_refunds_energy_when_corruption_exhausts_it`
-- Worker slice: exhaust-trigger follow-up
+The last parity-closure wave resolved:
 
-### Finding G6
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [test_card_runtime_temp_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_temp_wave1.rs:100), Java oracle `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java`
-- Problem: `Expunger` still lacks fully typed X-count / repeated-hit temp-card semantics and copy-state preservation.
-- Recommended fix: land typed X-count temp-card state that preserves the `setX(amount)`-style repeated-hit count on copies.
-- Test mapping: `expunger_uses_preserved_x_count_for_repeated_hits`
-- Worker slice: temp-card X-count runtime
+- `Parasite` via a run-owned master-deck removal hook with engine-path proof in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:151)
+- `Sentinel` under `Corruption` via a typed `on_exhaust` hook lane with engine-path proof in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
+- `Expunger` / `Conjure Blade+` via typed generated-card and card-owned X-count proof, including `Chemical X`, in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137) and [test_card_runtime_xcount_wave3.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_xcount_wave3.rs:44)
 
 ## 4. Stale / Noisy Debt
 
@@ -185,11 +159,11 @@ Representative green suites on the current local tree:
 - Severity: low
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: [test_dead_system_cleanup_wave18.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave18.rs:52), [test_dead_system_cleanup_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave19.rs:70)
-- Problem: two remaining relic-bridge cleanup tests are still honestly ignored because their production callers still exist.
-- Recommended fix: retire those live bridge callers after the parity tail is closed so the dead-system cleanup can finish cleanly.
+- Evidence: [test_dead_system_cleanup_wave18.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave18.rs:1), [test_dead_system_cleanup_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave19.rs:1)
+- Problem: the old cleanup-only ignore tail is gone, but the docs and reviewer context still describe it as active debt.
+- Recommended fix: keep the canonical docs and PR narrative synced to the current zero-ignore tree so stale cleanup debt is not mistaken for an engine blocker.
 - Test mapping: `test_dead_system_cleanup_wave18`, `test_dead_system_cleanup_wave19`
-- Worker slice: relic bridge retirement
+- Worker slice: audit/doc reconciliation
 
 ### Finding S3
 - Area: architecture
@@ -218,7 +192,7 @@ These items should not block a supported-scope merge if scope stays honest, but 
 - relic bridge retirement in dead-system cleanup waves `18` and `19`
 - cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 - broader generated-choice and generated-card fidelity sweeps after the explicit blockers above close
-- final zero-skip cleanup if we want a completely ignore-free parity branch before merge
+- broad audit freezing now that the branch is completely ignore-free
 
 ## 7. Edge-Case Annex: `Scrawl+`
 

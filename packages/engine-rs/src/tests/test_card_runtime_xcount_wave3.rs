@@ -33,9 +33,14 @@ fn xcount_wave3_expunger_and_conjure_blade_use_card_owned_xcount_surface() {
     let conjure_blade_plus = registry.get("ConjureBlade+").expect("ConjureBlade+");
     assert_eq!(
         conjure_blade_plus.effect_data,
-        &[E::Simple(SE::AddCard("Expunger", P::Hand, A::Fixed(1)))]
+        &[E::Simple(SE::AddCardWithMisc(
+            "Expunger",
+            P::Draw,
+            A::Fixed(1),
+            A::XCostPlus(1),
+        ))]
     );
-    assert!(conjure_blade_plus.complex_hook.is_some());
+    assert!(conjure_blade_plus.complex_hook.is_none());
 }
 
 #[test]
@@ -48,7 +53,7 @@ fn xcount_wave3_conjure_blade_stamps_generated_expunger_misc() {
 
     let expunger = engine
         .state
-        .hand
+        .draw_pile
         .iter()
         .rev()
         .find(|card| {
@@ -72,7 +77,7 @@ fn xcount_wave3_expunger_copy_preserves_card_owned_hit_count() {
 
     let generated = engine
         .state
-        .hand
+        .draw_pile
         .iter()
         .rev()
         .find(|card| {
@@ -83,6 +88,10 @@ fn xcount_wave3_expunger_copy_preserves_card_owned_hit_count() {
         .expect("generated Expunger");
     assert_eq!(generated.misc, 4);
 
+    engine.state.draw_pile.retain(|card| {
+        !(engine.card_registry.card_name(card.def_id) == "Expunger" && card.misc == generated.misc)
+    });
+    engine.state.hand.push(generated);
     engine.state.hand.push(generated);
     engine.state.energy = 2;
 

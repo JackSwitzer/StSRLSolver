@@ -18,6 +18,9 @@ Canonical audit docs:
 What closed in the latest cleanup pass:
 
 - `Establishment` now applies retained-card combat cost reduction correctly across turns
+- `Parasite` now applies Java-style max-HP loss only when removed from the master deck
+- `Sentinel` under `Corruption` now refunds energy through a typed exhaust hook lane
+- `Expunger` / `Conjure Blade+` now preserve card-owned X-count semantics, including `Chemical X`
 - stale watcher/colorless/defect ignore noise was converted into real passing coverage
 - stale active assertions were fixed for `Consecrate`, `Purity`, and `Capacitor`
 - `Secret Technique` legality is now proven on the engine path instead of staying ignored
@@ -32,7 +35,7 @@ Live branch truth:
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `0` |
-| Direct ignored tests | `5` |
+| Direct ignored tests | `0` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -42,35 +45,27 @@ The raw empty public-card files are cleanup shells only:
 
 ## What Still Blocks Full All-Content Parity
 
-The real remaining gameplay tail is now:
+There is no currently confirmed gameplay blocker left in the audited parity matrix.
 
-1. `Parasite` master-deck removal max-HP semantics
-2. `Sentinel` under `Corruption`
-3. `Expunger` temp-card X-count / repeated-hit state fidelity
+The remaining work before calling the branch completely frozen is:
 
-Cleanup-only remaining ignores:
-
-1. relic bridge retirement in `test_dead_system_cleanup_wave18`
-2. relic bridge retirement in `test_dead_system_cleanup_wave19`
+1. one more broad parity freeze with the refreshed zero-ignore tree
+2. review/doc sync on the draft PR
+3. training-branch handoff planning
 
 ## Immediate Execution Order
 
-If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
+If the goal is to leave draft only after `all gameplay content complete`, the next order should be:
 
-1. exhaust / temp-card family
-   - `Sentinel` under `Corruption`
-   - `Expunger`
-2. relic / curse follow-up family
-   - `Parasite`
-3. dead-system bridge retirement
-4. final audit refresh and PR readiness sweep
-5. training branch cut from this branch
+1. final broad audit refresh on the zero-skip tree
+2. PR/body/doc reconciliation
+3. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
 1. docs / PR sync
 2. training branch cut from this branch
-3. close the remaining all-content tail on follow-up work
+3. keep broader parity sweeps running as confidence work rather than blocker work
 
 ## Verification Substrate
 
@@ -119,8 +114,8 @@ Representative currently green suites:
 
 This pass removed the misleading “big unknown” feel from the tail:
 
-- direct ignored tests dropped from `69` to `5`
+- direct ignored tests dropped from `69` to `0`
 - generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by real passing tests
 - stale watcher placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, `Wallop`, `Brilliance`, `Halt`, `Perseverance`, `Sands of Time`, and `Windmill Strike` are no longer overstating parity debt
 - stale colorless/choice placeholders for `Headbutt`, `Violence`, and `Secret Technique` legality are gone
-- the parity PR can now talk about a short explicit tail instead of a broad fuzzy backlog
+- the parity PR can now talk about a zero-skip audited matrix instead of a broad fuzzy backlog

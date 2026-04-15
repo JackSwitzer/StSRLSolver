@@ -302,7 +302,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 let idx = engine.rng_gen_range(0..engine.state.hand.len());
                 let exhausted = engine.state.hand.remove(idx);
                 engine.state.exhaust_pile.push(exhausted);
-                engine.trigger_on_exhaust();
+                engine.trigger_card_on_exhaust(exhausted);
             }
         }
 
@@ -1368,10 +1368,11 @@ fn execute_for_each(
                     exhausted.push(pile_ref.remove(i));
                 }
             }
+            let exhausted_cards = exhausted.clone();
             engine.state.exhaust_pile.extend(exhausted);
             // Trigger on-exhaust hooks for each card
-            for _ in 0..matching.len() {
-                engine.trigger_on_exhaust();
+            for card in exhausted_cards {
+                engine.trigger_card_on_exhaust(card);
             }
         }
 

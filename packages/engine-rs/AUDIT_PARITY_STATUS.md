@@ -13,7 +13,7 @@ Canonical audit outputs:
 
 Weighted toward `universal gameplay runtime + honest Java parity proof`:
 
-- supported-scope runtime parity: `99%`
+- supported-scope runtime parity: `100%`
 - all-content gameplay parity: `99%`
 - architecture unification snapshot: `99%`
 
@@ -21,10 +21,10 @@ Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `99%` | `Establishment` is fixed and the stale watcher/colorless skip pile is largely gone; the remaining gaps are narrow Java-cited families |
+| Combat runtime parity | `99%` | the last known gameplay gaps in this cleanup wave are now closed on the engine path; remaining risk is audit confidence, not an explicit blocker list |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
 | Run / reward / event parity | `99%` | `NoteForYourself`, `Match and Keep!`, and `Scrap Ooze` run on the canonical event/runtime path |
-| Dead-system retirement | `98%` | gameplay helper debt is mostly retired, but two relic-bridge cleanup ignores remain |
+| Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
 
 ## Current Quantified Backlog
 
@@ -36,9 +36,9 @@ Area scores:
 | Cleanup-only card shells | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `0` |
-| Direct `#[ignore]` count in `src/tests` | `5` |
-| Live gameplay-blocking ignore families | `3` |
-| Cleanup-only ignore families | `2` |
+| Direct `#[ignore]` count in `src/tests` | `0` |
+| Live gameplay-blocking ignore families | `0` |
+| Cleanup-only ignore families | `0` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
 
@@ -48,16 +48,11 @@ Cleanup-only card shells:
 - [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1)
 - [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 
-Remaining real gameplay blocker families:
+Recently closed gameplay-gap families:
 
-- `Parasite` master-deck removal max-HP semantics
-- `Sentinel` under `Corruption` exhaust-trigger energy refund parity
-- `Expunger` temp-card X-count / repeated-hit state fidelity
-
-Cleanup-only remaining ignores:
-
-- relic bridge retirement in [test_dead_system_cleanup_wave18.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave18.rs:52)
-- relic bridge retirement in [test_dead_system_cleanup_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_dead_system_cleanup_wave19.rs:70)
+- `Parasite` master-deck removal now routes through a run-owned removal hook and has engine-path proof in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:151)
+- `Sentinel` under `Corruption` now uses a typed `on_exhaust` hook lane and is proven in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
+- `Expunger` / `Conjure Blade+` now use typed generated-card and card-owned X-count surfaces, including `Chemical X` coverage in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137)
 
 ## Why The Branch Is Trusted
 
@@ -100,14 +95,15 @@ Representative green suites on the current tree:
 
 The main stale-test cleanup result from this pass:
 
-- direct ignored tests dropped from `69` to `5`
+- direct ignored tests dropped from `69` to `0`
 - generated-choice fidelity for `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` is now covered by passing tests instead of ignores
 - stale active failures removed: `Consecrate`, `Purity`, `Capacitor`
 - real runtime fix landed: `Establishment`
+- the final cleanup wave also removed stale dead-system ignores and replaced the last gameplay blockers with passing engine-path proof
 
 ## Current Read
 
-- If the claim is `supported runtime parity complete`, the branch is effectively there.
-- If the claim is `all gameplay content complete`, the branch still needs the `3` remaining gameplay families above.
-- Zero-skip answer: `no` — there are still `5` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: `no` — the branch still has a small, explicit Java-cited tail rather than a broad unknown.
+- If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
+- If the claim is `all gameplay content complete`, there are no currently confirmed gameplay blockers left in the audited matrix.
+- Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
+- Java-clean answer: `no currently confirmed discrepancy remains in the audited matrix`; remaining risk is unexercised edge cases rather than a live blocker list.

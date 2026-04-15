@@ -43,9 +43,14 @@ fn xcount_wave1_registry_exports_typed_surface_for_skewer_tempest_plus_and_conju
     let conjure_blade_plus = registry.get("ConjureBlade+").expect("ConjureBlade+");
     assert_eq!(
         conjure_blade_plus.effect_data,
-        &[E::Simple(SE::AddCard("Expunger", P::Hand, A::Fixed(1)))]
+        &[E::Simple(SE::AddCardWithMisc(
+            "Expunger",
+            P::Draw,
+            A::Fixed(1),
+            A::XCostPlus(1),
+        ))]
     );
-    assert!(conjure_blade_plus.complex_hook.is_some());
+    assert!(conjure_blade_plus.complex_hook.is_none());
 }
 
 #[test]
@@ -88,10 +93,10 @@ fn xcount_wave1_conjure_blade_plus_sets_expunger_hits_to_x_plus_one() {
     assert_eq!(engine.state.energy, 0);
     let expunger = engine
         .state
-        .hand
+        .draw_pile
         .iter()
         .find(|card| engine.card_registry.card_name(card.def_id) == "Expunger")
         .expect("generated Expunger");
     assert_eq!(expunger.misc, 4);
-    assert!(hand_count(&engine, "Expunger") >= 1);
+    assert!(draw_prefix_count(&engine, "Expunger") >= 1);
 }

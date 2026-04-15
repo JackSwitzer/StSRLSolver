@@ -80,8 +80,7 @@ fn ironclad_wave9_sentinel_primary_block_moves_to_typed_surface() {
 }
 
 #[test]
-#[ignore = "Blocked on Java triggerOnExhaust parity for Sentinel under Corruption; current engine path does not yet fire the energy refund when the skill exhausts via Corruption"]
-fn ironclad_wave9_sentinel_exhaust_energy_trigger_stays_queued_until_trigger_on_exhaust_parity_lands() {
+fn ironclad_wave9_sentinel_exhaust_energy_trigger_fires_under_corruption() {
     let mut engine = one_enemy_engine("JawWorm", 60);
     engine.state.energy = 1;
     engine.state.player.set_status(sid::CORRUPTION, 1);
@@ -90,6 +89,6 @@ fn ironclad_wave9_sentinel_exhaust_energy_trigger_stays_queued_until_trigger_on_
     assert!(play_self(&mut engine, "Sentinel+"));
 
     assert_eq!(engine.state.player.block, 8);
-    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.energy, 4);
     assert_eq!(exhaust_prefix_count(&engine, "Sentinel"), 1);
 }

@@ -39,6 +39,8 @@ pub const BIT_COPY_ON_DRAW: u8 = 12;
 // on_discard hooks (bits 13-14)
 pub const BIT_DRAW_ON_DISCARD: u8 = 13;
 pub const BIT_ENERGY_ON_DISCARD: u8 = 14;
+// on_exhaust hooks (bit 28)
+pub const BIT_ENERGY_ON_EXHAUST: u8 = 28;
 // post_play_dest hooks (bits 15-16)
 pub const BIT_SHUFFLE_SELF_INTO_DRAW: u8 = 15;
 pub const BIT_END_TURN: u8 = 16;
@@ -90,6 +92,9 @@ pub type OnDrawFn = fn(&mut CombatEngine, CardInstance);
 /// On-discard hook (card moved from hand to discard).
 pub type OnDiscardFn = fn(&mut CombatEngine, CardInstance) -> OnDiscardEffect;
 
+/// On-exhaust hook (card moved into exhaust).
+pub type OnExhaustFn = fn(&mut CombatEngine, &CardPlayContext);
+
 /// Post-play destination override.
 pub type PostPlayDestFn = fn(&CardDef) -> PostPlayDestination;
 
@@ -111,6 +116,7 @@ pub struct CardEffectEntry {
     pub on_retain: Option<OnRetainFn>,
     pub on_draw: Option<OnDrawFn>,
     pub on_discard: Option<OnDiscardFn>,
+    pub on_exhaust: Option<OnExhaustFn>,
     pub post_play_dest: Option<PostPlayDestFn>,
 }
 
@@ -125,6 +131,7 @@ impl CardEffectEntry {
         on_retain: None,
         on_draw: None,
         on_discard: None,
+        on_exhaust: None,
         post_play_dest: None,
     };
 }
@@ -238,6 +245,13 @@ pub static CARD_EFFECT_REGISTRY: &[CardEffectEntry] = &[
         on_discard: Some(super::hooks_discard::hook_energy_on_discard),
         ..CardEffectEntry::NONE
     },
+    // ===== on_exhaust hooks (bit 28) =====
+    CardEffectEntry {
+        tag: "energy_on_exhaust",
+        bit_index: 28,
+        on_exhaust: Some(super::hooks_simple::hook_energy_on_exhaust),
+        ..CardEffectEntry::NONE
+    },
     // ===== post_play_dest hooks (bits 15-16) =====
     CardEffectEntry {
         tag: "shuffle_self_into_draw",
@@ -346,6 +360,7 @@ struct HookMasks {
     on_retain: EffectFlags,
     on_draw: EffectFlags,
     on_discard: EffectFlags,
+    on_exhaust: EffectFlags,
     post_play_dest: EffectFlags,
 }
 
@@ -358,6 +373,7 @@ fn init_hook_masks() -> HookMasks {
         on_retain: build_hook_mask(|e| e.on_retain.is_some()),
         on_draw: build_hook_mask(|e| e.on_draw.is_some()),
         on_discard: build_hook_mask(|e| e.on_discard.is_some()),
+        on_exhaust: build_hook_mask(|e| e.on_exhaust.is_some()),
         post_play_dest: build_hook_mask(|e| e.post_play_dest.is_some()),
     }
 }
@@ -548,6 +564,37 @@ pub fn dispatch_on_discard(
         }
     }
     out
+}
+
+/// Dispatch on_exhaust hooks for a specific exhausted card.
+pub fn dispatch_on_exhaust(
+    engine: &mut CombatEngine,
+    card: &CardDef,
+    card_inst: CardInstance,
+    card_flags: EffectFlags,
+) {
+    if !card_flags.intersects(&masks().on_exhaust) {
+        return;
+    }
+    let ctx = CardPlayContext {
+        card,
+        card_inst,
+        target_idx: -1,
+        x_value: 0,
+        pen_nib_active: false,
+        vigor: 0,
+        total_unblocked_damage: 0,
+        enemy_killed: false,
+        hand_size_at_play: engine.state.hand.len(),
+        last_bulk_count: 0,
+    };
+    for entry in CARD_EFFECT_REGISTRY.iter() {
+        if let Some(hook) = entry.on_exhaust {
+            if card_flags.has(entry.bit_index) {
+                hook(engine, &ctx);
+            }
+        }
+    }
 }
 
 /// Get post-play destination override.

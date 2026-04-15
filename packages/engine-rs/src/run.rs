@@ -1977,26 +1977,36 @@ impl RunEngine {
 
         match label {
             "deck_selection_purge" => {
-                if *deck_index < self.run_state.deck.len() {
-                    self.run_state.deck.remove(*deck_index);
-                }
+                self.remove_master_deck_card(*deck_index);
                 true
             }
             "deck_selection_bonfire_offer" => {
-                if *deck_index < self.run_state.deck.len() {
-                    self.run_state.deck.remove(*deck_index);
-                }
+                self.remove_master_deck_card(*deck_index);
                 self.resolve_bonfire_offer(card_id);
                 true
             }
             "deck_selection_note_for_yourself" => {
-                if *deck_index < self.run_state.deck.len() {
-                    self.run_state.deck.remove(*deck_index);
-                }
+                self.remove_master_deck_card(*deck_index);
                 set_note_for_yourself_card(card_id.clone());
                 true
             }
             _ => false,
+        }
+    }
+
+    fn remove_master_deck_card(&mut self, deck_index: usize) -> Option<String> {
+        if deck_index >= self.run_state.deck.len() {
+            return None;
+        }
+        let removed = self.run_state.deck.remove(deck_index);
+        self.apply_master_deck_removal_hook(&removed);
+        Some(removed)
+    }
+
+    fn apply_master_deck_removal_hook(&mut self, card_id: &str) {
+        if card_id == "Parasite" {
+            self.run_state.max_hp = (self.run_state.max_hp - 3).max(1);
+            self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
         }
     }
 
@@ -2544,11 +2554,20 @@ impl RunEngine {
                 return 0.0;
             }
             RunAction::ShopRemoveCard(idx) => {
-                if let Some(ref mut shop) = self.current_shop {
-                    if !shop.removal_used && *idx < self.run_state.deck.len() && self.run_state.gold >= shop.remove_price {
-                        let price = shop.remove_price;
-                        self.run_state.gold -= price;
-                        self.run_state.deck.remove(*idx);
+                let remove_price = self.current_shop.as_ref().and_then(|shop| {
+                    if !shop.removal_used
+                        && *idx < self.run_state.deck.len()
+                        && self.run_state.gold >= shop.remove_price
+                    {
+                        Some(shop.remove_price)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(price) = remove_price {
+                    self.run_state.gold -= price;
+                    self.remove_master_deck_card(*idx);
+                    if let Some(shop) = self.current_shop.as_mut() {
                         shop.removal_used = true;
                     }
                 }
@@ -3227,7 +3246,7 @@ impl RunEngine {
                 for _ in 0..*count {
                     if self.run_state.deck.len() > 5 {
                         let idx = self.rng.gen_range(0..self.run_state.deck.len());
-                        self.run_state.deck.remove(idx);
+                        self.remove_master_deck_card(idx);
                     }
                 }
             }
@@ -3235,7 +3254,7 @@ impl RunEngine {
                 for _ in 0..*count {
                     if self.run_state.deck.len() > 5 {
                         let idx = self.rng.gen_range(0..self.run_state.deck.len());
-                        self.run_state.deck.remove(idx);
+                        self.remove_master_deck_card(idx);
                     }
                     let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
                     self.run_state

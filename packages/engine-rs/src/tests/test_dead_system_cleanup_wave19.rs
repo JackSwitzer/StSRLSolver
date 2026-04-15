@@ -65,7 +65,3 @@ fn relic_dead_helper_cleanup_wave19_x_cost_and_calm_exit_bonuses_are_engine_path
     assert!(play_self(&mut lotus_engine, "Eruption"));
     assert_eq!(lotus_engine.state.energy, energy_before + 1);
 }
-
-#[test]
-#[ignore = "The remaining higher-latency relic bridges (Runic Pyramid, Calipers, Ice Cream, Necronomicon, Unceasing Top) still have live production callers in engine.rs, so they stay on the bridge path for now."]
-fn relic_dead_helper_cleanup_wave19_remaining_bridge_helpers_are_kept() {}

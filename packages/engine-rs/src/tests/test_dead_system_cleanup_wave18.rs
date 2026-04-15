@@ -47,7 +47,3 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
     );
     assert_eq!(engine.state.player.block, 15, "Calipers should retain up to 15 block");
 }
-
-#[test]
-#[ignore = "The remaining relic bridge helpers are still live production callsites in packages/engine-rs/src/engine.rs and packages/engine-rs/src/card_effects.rs, so they cannot be deleted from relics/run.rs yet."]
-fn relic_dead_helper_cleanup_wave18_no_bridge_helpers_are_deleted_yet() {}

@@ -82,7 +82,3 @@ fn support_wave1_void_loses_energy_when_drawn() {
     assert_eq!(engine.state.energy, energy_before - 1);
     assert_eq!(hand_count(&engine, "Void"), 1);
 }
-
-#[test]
-#[ignore = "Parasite still stays tag-driven until the master-deck-removal hook is typed; Java removes max HP only when the curse is removed from the deck, not on play. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java"]
-fn support_wave1_parasite_stays_explicitly_tag_driven() {}

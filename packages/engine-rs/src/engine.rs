@@ -616,7 +616,7 @@ impl CombatEngine {
             if idx < self.state.hand.len() {
                 let card = self.state.hand.remove(idx);
                 self.state.exhaust_pile.push(card);
-                self.trigger_on_exhaust();
+                self.trigger_card_on_exhaust(card);
             }
         }
         // Burning Pact: draw cards after exhaust choice resolves.
@@ -914,7 +914,7 @@ impl CombatEngine {
                     };
                     self.state.energy += effective_cost;
                     self.state.exhaust_pile.push(card);
-                    self.trigger_on_exhaust();
+                    self.trigger_card_on_exhaust(card);
                 }
             }
         }
@@ -1775,7 +1775,7 @@ impl CombatEngine {
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
             self.state.exhaust_pile.push(card_inst);
-            self.trigger_on_exhaust();
+            self.trigger_card_on_exhaust(card_inst);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -1798,7 +1798,7 @@ impl CombatEngine {
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
             self.state.exhaust_pile.push(card_inst);
-            self.trigger_on_exhaust();
+            self.trigger_card_on_exhaust(card_inst);
             self.player_lose_hp(1);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
@@ -2051,11 +2051,11 @@ impl CombatEngine {
                     self.state.draw_pile.push(card_inst);
                 } else {
                     self.state.exhaust_pile.push(card_inst);
-                    self.trigger_on_exhaust();
+                    self.trigger_card_on_exhaust(card_inst);
                 }
             } else {
                 self.state.exhaust_pile.push(card_inst);
-                self.trigger_on_exhaust();
+                self.trigger_card_on_exhaust(card_inst);
             }
         } else {
             self.state.discard_pile.push(card_inst);
@@ -2954,6 +2954,13 @@ impl CombatEngine {
             crate::effects::trigger::Trigger::OnCardExhaust,
             &ctx,
         ));
+    }
+
+    pub(crate) fn trigger_card_on_exhaust(&mut self, card_inst: CardInstance) {
+        let card = self.card_registry.card_def_by_id(card_inst.def_id);
+        let card_flags = self.card_registry.effect_flags(card_inst.def_id);
+        crate::effects::registry::dispatch_on_exhaust(self, card, card_inst, card_flags);
+        self.trigger_on_exhaust();
     }
 
     /// Obtain a random potion into the first empty potion slot, respecting Sozu.
