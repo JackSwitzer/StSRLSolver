@@ -9,10 +9,10 @@ This is the canonical parity audit for `packages/engine-rs`. It reflects the liv
 
 Current read:
 
-- supported-scope runtime parity: `~99%`
-- all-content gameplay parity: `~99%`
+- supported-scope runtime parity: `~100%`
+- all-content gameplay parity: `~98%`
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `0` currently confirmed gameplay blockers in the audited matrix
+- all-content merge blockers: `4` semantic families
 
 What is truly done:
 
@@ -26,16 +26,18 @@ What is truly done:
 
 What is still open:
 
-- a final broad parity freeze to strengthen confidence on the now zero-skip tree
-- review/doc synchronization so the draft PR reflects the audited branch truth
-- training-boundary planning, which is separate from engine legality itself
+- `Collect` timing parity
+- free-play X-cost energy preservation
+- `Emotion Chip` full `ImpulseAction` fidelity
+- shop purge-cost persistence
+- then one final broad parity freeze and doc/PR synchronization
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, there is no currently confirmed gameplay blocker left in the audited matrix.
+- If the claim is `all gameplay content complete`, that stronger claim is still false until the `4` semantic blockers above are closed.
 - Zero-skip answer: `yes` — there are `0` explicit ignored tests.
-- Java-clean answer: `no currently confirmed discrepancy remains in the audited matrix`; the remaining risk is confidence breadth rather than a known blocker list.
+- Java-clean answer: `no` — the final broad audit confirmed a short explicit blocker list.
 
 ## 2. Quantified Baseline
 
@@ -60,7 +62,7 @@ Bottom line:
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit gameplay blockers | none currently confirmed in the audited matrix |
+| Explicit gameplay blockers | `Collect`, free-play X-cost, `Emotion Chip`, shop purge-cost persistence |
 | Cleanup-only ignores | none |
 
 ### Rust-vs-Java delta table
@@ -133,13 +135,49 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-There is no currently confirmed merge-gating gameplay discrepancy left in the audited matrix.
+### Finding G1
+- Area: parity
+- Severity: medium
+- Confidence: high
+- Scope: merge-gating
+- Evidence: [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1145), [CollectPower.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java:50), [PlayerTurnEffect.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/vfx/PlayerTurnEffect.java:50)
+- Problem: Rust grants `Collect` Miracles after the start-of-turn draw, while Java queues them from `onEnergyRecharge()` before draw.
+- Recommended fix: move the `Collect` one-shot resolution into the pre-draw energy-recharge phase and add an engine-path timing test.
+- Test mapping: queued test for `Collect` with near-hand-cap start-of-turn ordering
+- Worker slice: watcher turn-start timing
 
-The last parity-closure wave resolved:
+### Finding G2
+- Area: parity
+- Severity: medium
+- Confidence: high
+- Scope: merge-gating
+- Evidence: [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:281), Java X-cost actions such as [TempestAction.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/TempestAction.java:31)
+- Problem: free-to-play X-cost cards still drain all energy in Rust even though Java snapshots X without spending energy when the card is free.
+- Recommended fix: preserve the current-energy snapshot for X while gating the actual energy drain on `!card_inst.is_free()`.
+- Test mapping: queued free-play X-cost proof on `Whirlwind`, `Tempest`, or `Skewer`
+- Worker slice: shared X-cost resolution
 
-- `Parasite` via a run-owned master-deck removal hook with engine-path proof in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:151)
-- `Sentinel` under `Corruption` via a typed `on_exhaust` hook lane with engine-path proof in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
-- `Expunger` / `Conjure Blade+` via typed generated-card and card-owned X-count proof, including `Chemical X`, in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137) and [test_card_runtime_xcount_wave3.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_xcount_wave3.rs:44)
+### Finding G3
+- Area: parity
+- Severity: medium
+- Confidence: high
+- Scope: merge-gating
+- Evidence: [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1079), [emotion_chip.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/relics/defs/emotion_chip.rs:1), [ImpulseAction.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ImpulseAction.java:20)
+- Problem: Rust models `Emotion Chip` as a single front-orb pulse, but Java runs `ImpulseAction` across all orbs and repeats the front orb when `Cables` is present.
+- Recommended fix: replace the current one-slot replay with full `ImpulseAction`-style orb iteration and add multi-orb/Cables proof.
+- Test mapping: queued multi-orb `Emotion Chip` test with and without `Cables`
+- Worker slice: defect orb turn-start fidelity
+
+### Finding G4
+- Area: parity
+- Severity: medium
+- Confidence: high
+- Scope: merge-gating
+- Evidence: [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:2516), [ShopScreen.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java:223), [ShopScreen.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java:275)
+- Problem: Rust derives shop purge cost from `combats_won`, while Java uses persistent `purgeCost` / `actualPurgeCost` that increments only when a purge happens.
+- Recommended fix: add run-owned persistent purge-cost state and update the shop tests to match the Java contract.
+- Test mapping: queued run-parity proof for purge-cost persistence across shops
+- Worker slice: run shop economy parity
 
 ## 4. Stale / Noisy Debt
 

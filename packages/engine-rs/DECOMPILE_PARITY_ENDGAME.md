@@ -45,21 +45,31 @@ The raw empty public-card files are cleanup shells only:
 
 ## What Still Blocks Full All-Content Parity
 
-There is no currently confirmed gameplay blocker left in the audited parity matrix.
+The final broad audit found `4` real semantic blockers:
 
-The remaining work before calling the branch completely frozen is:
-
-1. one more broad parity freeze with the refreshed zero-ignore tree
-2. review/doc sync on the draft PR
-3. training-branch handoff planning
+1. `Collect` timing
+   - Rust grants Miracles after draw in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1145)
+   - Java `CollectPower.onEnergyRecharge()` fires before the draw step in [CollectPower.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java:50)
+2. free-play X-cost parity
+   - [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:281) still drains all energy for free X-cost plays
+3. `Emotion Chip` fidelity
+   - Rust replays only the front orb in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1079)
+   - Java `ImpulseAction` iterates all orbs and then repeats the front orb for `Cables`
+4. shop purge-cost persistence
+   - [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:2516) still derives remove cost from `combats_won`
+   - Java uses persistent `ShopScreen.purgeCost` / `actualPurgeCost`
 
 ## Immediate Execution Order
 
 If the goal is to leave draft only after `all gameplay content complete`, the next order should be:
 
-1. final broad audit refresh on the zero-skip tree
-2. PR/body/doc reconciliation
-3. training branch cut from this branch
+1. fix `Collect` timing
+2. fix free-play X-cost energy drain
+3. fix full `Emotion Chip` / `ImpulseAction` fidelity
+4. fix shop purge-cost persistence
+5. rerun the broad audit on the zero-skip tree
+6. PR/body/doc reconciliation
+7. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
