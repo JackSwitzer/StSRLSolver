@@ -14,7 +14,7 @@ Canonical audit outputs:
 Weighted completion toward `universal gameplay runtime + decision-complete RL loop`:
 
 - supported-scope runtime parity: `99%`
-- all-content gameplay parity: `99%`
+- all-content gameplay parity: `98%`
 - architecture unification snapshot: `99%`
 
 Area scores:
@@ -23,7 +23,7 @@ Area scores:
 | --- | ---: | --- |
 | Combat runtime parity | `99%` | Public gameplay-gap card tail is closed |
 | RL combat surface | `98%` | `Neow`, reward screen, decision context, and search surfaces are green |
-| Run / reward / event parity | `98%` | `Scrap Ooze` and `NoteForYourself` now land; `Match and Keep!` still blocked |
+| Run / reward / event parity | `97%` | `NoteForYourself` lands cleanly; `Match and Keep!` is blocked and `Scrap Ooze` still lacks the Java retry/flee loop |
 | Dead-system retirement | `98%` | Helper-path production debt is effectively gone |
 
 ## Current Quantified Backlog
@@ -49,7 +49,13 @@ Cleanup-only card shells:
 All-content blockers still open:
 
 - `Match and Keep!` minigame runtime
+- `Scrap Ooze` retry / flee / escalating-relic-chance loop
+- `Barrage` / `Thunder Strike` zero-count no-op parity on the typed `ExtraHits(...)` path
 - `Smoke Bomb` back-attack positional legality
+
+Major stale/noisy debt still present:
+
+- watcher ignored placeholders for `Collect`, `Conjure Blade`, `Fasting`, `Judgement`, `Pressure Points`, and `Wallop` now overstate the live parity tail
 
 ## Why The Branch Is Trusted
 

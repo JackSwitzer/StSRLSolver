@@ -50,7 +50,17 @@ These are the only meaningful remaining gameplay families:
    - needs a real GremlinMatchGame-style card-grid runtime
    - current blocker proof lives in [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
 
-2. `Smoke Bomb` positional legality
+2. `Scrap Ooze`
+   - current runtime only models the first-success damage-plus-relic branch
+   - Java has a retry loop with escalating damage, escalating relic chance, and an explicit flee branch
+   - current simplified proof lives in [test_event_runtime_wave20.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave20.rs:1)
+
+3. `Barrage` / `Thunder Strike` zero-count parity
+   - the typed `ExtraHits(...)` path currently clamps to at least one hit
+   - Java does zero hits when Barrage has no orb slots and when Thunder Strike has zero Lightning channeled
+   - current blocker proof lives in [test_card_runtime_defect_wave12.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_defect_wave12.rs:1)
+
+4. `Smoke Bomb` positional legality
    - boss legality and regular flee behavior are correct
    - Java `BackAttack` / Surrounded caveat still needs positional combat state
    - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
@@ -60,9 +70,11 @@ These are the only meaningful remaining gameplay families:
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
 1. `Match and Keep!` minigame runtime
-2. positional legality state for `Smoke Bomb`
-3. ignored-test cleanup pass
-4. final audit refresh and PR readiness sweep
+2. `Scrap Ooze` retry/flee state machine
+3. zero-count `ExtraHits(...)` fix for `Barrage` / `Thunder Strike`
+4. positional legality state for `Smoke Bomb`
+5. ignored-test cleanup pass
+6. final audit refresh and PR readiness sweep
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
@@ -88,6 +100,7 @@ Representative currently green suites:
 - `test_event_runtime_wave19`
 - `test_event_runtime_wave20`
 - `test_event_runtime_wave21`
+- `test_event_runtime_wave20`
 - `test_potion_runtime_wave8`
 - `test_potion_runtime_action_path`
 - `test_relic_runtime_wave17`
@@ -95,3 +108,11 @@ Representative currently green suites:
 - `test_generated_choice_java_wave3`
 - `test_orb_runtime_java_wave1`
 - `test_card_runtime_watcher_wave26`
+
+## Audit-Confirmed Stale Noise
+
+The latest partitioned Java audit also found a meaningful cleanup tail that should not be counted as live gameplay gaps:
+
+- stale watcher ignored placeholders for `Collect`, `Conjure Blade`, `Fasting`
+- stale watcher ignored placeholders for `Judgement`, `Pressure Points`, and `Wallop`
+- these are already covered by later engine-path suites and should be removed in the next cleanup wave
