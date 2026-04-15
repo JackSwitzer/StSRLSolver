@@ -15,7 +15,7 @@
 
 use crate::actions::Action;
 use crate::cards::CardType;
-use crate::engine::ChoiceOption;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
@@ -102,8 +102,7 @@ fn wish_gold_branch_credits_pending_run_gold() {
 }
 
 #[test]
-#[ignore = "Java DiscoveryAction is potency-sensitive and returns N generated cards; the current runtime only exposes the base one-copy generated-choice shape."]
-fn discovery_potions_need_potency_sensitive_generate_n_copies() {
+fn discovery_potions_open_choice_and_resolve_one_generated_copy() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -124,7 +123,16 @@ fn discovery_potions_need_potency_sensitive_generate_n_copies() {
         engine.state.potions[0] = potion_id.to_string();
         use_potion(&mut engine, 0, -1);
 
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        let choice = engine.choice.as_ref().expect("generated discovery should open a choice");
+        assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+        assert_eq!(choice.aux_count, 1, "{potion_id} should resolve a single generated copy");
+        assert_eq!(choice.options.len(), 3, "{potion_id} should present three discovery cards");
+
+        engine.execute_action(&Action::Choose(0));
+
         assert_eq!(engine.state.hand.len(), 1);
+        assert!(engine.state.potions[0].is_empty());
         let generated = engine.state.hand[0];
         let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
         if potion_id == "ColorlessPotion" {
@@ -209,7 +217,6 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
 }
 
 #[test]
-#[ignore = "Java Chrysalis generates random upgraded Skill cards into the draw pile; the current runtime still uses a fixed Deflect-style approximation."]
 fn chrysalis_needs_random_upgraded_skill_generation() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Chrysalis", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
@@ -217,13 +224,15 @@ fn chrysalis_needs_random_upgraded_skill_generation() {
         3,
     ));
 
-    let draw_before = engine.state.draw_pile.len();
     play_card(&mut engine, "Chrysalis");
-    assert!(engine.state.draw_pile.len() >= draw_before);
+    assert_eq!(engine.state.draw_pile.len(), 3);
+    assert!(engine.state.draw_pile.iter().all(|card| {
+        let def = engine.card_registry.card_def_by_id(card.def_id);
+        def.card_type == CardType::Skill && card.cost <= 0
+    }));
 }
 
 #[test]
-#[ignore = "Java Metamorphosis generates random upgraded Attack cards into the draw pile; the current runtime still uses a fixed Smite-style approximation."]
 fn metamorphosis_needs_random_upgraded_attack_generation() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Metamorphosis", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
@@ -231,9 +240,12 @@ fn metamorphosis_needs_random_upgraded_attack_generation() {
         3,
     ));
 
-    let draw_before = engine.state.draw_pile.len();
     play_card(&mut engine, "Metamorphosis");
-    assert!(engine.state.draw_pile.len() >= draw_before);
+    assert_eq!(engine.state.draw_pile.len(), 3);
+    assert!(engine.state.draw_pile.iter().all(|card| {
+        let def = engine.card_registry.card_def_by_id(card.def_id);
+        def.card_type == CardType::Attack && card.cost <= 0
+    }));
 }
 
 #[test]
