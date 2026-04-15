@@ -12,6 +12,8 @@ import numpy.typing as npt
 from .combat_model import CombatInferenceResult, CombatScoringModel
 from .shared_memory import (
     CombatSearchRequest,
+    CombatPuctTargetBatch,
+    CombatPuctTargetExample,
     CombatSharedMemoryBatch,
     CombatSharedMemoryBatcher,
     SharedMemoryConfig,
@@ -24,8 +26,9 @@ class CombatSearchConfig:
 
     top_k: int = 4
     require_legal_candidates: bool = True
-    batch_timeout_ms: int = 10
-    max_candidates_per_request: int = 48
+    batch_timeout_ms: int = 15
+    max_candidates_per_request: int = 64
+    puct_target_temperature: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -107,7 +110,7 @@ class CombatInferenceService:
     ) -> "CombatInferenceService":
         config = config or CombatSearchConfig()
         batcher = batcher or CombatSharedMemoryBatcher(
-            max_batch_size=max(config.top_k * 16, 1),
+            max_batch_size=max(config.top_k * 32, 128),
             max_candidates_per_request=config.max_candidates_per_request,
         )
         return cls(model=model, config=config, batcher=batcher)
@@ -133,6 +136,54 @@ class CombatInferenceService:
     def choose_action(self, request: CombatSearchRequest) -> CombatInferenceResult:
         packed, scores = self.score_requests((request,))
         return self._result_for_row(packed, scores, 0)
+
+    def build_puct_target_examples(
+        self,
+        examples: Sequence["CombatPreferenceExample"],
+        *,
+        value_targets: Sequence[float] | None = None,
+        temperature: float | None = None,
+    ) -> list[CombatPuctTargetExample]:
+        if not examples:
+            return []
+        if value_targets is not None and len(value_targets) != len(examples):
+            raise ValueError("value target count must match example count")
+
+        packed, scores = self.score_requests(tuple(example.request for example in examples))
+        results = self.results_from_scores(packed, scores)
+        target_temperature = self.config.puct_target_temperature if temperature is None else float(temperature)
+        target_examples: list[CombatPuctTargetExample] = []
+        for row, (example, result) in enumerate(zip(examples, results)):
+            metadata = dict(example.metadata)
+            metadata.setdefault("preference_weight", example.weight)
+            metadata.setdefault("frontier_width", len(result.frontier_action_ids))
+            target_examples.append(
+                CombatPuctTargetExample.from_result(
+                    example.request,
+                    result,
+                    value_target=0.0 if value_targets is None else float(value_targets[row]),
+                    chosen_action_id=example.preferred_action_id,
+                    temperature=target_temperature,
+                    sample_weight=float(example.weight),
+                    metadata=metadata,
+                )
+            )
+        return target_examples
+
+    def build_puct_target_batch(
+        self,
+        examples: Sequence["CombatPreferenceExample"],
+        *,
+        value_targets: Sequence[float] | None = None,
+        temperature: float | None = None,
+    ) -> CombatPuctTargetBatch:
+        return self.batcher.pack_puct_targets(
+            self.build_puct_target_examples(
+                examples,
+                value_targets=value_targets,
+                temperature=temperature,
+            )
+        )
 
     def reanalyze_requests(self, requests: Sequence[CombatSearchRequest]) -> list[CombatInferenceResult]:
         if not requests:
@@ -264,6 +315,19 @@ class OvernightReanalysisLoop:
             throughput_examples_per_sec=len(examples) / elapsed,
         )
         return results, summary
+
+    def build_puct_target_batch(
+        self,
+        examples: Sequence[CombatPreferenceExample],
+        *,
+        value_targets: Sequence[float] | None = None,
+        temperature: float | None = None,
+    ) -> CombatPuctTargetBatch:
+        return self.service.build_puct_target_batch(
+            examples,
+            value_targets=value_targets,
+            temperature=temperature,
+        )
 
     def run(
         self,

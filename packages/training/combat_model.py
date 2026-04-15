@@ -133,6 +133,33 @@ class CombatInferenceResult:
             "frontier_scores": list(self.frontier_scores),
         }
 
+    def frontier_policy_distribution(self, temperature: float = 1.0) -> tuple[float, ...]:
+        """Convert frontier scores into a normalized target distribution.
+
+        The current loop still feeds frontier scores from batched reanalysis, but the
+        returned distribution is already compatible with future PUCT visit targets:
+        if the caller supplies actual visits later, the same downstream batcher can
+        consume those without changing the surrounding service topology.
+        """
+
+        if not self.frontier_scores:
+            return ()
+
+        if len(self.frontier_scores) == 1:
+            return (1.0,)
+
+        if temperature <= 0.0:
+            best_idx = int(np.argmax(np.asarray(self.frontier_scores, dtype=np.float32)))
+            return tuple(1.0 if idx == best_idx else 0.0 for idx in range(len(self.frontier_scores)))
+
+        scores = np.asarray(self.frontier_scores, dtype=np.float32) / np.float32(temperature)
+        scores = scores - np.max(scores)
+        weights = np.exp(scores)
+        total = float(np.sum(weights))
+        if not np.isfinite(total) or total <= 0.0:
+            return tuple(1.0 / len(self.frontier_scores) for _ in self.frontier_scores)
+        return tuple(float(value / total) for value in weights)
+
 
 class CombatScoringModel(Protocol):
     """Protocol for batch scoring legal combat candidates."""

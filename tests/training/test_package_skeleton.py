@@ -17,9 +17,29 @@ def test_training_config_defaults_are_combat_first() -> None:
     config = TrainingConfig()
 
     assert config.model_backend == "mlx"
-    assert config.shared_memory.max_batch_size == 64
+    assert config.shared_memory.max_batch_size == 128
+    assert config.shared_memory.max_candidates_per_request == 64
     assert config.combat_search.top_k == 4
     assert config.combat_search.require_legal_candidates is True
+    assert config.combat_search.puct_target_temperature == 1.0
+
+
+def test_training_stack_defaults_are_scaled_for_puct_topology() -> None:
+    from packages.training import TrainingStackConfig
+
+    stack = TrainingStackConfig()
+
+    assert stack.topology.actor_workers == 12
+    assert stack.topology.inference_workers == 2
+    assert stack.topology.target_memory_gb == 19.0
+    assert stack.shared_memory.max_batch_size == 128
+    assert stack.shared_memory.max_candidates_per_request == 64
+    assert stack.search.root_simulations == 384
+    assert stack.search.frontier_capacity == 12
+    assert stack.model.d_model == 256
+    assert stack.model.token_dim == 256
+    assert stack.model.trunk_layers == 8
+    assert stack.model.attention_heads == 8
 
 
 def test_shared_memory_batcher_packs_legal_candidates() -> None:
