@@ -12,6 +12,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DoubleEnergyAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
+use crate::engine::CombatEngine;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
@@ -148,39 +149,102 @@ fn defect_wave12_chaos_channels_random_orbs_deterministically_for_identical_seed
     assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
 }
 
-#[ignore = "Blocked on zero-orb Barrage parity; Java BarrageAction deals no damage when the orb list is empty"]
 #[test]
-fn defect_wave12_barrage_zero_orb_count_still_needs_exact_no_damage_support() {
-    let barrage = global_registry().get("Barrage").expect("Barrage");
-    assert_eq!(
-        barrage.effect_data,
-        &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::ExtraHits(A::OrbCount),
-        ]
-    );
+fn defect_wave12_barrage_zero_orb_count_deals_no_damage() {
+    let mut barrage = one_enemy_engine(60, 3);
+    barrage.state.hand = make_deck(&["Barrage"]);
+
+    assert!(play_on_enemy(&mut barrage, "Barrage", 0));
+    assert_eq!(barrage.state.enemies[0].entity.hp, 60);
 }
-#[ignore = "Blocked on a fresh random target per hit; Java NewRipAndTearAction selects a new enemy each time"]
 #[test]
-fn defect_wave12_rip_and_tear_still_needs_per_hit_random_target_selection() {
-    let rip = global_registry().get("Rip and Tear").expect("Rip and Tear");
-    assert_eq!(
-        rip.effect_data,
-        &[
-            E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
-            E::ExtraHits(A::Magic),
-        ]
+fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
+    let seed = (0u64..128)
+        .find(|seed| {
+            let state = crate::tests::support::combat_state_with(
+                make_deck(&["Rip and Tear"]),
+                vec![
+                    enemy_no_intent("JawWorm", 30, 30),
+                    enemy_no_intent("Cultist", 30, 30),
+                ],
+                3,
+            );
+            let mut engine = CombatEngine::new(state, *seed);
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&["Rip and Tear"]);
+            if !play_on_enemy(&mut engine, "Rip and Tear", 0) {
+                return false;
+            }
+            let hp0 = engine.state.enemies[0].entity.hp;
+            let hp1 = engine.state.enemies[1].entity.hp;
+            hp0 < 30 && hp1 < 30 && hp0 + hp1 == 46
+        })
+        .expect("expected a seed that splits Rip and Tear across both enemies");
+
+    let state = crate::tests::support::combat_state_with(
+        make_deck(&["Rip and Tear"]),
+        vec![
+            enemy_no_intent("JawWorm", 30, 30),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
     );
+    let mut engine = CombatEngine::new(state, seed);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Rip and Tear"]);
+    assert!(play_on_enemy(&mut engine, "Rip and Tear", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp, 46);
+    assert!(engine.state.enemies[0].entity.hp < 30);
+    assert!(engine.state.enemies[1].entity.hp < 30);
 }
-#[ignore = "Blocked on a fresh random target per hit and zero-lightning no-op parity; Java NewThunderStrikeAction chooses a new enemy for every lightning hit"]
 #[test]
-fn defect_wave12_thunder_strike_still_needs_per_hit_random_target_selection() {
-    let thunder = global_registry().get("Thunder Strike").expect("Thunder Strike");
-    assert_eq!(
-        thunder.effect_data,
-        &[
-            E::Simple(SE::DealDamage(T::RandomEnemy, A::Damage)),
-            E::ExtraHits(A::StatusValue(sid::LIGHTNING_CHANNELED)),
-        ]
+fn defect_wave12_thunder_strike_deals_no_damage_with_zero_lightning() {
+    let mut thunder = one_enemy_engine(60, 3);
+    thunder.state.hand = make_deck(&["Thunder Strike"]);
+
+    assert!(play_on_enemy(&mut thunder, "Thunder Strike", 0));
+    assert_eq!(thunder.state.enemies[0].entity.hp, 60);
+}
+
+#[test]
+fn defect_wave12_thunder_strike_chooses_a_fresh_random_target_for_each_lightning_hit() {
+    let seed = (0u64..128)
+        .find(|seed| {
+            let mut state = crate::tests::support::combat_state_with(
+                make_deck(&["Thunder Strike"]),
+                vec![
+                    enemy_no_intent("JawWorm", 30, 30),
+                    enemy_no_intent("Cultist", 30, 30),
+                ],
+                3,
+            );
+            state.player.set_status(sid::LIGHTNING_CHANNELED, 3);
+            let mut engine = CombatEngine::new(state, *seed);
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&["Thunder Strike"]);
+            if !play_on_enemy(&mut engine, "Thunder Strike", 0) {
+                return false;
+            }
+            let hp0 = engine.state.enemies[0].entity.hp;
+            let hp1 = engine.state.enemies[1].entity.hp;
+            hp0 < 30 && hp1 < 30 && hp0 + hp1 == 39
+        })
+        .expect("expected a seed that splits Thunder Strike across both enemies");
+
+    let mut state = crate::tests::support::combat_state_with(
+        make_deck(&["Thunder Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 30, 30),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
     );
+    state.player.set_status(sid::LIGHTNING_CHANNELED, 3);
+    let mut engine = CombatEngine::new(state, seed);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Thunder Strike"]);
+    assert!(play_on_enemy(&mut engine, "Thunder Strike", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp, 39);
+    assert!(engine.state.enemies[0].entity.hp < 30);
+    assert!(engine.state.enemies[1].entity.hp < 30);
 }

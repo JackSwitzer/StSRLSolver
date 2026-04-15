@@ -78,6 +78,22 @@ fn resolve_damage_modifiers(
     out
 }
 
+fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
+    let living = engine.state.living_enemy_indices();
+    if living.is_empty() {
+        None
+    } else {
+        Some(living[engine.rng_gen_range(0..living.len())])
+    }
+}
+
+fn extra_hits_allow_zero(card_id: &str) -> bool {
+    matches!(
+        card_id,
+        "Barrage" | "Barrage+" | "Thunder Strike" | "Thunder Strike+"
+    )
+}
+
 pub(crate) fn execute_primary_attack(
     engine: &mut CombatEngine,
     ctx: &mut crate::effects::types::CardPlayContext,
@@ -118,7 +134,12 @@ pub(crate) fn execute_primary_attack(
     };
 
     let hits = if let Some(amount_src) = card.declared_extra_hits() {
-        crate::effects::interpreter::resolve_card_amount(engine, ctx, &amount_src).max(1)
+        let resolved = crate::effects::interpreter::resolve_card_amount(engine, ctx, &amount_src);
+        if resolved <= 0 && extra_hits_allow_zero(card_id) {
+            0
+        } else {
+            resolved.max(1)
+        }
     } else if card.effects.contains(&"x_cost") && card.cost == -1 {
         ctx.x_value
     } else if card.effects.contains(&"multi_hit") && card.base_magic > 0 {
@@ -209,9 +230,10 @@ pub(crate) fn execute_primary_attack(
             }
         }
         crate::effects::declarative::Target::RandomEnemy => {
-            let living = engine.state.living_enemy_indices();
-            if !living.is_empty() {
-                let enemy_idx = living[engine.rng_gen_range(0..living.len())];
+            for _ in 0..hits {
+                let Some(enemy_idx) = pick_random_living_enemy(engine) else {
+                    break;
+                };
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                 let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
@@ -230,16 +252,13 @@ pub(crate) fn execute_primary_attack(
                     enemy_intangible,
                 );
                 let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                for _ in 0..hits {
-                    let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                    total_unblocked_damage += hp_dmg;
-                    if block_return > 0 && hp_dmg > 0 {
-                        engine.gain_block_player(block_return);
-                    }
-                    if engine.state.enemies[enemy_idx].entity.is_dead() {
-                        enemy_killed = true;
-                        break;
-                    }
+                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+                total_unblocked_damage += hp_dmg;
+                if block_return > 0 && hp_dmg > 0 {
+                    engine.gain_block_player(block_return);
+                }
+                if engine.state.enemies[enemy_idx].entity.is_dead() {
+                    enemy_killed = true;
                 }
             }
         }
