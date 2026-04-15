@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from typing import Any, Mapping
 
 from .combat_model import CombatStateSummary, LegalCombatCandidate
 from .shared_memory import CombatSearchRequest
+
+
+PHASE1_CORPUS_NAME = "watcher_a0_act1"
+PHASE1_CORPUS_TARGET_CASES = 50_000
 
 
 WATCHER_STARTER_DECK = (
@@ -111,12 +117,152 @@ class CorpusPlan:
 
 @dataclass(frozen=True)
 class PreparedCorpusRequest:
+    corpus_index: int
+    corpus_id: str
+    corpus_group: str
+    collection_pass: int
     slice_name: str
     case: CorpusCasePlan
     variant_index: int
     opening_hand_bucket: str
     request: CombatSearchRequest
     preferred_action_id: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "corpus_index": self.corpus_index,
+            "corpus_id": self.corpus_id,
+            "corpus_group": self.corpus_group,
+            "collection_pass": self.collection_pass,
+            "slice_name": self.slice_name,
+            "case": _case_to_dict(self.case),
+            "variant_index": self.variant_index,
+            "opening_hand_bucket": self.opening_hand_bucket,
+            "request": self.request.to_dict(),
+            "preferred_action_id": self.preferred_action_id,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "PreparedCorpusRequest":
+        return cls(
+            corpus_index=int(payload["corpus_index"]),
+            corpus_id=str(payload["corpus_id"]),
+            corpus_group=str(payload["corpus_group"]),
+            collection_pass=int(payload["collection_pass"]),
+            slice_name=str(payload["slice_name"]),
+            case=_case_from_dict(payload["case"]),
+            variant_index=int(payload["variant_index"]),
+            opening_hand_bucket=str(payload["opening_hand_bucket"]),
+            request=CombatSearchRequest.from_dict(payload["request"]),
+            preferred_action_id=str(payload["preferred_action_id"]),
+        )
+
+
+def _seed_to_dict(seed: SeedProvenance) -> dict[str, Any]:
+    return asdict(seed)
+
+
+def _neow_to_dict(neow: NeowProvenance) -> dict[str, Any]:
+    return asdict(neow)
+
+
+def _deck_to_dict(deck: DeckProvenance) -> dict[str, Any]:
+    return asdict(deck)
+
+
+def _case_to_dict(case: CorpusCasePlan) -> dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "description": case.description,
+        "floor": case.floor,
+        "enemy": case.enemy,
+        "deck": _deck_to_dict(case.deck),
+        "seed_provenance": _seed_to_dict(case.seed_provenance),
+        "neow_provenance": _neow_to_dict(case.neow_provenance),
+        "potion_set": list(case.potion_set),
+        "tags": list(case.tags),
+    }
+
+
+def _case_from_dict(payload: Mapping[str, Any]) -> CorpusCasePlan:
+    return CorpusCasePlan(
+        case_id=str(payload["case_id"]),
+        description=str(payload["description"]),
+        floor=int(payload["floor"]),
+        enemy=str(payload["enemy"]),
+        deck=DeckProvenance(
+            family=str(payload["deck"]["family"]),
+            description=str(payload["deck"]["description"]),
+            base_deck=tuple(payload["deck"].get("base_deck", WATCHER_STARTER_DECK)),
+            removed_cards=tuple(payload["deck"].get("removed_cards", ())),
+            added_cards=tuple(payload["deck"].get("added_cards", ())),
+            upgraded_cards=tuple(payload["deck"].get("upgraded_cards", ())),
+            potion_set=tuple(payload["deck"].get("potion_set", ())),
+            tags=tuple(payload["deck"].get("tags", ())),
+        ),
+        seed_provenance=SeedProvenance(
+            source=str(payload["seed_provenance"]["source"]),
+            label=str(payload["seed_provenance"]["label"]),
+            seed=payload["seed_provenance"].get("seed"),
+            bucket=payload["seed_provenance"].get("bucket"),
+            notes=tuple(payload["seed_provenance"].get("notes", ())),
+        ),
+        neow_provenance=NeowProvenance(
+            source=str(payload["neow_provenance"]["source"]),
+            policy=str(payload["neow_provenance"]["policy"]),
+            choice_index=payload["neow_provenance"].get("choice_index"),
+            option_label=payload["neow_provenance"].get("option_label"),
+            all_options_available=bool(payload["neow_provenance"].get("all_options_available", True)),
+            notes=tuple(payload["neow_provenance"].get("notes", ())),
+        ),
+        potion_set=tuple(payload.get("potion_set", ())),
+        tags=tuple(payload.get("tags", ())),
+    )
+
+
+def _corpus_id(slice_name: str, case: CorpusCasePlan, corpus_index: int) -> str:
+    return f"{PHASE1_CORPUS_NAME}::{slice_name}::{case.case_id}::{corpus_index:05d}"
+
+
+def _corpus_group(slice_name: str, case: CorpusCasePlan, opening_hand_bucket: str) -> str:
+    potion_label = "+".join(case.potion_set) if case.potion_set else "none"
+    return "|".join(
+        (
+            slice_name,
+            case.deck.family,
+            case.enemy,
+            f"remove={case.remove_count}",
+            f"potion={potion_label}",
+            f"bucket={opening_hand_bucket}",
+        )
+    )
+
+
+def summarize_phase1_corpus_requests(requests: tuple[PreparedCorpusRequest, ...]) -> dict[str, Any]:
+    slice_counts = Counter(request.slice_name for request in requests)
+    family_counts = Counter(request.case.deck.family for request in requests)
+    group_counts = Counter(request.corpus_group for request in requests)
+    bucket_counts = Counter(request.opening_hand_bucket for request in requests)
+    return {
+        "corpus_name": PHASE1_CORPUS_NAME,
+        "total_cases": len(requests),
+        "unique_corpus_groups": len(group_counts),
+        "slice_counts": dict(sorted(slice_counts.items())),
+        "family_counts": dict(sorted(family_counts.items())),
+        "group_counts": dict(sorted(group_counts.items())),
+        "opening_hand_bucket_counts": dict(sorted(bucket_counts.items())),
+        "collection_passes": max((request.collection_pass for request in requests), default=-1) + 1,
+        "first_corpus_id": requests[0].corpus_id if requests else None,
+        "last_corpus_id": requests[-1].corpus_id if requests else None,
+    }
+
+
+def build_phase1_corpus_requests(
+    plan: CorpusPlan,
+    *,
+    total_cases: int = PHASE1_CORPUS_TARGET_CASES,
+) -> tuple[PreparedCorpusRequest, ...]:
+    return build_phase1_requests(plan, target_requests=total_cases)
 
 
 def _watcher_easy_seed(label: str) -> SeedProvenance:
@@ -324,13 +470,14 @@ def build_phase1_requests(
     for request_index in range(target_requests):
         slice_name, case = slice_cases[request_index % len(slice_cases)]
         variant_index = request_index // len(slice_cases)
-        prepared.append(_build_case_request(slice_name, case, variant_index))
+        prepared.append(_build_case_request(slice_name, case, request_index, variant_index))
     return tuple(prepared)
 
 
 def _build_case_request(
     slice_name: str,
     case: CorpusCasePlan,
+    corpus_index: int,
     variant_index: int,
 ) -> PreparedCorpusRequest:
     deck_size = (
@@ -407,6 +554,8 @@ def _build_case_request(
         preferred_action_id = attack_action_id
 
     opening_hand_bucket = f"{slice_name}-variant-{variant_index % 8:02d}"
+    corpus_id = _corpus_id(slice_name, case, corpus_index)
+    corpus_group = _corpus_group(slice_name, case, opening_hand_bucket)
     request = CombatSearchRequest(
         request_id=f"{slice_name}:{case.case_id}:{variant_index:04d}",
         state=CombatStateSummary(
@@ -440,10 +589,18 @@ def _build_case_request(
             "neow_option_label": case.neow_provenance.option_label,
             "opening_hand_bucket": opening_hand_bucket,
             "variant_index": variant_index,
+            "corpus_index": corpus_index,
+            "collection_pass": variant_index,
+            "corpus_id": corpus_id,
+            "corpus_group": corpus_group,
             "tags": list(case.tags),
         },
     )
     return PreparedCorpusRequest(
+        corpus_index=corpus_index,
+        corpus_id=corpus_id,
+        corpus_group=corpus_group,
+        collection_pass=variant_index,
         slice_name=slice_name,
         case=case,
         variant_index=variant_index,

@@ -9,6 +9,7 @@ from typing import Any
 
 class SeedSource(str, Enum):
     BAALORLORD = "Baalorlord"
+    STEAM = "Steam"
 
 
 @dataclass(frozen=True)
@@ -32,42 +33,59 @@ class ValidationSeed:
         return payload
 
 
+@dataclass(frozen=True)
+class ValidationSeedSuiteReport:
+    suite_name: str
+    seeds: tuple[ValidationSeed, ...]
+    issues: tuple[str, ...]
+    notes: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        source_counts: dict[str, int] = {}
+        tag_counts: dict[str, int] = {}
+        for seed in self.seeds:
+            source_counts[seed.source.value] = source_counts.get(seed.source.value, 0) + 1
+            for tag in seed.tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        return {
+            "suite_name": self.suite_name,
+            "seed_count": len(self.seeds),
+            "labels": [seed.label for seed in self.seeds],
+            "seeds": [seed.to_dict() for seed in self.seeds],
+            "source_counts": dict(sorted(source_counts.items())),
+            "tag_counts": dict(sorted(tag_counts.items())),
+            "issues": list(self.issues),
+            "notes": list(self.notes),
+            "all_watcher": all(seed.character == "Watcher" for seed in self.seeds),
+            "all_eval_ascension_zero": all(seed.suggested_eval_ascension == 0 for seed in self.seeds),
+        }
+
+    def to_markdown(self) -> str:
+        lines = [
+            "# Watcher Validation Seed Suite Report",
+            "",
+            "| label | seed | source | eval_asc | neow_bonus | intended_use |",
+            "| --- | --- | --- | ---: | --- | --- |",
+        ]
+        for seed in self.seeds:
+            lines.append(
+                "| "
+                f"{seed.label} | {seed.seed} | {seed.source.value} | {seed.suggested_eval_ascension} | "
+                f"{seed.neow_bonus} | {seed.intended_use} |"
+            )
+        lines.extend(
+            (
+                "",
+                f"Issues: {', '.join(self.issues) if self.issues else 'none'}",
+            )
+        )
+        return "\n".join(lines)
+
+
 def default_watcher_validation_seed_suite() -> tuple[ValidationSeed, ...]:
     return (
         ValidationSeed(
-            label="double_defend_remove_easy_1",
-            seed="9YGUT28YGS0U",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1660337485",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Lose all gold, then remove Defend and Defend",
-            intended_use="easy remove-heavy validation seed with strong minimalist trajectory",
-            tags=("easy", "remove-heavy", "minimalist-style", "watcher"),
-            notes=(
-                "Source run removed two Defends at Neow and ended with a very slim list after many later removals.",
-                "Good candidate for testing whether our A0 solver values early removes and low-card-count combat lines.",
-            ),
-        ),
-        ValidationSeed(
-            label="double_defend_remove_easy_2",
-            seed="2XHHFJ3P7FIZ",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1731611785",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Lose all gold, then remove Defend and Defend",
-            intended_use="second remove-heavy easy seed for replay and variance checks",
-            tags=("easy", "remove-heavy", "watcher"),
-            notes=(
-                "Another clean double-remove opening with different downstream rewards and elites.",
-                "Useful as a paired seed against 9YGUT28YGS0U so we do not overfit one remove-heavy run.",
-            ),
-        ),
-        ValidationSeed(
-            label="double_defend_remove_minimalist",
+            label="minimalist_remove",
             seed="4AWM3ECVQDEWJ",
             character="Watcher",
             source=SeedSource.BAALORLORD,
@@ -75,120 +93,70 @@ def default_watcher_validation_seed_suite() -> tuple[ValidationSeed, ...]:
             source_ascension=20,
             suggested_eval_ascension=0,
             neow_bonus="Lose 6 Max HP, then remove Defend and Defend",
-            intended_use="minimalist-style seed with especially aggressive remove trajectory",
-            tags=("easy", "remove-heavy", "minimalist-style", "watcher"),
+            intended_use="primary remove-heavy minimalist-style validation seed",
+            tags=("remove-heavy", "minimalist-style", "watcher"),
             notes=(
                 "Source run ultimately removed four Defends and four Strikes.",
-                "Good proof-of-concept seed for 'upgrades/removes only' style evaluation.",
+                "Good proof-of-concept seed for upgrades/removes-only style evaluation.",
             ),
         ),
         ValidationSeed(
-            label="double_defend_transform_sanctity_worship",
-            seed="3FRQITS2NMXWS",
+            label="lesson_learned_shell",
+            seed="4VM6JKC3KR3TD",
             character="Watcher",
             source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1661364756",
+            source_url="https://baalorlord.tv/runs/1744916840",
             source_ascension=20,
             suggested_eval_ascension=0,
-            neow_bonus="Lose all gold, then transform Defend and Defend into Sanctity and Worship",
-            intended_use="high-roll transform validation seed",
-            tags=("easy", "transform", "high-roll", "watcher"),
+            neow_bonus="Lose 6 Max HP, then pick Lesson Learned over Establishment and Wish",
+            intended_use="stance-dance / lesson-learned validation seed",
+            tags=("lesson-learned", "stance-dance", "watcher"),
             notes=(
-                "The transformed opening is directly relevant to path/value attribution from Neow and early elites.",
+                "Source run is Watcher victory on an A20 run with a recognizable Lesson Learned shell.",
+                "Useful for checking whether the solver handles premium skill-heavy lines.",
             ),
         ),
         ValidationSeed(
-            label="double_defend_transform_fasting_consecrate",
-            seed="4KSQS5JHKT5QI",
+            label="icecream_runic_pyramid",
+            seed="1TPMUARFP690B",
             character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1655411177",
+            source=SeedSource.STEAM,
+            source_url="https://steamcommunity.com/app/646570/discussions/0/3667553591708386502/?l=schinese",
             source_ascension=20,
             suggested_eval_ascension=0,
-            neow_bonus="Lose all gold, then transform Defend and Defend into Fasting and Consecrate",
-            intended_use="second transform seed with more mixed card quality than the Sanctity/Worship line",
-            tags=("transform", "high-roll", "watcher"),
+            neow_bonus="Take Ice Cream and later first boss gives Runic Pyramid",
+            intended_use="retain / control validation seed from a community thread",
+            tags=("retain", "control", "steam", "watcher"),
             notes=(
-                "Useful for checking whether the model can correctly price premium transforms versus plain removals.",
+                "Community-reported Watcher seed with Ice Cream into Runic Pyramid.",
+                "Good for testing retain-heavy control loops and hand-size planning.",
             ),
         ),
-        ValidationSeed(
-            label="rare_card_omniscience",
-            seed="1AS4LGHSY0GFL",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1686947698",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Pick a random Rare card and receive Omniscience",
-            intended_use="obvious high-roll seed for easy-run validation",
-            tags=("easy", "rare-card", "high-roll", "watcher"),
-            notes=(
-                "A clean high-roll example that should be easier at A0 than in the source run.",
-                "Useful for checking whether premium early rares are reflected in frontier quality.",
-            ),
-        ),
-        ValidationSeed(
-            label="neows_lament_easy",
-            seed="10CWNH9IJ279B",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1752695764",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Take Neow's Lament for three 1 HP fights",
-            intended_use="easy-route seed for validating early combat/resource snowballing",
-            tags=("easy", "neows-lament", "route", "watcher"),
-            notes=(
-                "Good for route/value tests where free early combats should change potion and HP economics.",
-            ),
-        ),
-        ValidationSeed(
-            label="pandoras_pressure_points",
-            seed="794YZS4F0DPR",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1717106043",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Swap starter relic for Pandora's Box",
-            intended_use="extreme archetype seed with immediate path-defining deck mutation",
-            tags=("easy", "pandoras-box", "archetype", "watcher"),
-            notes=(
-                "The source run opened with eight Pressure Points from Pandora's Box.",
-                "Excellent for validating monitor visuals and external-seed replay because the deck identity is obvious.",
-            ),
-        ),
-        ValidationSeed(
-            label="black_star_loss_control_1",
-            seed="2Q148N2V0TK80",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1753468869",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Swap starter relic for Black Star",
-            intended_use="loss control seed for hard-negative validation",
-            tags=("loss-control", "starter-swap", "black-star", "watcher"),
-            notes=(
-                "Killed by Red Slaver on floor 11 in the source run.",
-                "Useful as a sanity check that not every externally sourced seed is trivially strong at A0.",
-            ),
-        ),
-        ValidationSeed(
-            label="black_star_loss_control_2",
-            seed="588H4D1XVAAIG",
-            character="Watcher",
-            source=SeedSource.BAALORLORD,
-            source_url="https://baalorlord.tv/runs/1696621608",
-            source_ascension=20,
-            suggested_eval_ascension=0,
-            neow_bonus="Swap starter relic for Black Star",
-            intended_use="second loss control seed for negative-control pairing",
-            tags=("loss-control", "starter-swap", "black-star", "watcher"),
-            notes=(
-                "Killed by 3 Byrds on floor 18 in the source run.",
-                "Useful when comparing seed-suite progress across checkpoints so we can track both easy and awkward starts.",
-            ),
+    )
+
+
+def validate_watcher_validation_seed_suite(
+    seeds: tuple[ValidationSeed, ...] | None = None,
+) -> ValidationSeedSuiteReport:
+    active_seeds = seeds or default_watcher_validation_seed_suite()
+    issues: list[str] = []
+    if len(active_seeds) != 3:
+        issues.append(f"expected 3 seeds, found {len(active_seeds)}")
+    if len({seed.label for seed in active_seeds}) != len(active_seeds):
+        issues.append("duplicate labels found")
+    if len({seed.seed for seed in active_seeds}) != len(active_seeds):
+        issues.append("duplicate seed strings found")
+    if not all(seed.character == "Watcher" for seed in active_seeds):
+        issues.append("all seeds must be Watcher")
+    if not all(seed.suggested_eval_ascension == 0 for seed in active_seeds):
+        issues.append("all seeds must evaluate at ascension 0")
+    if not all(seed.source_url for seed in active_seeds):
+        issues.append("all seeds must carry a source_url")
+    return ValidationSeedSuiteReport(
+        suite_name="watcher_validation_suite",
+        seeds=active_seeds,
+        issues=tuple(issues),
+        notes=(
+            "Fixed 3-seed validation suite for A0 Watcher phase-1 evaluation.",
         ),
     )
