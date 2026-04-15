@@ -42,7 +42,10 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
     let consecrate = global_registry().get("Consecrate").expect("Consecrate should be registered");
     assert_eq!(consecrate.card_type, CardType::Attack);
     assert_eq!(consecrate.target, CardTarget::AllEnemy);
-    assert!(consecrate.effect_data.is_empty(), "Consecrate still relies on damage preamble");
+    assert_eq!(
+        consecrate.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+    );
 
     let crescendo = global_registry().get("Crescendo").expect("Crescendo should be registered");
     assert_eq!(
@@ -67,12 +70,10 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
+            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(
-        fasting.complex_hook.is_some(),
-        "Fasting still needs a tiny hook until max-energy adjustment is a typed op"
-    );
+    assert!(fasting.complex_hook.is_none());
 
     let holy_water = global_registry().get("HolyWater").expect("Holy Water should be registered");
     assert_eq!(holy_water.base_block, 5);
@@ -80,10 +81,11 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
     assert_eq!(holy_water.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let judgement = global_registry().get("Judgement").expect("Judgement should be registered");
-    assert!(
-        judgement.complex_hook.is_some(),
-        "Judgement still needs a dedicated kill-if-below-threshold primitive"
+    assert_eq!(
+        judgement.effect_data,
+        &[E::Simple(SE::Judgement(A::Magic))]
     );
+    assert!(judgement.complex_hook.is_none());
 }
 
 #[test]
@@ -131,6 +133,16 @@ fn watcher_wave5_establishment_installs_and_reduces_retained_card_cost() {
         .iter()
         .find(|card| engine.card_registry.card_name(card.def_id) == "Protect")
         .expect("Protect should be retained");
+    assert_eq!(protect.cost, 1);
+
+    end_turn(&mut engine);
+
+    let protect = engine
+        .state
+        .hand
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "Protect")
+        .expect("Protect should still be retained on the next turn");
     assert_eq!(protect.cost, 0);
 }
 

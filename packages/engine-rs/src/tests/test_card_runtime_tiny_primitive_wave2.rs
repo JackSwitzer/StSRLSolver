@@ -14,7 +14,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, BulkAction, CardFilter, Condition as Cond, Effect as E, Pile as P,
+    SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
 
@@ -108,8 +111,15 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
     assert!(escape_plan.complex_hook.is_none());
 
     let enlightenment = reg.get("Enlightenment").expect("Enlightenment");
-    assert!(enlightenment.effect_data.is_empty());
-    assert!(enlightenment.complex_hook.is_some());
+    assert_eq!(
+        enlightenment.effect_data,
+        &[E::ForEachInPile {
+            pile: P::Hand,
+            filter: CardFilter::All,
+            action: BulkAction::SetCostForTurn(1),
+        }]
+    );
+    assert!(enlightenment.complex_hook.is_none());
 }
 
 #[test]
@@ -155,7 +165,3 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(all_out_attack.state.discard_pile.len(), 2);
     assert_eq!(all_out_attack.state.player.status(sid::DISCARDED_THIS_TURN), 1);
 }
-
-#[test]
-#[ignore = "Blocked on Java turn-only cost-reduction lifetime semantics for Enlightenment base; the current runtime still needs a typed costForTurn lifetime primitive. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java"]
-fn tiny_primitive_wave2_enlightenment_stays_explicitly_blocked() {}

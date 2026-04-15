@@ -67,10 +67,6 @@ fn shared_primitive_wave1_reaper_heals_for_total_unblocked_damage() {
 }
 
 #[test]
-#[ignore = "Enlightenment base still needs a turn-only cost-reduction lifetime primitive; Java updates costForTurn for the turn and only permanently reduces upgraded cards. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java and /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java"]
-fn shared_primitive_wave1_enlightenment_base_stays_explicitly_blocked() {}
-
-#[test]
 fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let omniscience = global_registry()
         .get("Omniscience")

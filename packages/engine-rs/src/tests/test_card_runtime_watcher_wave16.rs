@@ -120,14 +120,6 @@ fn watcher_wave16_foreign_influence_preserves_base_cost_and_zeros_upgraded_cost(
 }
 
 #[test]
-#[ignore = "Deus Ex Machina still needs an explicit draw-trigger card instance primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeusExMachina.java"]
-fn watcher_wave16_deus_ex_machina_stays_queued_until_draw_trigger_card_instance_exists() {}
-
-#[test]
-#[ignore = "Judgement still needs a typed enemy-HP threshold kill primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java"]
-fn watcher_wave16_judgement_stays_queued_until_threshold_kill_primitive_exists() {}
-
-#[test]
 fn watcher_wave16_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let omniscience = global_registry()
         .get("Omniscience")

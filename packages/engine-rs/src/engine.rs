@@ -14,7 +14,10 @@ use crate::combat_hooks;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::effects;
-use crate::effects::declarative::{ChoiceAction, GeneratedCostRule, NamedOptionKind};
+use crate::effects::declarative::{
+    AmountSource, CardFilter, ChoiceAction, Effect, GeneratedCostRule, NamedOptionKind, Pile,
+};
+use crate::effects::types::CardPlayContext;
 use crate::ids::StatusId;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
@@ -1299,9 +1302,18 @@ impl CombatEngine {
             let card_def = self.card_registry.card_def_by_id(card_inst.def_id);
             let card_flags = self.card_registry.effect_flags(card_inst.def_id);
 
-            // Establishment: reduce retained card cost
+            // Establishment uses Java's modifyCostForCombat semantics, so the
+            // retained-card discount persists across turns instead of being a
+            // one-turn override that resets back to the printed cost.
             if establishment > 0 {
-                card_inst.cost = (card_inst.cost - establishment as i8).max(0);
+                let current_cost = if card_inst.cost >= 0 {
+                    card_inst.cost
+                } else {
+                    card_def.cost as i8
+                };
+                if current_cost >= 0 {
+                    card_inst.set_permanent_cost((current_cost - establishment as i8).max(0));
+                }
             }
 
             // Sands of Time: reduce cost on retain
@@ -1324,6 +1336,8 @@ impl CombatEngine {
         for _ in 0..ethereal_exhausted {
             self.trigger_on_exhaust();
         }
+
+        self.state.retained_cards = self.state.hand.clone();
 
         // ---- End-of-turn orb passives ----
         self.apply_orb_end_of_turn();
@@ -1516,9 +1530,62 @@ impl CombatEngine {
         true
     }
 
+    fn card_matches_filter_for_choice(&self, card: &CardInstance, filter: CardFilter) -> bool {
+        let def = self.card_registry.card_def_by_id(card.def_id);
+        match filter {
+            CardFilter::All => true,
+            CardFilter::Attacks => def.card_type == CardType::Attack,
+            CardFilter::AttackOrPower => matches!(def.card_type, CardType::Attack | CardType::Power),
+            CardFilter::Skills => def.card_type == CardType::Skill,
+            CardFilter::NonAttacks => def.card_type != CardType::Attack,
+            CardFilter::ZeroCost => {
+                let cost = if card.cost >= 0 {
+                    card.cost as i32
+                } else {
+                    def.cost
+                };
+                cost == 0
+            }
+            CardFilter::Upgradeable => !card.is_upgraded(),
+        }
+    }
+
+    fn available_choice_cards_in_pile(&self, source: Pile, filter: CardFilter) -> usize {
+        let pile = match source {
+            Pile::Hand => &self.state.hand,
+            Pile::Draw => &self.state.draw_pile,
+            Pile::Discard => &self.state.discard_pile,
+            Pile::Exhaust => &self.state.exhaust_pile,
+        };
+        pile.iter()
+            .filter(|card| self.card_matches_filter_for_choice(card, filter))
+            .count()
+    }
+
+    fn choice_min_picks_for_legality(
+        &self,
+        card: &CardDef,
+        card_inst: CardInstance,
+        min_picks: AmountSource,
+    ) -> i32 {
+        let ctx = CardPlayContext {
+            card,
+            card_inst,
+            target_idx: -1,
+            x_value: 0,
+            pen_nib_active: false,
+            vigor: 0,
+            total_unblocked_damage: 0,
+            enemy_killed: false,
+            hand_size_at_play: self.state.hand.len().saturating_sub(1),
+            last_bulk_count: 0,
+        };
+        crate::effects::interpreter::resolve_card_amount(self, &ctx, &min_picks).max(0)
+    }
+
     fn card_runtime_allows_play(
         &self,
-        _card: &CardDef,
+        card: &CardDef,
         card_inst: CardInstance,
         card_flags: effects::EffectFlags,
     ) -> bool {
@@ -1544,6 +1611,25 @@ impl CombatEngine {
 
         if card_flags.has(effects::registry::BIT_ONLY_EMPTY_DRAW) && !self.state.draw_pile.is_empty() {
             return false;
+        }
+
+        for effect in card.effect_data {
+            if let Effect::ChooseCards {
+                source,
+                filter,
+                min_picks,
+                ..
+            } = effect
+            {
+                if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
+                    let min_required = self.choice_min_picks_for_legality(card, card_inst, *min_picks);
+                    if min_required > 0
+                        && self.available_choice_cards_in_pile(*source, *filter) < min_required as usize
+                    {
+                        return false;
+                    }
+                }
+            }
         }
 
         true

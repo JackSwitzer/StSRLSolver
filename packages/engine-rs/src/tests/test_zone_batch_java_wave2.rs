@@ -196,7 +196,7 @@ fn purity_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.exhaust_pile.len(), 2);
+    assert_eq!(engine.state.exhaust_pile.len(), 3);
     assert_eq!(engine.state.hand.len(), 1);
 }
 
@@ -223,7 +223,6 @@ fn secret_technique_opens_a_skill_only_draw_pile_search_choice() {
 }
 
 #[test]
-#[ignore = "Secret Technique can_use legality still lives outside this slice; add a Java-backed engine-path illegal-play test once the shared can_play surface is migrated"]
 fn secret_technique_should_be_unplayable_with_no_skill_in_draw_pile() {
     let mut engine = engine_for(
         &["Secret Technique"],
@@ -232,7 +231,24 @@ fn secret_technique_should_be_unplayable_with_no_skill_in_draw_pile() {
         3,
     );
 
-    assert!(!play_self(&mut engine, "Secret Technique"));
+    let secret_idx = engine
+        .state
+        .hand
+        .iter()
+        .position(|card| engine.card_registry.card_name(card.def_id) == "Secret Technique")
+        .expect("Secret Technique should be in hand");
+
+    assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+        action,
+        Action::PlayCard { card_idx, .. } if *card_idx == secret_idx
+    )));
+
+    engine.execute_action(&Action::PlayCard {
+        card_idx: secret_idx,
+        target_idx: -1,
+    });
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(hand_names(&engine), vec!["Secret Technique"]);
 }
 
 #[test]

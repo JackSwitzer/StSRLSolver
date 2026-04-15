@@ -1,6 +1,6 @@
 # Design Decisions
 
-Last updated: 2026-04-14  
+Last updated: 2026-04-15  
 Branch: `codex/universal-gameplay-runtime`
 
 This file records durable, intentional runtime decisions so parity review can distinguish “we chose this” from “we missed this.”

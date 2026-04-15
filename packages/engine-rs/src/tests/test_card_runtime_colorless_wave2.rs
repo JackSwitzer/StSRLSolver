@@ -90,11 +90,3 @@ fn apotheosis_upgrades_all_cards_across_all_piles() {
         "exhaust pile cards should be upgraded"
     );
 }
-
-#[test]
-#[ignore = "Impatience still needs a no-attacks-in-hand primitive; Java checks the current hand contents before drawing."]
-fn impatience_still_needs_no_attacks_in_hand_primitive() {}
-
-#[test]
-#[ignore = "Mind Blast still needs a draw-pile-size attack scaling primitive on the typed primary attack path; Java resolves damage from the current draw pile size."]
-fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}

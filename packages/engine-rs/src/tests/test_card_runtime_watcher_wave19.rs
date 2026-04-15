@@ -107,7 +107,3 @@ fn test_card_runtime_watcher_wave19_wish_gold_branch_credits_pending_run_gold() 
     assert_eq!(engine.state.player.status(crate::status_ids::sid::PLATED_ARMOR), 0);
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
 }
-
-#[test]
-#[ignore = "Blocked on Java mark-triggered damage primitive for Pressure Points; the current runtime can apply Mark but cannot yet resolve enemy-specific mark damage that bypasses block. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java"]
-fn test_card_runtime_watcher_wave19_pressure_points_needs_mark_damage_primitive() {}

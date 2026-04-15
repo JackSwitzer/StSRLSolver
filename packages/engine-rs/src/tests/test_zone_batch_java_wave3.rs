@@ -72,7 +72,7 @@ fn purity_still_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.exhaust_pile.len(), 2);
+    assert_eq!(engine.state.exhaust_pile.len(), 3);
     assert_eq!(engine.state.hand.len(), 1);
 }
 
@@ -114,10 +114,6 @@ fn secret_technique_still_opens_a_skill_only_draw_pile_search_choice() {
 }
 
 #[test]
-#[ignore = "Headbutt still needs a typed discard-to-top-of-draw choice action; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Headbutt.java"]
-fn headbutt_remains_hook_backed_until_discard_to_top_of_draw_is_typed() {}
-
-#[test]
 fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
     let burning_pact = global_registry().get("Burning Pact").expect("Burning Pact");
     assert_eq!(
@@ -133,11 +129,3 @@ fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
     );
     assert!(burning_pact.complex_hook.is_none());
 }
-
-#[test]
-#[ignore = "Violence still needs a capped filtered draw-to-hand primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java"]
-fn violence_remains_hook_backed_until_capped_attack_fetch_is_typed() {}
-
-#[test]
-#[ignore = "Secret Technique can_use legality still lives outside this slice; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretTechnique.java"]
-fn secret_technique_illegal_play_without_skill_in_draw_pile_remains_queued() {}

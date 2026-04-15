@@ -29,7 +29,3 @@ fn test_card_runtime_watcher_wave20_judgement_kills_when_target_is_below_thresho
     assert!(play_on_enemy(&mut engine, "Judgement", 0));
     assert!(engine.state.enemies[0].entity.is_dead());
 }
-
-#[test]
-#[ignore = "Blocked on Java mark-triggered damage primitive for Pressure Points; the current runtime can apply Mark but cannot yet resolve enemy-specific Mark damage that bypasses block. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java"]
-fn test_card_runtime_watcher_wave20_pressure_points_needs_mark_damage_primitive() {}

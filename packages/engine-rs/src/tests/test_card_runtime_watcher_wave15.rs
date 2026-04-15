@@ -133,9 +133,6 @@ fn watcher_wave15_wallop_and_lesson_learned_follow_engine_path() {
         .any(|card| lesson_learned.card_registry.card_name(card.def_id) == "LessonLearned"));
 }
 
-#[test]
-#[ignore = "Judgement still needs a typed enemy-HP threshold kill primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java"]
-fn watcher_wave15_judgement_stays_queued_until_threshold_kill_primitive_exists() {}
 
 #[test]
 fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {

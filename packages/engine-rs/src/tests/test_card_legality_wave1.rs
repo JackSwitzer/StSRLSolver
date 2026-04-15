@@ -112,14 +112,6 @@ fn tranquility_uses_typed_change_stance_and_enter_stance_metadata() {
 }
 
 #[test]
-#[ignore = "Secret Technique can_use legality still needs the shared can_play surface; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretTechnique.java"]
-fn secret_technique_is_illegal_when_draw_pile_has_no_skills() {}
-
-#[test]
-#[ignore = "Violence still needs a typed capped filtered draw-to-hand primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java"]
-fn violence_remains_hook_backed_until_capped_attack_fetch_is_typed() {}
-
-#[test]
 fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
     let burning_pact = crate::cards::global_registry()
         .get("Burning Pact")
@@ -137,7 +129,3 @@ fn burning_pact_uses_choice_owned_deferred_draw_follow_up() {
     );
     assert!(burning_pact.complex_hook.is_none());
 }
-
-#[test]
-#[ignore = "Tranquility still uses shared enter_stance metadata; moving it cleanly needs the coordinated metadata cleanup path in engine.rs and registry tests. Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tranquility.java"]
-fn tranquility_typed_stance_migration_remains_queued() {}

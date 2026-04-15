@@ -63,21 +63,6 @@ fn test_card_runtime_defect_wave13_blizzard_uses_the_typed_frost_count_damage_sc
 }
 
 #[test]
-#[ignore = "Blocked on card-owned current-block seeding plus replay-state mutation; Java Genetic Algorithm updates misc before future plays"]
-fn test_card_runtime_defect_wave13_genetic_algorithm_still_needs_card_owned_misc_seeding() {
-    let genetic = global_registry()
-        .get("Genetic Algorithm")
-        .expect("Genetic Algorithm");
-    assert_eq!(
-        genetic.effect_data,
-        &[
-            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
-            E::Simple(SE::GainBlock(A::Block)),
-        ]
-    );
-}
-
-#[test]
 fn test_card_runtime_defect_wave13_melter_uses_the_typed_pre_damage_block_removal_surface() {
     let melter = global_registry().get("Melter").expect("Melter");
     assert_eq!(
@@ -103,12 +88,4 @@ fn test_card_runtime_defect_wave13_melter_removes_block_before_damage() {
     assert!(play_on_enemy(&mut engine, "Melter", 0));
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 30);
-}
-
-#[test]
-#[ignore = "Blocked on a typed energy-doubling primitive; Java DoubleEnergyAction doubles the current energy directly"]
-fn test_card_runtime_defect_wave13_double_energy_still_needs_typed_energy_doubling() {
-    let double_energy = global_registry().get("Double Energy").expect("Double Energy");
-    assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
-    assert!(double_energy.complex_hook.is_none());
 }

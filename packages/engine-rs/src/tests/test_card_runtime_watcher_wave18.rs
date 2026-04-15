@@ -76,7 +76,3 @@ fn test_card_runtime_watcher_wave18_registry_documents_the_remaining_hook_cleanu
     assert_eq!(wallop.effect_data.len(), 2);
     assert!(wallop.complex_hook.is_none());
 }
-
-#[test]
-#[ignore = "Pressure Points still needs a mark-triggered HP-loss primitive that bypasses block after applying Mark; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java"]
-fn test_card_runtime_watcher_wave18_pressure_points_needs_mark_triggered_hp_loss() {}

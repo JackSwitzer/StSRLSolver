@@ -32,9 +32,12 @@ fn watcher_wave14_registry_exports_match_typed_surface() {
         .expect("Pressure Points should be registered");
     assert_eq!(
         pressure_points.effect_data,
-        &[E::Simple(SE::AddStatus(T::SelectedEnemy, sid::MARK, A::Magic))]
+        &[
+            E::Simple(SE::AddStatus(T::SelectedEnemy, sid::MARK, A::Magic)),
+            E::Simple(SE::TriggerMarks),
+        ]
     );
-    assert!(pressure_points.complex_hook.is_some());
+    assert!(pressure_points.complex_hook.is_none());
 
     let spirit_shield = registry
         .get("SpiritShield")
@@ -81,8 +84,8 @@ fn watcher_wave14_registry_exports_match_typed_surface() {
     assert!(scrawl.complex_hook.is_none());
 
     let judgement = registry.get("Judgement").expect("Judgement should be registered");
-    assert!(judgement.effect_data.is_empty());
-    assert!(judgement.complex_hook.is_some());
+    assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
+    assert!(judgement.complex_hook.is_none());
 }
 
 #[test]
@@ -166,7 +169,3 @@ fn watcher_wave14_pressure_points_spirit_shield_ragnarok_and_scrawl_follow_engin
         .iter()
         .any(|card| scrawl.card_registry.card_name(card.def_id) == "Scrawl"));
 }
-
-#[test]
-#[ignore = "Judgement still needs a typed enemy-HP threshold kill primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java"]
-fn watcher_wave14_judgement_stays_queued_until_threshold_kill_primitive_exists() {}

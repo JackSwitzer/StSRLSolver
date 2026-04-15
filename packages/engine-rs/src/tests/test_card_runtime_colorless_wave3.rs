@@ -73,19 +73,3 @@ fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
     assert_eq!(engine.state.draw_pile[0].cost, 0);
     assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend_R");
 }
-
-#[test]
-#[ignore = "Forethought still needs the single-card auto-resolve primitive; Java moves the only card directly without opening the hand-select screen."]
-fn forethought_still_needs_single_card_auto_resolve_primitive() {}
-
-#[test]
-#[ignore = "Impatience still needs a no-attacks-in-hand primitive; Java checks the current hand contents before drawing."]
-fn impatience_still_needs_no_attacks_in_hand_primitive() {}
-
-#[test]
-#[ignore = "Mind Blast still needs a draw-pile-size attack scaling primitive on the typed primary attack path; Java resolves damage from the current draw pile size."]
-fn mind_blast_still_needs_draw_pile_size_attack_scaling() {}
-
-#[test]
-#[ignore = "Madness still needs a random-hand-card zero-cost primitive; Java repeatedly samples the hand until it finds a card that can be reduced."]
-fn madness_still_needs_random_hand_card_zero_cost_primitive() {}

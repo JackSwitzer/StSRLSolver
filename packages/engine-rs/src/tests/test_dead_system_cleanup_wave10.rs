@@ -1,8 +1,4 @@
 #![cfg(test)]
 
-// Java oracle sources:
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/EmotionChip.java
-
-#[test]
-#[ignore = "blocked on the next-turn orb passive timing primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/EmotionChip.java"]
-fn dead_cleanup_wave10_emotion_chip_stays_queued_until_timing_primitive_exists() {}
+// Stale duplicate shell removed: Emotion Chip is already covered by
+// test_orb_runtime_java_wave1 and dead_cleanup_wave9 runtime proof.

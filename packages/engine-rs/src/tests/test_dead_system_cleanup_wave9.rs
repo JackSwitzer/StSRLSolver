@@ -154,7 +154,3 @@ fn dead_cleanup_wave9_runtime_card_play_families_replace_helper_contracts() {
     assert!(play_self(&mut yang, "Defend_R"));
     assert_eq!(yang.state.player.dexterity(), 1);
 }
-
-#[test]
-#[ignore = "blocked on the next-turn orb passive timing primitive; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/EmotionChip.java"]
-fn dead_cleanup_wave9_emotion_chip_still_waits_on_timing_primitive() {}

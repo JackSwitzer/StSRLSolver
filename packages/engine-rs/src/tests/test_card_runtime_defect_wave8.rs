@@ -49,13 +49,6 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
     );
     assert_eq!(storm.effects, &["innate"]);
 
-    let capacitor = reg.get("Capacitor+").expect("Capacitor+");
-    assert!(
-        capacitor.effect_data.is_empty(),
-        "Capacitor still needs a typed orb-slot increase op before it can leave the tag-backed path"
-    );
-    assert!(capacitor.effects.contains(&"gain_orb_slots"));
-
     let force_field = reg.get("Force Field+").expect("Force Field+");
     assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(force_field.effects.contains(&"reduce_cost_per_power"));
@@ -113,7 +106,3 @@ fn defect_wave8_storm_force_field_and_rebound_follow_engine_path() {
     assert!(play_on_enemy(&mut rebound, "Rebound", 0));
     assert_eq!(rebound.state.enemies[0].entity.hp, 31);
 }
-
-#[test]
-#[ignore = "Blocked on a typed orb-slot increase op before Capacitor can leave the tag-backed path"]
-fn defect_wave8_capacitor_needs_typed_orb_slot_primitive_before_full_port() {}
