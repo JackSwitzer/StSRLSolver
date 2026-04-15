@@ -1,21 +1,27 @@
 use super::prelude::*;
-use crate::engine::CombatEngine;
+use crate::effects::declarative::{AmountSource as A, NamedOptionKind, ScaledNamedOption};
+
+static STANCE_OPTIONS: [ScaledNamedOption; 2] = [
+    ScaledNamedOption {
+        label: "Wrath",
+        amount: A::Fixed(0),
+        kind: NamedOptionKind::SetStance(crate::state::Stance::Wrath),
+    },
+    ScaledNamedOption {
+        label: "Calm",
+        amount: A::Fixed(0),
+        kind: NamedOptionKind::SetStance(crate::state::Stance::Calm),
+    },
+];
+
+static EFFECTS: [E; 1] = [E::ChooseScaledNamedOptions(&STANCE_OPTIONS)];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,
-    effects: &[],
+    effects: &EFFECTS,
     counter: None,
 }];
-
-fn stance_potion_hook(
-    engine: &mut CombatEngine,
-    _owner: crate::effects::runtime::EffectOwner,
-    _event: &crate::effects::runtime::GameEvent,
-    _state: &mut crate::effects::runtime::EffectState,
-) {
-    crate::potions::apply_stance_potion_effect(&mut engine.state);
-}
 
 /// Stance Potion: Enter Wrath or Calm stance.
 pub static DEF: EntityDef = EntityDef {
@@ -23,6 +29,6 @@ pub static DEF: EntityDef = EntityDef {
     name: "Stance Potion",
     kind: EntityKind::Potion,
     triggers: &TRIGGERS,
-    complex_hook: Some(stance_potion_hook),
+    complex_hook: None,
     status_guard: None,
 };

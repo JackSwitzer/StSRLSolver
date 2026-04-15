@@ -255,6 +255,9 @@ fn decision_program_from_snapshot(
 ) -> Option<GameplayProgram> {
     let decision_state = decision_state?;
     match decision_state.kind {
+        crate::decision::DecisionKind::NeowChoice => decision_context
+            .and_then(|context| context.neow.as_ref())
+            .map(gameplay_program_for_neow_context),
         crate::decision::DecisionKind::RewardScreen => {
             reward_screen.map(gameplay_program_for_reward_screen)
         }
@@ -286,6 +289,13 @@ fn gameplay_program_for_reward_screen(screen: &RewardScreen) -> GameplayProgram 
         ordered: screen.ordered,
         active_item: screen.active_item,
         item_count: screen.items.len(),
+    }])
+}
+
+fn gameplay_program_for_neow_context(context: &crate::decision::NeowDecisionContext) -> GameplayProgram {
+    GameplayProgram::canonical(vec![EffectOp::OpenChoice {
+        label: "neow".to_string(),
+        option_count: context.options.len(),
     }])
 }
 

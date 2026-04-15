@@ -226,7 +226,7 @@ mod tests {
         let complex_ids = [
             "Elixir", "GamblersBrew", "EntropicBrew",
             "BottledMiracle", "CunningPotion", "Ambrosia",
-            "StancePotion", "BlessingOfTheForge", "LiquidMemories",
+            "BlessingOfTheForge", "LiquidMemories",
             "DistilledChaos", "EssenceOfDarkness",
             "AttackPotion", "SkillPotion", "PowerPotion",
             "ColorlessPotion", "PotionOfCapacity",
@@ -235,6 +235,22 @@ mod tests {
             let def = potion_def_by_id(id)
                 .unwrap_or_else(|| panic!("missing potion def: {}", id));
             assert!(def.complex_hook.is_some(), "no complex_hook for {}", id);
+        }
+    }
+
+    #[test]
+    fn test_stance_potion_uses_declarative_choice_effects() {
+        let def = potion_def_by_id("StancePotion").unwrap();
+        assert!(def.complex_hook.is_none());
+        assert_eq!(def.triggers.len(), 1);
+        assert_eq!(def.triggers[0].effects.len(), 1);
+        match def.triggers[0].effects[0] {
+            crate::effects::declarative::Effect::ChooseScaledNamedOptions(options) => {
+                assert_eq!(options.len(), 2);
+                assert_eq!(options[0].label, "Wrath");
+                assert_eq!(options[1].label, "Calm");
+            }
+            other => panic!("expected declarative stance choice, got {other:?}"),
         }
     }
 

@@ -11,10 +11,12 @@ use std::hash::{Hash, Hasher};
 
 use crate::cards::CardType;
 use crate::combat_types::CardInstance;
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
+use crate::effects::declarative::{
+    AmountSource, Effect, Pile, SimpleEffect, Target,
+};
 use crate::effects::entity_def::EntityDef;
 use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
-use crate::engine::CombatEngine;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, NamedChoicePayload};
 use crate::ids::StatusId;
 use crate::status_ids::sid;
 
@@ -715,6 +717,12 @@ impl EffectRuntime {
                     };
                     self.execute_effects(engine, instance_idx, owner, branch, event);
                 }
+                Effect::ChooseNamedOptions(option_names) => {
+                    self.execute_choose_named_options(engine, option_names);
+                }
+                Effect::ChooseScaledNamedOptions(option_specs) => {
+                    self.execute_choose_scaled_named_options(engine, instance_idx, owner, option_specs);
+                }
                 _ => {}
             }
             if engine.state.combat_over {
@@ -1174,6 +1182,46 @@ impl EffectRuntime {
                 self.upgrade_random_card_from_piles(engine, piles);
             }
         }
+    }
+
+    fn execute_choose_named_options(
+        &self,
+        engine: &mut CombatEngine,
+        option_names: &[&'static str],
+    ) {
+        if option_names.is_empty() {
+            return;
+        }
+        let options = option_names
+            .iter()
+            .copied()
+            .map(ChoiceOption::Named)
+            .collect();
+        engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
+    }
+
+    fn execute_choose_scaled_named_options(
+        &self,
+        engine: &mut CombatEngine,
+        instance_idx: usize,
+        owner: EffectOwner,
+        option_specs: &[crate::effects::declarative::ScaledNamedOption],
+    ) {
+        if option_specs.is_empty() {
+            return;
+        }
+        let options = option_specs
+            .iter()
+            .map(|option| ChoiceOption::Named(option.label))
+            .collect();
+        let payloads = option_specs
+            .iter()
+            .map(|option| NamedChoicePayload {
+                kind: option.kind,
+                amount: self.resolve_amount(engine, instance_idx, owner, option.amount).max(0),
+            })
+            .collect();
+        engine.begin_choice_with_named_payloads(ChoiceReason::PickOption, options, 1, 1, payloads);
     }
 
     fn pile_ref<'a>(

@@ -385,23 +385,24 @@ fn combat_action_sort_key(action: &Action) -> (u8, i32, i32) {
 
 fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
     match action {
+        DecisionAction::ChooseNeowOption(idx) => (0, *idx as i32, 0, 0),
         DecisionAction::Combat(action) => {
             let key = combat_action_sort_key(action);
-            (0, key.0 as i32, key.1, key.2)
+            (1, key.0 as i32, key.1, key.2)
         }
-        DecisionAction::ChooseMapPath(idx) => (1, *idx as i32, 0, 0),
-        DecisionAction::ClaimRewardItem { item_index } => (2, *item_index as i32, 0, 0),
+        DecisionAction::ChooseMapPath(idx) => (2, *idx as i32, 0, 0),
+        DecisionAction::ClaimRewardItem { item_index } => (3, *item_index as i32, 0, 0),
         DecisionAction::PickRewardChoice {
             item_index,
             choice_index,
-        } => (3, *item_index as i32, *choice_index as i32, 0),
-        DecisionAction::SkipRewardItem { item_index } => (4, *item_index as i32, 0, 0),
-        DecisionAction::CampfireRest => (5, 0, 0, 0),
-        DecisionAction::CampfireUpgrade(idx) => (6, *idx as i32, 0, 0),
-        DecisionAction::ShopBuyCard(idx) => (7, *idx as i32, 0, 0),
-        DecisionAction::ShopRemoveCard(idx) => (8, *idx as i32, 0, 0),
-        DecisionAction::ShopLeave => (9, 0, 0, 0),
-        DecisionAction::EventChoice(idx) => (10, *idx as i32, 0, 0),
+        } => (4, *item_index as i32, *choice_index as i32, 0),
+        DecisionAction::SkipRewardItem { item_index } => (5, *item_index as i32, 0, 0),
+        DecisionAction::CampfireRest => (6, 0, 0, 0),
+        DecisionAction::CampfireUpgrade(idx) => (7, *idx as i32, 0, 0),
+        DecisionAction::ShopBuyCard(idx) => (8, *idx as i32, 0, 0),
+        DecisionAction::ShopRemoveCard(idx) => (9, *idx as i32, 0, 0),
+        DecisionAction::ShopLeave => (10, 0, 0, 0),
+        DecisionAction::EventChoice(idx) => (11, *idx as i32, 0, 0),
     }
 }
 

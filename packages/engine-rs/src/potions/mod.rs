@@ -49,6 +49,38 @@ pub(crate) fn apply_stance_potion_effect(state: &mut CombatState) {
     }
 }
 
+fn is_boss_enemy_id(enemy_id: &str) -> bool {
+    let normalized: String = enemy_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+    matches!(
+        normalized.as_str(),
+        "theguardian"
+            | "hexaghost"
+            | "slimeboss"
+            | "bronzeautomaton"
+            | "thecollector"
+            | "champ"
+            | "awakenedone"
+            | "timeeater"
+            | "donu"
+            | "deca"
+            | "corruptheart"
+    )
+}
+
+pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
+    match potion_id {
+        "SmokeBomb" | "Smoke Bomb" => !state
+            .enemies
+            .iter()
+            .any(|enemy| is_boss_enemy_id(enemy.id.as_str())),
+        _ => true,
+    }
+}
+
 pub(crate) fn upgrade_hand_for_combat(state: &mut CombatState) {
     let registry = crate::cards::global_registry();
     for card in &mut state.hand {

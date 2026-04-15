@@ -245,6 +245,7 @@ pub enum GeneratedDestination {
 pub enum NamedOptionKind {
     AddStatus(StatusId),
     GainRunGold,
+    SetStance(crate::state::Stance),
 }
 
 /// Declarative named option with a runtime-resolved amount.

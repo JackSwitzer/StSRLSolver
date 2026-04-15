@@ -420,7 +420,7 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 }
 
 #[test]
-fn stance_potion_toggles_stance_via_action_path() {
+fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -430,10 +430,24 @@ fn stance_potion_toggles_stance_via_action_path() {
     engine.state.potions[0] = "StancePotion".to_string();
 
     use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Stance Potion should open a choice");
+    let labels: Vec<&str> = choice
+        .options
+        .iter()
+        .filter_map(|opt| match opt {
+            crate::engine::ChoiceOption::Named(label) => Some(*label),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(labels, vec!["Wrath", "Calm"]);
+    engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.stance, Stance::Wrath);
+    assert!(engine.state.potions[0].is_empty());
 
     engine.state.potions[0] = "StancePotion".to_string();
     use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::Choose(1));
     assert_eq!(engine.state.stance, Stance::Calm);
 }
 

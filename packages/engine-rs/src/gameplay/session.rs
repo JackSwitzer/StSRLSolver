@@ -56,6 +56,7 @@ impl GameplaySession for CombatEngine {
     fn gameplay_decision_context(&self) -> DecisionContext {
         DecisionContext {
             kind: combat_decision_kind(self),
+            neow: None,
             combat: Some(build_combat_context(self)),
             reward_screen: None,
             map: None,

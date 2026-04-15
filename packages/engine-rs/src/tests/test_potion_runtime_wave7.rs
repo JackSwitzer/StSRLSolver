@@ -154,7 +154,6 @@ fn wave7_smoke_bomb_flees_combat_via_runtime_action_path() {
 }
 
 #[test]
-#[ignore = "Boss/BackAttack Smoke Bomb legality is still owned by engine action enumeration outside this potion slice"]
 fn wave7_smoke_bomb_boss_legality_matches_java_can_use() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike_P"]),

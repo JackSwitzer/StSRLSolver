@@ -173,7 +173,6 @@ fn wave8_smoke_bomb_flees_without_legacy_apply_potion_fallback() {
 }
 
 #[test]
-#[ignore = "Stance Potion still needs a real choose-one potion decision primitive instead of the current toggle proxy"]
 fn wave8_stance_potion_matches_java_choose_one_semantics() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/StancePotion.java
@@ -185,15 +184,21 @@ fn wave8_stance_potion_matches_java_choose_one_semantics() {
     engine.state.stance = Stance::Neutral;
     engine.state.potions[0] = "StancePotion".to_string();
 
-    let legal = engine.get_legal_actions();
-    assert!(
-        legal.iter().any(|action| matches!(action, Action::UsePotion { potion_idx: 0, .. })),
-        "manual activation should open a choice instead of hard-toggling"
-    );
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Stance Potion should open a choice");
+    let labels: Vec<&str> = choice
+        .options
+        .iter()
+        .filter_map(|opt| match opt {
+            crate::engine::ChoiceOption::Named(label) => Some(*label),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(labels, vec!["Wrath", "Calm"]);
 }
 
 #[test]
-#[ignore = "Smoke Bomb boss/back-attack legality still belongs to engine action enumeration outside this cutover slice"]
 fn wave8_smoke_bomb_respects_java_can_use_restrictions() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
@@ -211,3 +216,7 @@ fn wave8_smoke_bomb_respects_java_can_use_restrictions() {
         })
     );
 }
+
+#[test]
+#[ignore = "Java BackAttack legality depends on Surrounded/position state that the current Rust combat model does not represent yet; Java oracle: /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java"]
+fn wave8_smoke_bomb_back_attack_legality_remains_queued() {}
