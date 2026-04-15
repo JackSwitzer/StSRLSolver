@@ -172,6 +172,13 @@ fn orb_wave1_liquid_memories_returns_top_discard_cards_at_cost_zero_in_order() {
     engine.state.potions[0] = "LiquidMemories".to_string();
 
     use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Sacred Bark Liquid Memories should open a 2-pick choice");
+    assert_eq!(choice.reason, crate::engine::ChoiceReason::ReturnFromDiscard);
+    assert_eq!(choice.options.len(), 3);
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(hand_names(&engine), vec!["Zap", "Defend_B"]);
     assert_eq!(engine.state.hand[0].cost, 0);
@@ -251,14 +258,20 @@ fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
 }
 
 #[test]
-#[ignore = "blocked on missing discard-choice primitive: Java Liquid Memories lets the player choose any discard card, while current runtime returns top discard cards deterministically"]
 fn orb_wave1_liquid_memories_should_support_java_choice_selection() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike_B"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
+    engine.state.hand.clear();
     engine.state.discard_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
     engine.state.potions[0] = "LiquidMemories".to_string();
     use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(hand_names(&engine), vec!["Strike_B"]);
+    assert_eq!(engine.state.hand[0].cost, 0);
+    assert_eq!(hand_names(&engine), vec!["Strike_B"]);
 }

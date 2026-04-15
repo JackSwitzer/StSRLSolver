@@ -217,8 +217,14 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
     engine.state.potions[0] = "LiquidMemories".to_string();
 
     use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Liquid Memories should open a discard choice");
+    assert_eq!(choice.reason, ChoiceReason::ReturnFromDiscard);
+    assert_eq!(choice.options.len(), 3);
+    engine.execute_action(&Action::Choose(1));
 
-    assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
+    assert_eq!(hand_names(&engine), vec!["Bash"]);
+    assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.discard_pile.len(), 2);
     assert!(engine.state.potions[0].is_empty());
 }

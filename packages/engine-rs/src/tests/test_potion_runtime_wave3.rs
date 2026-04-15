@@ -123,6 +123,7 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     engine.state.hand.clear();
     equip_potion(&mut engine, 0, "LiquidMemories");
     use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::Choose(2));
     assert_eq!(hand_names(&engine), vec!["Bash"]);
     assert_eq!(engine.state.discard_pile.len(), 2);
 

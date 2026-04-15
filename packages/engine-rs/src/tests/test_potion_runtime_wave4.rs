@@ -72,6 +72,8 @@ fn stance_family_potions_surface_no_target_legal_actions_and_consume_slots() {
 
     engine.state.stance = Stance::Calm;
     use_potion(&mut engine, 1, -1);
+    assert!(matches!(engine.phase, crate::engine::CombatPhase::AwaitingChoice));
+    engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.stance, Stance::Wrath);
     assert!(engine.state.potions[1].is_empty());
 }
@@ -106,6 +108,10 @@ fn blessing_and_liquid_memories_respect_hand_limit_and_sacred_bark_via_engine_pa
         .all(|name| name.ends_with('+')));
 
     use_potion(&mut engine, 1, -1);
+    assert!(matches!(engine.phase, crate::engine::CombatPhase::AwaitingChoice));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::ConfirmSelection);
     assert_eq!(engine.state.hand.len(), 10, "hand limit should cap Liquid Memories");
     assert_eq!(engine.state.discard_pile.len(), 2, "Sacred Bark should attempt two returns");
     assert_eq!(hand_names(&engine).last().copied(), Some("Bash"));
@@ -133,8 +139,12 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
     engine.state.potions[1] = "EntropicBrew".to_string();
 
     use_potion(&mut engine, 0, -1);
-    assert_eq!(engine.state.hand.len(), 2, "Sacred Bark should double Distilled Chaos to two proxy draws");
-    assert_eq!(engine.state.draw_pile.len(), 4);
+    assert_eq!(engine.state.hand.len(), 1, "Shrug It Off should leave its drawn Bash in hand");
+    assert_eq!(engine.state.draw_pile.len(), 0, "Sacred Bark should let Distilled Chaos exhaust the whole pile here");
+    assert_eq!(hand_names(&engine), vec!["Bash"]);
+    assert_eq!(engine.state.player.block, 13);
+    assert_eq!(engine.state.enemies[0].entity.hp, 32);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 0);
     assert!(engine.state.potions[0].is_empty());
 
     engine.state.hand.clear();
@@ -153,7 +163,7 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
         target_idx: -1,
     }));
     use_potion(&mut engine, 0, -1);
-    assert_eq!(engine.state.player.block, 24);
+    assert_eq!(engine.state.player.block, 37);
 }
 
 #[test]

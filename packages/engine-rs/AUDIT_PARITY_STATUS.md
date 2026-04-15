@@ -14,7 +14,7 @@ Canonical audit outputs:
 Weighted completion toward `universal gameplay runtime + decision-complete RL loop`:
 
 - supported-scope runtime parity: `99%`
-- all-content gameplay parity: `98%`
+- all-content gameplay parity: `99%`
 - architecture unification snapshot: `99%`
 
 Area scores:
@@ -36,7 +36,7 @@ Area scores:
 | Cleanup-only card shells | `3` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches in source | `1` |
-| Direct `#[ignore]` count in `src/tests` | `75` |
+| Direct `#[ignore]` count in `src/tests` | `74` |
 | Live production potion fallback callsites | `0` |
 | Direct relic helper-path refs | `0` |
 
@@ -49,7 +49,6 @@ Cleanup-only card shells:
 All-content blockers still open:
 
 - `Match and Keep!` minigame runtime
-- `Liquid Memories` discard-choice fidelity
 - `Smoke Bomb` back-attack positional legality
 
 ## Why The Branch Is Trusted
@@ -71,7 +70,7 @@ Representative green suites on the current audited tree:
 - `test_relic_runtime_wave17` `2 passed`
 - `test_dead_system_cleanup_wave22` `1 passed`
 - `test_generated_choice_java_wave3` `7 passed`
-- `test_orb_runtime_java_wave1` `8 passed, 1 ignored`
+- `test_orb_runtime_java_wave1` `9 passed`
 - `test_card_runtime_watcher_wave26` `3 passed`
 
 ## Current Read

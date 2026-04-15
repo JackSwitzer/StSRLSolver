@@ -76,6 +76,7 @@ fn liquid_memories_returns_discard_cards_with_zero_cost() {
     engine.state.potions[0] = "LiquidMemories".to_string();
 
     use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Bash");
@@ -84,7 +85,7 @@ fn liquid_memories_returns_discard_cards_with_zero_cost() {
 }
 
 #[test]
-fn distilled_chaos_is_still_proxy_to_hand_pending_play_top_card_primitive() {
+fn distilled_chaos_now_plays_top_draw_cards_through_the_runtime_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -97,7 +98,8 @@ fn distilled_chaos_is_still_proxy_to_hand_pending_play_top_card_primitive() {
     use_potion(&mut engine, 0, -1);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.state.draw_pile.len(), 3);
-    // Exact Java parity still needs a real play-top-card pipeline, matching
-    // DistilledChaosPotion's queue-driven top-card play behavior.
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Bash");
+    assert_eq!(engine.state.draw_pile.len(), 0);
+    assert_eq!(engine.state.player.block, 13);
+    assert_eq!(engine.state.enemies[0].entity.hp, 34);
 }

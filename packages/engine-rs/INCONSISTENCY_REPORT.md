@@ -10,9 +10,9 @@ This is the canonical parity audit for `packages/engine-rs`. It reconciles live 
 Current read:
 
 - supported-scope runtime parity: `~99%`
-- all-content gameplay parity: `~98%`
+- all-content gameplay parity: `~99%`
 - supported-scope merge blockers: `0`
-- all-content blockers still open before we can honestly claim “full gameplay content complete”: `3`
+- all-content blockers still open before we can honestly claim “full gameplay content complete”: `2`
 
 What is truly done:
 
@@ -21,6 +21,7 @@ What is truly done:
 - supported event blocked-op tail: `0`
 - Neow action layer is real and intentionally always exposes `4` choices
 - potion legality / choose-one runtime path is landed
+- `Liquid Memories` discard-choice selection is landed
 - `Emotion Chip` timing is landed
 - `Scrap Ooze` is landed
 - `NoteForYourself` now runs as a real cross-run card-stash flow inside the canonical event / reward runtime
@@ -28,7 +29,6 @@ What is truly done:
 What is still open:
 
 - `Match and Keep!` still lacks the Java GremlinMatchGame minigame runtime
-- `Liquid Memories` still lacks exact Java discard-choice selection
 - `Smoke Bomb` still has one explicit positional caveat for Java `BackAttack` legality because the Rust combat model does not represent Surrounded/position state
 
 Bottom line:
@@ -51,7 +51,7 @@ Bottom line:
 | Raw public `complex_hook` files | `0` | Current source scan |
 | Blocked supported event ops | `0` | Current source scan |
 | Explicit blocked event branches in source | `1` | `Match and Keep!` |
-| Direct `#[ignore]` count in `src/tests` | `75` | Current source scan |
+| Direct `#[ignore]` count in `src/tests` | `74` | Current source scan |
 
 ### Current status table
 
@@ -60,7 +60,7 @@ Bottom line:
 | Fully supported | public card gameplay behavior, supported event runtime, Neow 4-choice action surface, Scrap Ooze, Emotion Chip timing, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
 | Explicit blocked / not yet closed | `Match and Keep!` minigame |
-| Explicit semantic caveats | `Liquid Memories` discard-choice fidelity, `Smoke Bomb` back-attack positional legality |
+| Explicit semantic caveats | `Smoke Bomb` back-attack positional legality |
 
 ### Ignored-test family summary
 
@@ -68,7 +68,7 @@ Bottom line:
 | --- | ---: |
 | Watcher | `21` |
 | Colorless / choice | `27` |
-| Defect / orb | `8` |
+| Defect / orb | `7` |
 | Ironclad | `1` |
 | Potions | `1` |
 | Other | `17` |
@@ -76,7 +76,7 @@ Bottom line:
 Some raw counts are intentionally noisy unless classified:
 
 - the `3` raw empty public-card files are not gameplay gaps
-- the `75` ignored tests include a mix of live blockers, stale solved lines, and cleanup-only noise
+- the `74` ignored tests include a mix of live blockers, stale solved lines, and cleanup-only noise
 - `Match and Keep!` is the only remaining explicit blocked event branch in source
 
 ### Why we believe the engine works
@@ -100,7 +100,7 @@ These representative green suites were re-run on the current local tree during t
 | Relics | `test_relic_runtime_wave17` | `2 passed` |
 | Relics | `test_dead_system_cleanup_wave22` | `1 passed` |
 | Generated choice | `test_generated_choice_java_wave3` | `7 passed` |
-| Orb timing | `test_orb_runtime_java_wave1` | `8 passed, 1 ignored` |
+| Orb timing | `test_orb_runtime_java_wave1` | `9 passed` |
 | Watcher edge cases | `test_card_runtime_watcher_wave26` | `3 passed` |
 
 ## 3. Merge-Gating Inconsistencies
@@ -122,17 +122,6 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 - Area: parity
 - Severity: medium
 - Confidence: high
-- Scope: merge-gating
-- Evidence: [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:254), Java oracle `decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidMemories.java`
-- Problem: `Liquid Memories` still returns deterministic top-discard cards instead of opening the full Java discard-choice selection.
-- Recommended fix: add a discard-zone choice primitive that lets potions/cards select arbitrary discard cards through the canonical combat choice surface.
-- Test mapping: retire the ignored `orb_wave1_liquid_memories_should_support_java_choice_selection` blocker once the discard-choice primitive lands.
-- Worker slice: discard-choice primitive
-
-### Finding G3
-- Area: parity
-- Severity: medium
-- Confidence: high
 - Scope: unsupported
 - Evidence: [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218), Java oracle `decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java`
 - Problem: `Smoke Bomb` legality is correct for bosses and normal combats, but the Java `BackAttack` / Surrounded positional caveat is still unmodeled because the Rust combat state has no positional representation.
@@ -147,7 +136,7 @@ These are the remaining blockers if we want the stronger claim `all gameplay con
 - Severity: medium
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: current direct ignore count `75`, family table above, plus the cleanup-only card shells in [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
+- Evidence: current direct ignore count `74`, family table above, plus the cleanup-only card shells in [reflex.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/reflex.rs:1), [tactician.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/silent/tactician.rs:1), [deusexmachina.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/cards/watcher/deusexmachina.rs:1)
 - Problem: the raw ignored backlog still overstates live parity debt. A meaningful portion is stale solved noise or cleanup-shell accounting rather than missing gameplay behavior.
 - Recommended fix: run one follow-up ignored-test cleanup wave and re-bucket each ignored line into `live blocker`, `stale solved`, `cleanup-only`, or `post-merge enhancement`.
 - Test mapping: source-wide `rg '#\\[ignore' packages/engine-rs/src/tests`

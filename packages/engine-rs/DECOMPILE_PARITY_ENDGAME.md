@@ -18,6 +18,7 @@ Canonical audit docs:
 What closed in the latest pass:
 
 - `Emotion Chip` now pulses on the following turn start instead of firing immediately on HP loss
+- `Liquid Memories` now opens a real discard choice, supports Sacred Bark multi-pick, and returns selected cards at zero cost
 - `Scrap Ooze` now resolves through the canonical event reward runtime
 - `NoteForYourself` now runs as a real two-step shrine with cross-run card stash behavior inside the runtime
 - `Stance Potion` and `Smoke Bomb` legality/action-path behavior are on the integrated branch and green
@@ -32,7 +33,7 @@ Live branch truth:
 | Unresolved public gameplay-gap files | `0` |
 | Blocked supported event ops | `0` |
 | Explicit blocked event branches | `1` |
-| Direct ignored tests | `75` |
+| Direct ignored tests | `74` |
 
 The raw empty public-card files are cleanup shells only:
 
@@ -49,12 +50,7 @@ These are the only meaningful remaining gameplay families:
    - needs a real GremlinMatchGame-style card-grid runtime
    - current blocker proof lives in [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
 
-2. `Liquid Memories`
-   - current runtime returns top discard cards deterministically
-   - Java allows arbitrary discard-choice selection
-   - current blocker proof lives in [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:254)
-
-3. `Smoke Bomb` positional legality
+2. `Smoke Bomb` positional legality
    - boss legality and regular flee behavior are correct
    - Java `BackAttack` / Surrounded caveat still needs positional combat state
    - current blocker proof lives in [test_potion_runtime_wave8.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_potion_runtime_wave8.rs:218)
@@ -64,10 +60,9 @@ These are the only meaningful remaining gameplay families:
 If the goal is to leave draft only after `all gameplay content complete`, the next implementation order should be:
 
 1. `Match and Keep!` minigame runtime
-2. discard-choice primitive for `Liquid Memories`
-3. positional legality state for `Smoke Bomb`
-4. ignored-test cleanup pass
-5. final audit refresh and PR readiness sweep
+2. positional legality state for `Smoke Bomb`
+3. ignored-test cleanup pass
+4. final audit refresh and PR readiness sweep
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 

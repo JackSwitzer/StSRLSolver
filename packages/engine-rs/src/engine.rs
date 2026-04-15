@@ -100,6 +100,10 @@ pub struct ChoiceContext {
     pub named_payloads: Option<Vec<NamedChoicePayload>>,
     /// Optional post-selection cost rule for generated-card choices.
     pub generated_selected_cost_rule: Option<GeneratedCostRule>,
+    /// Optional fixed cost override applied when returning selected discard cards to hand.
+    pub returned_card_cost_override: Option<i8>,
+    /// Whether cards returned from discard should be marked retained.
+    pub retain_returned_cards: bool,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -450,6 +454,8 @@ impl CombatEngine {
             post_choice_draw: 0,
             named_payloads: None,
             generated_selected_cost_rule: None,
+            returned_card_cost_override: None,
+            retain_returned_cards: false,
         });
     }
 
@@ -864,7 +870,12 @@ impl CombatEngine {
         for idx in indices {
             if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
                 let mut card = self.state.discard_pile.remove(idx);
-                card.set_retained(true); // Meditate marks returned cards as retained
+                if ctx.retain_returned_cards {
+                    card.set_retained(true); // Meditate marks returned cards as retained
+                }
+                if let Some(cost) = ctx.returned_card_cost_override {
+                    card.cost = cost;
+                }
                 self.state.hand.push(card);
             }
         }

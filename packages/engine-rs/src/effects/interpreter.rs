@@ -1230,6 +1230,14 @@ fn execute_choose_cards(
             choice.post_choice_draw = post_choice_draw;
         }
     }
+    if matches!(action, ChoiceAction::MoveToHand)
+        && matches!(source, Pile::Discard)
+        && matches!(ctx.card.id, "Meditate" | "Meditate+")
+    {
+        if let Some(choice) = engine.choice.as_mut() {
+            choice.retain_returned_cards = true;
+        }
+    }
 }
 
 fn get_pile(engine: &CombatEngine, pile: Pile) -> &Vec<crate::combat_types::CardInstance> {
