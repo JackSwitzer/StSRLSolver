@@ -143,6 +143,8 @@ pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
     pub name: String,
+    /// Java BackAttack legality bit for Smoke Bomb and similar checks.
+    pub back_attack: bool,
     /// Current intended move
     pub move_id: i32,
     pub intent: Intent,
@@ -159,6 +161,7 @@ impl EnemyCombatState {
             entity: EntityState::new(hp, max_hp),
             id: id.to_string(),
             name: id.to_string(),
+            back_attack: false,
             move_id: -1,
             intent: Intent::Unknown,
             move_effects: SmallVec::new(),
@@ -176,6 +179,10 @@ impl EnemyCombatState {
     /// Returns true if this enemy can be targeted by the player (alive and not mid-rebirth).
     pub fn is_targetable(&self) -> bool {
         self.entity.hp > 0 && !self.is_escaping && self.entity.status(sid::REBIRTH_PENDING) == 0
+    }
+
+    pub fn has_back_attack(&self) -> bool {
+        self.back_attack
     }
 
     pub fn is_attacking(&self) -> bool {

@@ -74,13 +74,14 @@ fn is_boss_enemy_id(enemy_id: &str) -> bool {
 pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
     match potion_id {
         "SmokeBomb" | "Smoke Bomb" => {
-            // Java blocks Smoke Bomb against bosses here. The remaining
-            // BackAttack/Surrounded edge needs positional combat state that
-            // this model does not yet expose.
-            !state
-                .enemies
-                .iter()
-                .any(|enemy| is_boss_enemy_id(enemy.id.as_str()))
+            // Java blocks Smoke Bomb against bosses and also against any
+            // enemy currently presenting BackAttack legality. We model that
+            // second rule with a narrow enemy-level flag instead of a full
+            // positional rewrite.
+            !state.enemies.iter().any(|enemy| {
+                enemy.is_alive()
+                    && (is_boss_enemy_id(enemy.id.as_str()) || enemy.has_back_attack())
+            })
         }
         _ => true,
     }
