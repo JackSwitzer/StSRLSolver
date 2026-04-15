@@ -32,7 +32,7 @@ uv run pytest tests/training -q
 
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
-./scripts/training.sh run-phase1-overnight --output-dir logs/active --epochs 1 --target-requests 24 --backend linear
+./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1 --backend mlx
 ```
 
 ## Key Docs

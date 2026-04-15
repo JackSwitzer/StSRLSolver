@@ -35,13 +35,16 @@ uv run pytest tests/training -q
 
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
-
 mkdir -p logs/active logs/runs
-./scripts/training.sh run-phase1-overnight \
+./scripts/training.sh launch \
+  --log-file logs/active/training-launcher.log \
+  --pid-file logs/active/training-launcher.pid \
+  run-phase1-puct-overnight \
   --output-dir logs/active \
+  --target-cases 500 \
+  --collection-passes 3 \
   --epochs 1 \
-  --target-requests 24 \
-  --backend linear
+  --backend mlx
 ```
 
 Monitor:
@@ -53,6 +56,12 @@ open SpireMonitor
 ```
 
 The app reads `.spire-monitor.json`, which is already configured to look at `logs/active`.
+
+For attached foreground debugging, use:
+
+```bash
+./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1 --backend linear
+```
 
 ## Artifact Model
 

@@ -49,7 +49,14 @@ def load_combat_training_state(
     engine_session: Any,
     policy: RestrictionPolicy | None = None,
 ) -> CombatTrainingState:
-    payload = engine_session.get_combat_training_state(_policy_json(policy))
+    policy_json = _policy_json(policy)
+    try:
+        if policy_json is None:
+            payload = engine_session.get_combat_training_state()
+        else:
+            payload = engine_session.get_combat_training_state(policy_json)
+    except TypeError:
+        payload = engine_session.get_combat_training_state()
     return parse_combat_training_state(payload)
 
 

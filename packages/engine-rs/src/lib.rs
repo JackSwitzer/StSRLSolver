@@ -41,6 +41,7 @@ mod tests;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3::wrap_pyfunction;
 use pyo3::IntoPy;
 
 // ===========================================================================
@@ -57,7 +58,52 @@ fn sts_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StSEngine>()?;
     m.add_class::<ActionInfo>()?;
     m.add_class::<CombatSolver>()?;
+    m.add_function(wrap_pyfunction!(get_training_entity_catalog, m)?)?;
     Ok(())
+}
+
+#[pyfunction]
+fn get_training_entity_catalog<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+    let catalog = PyDict::new_bound(py);
+
+    let cards = PyList::empty_bound(py);
+    for def in crate::cards::global_registry().all_card_defs() {
+        let item = PyDict::new_bound(py);
+        item.set_item("id", def.id)?;
+        item.set_item("name", def.name)?;
+        cards.append(item)?;
+    }
+    catalog.set_item("cards", cards)?;
+
+    let relics = PyList::empty_bound(py);
+    for relic_name in crate::obs::relic_catalog() {
+        let item = PyDict::new_bound(py);
+        item.set_item("id", relic_name)?;
+        item.set_item("name", relic_name)?;
+        relics.append(item)?;
+    }
+    catalog.set_item("relics", relics)?;
+
+    let potions = PyList::empty_bound(py);
+    for def in crate::potions::defs::POTION_DEFS {
+        let item = PyDict::new_bound(py);
+        item.set_item("id", def.id)?;
+        item.set_item("name", def.name)?;
+        potions.append(item)?;
+    }
+    catalog.set_item("potions", potions)?;
+
+    let enemies = PyList::empty_bound(py);
+    for def in crate::gameplay::global_registry().defs_for_domain(crate::gameplay::GameplayDomain::Enemy)
+    {
+        let item = PyDict::new_bound(py);
+        item.set_item("id", &def.id)?;
+        item.set_item("name", &def.name)?;
+        enemies.append(item)?;
+    }
+    catalog.set_item("enemies", enemies)?;
+
+    Ok(catalog)
 }
 
 // ===========================================================================

@@ -15,14 +15,14 @@ PHASE1_CORPUS_TARGET_CASES = 50_000
 
 
 WATCHER_STARTER_DECK = (
-    "Strike_W",
-    "Strike_W",
-    "Strike_W",
-    "Strike_W",
-    "Defend_W",
-    "Defend_W",
-    "Defend_W",
-    "Defend_W",
+    "Strike_P",
+    "Strike_P",
+    "Strike_P",
+    "Strike_P",
+    "Defend_P",
+    "Defend_P",
+    "Defend_P",
+    "Defend_P",
     "Eruption",
     "Vigilance",
     "Miracle",
@@ -304,7 +304,7 @@ def default_watcher_a0_act1_corpus_plan() -> CorpusPlan:
         deck=DeckProvenance(
             family="single-strike-remove",
             description="Starter deck with one Strike removed and a light premium add.",
-            removed_cards=("Strike_W",),
+            removed_cards=("Strike_P",),
             added_cards=("Cut Through Fate",),
             tags=("synthetic", "remove1", "watcher", "a0", "act1"),
         ),
