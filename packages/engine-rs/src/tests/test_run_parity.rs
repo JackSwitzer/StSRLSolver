@@ -1,9 +1,9 @@
 // Java references:
-// /tmp/sts-decompiled/com/megacrit/cardcrawl/neow/{NeowEvent.java,NeowReward.java,NeowRoom.java}
-// /tmp/sts-decompiled/com/megacrit/cardcrawl/rooms/{EventRoom.java,MonsterRoom.java,MonsterRoomBoss.java,RestRoom.java,ShopRoom.java,TreasureRoom.java,TreasureRoomBoss.java}
-// /tmp/sts-decompiled/com/megacrit/cardcrawl/rewards/{RewardItem.java}
-// /tmp/sts-decompiled/com/megacrit/cardcrawl/rewards/chests/{SmallChest.java,MediumChest.java,LargeChest.java,BossChest.java}
-// /tmp/sts-decompiled/com/megacrit/cardcrawl/shop/{Merchant.java,ShopScreen.java}
+// /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/neow/{NeowEvent.java,NeowReward.java,NeowRoom.java}
+// /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/rooms/{EventRoom.java,MonsterRoom.java,MonsterRoomBoss.java,RestRoom.java,ShopRoom.java,TreasureRoom.java,TreasureRoomBoss.java}
+// /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/rewards/{RewardItem.java}
+// /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/rewards/chests/{SmallChest.java,MediumChest.java,LargeChest.java,BossChest.java}
+// /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/shop/{Merchant.java,ShopScreen.java}
 
 #[cfg(test)]
 mod run_java_parity_tests {
@@ -88,15 +88,38 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn shop_remove_price_scales_by_25_per_combat() {
+    fn shop_remove_price_is_not_derived_from_combats_won() {
         let mut engine = RunEngine::new(42, 0);
-        engine.run_state.combats_won = 3;
+        engine.run_state.combats_won = 99;
         set_first_reachable_room(&mut engine, RoomType::Shop);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
-        assert_eq!(shop.remove_price, 150);
+        assert_eq!(shop.remove_price, 75);
+    }
+
+    #[test]
+    fn shop_remove_price_persists_across_visits_and_applies_discounts() {
+        let mut engine = RunEngine::new(42, 0);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.gold = 999;
+        set_first_reachable_room(&mut engine, RoomType::Shop);
+        let actions = engine.get_legal_actions();
+        engine.step(&actions[0]);
+
+        assert_eq!(engine.get_shop().expect("shop should exist").remove_price, 75);
+        engine.step(&RunAction::ShopRemoveCard(0));
+        assert_eq!(engine.run_state.purge_cost, 100);
+        engine.step(&RunAction::ShopLeave);
+
+        engine.run_state.relics.push("The Courier".to_string());
+        engine.run_state.relics.push("Membership Card".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.debug_enter_shop();
+
+        let shop = engine.get_shop().expect("shop should exist");
+        assert_eq!(shop.remove_price, 40);
     }
 
     #[test]

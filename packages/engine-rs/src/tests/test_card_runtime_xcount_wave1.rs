@@ -100,3 +100,24 @@ fn xcount_wave1_conjure_blade_plus_sets_expunger_hits_to_x_plus_one() {
     assert_eq!(expunger.misc, 4);
     assert!(draw_prefix_count(&engine, "Expunger") >= 1);
 }
+
+#[test]
+fn xcount_wave1_free_tempest_plus_keeps_energy_but_uses_current_x_and_chemical_x() {
+    let mut engine = one_enemy_engine(50, 5);
+    engine.init_defect_orbs(6);
+    engine.state.energy = 2;
+    engine.state.relics.push("Chemical X".to_string());
+    engine.state.hand = vec![engine.card_registry.make_card("Tempest+").set_free(true)];
+
+    assert!(play_self(&mut engine, "Tempest+"));
+
+    assert_eq!(engine.state.energy, 2);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 5);
+    assert!(engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .take(5)
+        .all(|orb| orb.orb_type == OrbType::Lightning));
+}

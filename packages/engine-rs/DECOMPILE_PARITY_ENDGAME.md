@@ -43,33 +43,22 @@ The raw empty public-card files are cleanup shells only:
 - `Tactician`
 - `Deus Ex Machina`
 
-## What Still Blocks Full All-Content Parity
+## Last Known Blocker Sweep
 
-The final broad audit found `4` real semantic blockers:
+The last explicit semantic blocker sweep is now closed:
 
-1. `Collect` timing
-   - Rust grants Miracles after draw in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1145)
-   - Java `CollectPower.onEnergyRecharge()` fires before the draw step in [CollectPower.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java:50)
-2. free-play X-cost parity
-   - [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:281) still drains all energy for free X-cost plays
-3. `Emotion Chip` fidelity
-   - Rust replays only the front orb in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1079)
-   - Java `ImpulseAction` iterates all orbs and then repeats the front orb for `Cables`
-4. shop purge-cost persistence
-   - [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:2516) still derives remove cost from `combats_won`
-   - Java uses persistent `ShopScreen.purgeCost` / `actualPurgeCost`
+1. `Collect` now resolves Miracles before draw and is covered by [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:154)
+2. free-play X-cost cards now preserve energy while snapshotting X and are covered by [test_card_runtime_xcount_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_xcount_wave1.rs:105)
+3. `Emotion Chip` now uses full multi-orb `ImpulseAction`-style replay, including `Cables`, in [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:239)
+4. shop purge pricing now persists across visits and discounts correctly in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:91)
 
 ## Immediate Execution Order
 
 If the goal is to leave draft only after `all gameplay content complete`, the next order should be:
 
-1. fix `Collect` timing
-2. fix free-play X-cost energy drain
-3. fix full `Emotion Chip` / `ImpulseAction` fidelity
-4. fix shop purge-cost persistence
-5. rerun the broad audit on the zero-skip tree
-6. PR/body/doc reconciliation
-7. training branch cut from this branch
+1. rerun the broad audit on the zero-skip tree
+2. PR/body/doc reconciliation
+3. training branch cut from this branch
 
 If the claim stays `supported runtime parity complete`, the next order should instead be:
 
@@ -101,6 +90,8 @@ Representative currently green suites:
 - `test_dead_system_cleanup_wave22`
 - `test_generated_choice_java_wave3`
 - `test_orb_runtime_java_wave1`
+- `test_card_runtime_watcher_wave24`
+- `test_card_runtime_xcount_wave1`
 - `test_card_runtime_watcher_wave5`
 - `test_card_runtime_watcher_wave14`
 - `test_card_runtime_watcher_wave15`

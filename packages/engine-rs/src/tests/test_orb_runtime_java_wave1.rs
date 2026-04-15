@@ -237,6 +237,49 @@ fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
 }
 
 #[test]
+fn orb_wave1_emotion_chip_replays_all_orb_passives_on_next_turn_start() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
+    engine.init_defect_orbs(2);
+    engine.state.relics.push("Emotion Chip".to_string());
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.start_combat();
+
+    let hp_before = engine.state.enemies[0].entity.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
+    assert_eq!(engine.state.player.block, 2);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+}
+
+#[test]
+fn orb_wave1_emotion_chip_and_cables_replay_front_orb_twice_like_java() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
+    engine.init_defect_orbs(2);
+    engine.state.relics.push("Emotion Chip".to_string());
+    engine.state.relics.push("Cables".to_string());
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.start_combat();
+
+    let hp_before = engine.state.enemies[0].entity.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 12);
+    assert_eq!(engine.state.player.block, 2);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+}
+
+#[test]
 fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
     let mut engine = engine_without_start(
         Vec::new(),

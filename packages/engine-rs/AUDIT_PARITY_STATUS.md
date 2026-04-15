@@ -14,16 +14,16 @@ Canonical audit outputs:
 Weighted toward `universal gameplay runtime + honest Java parity proof`:
 
 - supported-scope runtime parity: `100%`
-- all-content gameplay parity: `98%`
+- all-content gameplay parity: `99%+`
 - architecture unification snapshot: `99%`
 
 Area scores:
 
 | Area | Score | Notes |
 | --- | ---: | --- |
-| Combat runtime parity | `98%` | the broad card/event tail is closed, but 4 Java-cited semantic mismatches remain: `Collect` timing, free-play X-cost drain, `Emotion Chip` multi-orb fidelity, and shop purge-cost persistence |
+| Combat runtime parity | `99%+` | the prior `Collect` / free-play X-cost / `Emotion Chip` / shop purge-cost blocker sweep is now closed with passing engine-path regressions; the remaining work is one last broad freeze |
 | RL combat surface | `98%` | legal-action, observation, and search surfaces are green; training-side alignment is still separate work |
-| Run / reward / event parity | `99%` | `NoteForYourself`, `Match and Keep!`, and `Scrap Ooze` run on the canonical event/runtime path |
+| Run / reward / event parity | `100%` | `NoteForYourself`, `Match and Keep!`, `Scrap Ooze`, and persistent shop purge pricing now run on the canonical runtime path |
 | Dead-system retirement | `99%` | the stale cleanup-ignore tail in waves `18` and `19` is gone; remaining work is normal follow-on cleanup rather than parity debt |
 
 ## Current Quantified Backlog
@@ -54,12 +54,12 @@ Recently closed gameplay-gap families:
 - `Sentinel` under `Corruption` now uses a typed `on_exhaust` hook lane and is proven in [test_card_runtime_ironclad_wave9.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_ironclad_wave9.rs:83)
 - `Expunger` / `Conjure Blade+` now use typed generated-card and card-owned X-count surfaces, including `Chemical X` coverage in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:137)
 
-Confirmed remaining semantic blockers from the final broad audit:
+Last known semantic blocker sweep now closed:
 
-- `Collect` timing: Rust grants Miracles after draw in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1145), while Java fires `CollectPower.onEnergyRecharge()` before draw in [CollectPower.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java:50)
-- free-play X-cost cards: [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:281) still drains all energy for free X-cost plays instead of preserving energy while snapshotting X
-- `Emotion Chip`: Rust only replays the front orb in [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1079), while Java `ImpulseAction` iterates all orbs and then replays the front orb for `Cables`
-- shop purge-cost persistence: [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:2516) still derives remove cost from `combats_won`, while Java uses persistent `ShopScreen.purgeCost` / `actualPurgeCost`
+- `Collect` now resolves Miracles before draw and is proven in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:154)
+- free-play X-cost cards now snapshot X without draining energy and are proven in [test_card_runtime_xcount_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_xcount_wave1.rs:105)
+- `Emotion Chip` now replays full multi-orb `ImpulseAction`-style passives, including `Cables`, in [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:239)
+- shop purge pricing now persists across visits and applies discounts off run-owned purge state in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:91)
 
 ## Why The Branch Is Trusted
 
@@ -81,6 +81,8 @@ Representative green suites on the current tree:
 - `test_dead_system_cleanup_wave22`
 - `test_generated_choice_java_wave3`
 - `test_orb_runtime_java_wave1`
+- `test_card_runtime_watcher_wave24`
+- `test_card_runtime_xcount_wave1`
 - `test_card_runtime_watcher_wave5`
 - `test_card_runtime_watcher_wave14`
 - `test_card_runtime_watcher_wave15`
@@ -111,6 +113,6 @@ The main stale-test cleanup result from this pass:
 ## Current Read
 
 - If the claim is `supported runtime parity complete`, the branch is there on the audited matrix.
-- If the claim is `all gameplay content complete`, the branch is not there yet; the `4` semantic blockers above remain.
+- If the claim is `all gameplay content complete`, the last known blocker sweep is now closed; one final comprehensive freeze is still the honest next step before taking the PR out of draft.
 - Zero-skip answer: `yes` — there are `0` explicit `#[ignore]` tests in `src/tests`.
-- Java-clean answer: `no` — the final audit confirmed `4` remaining Java-cited discrepancies.
+- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix, but the branch still owes one final broad freeze before that claim should be treated as settled.

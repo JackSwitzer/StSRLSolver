@@ -10,9 +10,9 @@ This is the canonical parity audit for `packages/engine-rs`. It reflects the liv
 Current read:
 
 - supported-scope runtime parity: `~100%`
-- all-content gameplay parity: `~98%`
+- all-content gameplay parity: `~99%+`
 - supported-scope merge blockers: `0`
-- all-content merge blockers: `4` semantic families
+- all-content merge blockers: `0` currently confirmed on the targeted blocker matrix
 
 What is truly done:
 
@@ -20,24 +20,22 @@ What is truly done:
 - raw public `complex_hook` tail: `0`
 - blocked supported event-op tail: `0`
 - `Establishment` retained-cost parity is fixed
-- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, `Mutagenic Strength`, `DiscoveryAction`, `Chrysalis`, and `Metamorphosis` are all landed on the canonical runtime path
+- `Match and Keep!`, `Scrap Ooze`, `NoteForYourself`, `Emotion Chip`, `Liquid Memories`, `Smoke Bomb`, Defect multi-hit parity, `Reinforced Body`, `Mutagenic Strength`, `DiscoveryAction`, `Chrysalis`, `Metamorphosis`, `Collect` timing, free-play X-cost handling, and persistent shop purge pricing are all landed on the canonical runtime path
 - Neow action layer is real and intentionally always exposes `4` choices
-- the stale solved ignore pile collapsed from `69` to `5`
+- the stale solved ignore pile collapsed from `69` to `0`
 
 What is still open:
 
-- `Collect` timing parity
-- free-play X-cost energy preservation
-- `Emotion Chip` full `ImpulseAction` fidelity
-- shop purge-cost persistence
-- then one final broad parity freeze and doc/PR synchronization
+- one final broad parity freeze on the zero-skip tree
+- doc / PR synchronization to match the new blocker-free targeted matrix
+- optional cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
 
 Bottom line:
 
 - If the claim is `supported runtime parity complete`, this branch is ready after final doc/PR sync.
-- If the claim is `all gameplay content complete`, that stronger claim is still false until the `4` semantic blockers above are closed.
+- If the claim is `all gameplay content complete`, there is no currently confirmed blocker left on the targeted matrix, but the honest last step is still one final comprehensive freeze before that claim should leave draft status.
 - Zero-skip answer: `yes` — there are `0` explicit ignored tests.
-- Java-clean answer: `no` — the final broad audit confirmed a short explicit blocker list.
+- Java-clean answer: no live discrepancy is currently confirmed on the targeted blocker matrix, but the branch still owes one final broad freeze before that claim should be treated as settled.
 
 ## 2. Quantified Baseline
 
@@ -62,7 +60,7 @@ Bottom line:
 | --- | --- |
 | Fully supported | public gameplay-gap cards, supported event runtime, Neow action surface, potion action path, reward/runtime ordering, RL/search surfaces |
 | Cleanup-only shells | `Reflex`, `Tactician`, `Deus Ex Machina` |
-| Explicit gameplay blockers | `Collect`, free-play X-cost, `Emotion Chip`, shop purge-cost persistence |
+| Explicit gameplay blockers | none currently confirmed on the targeted blocker matrix |
 | Cleanup-only ignores | none |
 
 ### Rust-vs-Java delta table
@@ -135,49 +133,14 @@ Representative green suites on the current local tree:
 
 ## 3. Confirmed Merge-Gating Findings
 
-### Finding G1
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1145), [CollectPower.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java:50), [PlayerTurnEffect.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/vfx/PlayerTurnEffect.java:50)
-- Problem: Rust grants `Collect` Miracles after the start-of-turn draw, while Java queues them from `onEnergyRecharge()` before draw.
-- Recommended fix: move the `Collect` one-shot resolution into the pre-draw energy-recharge phase and add an engine-path timing test.
-- Test mapping: queued test for `Collect` with near-hand-cap start-of-turn ordering
-- Worker slice: watcher turn-start timing
+There are no currently confirmed merge-gating findings on the targeted blocker matrix.
 
-### Finding G2
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [card_effects.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/card_effects.rs:281), Java X-cost actions such as [TempestAction.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/TempestAction.java:31)
-- Problem: free-to-play X-cost cards still drain all energy in Rust even though Java snapshots X without spending energy when the card is free.
-- Recommended fix: preserve the current-energy snapshot for X while gating the actual energy drain on `!card_inst.is_free()`.
-- Test mapping: queued free-play X-cost proof on `Whirlwind`, `Tempest`, or `Skewer`
-- Worker slice: shared X-cost resolution
+The last known blocker sweep is now closed by passing engine-path proof:
 
-### Finding G3
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [engine.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/engine.rs:1079), [emotion_chip.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/relics/defs/emotion_chip.rs:1), [ImpulseAction.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ImpulseAction.java:20)
-- Problem: Rust models `Emotion Chip` as a single front-orb pulse, but Java runs `ImpulseAction` across all orbs and repeats the front orb when `Cables` is present.
-- Recommended fix: replace the current one-slot replay with full `ImpulseAction`-style orb iteration and add multi-orb/Cables proof.
-- Test mapping: queued multi-orb `Emotion Chip` test with and without `Cables`
-- Worker slice: defect orb turn-start fidelity
-
-### Finding G4
-- Area: parity
-- Severity: medium
-- Confidence: high
-- Scope: merge-gating
-- Evidence: [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:2516), [ShopScreen.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java:223), [ShopScreen.java](/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java:275)
-- Problem: Rust derives shop purge cost from `combats_won`, while Java uses persistent `purgeCost` / `actualPurgeCost` that increments only when a purge happens.
-- Recommended fix: add run-owned persistent purge-cost state and update the shop tests to match the Java contract.
-- Test mapping: queued run-parity proof for purge-cost persistence across shops
-- Worker slice: run shop economy parity
+- `Collect` pre-draw Miracle timing in [test_card_runtime_watcher_wave24.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_watcher_wave24.rs:154)
+- free-play X-cost energy preservation in [test_card_runtime_xcount_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_card_runtime_xcount_wave1.rs:105)
+- `Emotion Chip` multi-orb and `Cables` fidelity in [test_orb_runtime_java_wave1.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_orb_runtime_java_wave1.rs:239)
+- persistent shop purge pricing in [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:91)
 
 ## 4. Stale / Noisy Debt
 
@@ -186,9 +149,9 @@ Representative green suites on the current local tree:
 - Severity: low
 - Confidence: high
 - Scope: cleanup-only
-- Evidence: current direct ignore count `5`; prior stale-ignore baseline `69`
-- Problem: the branch no longer has a huge stale-ignore backlog, but older docs and review context still describe that larger stale world.
-- Recommended fix: keep the canonical docs and PR body synced to the new `5`-ignore baseline and stop referencing the old `69` count.
+- Evidence: current direct ignore count `0`; prior stale-ignore baseline `69`
+- Problem: the branch no longer has any ignored-test backlog, but older docs and review context still describe that larger stale world.
+- Recommended fix: keep the canonical docs and PR body synced to the new zero-ignore baseline and stop referencing the old `69` count.
 - Test mapping: source-wide ignore scan
 - Worker slice: audit/doc reconciliation
 
@@ -229,7 +192,7 @@ These items should not block a supported-scope merge if scope stays honest, but 
 
 - relic bridge retirement in dead-system cleanup waves `18` and `19`
 - cleanup-shell normalization for `Reflex`, `Tactician`, and `Deus Ex Machina`
-- broader generated-choice and generated-card fidelity sweeps after the explicit blockers above close
+- broader generated-choice and generated-card fidelity sweeps as confidence work rather than blocker work
 - broad audit freezing now that the branch is completely ignore-free
 
 ## 7. Edge-Case Annex: `Scrawl+`

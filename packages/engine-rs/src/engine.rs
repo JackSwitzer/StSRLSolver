@@ -1076,23 +1076,21 @@ impl CombatEngine {
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
-        // Emotion Chip: pulse the front orb passive on the next turn start after HP loss.
+        // Emotion Chip: replay the full orb passive cycle on the next turn start after HP loss.
         {
             let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
             if ect > 0 {
                 self.state.player.set_status(sid::EMOTION_CHIP_TRIGGER, 0);
-                if self.state.orb_slots.occupied_count() > 0 {
-                    let front_orb = &self.state.orb_slots.slots[0];
-                    let focus = self.state.player.focus();
-                    let val = front_orb.passive_with_focus(focus);
-                    let effect = match front_orb.orb_type {
-                        crate::orbs::OrbType::Lightning => crate::orbs::PassiveEffect::LightningDamage(val),
-                        crate::orbs::OrbType::Frost => crate::orbs::PassiveEffect::FrostBlock(val),
-                        crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(val),
-                        _ => crate::orbs::PassiveEffect::None,
-                    };
-                    self.apply_passive_effect(effect);
-                }
+                self.apply_orb_impulse_passives();
+            }
+        }
+
+        // Collect: add Miracle cards to hand before draw, matching Java onEnergyRecharge timing.
+        {
+            let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
+            if miracles > 0 {
+                self.add_temp_cards_to_hand("Miracle", miracles);
+                self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
             }
         }
 
@@ -1139,15 +1137,6 @@ impl CombatEngine {
             let foresight = self.state.player.status(sid::FORESIGHT);
             if foresight > 0 {
                 self.do_scry(foresight);
-            }
-        }
-
-        // Collect: add Miracle cards to hand (one-shot, set on previous turn)
-        {
-            let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
-            if miracles > 0 {
-                self.add_temp_cards_to_hand("Miracle", miracles);
-                self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
             }
         }
 
@@ -2699,8 +2688,7 @@ impl CombatEngine {
         }
     }
 
-    /// Trigger orb end-of-turn passives and apply their effects.
-    fn apply_orb_end_of_turn(&mut self) {
+    fn apply_all_orb_end_of_turn_passives(&mut self) {
         if !self.state.orb_slots.has_orbs() {
             return;
         }
@@ -2714,6 +2702,14 @@ impl CombatEngine {
         }
     }
 
+    /// Trigger orb end-of-turn passives and apply their effects.
+    fn apply_orb_end_of_turn(&mut self) {
+        self.apply_all_orb_end_of_turn_passives();
+        if self.state.has_relic("Cables") {
+            self.apply_front_orb_end_of_turn_passive();
+        }
+    }
+
     /// Trigger orb start-of-turn passives (Plasma) and apply their effects.
     fn apply_orb_start_of_turn(&mut self) {
         if !self.state.orb_slots.has_orbs() {
@@ -2722,6 +2718,54 @@ impl CombatEngine {
         let effects = self.state.orb_slots.trigger_start_of_turn_passives();
         for effect in effects {
             self.apply_passive_effect(effect);
+        }
+    }
+
+    fn apply_front_orb_start_of_turn_passive(&mut self) {
+        if self.state.orb_slots.occupied_count() == 0 {
+            return;
+        }
+        let front_orb = &self.state.orb_slots.slots[0];
+        let effect = match front_orb.orb_type {
+            crate::orbs::OrbType::Plasma => crate::orbs::PassiveEffect::PlasmaEnergy(front_orb.base_passive),
+            _ => crate::orbs::PassiveEffect::None,
+        };
+        self.apply_passive_effect(effect);
+    }
+
+    fn apply_front_orb_end_of_turn_passive(&mut self) {
+        if self.state.orb_slots.occupied_count() == 0 {
+            return;
+        }
+        let focus = self.state.player.focus();
+        let effect = {
+            let front_orb = &mut self.state.orb_slots.slots[0];
+            match front_orb.orb_type {
+                crate::orbs::OrbType::Lightning => {
+                    crate::orbs::PassiveEffect::LightningDamage(front_orb.passive_with_focus(focus))
+                }
+                crate::orbs::OrbType::Frost => {
+                    crate::orbs::PassiveEffect::FrostBlock(front_orb.passive_with_focus(focus))
+                }
+                crate::orbs::OrbType::Dark => {
+                    front_orb.evoke_amount += front_orb.passive_with_focus(focus);
+                    crate::orbs::PassiveEffect::None
+                }
+                _ => crate::orbs::PassiveEffect::None,
+            }
+        };
+        self.apply_passive_effect(effect);
+    }
+
+    fn apply_orb_impulse_passives(&mut self) {
+        if !self.state.orb_slots.has_orbs() {
+            return;
+        }
+        self.apply_orb_start_of_turn();
+        self.apply_all_orb_end_of_turn_passives();
+        if self.state.has_relic("Cables") {
+            self.apply_front_orb_start_of_turn_passive();
+            self.apply_front_orb_end_of_turn_passive();
         }
     }
 

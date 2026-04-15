@@ -281,7 +281,15 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
     let x_value = if card.cost == -1 {
         let x = engine.state.energy;
-        engine.state.energy = 0;
+        let x_is_free = card_inst.is_free()
+            || (card.card_type == CardType::Attack
+                && engine.state.player.status(sid::NEXT_ATTACK_FREE) > 0)
+            || (card.card_type == CardType::Skill
+                && engine.state.player.status(sid::CORRUPTION) > 0)
+            || engine.state.player.status(sid::BULLET_TIME) > 0;
+        if !x_is_free {
+            engine.state.energy = 0;
+        }
         x + if engine.state.has_relic("Chemical X") || engine.state.has_relic("ChemicalX") {
             2
         } else {

@@ -309,6 +309,8 @@ pub struct RunState {
     pub combats_won: i32,
     pub elites_killed: i32,
     pub bosses_killed: i32,
+    #[serde(default = "default_purge_cost")]
+    pub purge_cost: i32,
 
     // Run outcome
     pub run_won: bool,
@@ -321,6 +323,10 @@ pub struct RunState {
     // Canonical owner-aware runtime state that persists across combats.
     #[serde(default)]
     pub persisted_effect_states: Vec<crate::effects::runtime::PersistedEffectState>,
+}
+
+fn default_purge_cost() -> i32 {
+    75
 }
 
 impl RunState {
@@ -369,6 +375,7 @@ impl RunState {
             combats_won: 0,
             elites_killed: 0,
             bosses_killed: 0,
+            purge_cost: default_purge_cost(),
             run_won: false,
             run_over: false,
             relic_flags,
@@ -507,6 +514,21 @@ pub struct RunEngine {
 }
 
 impl RunEngine {
+    fn compute_shop_remove_price(&self) -> i32 {
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::SMILING_MASK) {
+            return 50;
+        }
+
+        let mut remove_price = self.run_state.purge_cost;
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER) {
+            remove_price = ((remove_price as f32) * 0.8).round() as i32;
+        }
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+            remove_price = ((remove_price as f32) * 0.5).round() as i32;
+        }
+        remove_price
+    }
+
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
         let map = generate_map(seed, ascension);
@@ -2513,15 +2535,7 @@ impl RunEngine {
             cards.push((card.to_string(), final_price));
         }
 
-        let mut remove_price = 75 + (self.run_state.combats_won as i32 * 25);
-        // Smiling Mask: card removal always costs 50g
-        if self.run_state.relic_flags.has(crate::relic_flags::flag::SMILING_MASK) {
-            remove_price = 50;
-        }
-        // Membership Card discount on removal too
-        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
-            remove_price /= 2;
-        }
+        let remove_price = self.compute_shop_remove_price();
 
         self.current_shop = Some(ShopState {
             cards,
@@ -2574,7 +2588,10 @@ impl RunEngine {
                 if let Some(price) = remove_price {
                     self.run_state.gold -= price;
                     self.remove_master_deck_card(*idx);
+                    self.run_state.purge_cost += 25;
+                    let next_remove_price = self.compute_shop_remove_price();
                     if let Some(shop) = self.current_shop.as_mut() {
+                        shop.remove_price = next_remove_price;
                         shop.removal_used = true;
                     }
                 }
@@ -3717,6 +3734,11 @@ impl RunEngine {
         self.current_shop = Some(shop);
         self.phase = RunPhase::Shop;
         self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_enter_shop(&mut self) {
+        self.enter_shop();
     }
 
     #[cfg(test)]

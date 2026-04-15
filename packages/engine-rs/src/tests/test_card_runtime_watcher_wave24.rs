@@ -10,7 +10,10 @@ use crate::cards::global_registry;
 use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_with, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::tests::support::{
+    end_turn, enemy_no_intent, engine_with, engine_without_start, force_player_turn, hand_count,
+    make_deck, make_deck_n, play_self,
+};
 
 #[test]
 fn watcher_wave24_registry_exports_match_typed_surface() {
@@ -130,6 +133,50 @@ fn watcher_wave24_collect_and_fasting_follow_typed_effect_data() {
     assert_eq!(fasting_plus.state.player.status(sid::STRENGTH), 4);
     assert_eq!(fasting_plus.state.player.status(sid::DEXTERITY), 4);
     assert_eq!(fasting_plus.state.max_energy, 2);
+}
+
+#[test]
+fn watcher_wave24_collect_plus_free_uses_x_without_spending_energy() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 2;
+    engine.state.hand = vec![engine.card_registry.make_card("Collect+").set_free(true)];
+
+    assert!(play_self(&mut engine, "Collect+"));
+
+    assert_eq!(engine.state.energy, 2);
+    assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 3);
+}
+
+#[test]
+fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    let mut retained = make_deck_n("Defend_P", 9);
+    for card in &mut retained {
+        card.set_retained(true);
+    }
+    engine.state.hand = retained;
+    engine.state.draw_pile = make_deck(&["Strike_P"]);
+    engine.state.player.set_status(sid::COLLECT_MIRACLES, 1);
+
+    end_turn(&mut engine);
+
+    assert_eq!(hand_count(&engine, "Miracle"), 1);
+    assert_eq!(hand_count(&engine, "Strike_P"), 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.draw_pile[0].def_id),
+        "Strike_P"
+    );
 }
 
 #[test]
