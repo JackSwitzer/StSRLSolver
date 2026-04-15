@@ -77,8 +77,8 @@ Fresh audit framing:
 
 - supported-scope gameplay blockers: `0`
 - unsupported blocked event branches still present in source: `1` (`Scrap Ooze`)
-- total ignored tests still present in `src/tests`: `79`
-- ignored-test classified buckets: `26` active parity blockers, `37` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
+- total ignored tests still present in `src/tests`: `78`
+- ignored-test classified buckets: `25` active parity blockers, `37` stale solved/noisy, `11` post-merge enhancements, `4` cleanup-only/accounting, `1` unsupported
 - `Match and Keep!` is now temporarily routed through the canonical event reward runtime as a fixed `Rushdown+` / `Adaptation+` reward; it is no longer unsupported-source debt, but it remains approximation debt until the Java minigame lands
 - the remaining live semantic debt is now concentrated in `Neow` start/action-layer fidelity, potion legality/choose-one edges, `Emotion Chip` timing, `Scrap Ooze`, the temporary `Match and Keep!` minigame approximation, and the post-merge enhancement tail documented in [`INCONSISTENCY_REPORT.md`](./INCONSISTENCY_REPORT.md)
 
@@ -260,7 +260,7 @@ The active endgame work is now audit-first rather than primitive-first:
 
 These are the currently verified remaining behavior clusters:
 
-- `Neow` start/action-layer exposure plus `Neow's Lament`
+- `Neow` start/action-layer exposure
 - potion legality / choose-one edges
 - orb timing / `Emotion Chip`
 - unsupported event debt: `Scrap Ooze` and eventual full `Match and Keep!` minigame fidelity

@@ -112,6 +112,7 @@ pub mod mark_of_pain;
 // Combat-start: other
 // ===========================================================================
 pub mod pantograph;
+pub mod neows_lament;
 
 // ===========================================================================
 // Complex relics (use complex_hook or stub-only)
@@ -277,6 +278,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &mark_of_pain::DEF,
     // Combat-start: other
     &pantograph::DEF,
+    &neows_lament::DEF,
     // Complex relics
     &pen_nib::DEF,
     // Turn-start relics

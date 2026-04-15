@@ -39,7 +39,7 @@ Fresh verification completed during this audit:
   - `test_card_runtime_defect_wave12` `3 passed, 3 ignored`
   - `test_card_runtime_colorless_wave8` `4 passed, 1 ignored`
   - `test_potion_runtime_wave8` `4 passed, 2 ignored`
-  - `test_relic_runtime_wave17` `0 passed, 1 ignored`
+  - `test_relic_runtime_wave17` `2 passed`
 
 Conclusion:
 
@@ -51,7 +51,7 @@ Priority task queue from this audit:
 
 1. Clean stale solved `#[ignore]` tests so the backlog is honest.
 2. Keep PR/docs explicit that `Scrap Ooze` remains unsupported and that `Match and Keep!` is currently a temporary fixed-card approximation rather than the Java minigame.
-3. If the stronger all-content claim is needed now, finish the remaining semantic families in section 6 first: `Neow`, potion legality / choose-one, `Emotion Chip`, `Scrap Ooze`, and full `Match and Keep!`.
+3. If the stronger all-content claim is needed now, finish the remaining semantic families in section 6 first: `Neow` action-layer, potion legality / choose-one, `Emotion Chip`, `Scrap Ooze`, and full `Match and Keep!`.
 4. After merge readiness is settled, pivot to training-system redesign with the appendix recommendations in section 7.
 
 ## 2. Quantified Baseline
@@ -63,11 +63,11 @@ Current live counts from the verified tree:
 - unresolved public gameplay-gap files: `0`
 - blocked supported event ops: `0`
 - unsupported blocked event branches still present in source: `1`
-- total ignored tests in `packages/engine-rs/src/tests`: `79`
+- total ignored tests in `packages/engine-rs/src/tests`: `78`
 
 Ignored-test bucket totals from the full classifier pass:
 
-- `26` confirmed active parity blockers
+- `25` confirmed active parity blockers
 - `37` stale solved / obsolete noisy tests
 - `11` post-merge enhancements
 - `4` cleanup-only shell/accounting lines
@@ -261,8 +261,8 @@ These are real Java-cited semantic families, but they do not currently block a s
 - Confidence: high
 - Scope: post-merge
 - Evidence: [`test_relic_runtime_wave17.rs`](./src/tests/test_relic_runtime_wave17.rs), [`src/tests/test_run_parity.rs`](./src/tests/test_run_parity.rs), [`src/status_ids.rs:214`](./src/status_ids.rs#L214), Java oracle files `NeowsLament.java`, `NeowEvent.java`, `NeowReward.java`
-- Problem: `Neow's Lament` / `NeowsBlessing` combat-start HP reduction remains blocked, and the run action layer still starts post-Neow instead of exposing a real four-option start decision surface for bots.
-- Recommended fix: add a real `Neow` run/start phase that always exposes four choices for the RL surface, then back the `NeowsBlessing` reward path with a runtime-complete combat-start relic implementation.
+- Problem: the run action layer still starts post-Neow instead of exposing a real four-option start decision surface for bots.
+- Recommended fix: add a real `Neow` run/start phase that always exposes four choices for the RL surface.
 - Test mapping: `test_relic_runtime_wave17`, `test_run_parity`, follow-up `test_rl_contract`
 - Worker slice: Neow start/action-layer family
 
