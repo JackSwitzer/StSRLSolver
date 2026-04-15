@@ -47,19 +47,16 @@ final class AppState {
     }
 
     func loadArtifacts() async {
-        async let manifest = ManifestLoader.load(from: config.logsPath)
-        async let frontier = FrontierReportLoader.load(from: config.logsPath)
-        async let benchmarkReports = BenchmarkReportLoader.loadAll(from: config.logsPath)
-        async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: config.logsPath)
-        async let events = EventStreamLoader.load(from: config.logsPath)
-        async let metrics = MetricStreamLoader.load(from: config.logsPath)
+        let bundle = await MonitorArtifactLoader.load(from: config.logsPath)
 
-        store.runManifest = await manifest
-        store.frontierReport = await frontier
-        store.benchmarkReports = await benchmarkReports
-        store.artifactEpisodes = await artifactEpisodes
-        store.eventStream = await events
-        store.metricStream = await metrics
+        store.runManifest = bundle.manifest
+        store.frontierReport = bundle.frontier
+        store.seedValidationReports = bundle.seedValidationReports
+        store.checkpointComparisons = bundle.checkpointComparisons
+        store.benchmarkReports = bundle.benchmarkReports
+        store.artifactEpisodes = bundle.artifactEpisodes
+        store.eventStream = bundle.events
+        store.metricStream = bundle.metricStream
 
         if selectedArtifactEpisode == nil, let first = store.artifactEpisodes.first {
             selectedArtifactEpisode = first

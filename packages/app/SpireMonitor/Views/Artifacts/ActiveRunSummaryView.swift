@@ -6,6 +6,10 @@ struct ActiveRunSummaryView: View {
     let latestMetric: TrainingMetricRecord?
     let frontierReport: FrontierReportArtifact?
     let benchmarkReport: BenchmarkReportArtifact?
+    let seedValidationReport: SeedValidationReportArtifact?
+    let checkpointComparison: SeedValidationComparisonArtifact?
+    let seedValidationReportCount: Int
+    let checkpointComparisonCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -81,6 +85,19 @@ struct ActiveRunSummaryView: View {
                     title: "Benchmark Slices",
                     value: "\(benchmarkReport?.slices.count ?? 0)",
                     subtitle: benchmarkReport?.manifest?.benchmarkConfig ?? "No benchmark"
+                )
+            }
+
+            HStack(spacing: 12) {
+                smallArtifactStat(
+                    title: "Seed Validation",
+                    value: "\(seedValidationReportCount)",
+                    subtitle: seedValidationReport?.displayName ?? "seed_validation_report.json"
+                )
+                smallArtifactStat(
+                    title: "PUCT Comparisons",
+                    value: "\(checkpointComparisonCount)",
+                    subtitle: checkpointComparison?.subtitle ?? "checkpoint comparison stream"
                 )
             }
         }

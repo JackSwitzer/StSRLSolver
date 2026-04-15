@@ -4,6 +4,8 @@ import Foundation
 final class DataStore {
     var runManifest: TrainingRunArtifactManifest?
     var frontierReport: FrontierReportArtifact?
+    var seedValidationReports: [LocatedSeedValidationReport] = []
+    var checkpointComparisons: [LocatedSeedValidationComparison] = []
     var benchmarkReports: [LocatedBenchmarkReport] = []
     var artifactEpisodes: [LocatedEpisodeLog] = []
     var eventStream: [TrainingEventRecord] = []
@@ -25,6 +27,14 @@ final class DataStore {
 
     var currentBenchmarkReport: BenchmarkReportArtifact? {
         benchmarkReports.first?.report
+    }
+
+    var currentSeedValidationReport: SeedValidationReportArtifact? {
+        seedValidationReports.first?.report
+    }
+
+    var currentCheckpointComparison: SeedValidationComparisonArtifact? {
+        checkpointComparisons.first?.report
     }
 
     var currentFrontierRanking: [FrontierPointArtifact] {

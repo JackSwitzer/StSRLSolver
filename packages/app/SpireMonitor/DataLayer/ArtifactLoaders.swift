@@ -30,6 +30,32 @@ enum FrontierReportLoader {
     }
 }
 
+enum SeedValidationReportLoader {
+    static func loadAll(from logsURL: URL) async -> [LocatedSeedValidationReport] {
+        let urls = candidateJSONFiles(namedPrefix: "seed_validation_report", under: logsURL)
+        return urls.compactMap { url in
+            guard let report = ArtifactDecoder.decode(SeedValidationReportArtifact.self, from: url) else {
+                return nil
+            }
+            return LocatedSeedValidationReport(url: url, report: report)
+        }
+        .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+    }
+}
+
+enum SeedCheckpointComparisonLoader {
+    static func loadAll(from logsURL: URL) async -> [LocatedSeedValidationComparison] {
+        let urls = candidateJSONFiles(namedPrefix: "checkpoint_comparison", under: logsURL)
+        return urls.compactMap { url in
+            guard let report = ArtifactDecoder.decode(SeedValidationComparisonArtifact.self, from: url) else {
+                return nil
+            }
+            return LocatedSeedValidationComparison(url: url, report: report)
+        }
+        .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+    }
+}
+
 enum BenchmarkReportLoader {
     static func loadAll(from logsURL: URL) async -> [LocatedBenchmarkReport] {
         let urls = candidateJSONFiles(namedPrefix: "benchmark_report", under: logsURL)
@@ -40,6 +66,41 @@ enum BenchmarkReportLoader {
             return LocatedBenchmarkReport(url: url, report: report)
         }
         .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+    }
+}
+
+struct LoadedArtifactBundle {
+    let manifest: TrainingRunArtifactManifest?
+    let frontier: FrontierReportArtifact?
+    let seedValidationReports: [LocatedSeedValidationReport]
+    let checkpointComparisons: [LocatedSeedValidationComparison]
+    let benchmarkReports: [LocatedBenchmarkReport]
+    let artifactEpisodes: [LocatedEpisodeLog]
+    let events: [TrainingEventRecord]
+    let metricStream: [TrainingMetricRecord]
+}
+
+enum MonitorArtifactLoader {
+    static func load(from logsURL: URL) async -> LoadedArtifactBundle {
+        async let manifest = ManifestLoader.load(from: logsURL)
+        async let frontier = FrontierReportLoader.load(from: logsURL)
+        async let seedValidationReports = SeedValidationReportLoader.loadAll(from: logsURL)
+        async let checkpointComparisons = SeedCheckpointComparisonLoader.loadAll(from: logsURL)
+        async let benchmarkReports = BenchmarkReportLoader.loadAll(from: logsURL)
+        async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: logsURL)
+        async let events = EventStreamLoader.load(from: logsURL)
+        async let metricStream = MetricStreamLoader.load(from: logsURL)
+
+        return await LoadedArtifactBundle(
+            manifest: manifest,
+            frontier: frontier,
+            seedValidationReports: seedValidationReports,
+            checkpointComparisons: checkpointComparisons,
+            benchmarkReports: benchmarkReports,
+            artifactEpisodes: artifactEpisodes,
+            events: events,
+            metricStream: metricStream
+        )
     }
 }
 

@@ -13,7 +13,17 @@ struct ArtifactAnalysisView: View {
                     latestEvent: store.latestEvent,
                     latestMetric: store.latestMetric,
                     frontierReport: store.frontierReport,
-                    benchmarkReport: store.currentBenchmarkReport
+                    benchmarkReport: store.currentBenchmarkReport,
+                    seedValidationReport: store.currentSeedValidationReport,
+                    checkpointComparison: store.currentCheckpointComparison,
+                    seedValidationReportCount: store.seedValidationReports.count,
+                    checkpointComparisonCount: store.checkpointComparisons.count
+                )
+                .padding(.horizontal, 16)
+
+                SeedValidationReportView(
+                    seedValidationReports: store.seedValidationReports,
+                    checkpointComparisons: store.checkpointComparisons
                 )
                 .padding(.horizontal, 16)
 

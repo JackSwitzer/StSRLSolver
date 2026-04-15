@@ -48,6 +48,52 @@ enum JSONValue: Codable, Hashable {
         }
     }
 
+    var stringValue: String? {
+        if case let .string(value) = self {
+            return value
+        }
+        return nil
+    }
+
+    var numberValue: Double? {
+        if case let .number(value) = self {
+            return value
+        }
+        return nil
+    }
+
+    var doubleValue: Double? {
+        switch self {
+        case .number(let value):
+            return value
+        case .string(let value):
+            return Double(value)
+        default:
+            return nil
+        }
+    }
+
+    var boolValue: Bool? {
+        if case let .bool(value) = self {
+            return value
+        }
+        return nil
+    }
+
+    var objectValue: [String: JSONValue]? {
+        if case let .object(value) = self {
+            return value
+        }
+        return nil
+    }
+
+    var arrayValue: [JSONValue]? {
+        if case let .array(value) = self {
+            return value
+        }
+        return nil
+    }
+
     var displayString: String {
         switch self {
         case .string(let value):
@@ -347,4 +393,366 @@ struct LocatedEpisodeLog: Identifiable {
     let episode: ArtifactEpisodeLog
 
     var id: String { "\(url.path())#\(episode.id)" }
+}
+
+private extension Dictionary where Key == String, Value == JSONValue {
+    func value(forKeys keys: [String]) -> JSONValue? {
+        for key in keys {
+            if let value = self[key] {
+                return value
+            }
+        }
+        return nil
+    }
+
+    func stringValue(forKeys keys: [String]) -> String? {
+        value(forKeys: keys)?.stringValue
+    }
+
+    func intValue(forKeys keys: [String]) -> Int? {
+        value(forKeys: keys)?.intValue
+    }
+
+    func doubleValue(forKeys keys: [String]) -> Double? {
+        value(forKeys: keys)?.doubleValue
+    }
+
+    func objectValue(forKeys keys: [String]) -> [String: JSONValue]? {
+        value(forKeys: keys)?.objectValue
+    }
+
+    func arrayValue(forKeys keys: [String]) -> [JSONValue]? {
+        value(forKeys: keys)?.arrayValue
+    }
+
+    func stringArray(forKeys keys: [String]) -> [String] {
+        arrayValue(forKeys: keys)?.compactMap(\.stringValue) ?? []
+    }
+}
+
+private extension JSONValue {
+    var intValue: Int? {
+        switch self {
+        case .number(let value) where value.rounded() == value:
+            return Int(value)
+        case .string(let value):
+            return Int(value)
+        default:
+            return nil
+        }
+    }
+}
+
+private extension Array where Element == Double {
+    var medianValue: Double? {
+        guard !isEmpty else { return nil }
+        let values = sorted()
+        let mid = values.count / 2
+        if values.count.isMultiple(of: 2) {
+            return (values[mid - 1] + values[mid]) / 2
+        }
+        return values[mid]
+    }
+
+    func percentile(_ percentile: Double) -> Double? {
+        guard !isEmpty else { return nil }
+        let clamped = Swift.max(0, Swift.min(1, percentile))
+        let values = sorted()
+        let index = Int(round((Double(values.count) - 1) * clamped))
+        return values[Swift.min(Swift.max(index, 0), values.count - 1)]
+    }
+
+    var standardDeviation: Double? {
+        guard count > 1 else { return 0 }
+        let mean = reduce(0, +) / Double(count)
+        let variance = reduce(0) { $0 + pow($1 - mean, 2) } / Double(count - 1)
+        return sqrt(variance)
+    }
+}
+
+struct PUCTStopReasonArtifact: Identifiable {
+    let reason: String
+    let count: Int?
+    let examples: [String]
+    let note: String?
+
+    var id: String { reason }
+
+    init(reason: String, count: Int?, examples: [String] = [], note: String? = nil) {
+        self.reason = reason
+        self.count = count
+        self.examples = examples
+        self.note = note
+    }
+
+    init?(payload: [String: JSONValue]) {
+        let reason = payload.stringValue(forKeys: ["reason", "name", "label", "stop_reason", "stopReason"]) ?? ""
+        guard !reason.isEmpty else { return nil }
+        self.reason = reason
+        self.count = payload.intValue(forKeys: ["count", "total", "occurrences", "n", "value"])
+        self.examples = payload.stringArray(forKeys: ["examples", "sample_seeds", "seed_examples", "seeds"])
+        self.note = payload.stringValue(forKeys: ["note", "description", "details"])
+    }
+
+    var title: String {
+        if let count {
+            return "\(reason) · \(count)"
+        }
+        return reason
+    }
+}
+
+struct PUCTStabilityArtifact {
+    let label: String
+    let mean: Double?
+    let minimum: Double?
+    let maximum: Double?
+    let stdDev: Double?
+    let median: Double?
+    let p95: Double?
+    let sampleCount: Int?
+
+    init(label: String, payload: [String: JSONValue]) {
+        self.label = label
+        self.mean = payload.doubleValue(forKeys: ["mean", "avg", "average", "value"])
+        self.minimum = payload.doubleValue(forKeys: ["min", "minimum", "low"])
+        self.maximum = payload.doubleValue(forKeys: ["max", "maximum", "high"])
+        self.stdDev = payload.doubleValue(forKeys: ["std_dev", "stdDev", "stdev", "std", "sigma"])
+        self.median = payload.doubleValue(forKeys: ["median", "p50"])
+        self.p95 = payload.doubleValue(forKeys: ["p95", "p_95", "percentile95"])
+        self.sampleCount = payload.intValue(forKeys: ["sample_count", "samples", "count", "n"])
+    }
+
+    init?(label: String, samples: [Double]) {
+        guard !samples.isEmpty else { return nil }
+        self.label = label
+        self.mean = samples.reduce(0, +) / Double(samples.count)
+        self.minimum = samples.min()
+        self.maximum = samples.max()
+        self.stdDev = samples.standardDeviation
+        self.median = samples.medianValue
+        self.p95 = samples.percentile(0.95)
+        self.sampleCount = samples.count
+    }
+
+    var summaryText: String {
+        var pieces: [String] = []
+        if let mean {
+            pieces.append("mean \(Fmt.decimal(mean, places: 2))")
+        }
+        if let stdDev {
+            pieces.append("sd \(Fmt.decimal(stdDev, places: 2))")
+        }
+        if let minimum, let maximum {
+            pieces.append("range \(Fmt.decimal(minimum, places: 0))-\(Fmt.decimal(maximum, places: 0))")
+        }
+        if let sampleCount {
+            pieces.append("\(sampleCount) samples")
+        }
+        return pieces.joined(separator: " · ")
+    }
+}
+
+struct SeedValidationSeedArtifact: Identifiable {
+    let seed: String
+    let checkpoint: String?
+    let stopReason: String?
+    let rootVisits: Int?
+    let frontierWidth: Int?
+    let note: String?
+
+    var id: String { "\(checkpoint ?? "current")-\(seed)" }
+
+    init?(payload: [String: JSONValue]) {
+        let seed = payload.stringValue(forKeys: ["seed", "seed_id", "seedString", "seed_string", "label"]) ?? ""
+        guard !seed.isEmpty else { return nil }
+        self.seed = seed
+        self.checkpoint = payload.stringValue(forKeys: ["checkpoint", "checkpoint_name", "checkpoint_id", "from_checkpoint"])
+        self.stopReason = payload.stringValue(forKeys: ["stop_reason", "stopReason", "reason", "termination_reason"])
+        self.rootVisits = payload.intValue(forKeys: ["root_visits", "rootVisits", "visits", "visit_count"])
+        self.frontierWidth = payload.intValue(forKeys: ["frontier_width", "frontierWidth", "frontier_size", "frontier_count", "frontier"])
+        self.note = payload.stringValue(forKeys: ["note", "description", "details"])
+    }
+
+    var subtitle: String {
+        var pieces: [String] = []
+        if let checkpoint { pieces.append(checkpoint) }
+        if let stopReason { pieces.append("stop \(stopReason)") }
+        if let rootVisits { pieces.append("root \(rootVisits)") }
+        if let frontierWidth { pieces.append("frontier \(frontierWidth)") }
+        return pieces.isEmpty ? "seed validation row" : pieces.joined(separator: " · ")
+    }
+}
+
+struct SeedValidationComparisonArtifact: Codable, Identifiable {
+    let fromCheckpoint: String
+    let toCheckpoint: String
+    let seed: String?
+    let seedCount: Int?
+    let stopReason: String?
+    let rootVisitDelta: Double?
+    let frontierDelta: Double?
+    let winRateDelta: Double?
+    let note: String?
+
+    var id: String { "\(fromCheckpoint)->\(toCheckpoint)-\(seed ?? "summary")" }
+
+    init(from decoder: Decoder) throws {
+        let value = try JSONValue(from: decoder)
+        guard case let .object(object) = value, let parsed = SeedValidationComparisonArtifact(payload: object) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: [], debugDescription: "invalid seed validation comparison payload")
+            )
+        }
+        self = parsed
+    }
+
+    init?(payload: [String: JSONValue]) {
+        let fromCheckpoint = payload.stringValue(forKeys: ["from_checkpoint", "baseline_checkpoint", "checkpoint_a", "left_checkpoint"]) ?? ""
+        let toCheckpoint = payload.stringValue(forKeys: ["to_checkpoint", "candidate_checkpoint", "checkpoint_b", "right_checkpoint"]) ?? ""
+        guard !fromCheckpoint.isEmpty || !toCheckpoint.isEmpty else { return nil }
+        self.fromCheckpoint = fromCheckpoint.isEmpty ? "baseline" : fromCheckpoint
+        self.toCheckpoint = toCheckpoint.isEmpty ? "candidate" : toCheckpoint
+        self.seed = payload.stringValue(forKeys: ["seed", "seed_id", "seed_string"])
+        self.seedCount = payload.intValue(forKeys: ["seed_count", "seeds", "sample_count", "samples"])
+        self.stopReason = payload.stringValue(forKeys: ["stop_reason", "reason", "termination_reason"])
+        self.rootVisitDelta = payload.doubleValue(forKeys: ["root_visit_delta", "visit_delta", "root_delta"])
+        self.frontierDelta = payload.doubleValue(forKeys: ["frontier_delta", "frontier_width_delta", "frontier_change"])
+        self.winRateDelta = payload.doubleValue(forKeys: ["win_rate_delta", "solve_rate_delta", "rate_delta"])
+        self.note = payload.stringValue(forKeys: ["note", "description", "details"])
+    }
+
+    var subtitle: String {
+        var pieces: [String] = ["\(fromCheckpoint) → \(toCheckpoint)"]
+        if let seed { pieces.append(seed) }
+        if let seedCount { pieces.append("\(seedCount) seeds") }
+        return pieces.joined(separator: " · ")
+    }
+}
+
+struct SeedValidationReportArtifact: Decodable {
+    let payload: [String: JSONValue]
+
+    init(from decoder: Decoder) throws {
+        let value = try JSONValue(from: decoder)
+        guard case let .object(object) = value else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: [], debugDescription: "seed validation report must be a JSON object")
+            )
+        }
+        payload = object
+    }
+
+    var suiteName: String? {
+        payload.stringValue(forKeys: ["suite_name", "suiteName", "name", "validation_suite", "suite"])
+    }
+
+    var generatedAt: String? {
+        payload.stringValue(forKeys: ["generated_at", "generatedAt", "timestamp", "created_at"])
+    }
+
+    var checkpoint: String? {
+        payload.stringValue(forKeys: ["checkpoint", "checkpoint_name", "checkpoint_id", "current_checkpoint"])
+    }
+
+    var benchmarkConfig: String? {
+        payload.stringValue(forKeys: ["benchmark_config", "benchmarkConfig", "config", "profile"])
+    }
+
+    var seedCount: Int? {
+        payload.intValue(forKeys: ["seed_count", "seeds_total", "total_seeds", "count"])
+    }
+
+    var validatedSeedCount: Int? {
+        payload.intValue(forKeys: ["validated_seeds", "validated_count", "samples", "cases"])
+    }
+
+    var passedSeedCount: Int? {
+        payload.intValue(forKeys: ["passed_seeds", "pass_count", "passed"])
+    }
+
+    var failedSeedCount: Int? {
+        payload.intValue(forKeys: ["failed_seeds", "fail_count", "failed"])
+    }
+
+    var seedRows: [SeedValidationSeedArtifact] {
+        guard let values = payload.arrayValue(forKeys: ["seeds", "seed_rows", "cases", "results"]) else { return [] }
+        return values.compactMap { value in
+            guard case let .object(object) = value else { return nil }
+            return SeedValidationSeedArtifact(payload: object)
+        }
+    }
+
+    var checkpointComparisons: [SeedValidationComparisonArtifact] {
+        guard let values = payload.arrayValue(forKeys: ["checkpoint_comparisons", "comparisons", "checkpointComparison", "checkpoint_pairs"]) else { return [] }
+        return values.compactMap { value in
+            guard case let .object(object) = value else { return nil }
+            return SeedValidationComparisonArtifact(payload: object)
+        }
+    }
+
+    var stopReasons: [PUCTStopReasonArtifact] {
+        if let reasons = payload.objectValue(forKeys: ["stop_reason_counts", "stopReasonsCounts", "stop_reason_counts_by_reason"]) {
+            return reasons
+                .compactMap { key, value in
+                    PUCTStopReasonArtifact(
+                        reason: key,
+                        count: value.intValue,
+                        examples: value.arrayValue?.compactMap(\.stringValue) ?? [],
+                        note: nil
+                    )
+                }
+                .sorted { lhs, rhs in
+                    (lhs.count ?? 0) > (rhs.count ?? 0)
+                }
+        }
+
+        if !seedRows.isEmpty {
+            let counts = Dictionary(grouping: seedRows.compactMap(\.stopReason), by: { $0 })
+                .mapValues(\.count)
+            return counts
+                .map { PUCTStopReasonArtifact(reason: $0.key, count: $0.value) }
+                .sorted { lhs, rhs in
+                    (lhs.count ?? 0) > (rhs.count ?? 0)
+                }
+        }
+
+        return []
+    }
+
+    var rootVisitStability: PUCTStabilityArtifact? {
+        if let payload = payload.objectValue(forKeys: ["root_visit_stability", "rootVisits", "root_visits", "root_visit_stats"]) {
+            return PUCTStabilityArtifact(label: "Root Visits", payload: payload)
+        }
+
+        let samples = seedRows.compactMap(\.rootVisits).map(Double.init)
+        return PUCTStabilityArtifact(label: "Root Visits", samples: samples)
+    }
+
+    var frontierStability: PUCTStabilityArtifact? {
+        if let payload = payload.objectValue(forKeys: ["frontier_stability", "frontierWidth", "frontier_width", "frontier_stats"]) {
+            return PUCTStabilityArtifact(label: "Frontier Width", payload: payload)
+        }
+
+        let samples = seedRows.compactMap(\.frontierWidth).map(Double.init)
+        return PUCTStabilityArtifact(label: "Frontier Width", samples: samples)
+    }
+
+    var displayName: String {
+        suiteName ?? benchmarkConfig ?? "Seed Validation"
+    }
+}
+
+struct LocatedSeedValidationReport: Identifiable {
+    let url: URL
+    let report: SeedValidationReportArtifact
+
+    var id: String { url.path() }
+}
+
+struct LocatedSeedValidationComparison: Identifiable {
+    let url: URL
+    let report: SeedValidationComparisonArtifact
+
+    var id: String { url.path() }
 }
