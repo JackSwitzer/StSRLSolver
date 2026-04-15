@@ -9,19 +9,18 @@
 //! PyO3 bindings expose both engines to Python as `sts_engine`.
 
 pub mod actions;
-pub mod combat_types;
 pub mod card_effects;
 pub mod cards;
 pub mod combat_hooks;
-pub mod effects;
-pub mod ids;
-pub mod status_ids;
+pub mod combat_types;
 pub mod damage;
 pub mod decision;
+pub mod effects;
 pub mod enemies;
 pub mod engine;
 pub mod events;
 pub mod gameplay;
+pub mod ids;
 pub mod map;
 pub mod obs;
 pub mod orbs;
@@ -34,12 +33,15 @@ pub mod search;
 pub mod seed;
 pub mod state;
 pub mod status_effects;
+pub mod status_ids;
+pub mod training_contract;
 
 #[cfg(test)]
 mod tests;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3::IntoPy;
 
 // ===========================================================================
 // PyO3 module
@@ -118,7 +120,9 @@ impl CombatSolver {
     fn step(&mut self, action_id: i32) -> PyResult<(f32, bool)> {
         let action = decode_combat_action_id(action_id)?;
         if !self.engine.get_legal_actions().contains(&action) {
-            return Err(pyo3::exceptions::PyValueError::new_err("Illegal combat action"));
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Illegal combat action",
+            ));
         }
         self.engine.execute_action(&action);
         let done = self.engine.is_combat_over();
@@ -164,6 +168,18 @@ impl CombatSolver {
         self.engine.state.turn
     }
 
+    fn get_training_schema_versions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        serialize_to_py_dict(py, &training_contract::TrainingSchemaVersionsV1::default())
+    }
+
+    fn get_combat_training_state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let state = training_contract::combat_training_state_from_combat(
+            &self.engine,
+            encode_combat_action,
+        );
+        serialize_to_py_dict(py, &state)
+    }
+
     /// Deep copy for MCTS tree branching.
     fn clone_solver(&self) -> Self {
         Self {
@@ -205,7 +221,9 @@ fn encode_target_slot(target_idx: i32) -> i32 {
 
 fn decode_target_slot(encoded: i32) -> PyResult<i32> {
     if !(0..=COMBAT_TARGET_MASK).contains(&encoded) {
-        return Err(pyo3::exceptions::PyValueError::new_err("Invalid combat target encoding"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Invalid combat target encoding",
+        ));
     }
     Ok(encoded - 1)
 }
@@ -217,14 +235,16 @@ fn encode_indexed_combat_id(base: i32, idx: usize, target_idx: i32) -> i32 {
 fn decode_indexed_combat_id(action_id: i32, base: i32) -> PyResult<(usize, i32)> {
     let encoded = action_id - base;
     if encoded < 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("Invalid combat action id"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Invalid combat action id",
+        ));
     }
     let idx = (encoded >> COMBAT_INDEX_SHIFT) as usize;
     let target = decode_target_slot(encoded & COMBAT_TARGET_MASK)?;
     Ok((idx, target))
 }
 
-fn encode_combat_action(a: &crate::actions::Action) -> i32 {
+pub(crate) fn encode_combat_action(a: &crate::actions::Action) -> i32 {
     match a {
         crate::actions::Action::EndTurn => 0,
         crate::actions::Action::PlayCard {
@@ -245,7 +265,10 @@ fn decode_combat_action_id(action_id: i32) -> PyResult<crate::actions::Action> {
         0 => Ok(crate::actions::Action::EndTurn),
         id if (COMBAT_PLAY_BASE_ID..COMBAT_POTION_BASE_ID).contains(&id) => {
             let (card_idx, target_idx) = decode_indexed_combat_id(id, COMBAT_PLAY_BASE_ID)?;
-            Ok(crate::actions::Action::PlayCard { card_idx, target_idx })
+            Ok(crate::actions::Action::PlayCard {
+                card_idx,
+                target_idx,
+            })
         }
         id if (COMBAT_POTION_BASE_ID..COMBAT_CONFIRM_SELECTION_ID).contains(&id) => {
             let (potion_idx, target_idx) = decode_indexed_combat_id(id, COMBAT_POTION_BASE_ID)?;
@@ -264,6 +287,75 @@ fn decode_combat_action_id(action_id: i32) -> PyResult<crate::actions::Action> {
 
 fn decode_combat_action_id_in_run(action_id: i32) -> Option<crate::actions::Action> {
     decode_combat_action_id(action_id).ok()
+}
+
+fn parse_restriction_policy_json(
+    restriction_policy_json: Option<&str>,
+) -> PyResult<training_contract::RestrictionPolicyV1> {
+    match restriction_policy_json {
+        Some(json) if !json.trim().is_empty() => serde_json::from_str(json).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid restriction policy JSON: {err}"
+            ))
+        }),
+        _ => Ok(training_contract::RestrictionPolicyV1::default()),
+    }
+}
+
+fn json_value_to_pyobject(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
+    match value {
+        serde_json::Value::Null => Ok(py.None()),
+        serde_json::Value::Bool(boolean) => Ok(boolean.into_py(py)),
+        serde_json::Value::Number(number) => {
+            if let Some(integer) = number.as_i64() {
+                Ok(integer.into_py(py))
+            } else if let Some(unsigned) = number.as_u64() {
+                Ok(unsigned.into_py(py))
+            } else if let Some(float) = number.as_f64() {
+                Ok(float.into_py(py))
+            } else {
+                Err(pyo3::exceptions::PyValueError::new_err(
+                    "Unsupported JSON number in training contract",
+                ))
+            }
+        }
+        serde_json::Value::String(text) => Ok(text.into_py(py)),
+        serde_json::Value::Array(items) => {
+            let list = PyList::empty_bound(py);
+            for item in items {
+                list.append(json_value_to_pyobject(py, item)?)?;
+            }
+            Ok(list.into_py(py))
+        }
+        serde_json::Value::Object(map) => {
+            let dict = PyDict::new_bound(py);
+            for (key, item) in map {
+                dict.set_item(key, json_value_to_pyobject(py, item)?)?;
+            }
+            Ok(dict.into_py(py))
+        }
+    }
+}
+
+fn serialize_to_py_dict<'py, T: serde::Serialize>(
+    py: Python<'py>,
+    value: &T,
+) -> PyResult<Bound<'py, PyDict>> {
+    let json_value = serde_json::to_value(value).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to serialize training contract: {err}"
+        ))
+    })?;
+    let serde_json::Value::Object(map) = json_value else {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Serialized training contract was not a JSON object",
+        ));
+    };
+    let dict = PyDict::new_bound(py);
+    for (key, item) in map {
+        dict.set_item(key, json_value_to_pyobject(py, &item)?)?;
+    }
+    Ok(dict)
 }
 
 fn combat_choice_reason_name(reason: &crate::engine::ChoiceReason) -> &'static str {
@@ -569,9 +661,7 @@ impl StSEngine {
         }
         self.inner
             .get_combat_engine()
-            .map(|ce| CombatSolver {
-                engine: ce.clone(),
-            })
+            .map(|ce| CombatSolver { engine: ce.clone() })
     }
 
     fn get_seed(&self) -> String {
@@ -683,7 +773,9 @@ impl StSEngine {
                     combat.set_item("mantra", cs.mantra)?;
                     combat.set_item("cards_played_this_turn", cs.cards_played_this_turn)?;
 
-                    let hand_names: Vec<String> = cs.hand.iter()
+                    let hand_names: Vec<String> = cs
+                        .hand
+                        .iter()
                         .map(|c| ce.card_registry.card_name(c.def_id).to_string())
                         .collect();
                     let hand = PyList::new_bound(py, &hand_names);
@@ -697,7 +789,8 @@ impl StSEngine {
                     let statuses = PyDict::new_bound(py);
                     for (i, &val) in cs.player.statuses.iter().enumerate() {
                         if val != 0 {
-                            let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                            let name =
+                                crate::status_ids::status_name(crate::ids::StatusId(i as u16));
                             statuses.set_item(name, val as i32)?;
                         }
                     }
@@ -719,7 +812,8 @@ impl StSEngine {
                         let es = PyDict::new_bound(py);
                         for (i, &val) in e.entity.statuses.iter().enumerate() {
                             if val != 0 {
-                                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
+                                let name =
+                                    crate::status_ids::status_name(crate::ids::StatusId(i as u16));
                                 es.set_item(name, val as i32)?;
                             }
                         }
@@ -802,11 +896,7 @@ impl StSEngine {
         Ok(d)
     }
 
-    fn build_info_dict<'py>(
-        &self,
-        py: Python<'py>,
-        reward: f32,
-    ) -> PyResult<Bound<'py, PyDict>> {
+    fn build_info_dict<'py>(&self, py: Python<'py>, reward: f32) -> PyResult<Bound<'py, PyDict>> {
         let info = PyDict::new_bound(py);
         info.set_item("floor", self.inner.run_state.floor)?;
         info.set_item("hp", self.inner.run_state.current_hp)?;
@@ -824,11 +914,7 @@ impl StSEngine {
                 .inner
                 .current_decision_context()
                 .neow
-                .and_then(|neow| {
-                    neow.options
-                        .get(idx)
-                        .map(|option| option.label.clone())
-                })
+                .and_then(|neow| neow.options.get(idx).map(|option| option.label.clone()))
                 .unwrap_or_else(|| format!("neow_{}", idx));
             return ActionInfo {
                 id,
@@ -1304,8 +1390,14 @@ impl PyRunEngine {
                 .map(|action| self.encode_action(action))
                 .collect::<Vec<_>>(),
         )?;
-        dict.set_item("decision_kind", decision_kind_str(result.decision_state.kind))?;
-        dict.set_item("decision_state", build_decision_state_dict(py, &result.decision_state)?)?;
+        dict.set_item(
+            "decision_kind",
+            decision_kind_str(result.decision_state.kind),
+        )?;
+        dict.set_item(
+            "decision_state",
+            build_decision_state_dict(py, &result.decision_state)?,
+        )?;
         dict.set_item(
             "decision_context",
             build_decision_context_dict(py, &result.decision_context)?,
@@ -1336,6 +1428,108 @@ impl PyRunEngine {
 
     fn get_combat_obs_v2(&self) -> Vec<f32> {
         obs::encode_combat_state_v2(&self.inner).to_vec()
+    }
+
+    fn get_training_schema_versions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        serialize_to_py_dict(py, &training_contract::TrainingSchemaVersionsV1::default())
+    }
+
+    #[pyo3(signature = (restriction_policy_json=None))]
+    fn get_combat_training_state<'py>(
+        &self,
+        py: Python<'py>,
+        restriction_policy_json: Option<&str>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let policy = parse_restriction_policy_json(restriction_policy_json)?;
+        let state = training_contract::combat_training_state_from_run(
+            &self.inner,
+            &policy,
+            encode_combat_action,
+        )
+        .ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(
+                "Combat training state is only available during combat",
+            )
+        })?;
+        serialize_to_py_dict(py, &state)
+    }
+
+    #[pyo3(signature = (restriction_policy_json=None))]
+    fn get_restricted_legal_decision_actions(
+        &self,
+        restriction_policy_json: Option<&str>,
+    ) -> PyResult<Vec<i32>> {
+        let policy = parse_restriction_policy_json(restriction_policy_json)?;
+        Ok(
+            training_contract::restricted_legal_decision_actions(&self.inner, &policy)
+                .iter()
+                .map(|action| self.encode_action(&action.to_run_action()))
+                .collect(),
+        )
+    }
+
+    fn clone_combat_solver(&self) -> Option<CombatSolver> {
+        self.inner.get_combat_engine().map(|engine| CombatSolver {
+            engine: engine.clone(),
+        })
+    }
+
+    fn step_combat_training_action<'py>(
+        &mut self,
+        py: Python<'py>,
+        combat_action_id: i32,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        if self.inner.current_phase() != run::RunPhase::Combat {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Combat training actions can only be stepped during combat",
+            ));
+        }
+        let combat_action = decode_combat_action_id(combat_action_id)?;
+        let result = self
+            .inner
+            .step_with_result(&run::RunAction::CombatAction(combat_action));
+        let dict = PyDict::new_bound(py);
+        dict.set_item("action_id", combat_action_id)?;
+        dict.set_item("action_accepted", result.action_accepted)?;
+        dict.set_item("reward", result.reward)?;
+        dict.set_item("reward_delta", result.reward)?;
+        dict.set_item("done", result.done)?;
+        dict.set_item("terminal", result.done)?;
+        dict.set_item("phase", phase_str(result.phase))?;
+        dict.set_item(
+            "legal_actions",
+            result
+                .legal_actions
+                .iter()
+                .filter_map(|action| match action {
+                    run::RunAction::CombatAction(combat_action) => {
+                        Some(encode_combat_action(combat_action))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+        )?;
+        dict.set_item(
+            "decision_kind",
+            decision_kind_str(result.decision_state.kind),
+        )?;
+        dict.set_item(
+            "decision_state",
+            build_decision_state_dict(py, &result.decision_state)?,
+        )?;
+        dict.set_item(
+            "decision_context",
+            build_decision_context_dict(py, &result.decision_context)?,
+        )?;
+        dict.set_item(
+            "legal_decision_actions",
+            result
+                .legal_decision_actions
+                .iter()
+                .map(|action| self.encode_action(&action.to_run_action()))
+                .collect::<Vec<_>>(),
+        )?;
+        Ok(dict)
     }
 
     fn get_combat_context<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
@@ -1379,7 +1573,10 @@ impl PyRunEngine {
                 "execution",
                 record.execution.map(|execution| format!("{execution:?}")),
             )?;
-            item.set_item("card_type", record.card_type.map(|card_type| format!("{card_type:?}")))?;
+            item.set_item(
+                "card_type",
+                record.card_type.map(|card_type| format!("{card_type:?}")),
+            )?;
             item.set_item("is_first_turn", record.is_first_turn)?;
             item.set_item("target_idx", record.target_idx)?;
             item.set_item("enemy_idx", record.enemy_idx)?;
@@ -1535,15 +1732,23 @@ impl PyRunEngine {
                 crate::actions::Action::PlayCard {
                     card_idx,
                     target_idx,
-                } => COMBAT_BASE
-                    + encode_indexed_combat_id(COMBAT_PLAY_BASE_ID, *card_idx, *target_idx),
+                } => {
+                    COMBAT_BASE
+                        + encode_indexed_combat_id(COMBAT_PLAY_BASE_ID, *card_idx, *target_idx)
+                }
                 crate::actions::Action::UsePotion {
                     potion_idx,
                     target_idx,
-                } => COMBAT_BASE
-                    + encode_indexed_combat_id(COMBAT_POTION_BASE_ID, *potion_idx, *target_idx),
-                crate::actions::Action::ConfirmSelection => COMBAT_BASE + COMBAT_CONFIRM_SELECTION_ID,
-                crate::actions::Action::Choose(idx) => COMBAT_BASE + COMBAT_CHOOSE_BASE_ID + *idx as i32,
+                } => {
+                    COMBAT_BASE
+                        + encode_indexed_combat_id(COMBAT_POTION_BASE_ID, *potion_idx, *target_idx)
+                }
+                crate::actions::Action::ConfirmSelection => {
+                    COMBAT_BASE + COMBAT_CONFIRM_SELECTION_ID
+                }
+                crate::actions::Action::Choose(idx) => {
+                    COMBAT_BASE + COMBAT_CHOOSE_BASE_ID + *idx as i32
+                }
             },
         }
     }
