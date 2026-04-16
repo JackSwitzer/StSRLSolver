@@ -31,7 +31,7 @@ if [[ "${1:-}" == "launch" ]]; then
   done
 
   mkdir -p "$(dirname "$log_file")" "$(dirname "$pid_file")"
-  nohup caffeinate -dimsu uv run python -m packages.training "$@" >>"$log_file" 2>&1 &
+  nohup caffeinate -dimsu uv run python -m packages.training "$@" </dev/null >>"$log_file" 2>&1 &
   pid=$!
   printf '%s\n' "$pid" > "$pid_file"
   printf 'launched training pid=%s\nlog=%s\npid_file=%s\n' "$pid" "$log_file" "$pid_file"
