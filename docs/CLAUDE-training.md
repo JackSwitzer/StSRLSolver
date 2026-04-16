@@ -90,6 +90,10 @@ The current training stack writes:
 
 These are the supported monitoring and replay surfaces.
 
+Detailed log-shape reference:
+
+- [docs/training-log-shape.md](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/docs/training-log-shape.md:1)
+
 Artifact meanings:
 
 - `manifest.json`: run identity, git/config snapshot, and backend truth

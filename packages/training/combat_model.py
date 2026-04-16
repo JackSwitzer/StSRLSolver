@@ -445,7 +445,7 @@ class MLXCombatModel:
     @classmethod
     def from_snapshot(cls, payload: Mapping[str, Any]) -> "MLXCombatModel":
         kind = str(payload.get("kind", "mlx_policy_value_model/v1"))
-        if kind not in {"mlx_policy_value_model/v1", "linear_policy_value_model/v2", "linear_combat_model/v1"}:
+        if kind != "mlx_policy_value_model/v1":
             raise ValueError(f"unsupported checkpoint kind: {kind}")
         illegal_bias = payload.get("illegal_bias")
         return cls(

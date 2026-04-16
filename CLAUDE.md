@@ -38,6 +38,7 @@ uv run pytest tests/training -q
 ## Key Docs
 
 - `docs/CLAUDE-training.md`
+- `docs/training-log-shape.md`
 - `docs/work_units/combat-first-training-rebuild.md`
 - `docs/work_units/watcher-seed-validation-suite.md`
 

@@ -81,6 +81,10 @@ The active training stack writes artifact-first outputs:
 
 These are the supported monitor and audit surfaces for this branch.
 
+Artifact log-shape reference for Claude and SpireMonitor:
+
+- [docs/training-log-shape.md](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/docs/training-log-shape.md:1)
+
 ## External Validation Seeds
 
 The machine-readable Watcher validation suite lives in:
