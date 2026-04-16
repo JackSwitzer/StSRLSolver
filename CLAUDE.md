@@ -17,7 +17,7 @@ Use the new artifact-first training stack only:
 - `packages/engine-rs/`
   - canonical Rust engine and training contract
 - `packages/training/`
-  - combat-first corpus, reanalysis loop, manifests, frontier logging
+  - snapshot corpus generation, Rust PUCT collection, policy/value training, manifests, frontier logging
 - `packages/app/SpireMonitor/`
   - manifest/frontier/benchmark/replay monitor
 
@@ -45,5 +45,5 @@ uv run pytest tests/training -q
 
 - Watcher A0 combat first
 - artifact-first monitor output
-- synthetic-first corpus plus external validation seeds
+- mixed snapshot corpus plus reconstructed Act 1 validation seeds
 - strategic/pathing training deferred until the combat loop is stable

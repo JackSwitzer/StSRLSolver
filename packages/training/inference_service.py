@@ -1,23 +1,24 @@
-"""Phase-1 combat inference and lightweight reanalysis loop."""
+"""Combat-first inference and policy/value training helpers."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from time import perf_counter
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import numpy.typing as npt
 
-from .combat_model import CombatInferenceResult, CombatScoringModel
+from .combat_model import CombatBatchPredictions, CombatInferenceResult, CombatPolicyValueModel
 from .shared_memory import (
-    CombatSearchRequest,
     CombatPuctTargetBatch,
     CombatPuctTargetExample,
+    CombatSearchRequest,
     CombatSharedMemoryBatch,
     CombatSharedMemoryBatcher,
     SharedMemoryConfig,
 )
+from .value_targets import CombatValueTarget
 
 
 @dataclass(slots=True, frozen=True)
@@ -26,9 +27,9 @@ class CombatSearchConfig:
 
     top_k: int = 4
     require_legal_candidates: bool = True
+    puct_target_temperature: float = 1.0
     batch_timeout_ms: int = 15
     max_candidates_per_request: int = 64
-    puct_target_temperature: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -36,75 +37,50 @@ class CombatSearchConfig:
 
 @dataclass(slots=True, frozen=True)
 class TrainingConfig:
-    """Minimal phase-1 training bring-up config."""
+    """Minimal phase-1 training config."""
 
     model_backend: str = "mlx"
     shared_memory: SharedMemoryConfig = field(default_factory=SharedMemoryConfig)
     combat_search: CombatSearchConfig = field(default_factory=CombatSearchConfig)
     overnight_epochs: int = 4
-    learning_rate: float = 0.05
+    learning_rate: float = 0.01
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(slots=True, frozen=True)
-class CombatPreferenceExample:
-    """One search request plus the preferred frontier action."""
-
-    request: CombatSearchRequest
-    preferred_action_id: str
-    weight: float = 1.0
-    metadata: Mapping[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "request": self.request.to_dict(),
-            "preferred_action_id": self.preferred_action_id,
-            "weight": self.weight,
-            "metadata": dict(self.metadata),
-        }
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "CombatPreferenceExample":
-        return cls(
-            request=CombatSearchRequest.from_dict(payload["request"]),
-            preferred_action_id=str(payload["preferred_action_id"]),
-            weight=float(payload.get("weight", 1.0)),
-            metadata=dict(payload.get("metadata", {})),
-        )
-
-
-@dataclass(slots=True, frozen=True)
-class ReanalysisEpochSummary:
-    """Epoch-level metrics for the phase-1 reanalysis loop."""
-
+class PolicyValueEpochSummary:
     epoch_index: int
     example_count: int
-    chosen_preferred_count: int
-    accuracy: float
-    mean_preferred_rank: float | None
+    policy_loss: float
+    value_loss: float
     mean_frontier_size: float
-    mean_preferred_margin: float | None
-    updated_examples: int
+    mean_chosen_action_mass: float
+    updated_batches: int
     throughput_examples_per_sec: float
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-@dataclass(slots=True)
 class CombatInferenceService:
-    """Legal-candidate combat inference with batched scoring."""
+    """Legal-candidate combat inference with batched policy/value predictions."""
 
-    model: CombatScoringModel
-    config: CombatSearchConfig
-    batcher: CombatSharedMemoryBatcher
+    def __init__(
+        self,
+        model: CombatPolicyValueModel,
+        config: CombatSearchConfig,
+        batcher: CombatSharedMemoryBatcher,
+    ) -> None:
+        self.model = model
+        self.config = config
+        self.batcher = batcher
 
     @classmethod
     def build(
         cls,
-        model: CombatScoringModel,
+        model: CombatPolicyValueModel,
         config: CombatSearchConfig | None = None,
         batcher: CombatSharedMemoryBatcher | None = None,
     ) -> "CombatInferenceService":
@@ -118,89 +94,42 @@ class CombatInferenceService:
     def submit(self, request: CombatSearchRequest) -> None:
         self.batcher.submit(request)
 
-    def score_requests(
+    def predict_requests(
         self,
         requests: Sequence[CombatSearchRequest],
-    ) -> tuple[CombatSharedMemoryBatch, npt.NDArray[np.float32]]:
+    ) -> tuple[CombatSharedMemoryBatch, CombatBatchPredictions]:
         packed = self.batcher.pack(tuple(requests))
-        scores = self.model.score_batch(packed)
-        return packed, scores
+        predictions = self.model.predict_batch(packed)
+        return packed, predictions
 
-    def results_from_scores(
+    def results_from_predictions(
         self,
         packed: CombatSharedMemoryBatch,
-        scores: npt.NDArray[np.float32],
+        predictions: CombatBatchPredictions,
     ) -> list[CombatInferenceResult]:
-        return [self._result_for_row(packed, scores, row) for row in range(packed.request_count)]
+        return [self._result_for_row(packed, predictions, row) for row in range(packed.request_count)]
 
     def choose_action(self, request: CombatSearchRequest) -> CombatInferenceResult:
-        packed, scores = self.score_requests((request,))
-        return self._result_for_row(packed, scores, 0)
-
-    def build_puct_target_examples(
-        self,
-        examples: Sequence["CombatPreferenceExample"],
-        *,
-        value_targets: Sequence[float] | None = None,
-        temperature: float | None = None,
-    ) -> list[CombatPuctTargetExample]:
-        if not examples:
-            return []
-        if value_targets is not None and len(value_targets) != len(examples):
-            raise ValueError("value target count must match example count")
-
-        packed, scores = self.score_requests(tuple(example.request for example in examples))
-        results = self.results_from_scores(packed, scores)
-        target_temperature = self.config.puct_target_temperature if temperature is None else float(temperature)
-        target_examples: list[CombatPuctTargetExample] = []
-        for row, (example, result) in enumerate(zip(examples, results)):
-            metadata = dict(example.metadata)
-            metadata.setdefault("preference_weight", example.weight)
-            metadata.setdefault("frontier_width", len(result.frontier_action_ids))
-            target_examples.append(
-                CombatPuctTargetExample.from_result(
-                    example.request,
-                    result,
-                    value_target=0.0 if value_targets is None else float(value_targets[row]),
-                    chosen_action_id=example.preferred_action_id,
-                    temperature=target_temperature,
-                    sample_weight=float(example.weight),
-                    metadata=metadata,
-                )
-            )
-        return target_examples
+        packed, predictions = self.predict_requests((request,))
+        return self._result_for_row(packed, predictions, 0)
 
     def build_puct_target_batch(
         self,
-        examples: Sequence["CombatPreferenceExample"],
-        *,
-        value_targets: Sequence[float] | None = None,
-        temperature: float | None = None,
+        examples: Sequence[CombatPuctTargetExample],
     ) -> CombatPuctTargetBatch:
-        return self.batcher.pack_puct_targets(
-            self.build_puct_target_examples(
-                examples,
-                value_targets=value_targets,
-                temperature=temperature,
-            )
-        )
-
-    def reanalyze_requests(self, requests: Sequence[CombatSearchRequest]) -> list[CombatInferenceResult]:
-        if not requests:
-            return []
-        packed, scores = self.score_requests(requests)
-        return self.results_from_scores(packed, scores)
+        return self.batcher.pack_puct_targets(examples)
 
     def flush(self, limit: int | None = None) -> list[CombatInferenceResult]:
         requests = self.batcher.drain(limit)
         if not requests:
             return []
-        return self.reanalyze_requests(requests)
+        packed, predictions = self.predict_requests(requests)
+        return self.results_from_predictions(packed, predictions)
 
     def _result_for_row(
         self,
         packed: CombatSharedMemoryBatch,
-        scores: npt.NDArray[np.float32],
+        predictions: CombatBatchPredictions,
         row: int,
     ) -> CombatInferenceResult:
         eligible_mask = (
@@ -208,7 +137,7 @@ class CombatInferenceService:
             if self.config.require_legal_candidates
             else np.ones_like(packed.legal_mask[row], dtype=bool)
         )
-        row_scores = scores[row]
+        row_scores = predictions.policy_scores[row]
         if not eligible_mask.any():
             raise ValueError(f"request {packed.request_ids[row]} has no eligible candidates")
 
@@ -222,6 +151,10 @@ class CombatInferenceService:
         ranked_action_ids = frontier_action_ids[:top_k]
         ranked_scores = frontier_score_values[:top_k]
         chosen_idx = int(ranked_indices[0])
+        predicted_value = CombatValueTarget.from_vector(
+            predictions.value_head_names,
+            predictions.value_matrix[row].tolist(),
+        )
         return CombatInferenceResult(
             request_id=packed.request_ids[row],
             chosen_action_id=packed.candidate_ids[row][chosen_idx],
@@ -230,118 +163,109 @@ class CombatInferenceService:
             ranked_scores=ranked_scores,
             frontier_action_ids=frontier_action_ids,
             frontier_scores=frontier_score_values,
+            predicted_value=predicted_value,
         )
 
 
 @dataclass(slots=True)
-class OvernightReanalysisLoop:
-    """Simple epoch loop for search reanalysis and lightweight weight updates."""
+class CombatPolicyValueTrainer:
+    """Simple epoch loop for direct policy/value updates from PUCT targets."""
 
     service: CombatInferenceService
-    learning_rate: float = 0.05
+    learning_rate: float = 0.01
     batch_size: int | None = None
 
     def run_epoch(
         self,
-        examples: Sequence[CombatPreferenceExample],
+        examples: Sequence[CombatPuctTargetExample],
         *,
         epoch_index: int = 0,
         update: bool = True,
-    ) -> tuple[list[CombatInferenceResult], ReanalysisEpochSummary]:
+    ) -> PolicyValueEpochSummary:
         if not examples:
-            return [], ReanalysisEpochSummary(
+            return PolicyValueEpochSummary(
                 epoch_index=epoch_index,
                 example_count=0,
-                chosen_preferred_count=0,
-                accuracy=0.0,
-                mean_preferred_rank=None,
+                policy_loss=0.0,
+                value_loss=0.0,
                 mean_frontier_size=0.0,
-                mean_preferred_margin=None,
-                updated_examples=0,
+                mean_chosen_action_mass=0.0,
+                updated_batches=0,
                 throughput_examples_per_sec=0.0,
             )
 
         chunk_size = self.batch_size or self.service.batcher.max_batch_size
         start = perf_counter()
-        results: list[CombatInferenceResult] = []
-        chosen_preferred = 0
-        preferred_ranks: list[float] = []
+        policy_losses: list[float] = []
+        value_losses: list[float] = []
         frontier_sizes: list[float] = []
-        preferred_margins: list[float] = []
-        updated_examples = 0
+        chosen_masses: list[float] = []
+        updated_batches = 0
 
         for offset in range(0, len(examples), chunk_size):
             chunk = tuple(examples[offset : offset + chunk_size])
-            packed, scores = self.service.score_requests(tuple(example.request for example in chunk))
-            batch_results = self.service.results_from_scores(packed, scores)
+            batch = self.service.build_puct_target_batch(chunk)
+            predictions = self.service.model.predict_batch(batch)
+            frontier_sizes.extend(float(np.count_nonzero(row)) for row in batch.policy_target_mask)
+            policy_probs = self._softmax_masked(predictions.policy_scores, batch.legal_mask)
+            target_policy = np.where(batch.policy_target_mask, batch.policy_target_matrix, np.float32(0.0))
+            policy_losses.append(
+                float(
+                    -np.sum(target_policy * np.log(np.clip(policy_probs, 1e-8, 1.0)), dtype=np.float32)
+                    / np.float32(max(batch.request_count, 1))
+                )
+            )
+            value_losses.append(
+                float(
+                    np.mean((predictions.value_matrix - batch.value_target_matrix) ** 2, dtype=np.float32)
+                )
+            )
+            for row, chosen_idx in enumerate(batch.chosen_action_indices.tolist()):
+                if chosen_idx >= 0:
+                    chosen_masses.append(float(policy_probs[row, chosen_idx]))
 
-            for row, (example, result) in enumerate(zip(chunk, batch_results)):
-                results.append(result)
-                frontier_sizes.append(float(len(result.frontier_action_ids)))
-                if result.chosen_action_id == example.preferred_action_id:
-                    chosen_preferred += 1
-
-                try:
-                    preferred_rank = result.frontier_action_ids.index(example.preferred_action_id) + 1
-                except ValueError:
-                    preferred_rank = None
-
-                if preferred_rank is not None:
-                    preferred_ranks.append(float(preferred_rank))
-                    preferred_score = result.frontier_scores[preferred_rank - 1]
-                    chosen_score = result.chosen_score if result.chosen_score is not None else preferred_score
-                    preferred_margins.append(float(preferred_score - chosen_score))
-
-                if update and hasattr(self.service.model, "update_preference"):
-                    update_result = self.service.model.update_preference(
-                        packed,
-                        scores,
-                        row,
-                        example.preferred_action_id,
-                        learning_rate=self.learning_rate * example.weight,
-                    )
-                    updated_examples += int(bool(update_result.get("updated")))
+            if update:
+                update_result = self.service.model.train_puct_batch(
+                    batch,
+                    learning_rate=self.learning_rate,
+                )
+                updated_batches += int(bool(update_result.get("updated", True)))
 
         elapsed = max(perf_counter() - start, 1e-9)
-        summary = ReanalysisEpochSummary(
+        return PolicyValueEpochSummary(
             epoch_index=epoch_index,
             example_count=len(examples),
-            chosen_preferred_count=chosen_preferred,
-            accuracy=chosen_preferred / len(examples),
-            mean_preferred_rank=(sum(preferred_ranks) / len(preferred_ranks)) if preferred_ranks else None,
-            mean_frontier_size=sum(frontier_sizes) / len(frontier_sizes),
-            mean_preferred_margin=(sum(preferred_margins) / len(preferred_margins)) if preferred_margins else None,
-            updated_examples=updated_examples,
+            policy_loss=float(np.mean(policy_losses, dtype=np.float32)) if policy_losses else 0.0,
+            value_loss=float(np.mean(value_losses, dtype=np.float32)) if value_losses else 0.0,
+            mean_frontier_size=float(np.mean(frontier_sizes, dtype=np.float32)) if frontier_sizes else 0.0,
+            mean_chosen_action_mass=float(np.mean(chosen_masses, dtype=np.float32)) if chosen_masses else 0.0,
+            updated_batches=updated_batches,
             throughput_examples_per_sec=len(examples) / elapsed,
-        )
-        return results, summary
-
-    def build_puct_target_batch(
-        self,
-        examples: Sequence[CombatPreferenceExample],
-        *,
-        value_targets: Sequence[float] | None = None,
-        temperature: float | None = None,
-    ) -> CombatPuctTargetBatch:
-        return self.service.build_puct_target_batch(
-            examples,
-            value_targets=value_targets,
-            temperature=temperature,
         )
 
     def run(
         self,
-        examples: Sequence[CombatPreferenceExample],
+        examples: Sequence[CombatPuctTargetExample],
         *,
         epochs: int,
         update: bool = True,
-    ) -> list[ReanalysisEpochSummary]:
-        summaries: list[ReanalysisEpochSummary] = []
+    ) -> list[PolicyValueEpochSummary]:
+        summaries: list[PolicyValueEpochSummary] = []
         for epoch_index in range(epochs):
-            _, summary = self.run_epoch(
-                examples,
-                epoch_index=epoch_index,
-                update=update,
+            summaries.append(
+                self.run_epoch(examples, epoch_index=epoch_index, update=update)
             )
-            summaries.append(summary)
         return summaries
+
+    @staticmethod
+    def _softmax_masked(
+        scores: npt.NDArray[np.float32],
+        mask: npt.NDArray[np.bool_],
+    ) -> npt.NDArray[np.float32]:
+        masked = np.where(mask, scores, np.float32(-1e9))
+        shifted = masked - np.max(masked, axis=1, keepdims=True)
+        weights = np.exp(shifted, dtype=np.float32)
+        weights = np.where(mask, weights, np.float32(0.0))
+        totals = np.sum(weights, axis=1, keepdims=True)
+        totals = np.where(totals > 0.0, totals, np.float32(1.0))
+        return np.asarray(weights / totals, dtype=np.float32)

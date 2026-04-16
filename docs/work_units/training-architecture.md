@@ -17,7 +17,7 @@ tags: [training, combat-first, architecture]
 The current branch architecture is:
 
 - Rust engine legality and state are canonical
-- Python orchestrates corpus generation, reanalysis, and artifact logging
+- Python orchestrates snapshot corpus generation, Rust-PUCT target collection, policy/value updates, and artifact logging
 - MLX-backed model evaluation/training is the intended GPU path
 - SpireMonitor consumes the new artifact set directly
 
@@ -34,7 +34,7 @@ Scope:
 What phase 1 must prove:
 
 - we can run overnight training jobs repeatedly
-- weights update from search/reanalysis targets
+- weights update from Rust-PUCT policy/value targets
 - benchmark slices are stable and comparable
 - frontier/replay artifacts are visible in the app
 

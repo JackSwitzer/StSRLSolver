@@ -72,7 +72,7 @@ class ImportedAct1Script:
     starting_max_hp: int | None = None
     starting_current_hp: int | None = None
     starting_gold: int = 99
-    starting_relics: tuple[str, ...] = ()
+    starting_relics: tuple[str, ...] = ("PureWater",)
     starting_removed_cards: tuple[str, ...] = ()
     starting_added_cards: tuple[str, ...] = ()
     floors: tuple[ImportedAct1Floor, ...] = ()

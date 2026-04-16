@@ -1,4 +1,4 @@
-"""Shared-memory shaped batching for combat search and reanalysis."""
+"""Shared-memory shaped batching for combat search and policy/value learning."""
 
 from __future__ import annotations
 
@@ -9,11 +9,12 @@ import numpy as np
 import numpy.typing as npt
 
 from .combat_model import CombatInferenceResult, CombatStateSummary, LegalCombatCandidate
+from .value_targets import CombatValueTarget, PHASE1_VALUE_HEAD_NAMES
 
 
 @dataclass(slots=True, frozen=True)
 class SharedMemoryConfig:
-    """Batching config for lightweight search/reanalysis workers."""
+    """Batching config for snapshot-backed search and policy/value workers."""
 
     max_batch_size: int = 128
     max_candidates_per_request: int = 64
@@ -76,12 +77,12 @@ def _normalized_policy_distribution(values: Sequence[float], temperature: float)
 
 @dataclass(slots=True, frozen=True)
 class CombatPuctTargetExample:
-    """Forward-compatible PUCT target record built from a scored request."""
+    """Canonical PUCT target record built from one combat root state."""
 
     request: CombatSearchRequest
     policy_action_ids: tuple[str, ...]
     policy_scores: tuple[float, ...]
-    value_target: float
+    value_target: CombatValueTarget
     chosen_action_id: str | None = None
     visit_counts: tuple[int, ...] = ()
     temperature: float = 1.0
@@ -101,7 +102,7 @@ class CombatPuctTargetExample:
         request: CombatSearchRequest,
         result: CombatInferenceResult,
         *,
-        value_target: float = 0.0,
+        value_target: CombatValueTarget | None = None,
         chosen_action_id: str | None = None,
         visit_counts: Sequence[int] = (),
         temperature: float = 1.0,
@@ -112,7 +113,14 @@ class CombatPuctTargetExample:
             request=request,
             policy_action_ids=result.frontier_action_ids,
             policy_scores=result.frontier_scores,
-            value_target=value_target,
+            value_target=value_target or CombatValueTarget(
+                solve_probability=0.0,
+                expected_hp_loss=0.0,
+                expected_turns=0.0,
+                potion_spend_count=0.0,
+                setup_delta=0.0,
+                persistent_scaling_delta=0.0,
+            ),
             chosen_action_id=chosen_action_id if chosen_action_id is not None else result.chosen_action_id,
             visit_counts=tuple(int(value) for value in visit_counts),
             temperature=temperature,
@@ -125,7 +133,7 @@ class CombatPuctTargetExample:
             "request": self.request.to_dict(),
             "policy_action_ids": list(self.policy_action_ids),
             "policy_scores": list(self.policy_scores),
-            "value_target": self.value_target,
+            "value_target": self.value_target.to_dict(),
             "chosen_action_id": self.chosen_action_id,
             "visit_counts": list(self.visit_counts),
             "temperature": self.temperature,
@@ -139,7 +147,7 @@ class CombatPuctTargetExample:
             request=CombatSearchRequest.from_dict(payload["request"]),
             policy_action_ids=tuple(str(value) for value in payload.get("policy_action_ids", ())),
             policy_scores=tuple(float(value) for value in payload.get("policy_scores", ())),
-            value_target=float(payload.get("value_target", 0.0)),
+            value_target=CombatValueTarget.from_dict(payload.get("value_target", {})),
             chosen_action_id=payload.get("chosen_action_id"),
             visit_counts=tuple(int(value) for value in payload.get("visit_counts", ())),
             temperature=float(payload.get("temperature", 1.0)),
@@ -194,7 +202,8 @@ class CombatPuctTargetBatch:
     policy_target_matrix: npt.NDArray[np.float32]
     policy_target_mask: npt.NDArray[np.bool_]
     chosen_action_indices: npt.NDArray[np.int32]
-    value_targets: npt.NDArray[np.float32]
+    value_target_names: tuple[str, ...]
+    value_target_matrix: npt.NDArray[np.float32]
     sample_weights: npt.NDArray[np.float32]
 
     @property
@@ -326,7 +335,8 @@ class CombatSharedMemoryBatcher:
                 policy_target_matrix=empty_f32,
                 policy_target_mask=empty_bool,
                 chosen_action_indices=empty_i32,
-                value_targets=np.zeros((0,), dtype=np.float32),
+                value_target_names=PHASE1_VALUE_HEAD_NAMES,
+                value_target_matrix=np.zeros((0, len(PHASE1_VALUE_HEAD_NAMES)), dtype=np.float32),
                 sample_weights=np.zeros((0,), dtype=np.float32),
             )
 
@@ -335,7 +345,8 @@ class CombatSharedMemoryBatcher:
         policy_matrix = np.zeros((len(examples), policy_width), dtype=np.float32)
         policy_mask = np.zeros((len(examples), policy_width), dtype=bool)
         chosen_action_indices = np.full((len(examples),), -1, dtype=np.int32)
-        value_targets = np.zeros((len(examples),), dtype=np.float32)
+        value_target_names = PHASE1_VALUE_HEAD_NAMES
+        value_target_matrix = np.zeros((len(examples), len(value_target_names)), dtype=np.float32)
         sample_weights = np.zeros((len(examples),), dtype=np.float32)
         target_action_ids: list[tuple[str, ...]] = []
 
@@ -354,7 +365,7 @@ class CombatSharedMemoryBatcher:
 
             if example.chosen_action_id is not None:
                 chosen_action_indices[row] = candidate_positions.get(example.chosen_action_id, -1)
-            value_targets[row] = np.float32(example.value_target)
+            value_target_matrix[row] = np.asarray(example.value_target.to_vector(value_target_names), dtype=np.float32)
             sample_weights[row] = np.float32(example.sample_weight)
 
         return CombatPuctTargetBatch(
@@ -368,6 +379,7 @@ class CombatSharedMemoryBatcher:
             policy_target_matrix=np.ascontiguousarray(policy_matrix),
             policy_target_mask=np.ascontiguousarray(policy_mask),
             chosen_action_indices=np.ascontiguousarray(chosen_action_indices),
-            value_targets=np.ascontiguousarray(value_targets),
+            value_target_names=value_target_names,
+            value_target_matrix=np.ascontiguousarray(value_target_matrix),
             sample_weights=np.ascontiguousarray(sample_weights),
         )

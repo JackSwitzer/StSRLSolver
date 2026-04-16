@@ -29,9 +29,9 @@ Profiling on this branch is about the new combat-first runtime, not a legacy col
 - legal candidate export
 - replay determinism checks
 
-### Search / Reanalysis Throughput
+### Search / Policy-Value Throughput
 - requests per second
-- examples per second during updates
+- PUCT targets per second during updates
 - frontier size and ranking stability
 
 ### Memory
@@ -46,5 +46,5 @@ Profiling on this branch is about the new combat-first runtime, not a legacy col
 
 ```bash
 ./scripts/training.sh print-corpus-plan
-./scripts/training.sh run-phase1-overnight --output-dir logs/active --epochs 1 --target-requests 24 --backend linear
+./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1 --backend linear
 ```

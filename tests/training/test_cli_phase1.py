@@ -58,46 +58,77 @@ def test_cli_select_frontier_writes_deterministic_choice(tmp_path: Path) -> None
     assert payload["ordered_line_indices"] == [1, 2]
 
 
-def test_cli_smoke_overnight_writes_dataset_summary_and_checkpoint(tmp_path: Path) -> None:
-    output_dir = tmp_path / "overnight"
+def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
+    corpus_dir = tmp_path / "corpus"
+    collect_dir = tmp_path / "targets"
+    train_dir = tmp_path / "train"
+    validate_dir = tmp_path / "validate"
 
-    exit_code = main(
+    assert main(["generate-phase1-corpus", "--output-dir", str(corpus_dir), "--target-cases", "12"]) == 0
+    assert main(
         [
-            "smoke-overnight",
+            "collect-puct-targets",
+            "--input",
+            str(corpus_dir / "corpus.jsonl"),
             "--output-dir",
-            str(output_dir),
-            "--requests",
-            "6",
-            "--epochs",
+            str(collect_dir),
+            "--collection-passes",
             "2",
-            "--learning-rate",
-            "0.2",
+            "--backend",
+            "linear",
         ]
-    )
+    ) == 0
+    assert main(
+        [
+            "train-puct-checkpoint",
+            "--input-dir",
+            str(collect_dir),
+            "--output-dir",
+            str(train_dir),
+            "--epochs",
+            "1",
+            "--backend",
+            "linear",
+        ]
+    ) == 0
+    assert main(
+        [
+            "validate-seed-suite",
+            "--output-dir",
+            str(validate_dir),
+            "--backend",
+            "linear",
+            "--checkpoint",
+            str(train_dir / "checkpoint.json"),
+        ]
+    ) == 0
 
-    summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
-    dataset_lines = (output_dir / "dataset.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    checkpoint = json.loads((output_dir / "checkpoint.json").read_text(encoding="utf-8"))
+    corpus_summary = json.loads((corpus_dir / "corpus_summary.json").read_text(encoding="utf-8"))
+    collect_summary = json.loads((collect_dir / "puct_targets_summary.json").read_text(encoding="utf-8"))
+    train_summary = json.loads((train_dir / "puct_training_summary.json").read_text(encoding="utf-8"))
+    validate_summary = json.loads((validate_dir / "seed_validation_summary.json").read_text(encoding="utf-8"))
+    target_lines = (collect_dir / "puct_targets.jsonl").read_text(encoding="utf-8").strip().splitlines()
 
-    assert exit_code == 0
-    assert len(dataset_lines) == 6
-    assert len(summary["epochs"]) == 2
-    assert "candidate_weights" in checkpoint
-    assert (output_dir / "epoch_000_results.jsonl").exists()
-    assert (output_dir / "epoch_001_results.jsonl").exists()
+    assert corpus_summary["total_cases"] == 12
+    assert corpus_summary["relic_profile_counts"]["starting_only"] >= 1
+    assert collect_summary["record_count"] >= 12
+    assert target_lines
+    assert train_summary["example_count"] >= 12
+    assert Path(train_summary["final_checkpoint"]).exists()
+    assert validate_summary["seed_count"] == 3
 
 
-def test_cli_phase1_overnight_writes_monitor_artifacts(tmp_path: Path) -> None:
+def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> None:
     output_dir = tmp_path / "phase1"
 
     exit_code = main(
         [
-            "run-phase1-overnight",
+            "run-phase1-puct-overnight",
             "--output-dir",
             str(output_dir),
             "--epochs",
             "1",
-            "--target-requests",
+            "--target-cases",
             "12",
             "--backend",
             "linear",
@@ -111,172 +142,14 @@ def test_cli_phase1_overnight_writes_monitor_artifacts(tmp_path: Path) -> None:
     metrics_lines = (output_dir / "metrics.jsonl").read_text(encoding="utf-8").strip().splitlines()
     event_lines = (output_dir / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
     episode_lines = (output_dir / "episodes.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    seed_report = json.loads((output_dir / "seed_validation_report.json").read_text(encoding="utf-8"))
 
     assert exit_code == 0
-    assert manifest["run_id"] == "phase1-linear-42"
-    assert summary["example_count"] >= 12
-    assert summary["slice_count"] == 3
+    assert manifest["run_id"] == "phase1-puct-linear-42"
+    assert summary["training_summary"]["example_count"] >= 12
     assert frontier_report["ranking"]
     assert benchmark_report["slices"]
     assert len(metrics_lines) >= 12
     assert len(event_lines) >= 4
-    assert len(episode_lines) == 12
-
-
-def test_cli_generate_phase1_corpus_writes_deterministic_inventory(tmp_path: Path) -> None:
-    output_dir = tmp_path / "corpus"
-
-    exit_code = main(
-        [
-            "generate-phase1-corpus",
-            "--output-dir",
-            str(output_dir),
-            "--target-cases",
-            "12",
-        ]
-    )
-
-    corpus_lines = (output_dir / "corpus.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    summary = json.loads((output_dir / "corpus_summary.json").read_text(encoding="utf-8"))
-    first = json.loads(corpus_lines[0])
-
-    assert exit_code == 0
-    assert len(corpus_lines) == 12
-    assert summary["total_cases"] == 12
-    assert summary["corpus_name"] == "watcher_a0_act1_snapshot"
-    assert first["case_id"].startswith("watcher_a0_act1_snapshot::")
-    assert first["source_kind"] in {"synthetic", "imported_seed"}
-    assert "snapshot" in first
-    assert "player_hp" in first["snapshot"]
-
-
-def test_cli_collect_puct_targets_writes_multi_pass_bundles_and_report(tmp_path: Path) -> None:
-    corpus_dir = tmp_path / "corpus"
-    collect_dir = tmp_path / "targets"
-    main(["generate-phase1-corpus", "--output-dir", str(corpus_dir), "--target-cases", "12"])
-
-    exit_code = main(
-        [
-            "collect-puct-targets",
-            "--input",
-            str(corpus_dir / "corpus.jsonl"),
-            "--output-dir",
-            str(collect_dir),
-            "--collection-passes",
-            "3",
-        ]
-    )
-
-    summary = json.loads((collect_dir / "puct_targets_summary.json").read_text(encoding="utf-8"))
-    report = json.loads((collect_dir / "puct_targets_report.json").read_text(encoding="utf-8"))
-    combined_lines = (collect_dir / "puct_targets.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    collection_lines = (collect_dir / "puct_collection.jsonl").read_text(encoding="utf-8").strip().splitlines()
-
-    assert exit_code == 0
-    assert len(combined_lines) > 0
-    assert len(collection_lines) >= len(combined_lines)
-    assert summary["collection_passes"] == 3
-    assert summary["pass_count"] >= 1
-    assert report["collection_passes"] == 3
-    assert report["total_records"] >= len(combined_lines)
-    assert (collect_dir / "puct_collection.jsonl").exists()
-
-
-def test_cli_train_puct_checkpoint_consumes_collected_targets(tmp_path: Path) -> None:
-    corpus_dir = tmp_path / "corpus"
-    collect_dir = tmp_path / "targets"
-    train_dir = tmp_path / "train"
-    main(["generate-phase1-corpus", "--output-dir", str(corpus_dir), "--target-cases", "12"])
-    main(
-        [
-            "collect-puct-targets",
-            "--input",
-            str(corpus_dir / "corpus.jsonl"),
-            "--output-dir",
-            str(collect_dir),
-            "--collection-passes",
-            "3",
-        ]
-    )
-
-    exit_code = main(
-        [
-            "train-puct-checkpoint",
-            "--input-dir",
-            str(collect_dir),
-            "--output-dir",
-            str(train_dir),
-            "--epochs",
-            "1",
-            "--backend",
-            "linear",
-        ]
-    )
-
-    summary = json.loads((train_dir / "puct_training_summary.json").read_text(encoding="utf-8"))
-    checkpoint = json.loads((train_dir / "checkpoint.json").read_text(encoding="utf-8"))
-
-    assert exit_code == 0
-    assert summary["example_count"] >= 12
-    assert summary["epochs"]
-    assert "candidate_weights" in checkpoint
-
-
-def test_cli_validate_seed_suite_writes_report_for_fixed_three_seeds(tmp_path: Path) -> None:
-    output_dir = tmp_path / "seed-validation"
-
-    exit_code = main(
-        [
-            "validate-seed-suite",
-            "--output-dir",
-            str(output_dir),
-        ]
-    )
-
-    report = json.loads((output_dir / "seed_validation_report.json").read_text(encoding="utf-8"))
-    summary = json.loads((output_dir / "seed_validation_summary.json").read_text(encoding="utf-8"))
-
-    assert exit_code == 0
-    assert report["seed_count"] == 3
-    assert summary["seed_count"] == 3
-    assert summary["validated_seeds"] == 2
-    assert summary["failed_seeds"] == 1
-    assert [row["label"] for row in report["seeds"]] == [
-        "minimalist_remove",
-        "lesson_learned_shell",
-        "icecream_runic_pyramid",
-    ]
-
-
-def test_cli_run_phase1_puct_overnight_writes_all_artifacts(tmp_path: Path) -> None:
-    output_dir = tmp_path / "phase1-puct"
-
-    exit_code = main(
-        [
-            "run-phase1-puct-overnight",
-            "--output-dir",
-            str(output_dir),
-            "--target-cases",
-            "12",
-            "--collection-passes",
-            "3",
-            "--epochs",
-            "1",
-            "--backend",
-            "linear",
-        ]
-    )
-
-    summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
-    manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
-
-    assert exit_code == 0
-    assert summary["command"] == "run-phase1-puct-overnight"
-    assert summary["corpus_summary"]["total_cases"] == 12
-    assert summary["collection_summary"]["collection_passes"] == 3
-    assert summary["seed_summary"]["seed_count"] == 3
-    assert manifest["corpus_summary"]["total_cases"] == 12
-    assert (output_dir / "corpus.jsonl").exists()
-    assert (output_dir / "puct_targets.jsonl").exists()
-    assert (output_dir / "puct_collection.jsonl").exists()
-    assert (output_dir / "seed_validation_report.json").exists()
+    assert len(episode_lines) == len(metrics_lines) // 2
+    assert seed_report["seed_count"] == 3

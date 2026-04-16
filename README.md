@@ -11,16 +11,16 @@ Current scope is intentionally narrow:
 
 - Watcher A0 combat only
 - Rust-canonical combat observation and legal-candidate contracts
-- corpus-driven search + reanalysis training
+- snapshot-backed Rust PUCT collection and policy/value learning
 - artifact-first monitoring in SpireMonitor
-- external validation seeds for easy/minimalist-style Watcher checks
+- reconstructed Act 1 validation seeds for easy/minimalist-style Watcher checks
 
 ## Active Components
 
 | Component | Location | Role |
 |-----------|----------|------|
 | Rust engine base | `packages/engine-rs/` | Canonical legality, combat state, training contract, snapshots |
-| Training runtime | `packages/training/` | Corpus planning, reanalysis loop, manifests, artifact logging |
+| Training runtime | `packages/training/` | Snapshot corpus generation, Rust PUCT collection, policy/value learning, manifests, artifact logging |
 | SpireMonitor | `packages/app/SpireMonitor/` | SwiftUI monitor for manifests, frontiers, benchmarks, and replay traces |
 | Training entrypoint | `scripts/training.sh` | Canonical CLI wrapper |
 
@@ -75,7 +75,7 @@ The active training stack writes artifact-first outputs:
 - `frontier_groups.json`
 - `benchmark_report.json`
 - `episodes.jsonl`
-- `dataset.jsonl`
+- `puct_targets.jsonl`
 - `checkpoint.json`
 - `summary.json`
 

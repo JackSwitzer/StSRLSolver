@@ -1,8 +1,7 @@
-"""Adapters between the Rust training contract and the current Python model stack."""
+"""Adapters between the Rust training contract and the canonical policy/value model."""
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from math import exp
 from typing import Any, Mapping
 
@@ -110,6 +109,9 @@ def build_search_request_from_training_state(
             features=_candidate_features(state, candidate),
             legal=True,
             legality_reason="legal",
+            card_id=(None if candidate.card is None else candidate.card.card_id),
+            potion_id=(None if candidate.potion is None else candidate.potion.potion_id),
+            label=candidate.description,
         )
         for candidate in state.legal_candidates
     )
@@ -201,17 +203,37 @@ def build_model_evaluator(
         ):
             persistent_scaling_delta = 0.4
 
-        outcome = CombatOutcomeVector(
-            solve_probability=float(solve_probability),
-            expected_hp_loss=float(expected_hp_loss),
-            expected_turns=float(expected_turns),
-            potion_cost=float(potion_cost),
-            setup_value_delta=float(setup_value_delta),
-            persistent_scaling_delta=float(persistent_scaling_delta),
-        )
+        predicted_value = result.predicted_value
+        if predicted_value is not None and any(
+            abs(value) > 1e-6 for value in predicted_value.to_vector()[:6]
+        ):
+            outcome = CombatOutcomeVector(
+                solve_probability=float(predicted_value.solve_probability),
+                expected_hp_loss=float(predicted_value.expected_hp_loss),
+                expected_turns=float(predicted_value.expected_turns),
+                potion_cost=float(predicted_value.potion_spend_count),
+                setup_value_delta=float(predicted_value.setup_delta),
+                persistent_scaling_delta=float(predicted_value.persistent_scaling_delta),
+            )
+        else:
+            outcome = CombatOutcomeVector(
+                solve_probability=float(solve_probability),
+                expected_hp_loss=float(expected_hp_loss),
+                expected_turns=float(expected_turns),
+                potion_cost=float(potion_cost),
+                setup_value_delta=float(setup_value_delta),
+                persistent_scaling_delta=float(persistent_scaling_delta),
+            )
         return {
             "priors": priors,
-            "outcome": asdict(outcome),
+            "outcome": {
+                "solve_probability": outcome.solve_probability,
+                "expected_hp_loss": outcome.expected_hp_loss,
+                "expected_turns": outcome.expected_turns,
+                "potion_cost": outcome.potion_cost,
+                "setup_value_delta": outcome.setup_value_delta,
+                "persistent_scaling_delta": outcome.persistent_scaling_delta,
+            },
         }
 
     return evaluator

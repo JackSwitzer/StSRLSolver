@@ -4,14 +4,13 @@ This TODO list is scoped to the stacked training rebuild branch.
 
 ## Immediate
 
-- turn the synthetic-first Watcher corpus into a partially harvested corpus using real engine snapshots
+- expand the mixed snapshot Watcher corpus with more harvested engine states and imported seed branches
 - add 5-10 high-signal external validation seeds with captured Neow and route notes
 - stand up repeated overnight runs into `logs/active` and `logs/runs`
 - keep SpireMonitor artifact-first and polish frontier/replay inspection
 
 ## Next
 
-- replace the lightweight reanalysis scorer loop with Rust-owned PUCT tree search
 - expand benchmark slicing by deck family, remove count, potion set, and enemy
 - capture deck provenance and early decision provenance from imported reference runs
 - add benchmark promotion gates and checkpoint comparison summaries

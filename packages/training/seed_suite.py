@@ -23,7 +23,7 @@ class ValidationSeed:
     suggested_eval_ascension: int
     neow_bonus: str
     intended_use: str
-    path_capture_status: str = "seed+neow captured, floor decisions pending"
+    path_capture_status: str = "reconstructed_act1_pending"
     tags: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
 
@@ -94,6 +94,7 @@ def default_watcher_validation_seed_suite() -> tuple[ValidationSeed, ...]:
             suggested_eval_ascension=0,
             neow_bonus="Lose 6 Max HP, then remove Defend and Defend",
             intended_use="primary remove-heavy minimalist-style validation seed",
+            path_capture_status="reconstructed_act1_available",
             tags=("remove-heavy", "minimalist-style", "watcher"),
             notes=(
                 "Source run ultimately removed four Defends and four Strikes.",
@@ -110,6 +111,7 @@ def default_watcher_validation_seed_suite() -> tuple[ValidationSeed, ...]:
             suggested_eval_ascension=0,
             neow_bonus="Lose 6 Max HP, then pick Lesson Learned over Establishment and Wish",
             intended_use="stance-dance / lesson-learned validation seed",
+            path_capture_status="reconstructed_act1_available",
             tags=("lesson-learned", "stance-dance", "watcher"),
             notes=(
                 "Source run is Watcher victory on an A20 run with a recognizable Lesson Learned shell.",
@@ -126,6 +128,7 @@ def default_watcher_validation_seed_suite() -> tuple[ValidationSeed, ...]:
             suggested_eval_ascension=0,
             neow_bonus="Take Ice Cream and later first boss gives Runic Pyramid",
             intended_use="retain / control validation seed from a community thread",
+            path_capture_status="metadata_only",
             tags=("retain", "control", "steam", "watcher"),
             notes=(
                 "Community-reported Watcher seed with Ice Cream into Runic Pyramid.",

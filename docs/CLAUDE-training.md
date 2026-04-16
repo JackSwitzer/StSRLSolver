@@ -7,7 +7,7 @@ This branch uses the **combat-first training rebuild**.
 Phase 1 is a Watcher A0 combat solver with:
 
 - Rust-canonical combat observations and legal candidates
-- corpus-driven search and reanalysis training
+- snapshot-backed Rust PUCT collection and policy/value training
 - frontier-preserving action selection
 - append-only manifests, metrics, benchmark, and replay artifacts
 - SpireMonitor support for the new artifact model
@@ -36,7 +36,7 @@ The Python bridge and runtime live in:
 
 - [packages/training/bridge.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/bridge.py:1)
 - [packages/training/cli.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/cli.py:1)
-- [packages/training/corpus.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/corpus.py:1)
+- [packages/training/stage2_pipeline.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/stage2_pipeline.py:1)
 - [packages/training/inference_service.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/inference_service.py:1)
 
 ## Overnight Run
@@ -71,7 +71,6 @@ Useful planning/debug commands:
 
 ```bash
 ./scripts/training.sh print-default-config
-./scripts/training.sh print-stack-config
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
 ```
@@ -88,7 +87,7 @@ The current training stack writes:
 - `frontier_groups.json`
 - `benchmark_report.json`
 - `episodes.jsonl`
-- `dataset.jsonl`
+- `puct_targets.jsonl`
 - `checkpoint.json`
 - `summary.json`
 
@@ -118,7 +117,7 @@ The app reads `.spire-monitor.json`, which already points to `logs/active`.
 
 ## Corpus and Seed Validation
 
-Phase 1 is mostly synthetic, but it already tracks deck provenance:
+Phase 1 uses a mixed snapshot corpus and tracks deck provenance:
 
 - deck list and upgrades
 - remove count and removed-card history when known
@@ -134,7 +133,7 @@ The seed suite is for:
 
 - easy/high-roll validation
 - remove-heavy and minimalist-style checks
-- manual replay/demo sessions in SpireMonitor
+- reconstructed Act 1 replay/demo sessions in SpireMonitor
 - future Baalorlord run import scaffolding
 
 ## What This Branch Is Not

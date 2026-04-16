@@ -36,15 +36,15 @@ uv run pytest tests/training -q
 - `frontier_groups.json`
 - `benchmark_report.json`
 - `episodes.jsonl`
-- `dataset.jsonl`
+- `puct_targets.jsonl`
 - `checkpoint.json`
 - `summary.json`
 
 ## Current Scope
 
 - Watcher A0 combat only
-- corpus-driven search + reanalysis
-- external validation seeds
+- snapshot-backed Rust PUCT collection + policy/value learning
+- reconstructed Act 1 validation seeds
 - artifact-first monitoring
 
 Strategic/pathing learning comes later.

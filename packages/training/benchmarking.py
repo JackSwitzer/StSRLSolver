@@ -1,13 +1,10 @@
-"""Frontier-style benchmark summaries for comparing training snapshots."""
+"""Frontier-style benchmark summaries for comparing snapshot-backed training runs."""
 
 from __future__ import annotations
 
 import json
-from collections import Counter
 from dataclasses import asdict, dataclass, field
 from statistics import fmean
-
-from .corpus import PreparedCorpusRequest
 
 
 def _potion_set_label(potion_set: tuple[str, ...]) -> str:
@@ -135,104 +132,6 @@ class FrontierReport:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
-
-
-@dataclass(frozen=True)
-class Phase1PuctPassSummary:
-    pass_index: int
-    cases: int
-    unique_groups: int
-    slice_names: tuple[str, ...]
-    family_names: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class Phase1PuctCollectionReport:
-    corpus_name: str
-    total_cases: int
-    collection_passes: int
-    pass_summaries: tuple[Phase1PuctPassSummary, ...]
-    slice_counts: tuple[tuple[str, int], ...]
-    family_counts: tuple[tuple[str, int], ...]
-    group_counts: tuple[tuple[str, int], ...]
-    notes: tuple[str, ...] = ()
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "corpus_name": self.corpus_name,
-            "total_cases": self.total_cases,
-            "collection_passes": self.collection_passes,
-            "pass_summaries": [
-                {
-                    "pass_index": summary.pass_index,
-                    "cases": summary.cases,
-                    "unique_groups": summary.unique_groups,
-                    "slice_names": list(summary.slice_names),
-                    "family_names": list(summary.family_names),
-                }
-                for summary in self.pass_summaries
-            ],
-            "slice_counts": list(self.slice_counts),
-            "family_counts": list(self.family_counts),
-            "group_counts": list(self.group_counts),
-            "notes": list(self.notes),
-        }
-
-    def to_markdown(self) -> str:
-        lines = [
-            "# Phase 1 PUCT Collection Report",
-            "",
-            f"- corpus: `{self.corpus_name}`",
-            f"- total cases: `{self.total_cases}`",
-            f"- collection passes: `{self.collection_passes}`",
-            "",
-            "| pass | cases | unique_groups | slices | families |",
-            "| --- | ---: | ---: | --- | --- |",
-        ]
-        for summary in self.pass_summaries:
-            lines.append(
-                "| "
-                f"{summary.pass_index} | {summary.cases} | {summary.unique_groups} | "
-                f"{', '.join(summary.slice_names)} | {', '.join(summary.family_names)} |"
-            )
-        return "\n".join(lines)
-
-
-def build_phase1_puct_collection_report(
-    requests: tuple[PreparedCorpusRequest, ...],
-    *,
-    collection_passes: int,
-    corpus_name: str = "watcher_a0_act1",
-) -> Phase1PuctCollectionReport:
-    if collection_passes <= 0:
-        raise ValueError("collection_passes must be positive")
-
-    slice_counts = Counter(request.slice_name for request in requests)
-    family_counts = Counter(request.case.deck.family for request in requests)
-    group_counts = Counter(request.corpus_group for request in requests)
-    pass_buckets: dict[int, list[PreparedCorpusRequest]] = {index: [] for index in range(collection_passes)}
-    for request in requests:
-        pass_buckets[request.corpus_index % collection_passes].append(request)
-
-    return Phase1PuctCollectionReport(
-        corpus_name=corpus_name,
-        total_cases=len(requests),
-        collection_passes=collection_passes,
-        pass_summaries=tuple(
-            Phase1PuctPassSummary(
-                pass_index=pass_index,
-                cases=len(bucket),
-                unique_groups=len({request.corpus_group for request in bucket}),
-                slice_names=tuple(sorted({request.slice_name for request in bucket})),
-                family_names=tuple(sorted({request.case.deck.family for request in bucket})),
-            )
-            for pass_index, bucket in sorted(pass_buckets.items())
-        ),
-        slice_counts=tuple(sorted(slice_counts.items())),
-        family_counts=tuple(sorted(family_counts.items())),
-        group_counts=tuple(sorted(group_counts.items())),
-        notes=("Deterministic multi-pass corpus collection summary.",),
-    )
 
 
 def pareto_frontier(points: list[BenchmarkFrontierPoint]) -> list[BenchmarkFrontierPoint]:

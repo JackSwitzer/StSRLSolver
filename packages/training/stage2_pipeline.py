@@ -21,11 +21,12 @@ from .engine_adapter import (
     should_promote_collection_result,
 )
 from .engine_module import build_engine_extension, load_engine_module
-from .inference_service import CombatInferenceService, CombatPreferenceExample, CombatSearchConfig
+from .inference_service import CombatInferenceService, CombatSearchConfig
 from .run_logging import TrainingArtifacts, TrainingRunLogger
 from .seed_imports import ImportedCombatCase, default_imported_act1_scripts, build_imported_combat_cases
 from .selector import select_frontier
-from .shared_memory import CombatSearchRequest
+from .shared_memory import CombatPuctTargetExample, CombatSearchRequest
+from .value_targets import CombatValueTarget, PHASE1_POTION_VOCAB
 
 
 PHASE2_CORPUS_NAME = "watcher_a0_act1_snapshot"
@@ -50,6 +51,7 @@ class SnapshotCase:
     room_kind: str
     remove_count: int
     potion_set: tuple[str, ...]
+    relic_profile: str
     seed_label: str | None
     act1_floor: int
     opening_hand_bucket: str
@@ -66,6 +68,7 @@ class SnapshotCase:
             "room_kind": self.room_kind,
             "remove_count": self.remove_count,
             "potion_set": list(self.potion_set),
+            "relic_profile": self.relic_profile,
             "seed_label": self.seed_label,
             "act1_floor": self.act1_floor,
             "opening_hand_bucket": self.opening_hand_bucket,
@@ -84,6 +87,7 @@ class SnapshotCase:
             room_kind=str(payload["room_kind"]),
             remove_count=int(payload["remove_count"]),
             potion_set=tuple(payload.get("potion_set", ())),
+            relic_profile=str(payload.get("relic_profile", "starting_only")),
             seed_label=payload.get("seed_label"),
             act1_floor=int(payload["act1_floor"]),
             opening_hand_bucket=str(payload["opening_hand_bucket"]),
@@ -175,41 +179,94 @@ def _starter_remove_count(deck: Iterable[str]) -> int:
 def _synthetic_families() -> tuple[dict[str, Any], ...]:
     return (
         {
-            "family": "starter-vanilla",
+            "family": "starting_only",
             "removed_cards": (),
             "added_cards": (),
             "upgraded_cards": (),
-            "relics": (),
+            "relics": ("PureWater",),
+            "relic_profile": "starting_only",
+            "weight": 6,
         },
         {
-            "family": "remove-heavy-thin",
+            "family": "starting_only_remove_heavy",
             "removed_cards": ("Defend_P", "Defend_P", "Strike_P"),
             "added_cards": ("CutThroughFate", "ThirdEye"),
             "upgraded_cards": ("Eruption",),
-            "relics": ("Akabeko",),
+            "relics": ("PureWater",),
+            "relic_profile": "starting_only",
+            "weight": 6,
         },
         {
-            "family": "upgrade-heavy-setup",
+            "family": "starting_only_upgrade_heavy",
             "removed_cards": ("Strike_P",),
             "added_cards": ("ThirdEye", "TalkToTheHand"),
             "upgraded_cards": ("Vigilance", "LessonLearned"),
-            "relics": ("FrozenEye",),
+            "relics": ("PureWater",),
+            "relic_profile": "starting_only",
+            "weight": 6,
         },
         {
-            "family": "stance-shell",
+            "family": "starting_only_stance_shell",
             "removed_cards": ("Defend_P",),
             "added_cards": ("Tantrum", "Rushdown", "MentalFortress"),
             "upgraded_cards": ("BowlingBash",),
-            "relics": ("Pocketwatch",),
+            "relics": ("PureWater",),
+            "relic_profile": "starting_only",
+            "weight": 6,
         },
         {
-            "family": "retain-control",
+            "family": "starting_only_retain_control",
             "removed_cards": ("Strike_P", "Strike_P"),
             "added_cards": ("DeusExMachina", "ThirdEye", "Perseverance"),
             "upgraded_cards": ("Vigilance",),
-            "relics": ("IceCream",),
+            "relics": ("PureWater",),
+            "relic_profile": "starting_only",
+            "weight": 6,
+        },
+        {
+            "family": "extra_relic_ablation_akabeko",
+            "removed_cards": ("Defend_P", "Defend_P", "Strike_P"),
+            "added_cards": ("CutThroughFate", "ThirdEye"),
+            "upgraded_cards": ("Eruption",),
+            "relics": ("PureWater", "Akabeko"),
+            "relic_profile": "extra_relic",
+            "weight": 1,
+        },
+        {
+            "family": "extra_relic_ablation_frozen_eye",
+            "removed_cards": ("Strike_P",),
+            "added_cards": ("ThirdEye", "TalkToTheHand"),
+            "upgraded_cards": ("Vigilance", "LessonLearned"),
+            "relics": ("PureWater", "FrozenEye"),
+            "relic_profile": "extra_relic",
+            "weight": 1,
+        },
+        {
+            "family": "extra_relic_ablation_pocketwatch",
+            "removed_cards": ("Defend_P",),
+            "added_cards": ("Tantrum", "Rushdown", "MentalFortress"),
+            "upgraded_cards": ("BowlingBash",),
+            "relics": ("PureWater", "Pocketwatch"),
+            "relic_profile": "extra_relic",
+            "weight": 1,
+        },
+        {
+            "family": "extra_relic_ablation_ice_cream",
+            "removed_cards": ("Strike_P", "Strike_P"),
+            "added_cards": ("DeusExMachina", "ThirdEye", "Perseverance"),
+            "upgraded_cards": ("Vigilance",),
+            "relics": ("PureWater", "IceCream"),
+            "relic_profile": "extra_relic",
+            "weight": 1,
         },
     )
+
+
+def _weighted_family_pool() -> tuple[dict[str, Any], ...]:
+    pool: list[dict[str, Any]] = []
+    for family in _synthetic_families():
+        pool.extend(family for _ in range(int(family.get("weight", 1))))
+    return tuple(pool)
 
 
 def _mutate_snapshot_for_bucket(snapshot: dict[str, Any], bucket_index: int, potion_set: tuple[str, ...]) -> dict[str, Any]:
@@ -233,7 +290,7 @@ def _mutate_snapshot_for_bucket(snapshot: dict[str, Any], bucket_index: int, pot
 def _build_synthetic_snapshot_cases(total_cases: int) -> tuple[SnapshotCase, ...]:
     engine_mod = load_engine_module()
     encounter_names = tuple(ENCOUNTER_CATALOG.keys())
-    families = _synthetic_families()
+    families = _weighted_family_pool()
     buckets = 8
     cases: list[SnapshotCase] = []
     for case_index in range(total_cases):
@@ -272,6 +329,7 @@ def _build_synthetic_snapshot_cases(total_cases: int) -> tuple[SnapshotCase, ...
                 room_kind=room_kind,
                 remove_count=len(family["removed_cards"]),
                 potion_set=potion_set,
+                relic_profile=str(family["relic_profile"]),
                 seed_label=None,
                 act1_floor=floor,
                 opening_hand_bucket=opening_bucket,
@@ -280,6 +338,7 @@ def _build_synthetic_snapshot_cases(total_cases: int) -> tuple[SnapshotCase, ...
                     "character": "Watcher",
                     "ascension": 0,
                     "relics": list(family["relics"]),
+                    "relic_profile": family["relic_profile"],
                     "removed_cards": list(family["removed_cards"]),
                     "added_cards": list(family["added_cards"]),
                     "upgraded_cards": list(family["upgraded_cards"]),
@@ -328,6 +387,7 @@ def _build_imported_snapshot_case(
         room_kind=encounter.room_kind,
         remove_count=_starter_remove_count(imported_case.deck),
         potion_set=tuple(potion_pool),
+        relic_profile=("starting_only" if tuple(imported_case.relics) == ("PureWater",) else "extra_relic"),
         seed_label=imported_case.seed_label,
         act1_floor=imported_case.floor,
         opening_hand_bucket=f"imported-{bucket_index:02d}",
@@ -337,6 +397,7 @@ def _build_imported_snapshot_case(
             "source_url": imported_case.source_url,
             "gold": imported_case.gold,
             "relics": list(imported_case.relics),
+            "relic_profile": "starting_only" if tuple(imported_case.relics) == ("PureWater",) else "extra_relic",
             "notes": list(imported_case.notes),
         },
     )
@@ -372,6 +433,14 @@ def write_snapshot_corpus(output_dir: Path, *, total_cases: int) -> dict[str, An
         "source_counts": {
             "synthetic": sum(1 for case in cases if case.source_kind == "synthetic"),
             "imported_seed": sum(1 for case in cases if case.source_kind == "imported_seed"),
+        },
+        "relic_profile_counts": {
+            name: sum(1 for case in cases if case.relic_profile == name)
+            for name in sorted({case.relic_profile for case in cases})
+        },
+        "family_counts": {
+            name: sum(1 for case in cases if case.deck_family == name)
+            for name in sorted({case.deck_family for case in cases})
         },
         "slice_counts": {
             name: sum(1 for case in cases if case.slice_name == name)
@@ -515,8 +584,43 @@ def write_puct_collection(
     return records
 
 
-def records_to_preference_examples(records: Iterable[PuctCollectionRecord]) -> list[CombatPreferenceExample]:
-    examples: list[CombatPreferenceExample] = []
+def _potion_target_for_record(record: PuctCollectionRecord) -> CombatValueTarget:
+    candidate_lookup = {candidate.action_id: candidate for candidate in record.request.candidates}
+    total_visits = sum(record.puct_result.root_visits)
+    potion_weights: dict[str, float] = {}
+    if total_visits > 0:
+        for action_id, visit_count in zip(record.puct_result.root_action_ids, record.puct_result.root_visits):
+            candidate = candidate_lookup.get(str(action_id))
+            if candidate is None or not candidate.potion_id:
+                continue
+            if candidate.potion_id not in PHASE1_POTION_VOCAB:
+                continue
+            potion_weights[candidate.potion_id] = potion_weights.get(candidate.potion_id, 0.0) + (
+                float(visit_count) / float(total_visits)
+            )
+
+    potion_spend_count = float(record.puct_result.root_outcome.potion_cost)
+    if potion_spend_count > 0.0 and potion_weights:
+        scale = potion_spend_count / max(sum(potion_weights.values()), 1e-6)
+        potion_weights = {
+            potion_id: float(weight * scale) for potion_id, weight in potion_weights.items()
+        }
+    elif potion_spend_count == 0.0 and potion_weights:
+        potion_spend_count = float(sum(potion_weights.values()))
+
+    return CombatValueTarget(
+        solve_probability=float(record.puct_result.root_outcome.solve_probability),
+        expected_hp_loss=float(record.puct_result.root_outcome.expected_hp_loss),
+        expected_turns=float(record.puct_result.root_outcome.expected_turns),
+        potion_spend_count=potion_spend_count,
+        setup_delta=float(record.puct_result.root_outcome.setup_value_delta),
+        persistent_scaling_delta=float(record.puct_result.root_outcome.persistent_scaling_delta),
+        potion_spend_by_id=potion_weights,
+    )
+
+
+def records_to_puct_targets(records: Iterable[PuctCollectionRecord]) -> list[CombatPuctTargetExample]:
+    examples: list[CombatPuctTargetExample] = []
     for record in records:
         chosen_action = None
         if record.puct_result.root_visits:
@@ -528,9 +632,14 @@ def records_to_preference_examples(records: Iterable[PuctCollectionRecord]) -> l
         if chosen_action is None:
             continue
         examples.append(
-            CombatPreferenceExample(
+            CombatPuctTargetExample(
                 request=record.request,
-                preferred_action_id=chosen_action,
+                policy_action_ids=tuple(str(action_id) for action_id in record.puct_result.root_action_ids),
+                policy_scores=tuple(float(value) for value in record.puct_result.root_visit_shares),
+                value_target=_potion_target_for_record(record),
+                chosen_action_id=chosen_action,
+                visit_counts=tuple(int(value) for value in record.puct_result.root_visits),
+                sample_weight=1.0 + float(record.collection_pass),
                 metadata={
                     **dict(record.request.metadata),
                     "source_kind": record.case.source_kind,
@@ -539,6 +648,7 @@ def records_to_preference_examples(records: Iterable[PuctCollectionRecord]) -> l
                     "root_action_ids": list(record.puct_result.root_action_ids),
                     "stop_reason": record.puct_result.stop_reason.value,
                     "target_source": "rust_puct_snapshot",
+                    "relic_profile": record.case.relic_profile,
                 },
             )
         )
@@ -571,7 +681,6 @@ def build_seed_validation_report(
 ) -> dict[str, Any]:
     scripts = default_imported_act1_scripts()
     imported_cases = build_imported_combat_cases(scripts)
-    exact_labels = {script.label for script in scripts if script.exact_available}
     seed_rows = []
     stop_reason_counts: dict[str, int] = {}
     records = collect_rust_puct_records(
@@ -594,9 +703,10 @@ def build_seed_validation_report(
                 {
                     "seed": script.seed,
                     "label": script.label,
-                    "status": "unresolved_import",
+                    "status": "metadata_only",
                     "stop_reason": "ImportBlocked",
                     "note": script.exact_issue,
+                    "source_url": script.source_url,
                 }
             )
             continue
@@ -606,8 +716,9 @@ def build_seed_validation_report(
                 {
                     "seed": script.seed,
                     "label": script.label,
-                    "status": "missing_cases",
+                    "status": "reconstructed_with_uncertainty",
                     "stop_reason": "ImportBlocked",
+                    "source_url": script.source_url,
                 }
             )
             continue
@@ -620,7 +731,7 @@ def build_seed_validation_report(
             {
                 "seed": script.seed,
                 "label": script.label,
-                "status": "validated",
+                "status": "reconstructed_validated",
                 "stop_reason": stop_reason,
                 "root_visits": round(mean_visits, 2),
                 "frontier_width": round(mean_frontier, 2),
@@ -629,6 +740,9 @@ def build_seed_validation_report(
                 "combats": len(seed_records),
                 "boss_cleared": any(record.case.act1_floor == 16 and record.puct_result.root_outcome.solve_probability >= 0.5 for record in seed_records),
                 "checkpoint": checkpoint,
+                "source_url": script.source_url,
+                "reconstructed_floors": [floor.floor for floor in script.floors if floor.is_combat],
+                "act1_boundary_floor": 16,
             }
         )
 
@@ -637,16 +751,16 @@ def build_seed_validation_report(
         "checkpoint": checkpoint,
         "benchmark_config": PHASE2_CORPUS_NAME,
         "seed_count": len(scripts),
-        "validated_seeds": sum(1 for row in seed_rows if row["status"] == "validated"),
-        "failed_seeds": sum(1 for row in seed_rows if row["status"] != "validated"),
+        "validated_seeds": sum(1 for row in seed_rows if row["status"] == "reconstructed_validated"),
+        "failed_seeds": sum(1 for row in seed_rows if row["status"] != "reconstructed_validated"),
         "seeds": seed_rows,
         "stop_reason_counts": stop_reason_counts,
         "checkpoint_comparisons": [
             {
                 "from_checkpoint": "baseline",
                 "to_checkpoint": checkpoint,
-                "seed_count": sum(1 for row in seed_rows if row["status"] == "validated"),
-                "note": "Stage 2 snapshot-backed imported combat validation",
+                "seed_count": sum(1 for row in seed_rows if row["status"] == "reconstructed_validated"),
+                "note": "Stage 2 reconstructed Act 1 combat-entry validation",
             }
         ],
     }

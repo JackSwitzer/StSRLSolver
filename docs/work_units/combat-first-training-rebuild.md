@@ -118,7 +118,7 @@ The runtime artifact tree is append-only and intentionally simple:
 - `frontier_groups.json`
 - `benchmark_report.json`
 - `episodes.jsonl`
-- `dataset.jsonl`
+- `puct_targets.jsonl`
 - `checkpoint.json`
 - `summary.json`
 
@@ -138,8 +138,8 @@ What each file is for:
   - benchmark slice results and promotion gates
 - `episodes.jsonl`
   - episode traces with corpus slice/case provenance
-- `dataset.jsonl`
-  - reanalysis examples captured for model updates
+- `puct_targets.jsonl`
+  - policy/value target examples captured from Rust PUCT roots
 - `checkpoint.json`
   - lightweight phase-1 model weights
 - `summary.json`
@@ -162,10 +162,11 @@ Default overnight smoke / bring-up command:
 
 ```bash
 mkdir -p logs/active logs/runs
-./scripts/training.sh run-phase1-overnight \
+./scripts/training.sh run-phase1-puct-overnight \
   --output-dir logs/active \
+  --target-cases 24 \
+  --collection-passes 1 \
   --epochs 1 \
-  --target-requests 24 \
   --backend linear
 ```
 

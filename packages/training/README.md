@@ -4,10 +4,10 @@ Phase 1 is deliberately narrow:
 
 - Watcher A0 combat only
 - Rust-canonical combat observations and legal candidates
-- corpus-driven search + reanalysis training
+- snapshot-backed Rust PUCT collection + policy/value learning
 - append-only artifact logging
 - frontier-preserving local action selection
-- external validation seed support
+- reconstructed Act 1 validation seed support
 
 Core package surfaces:
 
@@ -15,12 +15,12 @@ Core package surfaces:
   - training-facing schemas and artifact payloads
 - `bridge.py`
   - Rust/PyO3 loading helpers
-- `corpus.py`
-  - Watcher A0 corpus planning with deck provenance
+- `stage2_pipeline.py`
+  - canonical mixed snapshot corpus, Rust PUCT collection, and seed validation
 - `inference_service.py`
-  - reanalysis loop and model-service wiring
+  - policy/value batching, acting, and checkpoint updates
 - `combat_model.py`
-  - lightweight linear + MLX model backends
+  - linear + MLX policy/value model backends
 - `benchmarking.py`
   - frontier scoring and benchmark grouping
 - `seed_suite.py`
@@ -44,7 +44,7 @@ Artifact outputs:
 - `frontier_groups.json`
 - `benchmark_report.json`
 - `episodes.jsonl`
-- `dataset.jsonl`
+- `puct_targets.jsonl`
 - `checkpoint.json`
 - `summary.json`
 

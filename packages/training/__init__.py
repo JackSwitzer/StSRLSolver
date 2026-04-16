@@ -11,6 +11,7 @@ from .bridge import (
     parse_training_schema_versions,
 )
 from .combat_model import (
+    CombatBatchPredictions,
     CombatInferenceResult,
     CombatStateSummary,
     LegalCombatCandidate,
@@ -33,22 +34,22 @@ from .contracts import (
     RestrictionPolicy,
     TrainingSchemaVersions,
 )
-from .corpus import PreparedCorpusRequest, build_phase1_requests, default_watcher_a0_act1_corpus_plan
 from .inference_service import (
     CombatInferenceService,
-    CombatPreferenceExample,
+    CombatPolicyValueTrainer,
     CombatSearchConfig,
-    OvernightReanalysisLoop,
-    ReanalysisEpochSummary,
+    PolicyValueEpochSummary,
     TrainingConfig,
 )
 from .selector import FrontierSelection, rank_frontier_lines, select_frontier, select_frontier_line
 from .seed_suite import ValidationSeed, default_watcher_validation_seed_suite
-from .shared_memory import CombatSearchRequest, CombatSharedMemoryBatch, CombatSharedMemoryBatcher, SharedMemoryConfig
+from .shared_memory import CombatPuctTargetBatch, CombatPuctTargetExample, CombatSearchRequest, CombatSharedMemoryBatch, CombatSharedMemoryBatcher, SharedMemoryConfig
+from .value_targets import CombatValueTarget, PHASE1_POTION_VOCAB, PHASE1_VALUE_HEAD_NAMES
 
 __all__ = [
     "BenchmarkConfig",
     "BenchmarkFrontierPoint",
+    "CombatBatchPredictions",
     "CombatFrontierLine",
     "CombatFrontierSummary",
     "CombatInferenceResult",
@@ -59,7 +60,9 @@ __all__ = [
     "CombatPuctConfig",
     "CombatPuctLine",
     "CombatPuctResult",
-    "CombatPreferenceExample",
+    "CombatPolicyValueTrainer",
+    "CombatPuctTargetBatch",
+    "CombatPuctTargetExample",
     "CombatSearchStopReason",
     "CombatSearchConfig",
     "CombatSearchRequest",
@@ -67,6 +70,7 @@ __all__ = [
     "CombatSharedMemoryBatcher",
     "CombatStateSummary",
     "CombatTrainingState",
+    "CombatValueTarget",
     "FrontierReport",
     "FrontierSelection",
     "FrontierWeights",
@@ -74,9 +78,9 @@ __all__ = [
     "LegalCombatCandidate",
     "LinearCombatModel",
     "MLXCombatModel",
-    "OvernightReanalysisLoop",
-    "PreparedCorpusRequest",
-    "ReanalysisEpochSummary",
+    "PHASE1_POTION_VOCAB",
+    "PHASE1_VALUE_HEAD_NAMES",
+    "PolicyValueEpochSummary",
     "RestrictionBuiltin",
     "RestrictionPolicy",
     "SearchConfig",
@@ -87,8 +91,6 @@ __all__ = [
     "TrainingTopology",
     "ValidationSeed",
     "build_frontier_report",
-    "build_phase1_requests",
-    "default_watcher_a0_act1_corpus_plan",
     "default_watcher_validation_seed_suite",
     "frontier_score",
     "load_combat_training_state",
