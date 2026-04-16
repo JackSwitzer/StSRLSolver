@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from time import perf_counter
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -248,12 +248,14 @@ class CombatPolicyValueTrainer:
         *,
         epochs: int,
         update: bool = True,
+        on_epoch_complete: Callable[[PolicyValueEpochSummary], None] | None = None,
     ) -> list[PolicyValueEpochSummary]:
         summaries: list[PolicyValueEpochSummary] = []
         for epoch_index in range(epochs):
-            summaries.append(
-                self.run_epoch(examples, epoch_index=epoch_index, update=update)
-            )
+            summary = self.run_epoch(examples, epoch_index=epoch_index, update=update)
+            summaries.append(summary)
+            if on_epoch_complete is not None:
+                on_epoch_complete(summary)
         return summaries
 
     @staticmethod

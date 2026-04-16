@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import asdict
 from pathlib import Path
 from statistics import fmean
+from time import perf_counter
 from typing import Any, Iterable
 
 from .benchmarking import build_frontier_report
@@ -47,6 +48,7 @@ from .stage2_pipeline import (
     write_puct_collection,
     write_snapshot_corpus,
 )
+from .system_stats import SystemStatsSampler
 from .value_targets import PHASE1_POTION_VOCAB
 
 
@@ -331,12 +333,41 @@ def _train_examples(
     top_k: int,
     checkpoint: Path | None = None,
     update: bool = True,
+    logger: TrainingRunLogger | None = None,
+    system_sampler: SystemStatsSampler | None = None,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     model = _build_model(checkpoint)
     service = CombatInferenceService.build(model=model, config=CombatSearchConfig(top_k=top_k))
     trainer = CombatPolicyValueTrainer(service=service, learning_rate=learning_rate)
-    summaries = trainer.run(examples, epochs=epochs, update=update)
+    training_started = perf_counter()
+
+    def _on_epoch_complete(summary: PolicyValueEpochSummary) -> None:
+        if logger is not None:
+            logger.append_event(
+                "training_epoch_complete",
+                epoch_index=summary.epoch_index,
+                example_count=summary.example_count,
+                policy_loss=summary.policy_loss,
+                value_loss=summary.value_loss,
+                throughput_examples_per_sec=summary.throughput_examples_per_sec,
+                backend_loaded=model.loaded_backend,
+            )
+        if logger is not None and system_sampler is not None:
+            logger.append_system_stats(
+                system_sampler.sample(
+                    phase="training_epoch_complete",
+                    step=summary.epoch_index,
+                    note=f"policy_loss={summary.policy_loss:.6f}, value_loss={summary.value_loss:.6f}",
+                )
+            )
+
+    summaries = trainer.run(
+        examples,
+        epochs=epochs,
+        update=update,
+        on_epoch_complete=_on_epoch_complete,
+    )
     checkpoint_path = output_dir / "checkpoint.json"
     model.save_checkpoint(checkpoint_path)
 
@@ -347,6 +378,7 @@ def _train_examples(
         "top_k": top_k,
         "backend_requested": "mlx",
         "backend_loaded": model.loaded_backend,
+        "training_wall_seconds": perf_counter() - training_started,
         "final_checkpoint": str(checkpoint_path),
         "policy_loss": summaries[-1].policy_loss if summaries else 0.0,
         "value_loss": summaries[-1].value_loss if summaries else 0.0,
@@ -440,17 +472,80 @@ def _run_phase1_puct_overnight(
 
     build_engine_extension()
     output_dir.mkdir(parents=True, exist_ok=True)
+    logger = TrainingRunLogger(TrainingArtifacts(output_dir))
+    system_sampler = SystemStatsSampler()
+    logger.append_system_stats(system_sampler.sample(phase="startup", note="phase1-puct-overnight"))
+
+    corpus_started = perf_counter()
     corpus_summary = write_snapshot_corpus(output_dir, total_cases=target_cases)
     cases = load_snapshot_corpus(output_dir)
+    corpus_wall_seconds = perf_counter() - corpus_started
+    logger.append_event(
+        "corpus_generated",
+        total_cases=len(cases),
+        target_cases=target_cases,
+        backend_loaded="mlx",
+        wall_seconds=corpus_wall_seconds,
+    )
+    logger.append_system_stats(
+        system_sampler.sample(
+            phase="corpus_generated",
+            step=len(cases),
+            note=f"wall_seconds={corpus_wall_seconds:.3f}",
+        )
+    )
+
+    def _on_record(record: PuctCollectionRecord, record_index: int) -> None:
+        if record_index == 1 or record_index % 25 == 0:
+            logger.append_event(
+                "collection_progress",
+                record_index=record_index,
+                collection_pass=record.collection_pass,
+                case_id=record.case.case_id,
+                deck_family=record.case.deck_family,
+                enemy=record.case.enemy,
+                stop_reason=record.puct_result.stop_reason.value,
+                root_total_visits=record.puct_result.root_total_visits,
+                frontier_width=len(record.puct_result.frontier),
+                elapsed_ms=record.puct_result.elapsed_ms,
+                backend_loaded="mlx",
+            )
+            logger.append_system_stats(
+                system_sampler.sample(
+                    phase="collection_progress",
+                    step=record_index,
+                    note=f"pass={record.collection_pass}, case={record.case.case_id}",
+                )
+            )
+
+    collection_started = perf_counter()
     records = list(
         write_puct_collection(
             output_dir,
             cases=cases,
             collection_passes=collection_passes,
+            on_record=_on_record,
         )
     )
+    collection_wall_seconds = perf_counter() - collection_started
     targets = records_to_puct_targets(records)
     _write_puct_target_examples(output_dir / "puct_targets.jsonl", targets)
+    logger.append_event(
+        "puct_collection_complete",
+        record_count=len(records),
+        collection_passes=collection_passes,
+        backend_loaded="mlx",
+        wall_seconds=collection_wall_seconds,
+    )
+    logger.append_system_stats(
+        system_sampler.sample(
+            phase="puct_collection_complete",
+            step=len(records),
+            note=f"wall_seconds={collection_wall_seconds:.3f}",
+        )
+    )
+
+    training_started = perf_counter()
     training_summary = _train_examples(
         targets,
         output_dir=output_dir,
@@ -458,9 +553,45 @@ def _run_phase1_puct_overnight(
         learning_rate=learning_rate,
         top_k=top_k,
         update=True,
+        logger=logger,
+        system_sampler=system_sampler,
     )
+    training_wall_seconds = perf_counter() - training_started
     checkpoint_path = Path(training_summary["final_checkpoint"])
+    logger.append_event(
+        "training_complete",
+        epochs=epochs,
+        checkpoint=str(checkpoint_path),
+        backend_loaded=training_summary["backend_loaded"],
+        wall_seconds=training_wall_seconds,
+        example_count=training_summary["example_count"],
+    )
+    logger.append_system_stats(
+        system_sampler.sample(
+            phase="training_complete",
+            step=training_summary["example_count"],
+            note=f"wall_seconds={training_wall_seconds:.3f}",
+        )
+    )
+
+    seed_validation_started = perf_counter()
     seed_summary = _validate_seed_suite(output_dir=output_dir, checkpoint=checkpoint_path)
+    seed_validation_wall_seconds = perf_counter() - seed_validation_started
+    logger.append_event(
+        "seed_validation_complete",
+        validated_seeds=seed_summary["validated_seeds"],
+        required_seed_count=seed_summary["required_seed_count"],
+        metadata_only_count=seed_summary["metadata_only_count"],
+        backend_loaded="mlx",
+        wall_seconds=seed_validation_wall_seconds,
+    )
+    logger.append_system_stats(
+        system_sampler.sample(
+            phase="seed_validation_complete",
+            step=seed_summary["validated_seeds"],
+            note=f"wall_seconds={seed_validation_wall_seconds:.3f}",
+        )
+    )
 
     runtime_manifest = _runtime_contract_manifest(seed=seed)
     training_manifest = TrainingRunManifest.create(
@@ -499,12 +630,7 @@ def _run_phase1_puct_overnight(
         tags=("phase1", "puct", "policy-value"),
         notes=("Canonical overnight path: snapshot corpus -> Rust PUCT -> policy/value training.",),
     )
-    logger = TrainingRunLogger(TrainingArtifacts(output_dir))
     logger.write_manifest(training_manifest)
-    logger.append_event("corpus_generated", total_cases=len(cases), target_cases=target_cases, backend_loaded="mlx")
-    logger.append_event("puct_collection_complete", record_count=len(records), collection_passes=collection_passes, backend_loaded="mlx")
-    logger.append_event("training_complete", epochs=epochs, checkpoint=str(checkpoint_path), backend_loaded=training_summary["backend_loaded"])
-    logger.append_event("seed_validation_complete", validated_seeds=seed_summary["validated_seeds"], required_seed_count=seed_summary["required_seed_count"], metadata_only_count=seed_summary["metadata_only_count"], backend_loaded="mlx")
 
     for index, record in enumerate(records):
         logger.append_metric(
@@ -550,6 +676,12 @@ def _run_phase1_puct_overnight(
         "learning_rate": learning_rate,
         "top_k": top_k,
         "seed": seed,
+        "timings": {
+            "corpus_wall_seconds": corpus_wall_seconds,
+            "collection_wall_seconds": collection_wall_seconds,
+            "training_wall_seconds": training_wall_seconds,
+            "seed_validation_wall_seconds": seed_validation_wall_seconds,
+        },
         "corpus_summary": corpus_summary,
         "collection_summary": {
             "record_count": len(records),

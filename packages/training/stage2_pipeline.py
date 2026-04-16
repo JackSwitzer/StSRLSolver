@@ -7,7 +7,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .benchmarking import BenchmarkFrontierPoint, build_frontier_report
 from .contracts import CombatOutcomeVector, CombatPuctConfig, CombatPuctResult, CombatSearchStopReason
@@ -506,6 +506,7 @@ def collect_rust_puct_records(
     cases: tuple[SnapshotCase, ...],
     collection_passes: int,
     checkpoint_path: Path | None = None,
+    on_record: Callable[[PuctCollectionRecord, int], None] | None = None,
 ) -> tuple[PuctCollectionRecord, ...]:
     from .combat_model import MLXCombatModel
 
@@ -536,6 +537,8 @@ def collect_rust_puct_records(
                 puct_result=parsed,
             )
             records.append(record)
+            if on_record is not None:
+                on_record(record, len(records))
             if pass_index + 1 < collection_passes and should_promote_collection_result(
                 stop_reason=parsed.stop_reason,
                 root_visit_shares=parsed.root_visit_shares,
@@ -555,11 +558,13 @@ def write_puct_collection(
     cases: tuple[SnapshotCase, ...],
     collection_passes: int,
     checkpoint_path: Path | None = None,
+    on_record: Callable[[PuctCollectionRecord, int], None] | None = None,
 ) -> tuple[PuctCollectionRecord, ...]:
     records = collect_rust_puct_records(
         cases=cases,
         collection_passes=collection_passes,
         checkpoint_path=checkpoint_path,
+        on_record=on_record,
     )
     _write_jsonl(output_dir / "puct_collection.jsonl", (record.to_dict() for record in records))
     pass_counts = {

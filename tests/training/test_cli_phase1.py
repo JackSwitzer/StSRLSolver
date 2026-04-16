@@ -101,6 +101,7 @@ def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> N
     metrics_lines = (output_dir / "metrics.jsonl").read_text(encoding="utf-8").strip().splitlines()
     event_lines = (output_dir / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
     episode_lines = (output_dir / "episodes.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    system_stat_lines = (output_dir / "system_stats.jsonl").read_text(encoding="utf-8").strip().splitlines()
     seed_report = json.loads((output_dir / "seed_validation_report.json").read_text(encoding="utf-8"))
 
     assert exit_code == 0
@@ -114,6 +115,8 @@ def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> N
     assert len(metrics_lines) >= 12
     assert len(event_lines) >= 4
     assert len(episode_lines) == len(metrics_lines) // 2
+    assert len(system_stat_lines) >= 4
     assert seed_report["seed_count"] == 3
     assert seed_report["required_seed_count"] == 2
     assert seed_report["backend_loaded"] == "mlx"
+    assert summary["timings"]["collection_wall_seconds"] >= 0.0

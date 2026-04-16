@@ -45,6 +45,18 @@ Claude and SpireMonitor should treat the training runtime as artifact-first. The
   - important fields:
     - `steps[].search_frontier`
     - `steps[].value`
+- `system_stats.jsonl`
+  - periodic host/process snapshots during corpus, collection, training, and validation
+  - important fields:
+    - `phase`
+    - `step`
+    - `process_cpu_percent`
+    - `process_rss_gb`
+    - `host_cpu_percent`
+    - `host_memory_used_gb`
+    - `host_swap_used_gb`
+    - `gpu_percent`
+    - `gpu_status`
 - `frontier_report.json`
   - aggregate frontier ranking report for the monitor
 - `frontier_groups.json`
@@ -98,6 +110,7 @@ Claude should consider an overnight run healthy when:
   - `required_seed_count == 2`
   - `failed_seeds == 0`
 - `metrics.jsonl` and `episodes.jsonl` are both growing during the run
+- `system_stats.jsonl` is growing during long collection/training stages
 - `logs/active` does not contain stale old-pipeline files such as `dataset.jsonl`
 
 ## Operational Rule

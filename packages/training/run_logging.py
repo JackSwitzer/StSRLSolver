@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from .benchmarking import FrontierReport
 from .contracts import BenchmarkReport
 from .manifests import TrainingRunManifest
+from .system_stats import SystemStatsSnapshot
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,10 @@ class TrainingArtifacts:
     @property
     def metrics_path(self) -> Path:
         return self.root / "metrics.jsonl"
+
+    @property
+    def system_stats_path(self) -> Path:
+        return self.root / "system_stats.jsonl"
 
     @property
     def frontier_report_path(self) -> Path:
@@ -107,6 +112,10 @@ class TrainingRunLogger:
             payload["seed_source"] = seed_source
         with self.artifacts.metrics_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+    def append_system_stats(self, snapshot: SystemStatsSnapshot) -> None:
+        with self.artifacts.system_stats_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(snapshot.to_dict(), sort_keys=True) + "\n")
 
     def append_episode(self, payload: Mapping[str, Any]) -> None:
         with self.artifacts.episode_log_path.open("a", encoding="utf-8") as handle:

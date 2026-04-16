@@ -70,6 +70,7 @@ The active training stack writes artifact-first outputs:
 - `manifest.json`: run identity, git snapshot, config snapshot, and backend policy truth
 - `events.jsonl`: append-only lifecycle events for corpus generation, collection, training, and validation
 - `metrics.jsonl`: per-case collection metrics including root visits and solve probability
+- `system_stats.jsonl`: process/host CPU, RAM, swap, and best-effort GPU telemetry during the run
 - `frontier_report.json`: aggregate frontier ranking output for monitor consumption
 - `frontier_report.md`: human-readable frontier summary
 - `frontier_groups.json`: grouped frontier slices for the app

@@ -99,6 +99,7 @@ Artifact meanings:
 - `manifest.json`: run identity, git/config snapshot, and backend truth
 - `events.jsonl`: append-only lifecycle events
 - `metrics.jsonl`: per-case collection metrics
+- `system_stats.jsonl`: process/host CPU, RAM, swap, and best-effort GPU telemetry
 - `frontier_report.json` / `frontier_report.md`: aggregate frontier summaries
 - `frontier_groups.json`: monitor-ready grouped frontier slices
 - `benchmark_report.json`: benchmark slice rollups

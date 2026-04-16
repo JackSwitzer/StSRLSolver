@@ -42,6 +42,7 @@ Artifact outputs:
 - `manifest.json`: run manifest with git/config/backend truth
 - `events.jsonl`: append-only lifecycle events
 - `metrics.jsonl`: per-case collection metrics
+- `system_stats.jsonl`: process/host CPU, RAM, swap, and best-effort GPU telemetry
 - `frontier_report.json`: frontier rankings for the monitor
 - `frontier_report.md`: human-readable frontier report
 - `frontier_groups.json`: grouped frontier output

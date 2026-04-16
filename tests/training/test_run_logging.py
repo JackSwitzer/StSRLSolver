@@ -5,6 +5,7 @@ from packages.training.benchmarking import BenchmarkFrontierPoint, build_frontie
 from packages.training.episode_log import EpisodeLogger, EpisodeProvenance, LoggedEpisode
 from packages.training.manifests import TrainingRunManifest
 from packages.training.run_logging import TrainingArtifacts, TrainingRunLogger
+from packages.training.system_stats import SystemStatsSnapshot
 
 
 def test_run_logger_writes_manifest_events_metrics_frontier_and_episode_artifacts(tmp_path):
@@ -14,6 +15,27 @@ def test_run_logger_writes_manifest_events_metrics_frontier_and_episode_artifact
     manifest = TrainingRunManifest.create(run_id="run_002", sweep_config="baseline_control")
     logger.write_manifest(manifest)
     logger.append_event("phase_change", phase="collect")
+    logger.append_system_stats(
+        SystemStatsSnapshot(
+            timestamp="2026-04-16T00:00:00Z",
+            phase="collect",
+            step=1,
+            process_pid=123,
+            process_cpu_percent=88.0,
+            process_rss_gb=1.5,
+            process_memory_percent=6.0,
+            host_cpu_percent=71.0,
+            host_memory_used_gb=11.5,
+            host_memory_total_gb=24.0,
+            host_memory_percent=48.0,
+            host_swap_used_gb=0.0,
+            host_swap_percent=0.0,
+            gpu_percent=None,
+            gpu_sampler="powermetrics",
+            gpu_status="powermetrics requires superuser",
+            note="collection progress",
+        )
+    )
     logger.append_metric(
         "games_per_min",
         42.5,
@@ -79,6 +101,7 @@ def test_run_logger_writes_manifest_events_metrics_frontier_and_episode_artifact
     assert artifacts.manifest_path.exists()
     assert artifacts.events_path.exists()
     assert artifacts.metrics_path.exists()
+    assert artifacts.system_stats_path.exists()
     assert artifacts.frontier_report_path.exists()
     assert artifacts.benchmark_report_path.exists()
     assert artifacts.frontier_markdown_path.exists()
@@ -87,6 +110,7 @@ def test_run_logger_writes_manifest_events_metrics_frontier_and_episode_artifact
 
     event = json.loads(artifacts.events_path.read_text().strip().splitlines()[0])
     metric = json.loads(artifacts.metrics_path.read_text().strip().splitlines()[0])
+    system_stat = json.loads(artifacts.system_stats_path.read_text().strip().splitlines()[0])
     frontier = json.loads(artifacts.frontier_report_path.read_text())
     benchmark = json.loads(artifacts.benchmark_report_path.read_text())
     groups = json.loads(artifacts.frontier_groups_path.read_text())
@@ -99,6 +123,8 @@ def test_run_logger_writes_manifest_events_metrics_frontier_and_episode_artifact
     assert metric["deck_family"] == "single-strike-remove"
     assert metric["remove_count"] == 1
     assert metric["potion_set"] == ["Fire Potion"]
+    assert system_stat["phase"] == "collect"
+    assert system_stat["gpu_status"] == "powermetrics requires superuser"
     assert frontier["ranking"][0] == "combat-first"
     assert benchmark["slices"][0]["slice_name"] == "curated-core"
     assert any(group["key"]["enemy"] == "Gremlin Nob" for group in groups)
