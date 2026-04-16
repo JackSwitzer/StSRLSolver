@@ -17,7 +17,7 @@ Use the new artifact-first training stack only:
 - `packages/engine-rs/`
   - canonical Rust engine and training contract
 - `packages/training/`
-  - snapshot corpus generation, Rust PUCT collection, policy/value training, manifests, frontier logging
+  - snapshot corpus generation, Rust PUCT collection, MLX policy/value training, manifests, frontier logging
 - `packages/app/SpireMonitor/`
   - manifest/frontier/benchmark/replay monitor
 
@@ -32,7 +32,7 @@ uv run pytest tests/training -q
 
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
-./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1 --backend mlx
+./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1
 ```
 
 ## Key Docs
@@ -46,4 +46,5 @@ uv run pytest tests/training -q
 - Watcher A0 combat first
 - artifact-first monitor output
 - mixed snapshot corpus plus reconstructed Act 1 validation seeds
+- MLX-only backend policy
 - strategic/pathing training deferred until the combat loop is stable

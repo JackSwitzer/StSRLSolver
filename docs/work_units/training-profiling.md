@@ -46,5 +46,5 @@ Profiling on this branch is about the new combat-first runtime, not a legacy col
 
 ```bash
 ./scripts/training.sh print-corpus-plan
-./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1 --backend linear
+./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1
 ```

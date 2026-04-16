@@ -166,8 +166,7 @@ mkdir -p logs/active logs/runs
   --output-dir logs/active \
   --target-cases 24 \
   --collection-passes 1 \
-  --epochs 1 \
-  --backend linear
+  --epochs 1
 ```
 
 Monitor flow:

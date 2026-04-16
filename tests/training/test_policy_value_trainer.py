@@ -9,7 +9,7 @@ from packages.training import (
     CombatStateSummary,
     CombatValueTarget,
     LegalCombatCandidate,
-    LinearCombatModel,
+    MLXCombatModel,
 )
 
 
@@ -51,7 +51,7 @@ def _example(idx: int, *, preferred_strength: float = 1.5, aggressive_strength: 
 
 def test_policy_value_trainer_improves_chosen_action_mass() -> None:
     examples = [_example(idx) for idx in range(8)]
-    model = LinearCombatModel(candidate_scale=1.0, legal_bias=0.0, default_learning_rate=0.2)
+    model = MLXCombatModel(candidate_scale=1.0, legal_bias=0.0, default_learning_rate=0.2)
     service = CombatInferenceService.build(model=model, config=CombatSearchConfig(top_k=3))
     trainer = CombatPolicyValueTrainer(service=service, learning_rate=0.2, batch_size=4)
 
@@ -66,7 +66,7 @@ def test_policy_value_trainer_improves_chosen_action_mass() -> None:
 
 def test_inference_service_exposes_multi_head_value_predictions() -> None:
     service = CombatInferenceService.build(
-        LinearCombatModel(candidate_scale=1.0, legal_bias=0.0),
+        MLXCombatModel(candidate_scale=1.0, legal_bias=0.0),
         CombatSearchConfig(top_k=3),
     )
     result = service.choose_action(_example(0).request)

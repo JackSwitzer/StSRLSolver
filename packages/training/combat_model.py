@@ -157,7 +157,11 @@ class CombatBatchPredictions:
 
 
 class CombatPolicyValueModel(Protocol):
-    """Protocol shared by the simple linear and MLX policy/value models."""
+    """Protocol shared by supported combat policy/value models."""
+
+    @property
+    def loaded_backend(self) -> str:
+        """Return the active backend name."""
 
     def predict_batch(self, batch: "CombatSearchBatchLike") -> CombatBatchPredictions:
         """Return policy scores and value-head predictions."""
@@ -169,6 +173,9 @@ class CombatPolicyValueModel(Protocol):
         learning_rate: float | None = None,
     ) -> dict[str, Any]:
         """Apply one policy/value update step."""
+
+    def save_checkpoint(self, path: str | Path) -> Path:
+        """Persist a checkpoint."""
 
 
 class CombatSearchBatchLike(Protocol):
@@ -196,16 +203,6 @@ def _pad_weights(values: tuple[float, ...], width: int, fill: float) -> tuple[fl
     return values + tuple(fill for _ in range(width - len(values)))
 
 
-def _softmax_masked(scores: npt.NDArray[np.float32], mask: npt.NDArray[np.bool_]) -> npt.NDArray[np.float32]:
-    masked = np.where(mask, scores, np.float32(-1e9))
-    shifted = masked - np.max(masked, axis=1, keepdims=True)
-    weights = np.exp(shifted, dtype=np.float32)
-    weights = np.where(mask, weights, np.float32(0.0))
-    totals = np.sum(weights, axis=1, keepdims=True)
-    totals = np.where(totals > 0.0, totals, np.float32(1.0))
-    return np.asarray(weights / totals, dtype=np.float32)
-
-
 def _value_feature_matrix(batch: CombatSearchBatchLike) -> npt.NDArray[np.float32]:
     request_count = len(batch.request_ids)
     state_width = int(batch.state_matrix.shape[1]) if batch.state_matrix.ndim == 2 else 0
@@ -230,9 +227,10 @@ def _value_feature_matrix(batch: CombatSearchBatchLike) -> npt.NDArray[np.float3
 
 
 @dataclass(slots=True)
-class LinearCombatModel:
-    """Small deterministic policy/value model with direct PUCT target updates."""
+class MLXCombatModel:
+    """MLX-backed policy/value scorer used by the supported training runtime."""
 
+    checkpoint_path: str | None = None
     state_scale: float = 0.0
     candidate_scale: float = 1.0
     legal_bias: float = 1.0
@@ -243,7 +241,26 @@ class LinearCombatModel:
     value_head_names: tuple[str, ...] = PHASE1_VALUE_HEAD_NAMES
     value_feature_weights: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
     value_head_biases: Mapping[str, float] = field(default_factory=dict)
-    _loaded_backend: str = field(default="numpy", init=False, repr=False)
+    _loaded_backend: str = field(default="mlx", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _mlx()
+        if self.checkpoint_path is not None and Path(self.checkpoint_path).exists():
+            loaded = self.load_checkpoint(self.checkpoint_path)
+            self.state_scale = loaded.state_scale
+            self.candidate_scale = loaded.candidate_scale
+            self.legal_bias = loaded.legal_bias
+            self.illegal_bias = loaded.illegal_bias
+            self.bias = loaded.bias
+            self.default_learning_rate = loaded.default_learning_rate
+            self.candidate_weights = loaded.candidate_weights
+            self.value_head_names = loaded.value_head_names
+            self.value_feature_weights = loaded.value_feature_weights
+            self.value_head_biases = loaded.value_head_biases
+
+    @property
+    def loaded_backend(self) -> str:
+        return self._loaded_backend
 
     def _ensure_dimensions(self, candidate_dim: int, value_feature_dim: int) -> None:
         self.candidate_weights = _pad_weights(self.candidate_weights, candidate_dim, self.candidate_scale)
@@ -255,44 +272,77 @@ class LinearCombatModel:
         self.value_feature_weights = weight_map
         self.value_head_biases = bias_map
 
-    def predict_batch(self, batch: CombatSearchBatchLike) -> CombatBatchPredictions:
+    def _forward(
+        self,
+        batch: CombatSearchBatchLike,
+    ) -> tuple["Any", "Any", npt.NDArray[np.float32]]:
+        mx = _mlx()
         candidate_dim = int(batch.candidate_matrix.shape[2]) if batch.candidate_matrix.ndim == 3 else 0
         value_features = _value_feature_matrix(batch)
         value_feature_dim = int(value_features.shape[1]) if value_features.ndim == 2 else 0
         self._ensure_dimensions(candidate_dim, value_feature_dim)
 
         if candidate_dim:
-            candidate_weights = np.asarray(self.candidate_weights[:candidate_dim], dtype=np.float32)
-            policy_scores = np.sum(
-                batch.candidate_matrix * candidate_weights[None, None, :],
-                axis=2,
+            candidate_weights = mx.array(
+                np.asarray(self.candidate_weights[:candidate_dim], dtype=np.float32),
+                dtype=mx.float32,
             )
+            candidate_matrix = mx.array(batch.candidate_matrix, dtype=mx.float32)
+            policy_scores = mx.sum(candidate_matrix * candidate_weights[None, None, :], axis=2)
         else:
-            policy_scores = np.zeros(batch.legal_mask.shape, dtype=np.float32)
+            policy_scores = mx.zeros(batch.legal_mask.shape, dtype=mx.float32)
+
         if self.state_scale:
-            state_term = np.sum(batch.state_matrix, axis=1, dtype=np.float32) * np.float32(self.state_scale)
+            state_term = (
+                mx.sum(mx.array(batch.state_matrix, dtype=mx.float32), axis=1)
+                * np.float32(self.state_scale)
+            )
             policy_scores = policy_scores + state_term[:, None]
-        policy_scores = policy_scores + np.float32(self.bias)
-        policy_scores = np.where(
-            batch.legal_mask,
-            policy_scores + np.float32(self.legal_bias),
-            np.float32(self.illegal_bias),
+
+        raw_scores = policy_scores + np.float32(self.bias)
+        legal_mask = mx.array(batch.legal_mask, dtype=mx.bool_)
+        illegal_fill = mx.full(raw_scores.shape, np.float32(-1e9), dtype=mx.float32)
+        policy_scores = mx.where(
+            legal_mask,
+            raw_scores + np.float32(self.legal_bias),
+            illegal_fill,
         )
 
-        value_matrix = np.zeros((len(batch.request_ids), len(self.value_head_names)), dtype=np.float32)
-        for column, head_name in enumerate(self.value_head_names):
-            head_weights = np.asarray(self.value_feature_weights.get(head_name, ()), dtype=np.float32)
-            bias = np.float32(self.value_head_biases.get(head_name, 0.0))
-            if head_weights.size:
-                value_matrix[:, column] = np.sum(value_features * head_weights[None, :], axis=1) + bias
+        value_features_mx = mx.array(value_features, dtype=mx.float32)
+        value_columns = []
+        for head_name in self.value_head_names:
+            head_weights = mx.array(
+                np.asarray(self.value_feature_weights.get(head_name, ()), dtype=np.float32),
+                dtype=mx.float32,
+            )
+            head_bias = np.float32(self.value_head_biases.get(head_name, 0.0))
+            if head_weights.size == 0:
+                value_columns.append(mx.full((len(batch.request_ids),), head_bias, dtype=mx.float32))
             else:
-                value_matrix[:, column] = bias
+                value_columns.append(mx.sum(value_features_mx * head_weights[None, :], axis=1) + head_bias)
+        value_matrix = (
+            mx.stack(value_columns, axis=1)
+            if value_columns
+            else mx.zeros((len(batch.request_ids), 0), dtype=mx.float32)
+        )
+        return policy_scores, value_matrix, value_features
 
+    def predict_batch(self, batch: CombatSearchBatchLike) -> CombatBatchPredictions:
+        policy_scores, value_matrix, _ = self._forward(batch)
         return CombatBatchPredictions(
             policy_scores=np.asarray(policy_scores, dtype=np.float32),
             value_matrix=np.asarray(value_matrix, dtype=np.float32),
             value_head_names=self.value_head_names,
         )
+
+    def _softmax_masked(self, scores: "Any", legal_mask: "Any") -> "Any":
+        mx = _mlx()
+        shifted = scores - mx.max(scores, axis=1, keepdims=True)
+        weights = mx.exp(shifted)
+        weights = mx.where(legal_mask, weights, mx.zeros_like(weights))
+        totals = mx.sum(weights, axis=1, keepdims=True)
+        totals = mx.where(totals > 0.0, totals, mx.ones_like(totals))
+        return weights / totals
 
     def train_puct_batch(
         self,
@@ -300,64 +350,84 @@ class LinearCombatModel:
         *,
         learning_rate: float | None = None,
     ) -> dict[str, Any]:
-        predictions = self.predict_batch(batch)
-        policy_probs = _softmax_masked(predictions.policy_scores, batch.legal_mask)
-        sample_weights = batch.sample_weights[:, None]
+        mx = _mlx()
         lr = float(self.default_learning_rate if learning_rate is None else learning_rate)
+        policy_scores, predicted_values, value_features = self._forward(batch)
+        legal_mask = mx.array(batch.legal_mask, dtype=mx.bool_)
+        policy_probs = self._softmax_masked(policy_scores, legal_mask)
+        target_policy = mx.array(
+            np.where(batch.policy_target_mask, batch.policy_target_matrix, np.float32(0.0)),
+            dtype=mx.float32,
+        )
+        sample_weights = mx.array(batch.sample_weights[:, None], dtype=mx.float32)
+        request_count = np.float32(max(len(batch.request_ids), 1))
 
-        target_policy = np.where(batch.policy_target_mask, batch.policy_target_matrix, np.float32(0.0))
-        policy_grad = (policy_probs - target_policy) * sample_weights
-        candidate_grad = np.sum(
-            policy_grad[:, :, None] * batch.candidate_matrix,
-            axis=(0, 1),
-            dtype=np.float32,
-        ) / np.float32(max(len(batch.request_ids), 1))
-        candidate_weights = np.asarray(self.candidate_weights, dtype=np.float32)
-        if candidate_grad.size:
-            candidate_weights -= np.float32(lr) * candidate_grad
-            self.candidate_weights = tuple(float(value) for value in candidate_weights)
+        candidate_dim = int(batch.candidate_matrix.shape[2]) if batch.candidate_matrix.ndim == 3 else 0
+        if candidate_dim:
+            candidate_matrix = mx.array(batch.candidate_matrix, dtype=mx.float32)
+            policy_grad = (policy_probs - target_policy) * sample_weights
+            candidate_grad = mx.sum(policy_grad[:, :, None] * candidate_matrix, axis=(0, 1)) / request_count
+            candidate_weights = mx.array(
+                np.asarray(self.candidate_weights[:candidate_dim], dtype=np.float32),
+                dtype=mx.float32,
+            )
+            candidate_weights = candidate_weights - np.float32(lr) * candidate_grad
+            self.candidate_weights = tuple(float(value) for value in np.asarray(candidate_weights).tolist())
 
-        value_features = _value_feature_matrix(batch)
         if batch.value_target_names != self.value_head_names:
             raise ValueError("batch value head names must match model head names")
-        prediction_error = (predictions.value_matrix - batch.value_target_matrix) * sample_weights
-        feature_count = np.float32(max(len(batch.request_ids), 1))
+
+        target_values = mx.array(batch.value_target_matrix, dtype=mx.float32)
+        prediction_error = (predicted_values - target_values) * sample_weights
+        value_features_mx = mx.array(value_features, dtype=mx.float32)
         weight_map = dict(self.value_feature_weights)
         bias_map = dict(self.value_head_biases)
         for column, head_name in enumerate(self.value_head_names):
             head_error = prediction_error[:, column]
-            grad = np.sum(head_error[:, None] * value_features, axis=0, dtype=np.float32) / feature_count
-            bias_grad = float(np.sum(head_error, dtype=np.float32) / feature_count)
-            head_weights = np.asarray(weight_map.get(head_name, ()), dtype=np.float32)
-            if grad.size:
-                head_weights -= np.float32(lr) * grad
-                weight_map[head_name] = tuple(float(value) for value in head_weights)
-            bias_map[head_name] = float(bias_map.get(head_name, 0.0) - lr * bias_grad)
+            grad = mx.sum(head_error[:, None] * value_features_mx, axis=0) / request_count
+            bias_grad = mx.sum(head_error) / request_count
+            head_weights = mx.array(
+                np.asarray(weight_map.get(head_name, ()), dtype=np.float32),
+                dtype=mx.float32,
+            )
+            if head_weights.size:
+                head_weights = head_weights - np.float32(lr) * grad
+                weight_map[head_name] = tuple(float(value) for value in np.asarray(head_weights).tolist())
+            bias_map[head_name] = float(
+                np.asarray(np.float32(bias_map.get(head_name, 0.0)) - np.float32(lr) * bias_grad)
+            )
         self.value_feature_weights = weight_map
         self.value_head_biases = bias_map
 
+        policy_probs_np = np.asarray(policy_probs, dtype=np.float32)
+        target_policy_np = np.asarray(target_policy, dtype=np.float32)
+        predicted_values_np = np.asarray(predicted_values, dtype=np.float32)
+        target_values_np = np.asarray(target_values, dtype=np.float32)
         chosen_mass = []
         for row, chosen_idx in enumerate(batch.chosen_action_indices.tolist()):
             if chosen_idx >= 0:
-                chosen_mass.append(float(policy_probs[row, chosen_idx]))
+                chosen_mass.append(float(policy_probs_np[row, chosen_idx]))
         policy_loss = float(
-            -np.sum(target_policy * np.log(np.clip(policy_probs, 1e-8, 1.0)), dtype=np.float32)
-            / np.float32(max(len(batch.request_ids), 1))
+            -np.sum(target_policy_np * np.log(np.clip(policy_probs_np, 1e-8, 1.0)), dtype=np.float32)
+            / request_count
         )
         value_loss = float(
-            np.mean((predictions.value_matrix - batch.value_target_matrix) ** 2, dtype=np.float32)
+            np.mean((predicted_values_np - target_values_np) ** 2, dtype=np.float32)
         )
+        if self.checkpoint_path is not None:
+            self.save_checkpoint(self.checkpoint_path)
         return {
             "updated": True,
             "policy_loss": policy_loss,
             "value_loss": value_loss,
             "mean_chosen_action_mass": float(np.mean(chosen_mass, dtype=np.float32)) if chosen_mass else 0.0,
             "value_head_count": len(self.value_head_names),
+            "backend_loaded": self.loaded_backend,
         }
 
     def to_snapshot(self) -> JsonDict:
         return {
-            "kind": "linear_policy_value_model/v2",
+            "kind": "mlx_policy_value_model/v1",
             "state_scale": self.state_scale,
             "candidate_scale": self.candidate_scale,
             "legal_bias": self.legal_bias,
@@ -373,22 +443,15 @@ class LinearCombatModel:
         }
 
     @classmethod
-    def from_snapshot(cls, payload: Mapping[str, Any]) -> "LinearCombatModel":
-        kind = str(payload.get("kind", "linear_policy_value_model/v2"))
+    def from_snapshot(cls, payload: Mapping[str, Any]) -> "MLXCombatModel":
+        kind = str(payload.get("kind", "mlx_policy_value_model/v1"))
+        if kind not in {"mlx_policy_value_model/v1", "linear_policy_value_model/v2", "linear_combat_model/v1"}:
+            raise ValueError(f"unsupported checkpoint kind: {kind}")
         illegal_bias = payload.get("illegal_bias")
-        if kind == "linear_combat_model/v1":
-            return cls(
-                candidate_scale=float(payload.get("candidate_scale", 1.0)),
-                state_scale=float(payload.get("state_scale", 0.0)),
-                legal_bias=float(payload.get("legal_bias", 1.0)),
-                illegal_bias=-inf if illegal_bias is None else float(illegal_bias),
-                bias=float(payload.get("bias", 0.0)),
-                default_learning_rate=float(payload.get("default_learning_rate", 0.05)),
-                candidate_weights=tuple(float(value) for value in payload.get("candidate_weights", ())),
-            )
         return cls(
-            candidate_scale=float(payload.get("candidate_scale", 1.0)),
+            checkpoint_path=None,
             state_scale=float(payload.get("state_scale", 0.0)),
+            candidate_scale=float(payload.get("candidate_scale", 1.0)),
             legal_bias=float(payload.get("legal_bias", 1.0)),
             illegal_bias=-inf if illegal_bias is None else float(illegal_bias),
             bias=float(payload.get("bias", 0.0)),
@@ -414,118 +477,14 @@ class LinearCombatModel:
         return destination
 
     @classmethod
-    def load_checkpoint(cls, path: str | Path) -> "LinearCombatModel":
+    def load_checkpoint(cls, path: str | Path) -> "MLXCombatModel":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls.from_snapshot(payload)
 
 
-@dataclass(slots=True)
-class MLXCombatModel:
-    """MLX-backed policy/value scorer that shares checkpoints with LinearCombatModel."""
-
-    checkpoint_path: str | None = None
-    candidate_scale: float = 1.0
-    legal_bias: float = 1.0
-    bias: float = 0.0
-    default_learning_rate: float = 0.01
-    _loaded_backend: str = field(default="pending", init=False, repr=False)
-    _cached_model: LinearCombatModel | None = field(default=None, init=False, repr=False)
-    _cached_checkpoint_mtime_ns: int | None = field(default=None, init=False, repr=False)
-
-    def _checkpoint_model(self) -> LinearCombatModel:
-        if self.checkpoint_path is None:
-            if self._cached_model is None:
-                self._cached_model = LinearCombatModel(
-                    candidate_scale=self.candidate_scale,
-                    state_scale=self.state_scale,
-                    legal_bias=self.legal_bias,
-                    bias=self.bias,
-                    default_learning_rate=self.default_learning_rate,
-                )
-            self._loaded_backend = "numpy-fallback"
-            return self._cached_model
-
-        checkpoint = Path(self.checkpoint_path)
-        if not checkpoint.exists():
-            if self._cached_model is None:
-                self._cached_model = LinearCombatModel(
-                    candidate_scale=self.candidate_scale,
-                    state_scale=self.state_scale,
-                    legal_bias=self.legal_bias,
-                    bias=self.bias,
-                    default_learning_rate=self.default_learning_rate,
-                )
-            self._loaded_backend = "numpy-fallback"
-            return self._cached_model
-
-        mtime_ns = checkpoint.stat().st_mtime_ns
-        if self._cached_model is None or self._cached_checkpoint_mtime_ns != mtime_ns:
-            self._cached_model = LinearCombatModel.load_checkpoint(checkpoint)
-            self._cached_checkpoint_mtime_ns = mtime_ns
-        return self._cached_model
-
-    def predict_batch(self, batch: CombatSearchBatchLike) -> CombatBatchPredictions:
-        linear_model = self._checkpoint_model()
-        try:
-            import mlx.core as mx  # type: ignore
-        except Exception:
-            self._loaded_backend = "numpy-fallback"
-            return linear_model.predict_batch(batch)
-
-        self._loaded_backend = "mlx"
-        candidate_dim = int(batch.candidate_matrix.shape[2]) if batch.candidate_matrix.ndim == 3 else 0
-        value_features = _value_feature_matrix(batch)
-        value_feature_dim = int(value_features.shape[1]) if value_features.ndim == 2 else 0
-        linear_model._ensure_dimensions(candidate_dim, value_feature_dim)
-
-        if candidate_dim:
-            candidate_weights = mx.array(
-                np.asarray(linear_model.candidate_weights[:candidate_dim], dtype=np.float32),
-                dtype=mx.float32,
-            )
-            candidate = mx.array(batch.candidate_matrix, dtype=mx.float32)
-            policy_scores = mx.sum(candidate * candidate_weights[None, None, :], axis=2)
-        else:
-            policy_scores = mx.zeros(batch.legal_mask.shape, dtype=mx.float32)
-
-        raw_scores = policy_scores + np.float32(linear_model.bias)
-        illegal_fill = mx.full(raw_scores.shape, -1e9, dtype=mx.float32)
-        policy_scores = mx.where(
-            mx.array(batch.legal_mask),
-            raw_scores + np.float32(linear_model.legal_bias),
-            illegal_fill,
-        )
-
-        value_features_mx = mx.array(value_features, dtype=mx.float32)
-        value_columns = []
-        for head_name in linear_model.value_head_names:
-            head_weights = mx.array(
-                np.asarray(linear_model.value_feature_weights.get(head_name, ()), dtype=np.float32),
-                dtype=mx.float32,
-            )
-            bias = np.float32(linear_model.value_head_biases.get(head_name, 0.0))
-            if head_weights.size == 0:
-                value_columns.append(mx.full((len(batch.request_ids),), bias, dtype=mx.float32))
-            else:
-                value_columns.append(mx.sum(value_features_mx * head_weights[None, :], axis=1) + bias)
-
-        value_matrix = mx.stack(value_columns, axis=1) if value_columns else mx.zeros((len(batch.request_ids), 0), dtype=mx.float32)
-        return CombatBatchPredictions(
-            policy_scores=np.asarray(policy_scores, dtype=np.float32),
-            value_matrix=np.asarray(value_matrix, dtype=np.float32),
-            value_head_names=linear_model.value_head_names,
-        )
-
-    def train_puct_batch(
-        self,
-        batch: CombatPuctTargetBatchLike,
-        *,
-        learning_rate: float | None = None,
-    ) -> dict[str, Any]:
-        linear_model = self._checkpoint_model()
-        result = linear_model.train_puct_batch(batch, learning_rate=learning_rate)
-        if self.checkpoint_path is not None:
-            linear_model.save_checkpoint(self.checkpoint_path)
-            self._cached_checkpoint_mtime_ns = Path(self.checkpoint_path).stat().st_mtime_ns
-        self._cached_model = linear_model
-        return result
+def _mlx():
+    try:
+        import mlx.core as mx  # type: ignore
+    except Exception as exc:  # pragma: no cover - exercised in unit tests via monkeypatch
+        raise RuntimeError("MLX is required for the supported training runtime") from exc
+    return mx

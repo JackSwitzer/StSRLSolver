@@ -24,7 +24,6 @@ from .engine_module import build_engine_extension, load_engine_module
 from .inference_service import CombatInferenceService, CombatSearchConfig
 from .run_logging import TrainingArtifacts, TrainingRunLogger
 from .seed_imports import ImportedCombatCase, default_imported_act1_scripts, build_imported_combat_cases
-from .selector import select_frontier
 from .shared_memory import CombatPuctTargetExample, CombatSearchRequest
 from .value_targets import CombatValueTarget, PHASE1_POTION_VOCAB
 
@@ -505,16 +504,13 @@ def _config_for_room(room_kind: str, multiplier: int = 1) -> CombatPuctConfig:
 def collect_rust_puct_records(
     *,
     cases: tuple[SnapshotCase, ...],
-    backend: str,
     collection_passes: int,
     checkpoint_path: Path | None = None,
 ) -> tuple[PuctCollectionRecord, ...]:
-    from .combat_model import LinearCombatModel, MLXCombatModel
+    from .combat_model import MLXCombatModel
 
     engine_mod = load_engine_module()
-    model = MLXCombatModel(checkpoint_path=str(checkpoint_path) if checkpoint_path else None) if backend == "mlx" else (
-        LinearCombatModel.load_checkpoint(checkpoint_path) if checkpoint_path and checkpoint_path.exists() else LinearCombatModel()
-    )
+    model = MLXCombatModel(checkpoint_path=str(checkpoint_path) if checkpoint_path else None)
     service = CombatInferenceService.build(model=model, config=CombatSearchConfig(top_k=8))
     records: list[PuctCollectionRecord] = []
     active_cases = list(cases)
@@ -557,13 +553,11 @@ def write_puct_collection(
     output_dir: Path,
     *,
     cases: tuple[SnapshotCase, ...],
-    backend: str,
     collection_passes: int,
     checkpoint_path: Path | None = None,
 ) -> tuple[PuctCollectionRecord, ...]:
     records = collect_rust_puct_records(
         cases=cases,
-        backend=backend,
         collection_passes=collection_passes,
         checkpoint_path=checkpoint_path,
     )
@@ -578,6 +572,8 @@ def write_puct_collection(
             "corpus_name": PHASE2_CORPUS_NAME,
             "total_records": len(records),
             "collection_passes": collection_passes,
+            "backend_requested": "mlx",
+            "backend_loaded": "mlx",
             "pass_counts": pass_counts,
         },
     )
@@ -676,19 +672,18 @@ def frontier_points_from_records(records: Iterable[PuctCollectionRecord]) -> lis
 
 def build_seed_validation_report(
     *,
-    backend: str,
     checkpoint: str,
 ) -> dict[str, Any]:
     scripts = default_imported_act1_scripts()
     imported_cases = build_imported_combat_cases(scripts)
     seed_rows = []
     stop_reason_counts: dict[str, int] = {}
+    required_seed_labels = {script.label for script in scripts if script.exact_available}
     records = collect_rust_puct_records(
         cases=tuple(
             _build_imported_snapshot_case(case, case_index=index, bucket_index=0, potion_variant_index=0)
             for index, case in enumerate(imported_cases)
         ),
-        backend=backend,
         collection_passes=1,
         checkpoint_path=Path(checkpoint) if checkpoint else None,
     )
@@ -750,17 +745,29 @@ def build_seed_validation_report(
         "suite_name": "watcher_validation_suite",
         "checkpoint": checkpoint,
         "benchmark_config": PHASE2_CORPUS_NAME,
+        "backend_requested": "mlx",
+        "backend_loaded": "mlx",
         "seed_count": len(scripts),
         "validated_seeds": sum(1 for row in seed_rows if row["status"] == "reconstructed_validated"),
-        "failed_seeds": sum(1 for row in seed_rows if row["status"] != "reconstructed_validated"),
+        "failed_seeds": sum(
+            1
+            for row in seed_rows
+            if row["label"] in required_seed_labels and row["status"] != "reconstructed_validated"
+        ),
+        "required_seed_count": len(required_seed_labels),
+        "metadata_only_count": sum(1 for row in seed_rows if row["status"] == "metadata_only"),
         "seeds": seed_rows,
         "stop_reason_counts": stop_reason_counts,
         "checkpoint_comparisons": [
             {
                 "from_checkpoint": "baseline",
                 "to_checkpoint": checkpoint,
-                "seed_count": sum(1 for row in seed_rows if row["status"] == "reconstructed_validated"),
-                "note": "Stage 2 reconstructed Act 1 combat-entry validation",
+                "seed_count": sum(
+                    1
+                    for row in seed_rows
+                    if row["label"] in required_seed_labels and row["status"] == "reconstructed_validated"
+                ),
+                "note": "Stage 2 reconstructed Act 1 validation over the 2 required seeds",
             }
         ],
     }

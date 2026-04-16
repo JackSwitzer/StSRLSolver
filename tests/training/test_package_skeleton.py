@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from packages.training import (
     CombatInferenceService,
     CombatSearchConfig,
@@ -7,7 +9,7 @@ from packages.training import (
     CombatSharedMemoryBatcher,
     CombatStateSummary,
     LegalCombatCandidate,
-    LinearCombatModel,
+    MLXCombatModel,
     SharedMemoryConfig,
     TrainingConfig,
 )
@@ -16,7 +18,6 @@ from packages.training import (
 def test_training_config_defaults_are_combat_first() -> None:
     config = TrainingConfig()
 
-    assert config.model_backend == "mlx"
     assert config.shared_memory.max_batch_size == 128
     assert config.shared_memory.max_candidates_per_request == 64
     assert config.combat_search.top_k == 4
@@ -75,7 +76,7 @@ def test_shared_memory_batcher_packs_legal_candidates() -> None:
 
 def test_inference_service_scores_only_legal_candidates_and_preserves_frontier() -> None:
     service = CombatInferenceService.build(
-        LinearCombatModel(state_scale=0.0, candidate_scale=1.0, legal_bias=0.0),
+        MLXCombatModel(state_scale=0.0, candidate_scale=1.0, legal_bias=0.0),
         CombatSearchConfig(top_k=2),
     )
     request = CombatSearchRequest(
@@ -106,3 +107,15 @@ def test_inference_service_scores_only_legal_candidates_and_preserves_frontier()
     assert result.ranked_action_ids == ("attack", "defend")
     assert result.frontier_action_ids == ("attack", "defend", "setup")
     assert result.ranked_scores[0] > result.ranked_scores[1]
+
+
+def test_mlx_backend_failure_is_loud(monkeypatch) -> None:
+    import packages.training.combat_model as combat_model
+
+    def _raise():
+        raise RuntimeError("mlx unavailable")
+
+    monkeypatch.setattr(combat_model, "_mlx", _raise)
+
+    with pytest.raises(RuntimeError, match="mlx unavailable"):
+        combat_model.MLXCombatModel()

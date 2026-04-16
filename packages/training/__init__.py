@@ -15,7 +15,6 @@ from .combat_model import (
     CombatInferenceResult,
     CombatStateSummary,
     LegalCombatCandidate,
-    LinearCombatModel,
     MLXCombatModel,
 )
 from .config import CombatModelConfig, SearchConfig, TrainingStackConfig, TrainingTopology
@@ -76,7 +75,6 @@ __all__ = [
     "FrontierWeights",
     "LegalActionCandidate",
     "LegalCombatCandidate",
-    "LinearCombatModel",
     "MLXCombatModel",
     "PHASE1_POTION_VOCAB",
     "PHASE1_VALUE_HEAD_NAMES",

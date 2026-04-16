@@ -17,9 +17,6 @@ from .config import TrainingStackConfig
 from .contracts import (
     BenchmarkReport,
     BenchmarkSliceResult,
-    CombatFrontierLine,
-    CombatOutcomeVector,
-    CombatFrontierSummary,
     EpisodeLog,
     EpisodeStep,
     RestrictionPolicy,
@@ -40,7 +37,6 @@ from .manifests import (
 )
 from .run_logging import TrainingArtifacts, TrainingRunLogger
 from .seed_imports import default_imported_act1_scripts
-from .selector import select_frontier
 from .shared_memory import CombatPuctTargetExample
 from .stage2_pipeline import (
     PuctCollectionRecord,
@@ -58,7 +54,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Combat-first training rebuild tools")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("print-default-config", help="Print the combat-first training config")
     subparsers.add_parser("print-corpus-plan", help="Print the current snapshot corpus plan")
     subparsers.add_parser("print-seed-suite", help="Print the reconstructed Act 1 validation seed suite")
 
@@ -76,7 +71,6 @@ def build_parser() -> argparse.ArgumentParser:
     collect_targets_parser.add_argument("--input", required=True)
     collect_targets_parser.add_argument("--output-dir", required=True)
     collect_targets_parser.add_argument("--collection-passes", type=int, default=3)
-    collect_targets_parser.add_argument("--backend", choices=("linear", "mlx"), default="linear")
 
     train_checkpoint_parser = subparsers.add_parser(
         "train-puct-checkpoint",
@@ -87,7 +81,6 @@ def build_parser() -> argparse.ArgumentParser:
     train_checkpoint_parser.add_argument("--epochs", type=int, default=4)
     train_checkpoint_parser.add_argument("--learning-rate", type=float, default=0.01)
     train_checkpoint_parser.add_argument("--top-k", type=int, default=8)
-    train_checkpoint_parser.add_argument("--backend", choices=("linear", "mlx"), default="linear")
     train_checkpoint_parser.add_argument("--checkpoint")
     train_checkpoint_parser.add_argument("--no-update", action="store_true")
 
@@ -96,7 +89,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate the reconstructed Act 1 Watcher seed suite",
     )
     validate_seed_parser.add_argument("--output-dir", required=True)
-    validate_seed_parser.add_argument("--backend", choices=("linear", "mlx"), default="linear")
     validate_seed_parser.add_argument("--checkpoint")
 
     puct_overnight_parser = subparsers.add_parser(
@@ -109,12 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     puct_overnight_parser.add_argument("--epochs", type=int, default=4)
     puct_overnight_parser.add_argument("--learning-rate", type=float, default=0.01)
     puct_overnight_parser.add_argument("--top-k", type=int, default=8)
-    puct_overnight_parser.add_argument("--backend", choices=("linear", "mlx"), default="mlx")
     puct_overnight_parser.add_argument("--seed", type=int, default=42)
-
-    select_frontier_parser = subparsers.add_parser("select-frontier", help="Select deterministically from a search frontier")
-    select_frontier_parser.add_argument("--input", required=True)
-    select_frontier_parser.add_argument("--output")
 
     return parser
 
@@ -160,29 +147,6 @@ def _write_puct_target_examples(path: Path, examples: Iterable[CombatPuctTargetE
     _write_jsonl(path, (example.to_dict() for example in examples))
 
 
-def _load_frontier_lines(path: Path) -> tuple[CombatFrontierLine, ...]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    raw_lines = payload.get("lines", ()) if isinstance(payload, dict) else payload
-    return tuple(
-        CombatFrontierLine(
-            line_index=int(line["line_index"]),
-            action_prefix=tuple(int(value) for value in line.get("action_prefix", ())),
-            visits=int(line.get("visits", 0)),
-            expanded_nodes=int(line.get("expanded_nodes", 0)),
-            elapsed_ms=int(line.get("elapsed_ms", 0)),
-            outcome=CombatOutcomeVector(
-                solve_probability=float(line["outcome"]["solve_probability"]),
-                expected_hp_loss=float(line["outcome"]["expected_hp_loss"]),
-                expected_turns=float(line["outcome"]["expected_turns"]),
-                potion_cost=float(line["outcome"]["potion_cost"]),
-                setup_value_delta=float(line["outcome"]["setup_value_delta"]),
-                persistent_scaling_delta=float(line["outcome"]["persistent_scaling_delta"]),
-            ),
-        )
-        for line in raw_lines
-    )
-
-
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -210,9 +174,9 @@ def _capture_engine_git_snapshot() -> GitSnapshot | None:
     return GitSnapshot(commit_sha=commit_sha, branch="codex/universal-gameplay-runtime", dirty=False)
 
 
-def _runtime_contract_manifest(*, backend: str, seed: int):
+def _runtime_contract_manifest(*, seed: int):
     return build_run_manifest(
-        model_version=f"phase1-policy-value-{backend}",
+        model_version="phase1-policy-value-mlx",
         benchmark_config="watcher_a0_act1_snapshot",
         seed=seed,
         restriction_policy=RestrictionPolicy(),
@@ -221,15 +185,6 @@ def _runtime_contract_manifest(*, backend: str, seed: int):
         gameplay_export_schema_version=1,
         replay_event_trace_schema_version=1,
     )
-
-
-def _print_default_config() -> int:
-    payload = {
-        "stack": asdict(TrainingStackConfig()),
-        "phase1_potion_vocab": list(PHASE1_POTION_VOCAB),
-    }
-    print(json.dumps(payload, indent=2, sort_keys=True))
-    return 0
 
 
 def _print_corpus_plan() -> int:
@@ -251,6 +206,7 @@ def _print_corpus_plan() -> int:
             "extra_relic_ablation_ice_cream",
         ],
         "canonical_starting_relic": "PureWater",
+        "backend_policy": "mlx_only",
         "potion_vocab": list(PHASE1_POTION_VOCAB),
     }
     print(json.dumps(plan, indent=2, sort_keys=True))
@@ -281,12 +237,10 @@ def _print_seed_suite() -> int:
     return 0
 
 
-def _build_model(backend: str, checkpoint: Path | None):
-    from .combat_model import LinearCombatModel
+def _build_model(checkpoint: Path | None):
+    from .combat_model import MLXCombatModel
 
-    if checkpoint and checkpoint.exists():
-        return LinearCombatModel.load_checkpoint(checkpoint)
-    return LinearCombatModel()
+    return MLXCombatModel(checkpoint_path=(str(checkpoint) if checkpoint else None))
 
 
 def _benchmark_report_from_records(records: list[PuctCollectionRecord], manifest) -> BenchmarkReport:
@@ -375,29 +329,24 @@ def _train_examples(
     epochs: int,
     learning_rate: float,
     top_k: int,
-    backend: str,
     checkpoint: Path | None = None,
     update: bool = True,
 ) -> dict[str, Any]:
-    from .combat_model import LinearCombatModel
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    model = _build_model(backend, checkpoint)
+    model = _build_model(checkpoint)
     service = CombatInferenceService.build(model=model, config=CombatSearchConfig(top_k=top_k))
     trainer = CombatPolicyValueTrainer(service=service, learning_rate=learning_rate)
     summaries = trainer.run(examples, epochs=epochs, update=update)
     checkpoint_path = output_dir / "checkpoint.json"
-    if isinstance(model, LinearCombatModel):
-        model.save_checkpoint(checkpoint_path)
-    else:
-        raise TypeError("unexpected model type for phase-1 training")
+    model.save_checkpoint(checkpoint_path)
 
     payload = {
         "example_count": len(examples),
         "epochs": [summary.to_dict() for summary in summaries],
         "learning_rate": learning_rate,
         "top_k": top_k,
-        "backend_requested": backend,
+        "backend_requested": "mlx",
+        "backend_loaded": model.loaded_backend,
         "final_checkpoint": str(checkpoint_path),
         "policy_loss": summaries[-1].policy_loss if summaries else 0.0,
         "value_loss": summaries[-1].value_loss if summaries else 0.0,
@@ -420,7 +369,6 @@ def _collect_puct_targets(
     input_path: Path,
     output_dir: Path,
     collection_passes: int,
-    backend: str,
 ) -> dict[str, Any]:
     from .engine_module import build_engine_extension
 
@@ -430,7 +378,6 @@ def _collect_puct_targets(
         write_puct_collection(
             output_dir,
             cases=cases,
-            backend=backend,
             collection_passes=collection_passes,
         )
     )
@@ -444,7 +391,8 @@ def _collect_puct_targets(
         "target_count": len(examples),
         "combined_targets": str(output_dir / "puct_targets.jsonl"),
         "collection_records": str(output_dir / "puct_collection.jsonl"),
-        "backend": backend,
+        "backend_requested": "mlx",
+        "backend_loaded": "mlx",
     }
     _write_json(output_dir / "puct_targets_summary.json", {"command": "collect-puct-targets", **summary})
     return summary
@@ -453,14 +401,12 @@ def _collect_puct_targets(
 def _validate_seed_suite(
     *,
     output_dir: Path,
-    backend: str,
     checkpoint: Path | None = None,
 ) -> dict[str, Any]:
     from .engine_module import build_engine_extension
 
     build_engine_extension()
     report = build_seed_validation_report(
-        backend=backend,
         checkpoint=str(checkpoint) if checkpoint else "untrained",
     )
     _write_json(output_dir / "seed_validation_report.json", report)
@@ -473,6 +419,8 @@ def _validate_seed_suite(
         "seed_count": report["seed_count"],
         "validated_seeds": report["validated_seeds"],
         "failed_seeds": report["failed_seeds"],
+        "required_seed_count": report["required_seed_count"],
+        "metadata_only_count": report["metadata_only_count"],
     }
     _write_json(output_dir / "seed_validation_summary.json", summary)
     return summary
@@ -486,7 +434,6 @@ def _run_phase1_puct_overnight(
     epochs: int,
     learning_rate: float,
     top_k: int,
-    backend: str,
     seed: int,
 ) -> dict[str, Any]:
     from .engine_module import build_engine_extension
@@ -499,7 +446,6 @@ def _run_phase1_puct_overnight(
         write_puct_collection(
             output_dir,
             cases=cases,
-            backend=backend,
             collection_passes=collection_passes,
         )
     )
@@ -511,15 +457,14 @@ def _run_phase1_puct_overnight(
         epochs=epochs,
         learning_rate=learning_rate,
         top_k=top_k,
-        backend=backend,
         update=True,
     )
     checkpoint_path = Path(training_summary["final_checkpoint"])
-    seed_summary = _validate_seed_suite(output_dir=output_dir, backend=backend, checkpoint=checkpoint_path)
+    seed_summary = _validate_seed_suite(output_dir=output_dir, checkpoint=checkpoint_path)
 
-    runtime_manifest = _runtime_contract_manifest(backend=backend, seed=seed)
+    runtime_manifest = _runtime_contract_manifest(seed=seed)
     training_manifest = TrainingRunManifest.create(
-        run_id=f"phase1-puct-{backend}-{seed}",
+        run_id=f"phase1-puct-mlx-{seed}",
         git=_capture_git_snapshot(),
         config=TrainingConfigSnapshot.from_values(
             {
@@ -528,7 +473,10 @@ def _run_phase1_puct_overnight(
                 "epochs": epochs,
                 "learning_rate": learning_rate,
                 "top_k": top_k,
-                "backend": backend,
+                "backend_policy": "mlx_only",
+                "backend_requested": "mlx",
+                "backend_loaded_collection": "mlx",
+                "backend_loaded_training": training_summary["backend_loaded"],
                 "potion_vocab": list(PHASE1_POTION_VOCAB),
             }
         ),
@@ -553,10 +501,10 @@ def _run_phase1_puct_overnight(
     )
     logger = TrainingRunLogger(TrainingArtifacts(output_dir))
     logger.write_manifest(training_manifest)
-    logger.append_event("corpus_generated", total_cases=len(cases), target_cases=target_cases)
-    logger.append_event("puct_collection_complete", record_count=len(records), collection_passes=collection_passes)
-    logger.append_event("training_complete", epochs=epochs, checkpoint=str(checkpoint_path))
-    logger.append_event("seed_validation_complete", validated_seeds=seed_summary["validated_seeds"])
+    logger.append_event("corpus_generated", total_cases=len(cases), target_cases=target_cases, backend_loaded="mlx")
+    logger.append_event("puct_collection_complete", record_count=len(records), collection_passes=collection_passes, backend_loaded="mlx")
+    logger.append_event("training_complete", epochs=epochs, checkpoint=str(checkpoint_path), backend_loaded=training_summary["backend_loaded"])
+    logger.append_event("seed_validation_complete", validated_seeds=seed_summary["validated_seeds"], required_seed_count=seed_summary["required_seed_count"], metadata_only_count=seed_summary["metadata_only_count"], backend_loaded="mlx")
 
     for index, record in enumerate(records):
         logger.append_metric(
@@ -596,7 +544,9 @@ def _run_phase1_puct_overnight(
         "target_cases": target_cases,
         "collection_passes": collection_passes,
         "epochs": epochs,
-        "backend": backend,
+        "backend_requested": "mlx",
+        "backend_loaded_collection": "mlx",
+        "backend_loaded_training": training_summary["backend_loaded"],
         "learning_rate": learning_rate,
         "top_k": top_k,
         "seed": seed,
@@ -616,8 +566,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "print-default-config":
-        return _print_default_config()
     if args.command == "print-corpus-plan":
         return _print_corpus_plan()
     if args.command == "print-seed-suite":
@@ -630,7 +578,6 @@ def main(argv: list[str] | None = None) -> int:
             input_path=Path(args.input),
             output_dir=Path(args.output_dir),
             collection_passes=args.collection_passes,
-            backend=args.backend,
         )
         return 0
     if args.command == "train-puct-checkpoint":
@@ -641,7 +588,6 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             learning_rate=args.learning_rate,
             top_k=args.top_k,
-            backend=args.backend,
             checkpoint=(None if args.checkpoint is None else Path(args.checkpoint)),
             update=not args.no_update,
         )
@@ -649,7 +595,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "validate-seed-suite":
         _validate_seed_suite(
             output_dir=Path(args.output_dir),
-            backend=args.backend,
             checkpoint=(None if args.checkpoint is None else Path(args.checkpoint)),
         )
         return 0
@@ -661,22 +606,8 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             learning_rate=args.learning_rate,
             top_k=args.top_k,
-            backend=args.backend,
             seed=args.seed,
         )
-        return 0
-    if args.command == "select-frontier":
-        lines = _load_frontier_lines(Path(args.input))
-        selected = select_frontier(tuple(lines))
-        payload = {
-            "chosen_line_index": selected.chosen.line_index,
-            "ordered_line_indices": [line.line_index for line in selected.ordered_frontier],
-            "line_count": len(lines),
-        }
-        if args.output:
-            _write_json(Path(args.output), payload)
-        else:
-            print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
     parser.error(f"unsupported command: {args.command}")

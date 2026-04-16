@@ -2,60 +2,26 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import pytest
 
 from packages.training.cli import main
 
 
-def test_cli_select_frontier_writes_deterministic_choice(tmp_path: Path) -> None:
-    frontier_path = tmp_path / "frontier.json"
-    output_path = tmp_path / "selection.json"
-    frontier_path.write_text(
-        json.dumps(
-            {
-                "lines": [
-                    {
-                        "line_index": 2,
-                        "action_prefix": [2],
-                        "visits": 100,
-                        "expanded_nodes": 80,
-                        "elapsed_ms": 30,
-                        "outcome": {
-                            "solve_probability": 0.95,
-                            "expected_hp_loss": 1.0,
-                            "expected_turns": 3.0,
-                            "potion_cost": 0.0,
-                            "setup_value_delta": 0.0,
-                            "persistent_scaling_delta": 0.0,
-                        },
-                    },
-                    {
-                        "line_index": 1,
-                        "action_prefix": [1],
-                        "visits": 90,
-                        "expanded_nodes": 70,
-                        "elapsed_ms": 28,
-                        "outcome": {
-                            "solve_probability": 0.99,
-                            "expected_hp_loss": 4.0,
-                            "expected_turns": 4.0,
-                            "potion_cost": 0.0,
-                            "setup_value_delta": 0.0,
-                            "persistent_scaling_delta": 0.0,
-                        },
-                    },
-                ]
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(["select-frontier", "--input", str(frontier_path), "--output", str(output_path)])
-
-    payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert exit_code == 0
-    assert payload["chosen_line_index"] == 1
-    assert payload["ordered_line_indices"] == [1, 2]
+def test_cli_no_longer_accepts_backend_flag(tmp_path: Path) -> None:
+    corpus_dir = tmp_path / "corpus"
+    assert main(["generate-phase1-corpus", "--output-dir", str(corpus_dir), "--target-cases", "4"]) == 0
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "collect-puct-targets",
+                "--input",
+                str(corpus_dir / "corpus.jsonl"),
+                "--output-dir",
+                str(tmp_path / "targets"),
+                "--backend",
+                "mlx",
+            ]
+        )
 
 
 def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
@@ -74,8 +40,6 @@ def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
             str(collect_dir),
             "--collection-passes",
             "2",
-            "--backend",
-            "linear",
         ]
     ) == 0
     assert main(
@@ -87,8 +51,6 @@ def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
             str(train_dir),
             "--epochs",
             "1",
-            "--backend",
-            "linear",
         ]
     ) == 0
     assert main(
@@ -96,8 +58,6 @@ def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
             "validate-seed-suite",
             "--output-dir",
             str(validate_dir),
-            "--backend",
-            "linear",
             "--checkpoint",
             str(train_dir / "checkpoint.json"),
         ]
@@ -116,6 +76,7 @@ def test_cli_generate_collect_train_validate_pipeline(tmp_path: Path) -> None:
     assert train_summary["example_count"] >= 12
     assert Path(train_summary["final_checkpoint"]).exists()
     assert validate_summary["seed_count"] == 3
+    assert validate_summary["required_seed_count"] == 2
 
 
 def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> None:
@@ -130,8 +91,6 @@ def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> N
             "1",
             "--target-cases",
             "12",
-            "--backend",
-            "linear",
         ]
     )
 
@@ -145,11 +104,16 @@ def test_cli_phase1_puct_overnight_writes_monitor_artifacts(tmp_path: Path) -> N
     seed_report = json.loads((output_dir / "seed_validation_report.json").read_text(encoding="utf-8"))
 
     assert exit_code == 0
-    assert manifest["run_id"] == "phase1-puct-linear-42"
+    assert manifest["run_id"] == "phase1-puct-mlx-42"
     assert summary["training_summary"]["example_count"] >= 12
+    assert summary["backend_requested"] == "mlx"
+    assert summary["backend_loaded_collection"] == "mlx"
+    assert summary["backend_loaded_training"] == "mlx"
     assert frontier_report["ranking"]
     assert benchmark_report["slices"]
     assert len(metrics_lines) >= 12
     assert len(event_lines) >= 4
     assert len(episode_lines) == len(metrics_lines) // 2
     assert seed_report["seed_count"] == 3
+    assert seed_report["required_seed_count"] == 2
+    assert seed_report["backend_loaded"] == "mlx"

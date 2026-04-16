@@ -11,7 +11,7 @@ uv run pytest tests/training -q
 
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
-./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1 --backend mlx
+./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1
 ```
 
 ## Canonical Paths
@@ -43,8 +43,9 @@ uv run pytest tests/training -q
 ## Current Scope
 
 - Watcher A0 combat only
-- snapshot-backed Rust PUCT collection + policy/value learning
+- snapshot-backed Rust PUCT collection + MLX policy/value learning
 - reconstructed Act 1 validation seeds
 - artifact-first monitoring
+- MLX-only backend policy
 
 Strategic/pathing learning comes later.

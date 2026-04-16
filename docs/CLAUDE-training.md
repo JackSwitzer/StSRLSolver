@@ -7,7 +7,7 @@ This branch uses the **combat-first training rebuild**.
 Phase 1 is a Watcher A0 combat solver with:
 
 - Rust-canonical combat observations and legal candidates
-- snapshot-backed Rust PUCT collection and policy/value training
+- snapshot-backed Rust PUCT collection and MLX policy/value training
 - frontier-preserving action selection
 - append-only manifests, metrics, benchmark, and replay artifacts
 - SpireMonitor support for the new artifact model
@@ -52,8 +52,7 @@ mkdir -p logs/active logs/runs
   --output-dir logs/active \
   --target-cases 500 \
   --collection-passes 3 \
-  --epochs 1 \
-  --backend mlx
+  --epochs 1
 ```
 
 Foreground shakedown command:
@@ -63,14 +62,12 @@ Foreground shakedown command:
   --output-dir logs/active \
   --target-cases 24 \
   --collection-passes 1 \
-  --epochs 1 \
-  --backend linear
+  --epochs 1
 ```
 
 Useful planning/debug commands:
 
 ```bash
-./scripts/training.sh print-default-config
 ./scripts/training.sh print-corpus-plan
 ./scripts/training.sh print-seed-suite
 ```
@@ -92,6 +89,19 @@ The current training stack writes:
 - `summary.json`
 
 These are the supported monitoring and replay surfaces.
+
+Artifact meanings:
+
+- `manifest.json`: run identity, git/config snapshot, and backend truth
+- `events.jsonl`: append-only lifecycle events
+- `metrics.jsonl`: per-case collection metrics
+- `frontier_report.json` / `frontier_report.md`: aggregate frontier summaries
+- `frontier_groups.json`: monitor-ready grouped frontier slices
+- `benchmark_report.json`: benchmark slice rollups
+- `episodes.jsonl`: replay/search summaries for each collected case
+- `puct_targets.jsonl`: normalized policy/value targets emitted from Rust PUCT
+- `checkpoint.json`: MLX checkpoint snapshot
+- `summary.json`: run-level summary for monitor and audit
 
 ## Monitor
 
@@ -135,6 +145,11 @@ The seed suite is for:
 - remove-heavy and minimalist-style checks
 - reconstructed Act 1 replay/demo sessions in SpireMonitor
 - future Baalorlord run import scaffolding
+
+Overnight gate semantics:
+
+- `4AWM3ECVQDEWJ` and `4VM6JKC3KR3TD` are the required reconstructed seeds
+- `1TPMUARFP690B` is metadata-only and reported as non-blocking
 
 ## What This Branch Is Not
 

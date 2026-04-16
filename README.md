@@ -11,9 +11,10 @@ Current scope is intentionally narrow:
 
 - Watcher A0 combat only
 - Rust-canonical combat observation and legal-candidate contracts
-- snapshot-backed Rust PUCT collection and policy/value learning
+- snapshot-backed Rust PUCT collection and MLX policy/value learning
 - artifact-first monitoring in SpireMonitor
 - reconstructed Act 1 validation seeds for easy/minimalist-style Watcher checks
+- MLX is the only supported backend on this branch
 
 ## Active Components
 
@@ -43,8 +44,7 @@ mkdir -p logs/active logs/runs
   --output-dir logs/active \
   --target-cases 500 \
   --collection-passes 3 \
-  --epochs 1 \
-  --backend mlx
+  --epochs 1
 ```
 
 Monitor:
@@ -60,24 +60,24 @@ The app reads `.spire-monitor.json`, which is already configured to look at `log
 For attached foreground debugging, use:
 
 ```bash
-./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1 --backend linear
+./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1
 ```
 
 ## Artifact Model
 
 The active training stack writes artifact-first outputs:
 
-- `manifest.json`
-- `events.jsonl`
-- `metrics.jsonl`
-- `frontier_report.json`
-- `frontier_report.md`
-- `frontier_groups.json`
-- `benchmark_report.json`
-- `episodes.jsonl`
-- `puct_targets.jsonl`
-- `checkpoint.json`
-- `summary.json`
+- `manifest.json`: run identity, git snapshot, config snapshot, and backend policy truth
+- `events.jsonl`: append-only lifecycle events for corpus generation, collection, training, and validation
+- `metrics.jsonl`: per-case collection metrics including root visits and solve probability
+- `frontier_report.json`: aggregate frontier ranking output for monitor consumption
+- `frontier_report.md`: human-readable frontier summary
+- `frontier_groups.json`: grouped frontier slices for the app
+- `benchmark_report.json`: benchmark slice rollups from the collected corpus
+- `episodes.jsonl`: per-case replay/search summaries including frontier and value payloads
+- `puct_targets.jsonl`: canonical normalized root-visit policy/value targets used for learning
+- `checkpoint.json`: MLX checkpoint snapshot
+- `summary.json`: run-level summary including backend loaded truth and seed-validation status
 
 These are the supported monitor and audit surfaces for this branch.
 
@@ -92,11 +92,13 @@ The current suite emphasizes:
 - easy/high-roll starts
 - remove-heavy and minimalist-style lines
 - Neow transforms and rare-card opens
-- a couple negative-control seeds
+- two reconstructed overnight-gate seeds: `4AWM3ECVQDEWJ` and `4VM6JKC3KR3TD`
+- one metadata-only non-blocking seed: `1TPMUARFP690B`
 
 ## Branch Notes
 
 - This branch does not preserve superseded training paths.
 - Engine legality remains canonical in Rust.
+- The temporary scalarized frontier acting rule is implemented in `packages/training/selector.py` and documented as a phase-1 combat-only helper, not a second backend or alternate pipeline.
 - Restrictions such as `NoCardAdds` and `UpgradeRemoveOnly` belong in the training layer above legality.
 - Strategic/pathing learning is deferred until the combat solver, corpus, and benchmark loop are stable.

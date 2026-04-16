@@ -39,7 +39,6 @@ class CombatSearchConfig:
 class TrainingConfig:
     """Minimal phase-1 training config."""
 
-    model_backend: str = "mlx"
     shared_memory: SharedMemoryConfig = field(default_factory=SharedMemoryConfig)
     combat_search: CombatSearchConfig = field(default_factory=CombatSearchConfig)
     overnight_epochs: int = 4

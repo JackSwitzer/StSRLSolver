@@ -42,7 +42,6 @@ def test_phase2_collection_runs_real_rust_puct_over_snapshots() -> None:
     cases = build_phase2_snapshot_corpus(total_cases=2)
     records = collect_rust_puct_records(
         cases=cases,
-        backend="linear",
         collection_passes=1,
     )
 
