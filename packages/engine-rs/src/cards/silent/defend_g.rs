@@ -1,0 +1,17 @@
+use crate::cards::prelude::*;
+
+pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // ---- Silent Basic: Defend_G ----
+    insert(cards, CardDef {
+        id: "Defend_G", name: "Defend", card_type: CardType::Skill,
+        target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
+        base_magic: -1, exhaust: false, enter_stance: None,
+                effect_data: &[E::Simple(SE::GainBlock(A::Block))], complex_hook: None,
+    });
+    insert(cards, CardDef {
+        id: "Defend_G+", name: "Defend+", card_type: CardType::Skill,
+        target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,
+        base_magic: -1, exhaust: false, enter_stance: None,
+                effect_data: &[E::Simple(SE::GainBlock(A::Block))], complex_hook: None,
+    });
+}
