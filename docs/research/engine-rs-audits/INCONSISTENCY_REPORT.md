@@ -201,7 +201,7 @@ Intentional RL-facing deviations that are documented rather than treated as pari
 - Neow always exposes `4` choices
 - `NoteForYourself` future-run storage is canonical inside the runtime process rather than external profile-save persistence
 
-See [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/DESIGN_DECISIONS.md:1).
+See [DESIGN_DECISIONS.md](../../../packages/engine-rs/DESIGN_DECISIONS.md).
 
 ## 6. Post-Merge Backlog
 
