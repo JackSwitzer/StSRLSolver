@@ -45,13 +45,12 @@ actor SystemMonitor {
     private func collectStats() async -> SystemStats {
         let cpu = getCPUUsage()
         let (usedGB, totalGB) = getMemory()
-        let gpu = await MainActor.run { store.status?.gpuPercent }
         return SystemStats(
             timestamp: Date(),
             cpuPercent: cpu,
             memoryUsedGB: usedGB,
             memoryTotalGB: totalGB,
-            gpuPercent: gpu
+            gpuPercent: nil
         )
     }
 
@@ -101,7 +100,4 @@ actor SystemMonitor {
         let usedGB = (active + wired + compressed) / 1_073_741_824
         return (usedGB, totalGB)
     }
-
-    // GPU utilization is reported by the Python training pipeline in status.json
-    // and read from store.status.gpuPercent in collectStats()
 }

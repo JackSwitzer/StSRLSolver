@@ -1,199 +1,52 @@
 import SwiftUI
 
-enum StatsMode: String, CaseIterable {
-    case last100 = "Last 100"
-    case allTime = "Full Data"
-}
-
-enum FloorCurveMode: String {
-    case average = "Avg"
-    case max = "Max"
-}
-
 struct LiveView: View {
     @Environment(AppState.self) private var appState
-    @State private var statsMode: StatsMode = .last100
-    @State private var floorCurveMode: FloorCurveMode = .average
-
-    // Cached computed data -- refreshed when episodes change
-    @State private var cachedEpisodes: [Episode] = []
-    @State private var cachedDeaths: [(enemy: String, count: Int)] = []
-    @State private var cachedTopRuns: [Episode] = []
-    @State private var cachedPerformance: [RoomCategory: RoomPerformance] = [:]
 
     private var store: DataStore { appState.store }
 
-    private var floorCurveData: [Double] {
-        let source: [Double]
-        if floorCurveMode == .max {
-            source = cachedEpisodes.map { Double($0.effectiveFloor) }
-        } else {
-            source = store.floorCurve
-        }
-        if statsMode == .last100 { return Array(source.suffix(100)) }
-        return source
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            // Status bar
-            HStack(spacing: 8) {
-                StatusBarView(status: store.status, isLive: store.isLive,
-                              peakFloor: store.peakFloor, mode: statsMode)
+            ScrollView {
+                VStack(spacing: 16) {
+                    ActiveRunSummaryView(
+                        manifest: store.runManifest,
+                        latestEvent: store.latestEvent,
+                        latestMetric: store.latestMetric,
+                        frontierReport: store.frontierReport,
+                        benchmarkReport: store.currentBenchmarkReport,
+                        seedValidationReport: store.currentSeedValidationReport,
+                        checkpointComparison: store.currentCheckpointComparison,
+                        seedValidationReportCount: store.seedValidationReports.count,
+                        checkpointComparisonCount: store.checkpointComparisons.count
+                    )
+                    .padding(.horizontal, 16)
 
-                Button(action: toggleStats) {
-                    Text(statsMode.rawValue)
-                        .font(.stsBody)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.stsAccent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(Color.stsAccent.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    SeedValidationReportView(
+                        seedValidationReports: store.seedValidationReports,
+                        checkpointComparisons: store.checkpointComparisons
+                    )
+                    .padding(.horizontal, 16)
+
+                    BenchmarkSliceDashboardView(
+                        reports: store.benchmarkReports,
+                        frontier: store.frontierReport
+                    )
+                    .padding(.horizontal, 16)
+
+                    ArtifactStreamsView(
+                        events: store.eventStream,
+                        metrics: store.metricStream
+                    )
+                    .padding(.horizontal, 16)
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            // Main content: left charts / right tables
-            HSplitView {
-                // LEFT: Charts
-                ScrollView {
-                    VStack(spacing: 10) {
-                        FloorCurveChart(data: floorCurveData,
-                                        title: "Floor Curve (\(floorCurveMode.rawValue))")
-                            .frame(minHeight: 160)
-                            .sectionCard()
-
-                        LossChartsView(history: store.lossHistory)
-                            .frame(minHeight: 160)
-                            .sectionCard()
-
-                        HyperparamGridView(status: store.status)
-                            .sectionCard()
-
-                        PerformancePanelView(performance: cachedPerformance)
-                            .sectionCard()
-                    }
-                    .padding(10)
-                }
-                .frame(minWidth: 380)
-
-                // RIGHT: Tables + Workers + Deaths
-                ScrollView {
-                    VStack(spacing: 10) {
-                        TopRunsTable(episodes: Array(cachedTopRuns.prefix(10)))
-                            .sectionCard()
-
-                        WorkerGridView(workers: store.workers)
-                            .sectionCard()
-
-                        DeathAnalysisChart(deaths: Array(cachedDeaths.prefix(5)))
-                            .frame(minHeight: 140)
-                            .sectionCard()
-                    }
-                    .padding(10)
-                }
-                .frame(minWidth: 320)
+                .padding(.vertical, 16)
             }
 
-            // Bottom: keybinds + system stats
             Divider().background(Color.stsBorder)
-            HStack(spacing: 0) {
-                HStack(spacing: 16) {
-                    keybind("M", action: "Floor \(floorCurveMode == .average ? "Max" : "Avg")")
-                    keybind("F", action: statsMode == .last100 ? "Full Data" : "Last 100")
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-
-                Divider().frame(height: 30).background(Color.stsBorderDim)
-
-                SystemStatsBar(current: store.systemStats, history: store.systemHistory)
-            }
-            .background(Color.stsCard)
+            SystemStatsBar(current: store.systemStats, history: store.systemHistory)
+                .background(Color.stsCard)
         }
-        .onAppear {
-            refreshCaches()
-            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                switch event.charactersIgnoringModifiers {
-                case "m": toggleFloorMode(); return nil
-                case "f": toggleStats(); return nil
-                default: return event
-                }
-            }
-        }
-        .onChange(of: store.recentEpisodes.count) { refreshCaches() }
-        .onChange(of: store.topEpisodes.count) { refreshCaches() }
-        .onChange(of: statsMode) { refreshCaches() }
-    }
-
-    private func toggleFloorMode() {
-        floorCurveMode = floorCurveMode == .average ? .max : .average
-    }
-
-    private func toggleStats() {
-        statsMode = statsMode == .last100 ? .allTime : .last100
-    }
-
-    private func refreshCaches() {
-        // Build active episodes based on mode
-        let episodes: [Episode]
-        if statsMode == .allTime {
-            var seen = Set<String>()
-            var merged: [Episode] = []
-            for ep in store.recentEpisodes + store.topEpisodes {
-                if seen.insert(ep.seed).inserted { merged.append(ep) }
-            }
-            episodes = merged
-        } else {
-            episodes = store.recentEpisodes
-        }
-        cachedEpisodes = episodes
-
-        // Top runs
-        cachedTopRuns = episodes.sorted { $0.effectiveFloor > $1.effectiveFloor }
-
-        // Death stats
-        var counts: [String: Int] = [:]
-        for ep in episodes where !ep.won {
-            counts[ep.deathEnemy ?? "Unknown", default: 0] += 1
-        }
-        cachedDeaths = counts.sorted { $0.value > $1.value }.map { (enemy: $0.key, count: $0.value) }
-
-        // Performance by room
-        var grouped: [RoomCategory: [Combat]] = [:]
-        for ep in episodes {
-            for combat in ep.combats ?? [] {
-                grouped[combat.roomCategory, default: []].append(combat)
-            }
-        }
-        var perf: [RoomCategory: RoomPerformance] = [:]
-        for (cat, combats) in grouped {
-            let turns = combats.compactMap(\.turns)
-            let hpLost = combats.compactMap(\.hpLost)
-            let avgT = turns.isEmpty ? 0 : Double(turns.reduce(0, +)) / Double(turns.count)
-            let avgHP = hpLost.isEmpty ? 0 : Double(hpLost.reduce(0, +)) / Double(hpLost.count)
-            let potR = combats.isEmpty ? 0 :
-                Double(combats.filter { ($0.potionsUsed ?? 0) > 0 }.count) / Double(combats.count)
-            perf[cat] = RoomPerformance(count: combats.count, avgTurns: avgT, avgHpLost: avgHP, potionRate: potR)
-        }
-        cachedPerformance = perf
-    }
-
-    private func keybind(_ key: String, action: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.stsText)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.stsBorderDim)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-            Text(action)
-                .font(.stsLabel)
-                .foregroundStyle(Color.stsTextDim)
-        }
+        .background(Color.stsBg)
     }
 }

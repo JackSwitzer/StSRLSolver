@@ -64,6 +64,11 @@ impl StsRandom {
         }
     }
 
+    /// Export the internal RNG state for deterministic snapshot/replay flows.
+    pub fn state_tuple(&self) -> (u64, u64, i32) {
+        (self.seed0, self.seed1, self.counter)
+    }
+
     /// Deep copy with identical state.
     pub fn copy(&self) -> Self {
         Self {
@@ -370,7 +375,10 @@ mod tests {
                 break;
             }
         }
-        assert!(!all_zero, "Seed 0 produced all-zero output (absorbing state)");
+        assert!(
+            !all_zero,
+            "Seed 0 produced all-zero output (absorbing state)"
+        );
     }
 
     #[test]
@@ -382,15 +390,26 @@ mod tests {
         let n = 7000;
         for _ in 0..n {
             let val = rng.next_int(bound);
-            assert!(val >= 0 && val < bound, "next_int({}) produced {}", bound, val);
+            assert!(
+                val >= 0 && val < bound,
+                "next_int({}) produced {}",
+                bound,
+                val
+            );
             counts[val as usize] += 1;
         }
         // Each bucket should get roughly n/7 = 1000. Allow 30% deviation.
         let expected = n as f64 / bound as f64;
         for (i, &count) in counts.iter().enumerate() {
             let ratio = count as f64 / expected;
-            assert!(ratio > 0.7 && ratio < 1.3,
-                "Bucket {} has {} (expected ~{:.0}), ratio {:.2}", i, count, expected, ratio);
+            assert!(
+                ratio > 0.7 && ratio < 1.3,
+                "Bucket {} has {} (expected ~{:.0}), ratio {:.2}",
+                i,
+                count,
+                expected,
+                ratio
+            );
         }
     }
 
@@ -415,7 +434,11 @@ mod tests {
             } else {
                 let s = seed_to_string(*seed);
                 let decoded = seed_from_string(&s);
-                assert_eq!(*seed, decoded, "Roundtrip failed for seed {}: encoded as '{}', decoded as {}", seed, s, decoded);
+                assert_eq!(
+                    *seed, decoded,
+                    "Roundtrip failed for seed {}: encoded as '{}', decoded as {}",
+                    seed, s, decoded
+                );
             }
         }
     }

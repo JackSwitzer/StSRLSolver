@@ -28,7 +28,6 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar with segmented control
             HStack {
                 Picker("View", selection: Bindable(appState).selectedView) {
                     ForEach(AppView.allCases) { view in
@@ -41,14 +40,13 @@ struct ContentView: View {
 
                 Spacer()
 
-                // Live indicator
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(appState.store.isLive ? Color.stsAccent : Color.stsTextMuted)
+                        .fill(appState.store.hasManifest ? Color.stsAccent : Color.stsTextMuted)
                         .frame(width: 8, height: 8)
-                    Text(appState.store.isLive ? "LIVE" : "STALE")
+                    Text(appState.store.hasManifest ? "READY" : "WAITING")
                         .font(.stsLabel)
-                        .foregroundStyle(appState.store.isLive ? Color.stsAccent : Color.stsTextMuted)
+                        .foregroundStyle(appState.store.hasManifest ? Color.stsAccent : Color.stsTextMuted)
                 }
 
                 Button(action: { appState.refresh() }) {
@@ -67,37 +65,15 @@ struct ContentView: View {
                 switch appState.selectedView {
                 case .live:
                     LiveView()
-                case .training:
-                    TrainingView()
                 case .analysis:
-                    PlaceholderView(name: "Analysis")
-                case .detail:
-                    PlaceholderView(name: "Detail")
-                case .replay:
-                    ReplayView()
+                    ArtifactAnalysisView()
+                case .frontier:
+                    FrontierInspectorView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.stsBg)
         .foregroundStyle(Color.stsText)
-    }
-}
-
-struct PlaceholderView: View {
-    let name: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "hammer.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.stsTextMuted)
-            Text("\(name) view")
-                .font(.stsTitle)
-                .foregroundStyle(Color.stsTextDim)
-            Text("Coming in a future session")
-                .font(.stsBody)
-                .foregroundStyle(Color.stsTextMuted)
-        }
     }
 }

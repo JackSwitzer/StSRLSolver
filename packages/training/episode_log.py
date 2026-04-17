@@ -1,55 +1,48 @@
-"""Episode logging: writes per-game results to episodes.jsonl."""
+"""Append-only JSONL episode logging for the rebuilt training stack."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Mapping
 
-import numpy as np
-
-
-class _NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, (np.integer,)):
-            return int(obj)
-        if isinstance(obj, (np.floating,)):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
+from .contracts import EpisodeLog
 
 
-def log_episode(episodes_path: Path, result: Dict[str, Any], config_name: str = "") -> None:
-    """Append one episode to episodes.jsonl."""
-    transitions = result.get("transitions", [])
-    total_reward = sum(t.get("reward", 0) for t in transitions)
-    total_pbrs = sum(t.get("pbrs", 0) for t in transitions)
-    total_event = sum(t.get("event_reward", 0) for t in transitions)
+@dataclass(frozen=True)
+class EpisodeProvenance:
+    corpus_slice: str | None = None
+    corpus_case: str | None = None
+    deck_family: str | None = None
+    remove_count: int | None = None
+    potion_set: tuple[str, ...] = ()
+    enemy: str | None = None
+    seed_source: str | None = None
+    neow_source: str | None = None
 
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "config_name": config_name,
-        "seed": result["seed"],
-        "floor": result["floor"],
-        "won": result["won"],
-        "hp": result["hp"],
-        "max_hp": result.get("max_hp", 0),
-        "decisions": result["decisions"],
-        "duration_s": result["duration_s"],
-        "num_transitions": len(transitions),
-        "total_reward": round(total_reward, 4),
-        "pbrs_reward": round(total_pbrs, 4),
-        "event_reward": round(total_event, 4),
-        "deck_final": result.get("deck_final", []),
-        "relics_final": result.get("relics_final", []),
-        "death_enemy": result.get("death_enemy", ""),
-        "death_room": result.get("room_type", ""),
-        "combats": result.get("combats", []),
-        "events": result.get("events", []),
-        "path_choices": result.get("path_choices", []),
-        "construction_failure": result.get("construction_failure", False),
-    }
-    with open(episodes_path, "a") as f:
-        f.write(json.dumps(entry, cls=_NumpyEncoder) + "\n")
+
+@dataclass(frozen=True)
+class LoggedEpisode:
+    episode: EpisodeLog
+    provenance: EpisodeProvenance | None = None
+    notes: tuple[str, ...] = ()
+
+
+class EpisodeLogger:
+    def __init__(self, path: Path):
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def append(self, episode: EpisodeLog | LoggedEpisode) -> None:
+        payload = (
+            asdict(episode)
+            if isinstance(episode, LoggedEpisode)
+            else asdict(episode)
+        )
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+    def append_payload(self, payload: Mapping[str, Any]) -> None:
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(dict(payload), sort_keys=True) + "\n")

@@ -1,59 +1,63 @@
 ---
 status: active
 priority: P0
-pr: null
-title: Training Architecture — Algorithms, Pretrain, Value Head
+pr: 133
+title: Combat-First Training Architecture
 scope: training
 layer: training-architecture
-created: 2026-03-25
+created: 2026-04-15
 completed: null
-depends_on: [data-pipeline, runtime-hardening]
+depends_on: [combat-first-training-rebuild]
 assignee: claude
-tags: [rl, architecture, algorithms, pretrain]
+tags: [training, combat-first, architecture]
 ---
 
 # Training Architecture
 
-Algorithm selection, wiring, and the 5-day pretrain strategy.
+The current branch architecture is:
 
-## Algorithm Status
+- Rust engine legality and state are canonical
+- Python orchestrates snapshot corpus generation, Rust-PUCT target collection, policy/value updates, and artifact logging
+- MLX-backed model evaluation/training is the intended GPU path
+- SpireMonitor consumes the new artifact set directly
 
-- **PPO**: Active, currently wired in training_runner.py. Experiment C (BC+PPO) achieved best results (avg floor 8.11)
-- **IQL**: Needs wiring — offline-only, no collection phase. Good for leveraging existing 96k trajectories
-- **GRPO**: Needs wiring — full rollout + group comparison. Promising for strategic decisions
+## Phase 1
 
-## IQL Dispatch
+Scope:
 
-- Wire IQL dispatch in `training_runner.py`
-- IQL runs offline only: TRAIN phase consumes existing data, no COLLECT phase
-- Requires: dataset loading from curated tier, Q-function network, advantage-weighted regression
-- Config flag in `training_config.py` to select algorithm
+- Watcher A0 combat only
+- legal-candidate scoring, not a fixed global action head
+- multi-objective combat outcome vector
+- frontier-preserving local selector
+- synthetic-first corpus plus external validation seeds
 
-## GRPO Dispatch
+What phase 1 must prove:
 
-- Wire GRPO dispatch in `training_runner.py`
-- GRPO: collect K rollouts from same state, rank by return, train on top group
-- Requires: parallel rollout collection, group ranking, filtered policy gradient
-- Config flag in `training_config.py` to select algorithm
+- we can run overnight training jobs repeatedly
+- weights update from Rust-PUCT policy/value targets
+- benchmark slices are stable and comparable
+- frontier/replay artifacts are visible in the app
 
-## Solver Budget Fix (Floor 16 Wall)
+## Phase 2 Preparation
 
-- All games die at Act 1 boss (floor 16)
-- Boss fights need 30s solver budget but were getting 20ms (hardcoded in scripts)
-- Fix verified in PR #68 but needs runtime validation (see runtime-hardening)
+Phase 1 data should preserve:
 
-## Value Head Investigation
+- deck provenance
+- remove count
+- Neow provenance
+- potion set
+- opening-hand bucket
+- benchmark group identity
 
-- Unnormalized returns causing 47k pretrain loss
-- Value head predictions wildly miscalibrated
-- Need: return normalization, value clipping, separate value learning rate
-- Investigate whether value head is helping or hurting PPO updates
+That allows a later strategic learner to reason about:
 
-## Pretrain Strategy (5-Day Run)
+- removes vs adds
+- potion spend vs HP preservation
+- route and Neow value
 
-- Target: Wednesday night through Monday
-- Phase 1 (12h): BC pretrain on curated dataset
-- Phase 2 (4d): PPO fine-tuning with corrected solver budgets
-- Checkpointing every 50 cycles, keep last 10 + best by val_acc
-- Architecture discussion is a separate scope-locked session
-- See `docs/CLAUDE-training.md` for full architecture reference
+## Not In Scope Yet
+
+- full-run strategic training
+- whole-run win-rate optimization
+- a second high-level model
+- legacy compatibility layers

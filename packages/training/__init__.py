@@ -1,1 +1,104 @@
-"""Training package for Slay the Spire RL pipeline."""
+"""Combat-first training package built on the Rust engine contract."""
+
+from .benchmark import BenchmarkConfig, frontier_score
+from .benchmarking import BenchmarkFrontierPoint, FrontierReport, FrontierWeights, build_frontier_report, pareto_frontier
+from .bridge import (
+    load_combat_training_state,
+    run_combat_puct,
+    load_training_schema_versions,
+    parse_combat_puct_result,
+    parse_combat_training_state,
+    parse_training_schema_versions,
+)
+from .combat_model import (
+    CombatBatchPredictions,
+    CombatInferenceResult,
+    CombatStateSummary,
+    LegalCombatCandidate,
+    MLXCombatModel,
+)
+from .config import CombatModelConfig, SearchConfig, TrainingStackConfig, TrainingTopology
+from .contracts import (
+    CombatFrontierLine,
+    CombatFrontierSummary,
+    CombatObservation,
+    CombatOutcomeVector,
+    CombatPuctConfig,
+    CombatPuctLine,
+    CombatPuctResult,
+    CombatSearchStopReason,
+    CombatTrainingState,
+    LegalActionCandidate,
+    RestrictionBuiltin,
+    RestrictionPolicy,
+    TrainingSchemaVersions,
+)
+from .inference_service import (
+    CombatInferenceService,
+    CombatPolicyValueTrainer,
+    CombatSearchConfig,
+    PolicyValueEpochSummary,
+    TrainingConfig,
+)
+from .selector import FrontierSelection, rank_frontier_lines, select_frontier, select_frontier_line
+from .seed_suite import ValidationSeed, default_watcher_validation_seed_suite
+from .shared_memory import CombatPuctTargetBatch, CombatPuctTargetExample, CombatSearchRequest, CombatSharedMemoryBatch, CombatSharedMemoryBatcher, SharedMemoryConfig
+from .value_targets import CombatValueTarget, PHASE1_POTION_VOCAB, PHASE1_VALUE_HEAD_NAMES
+
+__all__ = [
+    "BenchmarkConfig",
+    "BenchmarkFrontierPoint",
+    "CombatBatchPredictions",
+    "CombatFrontierLine",
+    "CombatFrontierSummary",
+    "CombatInferenceResult",
+    "CombatInferenceService",
+    "CombatModelConfig",
+    "CombatObservation",
+    "CombatOutcomeVector",
+    "CombatPuctConfig",
+    "CombatPuctLine",
+    "CombatPuctResult",
+    "CombatPolicyValueTrainer",
+    "CombatPuctTargetBatch",
+    "CombatPuctTargetExample",
+    "CombatSearchStopReason",
+    "CombatSearchConfig",
+    "CombatSearchRequest",
+    "CombatSharedMemoryBatch",
+    "CombatSharedMemoryBatcher",
+    "CombatStateSummary",
+    "CombatTrainingState",
+    "CombatValueTarget",
+    "FrontierReport",
+    "FrontierSelection",
+    "FrontierWeights",
+    "LegalActionCandidate",
+    "LegalCombatCandidate",
+    "MLXCombatModel",
+    "PHASE1_POTION_VOCAB",
+    "PHASE1_VALUE_HEAD_NAMES",
+    "PolicyValueEpochSummary",
+    "RestrictionBuiltin",
+    "RestrictionPolicy",
+    "SearchConfig",
+    "SharedMemoryConfig",
+    "TrainingConfig",
+    "TrainingSchemaVersions",
+    "TrainingStackConfig",
+    "TrainingTopology",
+    "ValidationSeed",
+    "build_frontier_report",
+    "default_watcher_validation_seed_suite",
+    "frontier_score",
+    "load_combat_training_state",
+    "parse_combat_puct_result",
+    "load_training_schema_versions",
+    "pareto_frontier",
+    "parse_combat_training_state",
+    "parse_training_schema_versions",
+    "run_combat_puct",
+    "rank_frontier_lines",
+    "select_frontier",
+    "select_frontier_line",
+]

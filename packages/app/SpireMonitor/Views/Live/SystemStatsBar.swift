@@ -7,11 +7,9 @@ struct SystemStatsBar: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            // CPU chart
             miniGauge("CPU", value: current?.cpuPercent ?? 0, unit: "%",
                        data: history.map(\.cpuPercent), color: .stsBlue)
 
-            // GPU chart (from status.json gpu_percent; shows N/A when not available)
             if let gpuVal = current?.gpuPercent {
                 miniGauge("GPU", value: gpuVal, unit: "%",
                            data: history.compactMap(\.gpuPercent), color: .stsGold)
@@ -21,7 +19,6 @@ struct SystemStatsBar: View {
                            formatter: { _ in "---" })
             }
 
-            // RAM chart
             miniGauge("RAM", value: current?.memoryUsedGB ?? 0,
                        unit: String(format: "/%.0fGB", current?.memoryTotalGB ?? 24),
                        data: history.map(\.memoryUsedGB), color: .stsGreen,

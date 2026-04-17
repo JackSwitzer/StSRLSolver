@@ -1,71 +1,109 @@
 # Slay the Spire RL
 
-Reinforcement learning agent for Slay the Spire — targeting **Watcher Ascension 20 with >96% winrate**.
+Combat-first training rebuild stacked on top of the audited Rust engine base.
 
-## Architecture
+This branch is the training worktree and stacked draft PR:
 
-| Component | Location | Description |
-|-----------|----------|-------------|
-| **Engine** | `packages/engine/` | Pure Python game engine, 100% Java parity (RNG, damage, enemies, maps, shops, cards, relics, events) |
-| **Engine (Rust)** | `packages/engine-rs/` | Rust CombatEngine + PyO3 bindings (scaffold, 63 tests) |
-| **Training** | `packages/training/` | PPO + GAE pipeline with action-encoded observations, MLX inference, multi-turn combat solver |
-| **Dashboard** | `packages/viz/` | React 19 + Vite live dashboard with floor curves, episode analysis |
-| **Native App** | `packages/viz/macos/` | Swift/WKWebView macOS wrapper |
-| **Server** | `packages/server/` | WebSocket bridge for dashboard |
-| **Parity** | `packages/parity/` | Seed catalog + parity verification |
+- engine base: `codex/universal-gameplay-runtime` via [PR #132](https://github.com/JackSwitzer/StSRLSolver/pull/132)
+- training rebuild: `codex/training-rebuild` via [PR #133](https://github.com/JackSwitzer/StSRLSolver/pull/133)
+
+Current scope is intentionally narrow:
+
+- Watcher A0 combat only
+- Rust-canonical combat observation and legal-candidate contracts
+- snapshot-backed Rust PUCT collection and MLX policy/value learning
+- artifact-first monitoring in SpireMonitor
+- reconstructed Act 1 validation seeds for easy/minimalist-style Watcher checks
+- MLX is the only supported backend on this branch
+
+## Active Components
+
+| Component | Location | Role |
+|-----------|----------|------|
+| Rust engine base | `packages/engine-rs/` | Canonical legality, combat state, training contract, snapshots |
+| Training runtime | `packages/training/` | Snapshot corpus generation, Rust PUCT collection, policy/value learning, manifests, artifact logging |
+| SpireMonitor | `packages/app/SpireMonitor/` | SwiftUI monitor for manifests, frontiers, benchmarks, and replay traces |
+| Training entrypoint | `scripts/training.sh` | Canonical CLI wrapper |
 
 ## Quick Start
 
 ```bash
-# Install
 uv sync
 
-# Run tests (6100+ tests)
-uv run pytest tests/ -q
+./scripts/test_engine_rs.sh check --lib
+./scripts/test_engine_rs.sh test --lib training_contract -- --nocapture
+uv run pytest tests/training -q
 
-# Rust engine tests
-export PATH="$HOME/.cargo/bin:$PATH" PYO3_PYTHON=.venv/bin/python3
-cargo test --lib --manifest-path packages/engine-rs/Cargo.toml
-
-# Start training
-./scripts/training.sh start
-
-# Dashboard (WebSocket + Vite)
-./scripts/services.sh start    # localhost:5174
-
-# Native macOS app
-./scripts/app.sh build && ./scripts/app.sh run
+./scripts/training.sh print-corpus-plan
+./scripts/training.sh print-seed-suite
+mkdir -p logs/active logs/runs
+./scripts/training.sh launch \
+  --log-file logs/active/training-launcher.log \
+  --pid-file logs/active/training-launcher.pid \
+  run-phase1-puct-overnight \
+  --output-dir logs/active \
+  --target-cases 500 \
+  --collection-passes 3 \
+  --epochs 1
 ```
 
-## Engine API
+Monitor:
 
-```python
-from packages.engine import GameRunner, GamePhase
-
-runner = GameRunner(seed="SEED", ascension=20)
-while not runner.game_over:
-    actions = runner.get_available_action_dicts()
-    runner.take_action_dict(actions[0])
+```bash
+cd packages/app
+swift build
+open SpireMonitor
 ```
 
-## Training
+The app reads `.spire-monitor.json`, which is already configured to look at `logs/active`.
 
-- **Model**: StrategicNet (3M params, hidden=768, 4 transformer blocks)
-- **Pipeline**: COLLECT 100 games -> TRAIN PPO epochs -> SYNC -> repeat
-- **Inference**: Centralized MLX batch server (M4 Mac Mini, 10 cores)
-- **Observations**: 260-dim state + 512-dim action encoding (available actions mask)
-- **Combat**: TurnSolver (30ms) with multi-turn lookahead
-- **Rewards**: Floor milestones, combat outcomes, HP preservation, PBRS shaping (hot-reloadable)
+For attached foreground debugging, use:
 
-## Status
+```bash
+./scripts/training.sh run-phase1-puct-overnight --output-dir logs/active --target-cases 24 --collection-passes 1 --epochs 1
+```
 
-- **Engine parity**: 100% across all core mechanics (13 RNG streams, 66 enemies, 51 events, 168 powers, 172 relics)
-- **Tests**: 6100+ passing (pytest) + 63 Rust
-- **Training**: Active — PPO with action encoding, mixed exploit/explore temperature
-- **Best trajectories**: Floor 16 (200 saved), iterating toward Act 2+
+## Artifact Model
 
-## References
+The active training stack writes artifact-first outputs:
 
-- [bottled_ai](https://github.com/xaved88/bottled_ai) — 52% Watcher A0 baseline
-- [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod) — Bot communication protocol
-- [StSRLSolver](https://github.com/JackSwitzer/StSRLSolver) — Prior RL solver attempt
+- `manifest.json`: run identity, git snapshot, config snapshot, and backend policy truth
+- `events.jsonl`: append-only lifecycle events for corpus generation, collection, training, and validation
+- `metrics.jsonl`: per-case collection metrics including root visits and solve probability
+- `system_stats.jsonl`: process/host CPU, RAM, swap, and best-effort GPU telemetry during the run
+- `frontier_report.json`: aggregate frontier ranking output for monitor consumption
+- `frontier_report.md`: human-readable frontier summary
+- `frontier_groups.json`: grouped frontier slices for the app
+- `benchmark_report.json`: benchmark slice rollups from the collected corpus
+- `episodes.jsonl`: per-case replay/search summaries including frontier and value payloads
+- `puct_targets.jsonl`: canonical normalized root-visit policy/value targets used for learning
+- `checkpoint.json`: MLX checkpoint snapshot
+- `summary.json`: run-level summary including backend loaded truth and seed-validation status
+
+These are the supported monitor and audit surfaces for this branch.
+
+Artifact log-shape reference for Claude and SpireMonitor:
+
+- [docs/training-log-shape.md](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/docs/training-log-shape.md:1)
+
+## External Validation Seeds
+
+The machine-readable Watcher validation suite lives in:
+
+- [packages/training/seed_suite.py](/Users/jackswitzer/Desktop/SlayTheSpireRL-training-rebuild/packages/training/seed_suite.py:1)
+
+The current suite emphasizes:
+
+- easy/high-roll starts
+- remove-heavy and minimalist-style lines
+- Neow transforms and rare-card opens
+- two reconstructed overnight-gate seeds: `4AWM3ECVQDEWJ` and `4VM6JKC3KR3TD`
+- one metadata-only non-blocking seed: `1TPMUARFP690B`
+
+## Branch Notes
+
+- This branch does not preserve superseded training paths.
+- Engine legality remains canonical in Rust.
+- The temporary scalarized frontier acting rule is implemented in `packages/training/selector.py` and documented as a phase-1 combat-only helper, not a second backend or alternate pipeline.
+- Restrictions such as `NoCardAdds` and `UpgradeRemoveOnly` belong in the training layer above legality.
+- Strategic/pathing learning is deferred until the combat solver, corpus, and benchmark loop are stable.

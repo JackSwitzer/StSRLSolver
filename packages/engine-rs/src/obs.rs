@@ -69,6 +69,10 @@ const RELIC_CATALOG: [&str; N_RELICS] = [
     "Yang",
 ];
 
+pub fn relic_catalog() -> &'static [&'static str] {
+    &RELIC_CATALOG
+}
+
 /// Boss ID mapping matching Python's _BOSS_ID_MAP.
 fn boss_id_index(name: &str) -> i32 {
     match name {

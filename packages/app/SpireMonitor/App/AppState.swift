@@ -1,21 +1,17 @@
 import Foundation
 
 enum AppView: String, CaseIterable, Identifiable {
-    case live = "Live"
-    case training = "Training"
-    case analysis = "Analysis"
-    case detail = "Detail"
-    case replay = "Replay"
+    case live = "Run"
+    case analysis = "Benchmarks"
+    case frontier = "Frontier"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
         case .live: "play.circle.fill"
-        case .training: "brain"
         case .analysis: "chart.bar.xaxis"
-        case .detail: "doc.text.magnifyingglass"
-        case .replay: "film"
+        case .frontier: "doc.text.magnifyingglass"
         }
     }
 }
@@ -23,7 +19,8 @@ enum AppView: String, CaseIterable, Identifiable {
 @MainActor @Observable
 final class AppState {
     var selectedView: AppView = .live
-    var selectedEpisode: Episode?
+    var selectedArtifactEpisode: LocatedEpisodeLog?
+    var selectedArtifactStepIndex: Int = 0
 
     let config = AppConfig()
     let store = DataStore()
@@ -39,7 +36,7 @@ final class AppState {
         sysMonitor = m
         Task { await m.start() }
 
-        Task { await loadEpisodes() }
+        Task { await loadArtifacts() }
     }
 
     func stopPolling() {
@@ -49,14 +46,27 @@ final class AppState {
         }
     }
 
-    func loadEpisodes() async {
-        let recent = await EpisodeLoader.loadRecent(from: config.logsPath)
-        let top = await EpisodeLoader.loadTop(from: config.logsPath)
-        store.recentEpisodes = recent
-        store.topEpisodes = top
+    func loadArtifacts() async {
+        let bundle = await MonitorArtifactLoader.load(from: config.logsPath)
+
+        store.runManifest = bundle.manifest
+        store.frontierReport = bundle.frontier
+        store.seedValidationReports = bundle.seedValidationReports
+        store.checkpointComparisons = bundle.checkpointComparisons
+        store.benchmarkReports = bundle.benchmarkReports
+        store.artifactEpisodes = bundle.artifactEpisodes
+        store.eventStream = bundle.events
+        store.metricStream = bundle.metricStream
+
+        if selectedArtifactEpisode == nil, let first = store.artifactEpisodes.first {
+            selectedArtifactEpisode = first
+            selectedArtifactStepIndex = first.episode.frontierSteps.first?.stepIndex ?? 0
+        }
     }
 
     func refresh() {
-        Task { await loadEpisodes() }
+        Task {
+            await loadArtifacts()
+        }
     }
 }
