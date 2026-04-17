@@ -9,9 +9,9 @@ Java oracle root:
 
 Canonical audit docs:
 
-- [INCONSISTENCY_REPORT.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/INCONSISTENCY_REPORT.md:1)
-- [AUDIT_PARITY_STATUS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/AUDIT_PARITY_STATUS.md:1)
-- [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/DESIGN_DECISIONS.md:1)
+- [INCONSISTENCY_REPORT.md](./INCONSISTENCY_REPORT.md)
+- [AUDIT_PARITY_STATUS.md](./AUDIT_PARITY_STATUS.md)
+- [DESIGN_DECISIONS.md](../../../packages/engine-rs/DESIGN_DECISIONS.md)
 
 ## Current Checkpoint
 

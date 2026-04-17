@@ -5,9 +5,9 @@ Branch: `codex/universal-gameplay-runtime`
 
 Canonical audit outputs:
 
-- [INCONSISTENCY_REPORT.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/INCONSISTENCY_REPORT.md:1)
-- [DECOMPILE_PARITY_ENDGAME.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/DECOMPILE_PARITY_ENDGAME.md:1)
-- [DESIGN_DECISIONS.md](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/DESIGN_DECISIONS.md:1)
+- [INCONSISTENCY_REPORT.md](./INCONSISTENCY_REPORT.md)
+- [DECOMPILE_PARITY_ENDGAME.md](./DECOMPILE_PARITY_ENDGAME.md)
+- [DESIGN_DECISIONS.md](../../../packages/engine-rs/DESIGN_DECISIONS.md)
 
 ## Scorecard
 
