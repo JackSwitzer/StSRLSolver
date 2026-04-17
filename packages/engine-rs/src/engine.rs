@@ -2637,7 +2637,6 @@ impl CombatEngine {
         damage
     }
 
-    #[allow(dead_code)]
     pub fn deal_damage_to_player(&mut self, damage: i32) {
         let player = &mut self.state.player;
         let blocked = player.block.min(damage);
