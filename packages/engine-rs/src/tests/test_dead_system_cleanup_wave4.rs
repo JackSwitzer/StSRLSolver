@@ -96,7 +96,7 @@ fn dead_cleanup_wave4_damage_modifier_relics_are_covered_on_engine_path() {
     boot.state.enemies[0].entity.block = 2;
     let hp_before = boot.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut boot, "Shiv", 0));
-    assert_eq!(hp_before - boot.state.enemies[0].entity.hp, 5);
+    assert_eq!(hp_before - boot.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
 
     let mut torii_state = combat_state_with(
         make_deck_n("Defend", 5),

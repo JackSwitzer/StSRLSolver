@@ -564,7 +564,7 @@ fn boot_raises_small_unblocked_damage_on_engine_path() {
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 5);
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
 }
 
 #[test]
@@ -599,7 +599,7 @@ fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 15);
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 13); // D26: Boot bumps first hit raw=5 (not post-block), later hits unchanged
 }
 
 #[test]

@@ -2608,9 +2608,16 @@ impl CombatEngine {
 
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
         let mut hit_damage = damage;
-        let unblocked = hit_damage - enemy_block_before.min(hit_damage);
-        if self.state.has_relic("Boot") && unblocked > 0 && unblocked < 5 {
-            hit_damage = enemy_block_before + 5;
+        // D26 parity fix: Boot bumps RAW damage to 5 when raw < 5 (pre-block).
+        // Pre-fix Rust checked post-block `unblocked < 5`, which both
+        // (a) fired Boot on high-damage-against-high-block (e.g. 10 vs 8
+        // block -> unblocked=2 -> Boot wrongly triggered) and
+        // (b) mis-computed post-block HP loss when Boot did fire
+        // (damage 4 vs 3 block: Java deals 2 HP, old Rust dealt 5).
+        // Java oracle: `relics/Boot.java` onAttackToChangeDamage sets
+        // `damageAmount = 5` when `damageAmount < 5` (raw input).
+        if self.state.has_relic("Boot") && damage > 0 && damage < 5 {
+            hit_damage = 5;
         }
         let block_broken = self.state.has_relic("HandDrill")
             && enemy_block_before > 0

@@ -33,7 +33,7 @@ fn relic_wave8_boot_torii_and_tungsten_rod_follow_engine_path_damage_rules() {
     let boot_hp_before = boot.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut boot, "Shiv", 0));
     assert_eq!(boot.state.enemies[0].entity.block, 0);
-    assert_eq!(boot_hp_before - boot.state.enemies[0].entity.hp, 5);
+    assert_eq!(boot_hp_before - boot.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
 
     let mut torii_state = combat_state_with(
         make_deck_n("Defend", 5),
