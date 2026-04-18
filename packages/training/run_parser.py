@@ -434,13 +434,14 @@ def _reconcile_with_master_deck(
     # untracked relic effects). Apply at the boss floor where Pandora is
     # canonically picked.
     for c in extra:
-        # Remove from entry_deck of combats AFTER the pandora floor.
+        # Remove ONE instance of `c` from EVERY post-Pandora combat (the
+        # forward-sim propagated this card into every snapshot). If a combat
+        # already lacks the card, it is silently skipped.
         for i, case in enumerate(out):
             if case.floor > pandora_floor_default and c in case.entry_deck:
                 new_deck = list(case.entry_deck)
                 new_deck.remove(c)
                 out[i] = replace(case, entry_deck=tuple(new_deck))
-                break
         warnings.append(
             f"reconciled removal of {c!r} from combats after F{pandora_floor_default} "
             f"(likely Pandora's Box transform)"
