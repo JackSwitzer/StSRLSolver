@@ -2491,13 +2491,25 @@ impl CombatEngine {
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
-            // Curl-Up: first time hit, enemy gains block
-            let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
-            if curl_up > 0 {
-                self.state.enemies[enemy_idx].entity.block += curl_up;
-                self.state.enemies[enemy_idx]
-                    .entity
-                    .set_status(sid::CURL_UP, 0);
+            // D63 parity fix: Java CurlUpPower.onAttacked requires
+            // `info.type == NORMAL && damageAmount < currentHealth && info.owner != null`.
+            // This call site (`deal_damage_to_enemy`) is the NORMAL damage path --
+            // THORNS / HP_LOSS go through `apply_hp_loss` or direct entity.hp writes,
+            // not here -- so the type check is implicitly satisfied. The remaining
+            // Java guard is the lethal-blow exemption: Curl Up should NOT trigger
+            // when the hit is the killing blow (`damageAmount >= currentHealth`
+            // pre-hit). Post-hit `entity.hp <= 0` is the same signal.
+            let enemy_alive = self.state.enemies[enemy_idx].entity.hp > 0;
+
+            // Curl-Up: first time hit, enemy gains block (non-lethal only).
+            if enemy_alive {
+                let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
+                if curl_up > 0 {
+                    self.state.enemies[enemy_idx].entity.block += curl_up;
+                    self.state.enemies[enemy_idx]
+                        .entity
+                        .set_status(sid::CURL_UP, 0);
+                }
             }
 
             // Malleable: gain escalating block on hit
