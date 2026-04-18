@@ -1148,8 +1148,12 @@ impl CombatEngine {
             if barricade || blur {
                 // Keep all block
             } else {
+                // D49 parity fix: Calipers SUBTRACTS 15 block at end of round,
+                // not "cap at 15". Java: `loseBlock(15)` (AbstractCreature.loseBlock
+                // truncates at 0). Pre-fix: 50 block -> Java keeps 35, Rust kept 15.
+                // Matters for Body Slam / Barricade-style block stacking.
                 self.state.player.block = if self.state.has_relic("Calipers") {
-                    self.state.player.block.min(15).max(0)
+                    (self.state.player.block - 15).max(0)
                 } else {
                     0
                 };

@@ -45,5 +45,6 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
             .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"),
         "Runic Pyramid should retain the remaining hand card"
     );
-    assert_eq!(engine.state.player.block, 15, "Calipers should retain up to 15 block");
+    // D49 parity fix: Calipers subtracts 15, not caps at 15. 20 -> 5.
+    assert_eq!(engine.state.player.block, 5, "Calipers should subtract 15 block (Java parity)");
 }
