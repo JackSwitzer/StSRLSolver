@@ -1545,34 +1545,42 @@ impl CombatEngine {
             return;
         }
 
-        // Enemy turns (skip if Vault was played)
+        // D50 parity fix: Java gates the ENTIRE `monsters.applyEndOfTurnPowers()`
+        // pass (where VULN/WEAK/FRAIL/Intangible decrement happens) behind
+        // `if (!skipMonsterTurn)`. Pre-fix Rust decremented debuffs even when
+        // Vault skipped the enemy turn, so player-applied Vulnerable on enemies
+        // wasted a turn under Vault. Now we gate debuff + Intangible decrement
+        // inside the same branch as the enemy-turn execution.
         if self.state.skip_enemy_turn {
             self.state.skip_enemy_turn = false;
+            // Vault skipped the enemy turn -- do NOT decrement debuffs or
+            // Intangible; they persist into the next round. Matches Java.
         } else {
             combat_hooks::do_enemy_turns(self);
-        }
 
-        // End of round: decrement debuffs on player
-        powers::decrement_debuffs(&mut self.state.player);
+            // End of round: decrement debuffs on player (enemy debuffs stick
+            // one turn; the justApplied flag covers the apply-turn skip per D59).
+            powers::decrement_debuffs(&mut self.state.player);
 
-        // End of round: decrement debuffs on enemies
-        for enemy in &mut self.state.enemies {
-            if !enemy.entity.is_dead() {
-                powers::decrement_debuffs(&mut enemy.entity);
-                // Decrement enemy Intangible (Nemesis cycling)
-                let intang = enemy.entity.status(sid::INTANGIBLE);
-                if intang > 0 {
-                    enemy.entity.set_status(sid::INTANGIBLE, intang - 1);
+            // End of round: decrement debuffs on enemies
+            for enemy in &mut self.state.enemies {
+                if !enemy.entity.is_dead() {
+                    powers::decrement_debuffs(&mut enemy.entity);
+                    // Decrement enemy Intangible (Nemesis cycling)
+                    let intang = enemy.entity.status(sid::INTANGIBLE);
+                    if intang > 0 {
+                        enemy.entity.set_status(sid::INTANGIBLE, intang - 1);
+                    }
                 }
             }
-        }
 
-        // Decrement player Intangible
-        let intangible = self.state.player.status(sid::INTANGIBLE);
-        if intangible > 0 {
-            self.state
-                .player
-                .set_status(sid::INTANGIBLE, intangible - 1);
+            // Decrement player Intangible
+            let intangible = self.state.player.status(sid::INTANGIBLE);
+            if intangible > 0 {
+                self.state
+                    .player
+                    .set_status(sid::INTANGIBLE, intangible - 1);
+            }
         }
 
         // Check combat end
