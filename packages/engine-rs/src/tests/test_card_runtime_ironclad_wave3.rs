@@ -155,7 +155,7 @@ mod ironclad_wave3_card_runtime_tests {
         );
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Battle Trance"]);
-        engine.state.draw_pile = make_deck(&["Strike_R", "Defend_R"]);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
         assert!(play_self(&mut engine, "Battle Trance"));
         assert_eq!(engine.state.player.status(sid::NO_DRAW), 1);
@@ -175,14 +175,14 @@ mod ironclad_wave3_card_runtime_tests {
             3,
         );
         force_player_turn(&mut engine);
-        engine.state.hand = make_deck(&["True Grit", "Strike_R", "Defend_R"]);
+        engine.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
 
         assert!(play_self(&mut engine, "True Grit"));
         assert_eq!(engine.state.hand.len(), 1);
         assert_eq!(engine.state.exhaust_pile.len(), 1);
         assert_eq!(discard_prefix_count(&engine, "True Grit"), 1);
         assert_eq!(
-            exhaust_prefix_count(&engine, "Strike_") + exhaust_prefix_count(&engine, "Defend_"),
+            exhaust_prefix_count(&engine, "Strike") + exhaust_prefix_count(&engine, "Defend"),
             1,
         );
 
@@ -205,7 +205,7 @@ mod ironclad_wave3_card_runtime_tests {
             3,
         );
         force_player_turn(&mut plus_engine);
-        plus_engine.state.hand = make_deck(&["True Grit+", "Strike_R", "Defend_R"]);
+        plus_engine.state.hand = make_deck(&["True Grit+", "Strike", "Defend"]);
 
         assert!(play_self(&mut plus_engine, "True Grit+"));
         assert_eq!(plus_engine.phase, CombatPhase::AwaitingChoice);
@@ -266,7 +266,7 @@ mod ironclad_wave3_card_runtime_tests {
             3,
         );
         force_player_turn(&mut blocked);
-        blocked.state.hand = make_deck(&["Clash", "Defend_R"]);
+        blocked.state.hand = make_deck(&["Clash", "Defend"]);
         let clash_idx = blocked
             .state
             .hand
@@ -285,7 +285,7 @@ mod ironclad_wave3_card_runtime_tests {
             3,
         );
         force_player_turn(&mut allowed);
-        allowed.state.hand = make_deck(&["Clash", "Strike_R"]);
+        allowed.state.hand = make_deck(&["Clash", "Strike"]);
         let clash_idx = allowed
             .state
             .hand

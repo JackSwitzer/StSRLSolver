@@ -257,7 +257,7 @@ pub static DEF_DEVA_FORM: EntityDef = EntityDef {
 // ===========================================================================
 
 static HELLO_WORLD_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike_R",
+    "Strike",
     Pile::Hand,
     AmountSource::StatusValue(sid::HELLO_WORLD),
 ))];
@@ -283,7 +283,7 @@ pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
 // ===========================================================================
 
 static MAGNETISM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike_R",
+    "Strike",
     Pile::Hand,
     AmountSource::Fixed(1),
 ))];

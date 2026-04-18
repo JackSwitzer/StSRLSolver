@@ -54,7 +54,7 @@ fn purity_now_uses_declarative_hand_exhaust_selection() {
 #[test]
 fn purity_still_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
     let mut engine = engine_for(
-        &["Purity", "Strike_R", "Defend_R", "Bash"],
+        &["Purity", "Strike", "Defend", "Bash"],
         &[],
         &[],
         3,
@@ -101,7 +101,7 @@ fn secret_technique_now_uses_declarative_skill_search() {
 fn secret_technique_still_opens_a_skill_only_draw_pile_search_choice() {
     let mut engine = engine_for(
         &["Secret Technique"],
-        &["Strike_R", "Shrug It Off", "Bash"],
+        &["Strike", "Shrug It Off", "Bash"],
         &[],
         3,
     );

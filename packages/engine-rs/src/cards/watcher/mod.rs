@@ -17,7 +17,7 @@ mod crescendo;
 mod crushjoints;
 mod cutthroughfate;
 mod deceivereality;
-mod defend_p;
+// defend_p removed; use unified `cards::starters::register` (Defend/Defend+)
 mod deusexmachina;
 mod devaform;
 mod devotion;
@@ -65,7 +65,7 @@ mod scrawl;
 mod signaturemove;
 mod smite;
 mod spiritshield;
-mod strike_p;
+// strike_p removed; unified `cards::starters::register` provides Strike/Defend
 mod study;
 mod swivel;
 mod talktothehand;
@@ -103,7 +103,7 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
     crushjoints::register(cards);
     cutthroughfate::register(cards);
     deceivereality::register(cards);
-    defend_p::register(cards);
+    // defend_p::register(cards); // moved to cards::starters::register
     deusexmachina::register(cards);
     devaform::register(cards);
     devotion::register(cards);
@@ -151,7 +151,7 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
     signaturemove::register(cards);
     smite::register(cards);
     spiritshield::register(cards);
-    strike_p::register(cards);
+    // strike_p::register(cards); // moved to cards::starters::register
     study::register(cards);
     swivel::register(cards);
     talktothehand::register(cards);

@@ -160,22 +160,22 @@ fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
         3,
     );
     force_player_turn(&mut engine);
-    let mut retained = make_deck_n("Defend_P", 9);
+    let mut retained = make_deck_n("Defend", 9);
     for card in &mut retained {
         card.set_retained(true);
     }
     engine.state.hand = retained;
-    engine.state.draw_pile = make_deck(&["Strike_P"]);
+    engine.state.draw_pile = make_deck(&["Strike"]);
     engine.state.player.set_status(sid::COLLECT_MIRACLES, 1);
 
     end_turn(&mut engine);
 
     assert_eq!(hand_count(&engine, "Miracle"), 1);
-    assert_eq!(hand_count(&engine, "Strike_P"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
         engine.card_registry.card_name(engine.state.draw_pile[0].def_id),
-        "Strike_P"
+        "Strike"
     );
 }
 
@@ -231,14 +231,14 @@ fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
 #[test]
 fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = engine_without_start(
-        make_deck(&["Omniscience+", "Strike_P", "Defend_P"]),
+        make_deck(&["Omniscience+", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         4,
     );
     force_player_turn(&mut engine);
     engine.state.energy = 4;
     engine.state.hand = make_deck(&["Omniscience+"]);
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Omniscience+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -251,7 +251,7 @@ fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
     assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

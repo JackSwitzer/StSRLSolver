@@ -23,7 +23,7 @@ use crate::tests::support::{
 #[test]
 fn dead_cleanup_wave4_runtime_relic_bundle_is_authoritative() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         20,
     );
@@ -39,12 +39,12 @@ fn dead_cleanup_wave4_runtime_relic_bundle_is_authoritative() {
         "Incense Burner".to_string(),
     ];
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Inflame"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
     engine.state.player.set_status(sid::WEAKENED, 2);
     engine.state.player.set_status(sid::VULNERABLE, 2);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_self(&mut engine, "Defend"));
     assert!(play_self(&mut engine, "Inflame"));
     assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 0);
@@ -96,10 +96,10 @@ fn dead_cleanup_wave4_damage_modifier_relics_are_covered_on_engine_path() {
     boot.state.enemies[0].entity.block = 2;
     let hp_before = boot.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut boot, "Shiv", 0));
-    assert_eq!(hp_before - boot.state.enemies[0].entity.hp, 5);
+    assert_eq!(hp_before - boot.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
 
     let mut torii_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy("JawWorm", 60, 60, 1, 4, 1)],
         3,
     );
@@ -110,7 +110,7 @@ fn dead_cleanup_wave4_damage_modifier_relics_are_covered_on_engine_path() {
     assert_eq!(torii.state.player.hp, hp_before - 1);
 
     let mut rod_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy("JawWorm", 60, 60, 1, 10, 1)],
         3,
     );

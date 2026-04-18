@@ -40,7 +40,7 @@ fn effective_misc_or(
 #[test]
 fn streamline_reduces_the_played_instance_cost_only() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -59,7 +59,7 @@ fn streamline_reduces_the_played_instance_cost_only() {
 #[test]
 fn rampage_only_scales_the_played_copy() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     ));
@@ -78,7 +78,7 @@ fn rampage_only_scales_the_played_copy() {
 #[test]
 fn steam_barrier_only_reduces_the_played_copy_block() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -97,7 +97,7 @@ fn steam_barrier_only_reduces_the_played_copy_block() {
 #[test]
 fn glass_knife_only_reduces_the_played_copy_damage() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 80, 80)],
         3,
     ));
@@ -116,7 +116,7 @@ fn glass_knife_only_reduces_the_played_copy_damage() {
 #[test]
 fn genetic_algorithm_and_ritual_dagger_only_scale_the_played_copy() {
     let mut genetic_engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -137,7 +137,7 @@ fn genetic_algorithm_and_ritual_dagger_only_scale_the_played_copy() {
     assert_eq!(genetic_engine.state.discard_pile[0].misc, -1);
 
     let mut ritual_engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 15, 15)],
         3,
     ));

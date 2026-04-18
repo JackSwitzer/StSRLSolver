@@ -114,14 +114,14 @@ mod watcher_card_java_parity_tests {
     // Basic stance and starter cards.
     watcher_test!(
         strike_p_java_parity,
-        base = ("Strike_P", "Strike", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
-        plus = ("Strike_P+", "Strike+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
+        base = ("Strike", "Strike", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
+        plus = ("Strike+", "Strike+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
         {}
     );
     watcher_test!(
         defend_p_java_parity,
-        base = ("Defend_P", "Defend", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
-        plus = ("Defend_P+", "Defend+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
+        base = ("Defend", "Defend", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
+        plus = ("Defend+", "Defend+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
         {}
     );
     watcher_test!(
@@ -167,9 +167,9 @@ mod watcher_card_java_parity_tests {
         plus = ("CrushJoints+", "Crush Joints+", 1, 10, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, ["vuln_if_last_skill"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            ensure_in_hand(&mut engine, "Defend_P");
+            ensure_in_hand(&mut engine, "Defend");
             ensure_in_hand(&mut engine, "CrushJoints");
-            play_self(&mut engine, "Defend_P");
+            play_self(&mut engine, "Defend");
             play_on_enemy(&mut engine, "CrushJoints", 0);
             assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 1);
         }
@@ -180,7 +180,7 @@ mod watcher_card_java_parity_tests {
         plus = ("CutThroughFate+", "Cut Through Fate+", 1, 9, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, ["scry", "draw"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "CutThroughFate");
             let hand_before = engine.state.hand.len();
             play_on_enemy(&mut engine, "CutThroughFate", 0);
@@ -230,9 +230,9 @@ mod watcher_card_java_parity_tests {
         plus = ("FollowUp+", "Follow-Up+", 1, 11, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["energy_if_last_attack"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            ensure_in_hand(&mut engine, "Strike_P");
+            ensure_in_hand(&mut engine, "Strike");
             ensure_in_hand(&mut engine, "FollowUp");
-            play_on_enemy(&mut engine, "Strike_P", 0);
+            play_on_enemy(&mut engine, "Strike", 0);
             let energy_before = engine.state.energy;
             play_on_enemy(&mut engine, "FollowUp", 0);
             assert_eq!(engine.state.energy, energy_before);
@@ -328,9 +328,9 @@ mod watcher_card_java_parity_tests {
         plus = ("SashWhip+", "Sash Whip+", 1, 10, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, ["weak_if_last_attack"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            ensure_in_hand(&mut engine, "Strike_P");
+            ensure_in_hand(&mut engine, "Strike");
             ensure_in_hand(&mut engine, "SashWhip");
-            play_on_enemy(&mut engine, "Strike_P", 0);
+            play_on_enemy(&mut engine, "Strike", 0);
             play_on_enemy(&mut engine, "SashWhip", 0);
             assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
         }
@@ -341,7 +341,7 @@ mod watcher_card_java_parity_tests {
         plus = ("ThirdEye+", "Third Eye+", 1, -1, 9, 5, CardType::Skill, CardTarget::SelfTarget, false, None, ["scry"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -400,7 +400,7 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Calm);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "EmptyMind");
             let hand_before = engine.state.hand.len();
             play_self(&mut engine, "EmptyMind");
@@ -441,7 +441,7 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             set_stance(&mut engine, Stance::Calm);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship", "Protect"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
             ensure_in_hand(&mut engine, "InnerPeace");
             let hand_before = engine.state.hand.len();
             play_self(&mut engine, "InnerPeace");
@@ -465,14 +465,14 @@ mod watcher_card_java_parity_tests {
         plus = ("Meditate+", "Meditate+", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
+            engine.state.discard_pile = make_deck(&["Strike", "Defend"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
             // Meditate now presents a choice to pick from discard
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
             engine.execute_action(&Action::Choose(0)); // select first card
             engine.execute_action(&Action::ConfirmSelection);
-            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Defend_P" || n == "Strike_P" }));
+            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Defend" || n == "Strike" }));
         }
     );
     watcher_test!(
@@ -481,7 +481,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Nirvana+", "Nirvana+", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, ["on_scry_block"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "Nirvana");
             play_self(&mut engine, "Nirvana");
             let block_before = engine.state.player.block;
@@ -531,7 +531,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Adaptation+", "Rushdown+", 0, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "Adaptation");
             ensure_in_hand(&mut engine, "Eruption");
             play_self(&mut engine, "Adaptation");
@@ -546,8 +546,8 @@ mod watcher_card_java_parity_tests {
         plus = ("Scrawl+", "Scrawl+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, ["draw_to_ten"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.hand = make_deck(&["Scrawl", "Strike_P", "Defend_P"]);
-            engine.state.draw_pile = make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+            engine.state.hand = make_deck(&["Scrawl", "Strike", "Defend"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
             ensure_in_hand(&mut engine, "Scrawl");
             play_self(&mut engine, "Scrawl");
             assert_eq!(engine.state.hand.len(), 10);
@@ -559,7 +559,7 @@ mod watcher_card_java_parity_tests {
         plus = ("SpiritShield+", "Spirit Shield+", 2, -1, -1, 4, CardType::Skill, CardTarget::SelfTarget, false, None, ["block_per_card_in_hand"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.hand = make_deck(&["SpiritShield", "Strike_P", "Defend_P", "Worship", "Protect", "Prostrate"]);
+            engine.state.hand = make_deck(&["SpiritShield", "Strike", "Defend", "Worship", "Protect", "Prostrate"]);
             play_self(&mut engine, "SpiritShield");
             assert_eq!(engine.state.player.block, 15);
         }
@@ -570,7 +570,7 @@ mod watcher_card_java_parity_tests {
         plus = ("Study+", "Study+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, []),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.draw_pile = make_deck_n("Strike_P", 5);
+            engine.state.draw_pile = make_deck_n("Strike", 5);
             ensure_in_hand(&mut engine, "Study");
             play_self(&mut engine, "Study");
             end_turn(&mut engine);
@@ -587,10 +587,10 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "Swivel");
-            ensure_in_hand(&mut engine, "Strike_P");
+            ensure_in_hand(&mut engine, "Strike");
             play_self(&mut engine, "Swivel");
             let energy_before = engine.state.energy;
-            play_on_enemy(&mut engine, "Strike_P", 0);
+            play_on_enemy(&mut engine, "Strike", 0);
             assert_eq!(engine.state.energy, energy_before);
         }
     );
@@ -601,9 +601,9 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             ensure_in_hand(&mut engine, "TalkToTheHand");
-            ensure_in_hand(&mut engine, "Strike_P");
+            ensure_in_hand(&mut engine, "Strike");
             play_on_enemy(&mut engine, "TalkToTheHand", 0);
-            play_on_enemy(&mut engine, "Strike_P", 0);
+            play_on_enemy(&mut engine, "Strike", 0);
             assert_eq!(engine.state.player.block, 2); // BlockReturn=2 triggered by Strike hit
         }
     );
@@ -638,7 +638,7 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             // Need cards in draw pile so Scry has something to reveal
-            engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "Weave");
             ensure_in_hand(&mut engine, "ThirdEye");
             play_on_enemy(&mut engine, "Weave", 0);
@@ -780,14 +780,14 @@ mod watcher_card_java_parity_tests {
         plus = ("Meditate+", "Meditate+", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
-            engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
+            engine.state.discard_pile = make_deck(&["Strike", "Defend"]);
             ensure_in_hand(&mut engine, "Meditate");
             play_self(&mut engine, "Meditate");
             // Meditate now presents a choice to pick from discard
             assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
             engine.execute_action(&Action::Choose(0));
             engine.execute_action(&Action::ConfirmSelection);
-            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Strike_P" || n == "Defend_P" }));
+            assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Strike" || n == "Defend" }));
         }
     );
     watcher_test!(

@@ -4,15 +4,15 @@ use crate::tests::support::{engine_with, ensure_in_hand, play_on_enemy, make_dec
 
 #[test]
 fn time_warp_runtime_ends_turn_before_double_tap_replay() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 12), 50, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 12), 50, 0);
     engine.state.player.set_status(sid::DOUBLE_TAP, 1);
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP_ACTIVE, 1);
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 11);
     engine.rebuild_effect_runtime();
     engine.clear_event_log();
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(
         engine.state.enemies[0].entity.hp, 44,

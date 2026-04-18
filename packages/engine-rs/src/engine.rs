@@ -1148,8 +1148,12 @@ impl CombatEngine {
             if barricade || blur {
                 // Keep all block
             } else {
+                // D49 parity fix: Calipers SUBTRACTS 15 block at end of round,
+                // not "cap at 15". Java: `loseBlock(15)` (AbstractCreature.loseBlock
+                // truncates at 0). Pre-fix: 50 block -> Java keeps 35, Rust kept 15.
+                // Matters for Body Slam / Barricade-style block stacking.
                 self.state.player.block = if self.state.has_relic("Calipers") {
-                    self.state.player.block.min(15).max(0)
+                    (self.state.player.block - 15).max(0)
                 } else {
                     0
                 };
@@ -1541,34 +1545,42 @@ impl CombatEngine {
             return;
         }
 
-        // Enemy turns (skip if Vault was played)
+        // D50 parity fix: Java gates the ENTIRE `monsters.applyEndOfTurnPowers()`
+        // pass (where VULN/WEAK/FRAIL/Intangible decrement happens) behind
+        // `if (!skipMonsterTurn)`. Pre-fix Rust decremented debuffs even when
+        // Vault skipped the enemy turn, so player-applied Vulnerable on enemies
+        // wasted a turn under Vault. Now we gate debuff + Intangible decrement
+        // inside the same branch as the enemy-turn execution.
         if self.state.skip_enemy_turn {
             self.state.skip_enemy_turn = false;
+            // Vault skipped the enemy turn -- do NOT decrement debuffs or
+            // Intangible; they persist into the next round. Matches Java.
         } else {
             combat_hooks::do_enemy_turns(self);
-        }
 
-        // End of round: decrement debuffs on player
-        powers::decrement_debuffs(&mut self.state.player);
+            // End of round: decrement debuffs on player (enemy debuffs stick
+            // one turn; the justApplied flag covers the apply-turn skip per D59).
+            powers::decrement_debuffs(&mut self.state.player);
 
-        // End of round: decrement debuffs on enemies
-        for enemy in &mut self.state.enemies {
-            if !enemy.entity.is_dead() {
-                powers::decrement_debuffs(&mut enemy.entity);
-                // Decrement enemy Intangible (Nemesis cycling)
-                let intang = enemy.entity.status(sid::INTANGIBLE);
-                if intang > 0 {
-                    enemy.entity.set_status(sid::INTANGIBLE, intang - 1);
+            // End of round: decrement debuffs on enemies
+            for enemy in &mut self.state.enemies {
+                if !enemy.entity.is_dead() {
+                    powers::decrement_debuffs(&mut enemy.entity);
+                    // Decrement enemy Intangible (Nemesis cycling)
+                    let intang = enemy.entity.status(sid::INTANGIBLE);
+                    if intang > 0 {
+                        enemy.entity.set_status(sid::INTANGIBLE, intang - 1);
+                    }
                 }
             }
-        }
 
-        // Decrement player Intangible
-        let intangible = self.state.player.status(sid::INTANGIBLE);
-        if intangible > 0 {
-            self.state
-                .player
-                .set_status(sid::INTANGIBLE, intangible - 1);
+            // Decrement player Intangible
+            let intangible = self.state.player.status(sid::INTANGIBLE);
+            if intangible > 0 {
+                self.state
+                    .player
+                    .set_status(sid::INTANGIBLE, intangible - 1);
+            }
         }
 
         // Check combat end
@@ -1949,8 +1961,13 @@ impl CombatEngine {
             self.change_stance(new_stance);
         }
 
-        // Gremlin Nob Enrage: gains Strength when player plays non-Attack
-        if card.card_type != CardType::Attack {
+        // Gremlin Nob Enrage / Anger: gains Strength when player plays a SKILL.
+        // D64 parity fix: Java AngerPower.java:37-42 gates on `card.type == SKILL`.
+        // Pre-fix Rust used `!= Attack`, which wrongly fired on Powers too
+        // (Inflame, Demon Form, Establishment, Battle Hymn all triggered
+        // Gremlin Nob's Strength buff even though Java treats them as Powers,
+        // not Skills). Net: Nob was ~50% more dangerous in a power-heavy deck.
+        if card.card_type == CardType::Skill {
             for enemy in &mut self.state.enemies {
                 if enemy.is_alive() {
                     let enrage = enemy.entity.status(sid::ENRAGE);
@@ -2479,13 +2496,25 @@ impl CombatEngine {
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
-            // Curl-Up: first time hit, enemy gains block
-            let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
-            if curl_up > 0 {
-                self.state.enemies[enemy_idx].entity.block += curl_up;
-                self.state.enemies[enemy_idx]
-                    .entity
-                    .set_status(sid::CURL_UP, 0);
+            // D63 parity fix: Java CurlUpPower.onAttacked requires
+            // `info.type == NORMAL && damageAmount < currentHealth && info.owner != null`.
+            // This call site (`deal_damage_to_enemy`) is the NORMAL damage path --
+            // THORNS / HP_LOSS go through `apply_hp_loss` or direct entity.hp writes,
+            // not here -- so the type check is implicitly satisfied. The remaining
+            // Java guard is the lethal-blow exemption: Curl Up should NOT trigger
+            // when the hit is the killing blow (`damageAmount >= currentHealth`
+            // pre-hit). Post-hit `entity.hp <= 0` is the same signal.
+            let enemy_alive = self.state.enemies[enemy_idx].entity.hp > 0;
+
+            // Curl-Up: first time hit, enemy gains block (non-lethal only).
+            if enemy_alive {
+                let curl_up = self.state.enemies[enemy_idx].entity.status(sid::CURL_UP);
+                if curl_up > 0 {
+                    self.state.enemies[enemy_idx].entity.block += curl_up;
+                    self.state.enemies[enemy_idx]
+                        .entity
+                        .set_status(sid::CURL_UP, 0);
+                }
             }
 
             // Malleable: gain escalating block on hit
@@ -2584,9 +2613,16 @@ impl CombatEngine {
 
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
         let mut hit_damage = damage;
-        let unblocked = hit_damage - enemy_block_before.min(hit_damage);
-        if self.state.has_relic("Boot") && unblocked > 0 && unblocked < 5 {
-            hit_damage = enemy_block_before + 5;
+        // D26 parity fix: Boot bumps RAW damage to 5 when raw < 5 (pre-block).
+        // Pre-fix Rust checked post-block `unblocked < 5`, which both
+        // (a) fired Boot on high-damage-against-high-block (e.g. 10 vs 8
+        // block -> unblocked=2 -> Boot wrongly triggered) and
+        // (b) mis-computed post-block HP loss when Boot did fire
+        // (damage 4 vs 3 block: Java deals 2 HP, old Rust dealt 5).
+        // Java oracle: `relics/Boot.java` onAttackToChangeDamage sets
+        // `damageAmount = 5` when `damageAmount < 5` (raw input).
+        if self.state.has_relic("Boot") && damage > 0 && damage < 5 {
+            hit_damage = 5;
         }
         let block_broken = self.state.has_relic("HandDrill")
             && enemy_block_before > 0
@@ -3196,13 +3232,13 @@ mod test_relic_runtime_wave4 {
     #[test]
     fn velvet_choker_blocks_seventh_play_and_resets_next_turn() {
         let mut state = combat_state_with(
-            make_deck_n("Defend_R", 20),
+            make_deck_n("Defend", 20),
             vec![crate::tests::support::enemy_no_intent("JawWorm", 120, 120)],
             20,
         );
         state.relics.push("Velvet Choker".to_string());
         let mut engine = engine_with_state(state);
-        engine.state.hand = make_deck_n("Defend_R", 7);
+        engine.state.hand = make_deck_n("Defend", 7);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
 
@@ -3255,7 +3291,7 @@ mod test_relic_runtime_wave4 {
         );
 
         engine.state.energy = 3;
-        engine.state.hand = make_deck_n("Defend_R", 1);
+        engine.state.hand = make_deck_n("Defend", 1);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
         engine.execute_action(&Action::PlayCard {
@@ -3585,14 +3621,14 @@ mod tests {
 
     fn make_test_state() -> CombatState {
         let deck = make_deck(&[
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
             "Eruption",
             "Vigilance",
         ]);
@@ -3687,7 +3723,7 @@ mod tests {
     fn test_eruption_enters_wrath() {
         let mut state = make_test_state();
         // Ensure Eruption is in the deck and will be drawn
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3710,7 +3746,7 @@ mod tests {
     #[test]
     fn test_vigilance_enters_calm() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Vigilance", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Vigilance", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3734,7 +3770,7 @@ mod tests {
     fn test_calm_exit_grants_energy() {
         let mut state = make_test_state();
         state.stance = Stance::Calm;
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3903,8 +3939,8 @@ mod tests {
     #[test]
     fn test_shuffle_on_empty_draw() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Strike_P"]); // Only 1 card
-        state.discard_pile = make_deck(&["Defend_P", "Defend_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Strike"]); // Only 1 card
+        state.discard_pile = make_deck(&["Defend", "Defend", "Defend", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4026,7 +4062,7 @@ mod tests {
         // Give player Rushdown power (draw 2 on Wrath entry)
         state.player.set_status(sid::RUSHDOWN, 2);
         state.draw_pile = make_deck(&[
-            "Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P",
+            "Eruption", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4069,7 +4105,7 @@ mod tests {
         let mut state = make_test_state();
         // Give player MentalFortress power (4 block on stance change)
         state.player.set_status(sid::MENTAL_FORTRESS, 4);
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4101,9 +4137,9 @@ mod tests {
             "Prostrate",
             "Prostrate",
             "Prostrate",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
+            "Strike",
+            "Strike",
+            "Strike",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4143,7 +4179,7 @@ mod tests {
         let mut state = make_test_state();
         state.stance = Stance::Calm;
         state.relics.push("Violet Lotus".to_string());
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4170,7 +4206,7 @@ mod tests {
         let mut state = make_test_state();
         // Pre-set mantra to 5 so only one Worship needed to enter Divinity
         state.mantra = 5;
-        state.draw_pile = make_deck(&["Worship", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Worship", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4320,7 +4356,7 @@ mod tests {
     fn test_entangle_prevents_attacks() {
         let mut state = make_test_state();
         state.player.set_status(sid::ENTANGLED, 1);
-        state.draw_pile = make_deck(&["Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Defend", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4362,7 +4398,7 @@ mod tests {
     #[test]
     fn test_miracle_gives_energy() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Miracle", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Miracle", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4395,13 +4431,13 @@ mod tests {
         state.stance = Stance::Calm;
         state.draw_pile = make_deck(&[
             "InnerPeace",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4444,7 +4480,7 @@ mod tests {
         let mut state = make_test_state();
         state.stance = Stance::Neutral;
         state.draw_pile =
-            make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+            make_deck(&["InnerPeace", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4472,10 +4508,10 @@ mod tests {
         let mut state = make_test_state();
         state.draw_pile = make_deck(&[
             "MentalFortress",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4577,7 +4613,7 @@ mod tests {
     fn test_halt_extra_block_in_wrath() {
         let mut state = make_test_state();
         state.stance = Stance::Wrath;
-        state.draw_pile = make_deck(&["Halt", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Halt", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();

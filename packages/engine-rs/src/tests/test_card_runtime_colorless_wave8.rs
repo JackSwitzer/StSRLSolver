@@ -80,7 +80,7 @@ fn forethought_puts_one_selected_card_on_bottom_at_zero_cost() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Forethought", "Strike_R", "Defend_R"]);
+    engine.state.hand = make_deck(&["Forethought", "Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Forethought"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -89,9 +89,9 @@ fn forethought_puts_one_selected_card_on_bottom_at_zero_cost() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike_R");
+    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike");
     assert_eq!(engine.state.draw_pile[0].cost, 0);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend_R");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend");
 }
 
 #[test]
@@ -102,8 +102,8 @@ fn impatience_draws_when_no_attacks_are_in_hand() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Impatience", "Defend_R", "Defend_R"]);
-    engine.state.draw_pile = make_deck(&["Strike_R", "Strike_R", "Strike_R"]);
+    engine.state.hand = make_deck(&["Impatience", "Defend", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Impatience"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
@@ -118,8 +118,8 @@ fn impatience_does_not_draw_when_an_attack_is_present() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Impatience", "Strike_R", "Defend_R"]);
-    engine.state.draw_pile = make_deck(&["Strike_R", "Strike_R", "Strike_R"]);
+    engine.state.hand = make_deck(&["Impatience", "Strike", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Impatience"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

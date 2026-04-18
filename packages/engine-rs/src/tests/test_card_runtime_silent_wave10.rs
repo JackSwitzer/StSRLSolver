@@ -102,7 +102,7 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
         3,
     );
     force_player_turn(&mut aoa);
-    aoa.state.hand = make_deck(&["All-Out Attack", "Strike_G", "Defend_G"]);
+    aoa.state.hand = make_deck(&["All-Out Attack", "Strike", "Defend"]);
     let hp0 = aoa.state.enemies[0].entity.hp;
     let hp1 = aoa.state.enemies[1].entity.hp;
     assert!(play_on_enemy(&mut aoa, "All-Out Attack", 0));
@@ -133,10 +133,10 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     force_player_turn(&mut escape_plan);
     escape_plan.state.hand = make_deck(&["Escape Plan"]);
     escape_plan.state.draw_pile.clear();
-    escape_plan.state.draw_pile.push(escape_plan.card_registry.make_card("Defend_G"));
+    escape_plan.state.draw_pile.push(escape_plan.card_registry.make_card("Defend"));
     assert!(play_self(&mut escape_plan, "Escape Plan"));
     assert_eq!(escape_plan.state.player.block, 3);
-    assert_eq!(hand_count(&escape_plan, "Defend_G"), 1);
+    assert_eq!(hand_count(&escape_plan, "Defend"), 1);
     assert_eq!(discard_prefix_count(&escape_plan, "Escape Plan"), 1);
 
     let mut flechettes = engine_without_start(
@@ -145,7 +145,7 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
         3,
     );
     force_player_turn(&mut flechettes);
-    flechettes.state.hand = make_deck(&["Flechettes", "Defend_G", "Escape Plan", "Strike_G"]);
+    flechettes.state.hand = make_deck(&["Flechettes", "Defend", "Escape Plan", "Strike"]);
     let flechettes_hp = flechettes.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut flechettes, "Flechettes", 0));
     assert_eq!(flechettes.state.enemies[0].entity.hp, flechettes_hp - 8);
@@ -171,13 +171,13 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
 #[test]
 fn silent_wave10_expertise_draws_to_n_on_engine_path() {
     let mut engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Expertise"]);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Expertise"));
     assert_eq!(engine.state.hand.len(), 6);

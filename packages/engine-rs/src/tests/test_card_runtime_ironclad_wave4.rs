@@ -164,8 +164,8 @@ mod ironclad_wave4_card_runtime_tests {
     #[test]
     fn burning_pact_exhausts_a_selected_card_and_draws_after_choice_resolution() {
         let mut engine = engine_for(
-            &["Burning Pact", "Strike_R"],
-            &["Defend_R", "Bash"],
+            &["Burning Pact", "Strike"],
+            &["Defend", "Bash"],
             &[],
             50,
             3,
@@ -181,13 +181,13 @@ mod ironclad_wave4_card_runtime_tests {
         engine.execute_action(&Action::Choose(0));
 
         assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-        assert_eq!(exhaust_prefix_count(&engine, "Strike_"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
         assert_eq!(engine.state.hand.len(), 2);
         assert!(engine
             .state
             .hand
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_R"));
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
         assert!(engine
             .state
             .hand
@@ -197,7 +197,7 @@ mod ironclad_wave4_card_runtime_tests {
 
     #[test]
     fn carnage_ethereal_exhausts_when_left_unplayed() {
-        let mut engine = engine_for(&["Carnage"], &["Strike_R"], &[], 50, 3);
+        let mut engine = engine_for(&["Carnage"], &["Strike"], &[], 50, 3);
 
         engine.execute_action(&Action::EndTurn);
 
@@ -234,7 +234,7 @@ mod ironclad_wave4_card_runtime_tests {
         assert!(played.state.player.block >= block_before + 10);
         assert_eq!(discard_prefix_count(&played, "Ghostly Armor"), 1);
 
-        let mut held = engine_for(&["Ghostly Armor"], &["Strike_R"], &[], 50, 3);
+        let mut held = engine_for(&["Ghostly Armor"], &["Strike"], &[], 50, 3);
         held.execute_action(&Action::EndTurn);
 
         assert_eq!(exhaust_prefix_count(&held, "Ghostly Armor"), 1);
@@ -246,7 +246,7 @@ mod ironclad_wave4_card_runtime_tests {
         let mut engine = engine_for(
             &["Headbutt"],
             &["Shrug It Off"],
-            &["Strike_R", "Defend_R"],
+            &["Strike", "Defend"],
             50,
             3,
         );

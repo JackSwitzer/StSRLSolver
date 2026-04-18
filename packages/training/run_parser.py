@@ -36,14 +36,14 @@ from .entity_catalog import (
 
 
 _WATCHER_RUN_STARTER_DECK: tuple[str, ...] = (
-    "Strike_P",
-    "Strike_P",
-    "Strike_P",
-    "Strike_P",
-    "Defend_P",
-    "Defend_P",
-    "Defend_P",
-    "Defend_P",
+    "Strike",
+    "Strike",
+    "Strike",
+    "Strike",
+    "Defend",
+    "Defend",
+    "Defend",
+    "Defend",
     "Eruption",
     "Vigilance",
 )
@@ -492,10 +492,10 @@ def _apply_neow(deck: list[str], relics: list[str], run: RecordedRun) -> None:
         # Remove 1 Strike + 1 Defend (Baalorlord-pattern default).
         # The exact pair is not recorded in `.run`; the final-deck sanity check
         # will surface a mismatch if a different pair was actually removed.
-        if "Strike_P" in deck:
-            deck.remove("Strike_P")
-        if "Defend_P" in deck:
-            deck.remove("Defend_P")
+        if "Strike" in deck:
+            deck.remove("Strike")
+        if "Defend" in deck:
+            deck.remove("Defend")
         run.reconstruction_warnings.append(
             "neow REMOVE_TWO defaulted to 1× Strike_P + 1× Defend_P; "
             "verify against final master_deck"

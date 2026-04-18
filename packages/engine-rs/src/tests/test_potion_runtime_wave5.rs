@@ -19,7 +19,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -46,7 +46,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",
@@ -58,7 +58,7 @@ const COLORLESS_CHOICES: &[&str] = &[
 #[test]
 fn display_name_generation_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -118,7 +118,7 @@ fn display_name_generation_potions_use_runtime_action_path() {
 #[test]
 fn display_name_generation_potions_stay_legal_without_targets() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

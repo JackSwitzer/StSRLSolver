@@ -39,7 +39,7 @@ fn streamline_costs(engine: &crate::engine::CombatEngine) -> Vec<i32> {
 #[test]
 fn streamline_reduces_only_one_copy_instead_of_broadcasting_to_all_copies() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -67,12 +67,12 @@ fn streamline_reduces_only_one_copy_instead_of_broadcasting_to_all_copies() {
 #[test]
 fn liquid_memories_returns_discard_cards_with_zero_cost() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.discard_pile = make_deck(&["Strike_P", "Bash"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Bash"]);
     engine.state.potions[0] = "LiquidMemories".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -87,12 +87,12 @@ fn liquid_memories_returns_discard_cards_with_zero_cost() {
 #[test]
 fn distilled_chaos_now_plays_top_draw_cards_through_the_runtime_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Shrug It Off"]);
     engine.state.potions[0] = "DistilledChaos".to_string();
 
     use_potion(&mut engine, 0, -1);

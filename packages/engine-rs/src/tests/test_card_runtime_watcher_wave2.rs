@@ -94,9 +94,9 @@ fn fear_no_evil_and_follow_up_cover_stance_sensitive_branching() {
     assert_eq!(fear_no_evil_off.state.stance, Stance::Wrath);
 
     let mut follow_up = one_enemy_engine("JawWorm", 50, 0);
-    ensure_in_hand(&mut follow_up, "Strike_P");
+    ensure_in_hand(&mut follow_up, "Strike");
     ensure_in_hand(&mut follow_up, "FollowUp");
-    assert!(play_on_enemy(&mut follow_up, "Strike_P", 0));
+    assert!(play_on_enemy(&mut follow_up, "Strike", 0));
     assert!(play_on_enemy(&mut follow_up, "FollowUp", 0));
     assert_eq!(follow_up.state.energy, 2);
 }
@@ -104,7 +104,7 @@ fn fear_no_evil_and_follow_up_cover_stance_sensitive_branching() {
 #[test]
 fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
     let mut cut_through_fate = one_enemy_engine("JawWorm", 50, 0);
-    cut_through_fate.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship", "Protect"]);
+    cut_through_fate.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
     ensure_in_hand(&mut cut_through_fate, "CutThroughFate");
     let hand_before = cut_through_fate.state.hand.len();
     assert!(play_on_enemy(&mut cut_through_fate, "CutThroughFate", 0));
@@ -117,7 +117,7 @@ fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
     assert_eq!(cut_through_fate.state.hand.len(), hand_before + 1);
 
     let mut third_eye = one_enemy_engine("JawWorm", 50, 0);
-    third_eye.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship", "Protect"]);
+    third_eye.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
     ensure_in_hand(&mut third_eye, "ThirdEye");
     assert!(play_self(&mut third_eye, "ThirdEye"));
     assert_eq!(third_eye.phase, CombatPhase::AwaitingChoice);
@@ -134,7 +134,7 @@ fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
         .any(|card| third_eye.card_registry.card_name(card.def_id) == "ThirdEye"));
 
     let mut wheel_kick = one_enemy_engine("JawWorm", 50, 0);
-    wheel_kick.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+    wheel_kick.state.draw_pile = make_deck(&["Strike", "Defend"]);
     ensure_in_hand(&mut wheel_kick, "WheelKick");
     assert!(play_on_enemy(&mut wheel_kick, "WheelKick", 0));
     assert_eq!(wheel_kick.state.hand.len(), 2);
@@ -143,9 +143,9 @@ fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
 #[test]
 fn sash_whip_weakens_after_a_previous_attack() {
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
-    ensure_in_hand(&mut engine, "Strike_P");
+    ensure_in_hand(&mut engine, "Strike");
     ensure_in_hand(&mut engine, "SashWhip");
-    assert!(play_on_enemy(&mut engine, "Strike_P", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_on_enemy(&mut engine, "SashWhip", 0));
     assert_eq!(engine.state.enemies[0].entity.status(crate::status_ids::sid::WEAKENED), 1);
 }

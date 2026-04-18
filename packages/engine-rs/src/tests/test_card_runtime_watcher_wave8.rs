@@ -26,7 +26,7 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn watcher_wave8_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let strike = registry.get("Strike_P").expect("Strike_P should be registered");
+    let strike = registry.get("Strike").expect("Strike_P should be registered");
     assert_eq!(strike.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
 
     let prostrate = registry.get("Prostrate").expect("Prostrate should be registered");
@@ -69,8 +69,8 @@ fn watcher_wave8_registry_exports_match_typed_surface() {
 #[test]
 fn watcher_wave8_strike_empty_fist_follow_up_and_fear_no_evil_follow_java_behavior() {
     let mut strike = one_enemy_engine("JawWorm", 50, 0);
-    ensure_in_hand(&mut strike, "Strike_P+");
-    assert!(play_on_enemy(&mut strike, "Strike_P+", 0));
+    ensure_in_hand(&mut strike, "Strike+");
+    assert!(play_on_enemy(&mut strike, "Strike+", 0));
     assert_eq!(strike.state.enemies[0].entity.hp, 41);
 
     let mut empty_fist = one_enemy_engine("JawWorm", 60, 0);
@@ -81,9 +81,9 @@ fn watcher_wave8_strike_empty_fist_follow_up_and_fear_no_evil_follow_java_behavi
     assert_eq!(empty_fist.state.stance, Stance::Neutral);
 
     let mut follow_up = one_enemy_engine("JawWorm", 50, 0);
-    ensure_in_hand(&mut follow_up, "Strike_P");
+    ensure_in_hand(&mut follow_up, "Strike");
     ensure_in_hand(&mut follow_up, "FollowUp+");
-    assert!(play_on_enemy(&mut follow_up, "Strike_P", 0));
+    assert!(play_on_enemy(&mut follow_up, "Strike", 0));
     let energy_before = follow_up.state.energy;
     assert!(play_on_enemy(&mut follow_up, "FollowUp+", 0));
     assert_eq!(follow_up.state.enemies[0].entity.hp, 33);
@@ -128,7 +128,7 @@ fn watcher_wave8_empty_body_and_empty_mind_exit_stance_after_primary_effects() {
 
     let mut empty_mind = one_enemy_engine("JawWorm", 60, 0);
     set_stance(&mut empty_mind, Stance::Calm);
-    empty_mind.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Vigilance"]);
+    empty_mind.state.draw_pile = make_deck(&["Strike", "Defend", "Vigilance"]);
     ensure_in_hand(&mut empty_mind, "EmptyMind+");
     let hand_before = empty_mind.state.hand.len();
     assert!(play_self(&mut empty_mind, "EmptyMind+"));

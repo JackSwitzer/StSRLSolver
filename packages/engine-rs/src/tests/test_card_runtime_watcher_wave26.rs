@@ -8,7 +8,7 @@ use crate::tests::support::*;
 
 fn watcher_engine() -> crate::engine::CombatEngine {
     engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"; 12]),
+        make_deck(&["Strike"; 12]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ))
@@ -21,9 +21,9 @@ fn watcher_wave26_scrawl_plus_draws_to_ten_for_hand_sizes_three_through_eight() 
         force_player_turn(&mut engine);
 
         let mut hand_names = vec!["Scrawl+"];
-        hand_names.extend(std::iter::repeat_n("Strike_P", initial_hand_size - 1));
+        hand_names.extend(std::iter::repeat_n("Strike", initial_hand_size - 1));
         engine.state.hand = make_deck(&hand_names);
-        engine.state.draw_pile = make_deck(&["Defend_P"; 10]);
+        engine.state.draw_pile = make_deck(&["Defend"; 10]);
         engine.state.exhaust_pile.clear();
 
         assert!(play_self(&mut engine, "Scrawl+"));
@@ -31,7 +31,7 @@ fn watcher_wave26_scrawl_plus_draws_to_ten_for_hand_sizes_three_through_eight() 
         let expected_draws = 11 - initial_hand_size;
         assert_eq!(engine.state.hand.len(), 10, "initial hand size {initial_hand_size}");
         assert_eq!(
-            draw_prefix_count(&engine, "Defend_P"),
+            draw_prefix_count(&engine, "Defend"),
             10 - expected_draws,
             "initial hand size {initial_hand_size}"
         );
@@ -46,11 +46,11 @@ fn watcher_wave26_scrawl_plus_handles_deus_ex_machina_plus_as_next_draw() {
         force_player_turn(&mut engine);
 
         let mut hand_names = vec!["Scrawl+"];
-        hand_names.extend(std::iter::repeat_n("Strike_P", initial_hand_size - 1));
+        hand_names.extend(std::iter::repeat_n("Strike", initial_hand_size - 1));
         engine.state.hand = make_deck(&hand_names);
 
         let filler_count = 10usize;
-        let mut draw_names = vec!["Defend_P"; filler_count];
+        let mut draw_names = vec!["Defend"; filler_count];
         draw_names.push("DeusExMachina+");
         engine.state.draw_pile = make_deck(&draw_names);
         engine.state.exhaust_pile.clear();
@@ -62,7 +62,7 @@ fn watcher_wave26_scrawl_plus_handles_deus_ex_machina_plus_as_next_draw() {
         assert_eq!(hand_count(&engine, "Miracle"), 3, "initial hand size {initial_hand_size}");
         assert_eq!(hand_count(&engine, "DeusExMachina+"), 0, "initial hand size {initial_hand_size}");
         assert_eq!(
-            draw_prefix_count(&engine, "Defend_P"),
+            draw_prefix_count(&engine, "Defend"),
             filler_count - expected_followup_draws,
             "initial hand size {initial_hand_size}"
         );
@@ -77,7 +77,7 @@ fn watcher_wave26_deus_ex_machina_plus_respects_hand_limit_when_drawn_late() {
         let mut engine = watcher_engine();
         force_player_turn(&mut engine);
 
-        engine.state.hand = make_deck(&vec!["Strike_P"; starting_hand_size]);
+        engine.state.hand = make_deck(&vec!["Strike"; starting_hand_size]);
         engine.state.draw_pile = make_deck(&["DeusExMachina+"]);
         engine.state.exhaust_pile.clear();
 

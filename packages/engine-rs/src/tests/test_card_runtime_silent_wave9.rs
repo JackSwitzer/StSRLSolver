@@ -49,7 +49,7 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
 
 #[test]
 fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
-    let mut agony_engine = engine_with(make_deck(&["Endless Agony", "Strike_G"]), 40, 0);
+    let mut agony_engine = engine_with(make_deck(&["Endless Agony", "Strike"]), 40, 0);
     agony_engine.state.hand = make_deck(&["Endless Agony"]);
     let hp_before = agony_engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut agony_engine, "Endless Agony", 0));

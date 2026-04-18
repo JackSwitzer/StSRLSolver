@@ -9,7 +9,7 @@ use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck_n};
 #[test]
 fn relic_wave17_neows_blessing_decrements_counter_and_sets_enemy_hp_to_one() {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
@@ -25,7 +25,7 @@ fn relic_wave17_neows_blessing_decrements_counter_and_sets_enemy_hp_to_one() {
 #[test]
 fn relic_wave17_neows_blessing_uses_up_on_final_charge() {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );

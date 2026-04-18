@@ -48,12 +48,12 @@ fn runtime_authority_covers_wave7_targetless_potions() {
 #[test]
 fn wave7_draw_and_energy_potions_use_action_path_with_runtime_potency() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Zap", "Dualcast"]),
+        make_deck(&["Strike", "Defend", "Bash", "Zap", "Dualcast"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Bash", "Zap", "Dualcast"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Zap", "Dualcast"]);
 
     engine.state.potions[0] = "Swift Potion".to_string();
     engine.clear_event_log();
@@ -80,7 +80,7 @@ fn wave7_draw_and_energy_potions_use_action_path_with_runtime_potency() {
 #[test]
 fn wave7_status_potions_apply_expected_statuses_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -126,7 +126,7 @@ fn wave7_status_potions_apply_expected_statuses_via_action_path() {
 #[test]
 fn wave7_smoke_bomb_flees_combat_via_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -156,7 +156,7 @@ fn wave7_smoke_bomb_flees_combat_via_runtime_action_path() {
 #[test]
 fn wave7_smoke_bomb_boss_legality_matches_java_can_use() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("The Guardian", 250, 250)],
         3,
     ));

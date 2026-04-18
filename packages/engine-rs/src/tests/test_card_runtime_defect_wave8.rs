@@ -26,7 +26,7 @@ fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
 fn defect_wave8_registry_exports_match_typed_runtime_progress() {
     let reg = global_registry();
 
-    let strike_b = reg.get("Strike_B").expect("Strike_B");
+    let strike_b = reg.get("Strike").expect("Strike");
     assert_eq!(strike_b.card_type, CardType::Attack);
     assert_eq!(strike_b.target, CardTarget::Enemy);
     assert_eq!(
@@ -35,7 +35,7 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
     );
     assert!(strike_b.uses_typed_primary_preamble());
 
-    let defend_b = reg.get("Defend_B").expect("Defend_B");
+    let defend_b = reg.get("Defend").expect("Defend");
     assert_eq!(defend_b.card_type, CardType::Skill);
     assert_eq!(defend_b.target, CardTarget::SelfTarget);
     assert_eq!(defend_b.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
@@ -66,18 +66,18 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
 #[test]
 fn defect_wave8_basic_attack_and_block_cards_follow_engine_path() {
     let mut engine = one_enemy_engine(40, 10);
-    engine.state.hand = make_deck(&["Strike_B", "Strike_B+", "Defend_B", "Defend_B+"]);
+    engine.state.hand = make_deck(&["Strike", "Strike+", "Defend", "Defend+"]);
 
-    assert!(play_on_enemy(&mut engine, "Strike_B", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 34);
 
-    assert!(play_on_enemy(&mut engine, "Strike_B+", 0));
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 25);
 
-    assert!(play_self(&mut engine, "Defend_B"));
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.player.block, 5);
 
-    assert!(play_self(&mut engine, "Defend_B+"));
+    assert!(play_self(&mut engine, "Defend+"));
     assert_eq!(engine.state.player.block, 13);
 }
 

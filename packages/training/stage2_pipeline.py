@@ -188,7 +188,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "starting_only_remove_heavy",
-            "removed_cards": ("Defend_P", "Defend_P", "Strike_P"),
+            "removed_cards": ("Defend", "Defend", "Strike"),
             "added_cards": ("CutThroughFate", "ThirdEye"),
             "upgraded_cards": ("Eruption",),
             "relics": ("PureWater",),
@@ -197,7 +197,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "starting_only_upgrade_heavy",
-            "removed_cards": ("Strike_P",),
+            "removed_cards": ("Strike",),
             "added_cards": ("ThirdEye", "TalkToTheHand"),
             "upgraded_cards": ("Vigilance", "LessonLearned"),
             "relics": ("PureWater",),
@@ -206,7 +206,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "starting_only_stance_shell",
-            "removed_cards": ("Defend_P",),
+            "removed_cards": ("Defend",),
             "added_cards": ("Tantrum", "Rushdown", "MentalFortress"),
             "upgraded_cards": ("BowlingBash",),
             "relics": ("PureWater",),
@@ -215,7 +215,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "starting_only_retain_control",
-            "removed_cards": ("Strike_P", "Strike_P"),
+            "removed_cards": ("Strike", "Strike"),
             "added_cards": ("DeusExMachina", "ThirdEye", "Perseverance"),
             "upgraded_cards": ("Vigilance",),
             "relics": ("PureWater",),
@@ -224,7 +224,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "extra_relic_ablation_akabeko",
-            "removed_cards": ("Defend_P", "Defend_P", "Strike_P"),
+            "removed_cards": ("Defend", "Defend", "Strike"),
             "added_cards": ("CutThroughFate", "ThirdEye"),
             "upgraded_cards": ("Eruption",),
             "relics": ("PureWater", "Akabeko"),
@@ -233,7 +233,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "extra_relic_ablation_frozen_eye",
-            "removed_cards": ("Strike_P",),
+            "removed_cards": ("Strike",),
             "added_cards": ("ThirdEye", "TalkToTheHand"),
             "upgraded_cards": ("Vigilance", "LessonLearned"),
             "relics": ("PureWater", "FrozenEye"),
@@ -242,7 +242,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "extra_relic_ablation_pocketwatch",
-            "removed_cards": ("Defend_P",),
+            "removed_cards": ("Defend",),
             "added_cards": ("Tantrum", "Rushdown", "MentalFortress"),
             "upgraded_cards": ("BowlingBash",),
             "relics": ("PureWater", "Pocketwatch"),
@@ -251,7 +251,7 @@ def _synthetic_families() -> tuple[dict[str, Any], ...]:
         },
         {
             "family": "extra_relic_ablation_ice_cream",
-            "removed_cards": ("Strike_P", "Strike_P"),
+            "removed_cards": ("Strike", "Strike"),
             "added_cards": ("DeusExMachina", "ThirdEye", "Perseverance"),
             "upgraded_cards": ("Vigilance",),
             "relics": ("PureWater", "IceCream"),

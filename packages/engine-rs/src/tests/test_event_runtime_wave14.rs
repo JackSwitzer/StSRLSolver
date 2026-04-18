@@ -31,7 +31,7 @@ fn golden_wing_branch_is_runtime_gated_by_attack_damage_in_the_deck() {
     ));
 
     let mut blocked_engine = RunEngine::new(241, 20);
-    blocked_engine.run_state.deck = vec!["Defend_P".to_string(), "Strike_P".to_string()];
+    blocked_engine.run_state.deck = vec!["Defend".to_string(), "Strike".to_string()];
     blocked_engine.debug_set_typed_event_state(catalog.clone());
 
     let before = blocked_engine.run_state.gold;
@@ -42,7 +42,7 @@ fn golden_wing_branch_is_runtime_gated_by_attack_damage_in_the_deck() {
     assert!(blocked_engine.current_reward_screen().is_none());
 
     let mut supported_engine = RunEngine::new(241, 20);
-    supported_engine.run_state.deck = vec!["Feed".to_string(), "Strike_P".to_string()];
+    supported_engine.run_state.deck = vec!["Feed".to_string(), "Strike".to_string()];
     supported_engine.debug_set_typed_event_state(catalog);
 
     let before = supported_engine.run_state.gold;

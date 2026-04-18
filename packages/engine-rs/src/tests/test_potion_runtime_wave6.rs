@@ -36,7 +36,7 @@ fn runtime_authority_covers_wave6_simple_combat_potions() {
 #[test]
 fn wave6_simple_self_buff_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -82,7 +82,7 @@ fn wave6_simple_self_buff_potions_use_runtime_action_path() {
 #[test]
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Louse", 30, 30)],
         3,
     ));
@@ -135,7 +135,7 @@ fn wave6_simple_targeted_potions_use_runtime_action_path() {
 #[test]
 fn wave6_simple_all_enemy_potions_respect_sacred_bark_via_runtime_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Louse", 30, 30)],
         3,
     ));

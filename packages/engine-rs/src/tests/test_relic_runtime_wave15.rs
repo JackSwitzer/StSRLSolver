@@ -35,7 +35,7 @@ fn relic_wave15_pure_water_adds_one_miracle_at_combat_start() {
 fn relic_wave15_holy_water_fills_hand_then_spills_overflow_to_discard() {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.state.relics.push("HolyWater".to_string());
-    engine.state.hand = make_deck_n("Strike_R", 9);
+    engine.state.hand = make_deck_n("Strike", 9);
 
     fire_combat_start(&mut engine);
 
@@ -47,7 +47,7 @@ fn relic_wave15_holy_water_fills_hand_then_spills_overflow_to_discard() {
 fn relic_wave15_ninja_scroll_fills_hand_then_spills_overflow_to_discard() {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.state.relics.push("NinjaScroll".to_string());
-    engine.state.hand = make_deck_n("Strike_R", 9);
+    engine.state.hand = make_deck_n("Strike", 9);
 
     fire_combat_start(&mut engine);
 

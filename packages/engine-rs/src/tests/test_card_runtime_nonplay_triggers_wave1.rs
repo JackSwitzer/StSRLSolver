@@ -30,13 +30,13 @@ fn nonplay_triggers_reflex_draws_on_manual_discard() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Reflex"]);
-    engine.state.draw_pile = make_deck(&["Strike_R", "Strike_R"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike"]);
 
     let reflex = engine.state.hand.remove(0);
     engine.state.discard_pile.push(reflex);
     engine.on_card_discarded(reflex);
 
-    assert_eq!(hand_count(&engine, "Strike_R"), 2);
+    assert_eq!(hand_count(&engine, "Strike"), 2);
     assert_eq!(discard_prefix_count(&engine, "Reflex"), 1);
 }
 

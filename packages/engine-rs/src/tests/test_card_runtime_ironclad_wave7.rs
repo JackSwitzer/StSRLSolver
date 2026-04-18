@@ -91,7 +91,7 @@ fn ironclad_wave7_registry_exports_match_typed_runtime_progress() {
 fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effects() {
     let mut battle_trance = one_enemy_engine("JawWorm", 60);
     battle_trance.state.hand = make_deck(&["Battle Trance"]);
-    battle_trance.state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Bash"]);
+    battle_trance.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
     assert!(play_self(&mut battle_trance, "Battle Trance"));
     assert_eq!(battle_trance.state.hand.len(), 3);
     assert_eq!(battle_trance.state.player.status(sid::NO_DRAW), 1);
@@ -109,7 +109,7 @@ fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effe
 
     let mut offering = one_enemy_engine("JawWorm", 60);
     offering.state.hand = make_deck(&["Offering+"]);
-    offering.state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Bash", "Shrug It Off", "Inflame"]);
+    offering.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]);
     let hp_before = offering.state.player.hp;
     assert!(play_self(&mut offering, "Offering+"));
     assert_eq!(offering.state.player.hp, hp_before - 6);
@@ -135,10 +135,10 @@ fn ironclad_wave7_combust_inflame_and_shrug_it_off_follow_engine_path() {
 
     let mut shrug_it_off = one_enemy_engine("JawWorm", 50);
     shrug_it_off.state.hand = make_deck(&["Shrug It Off+"]);
-    shrug_it_off.state.draw_pile = make_deck(&["Strike_R"]);
+    shrug_it_off.state.draw_pile = make_deck(&["Strike"]);
     assert!(play_self(&mut shrug_it_off, "Shrug It Off+"));
     assert_eq!(shrug_it_off.state.player.block, 11);
-    assert_eq!(hand_count(&shrug_it_off, "Strike_R"), 1);
+    assert_eq!(hand_count(&shrug_it_off, "Strike"), 1);
 }
 
 #[test]

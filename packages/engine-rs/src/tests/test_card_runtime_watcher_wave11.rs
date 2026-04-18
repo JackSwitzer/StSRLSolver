@@ -71,7 +71,7 @@ fn watcher_wave11_flurry_weave_signature_and_wireheading_follow_engine_path() {
 #[test]
 fn watcher_wave11_signature_move_legality_stays_hook_backed_and_java_correct() {
     let mut blocked = one_enemy_engine("JawWorm", 60, 0);
-    blocked.state.hand = make_deck(&["SignatureMove", "Strike_P"]);
+    blocked.state.hand = make_deck(&["SignatureMove", "Strike"]);
     let signature_idx = blocked
         .state
         .hand

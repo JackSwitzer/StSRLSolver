@@ -85,7 +85,7 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
     assert!(omniscience.complex_hook.is_none());
 
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Omniscience", "Strike_P", "Defend_P"]),
+        make_deck(&["Omniscience", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -93,7 +93,7 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
     engine.state.turn = 1;
     engine.state.energy = 4;
     engine.state.hand = make_deck(&["Omniscience"]);
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -103,6 +103,6 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
     assert_eq!(engine.state.hand[0].cost, 0);
 }

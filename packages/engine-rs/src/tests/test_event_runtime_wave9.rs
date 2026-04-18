@@ -41,7 +41,7 @@ fn secret_portal_transitions_into_boss_combat() {
 fn deck_selection_reward_screen_removes_the_chosen_card() {
     let mut engine = RunEngine::new(73, 20);
     engine.run_state.deck = vec![
-        "Strike_P".to_string(),
+        "Strike".to_string(),
         "Wallop".to_string(),
         "Vigilance".to_string(),
     ];
@@ -61,7 +61,7 @@ fn deck_selection_reward_screen_removes_the_chosen_card() {
             choices: vec![
                 RewardChoice::Card {
                     index: 0,
-                    card_id: "Strike_P".to_string(),
+                    card_id: "Strike".to_string(),
                 },
                 RewardChoice::Card {
                     index: 1,

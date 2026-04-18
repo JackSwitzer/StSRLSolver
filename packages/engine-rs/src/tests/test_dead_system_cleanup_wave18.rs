@@ -15,7 +15,7 @@ use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine
 #[test]
 fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_path() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R"]),
+        make_deck(&["Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -27,12 +27,12 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Strike_R"));
-    engine.state.hand.push(engine.card_registry.make_card("Defend_R"));
+    engine.state.hand.push(engine.card_registry.make_card("Strike"));
+    engine.state.hand.push(engine.card_registry.make_card("Defend"));
     engine.state.player.block = 20;
 
     let enemy_hp_before = engine.state.enemies[0].entity.hp;
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(enemy_hp_before - engine.state.enemies[0].entity.hp, 9);
 
     end_turn(&mut engine);
@@ -42,8 +42,9 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
             .state
             .hand
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_R"),
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"),
         "Runic Pyramid should retain the remaining hand card"
     );
-    assert_eq!(engine.state.player.block, 15, "Calipers should retain up to 15 block");
+    // D49 parity fix: Calipers subtracts 15, not caps at 15. 20 -> 5.
+    assert_eq!(engine.state.player.block, 5, "Calipers should subtract 15 block (Java parity)");
 }
