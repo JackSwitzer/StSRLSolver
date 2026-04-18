@@ -77,7 +77,7 @@ pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
-pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: isFirstMove handled separately. Then moveCount % 3 cycle.
     // moveCount incremented AFTER getMove (post-increment).
     let is_first = enemy.entity.status(sid::IS_FIRST_MOVE) > 0;

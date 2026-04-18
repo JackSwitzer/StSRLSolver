@@ -23,7 +23,7 @@ mod boss_java_parity_tests {
 
     fn roll_times(enemy: &mut crate::state::EnemyCombatState, turns: usize) {
         for _ in 0..turns {
-            roll_next_move(enemy);
+            roll_next_move(enemy, &mut crate::seed::StsRandom::new(0));
         }
     }
 
@@ -50,7 +50,7 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("TheGuardian", 250, 250);
         assert_eq!(enemy.entity.hp, 250);
         assert_eq!(enemy.entity.max_hp, 250);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_damage(), 36);
     }
 
@@ -78,21 +78,21 @@ mod boss_java_parity_tests {
     fn guardian_offensive_cycle_matches_java_base_values() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
         assert_eq!(enemy.move_damage(), 32);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 4);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
         assert_eq!(enemy.move_block(), 9);
     }
@@ -130,35 +130,35 @@ mod boss_java_parity_tests {
     fn hexaghost_base_cycle_matches_java_shape() {
         let mut enemy = create_enemy("Hexaghost", 250, 250);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
         assert_eq!(enemy.move_damage(), 7);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
         assert_eq!(enemy.move_block(), 12);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
         assert_eq!(enemy.move_damage(), 2);
         assert_eq!(enemy.move_hits(), 6);
@@ -169,9 +169,9 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("Hexaghost", 264, 264);
 
         // Activate -> Divider -> Sear(orb=0) -> Tackle(orb=1)
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 2);
@@ -187,8 +187,8 @@ mod boss_java_parity_tests {
     fn hexaghost_a19_burn_and_strength_matches_java_expectations() {
         let mut enemy = create_enemy("Hexaghost", 264, 264);
 
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.effect(mfx::BURN), Some(2));
 
         // Sear(0) -> Tackle(1) -> Sear(2) -> Inflame(3)
@@ -244,7 +244,7 @@ mod boss_java_parity_tests {
     fn bronze_automaton_a2_scaling_matches_java_expectations() {
         let mut enemy = create_enemy("BronzeAutomaton", 320, 320);
         assert_eq!(enemy.entity.hp, 320);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_damage(), 8);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
     }
@@ -253,19 +253,19 @@ mod boss_java_parity_tests {
     fn bronze_automaton_cycle_matches_java_base_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_BOOST);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_HYPER_BEAM);
         assert_eq!(enemy.move_damage(), 45);
     }
@@ -281,19 +281,19 @@ mod boss_java_parity_tests {
     fn collector_does_not_mega_debuff_immediately_after_spawn_like_java() {
         let mut enemy = create_enemy("TheCollector", 282, 282);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_ne!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
     }
 
     #[test]
     fn collector_a2_scaling_matches_java_expectations() {
         let mut enemy = create_enemy("TheCollector", 300, 300);
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 21);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
         assert_eq!(enemy.move_block(), 18);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(4));
@@ -316,16 +316,16 @@ mod boss_java_parity_tests {
     fn champ_turn_four_uses_java_taunt_branch() {
         let mut enemy = create_enemy("Champ", 420, 420);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_GLOAT);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_TAUNT);
         assert_eq!(enemy.entity.status(sid::NUM_TURNS), 0);
     }
@@ -391,12 +391,12 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_id, move_ids::DONU_CIRCLE);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
         assert_eq!(enemy.move_damage(), 10);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::DONU_CIRCLE);
     }
 
@@ -407,7 +407,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.max_hp, 265);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
         assert_eq!(enemy.move_damage(), 12);
     }
@@ -421,7 +421,7 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.effect(mfx::DAZE), Some(2));
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::DECA_SQUARE);
         assert_eq!(enemy.move_block(), 16);
     }
@@ -458,17 +458,17 @@ mod boss_java_parity_tests {
     fn time_eater_haste_and_head_slam_cycle_matches_java() {
         let mut enemy = create_enemy("TimeEater", 456, 456);
         enemy.entity.hp = 200;
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
         assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
         assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
         assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
         assert_eq!(enemy.move_block(), 20);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
@@ -509,21 +509,21 @@ mod boss_java_parity_tests {
     fn corrupt_heart_buff_cycle_matches_java() {
         let mut enemy = create_enemy("CorruptHeart", 750, 750);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
         assert_eq!(enemy.move_damage(), 2);
         assert_eq!(enemy.move_hits(), 12);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
         assert_eq!(enemy.move_damage(), 40);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
         assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
     }
 }

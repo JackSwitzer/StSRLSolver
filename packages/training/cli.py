@@ -93,6 +93,25 @@ def build_parser() -> argparse.ArgumentParser:
     validate_seed_parser.add_argument("--output-dir", required=True)
     validate_seed_parser.add_argument("--checkpoint")
 
+    validate_recorded_run_parser = subparsers.add_parser(
+        "validate-recorded-run",
+        help="Replay a recorded `.run` file combat-by-combat against the Rust engine",
+    )
+    validate_recorded_run_parser.add_argument("--run-file", required=True)
+    validate_recorded_run_parser.add_argument("--output-dir", required=True)
+    validate_recorded_run_parser.add_argument("--tolerance", type=int, default=5)
+    validate_recorded_run_parser.add_argument("--checkpoint")
+    validate_recorded_run_parser.add_argument(
+        "--alert-script",
+        help="Optional path to an alert script invoked once on run completion (info on success, critical on any failure)",
+    )
+    validate_recorded_run_parser.add_argument(
+        "--puct-multiplier",
+        type=int,
+        default=1,
+        help="Scale PUCT min_visits / hard_visit_cap / time_cap by this factor (default 1; e.g. 20 for overnight)",
+    )
+
     puct_overnight_parser = subparsers.add_parser(
         "run-phase1-puct-overnight",
         help="Generate corpus, collect Rust PUCT targets, train, benchmark, and validate seeds",
@@ -187,6 +206,66 @@ def _runtime_contract_manifest(*, seed: int):
         gameplay_export_schema_version=1,
         replay_event_trace_schema_version=1,
     )
+
+
+def _validate_recorded_run(
+    *,
+    run_file: Path,
+    output_dir: Path,
+    tolerance: int,
+    checkpoint: Path | None,
+    alert_script: Path | None,
+    puct_multiplier: int = 1,
+) -> None:
+    """Parse a `.run` file, replay every combat, optionally alert on result."""
+    from .run_parser import parse_run_file
+    from .run_replay import replay_recorded_run
+
+    run = parse_run_file(run_file)
+    print(
+        f"parsed: play_id={run.play_id} character={run.character} "
+        f"victory={run.victory} combats={len(run.combat_cases)} "
+        f"puct_multiplier={puct_multiplier}"
+    )
+    if run.reconstruction_warnings:
+        print(f"  warnings ({len(run.reconstruction_warnings)}):")
+        for warning in run.reconstruction_warnings:
+            print(f"    - {warning}")
+
+    report = replay_recorded_run(
+        run,
+        output_dir=output_dir,
+        tolerance_base=tolerance,
+        checkpoint_path=checkpoint,
+        puct_multiplier=puct_multiplier,
+    )
+    print(
+        f"replay complete: solved={report.solved} failed={report.failed} "
+        f"unsupported={report.unsupported} error={report.error} "
+        f"of {report.total_combats} total"
+    )
+    print(f"  report: {output_dir / 'recorded_run_replay_report.json'}")
+    print(f"  events: {output_dir / 'events.jsonl'}")
+
+    if alert_script is not None:
+        severity = (
+            "critical"
+            if report.failed > 0 or report.error > 0
+            else "info"
+        )
+        message = (
+            f"Recorded run replay: solved {report.solved}/{report.total_combats}, "
+            f"failed {report.failed}, unsupported {report.unsupported}, "
+            f"error {report.error}"
+        )
+        try:
+            subprocess.run(
+                ["bash", str(alert_script), severity, message],
+                check=False,
+                cwd=_repo_root(),
+            )
+        except Exception as exc:  # noqa: BLE001 -- best-effort alert
+            print(f"  alert failed: {exc}")
 
 
 def _print_corpus_plan() -> int:
@@ -728,6 +807,16 @@ def main(argv: list[str] | None = None) -> int:
         _validate_seed_suite(
             output_dir=Path(args.output_dir),
             checkpoint=(None if args.checkpoint is None else Path(args.checkpoint)),
+        )
+        return 0
+    if args.command == "validate-recorded-run":
+        _validate_recorded_run(
+            run_file=Path(args.run_file),
+            output_dir=Path(args.output_dir),
+            tolerance=args.tolerance,
+            checkpoint=(None if args.checkpoint is None else Path(args.checkpoint)),
+            alert_script=(None if args.alert_script is None else Path(args.alert_script)),
+            puct_multiplier=args.puct_multiplier,
         )
         return 0
     if args.command == "run-phase1-puct-overnight":
