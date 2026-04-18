@@ -1961,8 +1961,13 @@ impl CombatEngine {
             self.change_stance(new_stance);
         }
 
-        // Gremlin Nob Enrage: gains Strength when player plays non-Attack
-        if card.card_type != CardType::Attack {
+        // Gremlin Nob Enrage / Anger: gains Strength when player plays a SKILL.
+        // D64 parity fix: Java AngerPower.java:37-42 gates on `card.type == SKILL`.
+        // Pre-fix Rust used `!= Attack`, which wrongly fired on Powers too
+        // (Inflame, Demon Form, Establishment, Battle Hymn all triggered
+        // Gremlin Nob's Strength buff even though Java treats them as Powers,
+        // not Skills). Net: Nob was ~50% more dangerous in a power-heavy deck.
+        if card.card_type == CardType::Skill {
             for enemy in &mut self.state.enemies {
                 if enemy.is_alive() {
                     let enrage = enemy.entity.status(sid::ENRAGE);
