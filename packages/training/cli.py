@@ -103,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_recorded_run_parser.add_argument("--checkpoint")
     validate_recorded_run_parser.add_argument(
         "--alert-script",
-        help="Optional path to an alert script invoked on combat_failed and run_complete",
+        help="Optional path to an alert script invoked once on run completion (info on success, critical on any failure)",
     )
 
     puct_overnight_parser = subparsers.add_parser(

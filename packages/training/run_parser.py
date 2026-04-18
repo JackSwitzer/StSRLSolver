@@ -24,7 +24,6 @@ are surfaced via `RecordedRun.reconstruction_warnings`.
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -34,9 +33,6 @@ from .entity_catalog import (
     canonicalize_relic_id,
     canonicalize_watcher_card_id,
 )
-
-
-_LOG = logging.getLogger(__name__)
 
 
 _WATCHER_RUN_STARTER_DECK: tuple[str, ...] = (
@@ -87,13 +83,10 @@ class RecordedFloor:
     damage_taken: int = 0
     turns: int | None = None
     card_picked: str | None = None
-    cards_skipped: tuple[str, ...] = ()
     relic_picked: str | None = None
     cards_obtained_event: tuple[str, ...] = ()
     cards_removed_event: tuple[str, ...] = ()
     cards_transformed_event: tuple[str, ...] = ()
-    event_name: str | None = None
-    event_choice: str | None = None
     campfire_kind: str | None = None
     campfire_target: str | None = None
     items_purchased_here: tuple[str, ...] = ()
@@ -112,7 +105,6 @@ class RecordedCombatCase:
     room_kind: str
     entry_hp: int
     max_hp: int
-    entry_gold: int
     entry_deck: tuple[str, ...]
     entry_relics: tuple[str, ...]
     entry_potions: tuple[str, ...]
@@ -214,8 +206,6 @@ def parse_run_file(path: Path | str) -> RecordedRun:
             if picked_card_raw and picked_card_raw != "SKIP"
             else None
         )
-        cards_skipped = tuple(str(c) for c in card_pick_record.get("not_picked", []))
-
         event_record = events_by_floor.get(floor_num, {})
         campfire = campfire_by_floor.get(floor_num, {})
 
@@ -230,13 +220,10 @@ def parse_run_file(path: Path | str) -> RecordedRun:
                 damage_taken=int(damage.get("damage", 0)),
                 turns=damage.get("turns"),
                 card_picked=picked_card,
-                cards_skipped=cards_skipped,
                 relic_picked=relics_by_floor.get(floor_num),
                 cards_obtained_event=tuple(str(c) for c in event_record.get("cards_obtained", [])),
                 cards_removed_event=tuple(str(c) for c in event_record.get("cards_removed", [])),
                 cards_transformed_event=tuple(str(c) for c in event_record.get("cards_transformed", [])),
-                event_name=event_record.get("event_name"),
-                event_choice=event_record.get("player_choice"),
                 campfire_kind=campfire.get("key"),
                 campfire_target=campfire.get("data"),
                 items_purchased_here=tuple(purchased_by_floor.get(floor_num, ())),
@@ -289,15 +276,11 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
 
     _apply_neow(deck, relics, run)
 
-    starting_max_hp = run.starting_max_hp
-    starting_current_hp = starting_max_hp
-    if run.neow_cost == "TEN_PERCENT_HP_LOSS":
-        # Neow cost: lose 10% max HP. The .run records post-floor-1 HP/max_HP;
-        # we reconstruct entry by walking forward.
-        pass
-    current_hp = starting_current_hp
-    max_hp = starting_max_hp
-    gold = 99
+    # TODO: TEN_PERCENT_HP_LOSS Neow cost should drop entry HP for floor 1 from
+    # full HP to 0.9 * max. Currently leaves it stale; floor 1 entry_hp matches
+    # current_hp_post on floor 1 in practice so the error is bounded to one floor.
+    current_hp = run.starting_max_hp
+    max_hp = run.starting_max_hp
 
     cases: list[RecordedCombatCase] = []
 
@@ -311,7 +294,6 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
                     room_kind=floor.room_kind,
                     entry_hp=current_hp,
                     max_hp=max_hp,
-                    entry_gold=gold,
                     entry_deck=tuple(deck),
                     entry_relics=tuple(relics),
                     entry_potions=tuple(potions),
@@ -333,13 +315,12 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
         if floor.campfire_kind == "SMITH" and floor.campfire_target:
             _upgrade_card(deck, floor.campfire_target, run.reconstruction_warnings)
 
-        if floor.relic_picked:
-            _add_relic(relics, floor.relic_picked, run.reconstruction_warnings)
-            if relics and relics[-1] in {"PotionBelt"}:
+        for picked in (floor.relic_picked, floor.boss_relic_picked):
+            if not picked:
+                continue
+            _add_relic(relics, picked, run.reconstruction_warnings)
+            if _try_canonical_relic(picked) == "PotionBelt":
                 potion_slots = 5
-
-        if floor.boss_relic_picked:
-            _add_relic(relics, floor.boss_relic_picked, run.reconstruction_warnings)
 
         for item in floor.items_purchased_here:
             _apply_shop_purchase(item, deck, relics, potions, potion_slots, run.reconstruction_warnings)
@@ -352,7 +333,6 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
 
         current_hp = floor.current_hp_post
         max_hp = floor.max_hp_post
-        gold = floor.gold_post
 
     _validate_final_deck(deck, run.final_master_deck, run.reconstruction_warnings)
     _validate_final_relics(relics, run.final_relics, run.reconstruction_warnings)

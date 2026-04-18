@@ -43,7 +43,7 @@ struct RecordedRunReplayView: View {
     }
 
     private func perCombatTable(_ report: RecordedRunReplayReportArtifact) -> some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             tableHeader
             Divider().background(Color.stsBorder)
             ForEach(report.results) { row in
@@ -53,6 +53,15 @@ struct RecordedRunReplayView: View {
         }
         .background(Color.stsCard)
         .cornerRadius(8)
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status {
+        case "solved": return .stsAccent
+        case "failed", "error": return .stsRed
+        case "unsupported": return .stsYellow
+        default: return .stsTextMuted
+        }
     }
 
     private var tableHeader: some View {
@@ -132,7 +141,7 @@ struct RecordedRunReplayView: View {
             HStack(spacing: 8) {
                 if let loss = row.solverHPLoss {
                     Text(String(format: "%.1f HP", loss))
-                        .foregroundStyle(loss <= Double(row.recordedHPLoss) ? Color.stsAccent : Color.stsYellow)
+                        .foregroundStyle(statusColor(row.status))
                 } else {
                     Text("—")
                         .foregroundStyle(Color.stsTextMuted)
@@ -175,15 +184,7 @@ struct RecordedRunReplayView: View {
     }
 
     private func statusBadge(_ status: String) -> some View {
-        let color: Color = {
-            switch status {
-            case "solved": return .stsAccent
-            case "failed": return .stsRed
-            case "unsupported": return .stsYellow
-            case "error": return .stsRed
-            default: return .stsTextMuted
-            }
-        }()
+        let color = statusColor(status)
         return Text(status.uppercased())
             .font(.stsLabel)
             .foregroundStyle(color)

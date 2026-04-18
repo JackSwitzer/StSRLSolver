@@ -15,6 +15,7 @@ for SpireMonitor to render in real time.
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,6 +32,44 @@ from .manifests import (
 from .run_logging import TrainingArtifacts, TrainingRunLogger
 from .run_parser import RecordedCombatCase, RecordedRun
 from .stage2_pipeline import _config_for_room
+
+
+def _capture_git_branch() -> str:
+    """Best-effort current-branch lookup; falls back to 'unknown'."""
+    try:
+        result = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=Path(__file__).resolve().parents[2],
+            text=True,
+        )
+        return result.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _result_from_case(
+    case: RecordedCombatCase,
+    *,
+    status: str,
+    tolerance: int,
+    **extras,
+) -> "CombatReplayResult":
+    """Build a CombatReplayResult, copying the case-derived fields verbatim."""
+    return CombatReplayResult(
+        floor=case.floor,
+        encounter=case.encounter,
+        room_kind=case.room_kind,
+        status=status,
+        entry_hp=case.entry_hp,
+        max_hp=case.max_hp,
+        entry_deck=case.entry_deck,
+        entry_relics=case.entry_relics,
+        entry_potions=case.entry_potions,
+        recorded_hp_loss=case.recorded_damage_taken,
+        recorded_turns=case.recorded_turns,
+        tolerance=tolerance,
+        **extras,
+    )
 
 
 @dataclass
@@ -128,7 +167,7 @@ def replay_recorded_run(
 
     manifest = TrainingRunManifest.create(
         run_id=f"recorded-run-{run.play_id}",
-        git=GitSnapshot(branch="claude/sharp-solomon-a1c9ec"),
+        git=GitSnapshot(branch=_capture_git_branch()),
         config=TrainingConfigSnapshot.from_values(
             {
                 "mode": "recorded_run_replay",
@@ -172,18 +211,9 @@ def replay_recorded_run(
         try:
             spec = encounter_spec(case.encounter)
         except KeyError:
-            result = CombatReplayResult(
-                floor=case.floor,
-                encounter=case.encounter,
-                room_kind=case.room_kind,
+            result = _result_from_case(
+                case,
                 status="unsupported",
-                entry_hp=case.entry_hp,
-                max_hp=case.max_hp,
-                entry_deck=case.entry_deck,
-                entry_relics=case.entry_relics,
-                entry_potions=case.entry_potions,
-                recorded_hp_loss=case.recorded_damage_taken,
-                recorded_turns=case.recorded_turns,
                 tolerance=tolerance,
                 error="encounter not in ENCOUNTER_CATALOG",
             )
@@ -243,18 +273,9 @@ def replay_recorded_run(
                 else "failed"
             )
 
-            result = CombatReplayResult(
-                floor=case.floor,
-                encounter=case.encounter,
-                room_kind=case.room_kind,
+            result = _result_from_case(
+                case,
                 status=status,
-                entry_hp=case.entry_hp,
-                max_hp=case.max_hp,
-                entry_deck=case.entry_deck,
-                entry_relics=case.entry_relics,
-                entry_potions=case.entry_potions,
-                recorded_hp_loss=case.recorded_damage_taken,
-                recorded_turns=case.recorded_turns,
                 tolerance=tolerance,
                 solver_hp_loss=solver_hp_loss,
                 search_visits=parsed.root_total_visits,
@@ -274,18 +295,9 @@ def replay_recorded_run(
             )
         except Exception as exc:  # noqa: BLE001 -- broad catch is intentional; we log+continue
             err_str = f"{type(exc).__name__}: {exc}"
-            result = CombatReplayResult(
-                floor=case.floor,
-                encounter=case.encounter,
-                room_kind=case.room_kind,
+            result = _result_from_case(
+                case,
                 status="error",
-                entry_hp=case.entry_hp,
-                max_hp=case.max_hp,
-                entry_deck=case.entry_deck,
-                entry_relics=case.entry_relics,
-                entry_potions=case.entry_potions,
-                recorded_hp_loss=case.recorded_damage_taken,
-                recorded_turns=case.recorded_turns,
                 tolerance=tolerance,
                 error=err_str,
             )
