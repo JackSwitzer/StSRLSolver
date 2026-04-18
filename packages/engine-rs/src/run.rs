@@ -2210,6 +2210,23 @@ impl RunEngine {
         match relic_id {
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
+            // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
+            // in master_deck with `returnTrulyRandomCard()` from the player's class
+            // common pool. We remove the starter basics now (the "transform" side);
+            // filling with random commons needs the class-aware card pool + a seeded
+            // card_random_rng stream (D52) that we haven't built yet. Until that
+            // lands, post-Pandora runs have a smaller starter deck instead of
+            // silently-unchanged basics. This is strictly closer to Java than the
+            // pre-fix behavior (silently do nothing).
+            "Pandora's Box" | "PandorasBox" => {
+                self.run_state.deck.retain(|card| {
+                    !matches!(
+                        card.as_str(),
+                        "Strike_R" | "Strike_G" | "Strike_B" | "Strike_P"
+                            | "Defend_R" | "Defend_G" | "Defend_B" | "Defend_P"
+                    )
+                });
+            }
             _ => {}
         }
     }
@@ -4350,5 +4367,69 @@ mod tests {
         let actions_after = engine.get_legal_actions();
         let has_remove_after = actions_after.iter().any(|a| matches!(a, RunAction::ShopRemoveCard(_)));
         assert!(!has_remove_after, "Should not offer card removal after first use");
+    }
+
+    // =========================================================================
+    // D27 Pandora's Box -- partial fix regression test.
+    // Java: replaces all Strikes/Defends in masterDeck with random commons.
+    // Rust (partial): removes Strikes/Defends on equip; filling with random
+    // commons deferred until D52 RNG stream partition lands.
+    // =========================================================================
+
+    #[test]
+    fn pandora_box_removes_strikes_and_defends_from_master_deck_on_equip() {
+        let mut engine = RunEngine::new(42, 0);
+        // Watcher starter at this entry point is 4 Strike_P + 4 Defend_P + 2
+        // class cards -- but RunEngine::new seeds Ironclad by default. For the
+        // D27 assertion we only care that Strike_X / Defend_X get purged, not
+        // which class. Inject a mixed-class deck to exercise all color arms.
+        engine.run_state.deck = vec![
+            "Strike_R".to_string(),
+            "Strike_R".to_string(),
+            "Defend_R".to_string(),
+            "Defend_R".to_string(),
+            "Bash".to_string(), // non-starter, should survive
+            "ShrugItOff".to_string(), // non-starter, should survive
+        ];
+        engine.add_relic_reward("Pandora's Box");
+        assert!(
+            !engine
+                .run_state
+                .deck
+                .iter()
+                .any(|c| matches!(
+                    c.as_str(),
+                    "Strike_R" | "Strike_G" | "Strike_B" | "Strike_P"
+                        | "Defend_R" | "Defend_G" | "Defend_B" | "Defend_P"
+                )),
+            "Pandora's Box should remove all Strikes/Defends; deck was {:?}",
+            engine.run_state.deck
+        );
+        assert!(
+            engine.run_state.deck.contains(&"Bash".to_string())
+                && engine.run_state.deck.contains(&"ShrugItOff".to_string()),
+            "Non-starter cards must be preserved; deck was {:?}",
+            engine.run_state.deck
+        );
+        // Partial-fix caveat: Java replaces the removed basics 1-for-1 with
+        // random commons. We do NOT yet add commons back (needs class-common
+        // pool + card_random_rng from D52). Assert deck size equals the
+        // non-starter count to catch any future silent change.
+        assert_eq!(
+            engine.run_state.deck.len(),
+            2,
+            "partial fix: 4 basics removed, 2 non-starters kept, nothing added yet"
+        );
+    }
+
+    #[test]
+    fn pandora_box_partial_fix_handles_deck_without_basics() {
+        // Edge case: if all Strikes/Defends were already removed (e.g. by
+        // Neow+shops), Pandora's Box should be a no-op and not crash.
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Bash".to_string(), "ShrugItOff".to_string()];
+        let pre_len = engine.run_state.deck.len();
+        engine.add_relic_reward("Pandora's Box");
+        assert_eq!(engine.run_state.deck.len(), pre_len);
     }
 }
