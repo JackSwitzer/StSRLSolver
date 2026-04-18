@@ -3971,7 +3971,7 @@ struct EventCardCatalogEntry {
 }
 
 fn parse_event_card_catalog() -> Vec<EventCardCatalogEntry> {
-    include_str!("../../engine/content/cards.py")
+    include_str!("../../../archive/packages-engine/content/cards.py")
         .split("\n)\n")
         .filter_map(|block| {
             let Some((_, id_rest)) = block.split_once("id=\"") else {

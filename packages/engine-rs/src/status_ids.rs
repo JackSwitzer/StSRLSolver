@@ -312,8 +312,17 @@ pub mod sid {
     pub const CLAW_BONUS: StatusId = StatusId(250);
     pub const STEAM_BARRIER_LOSS: StatusId = StatusId(252);
 
+    /// Mirrors Java's `AbstractPower.justApplied` for enemy-applied debuffs.
+    /// When an enemy applies Weakened/Vulnerable/Frail to the player, the
+    /// corresponding flag is set; `decrement_debuffs` clears the flag but
+    /// skips the decrement that round, so the debuff lasts its full duration
+    /// (D59 parity fix). See `powers/debuffs.rs::apply_debuff_from_enemy`.
+    pub const WEAKENED_JUST_APPLIED: StatusId = StatusId(253);
+    pub const VULNERABLE_JUST_APPLIED: StatusId = StatusId(254);
+    pub const FRAIL_JUST_APPLIED: StatusId = StatusId(255);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 253;
+    pub const NUM_IDS: usize = 256;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 256;
@@ -603,6 +612,9 @@ static STATUS_NAMES: &[&str] = &[
     "ClawBonus",          // 250
     "PendingDraw",        // 251
     "SteamBarrierLoss",   // 252
+    "WeakenedJustApplied", // 253
+    "VulnerableJustApplied", // 254
+    "FrailJustApplied",   // 255
 ];
 
 #[cfg(test)]

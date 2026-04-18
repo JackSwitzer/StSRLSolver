@@ -279,14 +279,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         effects.iter().find(|e| e.0 == id).map(|e| e.1)
     }
 
+    // D59: enemy-applied debuffs use `apply_debuff_from_enemy` so Java's
+    // `justApplied=true` semantics kick in and the first end-of-round
+    // decrement is skipped. Without this, 1-stack Weak/Vuln/Frail vanishes
+    // the same turn it lands -- radically under-models enemy debuff pressure
+    // (Sentry beam, Boot Steel Pads, Sphere Slam, Time Eater Ripple).
     if let Some(amt) = get_fx(&effects, mfx::WEAK) {
-        powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, amt as i32);
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
-        powers::apply_debuff(&mut engine.state.player, sid::VULNERABLE, amt as i32);
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::VULNERABLE, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
-        powers::apply_debuff(&mut engine.state.player, sid::FRAIL, amt as i32);
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::STRENGTH) {
         engine.state.enemies[enemy_idx]
