@@ -130,6 +130,12 @@ class RecordedRun:
     final_master_deck: tuple[str, ...]
     final_relics: tuple[str, ...]
     reconstruction_warnings: list[str] = field(default_factory=list)
+    # (floor_num, card_name) pairs where a remove was attempted but the card
+    # was not in the reconstructed deck. Often Pandora-output-then-purged
+    # cases (e.g. WaveOfTheHand on the WATCHER A0 winning seed). The
+    # reconciliation pass injects these cards into combat cases between the
+    # Pandora pickup floor and the failed-remove floor.
+    failed_removes: list[tuple[int, str]] = field(default_factory=list)
     combat_cases: tuple[RecordedCombatCase, ...] = ()
 
 
@@ -326,7 +332,12 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
             _apply_shop_purchase(item, deck, relics, potions, potion_slots, run.reconstruction_warnings)
 
         for item in floor.items_purged_here:
-            _remove_card(deck, item, run.reconstruction_warnings)
+            if not _remove_card(deck, item, run.reconstruction_warnings):
+                # Track for reconciliation: this card was probably added by an
+                # untracked source (Pandora's Box, an event we don't simulate)
+                # and needs to be re-injected into combats between that source
+                # and this purge floor.
+                run.failed_removes.append((floor.floor, item))
 
         for potion in floor.potions_obtained_here:
             _gain_potion(potions, potion, slots=potion_slots, warnings=run.reconstruction_warnings)
@@ -342,6 +353,7 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
         reconstructed_final_deck=tuple(deck),
         recorded_final_deck=run.final_master_deck,
         warnings=run.reconstruction_warnings,
+        failed_removes=tuple(run.failed_removes),
     )
 
     return cases_tuple
@@ -353,6 +365,7 @@ def _reconcile_with_master_deck(
     reconstructed_final_deck: tuple[str, ...],
     recorded_final_deck: tuple[str, ...],
     warnings: list[str],
+    failed_removes: tuple[tuple[int, str], ...] = (),
 ) -> tuple["RecordedCombatCase", ...]:
     """Patch per-combat entry decks so they match the recorded master_deck.
 
@@ -443,6 +456,27 @@ def _reconcile_with_master_deck(
             f"(likely Pandora's Box output)"
         )
 
+    # Step 3: Pandora-output-then-purged. Each (purge_floor, card) pair means
+    # the player had `card` in their deck between the Pandora pickup floor
+    # (default F16) and `purge_floor`. Inject `card` into combats in that
+    # window so the bot plays those combats with the same deck the player had.
+    for purge_floor, raw_name in failed_removes:
+        canon = _try_canonical_card(raw_name) or raw_name
+        if purge_floor <= pandora_floor_default:
+            continue  # purged before Pandora; would be a different scenario
+        injected_floors: list[int] = []
+        for i, case in enumerate(out):
+            if pandora_floor_default < case.floor < purge_floor:
+                out[i] = replace(case, entry_deck=case.entry_deck + (canon,))
+                injected_floors.append(case.floor)
+        if injected_floors:
+            warnings.append(
+                f"reconciled transient {canon!r}: injected into combats "
+                f"F{injected_floors[0]}..F{injected_floors[-1]} "
+                f"(Pandora-output picked at F{pandora_floor_default}, "
+                f"purged at F{purge_floor})"
+            )
+
     return tuple(out)
 
 
@@ -485,15 +519,23 @@ def _add_card(deck: list[str], raw_name: str, warnings: list[str]) -> None:
     deck.append(canon)
 
 
-def _remove_card(deck: list[str], raw_name: str, warnings: list[str]) -> None:
+def _remove_card(deck: list[str], raw_name: str, warnings: list[str]) -> bool:
+    """Remove `raw_name` from deck (trying canonical/base/upgraded variants).
+
+    Returns True on success, False if the card was not present (in which
+    case a warning is logged). Callers that need to handle failure
+    distinctly (e.g. shop purges of Pandora outputs whose original add was
+    not simulated) can branch on the return value.
+    """
     canon = _try_canonical_card(raw_name) or raw_name
     base = canon.removesuffix("+")
     upgraded = f"{base}+"
     for candidate in (canon, base, upgraded):
         if candidate in deck:
             deck.remove(candidate)
-            return
+            return True
     warnings.append(f"remove failed (not in deck): {raw_name!r}")
+    return False
 
 
 def _upgrade_card(deck: list[str], raw_name: str, warnings: list[str]) -> None:
