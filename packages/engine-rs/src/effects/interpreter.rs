@@ -1844,7 +1844,7 @@ fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
 
 fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
     let mut map = HashMap::new();
-    for line in include_str!("../../../../archive/packages-engine/content/cards.py").lines() {
+    for line in include_str!("../../content/generated-cards.txt").lines() {
         let Some((_, id_rest)) = line.split_once("id=\"") else {
             continue;
         };
