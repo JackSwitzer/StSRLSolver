@@ -69,6 +69,15 @@ enum BenchmarkReportLoader {
     }
 }
 
+enum RecordedRunReplayLoader {
+    static func load(from logsURL: URL) async -> RecordedRunReplayReportArtifact? {
+        ArtifactDecoder.decode(
+            RecordedRunReplayReportArtifact.self,
+            from: logsURL.appending(path: "recorded_run_replay_report.json")
+        )
+    }
+}
+
 struct LoadedArtifactBundle {
     let manifest: TrainingRunArtifactManifest?
     let frontier: FrontierReportArtifact?
@@ -78,6 +87,7 @@ struct LoadedArtifactBundle {
     let artifactEpisodes: [LocatedEpisodeLog]
     let events: [TrainingEventRecord]
     let metricStream: [TrainingMetricRecord]
+    let recordedRunReplay: RecordedRunReplayReportArtifact?
 }
 
 enum MonitorArtifactLoader {
@@ -90,6 +100,7 @@ enum MonitorArtifactLoader {
         async let artifactEpisodes = ArtifactEpisodeLogLoader.loadAll(from: logsURL)
         async let events = EventStreamLoader.load(from: logsURL)
         async let metricStream = MetricStreamLoader.load(from: logsURL)
+        async let recordedRunReplay = RecordedRunReplayLoader.load(from: logsURL)
 
         return await LoadedArtifactBundle(
             manifest: manifest,
@@ -99,7 +110,8 @@ enum MonitorArtifactLoader {
             benchmarkReports: benchmarkReports,
             artifactEpisodes: artifactEpisodes,
             events: events,
-            metricStream: metricStream
+            metricStream: metricStream,
+            recordedRunReplay: recordedRunReplay
         )
     }
 }

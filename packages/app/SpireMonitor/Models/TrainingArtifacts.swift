@@ -756,3 +756,62 @@ struct LocatedSeedValidationComparison: Identifiable {
 
     var id: String { url.path() }
 }
+
+struct RecordedRunCombatResultArtifact: Codable, Identifiable {
+    let floor: Int
+    let encounter: String
+    let roomKind: String
+    let status: String
+    let entryHP: Int
+    let maxHP: Int
+    let entryDeckSize: Int
+    let entryDeck: [String]
+    let entryRelics: [String]
+    let entryPotions: [String]
+    let recordedHPLoss: Int
+    let recordedTurns: Int?
+    let tolerance: Int
+    let solverHPLoss: Double?
+    let searchVisits: Int?
+    let stopReason: String?
+    let error: String?
+
+    var id: Int { floor }
+
+    enum CodingKeys: String, CodingKey {
+        case floor, encounter
+        case roomKind = "room_kind"
+        case status
+        case entryHP = "entry_hp"
+        case maxHP = "max_hp"
+        case entryDeckSize = "entry_deck_size"
+        case entryDeck = "entry_deck"
+        case entryRelics = "entry_relics"
+        case entryPotions = "entry_potions"
+        case recordedHPLoss = "recorded_hp_loss"
+        case recordedTurns = "recorded_turns"
+        case tolerance
+        case solverHPLoss = "solver_hp_loss"
+        case searchVisits = "search_visits"
+        case stopReason = "stop_reason"
+        case error
+    }
+}
+
+struct RecordedRunReplayReportArtifact: Codable {
+    let playID: String
+    let seedPlayed: String
+    let totalCombats: Int
+    let solved: Int
+    let failed: Int
+    let unsupported: Int
+    let error: Int
+    let results: [RecordedRunCombatResultArtifact]
+
+    enum CodingKeys: String, CodingKey {
+        case playID = "play_id"
+        case seedPlayed = "seed_played"
+        case totalCombats = "total_combats"
+        case solved, failed, unsupported, error, results
+    }
+}

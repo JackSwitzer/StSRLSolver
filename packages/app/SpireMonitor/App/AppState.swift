@@ -4,6 +4,7 @@ enum AppView: String, CaseIterable, Identifiable {
     case live = "Run"
     case analysis = "Benchmarks"
     case frontier = "Frontier"
+    case recordedRun = "Recorded Run"
 
     var id: String { rawValue }
 
@@ -12,6 +13,7 @@ enum AppView: String, CaseIterable, Identifiable {
         case .live: "play.circle.fill"
         case .analysis: "chart.bar.xaxis"
         case .frontier: "doc.text.magnifyingglass"
+        case .recordedRun: "person.2.crop.square.stack"
         }
     }
 }
@@ -57,6 +59,7 @@ final class AppState {
         store.artifactEpisodes = bundle.artifactEpisodes
         store.eventStream = bundle.events
         store.metricStream = bundle.metricStream
+        store.recordedRunReplay = bundle.recordedRunReplay
 
         if selectedArtifactEpisode == nil, let first = store.artifactEpisodes.first {
             selectedArtifactEpisode = first
