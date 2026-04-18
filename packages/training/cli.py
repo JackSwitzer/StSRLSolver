@@ -105,6 +105,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--alert-script",
         help="Optional path to an alert script invoked once on run completion (info on success, critical on any failure)",
     )
+    validate_recorded_run_parser.add_argument(
+        "--puct-multiplier",
+        type=int,
+        default=1,
+        help="Scale PUCT min_visits / hard_visit_cap / time_cap by this factor (default 1; e.g. 20 for overnight)",
+    )
 
     puct_overnight_parser = subparsers.add_parser(
         "run-phase1-puct-overnight",
@@ -209,6 +215,7 @@ def _validate_recorded_run(
     tolerance: int,
     checkpoint: Path | None,
     alert_script: Path | None,
+    puct_multiplier: int = 1,
 ) -> None:
     """Parse a `.run` file, replay every combat, optionally alert on result."""
     from .run_parser import parse_run_file
@@ -217,7 +224,8 @@ def _validate_recorded_run(
     run = parse_run_file(run_file)
     print(
         f"parsed: play_id={run.play_id} character={run.character} "
-        f"victory={run.victory} combats={len(run.combat_cases)}"
+        f"victory={run.victory} combats={len(run.combat_cases)} "
+        f"puct_multiplier={puct_multiplier}"
     )
     if run.reconstruction_warnings:
         print(f"  warnings ({len(run.reconstruction_warnings)}):")
@@ -229,6 +237,7 @@ def _validate_recorded_run(
         output_dir=output_dir,
         tolerance_base=tolerance,
         checkpoint_path=checkpoint,
+        puct_multiplier=puct_multiplier,
     )
     print(
         f"replay complete: solved={report.solved} failed={report.failed} "
@@ -807,6 +816,7 @@ def main(argv: list[str] | None = None) -> int:
             tolerance=args.tolerance,
             checkpoint=(None if args.checkpoint is None else Path(args.checkpoint)),
             alert_script=(None if args.alert_script is None else Path(args.alert_script)),
+            puct_multiplier=args.puct_multiplier,
         )
         return 0
     if args.command == "run-phase1-puct-overnight":

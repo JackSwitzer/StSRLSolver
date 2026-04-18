@@ -21,9 +21,16 @@ mod enemy_ai_java_parity_tests {
     }
 
     fn roll_times(enemy: &mut EnemyCombatState, times: usize) {
+        // Default num=0 keeps deterministic enemies (Cultist, Slime, etc.) on their
+        // canonical branch; probabilistic enemies (JawWorm, ...) should use
+        // `roll_with_num` below to assert specific Java branches.
         for _ in 0..times {
-            roll_next_move(enemy);
+            roll_next_move_with_num(enemy, 0);
         }
+    }
+
+    fn roll_with_num(enemy: &mut EnemyCombatState, num: i32) {
+        roll_next_move_with_num(enemy, num);
     }
 
     fn expect_move(
@@ -196,12 +203,13 @@ mod enemy_ai_java_parity_tests {
 
     #[test]
     fn act1_patterns_match_java() {
+        // JawWorm is probabilistic (post-AI-RNG-fix); test each branch via num.
         let mut e = make("JawWorm", 44);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 30); // 25..55 -> BELLOW
         expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 80); // >=55 and !lastTwoMoves(THRASH) -> THRASH
         expect_move(&e, move_ids::JW_THRASH, 7, 1, 5, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 10); // <25 and !lastTwoMoves(CHOMP) -> CHOMP
         expect_move(&e, move_ids::JW_CHOMP, 11, 1, 0, &[]);
 
         let mut e = make("Cultist", 50);

@@ -812,80 +812,94 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
     enemy
 }
 
-pub fn roll_next_move(enemy: &mut EnemyCombatState) {
+/// Advance enemy intent for the next turn.
+///
+/// Mirrors Java `AbstractMonster.rollMove()`: consumes exactly one value from
+/// the per-combat `ai_rng` (the equivalent of `AbstractDungeon.aiRng`) and
+/// passes that 0..=99 integer to each enemy's `getMove(int num)` equivalent.
+/// Deterministic enemies ignore `num` but the stream still advances, preserving
+/// multi-enemy intent ordering parity with Java.
+pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
+    let num: i32 = ai_rng.random(99);
+    roll_next_move_with_num(enemy, num);
+}
+
+/// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
+/// without consuming from any RNG. Production code should call `roll_next_move`.
+pub fn roll_next_move_with_num(enemy: &mut EnemyCombatState, num: i32) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
 
     match enemy.id.as_str() {
         // Act 1
-        "JawWorm" => act1::roll_jaw_worm(enemy),
-        "Cultist" => act1::roll_cultist(enemy),
-        "FungiBeast" => act1::roll_fungi_beast(enemy),
-        "FuzzyLouseNormal" | "RedLouse" => act1::roll_red_louse(enemy),
-        "FuzzyLouseDefensive" | "GreenLouse" => act1::roll_green_louse(enemy),
-        "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy),
-        "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy),
-        "AcidSlime_S" => act1::roll_acid_slime_s(enemy),
-        "AcidSlime_M" => act1::roll_acid_slime_m(enemy),
-        "AcidSlime_L" => act1::roll_acid_slime_l(enemy),
-        "SpikeSlime_S" => act1::roll_spike_slime_s(enemy),
-        "SpikeSlime_M" => act1::roll_spike_slime_m(enemy),
-        "SpikeSlime_L" => act1::roll_spike_slime_l(enemy),
-        "Looter" => act1::roll_looter(enemy),
+        "JawWorm" => act1::roll_jaw_worm(enemy, num),
+        "Cultist" => act1::roll_cultist(enemy, num),
+        "FungiBeast" => act1::roll_fungi_beast(enemy, num),
+        "FuzzyLouseNormal" | "RedLouse" => act1::roll_red_louse(enemy, num),
+        "FuzzyLouseDefensive" | "GreenLouse" => act1::roll_green_louse(enemy, num),
+        "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy, num),
+        "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy, num),
+        "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num),
+        "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num),
+        "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num),
+        "SpikeSlime_S" => act1::roll_spike_slime_s(enemy, num),
+        "SpikeSlime_M" => act1::roll_spike_slime_m(enemy, num),
+        "SpikeSlime_L" => act1::roll_spike_slime_l(enemy, num),
+        "Looter" => act1::roll_looter(enemy, num),
         "GremlinFat" => act1::roll_gremlin_simple(enemy, 4, 1),
         "GremlinThief" => act1::roll_gremlin_simple(enemy, 9, 0),
         "GremlinWarrior" => act1::roll_gremlin_simple(enemy, 4, 0),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
         "GremlinTsundere" | "GremlinSneaky" => { /* Does nothing each turn */ }
-        "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy),
+        "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy, num),
         "Lagavulin" => act1::roll_lagavulin(enemy),
         "Sentry" => act1::roll_sentry(enemy),
         "TheGuardian" => act1::roll_guardian(enemy),
         "Hexaghost" => act1::roll_hexaghost(enemy),
         "SlimeBoss" => act1::roll_slime_boss(enemy),
         // Act 2
-        "Chosen" => act2::roll_chosen(enemy),
-        "Mugger" => act2::roll_mugger(enemy),
-        "Byrd" => act2::roll_byrd(enemy),
-        "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy),
-        "SnakePlant" => act2::roll_snake_plant(enemy),
-        "Centurion" => act2::roll_centurion(enemy),
-        "Mystic" | "Healer" => act2::roll_mystic(enemy),
-        "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy),
-        "GremlinLeader" | "Gremlin Leader" => act2::roll_gremlin_leader(enemy),
-        "Taskmaster" => act2::roll_taskmaster(enemy),
+        "Chosen" => act2::roll_chosen(enemy, num),
+        "Mugger" => act2::roll_mugger(enemy, num),
+        "Byrd" => act2::roll_byrd(enemy, num),
+        "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy, num),
+        "SnakePlant" => act2::roll_snake_plant(enemy, num),
+        "Centurion" => act2::roll_centurion(enemy, num),
+        "Mystic" | "Healer" => act2::roll_mystic(enemy, num),
+        "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy, num),
+        "GremlinLeader" | "Gremlin Leader" => act2::roll_gremlin_leader(enemy, num),
+        "Taskmaster" => act2::roll_taskmaster(enemy, num),
         "SphericGuardian" | "Spheric Guardian" => act2::roll_spheric_guardian(enemy),
-        "Snecko" => act2::roll_snecko(enemy),
-        "BanditBear" | "Bear" => act2::roll_bear(enemy),
-        "BanditLeader" => act2::roll_bandit_leader(enemy),
+        "Snecko" => act2::roll_snecko(enemy, num),
+        "BanditBear" | "Bear" => act2::roll_bear(enemy, num),
+        "BanditLeader" => act2::roll_bandit_leader(enemy, num),
         "BanditPointy" | "Pointy" => { /* Always stab 5x2 */ }
-        "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy),
-        "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy),
+        "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy, num),
+        "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy, num),
         "TorchHead" | "Torch Head" => { /* Always Tackle 7 */ }
-        "Champ" | "TheChamp" => act2::roll_champ(enemy),
-        "TheCollector" | "Collector" => act2::roll_collector(enemy),
+        "Champ" | "TheChamp" => act2::roll_champ(enemy, num),
+        "TheCollector" | "Collector" => act2::roll_collector(enemy, num),
         // Act 3
-        "Darkling" => act3::roll_darkling(enemy),
-        "OrbWalker" | "Orb Walker" => act3::roll_orb_walker(enemy),
-        "Spiker" => act3::roll_spiker(enemy),
-        "Repulsor" => act3::roll_repulsor(enemy),
-        "Exploder" => act3::roll_exploder(enemy),
-        "WrithingMass" | "Writhing Mass" => act3::roll_writhing_mass(enemy),
-        "SpireGrowth" | "Spire Growth" => act3::roll_spire_growth(enemy),
-        "Maw" => act3::roll_maw(enemy),
-        "Transient" => act3::roll_transient(enemy),
-        "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy),
-        "Nemesis" => act3::roll_nemesis(enemy),
-        "Reptomancer" => act3::roll_reptomancer(enemy),
-        "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy),
-        "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy),
-        "Donu" => act3::roll_donu(enemy),
-        "Deca" => act3::roll_deca(enemy),
-        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy),
+        "Darkling" => act3::roll_darkling(enemy, num),
+        "OrbWalker" | "Orb Walker" => act3::roll_orb_walker(enemy, num),
+        "Spiker" => act3::roll_spiker(enemy, num),
+        "Repulsor" => act3::roll_repulsor(enemy, num),
+        "Exploder" => act3::roll_exploder(enemy, num),
+        "WrithingMass" | "Writhing Mass" => act3::roll_writhing_mass(enemy, num),
+        "SpireGrowth" | "Spire Growth" => act3::roll_spire_growth(enemy, num),
+        "Maw" => act3::roll_maw(enemy, num),
+        "Transient" => act3::roll_transient(enemy, num),
+        "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
+        "Nemesis" => act3::roll_nemesis(enemy, num),
+        "Reptomancer" => act3::roll_reptomancer(enemy, num),
+        "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy, num),
+        "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),
+        "Donu" => act3::roll_donu(enemy, num),
+        "Deca" => act3::roll_deca(enemy, num),
+        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num),
         // Act 4
         "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy),
         "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
-        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy),
+        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num),
         _ => {
             if enemy.move_damage() > 0 {
                 enemy.set_move(2, 0, 0, 5);
@@ -943,16 +957,16 @@ mod tests {
         let mut enemy = create_enemy("JawWorm", 44, 44);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
 
-        roll_next_move(&mut enemy);
+        roll_next_move_with_num(&mut enemy, 30); // -> BELLOW
         assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
 
-        roll_next_move(&mut enemy);
+        roll_next_move_with_num(&mut enemy, 80); // -> THRASH
         assert_eq!(enemy.move_id, move_ids::JW_THRASH);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_block(), 5);
 
-        roll_next_move(&mut enemy);
+        roll_next_move_with_num(&mut enemy, 10); // -> CHOMP
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
     }
 
@@ -963,11 +977,11 @@ mod tests {
         assert_eq!(enemy.move_damage(), 0);
         assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CULT_DARK_STRIKE);
         assert_eq!(enemy.move_damage(), 6);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CULT_DARK_STRIKE);
     }
 
@@ -976,8 +990,8 @@ mod tests {
         let mut enemy = create_enemy("FungiBeast", 24, 24);
         assert_eq!(enemy.move_id, move_ids::FB_BITE);
 
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         if enemy.move_history.len() >= 2
             && enemy.move_history[enemy.move_history.len() - 1] == move_ids::FB_BITE
             && enemy.move_history[enemy.move_history.len() - 2] == move_ids::FB_BITE
@@ -991,11 +1005,11 @@ mod tests {
         let mut enemy = create_enemy("Sentry", 38, 38);
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BEAM);
         assert_eq!(enemy.effect(mfx::DAZE), Some(2));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
     }
 
@@ -1004,14 +1018,14 @@ mod tests {
         let mut enemy = create_enemy("SlimeBoss", 140, 140);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SB_PREP_SLAM);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SB_SLAM);
         assert_eq!(enemy.move_damage(), 35);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
     }
 
@@ -1032,16 +1046,16 @@ mod tests {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
         assert_eq!(enemy.move_damage(), 32);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 4);
@@ -1059,7 +1073,7 @@ mod tests {
 
         assert_eq!(enemy.move_id, move_ids::GUARD_ROLL_ATTACK);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::GUARD_TWIN_SLAM);
     }
 
@@ -1068,15 +1082,15 @@ mod tests {
         let mut enemy = create_enemy("Hexaghost", 250, 250);
         assert_eq!(enemy.move_id, move_ids::HEX_ACTIVATE);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
         assert_eq!(enemy.move_hits(), 6);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
         assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_hits(), 2);
     }
@@ -1100,10 +1114,10 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
         assert_eq!(enemy.move_damage(), 12);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BS_RAKE);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
     }
@@ -1114,11 +1128,11 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
         assert_eq!(enemy.move_damage(), 13);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
         assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert!(
             enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB
         );
@@ -1129,11 +1143,11 @@ mod tests {
         let mut enemy = create_enemy("AcidSlime_S", 10, 10);
         assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::AS_LICK);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
     }
 
@@ -1143,10 +1157,10 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
         assert_eq!(enemy.move_damage(), 8);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SS_LICK);
         assert_eq!(enemy.effect(mfx::FRAIL), Some(1));
     }
@@ -1173,13 +1187,13 @@ mod tests {
         let mut enemy = create_enemy("Looter", 44, 44);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::LOOTER_SMOKE_BOMB);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::LOOTER_ESCAPE);
         assert!(enemy.is_escaping);
     }
@@ -1194,16 +1208,16 @@ mod tests {
         assert_eq!(enemy.move_hits(), 2);
 
         // After Poke: Hex
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHOSEN_HEX);
         assert_eq!(enemy.effect(mfx::HEX), Some(1));
 
         // After Hex: Debilitate or Drain
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHOSEN_DEBILITATE);
 
         // After debuff: attack
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHOSEN_ZAP);
         assert_eq!(enemy.move_damage(), 18);
     }
@@ -1216,10 +1230,10 @@ mod tests {
         assert_eq!(enemy.move_hits(), 5);
         assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
         assert_eq!(enemy.move_damage(), 12);
     }
@@ -1231,10 +1245,10 @@ mod tests {
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SNAKE_SPORES);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
@@ -1247,7 +1261,7 @@ mod tests {
         assert_eq!(enemy.move_hits(), 2);
 
         // Roll: stab count increments
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         let new_count = enemy.entity.status(sid::STAB_COUNT);
         assert!(new_count >= 3);
@@ -1259,7 +1273,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::BA_SPAWN_ORBS);
 
         // After spawn: Flail
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 2);
@@ -1275,13 +1289,13 @@ mod tests {
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
         // Phase 1 cycle
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
         assert_eq!(enemy.move_damage(), 16); // base (non-A4) slash dmg
 
         // Trigger phase 2 at half HP
         enemy.entity.hp = 200;
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_ANGER);
     }
 
@@ -1291,18 +1305,18 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::COLL_SPAWN);
 
         // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 18);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
 
         // Mega Debuff at turn 4 (turnsTaken >= 3)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
         assert_eq!(enemy.effect(mfx::WEAK), Some(3));
@@ -1319,7 +1333,7 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
 
         // Phase 1 cycle: Slash -> Soul Strike
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 4);
@@ -1332,7 +1346,7 @@ mod tests {
         assert_eq!(enemy.move_damage(), 40);
 
         // Phase 2: Dark Echo -> Sludge (adds Void, not Slimed)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
         assert_eq!(enemy.effect(mfx::VOID), Some(1));
     }
@@ -1344,11 +1358,11 @@ mod tests {
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // After first reverberate, second reverberate
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // After two reverberates: Head Slam (gives draw_reduction, not slimed)
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
@@ -1361,7 +1375,7 @@ mod tests {
         assert_eq!(donu.move_id, move_ids::DONU_CIRCLE);
         assert_eq!(donu.entity.status(sid::ARTIFACT), 2);
 
-        roll_next_move(&mut donu);
+        roll_next_move(&mut donu, &mut crate::seed::StsRandom::new(0));
         assert_eq!(donu.move_id, move_ids::DONU_BEAM);
         assert_eq!(donu.move_damage(), 10);
         assert_eq!(donu.move_hits(), 2);
@@ -1372,7 +1386,7 @@ mod tests {
         assert_eq!(deca.move_damage(), 10);
         assert_eq!(deca.effect(mfx::DAZE), Some(2));
 
-        roll_next_move(&mut deca);
+        roll_next_move(&mut deca, &mut crate::seed::StsRandom::new(0));
         assert_eq!(deca.move_id, move_ids::DECA_SQUARE);
         assert_eq!(deca.move_block(), 16);
     }
@@ -1387,7 +1401,7 @@ mod tests {
         // Roll moves. Count decrements each roll. After count reaches 1, It Is Time.
         // Count starts at 5, so after 4 rolls we should be in It Is Time territory.
         for _ in 0..5 {
-            roll_next_move(&mut enemy);
+            roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         }
 
         // Should eventually hit It Is Time
@@ -1402,9 +1416,9 @@ mod tests {
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // Second turn
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // Should eventually use Scythe
         let has_scythe = enemy.move_id == move_ids::NEM_SCYTHE
             || enemy.move_history.iter().any(|&m| m == move_ids::NEM_SCYTHE);
@@ -1416,12 +1430,12 @@ mod tests {
         let mut enemy = create_enemy("Reptomancer", 185, 185);
         assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
         assert_eq!(enemy.move_damage(), 13);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
         assert_eq!(enemy.move_damage(), 30);
     }
@@ -1432,13 +1446,13 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::TRANSIENT_ATTACK);
         assert_eq!(enemy.move_damage(), 30);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_damage(), 40); // 30 + 10
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_damage(), 50); // 30 + 20
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_damage(), 60); // 30 + 30
     }
 
@@ -1453,18 +1467,18 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
 
         // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
         assert_eq!(enemy.move_damage(), 2);
         assert_eq!(enemy.move_hits(), 12);
 
         // moveCount=1, 1%3=1 -> Echo (since last wasn't Echo)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
         assert_eq!(enemy.move_damage(), 40);
 
         // moveCount=2, 2%3=2 -> Buff (first buff: +2 Str + Artifact 2)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
         assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
@@ -1479,16 +1493,16 @@ mod tests {
         assert_eq!(enemy.effect(mfx::STRENGTH_DOWN), Some(1));
 
         // mc=0 -> 0%3=0: Fortify (since last was Bash)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
         assert_eq!(enemy.move_block(), 30);
 
         // mc=1 -> 1%3=1: Bash (since last was Fortify)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
 
         // mc=2 -> 2%3=2: Smash
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
         assert_eq!(enemy.move_damage(), 34);
     }
@@ -1502,11 +1516,11 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::SKEWER_COUNT), 3);
 
         // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
 
         // mc=1 -> 1%3=1: Skewer
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
         assert_eq!(enemy.move_damage(), 10);
         assert_eq!(enemy.move_hits(), 3);
@@ -1518,7 +1532,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
         assert_eq!(enemy.move_damage(), 9);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SD_EXPLODE);
         assert_eq!(enemy.move_damage(), 25);
     }
@@ -1529,8 +1543,8 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::DARK_NIP);
         assert_eq!(enemy.move_damage(), 8);
 
-        roll_next_move(&mut enemy);
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // After two Nips: Chomp
         assert_eq!(enemy.move_id, move_ids::DARK_CHOMP);
         assert_eq!(enemy.move_hits(), 2);
@@ -1541,13 +1555,13 @@ mod tests {
         let mut enemy = create_enemy("Exploder", 30, 30);
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
 
-        roll_next_move(&mut enemy); // count=1, attack
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=1, attack
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
 
-        roll_next_move(&mut enemy); // count=2, attack
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=2, attack
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
 
-        roll_next_move(&mut enemy); // count=3, EXPLODE
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=3, EXPLODE
         assert_eq!(enemy.move_id, move_ids::EXPLODER_EXPLODE);
         assert_eq!(enemy.move_damage(), 30);
     }
@@ -1558,7 +1572,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::OW_LASER);
         assert_eq!(enemy.move_damage(), 10);
 
-        roll_next_move(&mut enemy);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::OW_CLAW);
         assert_eq!(enemy.move_damage(), 15);
     }
@@ -1636,7 +1650,7 @@ mod tests {
         for id in &ids {
             let mut enemy = create_enemy(id, 100, 100);
             for _ in 0..5 {
-                roll_next_move(&mut enemy);
+                roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
             }
         }
     }

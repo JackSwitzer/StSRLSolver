@@ -508,7 +508,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Advance enemy to next move for next turn
-    enemies::roll_next_move(&mut engine.state.enemies[enemy_idx]);
+    enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
 }
 
 /// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split, Lagavulin wake,
@@ -553,11 +553,17 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             // When Champ drops to <= 50% HP, immediately trigger Phase 2 (Anger).
             // roll_champ handles the move selection, but we re-roll here so the
             // transition happens mid-turn rather than waiting for next enemy turn.
-            let enemy = &mut engine.state.enemies[enemy_idx];
-            if enemy.entity.hp <= enemy.entity.max_hp / 2
-                && enemy.entity.status(sid::THRESHOLD_REACHED) == 0
+            if engine.state.enemies[enemy_idx].entity.hp
+                <= engine.state.enemies[enemy_idx].entity.max_hp / 2
+                && engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::THRESHOLD_REACHED)
+                    == 0
             {
-                enemies::roll_next_move(enemy);
+                enemies::roll_next_move(
+                    &mut engine.state.enemies[enemy_idx],
+                    &mut engine.ai_rng,
+                );
             }
         }
         _ => {}

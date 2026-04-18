@@ -159,6 +159,7 @@ def replay_recorded_run(
     output_dir: Path,
     tolerance_base: int = 5,
     checkpoint_path: Path | None = None,
+    puct_multiplier: int = 1,
 ) -> RecordedRunReplayReport:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -176,6 +177,7 @@ def replay_recorded_run(
                 "ascension": run.ascension_level,
                 "total_combats": len(run.combat_cases),
                 "tolerance_base": tolerance_base,
+                "puct_multiplier": puct_multiplier,
             }
         ),
         tags=("recorded_run", "watcher_a0_combat"),
@@ -260,7 +262,7 @@ def replay_recorded_run(
                     "request_id": f"recorded::{_floor}"
                 },
             )
-            config = _config_for_room(spec.room_kind, multiplier=1)
+            config = _config_for_room(spec.room_kind, multiplier=puct_multiplier)
             puct_result_payload = solver.run_combat_puct(
                 evaluator, json.dumps(config.to_dict())
             )

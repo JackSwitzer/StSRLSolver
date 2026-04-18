@@ -8,7 +8,7 @@ use crate::status_ids::sid;
 // Act 2 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_chosen(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, _num: i32) {
     let used_hex = enemy.move_history.iter().any(|&m| m == move_ids::CHOSEN_HEX);
 
     // After first turn (Poke): use Hex
@@ -28,7 +28,7 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_mugger(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_mugger(enemy: &mut EnemyCombatState, _num: i32) {
     let turns = enemy.move_history.len();
     if turns < 2 {
         enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
@@ -45,7 +45,7 @@ pub(super) fn roll_mugger(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_byrd(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_byrd(enemy: &mut EnemyCombatState, _num: i32) {
     let is_flying = enemy.entity.status(sid::FLIGHT) > 0;
 
     if !is_flying {
@@ -68,7 +68,7 @@ pub(super) fn roll_byrd(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Double Strike (6x2), Life Suck (10), Fell (18 + Frail 2)
     if last_move(enemy, move_ids::SP_DOUBLE_STRIKE) {
         enemy.set_move(move_ids::SP_LIFE_SUCK, 10, 1, 0);
@@ -81,7 +81,7 @@ pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, _num: i32) {
     // 65% Chomp (7x3), 35% Spores (Weak 2 + Frail 2). Anti-repeat.
     if last_two_moves(enemy, move_ids::SNAKE_CHOMP) {
         enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
@@ -94,7 +94,7 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_centurion(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Fury -> Slash -> Protect -> Fury -> ...
     if last_move(enemy, move_ids::CENT_FURY) {
         enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
@@ -106,7 +106,7 @@ pub(super) fn roll_centurion(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_mystic(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_mystic(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> repeat
     if last_two_moves(enemy, move_ids::MYSTIC_ATTACK) {
         // Alternate Heal / Buff after two attacks
@@ -125,7 +125,7 @@ pub(super) fn roll_mystic(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, _num: i32) {
     // Multi-stab with increasing count. Stab count increases each time multi-stab is used.
     let stab_count = enemy.entity.status(sid::STAB_COUNT);
     if last_two_moves(enemy, move_ids::BOOK_STAB) {
@@ -142,7 +142,7 @@ pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState, _num: i32) {
     // Rally (summon), Encourage (block + Str to all allies), Stab (6x3)
     if last_move(enemy, move_ids::GL_RALLY) {
         enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 6);
@@ -155,7 +155,7 @@ pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState, _num: i32) {
     // Always Scouring Whip (7 damage + Wound card to discard)
     enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
     enemy.add_effect(mfx::WOUND, 1);
@@ -175,7 +175,7 @@ pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_snecko(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, _num: i32) {
     // First turn: Glare. Then alternate Tail (8 + Vuln 2) and Bite (15)
     if last_move(enemy, move_ids::SNECKO_GLARE) || last_two_moves(enemy, move_ids::SNECKO_BITE) {
         enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
@@ -185,7 +185,7 @@ pub(super) fn roll_snecko(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_bear(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_bear(enemy: &mut EnemyCombatState, _num: i32) {
     // Bear Hug (debuff) -> Maul (18) -> Lunge (9 + 9 block) -> cycle
     if last_move(enemy, move_ids::BEAR_HUG) {
         enemy.set_move(move_ids::BEAR_MAUL, 18, 1, 0);
@@ -197,7 +197,7 @@ pub(super) fn roll_bear(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
     // Mock -> Agonizing Slash (10 + Weak 2) -> Cross Slash (15) -> cycle
     if last_move(enemy, move_ids::BANDIT_MOCK) {
         enemy.set_move(move_ids::BANDIT_AGONIZE, 10, 1, 0);
@@ -213,7 +213,7 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState) {
 // Act 2 Bosses
 // =========================================================================
 
-pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
     let fd = { let v = enemy.entity.status(sid::FLAIL_DMG); if v > 0 { v } else { 7 } };
     let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 45 } };
     let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
@@ -235,7 +235,7 @@ pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, _num: i32) {
     // Stasis (first turn) -> Beam (8) / Support (12 block to Automaton)
     if last_two_moves(enemy, move_ids::BO_BEAM) {
         enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
@@ -246,7 +246,7 @@ pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
     let num_turns = enemy.entity.status(sid::NUM_TURNS) + 1;
     enemy.entity.set_status(sid::NUM_TURNS, num_turns);
 
@@ -309,7 +309,7 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_collector(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_collector(enemy: &mut EnemyCombatState, _num: i32) {
     let fd = { let v = enemy.entity.status(sid::FIREBALL_DMG); if v > 0 { v } else { 18 } };
     let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
     let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 15 } };
