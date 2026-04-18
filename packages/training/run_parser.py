@@ -337,7 +337,113 @@ def reconstruct_combat_cases(run: RecordedRun) -> tuple[RecordedCombatCase, ...]
     _validate_final_deck(deck, run.final_master_deck, run.reconstruction_warnings)
     _validate_final_relics(relics, run.final_relics, run.reconstruction_warnings)
 
-    return tuple(cases)
+    cases_tuple = _reconcile_with_master_deck(
+        tuple(cases),
+        reconstructed_final_deck=tuple(deck),
+        recorded_final_deck=run.final_master_deck,
+        warnings=run.reconstruction_warnings,
+    )
+
+    return cases_tuple
+
+
+def _reconcile_with_master_deck(
+    cases: tuple["RecordedCombatCase", ...],
+    *,
+    reconstructed_final_deck: tuple[str, ...],
+    recorded_final_deck: tuple[str, ...],
+    warnings: list[str],
+) -> tuple["RecordedCombatCase", ...]:
+    """Patch per-combat entry decks so they match the recorded master_deck.
+
+    The forward-sim cannot reproduce Pandora's Box random transforms or
+    other relic-driven upgrades whose outputs the `.run` schema does not
+    record. After forward-sim we know exactly which cards are extra in
+    our reconstruction (should be removed) and which are missing (should
+    be added). This pass:
+
+    1. Pairs upgrade mismatches first (`X` extra, `X+` missing) and applies
+       the upgrade to every combat case that has the un-upgraded card in
+       its entry deck.
+    2. Treats remaining basics (`Strike_P`/`Defend_P`) as Pandora's Box
+       leftovers and removes them from combats AFTER the typical F16 boss
+       pickup. Treats remaining missing cards as Pandora's transform
+       outputs and adds them to combats from F17 onward.
+
+    The result is that combats from Act 2+ use the player's actual late
+    game deck composition rather than a near-starter approximation. Earlier
+    combats (Act 1 pre-boss) are untouched.
+    """
+    from dataclasses import replace
+
+    if not recorded_final_deck:
+        return cases
+
+    canon_recorded = sorted(_normalize_upgrade_suffix(c) for c in recorded_final_deck)
+    canon_reconstructed = sorted(_normalize_upgrade_suffix(c) for c in reconstructed_final_deck)
+    if canon_recorded == canon_reconstructed:
+        return cases
+
+    # Multiset-style diffs.
+    from collections import Counter
+
+    expected = Counter(canon_recorded)
+    actual = Counter(canon_reconstructed)
+    extra = list((actual - expected).elements())
+    missing = list((expected - actual).elements())
+
+    out: list = list(cases)
+
+    # Step 1: pair upgrade mismatches.
+    pandora_floor_default = 16
+    upgraded_pairs: list[tuple[str, str]] = []
+    for unu in list(extra):
+        upg = f"{unu}+"
+        if upg in missing:
+            extra.remove(unu)
+            missing.remove(upg)
+            upgraded_pairs.append((unu, upg))
+
+    for unu, upg in upgraded_pairs:
+        for i, case in enumerate(out):
+            if unu in case.entry_deck:
+                new_deck = list(case.entry_deck)
+                idx = new_deck.index(unu)
+                new_deck[idx] = upg
+                out[i] = replace(case, entry_deck=tuple(new_deck))
+        warnings.append(
+            f"reconciled upgrade {unu!r} -> {upg!r} (likely relic-driven, "
+            f"e.g. Frozen Eye / Astrolabe / Apotheosis); applied to all "
+            f"combats containing {unu!r}"
+        )
+
+    # Step 2: remaining diffs are Pandora-style transforms (or other
+    # untracked relic effects). Apply at the boss floor where Pandora is
+    # canonically picked.
+    for c in extra:
+        # Remove from entry_deck of combats AFTER the pandora floor.
+        for i, case in enumerate(out):
+            if case.floor > pandora_floor_default and c in case.entry_deck:
+                new_deck = list(case.entry_deck)
+                new_deck.remove(c)
+                out[i] = replace(case, entry_deck=tuple(new_deck))
+                break
+        warnings.append(
+            f"reconciled removal of {c!r} from combats after F{pandora_floor_default} "
+            f"(likely Pandora's Box transform)"
+        )
+
+    for c in missing:
+        # Add to entry_deck of combats AFTER the pandora floor.
+        for i, case in enumerate(out):
+            if case.floor > pandora_floor_default:
+                out[i] = replace(case, entry_deck=case.entry_deck + (c,))
+        warnings.append(
+            f"reconciled addition of {c!r} to combats after F{pandora_floor_default} "
+            f"(likely Pandora's Box output)"
+        )
+
+    return tuple(out)
 
 
 def _apply_neow(deck: list[str], relics: list[str], run: RecordedRun) -> None:
