@@ -40,7 +40,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -67,7 +67,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",
@@ -79,7 +79,7 @@ const COLORLESS_CHOICES: &[&str] = &[
 #[test]
 fn wish_gold_branch_credits_pending_run_gold() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Wish", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Wish", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -104,7 +104,7 @@ fn wish_gold_branch_credits_pending_run_gold() {
 #[test]
 fn discovery_potions_open_choice_and_resolve_one_generated_copy() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -150,7 +150,7 @@ fn discovery_potions_open_choice_and_resolve_one_generated_copy() {
 #[test]
 fn jack_of_all_trades_uses_random_colorless_pool() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Jack Of All Trades", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Jack Of All Trades", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -168,7 +168,7 @@ fn jack_of_all_trades_uses_random_colorless_pool() {
 #[test]
 fn infernal_blade_uses_random_attack_pool_and_zeroes_cost() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Infernal Blade", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Infernal Blade", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -185,7 +185,7 @@ fn infernal_blade_uses_random_attack_pool_and_zeroes_cost() {
 #[test]
 fn distraction_uses_random_skill_pool_and_zeroes_cost() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Distraction", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Distraction", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -202,7 +202,7 @@ fn distraction_uses_random_skill_pool_and_zeroes_cost() {
 #[test]
 fn jack_of_all_trades_plus_generates_two_colorless_cards() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Jack Of All Trades+", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Jack Of All Trades+", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -219,7 +219,7 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
 #[test]
 fn chrysalis_needs_random_upgraded_skill_generation() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Chrysalis", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Chrysalis", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -235,7 +235,7 @@ fn chrysalis_needs_random_upgraded_skill_generation() {
 #[test]
 fn metamorphosis_needs_random_upgraded_attack_generation() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Metamorphosis", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Metamorphosis", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -251,7 +251,7 @@ fn metamorphosis_needs_random_upgraded_attack_generation() {
 #[test]
 fn transmutation_uses_x_cost_random_generation_action() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Transmutation", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Transmutation", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

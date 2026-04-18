@@ -110,7 +110,7 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
     fission.channel_orb(OrbType::Frost);
     fission.channel_orb(OrbType::Dark);
     fission.state.hand = make_deck(&["Fission"]);
-    fission.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_self(&mut fission, "Fission"));
     assert_eq!(fission.state.orb_slots.occupied_count(), 0);
     assert_eq!(fission.state.energy, 6);
@@ -127,7 +127,7 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
     fission_plus.channel_orb(OrbType::Frost);
     fission_plus.channel_orb(OrbType::Dark);
     fission_plus.state.hand = make_deck(&["Fission+"]);
-    fission_plus.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission_plus.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     let hp_before = fission_plus.state.enemies[0].entity.hp;
     let block_before = fission_plus.state.player.block;
     assert!(play_self(&mut fission_plus, "Fission+"));
@@ -141,13 +141,13 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
 #[test]
 fn orb_wave1_distilled_chaos_plays_top_cards_in_draw_order_for_free() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_B", "Defend_B", "Zap"]),
+        make_deck(&["Strike", "Defend", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.init_defect_orbs(3);
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
     engine.state.potions[0] = "DistilledChaos".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -162,12 +162,12 @@ fn orb_wave1_distilled_chaos_plays_top_cards_in_draw_order_for_free() {
 #[test]
 fn orb_wave1_liquid_memories_returns_top_discard_cards_at_cost_zero_in_order() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_B"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.discard_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Defend", "Zap"]);
     engine.state.relics.push("SacredBark".to_string());
     engine.state.potions[0] = "LiquidMemories".to_string();
 
@@ -180,7 +180,7 @@ fn orb_wave1_liquid_memories_returns_top_discard_cards_at_cost_zero_in_order() {
     engine.execute_action(&Action::Choose(1));
     engine.execute_action(&Action::ConfirmSelection);
 
-    assert_eq!(hand_names(&engine), vec!["Zap", "Defend_B"]);
+    assert_eq!(hand_names(&engine), vec!["Zap", "Defend"]);
     assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.hand[1].cost, 0);
     assert_eq!(engine.state.discard_pile.len(), 1);
@@ -287,7 +287,7 @@ fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    engine.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     engine.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
     assert!(play_self(&mut engine, "Reboot"));
 
@@ -303,18 +303,18 @@ fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
 #[test]
 fn orb_wave1_liquid_memories_should_support_java_choice_selection() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_B"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.discard_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Defend", "Zap"]);
     engine.state.potions[0] = "LiquidMemories".to_string();
     use_potion(&mut engine, 0, -1);
 
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
     engine.execute_action(&Action::Choose(0));
-    assert_eq!(hand_names(&engine), vec!["Strike_B"]);
+    assert_eq!(hand_names(&engine), vec!["Strike"]);
     assert_eq!(engine.state.hand[0].cost, 0);
-    assert_eq!(hand_names(&engine), vec!["Strike_B"]);
+    assert_eq!(hand_names(&engine), vec!["Strike"]);
 }

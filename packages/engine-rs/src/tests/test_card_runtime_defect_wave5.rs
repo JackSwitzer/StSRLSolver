@@ -151,7 +151,7 @@ fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evok
     fission.channel_orb(OrbType::Frost);
     fission.channel_orb(OrbType::Dark);
     fission.state.hand = make_deck(&["Fission"]);
-    fission.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_self(&mut fission, "Fission"));
     assert_eq!(fission.state.orb_slots.occupied_count(), 0);
     assert_eq!(fission.state.energy, 6);
@@ -168,7 +168,7 @@ fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evok
     fission_plus.channel_orb(OrbType::Frost);
     fission_plus.channel_orb(OrbType::Dark);
     fission_plus.state.hand = make_deck(&["Fission+"]);
-    fission_plus.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission_plus.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     let hp_before = fission_plus.state.enemies[0].entity.hp;
     let block_before = fission_plus.state.player.block;
     assert!(play_self(&mut fission_plus, "Fission+"));
@@ -188,7 +188,7 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     );
     force_player_turn(&mut heatsinks);
     heatsinks.state.hand = make_deck(&["Heatsinks+", "Hello World"]);
-    heatsinks.state.draw_pile = make_deck(&["Strike_B", "Defend_B"]);
+    heatsinks.state.draw_pile = make_deck(&["Strike", "Defend"]);
     assert!(play_self(&mut heatsinks, "Heatsinks+"));
     assert_eq!(heatsinks.state.player.status(sid::HEATSINK), 2);
     assert!(play_self(&mut heatsinks, "Hello World"));
@@ -208,7 +208,7 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert_eq!(hello_world.state.hand.len(), 1);
     assert_eq!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
-        "Strike_R"
+        "Strike"
     );
 
     let mut loop_card = engine_without_start(

@@ -19,13 +19,13 @@ fn silent_wave13_expertise_moves_to_the_declarative_draw_to_n_surface() {
     assert!(expertise.complex_hook.is_none());
 
     let mut engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Expertise"]);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Expertise"));
     assert_eq!(engine.state.hand.len(), 6);

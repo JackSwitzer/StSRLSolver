@@ -214,7 +214,7 @@ mod ironclad_card_java_parity_tests {
     #[test]
     fn clash_requires_only_attacks() {
         let e = engine_for(
-            &["Clash", "Defend_P"],
+            &["Clash", "Defend"],
             &[],
             &[],
             vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
@@ -268,7 +268,7 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn pommel_strike_draws_one() {
-        let mut e = engine_for(&["Pommel Strike"], &["Strike_P"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
+        let mut e = engine_for(&["Pommel Strike"], &["Strike"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let hand = e.state.hand.len();
         assert!(play_on_enemy(&mut e, "Pommel Strike", 0));
         assert_eq!(e.state.hand.len(), hand);
@@ -276,7 +276,7 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn shrug_it_off_blocks_and_draws() {
-        let mut e = engine_for(&["Shrug It Off"], &["Strike_P"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
+        let mut e = engine_for(&["Shrug It Off"], &["Strike"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let hand = e.state.hand.len();
         assert!(play_self(&mut e, "Shrug It Off"));
         assert_eq!(e.state.player.block, 8);
@@ -320,7 +320,7 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn warcry_draws_and_exhausts_itself() {
-        let mut e = engine_for(&["Warcry"], &["Strike_P"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
+        let mut e = engine_for(&["Warcry"], &["Strike"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         assert!(play_self(&mut e, "Warcry"));
         assert_eq!(e.phase, crate::engine::CombatPhase::AwaitingChoice);
         e.execute_action(&Action::Choose(0));
@@ -333,7 +333,7 @@ mod ironclad_card_java_parity_tests {
     fn battle_trance_draws_three() {
         let mut e = engine_for(
             &["Battle Trance"],
-            &["Strike_P", "Strike_P", "Strike_P"],
+            &["Strike", "Strike", "Strike"],
             &[],
             vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
             3,

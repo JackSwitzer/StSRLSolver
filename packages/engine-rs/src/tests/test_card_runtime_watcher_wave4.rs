@@ -51,12 +51,12 @@ fn watcher_wave4_registry_exports_surface_declared_block_stance_and_power_instal
     );
 
     let defend = assert_gameplay_card_export(
-        "Defend_P+",
+        "Defend+",
         CardType::Skill,
         CardTarget::SelfTarget,
         1,
         false,
-        Some("Defend_P"),
+        Some("Defend"),
     );
     assert_eq!(defend.declared_effect_count, 1);
 
@@ -92,7 +92,7 @@ fn watcher_wave4_rushdown_and_eruption_run_on_the_engine_path() {
     let mut engine = one_enemy_engine("JawWorm", 60, 0);
     ensure_in_hand(&mut engine, "Adaptation");
     ensure_in_hand(&mut engine, "Eruption");
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Vigilance"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Vigilance"]);
 
     assert!(play_self(&mut engine, "Adaptation"));
     assert_eq!(engine.state.player.status(sid::RUSHDOWN), 2);
@@ -132,7 +132,7 @@ fn watcher_wave4_battle_hymn_devotion_and_deva_form_trigger_after_install() {
 #[test]
 fn watcher_wave4_defend_plus_uses_declared_block() {
     let mut engine = one_enemy_engine("JawWorm", 40, 0);
-    ensure_in_hand(&mut engine, "Defend_P+");
-    assert!(play_self(&mut engine, "Defend_P+"));
+    ensure_in_hand(&mut engine, "Defend+");
+    assert!(play_self(&mut engine, "Defend+"));
     assert_eq!(engine.state.player.block, 8);
 }

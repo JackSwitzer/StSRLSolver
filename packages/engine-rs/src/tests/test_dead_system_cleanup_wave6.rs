@@ -18,7 +18,7 @@ use crate::tests::support::{
 #[test]
 fn dead_cleanup_wave6_runtime_delayed_turn_relics_are_authoritative() {
     let mut state = combat_state_with(
-        make_deck_n("Defend_R", 10),
+        make_deck_n("Defend", 10),
         vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 120, 120)],
         3,
     );
@@ -51,7 +51,7 @@ fn dead_cleanup_wave6_runtime_delayed_turn_relics_are_authoritative() {
 #[test]
 fn dead_cleanup_wave6_runtime_end_turn_and_turn_start_relics_replace_helper_assertions() {
     let mut state = combat_state_with(
-        make_deck_n("Defend_P", 5),
+        make_deck_n("Defend", 5),
         vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
         3,
     );
@@ -62,7 +62,7 @@ fn dead_cleanup_wave6_runtime_end_turn_and_turn_start_relics_replace_helper_asse
         "Inserter".to_string(),
     ];
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck_n("Defend_P", 2);
+    engine.state.hand = make_deck_n("Defend", 2);
     let hp_before = engine.state.player.hp;
     assert_eq!(engine.state.mantra, 1);
     assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 3 }, 0), 1);

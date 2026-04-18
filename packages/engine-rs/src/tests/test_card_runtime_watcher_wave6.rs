@@ -77,9 +77,9 @@ fn watcher_wave6_bril_consecrate_and_crush_joints_follow_java_behavior() {
     assert_eq!(consecrate.state.enemies[1].entity.hp, 42);
 
     let mut crush_joints = one_enemy_engine("JawWorm", 50, 0);
-    ensure_in_hand(&mut crush_joints, "Defend_P");
+    ensure_in_hand(&mut crush_joints, "Defend");
     ensure_in_hand(&mut crush_joints, "CrushJoints+");
-    assert!(play_self(&mut crush_joints, "Defend_P"));
+    assert!(play_self(&mut crush_joints, "Defend"));
     assert!(play_on_enemy(&mut crush_joints, "CrushJoints+", 0));
     assert_eq!(crush_joints.state.enemies[0].entity.hp, 40);
     assert_eq!(crush_joints.state.enemies[0].entity.status(sid::VULNERABLE), 2);
@@ -114,7 +114,7 @@ fn watcher_wave6_vigilance_nirvana_and_like_water_run_on_engine_path() {
     assert_eq!(vigilance.state.stance, Stance::Calm);
 
     let mut nirvana = one_enemy_engine("JawWorm", 60, 0);
-    nirvana.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Worship"]);
+    nirvana.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
     ensure_in_hand(&mut nirvana, "Nirvana+");
     ensure_in_hand(&mut nirvana, "ThirdEye");
     assert!(play_self(&mut nirvana, "Nirvana+"));

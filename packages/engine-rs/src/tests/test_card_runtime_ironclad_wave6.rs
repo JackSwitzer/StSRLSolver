@@ -177,7 +177,7 @@ fn ironclad_wave6_cleave_and_bludgeon_follow_the_attack_preamble() {
 #[test]
 fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
     let mut blocked = one_enemy_engine("JawWorm", 50);
-    blocked.state.hand = make_deck(&["Clash", "Defend_R"]);
+    blocked.state.hand = make_deck(&["Clash", "Defend"]);
     let clash_idx = blocked
         .state
         .hand
@@ -193,7 +193,7 @@ fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
     )));
 
     let mut allowed = one_enemy_engine("JawWorm", 50);
-    allowed.state.hand = make_deck(&["Clash", "Strike_R"]);
+    allowed.state.hand = make_deck(&["Clash", "Strike"]);
     assert!(play_on_enemy(&mut allowed, "Clash", 0));
     assert_eq!(allowed.state.enemies[0].entity.hp, 36);
 
@@ -234,9 +234,9 @@ fn ironclad_wave6_iron_wave_carnage_and_impervious_cover_block_ethereal_and_exha
 #[test]
 fn ironclad_wave6_perfected_strike_registry_stays_honest_while_engine_path_keeps_current_scope() {
     let mut engine = one_enemy_engine("JawWorm", 80);
-    engine.state.hand = make_deck(&["Perfected Strike", "Strike_R"]);
-    engine.state.draw_pile = make_deck(&["Strike_R", "Strike_R"]);
-    engine.state.discard_pile = make_deck(&["Strike_R"]);
+    engine.state.hand = make_deck(&["Perfected Strike", "Strike"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike"]);
+    engine.state.discard_pile = make_deck(&["Strike"]);
 
     assert!(play_on_enemy(&mut engine, "Perfected Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 66);

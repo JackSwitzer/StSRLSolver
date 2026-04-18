@@ -84,7 +84,7 @@ fn test_card_runtime_backend_wave1_effect_data_drives_extra_hits_without_string_
         &TRIPLE_HIT_EFFECTS,
     );
 
-    let card_inst = engine.card_registry.make_card("Strike_R");
+    let card_inst = engine.card_registry.make_card("Strike");
     execute_card_effects(&mut engine, &card, card_inst, 0);
 
     assert_eq!(engine.state.enemies[0].entity.hp, 25);
@@ -106,7 +106,7 @@ fn test_card_runtime_backend_wave1_effect_data_drives_x_cost_hits_without_string
         &X_COST_HIT_EFFECTS,
     );
 
-    let card_inst = engine.card_registry.make_card("Strike_R");
+    let card_inst = engine.card_registry.make_card("Strike");
     execute_card_effects(&mut engine, &card, card_inst, 0);
 
     assert_eq!(engine.state.energy, 0);
@@ -128,7 +128,7 @@ fn test_card_runtime_backend_wave1_effect_data_handles_stance_change_alongside_b
         &WRATH_BLOCK_EFFECTS,
     );
 
-    let card_inst = engine.card_registry.make_card("Defend_R");
+    let card_inst = engine.card_registry.make_card("Defend");
     execute_card_effects(&mut engine, &card, card_inst, -1);
 
     assert_eq!(engine.state.player.block, 7);

@@ -197,7 +197,7 @@ fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_re
     compile_driver.channel_orb(OrbType::Frost);
     compile_driver.channel_orb(OrbType::Dark);
     compile_driver.state.hand = make_deck(&["Compile Driver"]);
-    compile_driver.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    compile_driver.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut compile_driver, "Compile Driver", 0));
     assert_eq!(compile_driver.state.enemies[0].entity.hp, 43);
     assert_eq!(compile_driver.state.hand.len(), 3);
@@ -213,7 +213,7 @@ fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_c
     force_player_turn(&mut coolheaded);
     coolheaded.init_defect_orbs(1);
     coolheaded.state.hand = make_deck(&["Coolheaded+"]);
-    coolheaded.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    coolheaded.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
     assert!(play_self(&mut coolheaded, "Coolheaded+"));
     assert_eq!(coolheaded.state.orb_slots.slots[0].orb_type, OrbType::Frost);
     assert_eq!(coolheaded.state.hand.len(), 2);

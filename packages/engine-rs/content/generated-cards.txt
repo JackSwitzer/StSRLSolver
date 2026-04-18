@@ -192,12 +192,12 @@ class Card:
 # === BASIC CARDS ===
 
 STRIKE_W = Card(
-    id="Strike_P", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
+    id="Strike", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
     cost=1, base_damage=6, upgrade_damage=3,
 )
 
 DEFEND_W = Card(
-    id="Defend_P", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
+    id="Defend", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
     target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=3,
 )
 
@@ -769,12 +769,12 @@ OMEGA = Card(
 # === BASIC CARDS ===
 
 STRIKE_R = Card(
-    id="Strike_R", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
+    id="Strike", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
     color=CardColor.RED, cost=1, base_damage=6, upgrade_damage=3,
 )
 
 DEFEND_R = Card(
-    id="Defend_R", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
+    id="Defend", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
     color=CardColor.RED, target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=3,
 )
 
@@ -1747,12 +1747,12 @@ WOUND = Card(
 # === BASIC CARDS ===
 
 STRIKE_D = Card(
-    id="Strike_B", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
+    id="Strike", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
     color=CardColor.BLUE, cost=1, base_damage=6, upgrade_damage=3,
 )
 
 DEFEND_D = Card(
-    id="Defend_B", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
+    id="Defend", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
     color=CardColor.BLUE, target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=3,
 )
 
@@ -2233,8 +2233,8 @@ MACHINE_LEARNING = Card(
 # All Defect cards by ID
 DEFECT_CARDS: Dict[str, Card] = {
     # Basic
-    "Strike_B": STRIKE_D,
-    "Defend_B": DEFEND_D,
+    "Strike": STRIKE_D,
+    "Defend": DEFEND_D,
     "Zap": ZAP,
     "Dualcast": DUALCAST,
     # Common Attacks
@@ -2323,8 +2323,8 @@ DEFECT_CARDS: Dict[str, Card] = {
 # All Watcher cards by ID
 WATCHER_CARDS: Dict[str, Card] = {
     # Basic
-    "Strike_P": STRIKE_W,
-    "Defend_P": DEFEND_W,
+    "Strike": STRIKE_W,
+    "Defend": DEFEND_W,
     "Eruption": ERUPTION,
     "Vigilance": VIGILANCE,
     "Miracle": MIRACLE,
@@ -2423,8 +2423,8 @@ WATCHER_CARDS: Dict[str, Card] = {
 # Ironclad cards by ID
 IRONCLAD_CARDS: Dict[str, Card] = {
     # Basic
-    "Strike_R": STRIKE_R,
-    "Defend_R": DEFEND_R,
+    "Strike": STRIKE_R,
+    "Defend": DEFEND_R,
     "Bash": BASH,
     # Common Attacks
     "Anger": ANGER,
@@ -2594,12 +2594,12 @@ STATUS_CARDS: Dict[str, Card] = {
 # === BASIC CARDS ===
 
 STRIKE_S = Card(
-    id="Strike_G", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
+    id="Strike", name="Strike", card_type=CardType.ATTACK, rarity=CardRarity.BASIC,
     color=CardColor.GREEN, cost=1, base_damage=6, upgrade_damage=3,
 )
 
 DEFEND_S = Card(
-    id="Defend_G", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
+    id="Defend", name="Defend", card_type=CardType.SKILL, rarity=CardRarity.BASIC,
     color=CardColor.GREEN, target=CardTarget.SELF, cost=1, base_block=5, upgrade_block=3,
 )
 
@@ -3121,8 +3121,8 @@ SHIV = Card(
 # Silent cards by ID
 SILENT_CARDS: Dict[str, Card] = {
     # Basic
-    "Strike_G": STRIKE_S,
-    "Defend_G": DEFEND_S,
+    "Strike": STRIKE_S,
+    "Defend": DEFEND_S,
     "Neutralize": NEUTRALIZE,
     "Survivor": SURVIVOR_S,
     # Common Attacks
@@ -3231,10 +3231,10 @@ CARD_ID_ALIASES = {
     # Java class-name IDs that differ from canonical in-game card IDs.
     "Alchemize": "Venomology",
     "Apparition": "Ghostly",
-    "Defend_Blue": "Defend_B",
-    "Defend_Green": "Defend_G",
-    "Defend_Red": "Defend_R",
-    "Defend_Watcher": "Defend_P",
+    "Defend_Blue": "Defend",
+    "Defend_Green": "Defend",
+    "Defend_Red": "Defend",
+    "Defend_Watcher": "Defend",
     "Equilibrium": "Undo",
     "Fasting": "Fasting2",
     "Nightmare": "Night Terror",
@@ -3244,10 +3244,10 @@ CARD_ID_ALIASES = {
     "SimmeringFury": "Vengeance",
     "SneakyStrike": "Underhanded Strike",
     "SteamBarrier": "Steam",
-    "Strike_Blue": "Strike_B",
-    "Strike_Green": "Strike_G",
-    "Strike_Purple": "Strike_P",
-    "Strike_Red": "Strike_R",
+    "Strike_Blue": "Strike",
+    "Strike_Green": "Strike",
+    "Strike_Purple": "Strike",
+    "Strike_Red": "Strike",
     "Tranquility": "ClearTheMind",
     "VoidCard": "Void",
 }
@@ -3306,10 +3306,10 @@ def get_starting_deck() -> List[Card]:
     deck = []
     # 4x Strike
     for _ in range(4):
-        deck.append(get_card("Strike_P"))
+        deck.append(get_card("Strike"))
     # 4x Defend
     for _ in range(4):
-        deck.append(get_card("Defend_P"))
+        deck.append(get_card("Defend"))
     # 1x Eruption
     deck.append(get_card("Eruption"))
     # 1x Vigilance

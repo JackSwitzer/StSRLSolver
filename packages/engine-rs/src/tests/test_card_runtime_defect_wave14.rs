@@ -130,7 +130,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
 #[test]
 fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
     let mut state = crate::tests::support::combat_state_with(
-        make_deck(&["Strike_B", "Defend_B", "Zap"]),
+        make_deck(&["Strike", "Defend", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -167,7 +167,7 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
     fission.channel_orb(OrbType::Frost);
     fission.channel_orb(OrbType::Dark);
     fission.state.hand = make_deck(&["Fission"]);
-    fission.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
 
     assert!(play_self(&mut fission, "Fission"));
     assert_eq!(fission.state.orb_slots.occupied_count(), 0);
@@ -180,7 +180,7 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
         3,
     );
     force_player_turn(&mut reboot);
-    reboot.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    reboot.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     reboot.state.draw_pile.clear();
     reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
 
@@ -200,11 +200,11 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
     );
     force_player_turn(&mut scrape);
     scrape.state.hand = make_deck(&["Scrape"]);
-    scrape.state.draw_pile = make_deck(&["Turbo", "Strike_B"]);
+    scrape.state.draw_pile = make_deck(&["Turbo", "Strike"]);
 
     assert!(play_self(&mut scrape, "Scrape"));
     assert!(hand_prefix_count(&scrape, "Turbo") >= 1);
-    assert_eq!(discard_prefix_count(&scrape, "Strike_B"), 1);
+    assert_eq!(discard_prefix_count(&scrape, "Strike"), 1);
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
         3,
     );
     force_player_turn(&mut reboot);
-    reboot.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    reboot.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     reboot.state.draw_pile.clear();
     reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
 
@@ -305,14 +305,14 @@ fn scrape_draws_then_discards_only_newly_drawn_positive_cost_cards() {
         3,
     );
     force_player_turn(&mut scrape);
-    scrape.state.hand = make_deck(&["Scrape", "Strike_B"]);
-    scrape.state.draw_pile = make_deck(&["Strike_B", "Turbo"]);
+    scrape.state.hand = make_deck(&["Scrape", "Strike"]);
+    scrape.state.draw_pile = make_deck(&["Strike", "Turbo"]);
 
     assert!(play_self(&mut scrape, "Scrape"));
     assert_eq!(scrape.state.hand.len(), 2);
-    assert_eq!(hand_prefix_count(&scrape, "Strike_B"), 1);
+    assert_eq!(hand_prefix_count(&scrape, "Strike"), 1);
     assert_eq!(hand_prefix_count(&scrape, "Turbo"), 1);
-    assert_eq!(discard_prefix_count(&scrape, "Strike_B"), 1);
+    assert_eq!(discard_prefix_count(&scrape, "Strike"), 1);
     assert_eq!(discard_prefix_count(&scrape, "Scrape"), 1);
     assert_eq!(discard_prefix_count(&scrape, "Turbo"), 0);
     assert_eq!(scrape.state.discard_pile.len(), 2);

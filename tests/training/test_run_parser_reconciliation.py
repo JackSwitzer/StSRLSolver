@@ -80,7 +80,7 @@ def test_strike_and_defend_removed_post_pandora(golden_run):
     f5 = _combat_at(golden_run, 5)
     # F5 Jaw Worm is pre-Pandora; should still have basics from starter.
     assert (
-        "Strike_P" in f5.entry_deck or "Defend_P" in f5.entry_deck
+        "Strike" in f5.entry_deck or "Defend" in f5.entry_deck
     ), f"F5 (pre-Pandora) should still have starter basics; deck: {f5.entry_deck}"
 
     # F18+ Acts 2-4 combats should have NO Strike_P or Defend_P (Pandora
@@ -90,11 +90,11 @@ def test_strike_and_defend_removed_post_pandora(golden_run):
     # reconciliation diff was misapplied.
     for floor in (18, 22, 33, 50, 55):
         case = _combat_at(golden_run, floor)
-        assert "Strike_P" not in case.entry_deck, (
+        assert "Strike" not in case.entry_deck, (
             f"F{floor} (post-Pandora) still has Strike_P; "
             f"reconciliation should have removed it. Deck: {case.entry_deck}"
         )
-        assert "Defend_P" not in case.entry_deck, (
+        assert "Defend" not in case.entry_deck, (
             f"F{floor} (post-Pandora) still has Defend_P; "
             f"reconciliation should have removed it. Deck: {case.entry_deck}"
         )

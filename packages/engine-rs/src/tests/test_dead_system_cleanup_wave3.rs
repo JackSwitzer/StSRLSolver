@@ -7,14 +7,14 @@ use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck, ma
 fn dead_cleanup_wave3_opening_state_relics_are_engine_path_authoritative() {
     let mut engine = engine_without_start(
         make_deck(&[
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Defend_R",
-            "Defend_R",
-            "Defend_R",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ]),
         vec![
             enemy_no_intent("Hexaghost", 250, 250),
@@ -47,7 +47,7 @@ fn dead_cleanup_wave3_opening_state_relics_are_engine_path_authoritative() {
 #[test]
 fn dead_cleanup_wave3_flag_gated_and_zero_progress_relics_no_longer_need_helper_oracles() {
     let mut sling_engine = engine_without_start(
-        make_deck_n("Strike_R", 5),
+        make_deck_n("Strike", 5),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -56,7 +56,7 @@ fn dead_cleanup_wave3_flag_gated_and_zero_progress_relics_no_longer_need_helper_
     assert_eq!(sling_engine.state.player.strength(), 0);
 
     let mut du_vu_engine = engine_without_start(
-        make_deck_n("Strike_R", 5),
+        make_deck_n("Strike", 5),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -65,7 +65,7 @@ fn dead_cleanup_wave3_flag_gated_and_zero_progress_relics_no_longer_need_helper_
     assert_eq!(du_vu_engine.state.player.strength(), 0);
 
     let mut girya_engine = engine_without_start(
-        make_deck_n("Strike_R", 5),
+        make_deck_n("Strike", 5),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );

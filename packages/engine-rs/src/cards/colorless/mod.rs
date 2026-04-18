@@ -8,7 +8,7 @@ mod blind;
 mod chrysalis;
 mod dark_shackles;
 mod deep_breath;
-mod defend_r;
+// defend_r removed; unified `cards::starters::register` provides Strike/Defend
 mod discovery;
 mod dramatic_entrance;
 mod enlightenment;
@@ -35,7 +35,7 @@ mod ritualdagger;
 mod sadistic_nature;
 mod secret_technique;
 mod secret_weapon;
-mod strike_r;
+// strike_r removed; unified `cards::starters::register` provides Strike/Defend
 mod swift_strike;
 mod the_bomb;
 mod thinking_ahead;
@@ -51,7 +51,7 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
     chrysalis::register(cards);
     dark_shackles::register(cards);
     deep_breath::register(cards);
-    defend_r::register(cards);
+    // defend_r::register(cards); // moved to cards::starters::register
     discovery::register(cards);
     dramatic_entrance::register(cards);
     enlightenment::register(cards);
@@ -78,7 +78,7 @@ pub fn register_colorless(cards: &mut HashMap<&'static str, CardDef>) {
     sadistic_nature::register(cards);
     secret_technique::register(cards);
     secret_weapon::register(cards);
-    strike_r::register(cards);
+    // strike_r::register(cards); // moved to cards::starters::register
     swift_strike::register(cards);
     the_bomb::register(cards);
     thinking_ahead::register(cards);

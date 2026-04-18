@@ -16,7 +16,7 @@ use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine
 #[test]
 fn dead_cleanup_wave7_runtime_relics_cover_deleted_helper_families() {
     let mut state = combat_state_with(
-        make_deck_n("Defend_P", 10),
+        make_deck_n("Defend", 10),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         3,
     );
@@ -38,7 +38,7 @@ fn dead_cleanup_wave7_runtime_relics_cover_deleted_helper_families() {
 #[test]
 fn dead_cleanup_wave7_helper_path_deleted_families_are_backed_by_runtime_tests() {
     let mut state = combat_state_with(
-        make_deck_n("Defend_R", 10),
+        make_deck_n("Defend", 10),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         3,
     );

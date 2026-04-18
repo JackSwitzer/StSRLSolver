@@ -21,8 +21,8 @@ fn creative_ai_hook_adds_smites_up_to_hand_limit() {
     );
     engine.state.player.set_status(sid::CREATIVE_AI, 3);
     engine.state.hand = make_deck(&[
-        "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R",
-        "Strike_R", "Strike_R", "Strike_R", "Strike_R",
+        "Strike", "Strike", "Strike", "Strike", "Strike",
+        "Strike", "Strike", "Strike", "Strike",
     ]);
 
     let mut runtime_state = EffectState::default();
@@ -76,7 +76,7 @@ fn mayhem_hook_moves_top_draw_cards_into_hand() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Bash"]);
+    state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
 
     let mut engine = engine_without_start(state.draw_pile.clone(), state.enemies.clone(), 3);
     engine.state.draw_pile = state.draw_pile;
@@ -103,8 +103,8 @@ fn mayhem_hook_moves_top_draw_cards_into_hand() {
         .map(|card| engine.card_registry.card_name(card.def_id).to_string())
         .collect();
 
-    assert_eq!(hand_names, vec!["Bash".to_string(), "Defend_R".to_string()]);
-    assert_eq!(draw_names, vec!["Strike_R".to_string()]);
+    assert_eq!(hand_names, vec!["Bash".to_string(), "Defend".to_string()]);
+    assert_eq!(draw_names, vec!["Strike".to_string()]);
 }
 
 #[test]
@@ -114,8 +114,8 @@ fn tools_of_the_trade_hook_draws_and_opens_single_discard_choice() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    state.hand = make_deck(&["Strike_R"]);
-    state.draw_pile = make_deck(&["Defend_R", "Bash", "Inflame"]);
+    state.hand = make_deck(&["Strike"]);
+    state.draw_pile = make_deck(&["Defend", "Bash", "Inflame"]);
 
     let mut engine = engine_without_start(Vec::new(), state.enemies.clone(), 3);
     engine.phase = CombatPhase::PlayerTurn;

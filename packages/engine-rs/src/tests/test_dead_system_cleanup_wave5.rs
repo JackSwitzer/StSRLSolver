@@ -18,14 +18,14 @@ use crate::tests::support::{
 fn dead_cleanup_wave5_runtime_opening_and_turn_relics_are_authoritative() {
     let mut engine = engine_without_start(
         make_deck(&[
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Defend_R",
-            "Defend_R",
-            "Defend_R",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
             "Bash",
             "Inflame",
             "Pommel Strike",
@@ -47,7 +47,7 @@ fn dead_cleanup_wave5_runtime_opening_and_turn_relics_are_authoritative() {
 #[test]
 fn dead_cleanup_wave5_runtime_cardplay_and_endturn_relics_replace_helper_assertions() {
     let mut state = combat_state_with(
-        make_deck(&["Defend_R", "Defend_R", "Defend_R", "Inflame", "Strike_R", "Defend_R", "Bash"]),
+        make_deck(&["Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 44, 44)],
         20,
     );
@@ -59,18 +59,18 @@ fn dead_cleanup_wave5_runtime_cardplay_and_endturn_relics_replace_helper_asserti
     ]);
     let mut engine = engine_with_state(state);
     engine.state.player.hp = 70;
-    engine.state.hand = make_deck(&["Defend_R", "Defend_R", "Defend_R", "Inflame", "Strike_R", "Defend_R", "Bash"]);
+    engine.state.hand = make_deck(&["Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash"]);
     let hp0 = engine.state.enemies[0].entity.hp;
     let hp1 = engine.state.enemies[1].entity.hp;
 
-    assert!(play_self(&mut engine, "Defend_R"));
-    assert!(play_self(&mut engine, "Defend_R"));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.enemies[0].entity.hp, hp0 - 5);
     assert_eq!(engine.state.enemies[1].entity.hp, hp1 - 5);
     assert!(play_self(&mut engine, "Inflame"));
     assert_eq!(engine.state.player.hp, 72);
     assert!(engine.state.hand.iter().any(|card| card.cost == 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 1);
 }

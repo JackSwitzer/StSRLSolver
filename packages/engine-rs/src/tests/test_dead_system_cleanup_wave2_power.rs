@@ -6,7 +6,7 @@ use crate::tests::support::{engine_with, make_deck_n};
 
 #[test]
 fn power_registry_helper_surface_is_reduced_to_live_production_queries() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 5), 40, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 5), 40, 0);
     engine.state.player.set_status(sid::METALLICIZE, 1);
     engine.state.player.set_status(sid::PANACHE, 1);
     engine.state.player.set_status(sid::STRENGTH, 5);

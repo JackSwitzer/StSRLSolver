@@ -46,7 +46,7 @@ fn hand_names(engine: &CombatEngine) -> Vec<String> {
 fn seek_plus_moves_two_chosen_cards_from_draw_pile_to_hand() {
     let mut engine = engine_for(
         &["Seek+"],
-        &["Zap", "Defend_B", "Strike_B"],
+        &["Zap", "Defend", "Strike"],
         &[],
         3,
     );
@@ -65,9 +65,9 @@ fn seek_plus_moves_two_chosen_cards_from_draw_pile_to_hand() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(hand_count(&engine, "Zap"), 1);
-    assert_eq!(hand_count(&engine, "Strike_B"), 1);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
     assert_eq!(engine.state.draw_pile.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Defend_B");
+    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Defend");
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
     let mut engine = engine_for(
         &["Headbutt"],
         &["Shrug It Off"],
-        &["Strike_R", "Defend_R"],
+        &["Strike", "Defend"],
         3,
     );
 
@@ -88,22 +88,22 @@ fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
         ChoiceOption::DiscardCard(idx) => engine.card_registry.card_name(engine.state.discard_pile[idx].def_id).to_string(),
         _ => panic!("headbutt should expose discard-pile options"),
     };
-    assert_eq!(selected_name, "Defend_R");
+    assert_eq!(selected_name, "Defend");
 
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(
         engine.card_registry.card_name(engine.state.draw_pile.last().expect("top draw").def_id),
-        "Defend_R"
+        "Defend"
     );
-    assert_eq!(hand_count(&engine, "Defend_R"), 0);
+    assert_eq!(hand_count(&engine, "Defend"), 0);
 }
 
 #[test]
 fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card() {
     let mut engine = engine_for(
-        &["Dual Wield+", "Strike_R", "Defend_R", "Inflame"],
+        &["Dual Wield+", "Strike", "Defend", "Inflame"],
         &[],
         &[],
         3,
@@ -125,20 +125,20 @@ fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card()
             _ => panic!("dual wield should expose hand-card options"),
         })
         .collect();
-    assert_eq!(option_names, vec!["Strike_R", "Inflame"]);
+    assert_eq!(option_names, vec!["Strike", "Inflame"]);
 
     engine.execute_action(&Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(hand_count(&engine, "Strike_R"), 3);
+    assert_eq!(hand_count(&engine, "Strike"), 3);
     assert_eq!(hand_count(&engine, "Inflame"), 1);
-    assert_eq!(hand_count(&engine, "Defend_R"), 1);
+    assert_eq!(hand_count(&engine, "Defend"), 1);
 }
 
 #[test]
 fn true_grit_plus_exhausts_the_selected_card_instead_of_a_random_one() {
     let mut engine = engine_for(
-        &["True Grit+", "Strike_R", "Defend_R"],
+        &["True Grit+", "Strike", "Defend"],
         &[],
         &[],
         3,
@@ -152,14 +152,14 @@ fn true_grit_plus_exhausts_the_selected_card_instead_of_a_random_one() {
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(hand_count(&engine, "Strike_R"), 1);
-    assert_eq!(hand_count(&engine, "Defend_R"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
+    assert_eq!(hand_count(&engine, "Defend"), 0);
     assert_eq!(
         engine
             .state
             .exhaust_pile
             .iter()
-            .filter(|card| engine.card_registry.card_name(card.def_id) == "Defend_R")
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Defend")
             .count(),
         1
     );
@@ -168,8 +168,8 @@ fn true_grit_plus_exhausts_the_selected_card_instead_of_a_random_one() {
 #[test]
 fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
     let mut engine = engine_for(
-        &["Burning Pact", "Strike_R"],
-        &["Defend_R", "Bash"],
+        &["Burning Pact", "Strike"],
+        &["Defend", "Bash"],
         &[],
         3,
     );
@@ -185,14 +185,14 @@ fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     let names = hand_names(&engine);
     assert_eq!(names.len(), 2);
-    assert!(names.contains(&"Defend_R".to_string()));
+    assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
     assert_eq!(
         engine
             .state
             .exhaust_pile
             .iter()
-            .filter(|card| engine.card_registry.card_name(card.def_id) == "Strike_R")
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Strike")
             .count(),
         1
     );

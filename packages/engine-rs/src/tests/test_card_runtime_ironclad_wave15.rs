@@ -58,7 +58,7 @@ fn ironclad_wave15_registry_promotes_havoc_and_headbutt_to_the_typed_surface() {
 
 #[test]
 fn ironclad_wave15_havoc_plays_the_top_card_of_draw_pile_through_the_normal_free_path() {
-    let mut engine = engine_for(&["Havoc"], &["Defend_R", "Strike_R"], &[], 3);
+    let mut engine = engine_for(&["Havoc"], &["Defend", "Strike"], &[], 3);
 
     let hp_before = engine.state.enemies[0].entity.hp;
     assert!(play_self(&mut engine, "Havoc"));
@@ -68,7 +68,7 @@ fn ironclad_wave15_havoc_plays_the_top_card_of_draw_pile_through_the_normal_free
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
         engine.card_registry.card_name(engine.state.draw_pile.last().expect("remaining draw card").def_id),
-        "Defend_R"
+        "Defend"
     );
     assert_eq!(engine.state.discard_pile.len(), 2);
     assert_eq!(
@@ -79,7 +79,7 @@ fn ironclad_wave15_havoc_plays_the_top_card_of_draw_pile_through_the_normal_free
 
 #[test]
 fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
-    let mut engine = engine_for(&["Headbutt"], &[], &["Defend_R", "Strike_R"], 3);
+    let mut engine = engine_for(&["Headbutt"], &[], &["Defend", "Strike"], 3);
 
     let hp_before = engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut engine, "Headbutt", 0));
@@ -93,7 +93,7 @@ fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
         engine.card_registry.card_name(engine.state.draw_pile.last().expect("top draw card").def_id),
-        "Strike_R"
+        "Strike"
     );
     let discard_names: Vec<&str> = engine
         .state
@@ -101,7 +101,7 @@ fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
         .iter()
         .map(|card| engine.card_registry.card_name(card.def_id))
         .collect();
-    assert!(discard_names.contains(&"Defend_R"));
+    assert!(discard_names.contains(&"Defend"));
     assert!(discard_names.contains(&"Headbutt"));
-    assert!(!discard_names.contains(&"Strike_R"));
+    assert!(!discard_names.contains(&"Strike"));
 }

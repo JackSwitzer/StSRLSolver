@@ -28,7 +28,7 @@ mod dagger_spray;
 mod dagger_throw;
 mod dash;
 mod deadly_poison;
-mod defend_g;
+// defend_g removed; unified `cards::starters::register` provides Strike/Defend
 mod deflect;
 mod die_die_die;
 mod distraction;
@@ -68,7 +68,7 @@ mod skewer;
 mod slice;
 mod sneaky_strike;
 mod storm_of_steel;
-mod strike_g;
+// strike_g removed; unified `cards::starters::register` provides Strike/Defend
 mod sucker_punch;
 mod survivor;
 mod tactician;
@@ -106,7 +106,7 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
     dagger_throw::register(cards);
     dash::register(cards);
     deadly_poison::register(cards);
-    defend_g::register(cards);
+    // defend_g::register(cards); // moved to cards::starters::register
     deflect::register(cards);
     die_die_die::register(cards);
     distraction::register(cards);
@@ -146,7 +146,7 @@ pub fn register_silent(cards: &mut HashMap<&'static str, CardDef>) {
     slice::register(cards);
     sneaky_strike::register(cards);
     storm_of_steel::register(cards);
-    strike_g::register(cards);
+    // strike_g::register(cards); // moved to cards::starters::register
     sucker_punch::register(cards);
     survivor::register(cards);
     tactician::register(cards);

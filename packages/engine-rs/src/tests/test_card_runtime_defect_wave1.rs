@@ -134,12 +134,12 @@ fn test_card_runtime_defect_wave1_machine_learning_and_hello_world_trigger_start
     force_player_turn(&mut machine_learning);
     machine_learning.state.hand = make_deck(&["Machine Learning"]);
     machine_learning.state.draw_pile = make_deck(&[
-        "Strike_R",
-        "Strike_R",
-        "Strike_R",
-        "Strike_R",
-        "Strike_R",
-        "Strike_R",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Strike",
     ]);
     assert!(play_self(&mut machine_learning, "Machine Learning"));
     end_turn(&mut machine_learning);
@@ -156,7 +156,7 @@ fn test_card_runtime_defect_wave1_machine_learning_and_hello_world_trigger_start
     assert!(play_self(&mut hello_world, "Hello World"));
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike_R");
+    assert_eq!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike");
 }
 
 #[test]

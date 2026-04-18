@@ -522,13 +522,13 @@ mod test_runtime_inline_cutover_wave3 {
     #[test]
     fn pen_nib_doubles_exactly_on_tenth_attack_and_resets_after_firing() {
         let mut state = combat_state_with(
-            make_deck_n("Strike_R", 16),
+            make_deck_n("Strike", 16),
             vec![crate::tests::support::enemy_no_intent("JawWorm", 200, 200)],
             20,
         );
         state.relics.push("Pen Nib".to_string());
         let mut engine = engine_with_state(state);
-        engine.state.hand = make_deck_n("Strike_R", 10);
+        engine.state.hand = make_deck_n("Strike", 10);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
 
@@ -550,7 +550,7 @@ mod test_runtime_inline_cutover_wave3 {
         assert_eq!(engine.state.enemies[0].entity.hp, hp_before_tenth - 12);
         assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), 0);
 
-        engine.state.hand = make_deck_n("Strike_R", 1);
+        engine.state.hand = make_deck_n("Strike", 1);
         let hp_before_eleventh = engine.state.enemies[0].entity.hp;
         engine.execute_action(&Action::PlayCard {
             card_idx: 0,

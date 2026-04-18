@@ -3196,13 +3196,13 @@ mod test_relic_runtime_wave4 {
     #[test]
     fn velvet_choker_blocks_seventh_play_and_resets_next_turn() {
         let mut state = combat_state_with(
-            make_deck_n("Defend_R", 20),
+            make_deck_n("Defend", 20),
             vec![crate::tests::support::enemy_no_intent("JawWorm", 120, 120)],
             20,
         );
         state.relics.push("Velvet Choker".to_string());
         let mut engine = engine_with_state(state);
-        engine.state.hand = make_deck_n("Defend_R", 7);
+        engine.state.hand = make_deck_n("Defend", 7);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
 
@@ -3255,7 +3255,7 @@ mod test_relic_runtime_wave4 {
         );
 
         engine.state.energy = 3;
-        engine.state.hand = make_deck_n("Defend_R", 1);
+        engine.state.hand = make_deck_n("Defend", 1);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
         engine.execute_action(&Action::PlayCard {
@@ -3585,14 +3585,14 @@ mod tests {
 
     fn make_test_state() -> CombatState {
         let deck = make_deck(&[
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
             "Eruption",
             "Vigilance",
         ]);
@@ -3687,7 +3687,7 @@ mod tests {
     fn test_eruption_enters_wrath() {
         let mut state = make_test_state();
         // Ensure Eruption is in the deck and will be drawn
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3710,7 +3710,7 @@ mod tests {
     #[test]
     fn test_vigilance_enters_calm() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Vigilance", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Vigilance", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3734,7 +3734,7 @@ mod tests {
     fn test_calm_exit_grants_energy() {
         let mut state = make_test_state();
         state.stance = Stance::Calm;
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -3903,8 +3903,8 @@ mod tests {
     #[test]
     fn test_shuffle_on_empty_draw() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Strike_P"]); // Only 1 card
-        state.discard_pile = make_deck(&["Defend_P", "Defend_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Strike"]); // Only 1 card
+        state.discard_pile = make_deck(&["Defend", "Defend", "Defend", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4026,7 +4026,7 @@ mod tests {
         // Give player Rushdown power (draw 2 on Wrath entry)
         state.player.set_status(sid::RUSHDOWN, 2);
         state.draw_pile = make_deck(&[
-            "Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P",
+            "Eruption", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4069,7 +4069,7 @@ mod tests {
         let mut state = make_test_state();
         // Give player MentalFortress power (4 block on stance change)
         state.player.set_status(sid::MENTAL_FORTRESS, 4);
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4101,9 +4101,9 @@ mod tests {
             "Prostrate",
             "Prostrate",
             "Prostrate",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
+            "Strike",
+            "Strike",
+            "Strike",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4143,7 +4143,7 @@ mod tests {
         let mut state = make_test_state();
         state.stance = Stance::Calm;
         state.relics.push("Violet Lotus".to_string());
-        state.draw_pile = make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4170,7 +4170,7 @@ mod tests {
         let mut state = make_test_state();
         // Pre-set mantra to 5 so only one Worship needed to enter Divinity
         state.mantra = 5;
-        state.draw_pile = make_deck(&["Worship", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Worship", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4320,7 +4320,7 @@ mod tests {
     fn test_entangle_prevents_attacks() {
         let mut state = make_test_state();
         state.player.set_status(sid::ENTANGLED, 1);
-        state.draw_pile = make_deck(&["Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]);
+        state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Defend", "Defend"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4362,7 +4362,7 @@ mod tests {
     #[test]
     fn test_miracle_gives_energy() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&["Miracle", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Miracle", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4395,13 +4395,13 @@ mod tests {
         state.stance = Stance::Calm;
         state.draw_pile = make_deck(&[
             "InnerPeace",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Defend_P",
-            "Defend_P",
-            "Defend_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4444,7 +4444,7 @@ mod tests {
         let mut state = make_test_state();
         state.stance = Stance::Neutral;
         state.draw_pile =
-            make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+            make_deck(&["InnerPeace", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -4472,10 +4472,10 @@ mod tests {
         let mut state = make_test_state();
         state.draw_pile = make_deck(&[
             "MentalFortress",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
-            "Strike_P",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
         ]);
 
         let mut engine = CombatEngine::new(state, 42);
@@ -4577,7 +4577,7 @@ mod tests {
     fn test_halt_extra_block_in_wrath() {
         let mut state = make_test_state();
         state.stance = Stance::Wrath;
-        state.draw_pile = make_deck(&["Halt", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]);
+        state.draw_pile = make_deck(&["Halt", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();

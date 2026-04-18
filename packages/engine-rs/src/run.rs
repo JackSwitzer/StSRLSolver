@@ -333,14 +333,14 @@ impl RunState {
     pub fn new(ascension: i32) -> Self {
         // Watcher starter deck
         let mut deck = vec![
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
             "Eruption".to_string(),
             "Vigilance".to_string(),
         ];
@@ -2222,8 +2222,8 @@ impl RunEngine {
                 self.run_state.deck.retain(|card| {
                     !matches!(
                         card.as_str(),
-                        "Strike_R" | "Strike_G" | "Strike_B" | "Strike_P"
-                            | "Defend_R" | "Defend_G" | "Defend_B" | "Defend_P"
+                        "Strike" | "Strike" | "Strike" | "Strike"
+                            | "Defend" | "Defend" | "Defend" | "Defend"
                     )
                 });
             }
@@ -2734,21 +2734,21 @@ impl RunEngine {
         }
 
         let deck = &self.run_state.deck;
-        if deck.iter().any(|card| matches!(card.as_str(), "Bash" | "Strike_R" | "Defend_R")) {
+        if deck.iter().any(|card| matches!(card.as_str(), "Bash" | "Strike" | "Defend")) {
             return EventCardColor::Red;
         }
         if deck
             .iter()
-            .any(|card| matches!(card.as_str(), "Neutralize" | "Strike_G" | "Defend_G"))
+            .any(|card| matches!(card.as_str(), "Neutralize" | "Strike" | "Defend"))
         {
             return EventCardColor::Green;
         }
-        if deck.iter().any(|card| matches!(card.as_str(), "Zap" | "Strike_B" | "Defend_B")) {
+        if deck.iter().any(|card| matches!(card.as_str(), "Zap" | "Strike" | "Defend")) {
             return EventCardColor::Blue;
         }
         if deck
             .iter()
-            .any(|card| matches!(card.as_str(), "Eruption" | "Strike_P" | "Defend_P"))
+            .any(|card| matches!(card.as_str(), "Eruption" | "Strike" | "Defend"))
         {
             return EventCardColor::Purple;
         }
@@ -4213,7 +4213,7 @@ mod tests {
         let mut engine = RunEngine::new(42, 0);
         engine.phase = RunPhase::Campfire;
         engine.run_state.deck = vec![
-            "Strike_P".to_string(),
+            "Strike".to_string(),
             "Eruption".to_string(),
         ];
 
@@ -4341,13 +4341,13 @@ mod tests {
         let mut engine = RunEngine::new(42, 0);
         engine.run_state.gold = 10000;
         engine.run_state.deck = vec![
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Strike_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
-            "Defend_P".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
             "Eruption".to_string(),
             "Vigilance".to_string(),
             "Tantrum".to_string(),
@@ -4384,10 +4384,10 @@ mod tests {
         // D27 assertion we only care that Strike_X / Defend_X get purged, not
         // which class. Inject a mixed-class deck to exercise all color arms.
         engine.run_state.deck = vec![
-            "Strike_R".to_string(),
-            "Strike_R".to_string(),
-            "Defend_R".to_string(),
-            "Defend_R".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
             "Bash".to_string(), // non-starter, should survive
             "ShrugItOff".to_string(), // non-starter, should survive
         ];
@@ -4399,8 +4399,8 @@ mod tests {
                 .iter()
                 .any(|c| matches!(
                     c.as_str(),
-                    "Strike_R" | "Strike_G" | "Strike_B" | "Strike_P"
-                        | "Defend_R" | "Defend_G" | "Defend_B" | "Defend_P"
+                    "Strike" | "Strike" | "Strike" | "Strike"
+                        | "Defend" | "Defend" | "Defend" | "Defend"
                 )),
             "Pandora's Box should remove all Strikes/Defends; deck was {:?}",
             engine.run_state.deck

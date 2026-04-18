@@ -8,14 +8,14 @@ mod potion_tests {
 
     fn state() -> CombatState {
         let e = EnemyCombatState::new("Test", 50, 50);
-        let mut s = CombatState::new(80, 80, vec![e], make_deck_n("Strike_P", 5), 3);
+        let mut s = CombatState::new(80, 80, vec![e], make_deck_n("Strike", 5), 3);
         s.potions = vec!["".to_string(); 3];
         s
     }
 
     fn engine() -> crate::engine::CombatEngine {
         let mut engine = engine_with_state(combat_state_with(
-            make_deck_n("Strike_P", 5),
+            make_deck_n("Strike", 5),
             vec![enemy_no_intent("Test", 50, 50)],
             3,
         ));
@@ -145,7 +145,7 @@ mod potion_tests {
     // ---- Explosive Potion ----
     #[test] fn explosive_all() {
         let mut e = engine_with_state(combat_state_with(
-            make_deck_n("Strike_P", 5),
+            make_deck_n("Strike", 5),
             vec![enemy_no_intent("Test", 50, 50), enemy_no_intent("T2", 40, 40)],
             3,
         ));

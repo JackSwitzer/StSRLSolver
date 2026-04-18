@@ -50,18 +50,18 @@ fn silent_wave14_calculated_gamble_is_declarative_and_uses_hand_size_at_play() {
     assert!(!calculated_gamble_plus.exhaust);
 
     let mut engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Calculated Gamble", "Strike_G", "Strike_G", "Strike_G"]);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]);
+    engine.state.hand = make_deck(&["Calculated Gamble", "Strike", "Strike", "Strike"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Calculated Gamble"));
 
     assert_eq!(engine.state.hand.len(), 3);
-    assert_eq!(discard_prefix_count(&engine, "Strike_G"), 3);
+    assert_eq!(discard_prefix_count(&engine, "Strike"), 3);
 }
 
 #[test]
@@ -96,13 +96,13 @@ fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
     assert!(concentrate_plus.complex_hook.is_none());
 
     let mut engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
     force_player_turn(&mut engine);
     engine.state.energy = 3;
-    engine.state.hand = make_deck(&["Concentrate", "Strike_G", "Strike_G", "Strike_G"]);
+    engine.state.hand = make_deck(&["Concentrate", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Concentrate"));
     engine.execute_action(&Action::Choose(0));
@@ -112,7 +112,7 @@ fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
 
     assert_eq!(engine.state.energy, 5);
     assert_eq!(engine.state.hand.len(), 0);
-    assert_eq!(discard_prefix_count(&engine, "Strike_G"), 3);
+    assert_eq!(discard_prefix_count(&engine, "Strike"), 3);
 }
 
 #[test]
@@ -147,16 +147,16 @@ fn silent_wave14_storm_of_steel_bulk_discards_hand_and_adds_shivs() {
     assert!(storm_plus.complex_hook.is_none());
 
     let mut engine = engine_without_start(
-        make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike", "Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Storm of Steel", "Strike_G", "Defend_G"]);
+    engine.state.hand = make_deck(&["Storm of Steel", "Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Storm of Steel"));
 
     assert_eq!(hand_count(&engine, "Shiv"), 2);
-    assert_eq!(discard_prefix_count(&engine, "Strike_G"), 1);
-    assert_eq!(discard_prefix_count(&engine, "Defend_G"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Strike"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Defend"), 1);
 }

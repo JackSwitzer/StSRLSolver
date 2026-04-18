@@ -60,9 +60,9 @@ fn ironclad_wave9_heavy_blade_and_perfected_strike_keep_java_damage_hooks_on_typ
     assert_eq!(heavy_blade.state.enemies[0].entity.hp, 56);
 
     let mut perfected_strike = one_enemy_engine("JawWorm", 80);
-    perfected_strike.state.hand = make_deck(&["Perfected Strike", "Strike_R"]);
-    perfected_strike.state.draw_pile = make_deck(&["Strike_R", "Strike_R"]);
-    perfected_strike.state.discard_pile = make_deck(&["Strike_R"]);
+    perfected_strike.state.hand = make_deck(&["Perfected Strike", "Strike"]);
+    perfected_strike.state.draw_pile = make_deck(&["Strike", "Strike"]);
+    perfected_strike.state.discard_pile = make_deck(&["Strike"]);
     assert!(play_on_enemy(&mut perfected_strike, "Perfected Strike", 0));
     assert_eq!(perfected_strike.state.enemies[0].entity.hp, 66);
 }

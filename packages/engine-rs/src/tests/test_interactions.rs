@@ -84,12 +84,12 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn pen_nib_in_wrath_strike() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 5), 50, 0);
         engine.state.stance = Stance::Wrath;
         engine.state.relics.push("Pen Nib".to_string());
         engine.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
         assert_eq!(engine.state.enemies[0].entity.hp, 26,
             "Strike in Wrath + Pen Nib: 6 * 2 * 2 = 24 damage, 50-24 = 26");
     }
@@ -102,7 +102,7 @@ mod interaction_tests {
     #[test]
     fn corruption_skills_free_and_exhaust() {
         let mut engine = engine_with(
-            make_deck(&["Corruption", "Defend_R", "Defend_R", "Defend_R", "Defend_R", "Strike_R"]),
+            make_deck(&["Corruption", "Defend", "Defend", "Defend", "Defend", "Strike"]),
             50, 0,
         );
         ensure_in_hand(&mut engine, "Corruption");
@@ -113,8 +113,8 @@ mod interaction_tests {
         let energy_after_corruption = engine.state.energy; // 3 - 3 = 0
 
         // Add a Defend to hand and play it
-        ensure_in_hand(&mut engine, "Defend_R");
-        play_self(&mut engine, "Defend_R");
+        ensure_in_hand(&mut engine, "Defend");
+        play_self(&mut engine, "Defend");
 
         // Defend should cost 0 (Corruption makes skills free)
         assert_eq!(engine.state.energy, energy_after_corruption,
@@ -125,7 +125,7 @@ mod interaction_tests {
             "Defend should still give 5 block");
 
         // Defend should be in exhaust pile, not discard
-        assert_eq!(exhaust_prefix_count(&engine, "Defend_R"), 1,
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1,
             "Defend should be exhausted under Corruption");
     }
 
@@ -136,7 +136,7 @@ mod interaction_tests {
     #[test]
     fn barricade_block_retention() {
         // Use filler deck so only desired cards are played
-        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         // Give enough energy and set status directly
         engine.state.energy = 10;
         engine.state.player.set_status(sid::BARRICADE, 1);
@@ -155,9 +155,9 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn block_decays_without_barricade() {
-        let mut engine = engine_with(make_deck_n("Defend_R", 10), 50, 0);
-        ensure_in_hand(&mut engine, "Defend_R");
-        play_self(&mut engine, "Defend_R");
+        let mut engine = engine_with(make_deck_n("Defend", 10), 50, 0);
+        ensure_in_hand(&mut engine, "Defend");
+        play_self(&mut engine, "Defend");
         assert_eq!(engine.state.player.block, 5);
 
         end_turn(&mut engine);
@@ -173,11 +173,11 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn echo_form_attack_replay() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 5), 50, 0);
         engine.state.player.set_status(sid::ECHO_FORM, 1);
         let hand_before = engine.state.hand.len();
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
         assert_eq!(engine.state.enemies[0].entity.hp, 38,
             "Echo Form + Strike: 6*2 = 12 damage, 50-12 = 38");
         // Only 1 card should be removed from hand
@@ -192,7 +192,7 @@ mod interaction_tests {
     #[test]
     fn double_tap_attack_replay() {
         let mut engine = engine_with(
-            make_deck(&["Double Tap", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"]),
+            make_deck(&["Double Tap", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             50, 0,
         );
         ensure_in_hand(&mut engine, "Double Tap");
@@ -200,8 +200,8 @@ mod interaction_tests {
         assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 1,
             "Double Tap should set status to 1");
 
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
         assert_eq!(engine.state.enemies[0].entity.hp, 38,
             "Double Tap + Strike: 6*2 = 12 damage, 50-12 = 38");
 
@@ -218,7 +218,7 @@ mod interaction_tests {
     #[test]
     fn feel_no_pain_exhaust_trigger() {
         // Use filler deck to avoid accidental card draws
-        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         engine.state.energy = 5;
 
         // Set Feel No Pain directly to avoid the draw-duplication issue
@@ -226,7 +226,7 @@ mod interaction_tests {
 
         // Make sure there's True Grit in hand and at least one other card to exhaust
         ensure_in_hand(&mut engine, "True Grit");
-        ensure_in_hand(&mut engine, "Strike_R");
+        ensure_in_hand(&mut engine, "Strike");
         play_self(&mut engine, "True Grit");
 
         // True Grit gives 7 block + Feel No Pain triggers on exhaust = 3 more block
@@ -243,7 +243,7 @@ mod interaction_tests {
     #[test]
     fn noxious_fumes_turn_tick() {
         // Use filler deck to avoid accidental Noxious Fumes draws
-        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         engine.state.energy = 5;
 
         // Set Noxious Fumes status directly
@@ -283,7 +283,7 @@ mod interaction_tests {
     #[test]
     fn blade_dance_accuracy_shiv() {
         // Use filler deck to avoid drawing Accuracy/BladeDance naturally
-        let mut engine = engine_with(make_deck_n("Strike_G", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         engine.state.energy = 5;
 
         // Set Accuracy status directly
@@ -310,8 +310,8 @@ mod interaction_tests {
     #[test]
     fn flurry_of_blows_return_on_stance_change() {
         let mut engine = engine_with(
-            make_deck(&["Eruption", "FlurryOfBlows", "Strike_P", "Strike_P", "Strike_P",
-                        "Defend_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P"]),
+            make_deck(&["Eruption", "FlurryOfBlows", "Strike", "Strike", "Strike",
+                        "Defend", "Defend", "Defend", "Defend", "Defend"]),
             50, 0,
         );
         // Move FlurryOfBlows to discard pile manually
@@ -337,8 +337,8 @@ mod interaction_tests {
     #[test]
     fn flurry_of_blows_two_return_on_stance_change() {
         let mut engine = engine_with(
-            make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P",
-                        "Defend_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P"]),
+            make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike",
+                        "Defend", "Defend", "Defend", "Defend", "Defend"]),
             50, 0,
         );
         // Put 2 FlurryOfBlows in discard
@@ -413,7 +413,7 @@ mod interaction_tests {
     #[test]
     fn corruption_attack_costs_normally() {
         let mut engine = engine_with(
-            make_deck(&["Corruption", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"]),
+            make_deck(&["Corruption", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             50, 0,
         );
         engine.state.energy = 5; // enough for Corruption (3) + Strike (1)
@@ -421,17 +421,17 @@ mod interaction_tests {
         play_self(&mut engine, "Corruption");
         let energy_after_corruption = engine.state.energy; // 5 - 3 = 2
 
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
 
         // Strike should cost 1 energy (Corruption only affects Skills)
         assert_eq!(engine.state.energy, energy_after_corruption - 1,
             "Strike should cost 1 energy even with Corruption active");
 
         // Strike should go to discard, not exhaust
-        assert_eq!(discard_prefix_count(&engine, "Strike_R"), 1,
+        assert_eq!(discard_prefix_count(&engine, "Strike"), 1,
             "Strike should go to discard pile, not exhaust");
-        assert_eq!(exhaust_prefix_count(&engine, "Strike_R"), 0,
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 0,
             "Strike should NOT be exhausted under Corruption");
     }
 
@@ -442,7 +442,7 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn demon_form_gains_strength_each_turn() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         engine.state.energy = 5;
 
         // Set Demon Form status directly (avoids needing 3 energy for the card)
@@ -475,7 +475,7 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn after_image_blocks_per_card() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
         engine.state.energy = 5;
 
         // Set After Image status directly
@@ -484,12 +484,12 @@ mod interaction_tests {
         assert_eq!(engine.state.player.block, 0, "Should start with 0 block");
 
         // Play 3 Strikes (attacks, no block from card itself)
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
 
         // After Image grants 1 block per card played = 3 block total
         assert_eq!(engine.state.player.block, 3,
@@ -504,8 +504,8 @@ mod interaction_tests {
     #[test]
     fn burst_replays_skill() {
         let mut engine = engine_with(
-            make_deck(&["Burst", "Backflip", "Strike_R", "Strike_R", "Strike_R",
-                        "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"]),
+            make_deck(&["Burst", "Backflip", "Strike", "Strike", "Strike",
+                        "Strike", "Strike", "Strike", "Strike", "Strike"]),
             50, 0,
         );
         engine.state.energy = 5;
@@ -539,7 +539,7 @@ mod interaction_tests {
             enemy("Louse1", 50, 50, 1, 0, 1),
             enemy("Louse2", 50, 50, 1, 0, 1),
         ];
-        let mut engine = engine_with_enemies(make_deck_n("Strike_R", 10), enemies, 3);
+        let mut engine = engine_with_enemies(make_deck_n("Strike", 10), enemies, 3);
         engine.state.energy = 5;
 
         // Set Noxious Fumes status directly
@@ -562,10 +562,10 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn wrath_doubles_damage() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 5), 50, 0);
         engine.state.stance = Stance::Wrath;
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
         assert_eq!(engine.state.enemies[0].entity.hp, 38,
             "Strike in Wrath: 6 * 2 = 12 damage, 50-12 = 38");
     }
@@ -577,10 +577,10 @@ mod interaction_tests {
     // =========================================================================
     #[test]
     fn divinity_triples_damage() {
-        let mut engine = engine_with(make_deck_n("Strike_R", 5), 50, 0);
+        let mut engine = engine_with(make_deck_n("Strike", 5), 50, 0);
         engine.state.stance = Stance::Divinity;
-        ensure_in_hand(&mut engine, "Strike_R");
-        play_on_enemy(&mut engine, "Strike_R", 0);
+        ensure_in_hand(&mut engine, "Strike");
+        play_on_enemy(&mut engine, "Strike", 0);
         assert_eq!(engine.state.enemies[0].entity.hp, 32,
             "Strike in Divinity: 6 * 3 = 18 damage, 50-18 = 32");
     }

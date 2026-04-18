@@ -18,7 +18,7 @@ use crate::tests::support::{
 #[test]
 fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
     let mut horn_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );
@@ -31,7 +31,7 @@ fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
     assert_eq!(horn.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
 
     let mut wheel_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );
@@ -52,7 +52,7 @@ fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
 #[test]
 fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
     let mut calendar_state = combat_state_with(
-        make_deck_n("Defend_R", 10),
+        make_deck_n("Defend", 10),
         vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 120, 120)],
         3,
     );
@@ -69,7 +69,7 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
     assert_eq!(calendar.state.enemies[1].entity.hp, hp1 - 52);
 
     let mut orichalcum_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
         3,
     );
@@ -80,13 +80,13 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
     assert_eq!(orichalcum.state.player.hp, hp_before);
 
     let mut clasp_state = combat_state_with(
-        make_deck(&["Defend_R", "Defend_R", "Defend_R"]),
+        make_deck(&["Defend", "Defend", "Defend"]),
         vec![enemy("JawWorm", 60, 60, 1, 3, 1)],
         3,
     );
     clasp_state.relics.push("CloakClasp".to_string());
     let mut clasp = engine_with_state(clasp_state);
-    clasp.state.hand = make_deck(&["Defend_R", "Defend_R"]);
+    clasp.state.hand = make_deck(&["Defend", "Defend"]);
     clasp.state.draw_pile.clear();
     let hp_before = clasp.state.player.hp;
     end_turn(&mut clasp);
@@ -96,7 +96,7 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
 #[test]
 fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     let mut art_state = combat_state_with(
-        make_deck_n("Defend_R", 5),
+        make_deck_n("Defend", 5),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );
@@ -108,7 +108,7 @@ fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     assert_eq!(art.hidden_effect_value("Art of War", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
 
     let mut damaru_state = combat_state_with(
-        make_deck_n("Defend_P", 5),
+        make_deck_n("Defend", 5),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );
@@ -121,7 +121,7 @@ fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     assert_eq!(damaru.state.mantra, 0);
 
     let mut inserter_state = combat_state_with(
-        make_deck_n("Defend_B", 5),
+        make_deck_n("Defend", 5),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );

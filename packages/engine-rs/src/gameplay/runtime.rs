@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn combat_snapshot_exposes_active_runtime_instances() {
-        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike_R"]), 20, 5);
+        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike"]), 20, 5);
         engine.state.relics.push("OrangePellets".to_string());
         engine.state.potions[0] = "Block Potion".to_string();
         engine.rebuild_effect_runtime();
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn combat_snapshot_assigns_stable_power_install_order() {
-        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike_R"]), 20, 5);
+        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike"]), 20, 5);
         engine.state.player.set_status(sid::THOUSAND_CUTS, 1);
         engine.state.player.set_status(sid::PANACHE, 1);
         engine.rebuild_effect_runtime();
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn runtime_values_use_declared_field_metadata() {
-        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike_R"]), 20, 5);
+        let mut engine = engine_with(crate::tests::support::make_deck(&["Strike"]), 20, 5);
         engine.state.relics.push("Happy Flower".to_string());
         engine.rebuild_effect_runtime();
         engine.execute_action(&crate::actions::Action::EndTurn);

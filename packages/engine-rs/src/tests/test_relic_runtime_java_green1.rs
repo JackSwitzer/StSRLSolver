@@ -35,7 +35,7 @@ fn hand_names(engine: &crate::engine::CombatEngine) -> Vec<String> {
 #[test]
 fn gambling_chip_opens_a_zero_to_many_discard_choice_on_the_first_turn_after_draw() {
     let mut engine = relic_engine(
-        &["Strike_G", "Defend_G", "Neutralize"],
+        &["Strike", "Defend", "Neutralize"],
         &["Survivor", "Deflect"],
     );
 
@@ -63,7 +63,7 @@ fn gambling_chip_opens_a_zero_to_many_discard_choice_on_the_first_turn_after_dra
 #[test]
 fn gambling_chip_can_discard_any_number_of_cards_and_redraw_that_many() {
     let mut engine = relic_engine(
-        &["Strike_G", "Defend_G", "Neutralize"],
+        &["Strike", "Defend", "Neutralize"],
         &["Survivor", "Deflect", "Bash"],
     );
 
@@ -96,7 +96,7 @@ fn gambling_chip_can_discard_any_number_of_cards_and_redraw_that_many() {
 #[test]
 fn gambling_chip_allows_zero_discards_without_changing_the_hand() {
     let mut engine = relic_engine(
-        &["Strike_G", "Defend_G", "Neutralize"],
+        &["Strike", "Defend", "Neutralize"],
         &["Survivor", "Deflect", "Bash"],
     );
 
@@ -118,7 +118,7 @@ fn gambling_chip_allows_zero_discards_without_changing_the_hand() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.player.status(sid::GAMBLING_CHIP_ACTIVE), 0);
-    assert_eq!(hand_names(&engine), vec!["Strike_G", "Defend_G", "Neutralize"]);
+    assert_eq!(hand_names(&engine), vec!["Strike", "Defend", "Neutralize"]);
 }
 
 #[path = "test_zone_batch_java_wave1.rs"]

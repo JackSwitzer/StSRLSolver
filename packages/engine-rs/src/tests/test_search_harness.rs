@@ -6,7 +6,7 @@ use crate::tests::support::{engine_with, run_engine};
 
 #[test]
 fn combat_search_is_deterministic_and_replayable() {
-    let engine = engine_with(crate::tests::support::make_deck(&["Strike_R", "Defend_R"]), 20, 5);
+    let engine = engine_with(crate::tests::support::make_deck(&["Strike", "Defend"]), 20, 5);
     let budget = SearchBudget::new(32, 4);
 
     let first = search_combat(&engine, budget);
@@ -66,7 +66,7 @@ fn seed_suite_report_is_stable_for_identical_inputs() {
 
 #[test]
 fn combat_state_hash_is_stable_for_identical_snapshots_and_changes_on_branch() {
-    let engine = engine_with(crate::tests::support::make_deck(&["Strike_R", "Defend_R"]), 20, 5);
+    let engine = engine_with(crate::tests::support::make_deck(&["Strike", "Defend"]), 20, 5);
     let clone = engine.clone_state();
 
     assert_eq!(combat_state_hash(&engine), combat_state_hash(&clone));

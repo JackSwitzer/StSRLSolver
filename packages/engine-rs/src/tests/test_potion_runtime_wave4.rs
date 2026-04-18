@@ -43,7 +43,7 @@ fn runtime_manual_activation_registry_covers_wave4_potions() {
 #[test]
 fn stance_family_potions_surface_no_target_legal_actions_and_consume_slots() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -81,23 +81,23 @@ fn stance_family_potions_surface_no_target_legal_actions_and_consume_slots() {
 #[test]
 fn blessing_and_liquid_memories_respect_hand_limit_and_sacred_bark_via_engine_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame", "Zap"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
     engine.state.hand = make_deck(&[
-        "Strike_P",
-        "Defend_P",
+        "Strike",
+        "Defend",
         "Bash",
         "Shrug It Off",
         "Inflame",
         "Zap",
         "Dualcast",
-        "Strike_P",
-        "Defend_P",
+        "Strike",
+        "Defend",
     ]);
-    engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Defend", "Bash"]);
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "BlessingOfTheForge".to_string();
     engine.state.potions[1] = "LiquidMemories".to_string();
@@ -120,14 +120,14 @@ fn blessing_and_liquid_memories_respect_hand_limit_and_sacred_bark_via_engine_pa
 #[test]
 fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame", "Zap"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
     engine.state.draw_pile = make_deck(&[
-        "Strike_P",
-        "Defend_P",
+        "Strike",
+        "Defend",
         "Bash",
         "Shrug It Off",
         "Inflame",
@@ -169,12 +169,12 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
 #[test]
 fn wave4_runtime_potions_emit_manual_activation_records() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.potions = vec![String::new(); 3];
-    engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Defend"]);
     engine.state.draw_pile = make_deck(&["Bash", "Shrug It Off"]);
 
     let cases = [

@@ -99,22 +99,22 @@ fn watcher_wave14_pressure_points_spirit_shield_ragnarok_and_scrawl_follow_engin
     assert_eq!(pressure_points.state.enemies[0].entity.block, 20);
 
     let mut spirit_shield = engine_with_state(combat_state_with(
-        make_deck(&["SpiritShield", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["SpiritShield", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     force_player_turn(&mut spirit_shield);
-    spirit_shield.state.hand = make_deck(&["SpiritShield", "Strike_P", "Defend_P", "Strike_P"]);
+    spirit_shield.state.hand = make_deck(&["SpiritShield", "Strike", "Defend", "Strike"]);
     assert!(play_self(&mut spirit_shield, "SpiritShield"));
     assert_eq!(spirit_shield.state.player.block, 9);
 
     let mut spirit_shield_plus = engine_with_state(combat_state_with(
-        make_deck(&["SpiritShield+", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["SpiritShield+", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     force_player_turn(&mut spirit_shield_plus);
-    spirit_shield_plus.state.hand = make_deck(&["SpiritShield+", "Strike_P", "Defend_P", "Strike_P"]);
+    spirit_shield_plus.state.hand = make_deck(&["SpiritShield+", "Strike", "Defend", "Strike"]);
     assert!(play_self(&mut spirit_shield_plus, "SpiritShield+"));
     assert_eq!(spirit_shield_plus.state.player.block, 12);
 
@@ -152,15 +152,15 @@ fn watcher_wave14_pressure_points_spirit_shield_ragnarok_and_scrawl_follow_engin
 
     let mut scrawl = engine_with_state(combat_state_with(
         make_deck(&[
-            "Scrawl", "Strike_R", "Defend_R", "Strike_R", "Defend_R", "Strike_R", "Defend_R",
-            "Strike_R", "Defend_R", "Strike_R", "Defend_R",
+            "Scrawl", "Strike", "Defend", "Strike", "Defend", "Strike", "Defend",
+            "Strike", "Defend", "Strike", "Defend",
         ]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         10,
     ));
     force_player_turn(&mut scrawl);
-    scrawl.state.hand = make_deck(&["Scrawl", "Strike_R", "Defend_R", "Strike_R", "Defend_R"]);
-    scrawl.state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Strike_R", "Defend_R", "Strike_R", "Defend_R"]);
+    scrawl.state.hand = make_deck(&["Scrawl", "Strike", "Defend", "Strike", "Defend"]);
+    scrawl.state.draw_pile = make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike", "Defend"]);
     assert!(play_self(&mut scrawl, "Scrawl"));
     assert_eq!(scrawl.state.hand.len(), 10);
     assert!(scrawl

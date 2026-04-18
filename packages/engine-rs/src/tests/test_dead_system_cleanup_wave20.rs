@@ -11,7 +11,7 @@ use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine
 #[test]
 fn relic_dead_helper_cleanup_wave20_calipers_retention_is_inline_on_engine_path() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );

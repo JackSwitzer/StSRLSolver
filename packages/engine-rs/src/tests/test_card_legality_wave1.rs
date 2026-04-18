@@ -55,7 +55,7 @@ fn headbutt_now_exports_typed_primary_damage_and_discard_choice() {
 
 #[test]
 fn headbutt_still_deals_damage_and_opens_discard_pick_choice() {
-    let mut engine = engine_for(&["Headbutt"], &[], &["Strike_R", "Defend_R"], 3);
+    let mut engine = engine_for(&["Headbutt"], &[], &["Strike", "Defend"], 3);
 
     assert!(play_on_enemy(&mut engine, "Headbutt", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 51);
@@ -85,7 +85,7 @@ fn secret_technique_still_uses_declarative_skill_search_and_finds_only_skills() 
         }]
     );
 
-    let mut engine = engine_for(&["Secret Technique"], &["Strike_R", "Shrug It Off", "Bash"], &[], 3);
+    let mut engine = engine_for(&["Secret Technique"], &["Strike", "Shrug It Off", "Bash"], &[], 3);
     assert!(play_self(&mut engine, "Secret Technique"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     let choice = engine.choice.as_ref().expect("secret technique choice");

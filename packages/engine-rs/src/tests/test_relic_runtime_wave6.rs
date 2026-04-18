@@ -51,7 +51,7 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
             "Fossilized Helix",
             "Data Disk",
         ],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![
             enemy_no_intent("JawWorm", 50, 50),
             enemy_no_intent("Cultist", 48, 48),
@@ -80,7 +80,7 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("JawWorm", 50, 50)],
         3,
     );
@@ -104,7 +104,7 @@ fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
 fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["Lantern"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy("JawWorm", 60, 60, 1, 0, 1)],
         3,
     );
@@ -126,20 +126,20 @@ fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
 #[test]
 fn ornamental_fan_grants_block_every_third_attack_on_runtime_path() {
     let mut state = combat_state_with(
-        make_deck_n("Strike_R", 12),
+        make_deck_n("Strike", 12),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         20,
     );
     state.relics.push("Ornamental Fan".to_string());
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck_n("Strike_R", 3);
+    engine.state.hand = make_deck_n("Strike", 3);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.block, 0);
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(engine.state.player.block, 4);
     assert_eq!(
@@ -152,7 +152,7 @@ fn ornamental_fan_grants_block_every_third_attack_on_runtime_path() {
 fn violet_lotus_grants_extra_energy_when_exiting_calm() {
     let mut engine = engine_without_start_with_relics(
         &["Violet Lotus"],
-        &["Eruption", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Eruption", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("JawWorm", 60, 60)],
         3,
     );
@@ -173,7 +173,7 @@ fn violet_lotus_grants_extra_energy_when_exiting_calm() {
 fn torii_and_tungsten_rod_reduce_real_hp_loss_from_enemy_attacks() {
     let mut torii = engine_without_start_with_relics(
         &["Torii"],
-        &["Defend_R", "Defend_R", "Defend_R", "Defend_R", "Defend_R"],
+        &["Defend", "Defend", "Defend", "Defend", "Defend"],
         vec![enemy("JawWorm", 100, 100, 1, 4, 1)],
         3,
     );
@@ -184,7 +184,7 @@ fn torii_and_tungsten_rod_reduce_real_hp_loss_from_enemy_attacks() {
 
     let mut tungsten = engine_without_start_with_relics(
         &["Tungsten Rod"],
-        &["Defend_R", "Defend_R", "Defend_R", "Defend_R", "Defend_R"],
+        &["Defend", "Defend", "Defend", "Defend", "Defend"],
         vec![enemy("JawWorm", 100, 100, 1, 10, 1)],
         3,
     );
