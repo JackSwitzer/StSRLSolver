@@ -1089,6 +1089,11 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     mem::discriminant(&engine.phase).hash(&mut hasher);
     format!("{:?}", engine.export_persisted_effects()).hash(&mut hasher);
     format!("{:?}", engine.event_log).hash(&mut hasher);
+    // Hash both RNG streams so two transpositions with identical gameplay
+    // surface but divergent random state don't conflate in the MCTS
+    // transposition table. F3 / D164 — triage §F3.
+    engine.rng.state_tuple().hash(&mut hasher);
+    engine.ai_rng.state_tuple().hash(&mut hasher);
     engine.state.player.hp.hash(&mut hasher);
     engine.state.player.max_hp.hash(&mut hasher);
     engine.state.player.block.hash(&mut hasher);

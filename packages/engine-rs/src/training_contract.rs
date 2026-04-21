@@ -518,6 +518,14 @@ pub struct EnemySnapshotV1 {
     pub first_turn: bool,
     pub is_escaping: bool,
     pub statuses: Vec<StatusTokenV1>,
+    /// Load-bearing for AI branching: JawWorm/Cultist/CorruptHeart and
+    /// most `getMove` bodies consult `last_move` / `last_two_moves` via
+    /// this list. Dropping it on snapshot→restore would reset the AI's
+    /// memory of its own prior intents, producing divergent rolls.
+    /// F2 / D163 — closes the serialization gap surfaced in the PR #138
+    /// pre-merge triage (`pre-merge-triage-2026-04-21.md` §F2).
+    #[serde(default)]
+    pub move_history: Vec<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -552,6 +560,18 @@ pub struct CombatSnapshotV1 {
     pub rng_seed0: u64,
     pub rng_seed1: u64,
     pub rng_counter: i32,
+    /// Enemy-intent RNG state (separate stream from `rng`, Java's
+    /// `AbstractDungeon.aiRng`). Every probabilistic `getMove` consumes
+    /// one integer from this stream; dropping it on snapshot→restore
+    /// desynchronises intent rolls across resumed search branches.
+    /// F1 / D162 — closes the serialization gap surfaced in the PR #138
+    /// pre-merge triage (`pre-merge-triage-2026-04-21.md` §F1).
+    #[serde(default)]
+    pub ai_rng_seed0: u64,
+    #[serde(default)]
+    pub ai_rng_seed1: u64,
+    #[serde(default)]
+    pub ai_rng_counter: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -657,6 +677,7 @@ pub fn combat_training_state_from_run(
 
 pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
     let (rng_seed0, rng_seed1, rng_counter) = engine.rng.state_tuple();
+    let (ai_rng_seed0, ai_rng_seed1, ai_rng_counter) = engine.ai_rng.state_tuple();
     let state = &engine.state;
     CombatSnapshotV1 {
         schema_version: COMBAT_SNAPSHOT_SCHEMA_VERSION,
@@ -716,6 +737,7 @@ pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
                 first_turn: enemy.first_turn,
                 is_escaping: enemy.is_escaping,
                 statuses: collect_status_tokens(&enemy.entity.statuses),
+                move_history: enemy.move_history.clone(),
             })
             .collect(),
         potions: state.potions.clone(),
@@ -725,6 +747,9 @@ pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
         rng_seed0,
         rng_seed1,
         rng_counter,
+        ai_rng_seed0,
+        ai_rng_seed1,
+        ai_rng_counter,
     }
 }
 
@@ -741,6 +766,11 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
         state.entity.block = enemy.block;
         apply_status_tokens(&mut state.entity.statuses, &enemy.statuses);
         state.back_attack = enemy.back_attack;
+        // Restore move_history BEFORE `set_move` so the enemy has full memory
+        // of its prior intents — JawWorm/Cultist/CorruptHeart `getMove` bodies
+        // consult `last_move` / `last_two_moves` and would diverge without it.
+        // F2 / D163.
+        state.move_history = enemy.move_history.clone();
         state.set_move(
             enemy.move_id,
             enemy.intent_damage,
@@ -793,6 +823,13 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
         snapshot.rng_seed0,
         snapshot.rng_seed1,
         snapshot.rng_counter,
+    );
+    // Restore the enemy-intent RNG stream so post-snapshot rolls reproduce
+    // the pre-snapshot trajectory exactly. F1 / D162.
+    engine.ai_rng = crate::seed::StsRandom::from_state(
+        snapshot.ai_rng_seed0,
+        snapshot.ai_rng_seed1,
+        snapshot.ai_rng_counter,
     );
     engine.phase = if snapshot.turn <= 0 {
         crate::engine::CombatPhase::NotStarted

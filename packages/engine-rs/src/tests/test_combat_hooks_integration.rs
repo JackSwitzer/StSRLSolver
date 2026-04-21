@@ -19,7 +19,6 @@
 #[cfg(test)]
 mod combat_hooks_integration {
     use crate::combat_hooks;
-    use crate::combat_types::mfx;
     use crate::enemies::{self, move_ids};
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};

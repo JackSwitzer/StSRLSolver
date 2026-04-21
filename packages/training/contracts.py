@@ -367,6 +367,11 @@ class EnemySnapshot:
     first_turn: bool
     is_escaping: bool
     statuses: tuple[StatusToken, ...] = ()
+    # F2 / D163 — JawWorm / Cultist / CorruptHeart `getMove` branches
+    # consult `last_move` / `last_two_moves` via this list, so it must
+    # round-trip on snapshot→restore. Default `()` keeps legacy fixtures
+    # that predate the field working.
+    move_history: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -401,6 +406,13 @@ class CombatSnapshot:
     rng_seed0: int
     rng_seed1: int
     rng_counter: int
+    # F1 / D162 — enemy-intent RNG stream (Java's `AbstractDungeon.aiRng`).
+    # Separate from `rng` above so card/shuffle draws and intent rolls stay
+    # independent. Defaults keep legacy fixtures that predate the field
+    # working until producers are upgraded.
+    ai_rng_seed0: int = 0
+    ai_rng_seed1: int = 0
+    ai_rng_counter: int = 0
 
 
 @dataclass(frozen=True)
@@ -496,6 +508,7 @@ def parse_combat_snapshot(payload: Mapping[str, Any]) -> CombatSnapshot:
                 **{
                     **item,
                     "statuses": _tuple_of(item["statuses"], lambda status: StatusToken(**status)),
+                    "move_history": tuple(item.get("move_history", ())),
                 }
             ),
         ),
@@ -506,6 +519,9 @@ def parse_combat_snapshot(payload: Mapping[str, Any]) -> CombatSnapshot:
         rng_seed0=payload["rng_seed0"],
         rng_seed1=payload["rng_seed1"],
         rng_counter=payload["rng_counter"],
+        ai_rng_seed0=payload.get("ai_rng_seed0", 0),
+        ai_rng_seed1=payload.get("ai_rng_seed1", 0),
+        ai_rng_counter=payload.get("ai_rng_counter", 0),
     )
 
 
