@@ -1110,44 +1110,65 @@ mod tests {
 
     #[test]
     fn test_blue_slaver_pattern() {
+        // Java-parity: num<40 && !lastMove(STAB) && !lastTwoMoves(STAB) -> STAB,
+        // else RAKE+Weak. `StsRandom::new(0).random(99)` returns 0 here, so the
+        // STAB guard fails on turn 1 (lastMove was the init STAB) -> RAKE. On
+        // turn 2, history=[STAB, RAKE], both guards pass -> STAB.
         let mut enemy = create_enemy("SlaverBlue", 48, 48);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
         assert_eq!(enemy.move_damage(), 12);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::BS_STAB);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BS_RAKE);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::BS_STAB);
     }
 
     #[test]
     fn test_red_slaver_pattern() {
+        // Java-parity: ENTANGLE only fires on `num >= 75 && !usedEntangle && !firstMove`.
+        // With `StsRandom::new(0)` producing num=0, ENTANGLE never fires and we
+        // fall into the SCRAPE/STAB branches.
+        // Turn 1 (is_first_move): ENTANGLE blocked; num<55 -> SCRAPE.
+        // Turn 2 (history=[STAB,SCRAPE]): ENTANGLE blocked by num; num<55 -> SCRAPE.
+        // Turn 3 (history=[STAB,SCRAPE,SCRAPE]): lastTwoMoves(SCRAPE) true ->
+        //   fall through to STAB fallback.
         let mut enemy = create_enemy("SlaverRed", 48, 48);
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
         assert_eq!(enemy.move_damage(), 13);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
-        assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
+        assert_eq!(enemy.move_id, move_ids::RS_SCRAPE);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert!(
-            enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB
-        );
+        assert_eq!(enemy.move_id, move_ids::RS_SCRAPE);
+
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::RS_STAB);
     }
 
     #[test]
     fn test_acid_slime_s_pattern() {
+        // Java-parity: num<40 -> TACKLE, else LICK (Weak 1), with anti-repeat
+        // on LICK. With `StsRandom::new(0)` giving num=0, every roll picks
+        // TACKLE. Use `roll_next_move_with_num` to hit the LICK branch.
         let mut enemy = create_enemy("AcidSlime_S", 10, 10);
         assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
 
+        // num=0 < 40 -> TACKLE
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+
+        // num=50 >= 40 -> LICK
+        roll_next_move_with_num(&mut enemy, 50);
         assert_eq!(enemy.move_id, move_ids::AS_LICK);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=50 again, but lastMove was LICK -> anti-repeat -> TACKLE
+        roll_next_move_with_num(&mut enemy, 50);
         assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
     }
 
@@ -1260,11 +1281,21 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         assert_eq!(enemy.move_hits(), 2);
 
-        // Roll: stab count increments
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=30 (>=15), only 1 STAB in history -> ++stabCount, Stab again.
+        roll_next_move_with_num(&mut enemy, 30);
+        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
+        let count_after_first = enemy.entity.status(sid::STAB_COUNT);
+        assert!(count_after_first >= 3, "stab count should escalate: got {}", count_after_first);
+
+        // num=30 (>=15), lastTwoMoves(STAB) now true -> BigStab (no ++count at A<18).
+        roll_next_move_with_num(&mut enemy, 30);
+        assert_eq!(enemy.move_id, move_ids::BOOK_BIG_STAB);
+
+        // num=0 (<15), lastMove(BigStab) -> ++stabCount, Stab.
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         let new_count = enemy.entity.status(sid::STAB_COUNT);
-        assert!(new_count >= 3);
+        assert!(new_count > count_after_first, "stab count continues to escalate");
     }
 
     #[test]
@@ -1288,14 +1319,15 @@ mod tests {
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        // Phase 1 cycle
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // Java Phase-1 getMove with num=60: Forge skipped (num>15), Gloat skipped
+        // (num>30), FaceSlap skipped (lastMove==FaceSlap), so Heavy Slash.
+        roll_next_move_with_num(&mut enemy, 60);
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
         assert_eq!(enemy.move_damage(), 16); // base (non-A4) slash dmg
 
         // Trigger phase 2 at half HP
         enemy.entity.hp = 200;
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 60);
         assert_eq!(enemy.move_id, move_ids::CHAMP_ANGER);
     }
 
@@ -1539,13 +1571,14 @@ mod tests {
 
     #[test]
     fn test_darkling_pattern() {
+        // Java: init sets Nip as first intent; getMove(num=0) -> num<40 && !lastMove(CHOMP)
+        // -> CHOMP(8x2). Uses roll_next_move_with_num for deterministic num.
         let mut enemy = create_enemy("Darkling", 52, 52);
         assert_eq!(enemy.move_id, move_ids::DARK_NIP);
         assert_eq!(enemy.move_damage(), 8);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After two Nips: Chomp
+        roll_next_move_with_num(&mut enemy, 0);
+        // num=0 -> CHOMP immediately (no lastMove=CHOMP history yet)
         assert_eq!(enemy.move_id, move_ids::DARK_CHOMP);
         assert_eq!(enemy.move_hits(), 2);
     }
@@ -1661,5 +1694,861 @@ mod tests {
         assert_eq!(def.domain, crate::gameplay::GameplayDomain::Enemy);
         assert_eq!(def.id, "JawWorm");
         assert!(def.enemy_schema().is_some());
+    }
+
+    // ----- Act 2 RNG parity (Stage D-B) -----
+    //
+    // These tests exercise the num-based Java branches that were previously
+    // ignoring _num. Each test drives `roll_next_move_with_num` with a num that
+    // lands on a specific branch, mirroring the Java `getMove(int num)` ladder.
+
+    #[test]
+    fn test_chosen_debuff_debilitate_branch() {
+        // After Hex, !lastMove(Deb|Drain): num<50 -> Debilitate.
+        let mut enemy = create_enemy("Chosen", 99, 99);
+        roll_next_move_with_num(&mut enemy, 0); // Poke -> Hex
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_HEX);
+        roll_next_move_with_num(&mut enemy, 10); // num<50
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_DEBILITATE);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
+    }
+
+    #[test]
+    fn test_chosen_debuff_drain_branch() {
+        // After Hex, !lastMove(Deb|Drain): num>=50 -> Drain.
+        let mut enemy = create_enemy("Chosen", 99, 99);
+        roll_next_move_with_num(&mut enemy, 0); // Poke -> Hex
+        roll_next_move_with_num(&mut enemy, 75); // num>=50
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_DRAIN);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(3));
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+    }
+
+    #[test]
+    fn test_chosen_attack_zap_branch() {
+        // After Debilitate: num<40 -> Zap.
+        let mut enemy = create_enemy("Chosen", 99, 99);
+        roll_next_move_with_num(&mut enemy, 0); // Poke -> Hex
+        roll_next_move_with_num(&mut enemy, 10); // Hex -> Debilitate
+        roll_next_move_with_num(&mut enemy, 10); // num<40
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_ZAP);
+        assert_eq!(enemy.move_damage(), 18);
+    }
+
+    #[test]
+    fn test_chosen_attack_poke_branch() {
+        // After Debilitate: num>=40 -> Poke (5x2).
+        let mut enemy = create_enemy("Chosen", 99, 99);
+        roll_next_move_with_num(&mut enemy, 0); // Poke -> Hex
+        roll_next_move_with_num(&mut enemy, 10); // Hex -> Debilitate
+        roll_next_move_with_num(&mut enemy, 80); // num>=40
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
+        assert_eq!(enemy.move_damage(), 5);
+        assert_eq!(enemy.move_hits(), 2);
+    }
+
+    #[test]
+    fn test_byrd_caw_branch() {
+        // Flying, num>=70, !lastMove(CAW) -> Caw with +1 Strength.
+        let mut enemy = create_enemy("Byrd", 31, 31);
+        assert!(enemy.entity.status(sid::FLIGHT) > 0);
+        roll_next_move_with_num(&mut enemy, 85);
+        assert_eq!(enemy.move_id, move_ids::BYRD_CAW);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(1));
+    }
+
+    #[test]
+    fn test_byrd_swoop_branch() {
+        // Flying, num in [50,70), !lastMove(SWOOP) -> Swoop(12).
+        let mut enemy = create_enemy("Byrd", 31, 31);
+        roll_next_move_with_num(&mut enemy, 55);
+        assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
+        assert_eq!(enemy.move_damage(), 12);
+    }
+
+    #[test]
+    fn test_byrd_peck_anti_repeat_fallback() {
+        // Flying, num<50, lastTwoMoves(PECK) -> Swoop (deterministic fallback
+        // for the deferred secondary aiRng draw).
+        let mut enemy = create_enemy("Byrd", 31, 31);
+        // Starting state already has PECK queued (create_enemy).
+        roll_next_move_with_num(&mut enemy, 10); // Peck again
+        assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
+        roll_next_move_with_num(&mut enemy, 10); // lastTwoMoves(Peck) -> Swoop fallback
+        assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
+    }
+
+    #[test]
+    fn test_shelled_parasite_fell_branch() {
+        // Non-first, num<20, !lastMove(FELL) -> Fell (ATK_DEBUFF + Frail 2).
+        let mut enemy = create_enemy("ShelledParasite", 72, 72);
+        // Prime with a non-first move so the first-move special case is skipped.
+        roll_next_move_with_num(&mut enemy, 50); // first move -> DoubleStrike
+        assert_eq!(enemy.move_id, move_ids::SP_DOUBLE_STRIKE);
+        roll_next_move_with_num(&mut enemy, 10); // num<20
+        assert_eq!(enemy.move_id, move_ids::SP_FELL);
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
+    }
+
+    #[test]
+    fn test_shelled_parasite_life_suck_branch() {
+        // Non-first, num>=60, !lastTwoMoves(LIFE_SUCK) -> Life Suck (ATK_BUFF).
+        let mut enemy = create_enemy("ShelledParasite", 72, 72);
+        roll_next_move_with_num(&mut enemy, 50); // first -> DoubleStrike
+        roll_next_move_with_num(&mut enemy, 75); // num>=60 -> LifeSuck
+        assert_eq!(enemy.move_id, move_ids::SP_LIFE_SUCK);
+    }
+
+    #[test]
+    fn test_snake_plant_spores_branch() {
+        // num>=65, !lastMove(SPORES) -> Spores (Weak 2 + Frail 2).
+        let mut enemy = create_enemy("SnakePlant", 77, 77);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::SNAKE_SPORES);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
+    }
+
+    #[test]
+    fn test_centurion_protect_branch() {
+        // num>=65, !lastTwoMoves(PROTECT) && !lastTwoMoves(FURY), aliveCount>1 -> Protect.
+        let mut enemy = create_enemy("Centurion", 76, 76);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::CENT_PROTECT);
+        assert_eq!(enemy.effect(mfx::BLOCK_ALL_ALLIES), Some(15));
+    }
+
+    #[test]
+    fn test_centurion_slash_branch() {
+        // num<65, !lastTwoMoves(SLASH) -> Slash.
+        let mut enemy = create_enemy("Centurion", 76, 76);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::CENT_SLASH);
+        assert_eq!(enemy.move_damage(), 12);
+    }
+
+    #[test]
+    fn test_mystic_attack_branch() {
+        // num>=40, !lastTwoMoves(ATTACK), needToHeal gated off -> Attack with Frail 2.
+        let mut enemy = create_enemy("Mystic", 48, 48);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::MYSTIC_ATTACK);
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
+    }
+
+    #[test]
+    fn test_mystic_buff_branch() {
+        // num<40, !lastTwoMoves(BUFF) -> Buff (STRENGTH_ALL_ALLIES=2).
+        let mut enemy = create_enemy("Mystic", 48, 48);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::MYSTIC_BUFF);
+        assert_eq!(enemy.effect(mfx::STRENGTH_ALL_ALLIES), Some(2));
+    }
+
+    #[test]
+    fn test_book_stabbing_low_num_big_stab() {
+        // num<15, !lastMove(BigStab) -> BigStab (no stab count increment at A<18).
+        let mut enemy = create_enemy("BookOfStabbing", 162, 162);
+        let before = enemy.entity.status(sid::STAB_COUNT);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::BOOK_BIG_STAB);
+        assert_eq!(enemy.move_damage(), 21);
+        assert_eq!(enemy.entity.status(sid::STAB_COUNT), before);
+    }
+
+    #[test]
+    fn test_book_stabbing_low_num_after_big_stab_increments() {
+        // num<15, lastMove(BigStab) -> ++stabCount, Stab.
+        let mut enemy = create_enemy("BookOfStabbing", 162, 162);
+        roll_next_move_with_num(&mut enemy, 10); // Stab -> BigStab
+        let before = enemy.entity.status(sid::STAB_COUNT);
+        roll_next_move_with_num(&mut enemy, 5); // BigStab -> ++count Stab
+        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
+        assert_eq!(enemy.entity.status(sid::STAB_COUNT), before + 1);
+    }
+
+    #[test]
+    fn test_snecko_tail_branch() {
+        // Post-first-turn (Glare is primed in create_enemy), num<40 -> Tail (byte 3, 8 + Vuln 2).
+        let mut enemy = create_enemy("Snecko", 120, 120);
+        assert_eq!(enemy.move_id, move_ids::SNECKO_GLARE); // seeded first move
+        roll_next_move_with_num(&mut enemy, 10); // num<40
+        assert_eq!(enemy.move_id, move_ids::SNECKO_TAIL);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
+    }
+
+    #[test]
+    fn test_snecko_bite_branch() {
+        // Post-first-turn, num>=40, !lastTwoMoves(Bite) -> Bite (byte 2, 15).
+        let mut enemy = create_enemy("Snecko", 120, 120);
+        roll_next_move_with_num(&mut enemy, 75); // num>=40 -> Bite
+        assert_eq!(enemy.move_id, move_ids::SNECKO_BITE);
+        assert_eq!(enemy.move_damage(), 15);
+    }
+
+    #[test]
+    fn test_bronze_orb_stasis_branch() {
+        // create_enemy primes Stasis on turn 1; assert the seeded state directly
+        // since subsequent rolls treat usedStasis=true via history.
+        let enemy = create_enemy("BronzeOrb", 58, 58);
+        assert_eq!(enemy.move_id, move_ids::BO_STASIS);
+    }
+
+    #[test]
+    fn test_bronze_orb_support_branch() {
+        // usedStasis, num>=70, !lastTwoMoves(SUPPORT) -> Support.
+        let mut enemy = create_enemy("BronzeOrb", 58, 58);
+        roll_next_move_with_num(&mut enemy, 80); // num>=70 -> Support
+        assert_eq!(enemy.move_id, move_ids::BO_SUPPORT);
+        assert_eq!(enemy.move_block(), 12);
+    }
+
+    #[test]
+    fn test_bronze_orb_beam_branch() {
+        // usedStasis, num<70, !lastTwoMoves(BEAM) -> Beam.
+        let mut enemy = create_enemy("BronzeOrb", 58, 58);
+        roll_next_move_with_num(&mut enemy, 40); // num<70 -> Beam
+        assert_eq!(enemy.move_id, move_ids::BO_BEAM);
+        assert_eq!(enemy.move_damage(), 8);
+    }
+
+    #[test]
+    fn test_champ_defensive_stance_branch() {
+        // Phase 1, !lastMove(Defensive) && forgeTimes<threshold && num<=15 -> Defensive.
+        let mut enemy = create_enemy("Champ", 420, 420);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::CHAMP_DEFENSIVE);
+        assert_eq!(enemy.entity.status(sid::FORGE_TIMES), 1);
+    }
+
+    #[test]
+    fn test_champ_gloat_branch() {
+        // Phase 1, num in (15, 30], !lastMove(Gloat|Defensive) -> Gloat.
+        let mut enemy = create_enemy("Champ", 420, 420);
+        roll_next_move_with_num(&mut enemy, 25);
+        assert_eq!(enemy.move_id, move_ids::CHAMP_GLOAT);
+    }
+
+    #[test]
+    fn test_champ_phase2_execute_alternation() {
+        // Phase 2: Execute iff !lastMove(Exec) && !lastMoveBefore(Exec), else
+        // falls through to Phase 1 tree (so Execute never repeats back-to-back).
+        let mut enemy = create_enemy("Champ", 420, 420);
+        enemy.entity.hp = 200;
+        roll_next_move_with_num(&mut enemy, 60); // threshold trigger -> Anger
+        assert_eq!(enemy.move_id, move_ids::CHAMP_ANGER);
+        roll_next_move_with_num(&mut enemy, 60); // Execute (lastMove/Before != Exec)
+        assert_eq!(enemy.move_id, move_ids::CHAMP_EXECUTE);
+        roll_next_move_with_num(&mut enemy, 60); // lastMove=Exec -> fall through Phase 1
+        assert_ne!(enemy.move_id, move_ids::CHAMP_EXECUTE);
+    }
+
+    #[test]
+    fn test_collector_fireball_branch() {
+        // num<=70, !lastTwoMoves(FIREBALL) -> Fireball (18).
+        let mut enemy = create_enemy("TheCollector", 282, 282);
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+        assert_eq!(enemy.move_damage(), 18);
+    }
+
+    #[test]
+    fn test_collector_buff_branch() {
+        // lastTwoMoves(FIREBALL) -> Buff (STRENGTH + block).
+        let mut enemy = create_enemy("TheCollector", 282, 282);
+        roll_next_move_with_num(&mut enemy, 50); // Fireball
+        roll_next_move_with_num(&mut enemy, 50); // Fireball
+        roll_next_move_with_num(&mut enemy, 50); // -> Buff
+        assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+    }
+
+    // ------------------------------------------------------------------
+    // Stage D-A: Java-parity branch coverage for Act 1 enemy rolls.
+    // One test per fixed enemy, exercising the specific `num` branch that
+    // was previously ignored by the Rust implementation.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_red_louse_grow_branch() {
+        // Java LouseNormal: num<25 && !lastMove(GROW) -> GROW (+Strength 3).
+        // Init move for RedLouse is BITE, so lastMove(GROW) is false -> GROW fires.
+        let mut enemy = create_enemy("RedLouse", 12, 12);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::LOUSE_GROW);
+        assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+
+        // num=50 (>=25), lastMove was GROW so !lastTwoMoves(BITE) -> BITE.
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::LOUSE_BITE);
+        assert_eq!(enemy.move_damage(), 6);
+    }
+
+    #[test]
+    fn test_green_louse_spit_web_branch() {
+        // Java LouseDefensive: num<25 && !lastMove(SPIT_WEB) -> SPIT_WEB (Weak 2).
+        let mut enemy = create_enemy("GreenLouse", 11, 11);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::LOUSE_SPIT_WEB);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+
+        // num=80, lastMove=SPIT_WEB so !lastTwoMoves(BITE) -> BITE.
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::LOUSE_BITE);
+        assert_eq!(enemy.move_damage(), 6);
+    }
+
+    #[test]
+    fn test_blue_slaver_stab_branch() {
+        // Java SlaverBlue: num<40 && !lastMove(STAB) && !lastTwoMoves(STAB) -> STAB 12.
+        // Init move is STAB, so on turn 1 we must RAKE; on turn 2 we can STAB.
+        let mut enemy = create_enemy("SlaverBlue", 46, 46);
+        // Turn 1: num=0<40 but lastMove=STAB -> RAKE + Weak 1.
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::BS_RAKE);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+
+        // Turn 2: num=0<40, history=[STAB,RAKE] -> STAB branch fires (12 dmg).
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::BS_STAB);
+        assert_eq!(enemy.move_damage(), 12);
+
+        // Turn 3: num=80>=40 -> RAKE even though STAB chain broken.
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::BS_RAKE);
+    }
+
+    #[test]
+    fn test_red_slaver_entangle_branch() {
+        // Java SlaverRed: num>=75 && !usedEntangle && !firstMove -> ENTANGLE.
+        // Rust: firstMove corresponds to `move_history.len() == 1` (init move
+        // already pushed). So we must advance past turn 1 with low num first.
+        let mut enemy = create_enemy("SlaverRed", 46, 46);
+        // Turn 1 (firstMove): num=0 fails num>=75 & num>=55; !lastTwoMoves(SCRAPE) true
+        // -> SCRAPE + Vuln 1.
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::RS_SCRAPE);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
+
+        // Turn 2 (not firstMove), num=90>=75, !usedEntangle -> ENTANGLE fires.
+        roll_next_move_with_num(&mut enemy, 90);
+        assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
+        assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
+
+        // Turn 3: usedEntangle=true blocks ENTANGLE even at num=90;
+        // num>=55 && !lastTwoMoves(STAB) -> STAB 13.
+        roll_next_move_with_num(&mut enemy, 90);
+        assert_eq!(enemy.move_id, move_ids::RS_STAB);
+        assert_eq!(enemy.move_damage(), 13);
+    }
+
+    #[test]
+    fn test_acid_slime_m_spit_branch() {
+        // Java AcidSlime_M: num<30 && !lastTwoMoves(SPIT) -> SPIT 7 + Slimed 1.
+        let mut enemy = create_enemy("AcidSlime_M", 32, 32);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AS_CORROSIVE_SPIT);
+        assert_eq!(enemy.move_damage(), 7);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(1));
+
+        // num=50 (in 30..70), !lastMove(TACKLE) -> TACKLE 10.
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        assert_eq!(enemy.move_damage(), 10);
+
+        // num=80 (>=70), !lastTwoMoves(LICK) -> LICK + Weak 1.
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::AS_LICK);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+    }
+
+    #[test]
+    fn test_acid_slime_l_spit_branch() {
+        // Java AcidSlime_L: num<30 && !lastTwoMoves(SPIT) -> SPIT 11 + Slimed 2.
+        let mut enemy = create_enemy("AcidSlime_L", 68, 68);
+        roll_next_move_with_num(&mut enemy, 15);
+        assert_eq!(enemy.move_id, move_ids::AS_CORROSIVE_SPIT);
+        assert_eq!(enemy.move_damage(), 11);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(2));
+
+        // num=50 -> TACKLE 16.
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        assert_eq!(enemy.move_damage(), 16);
+
+        // num=85 -> LICK + Weak 2.
+        roll_next_move_with_num(&mut enemy, 85);
+        assert_eq!(enemy.move_id, move_ids::AS_LICK);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+    }
+
+    #[test]
+    fn test_looter_mug_variant_branch() {
+        // Java Looter: on the 2nd `roll_next_move_with_num` call (history becomes
+        // length 2), a coin-flip on `num < 50` fires.
+        //   num<50  -> SMOKE_BOMB (11 block)
+        //   num>=50 -> LUNGE variant (stab 12, modeled as LOOTER_MUG w/ 12 dmg)
+        let mut enemy = create_enemy("Looter", 44, 44);
+        // Roll 1 (history.len()==1 after push): MUG 10.
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
+        assert_eq!(enemy.move_damage(), 10);
+
+        // Roll 2 (history.len()==2 after push): num=75>=50 -> LUNGE variant.
+        roll_next_move_with_num(&mut enemy, 75);
+        assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
+        assert_eq!(enemy.move_damage(), 12);
+
+        // Roll 3: ESCAPE.
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::LOOTER_ESCAPE);
+        assert!(enemy.is_escaping);
+    }
+
+    #[test]
+    fn test_looter_smoke_bomb_branch() {
+        // Mirror: on roll 2 with num<50 -> SMOKE_BOMB (11 block).
+        let mut enemy = create_enemy("Looter", 44, 44);
+        roll_next_move_with_num(&mut enemy, 0);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::LOOTER_SMOKE_BOMB);
+        assert_eq!(enemy.move_block(), 11);
+
+        // Roll 3: ESCAPE.
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::LOOTER_ESCAPE);
+        assert!(enemy.is_escaping);
+    }
+
+    #[test]
+    fn test_gremlin_nob_skull_bash_branch() {
+        // Java GremlinNob: turn-2 getMove, num<33 -> SKULL_BASH (6 dmg + Vuln 2),
+        // else -> RUSH (14).
+        let mut enemy = create_enemy("GremlinNob", 85, 85);
+        // Init move is BELLOW; turn 2 with num=10<33 -> SKULL_BASH.
+        assert_eq!(enemy.move_id, move_ids::NOB_BELLOW);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::NOB_SKULL_BASH);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
+
+        // Turn 3+: always RUSH regardless of num.
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::NOB_RUSH);
+        assert_eq!(enemy.move_damage(), 14);
+    }
+
+    #[test]
+    fn test_gremlin_tsundere_protect_branch() {
+        // Java GremlinTsundere: has_other_allies=true -> PROTECT, else PUNCTURE 9.
+        // Helper is not yet wired into dispatch (match arm is a no-op, outside
+        // this stage's scope), so we call act1::roll_gremlin_tsundere directly.
+        let mut enemy = create_enemy("GremlinTsundere", 10, 10);
+        super::act1::roll_gremlin_tsundere(&mut enemy, 0, true);
+        assert_eq!(enemy.move_id, move_ids::GREMLIN_PROTECT);
+        assert_eq!(enemy.move_damage(), 0);
+
+        // has_other_allies=false -> PUNCTURE (GREMLIN_ATTACK w/ 9 dmg).
+        super::act1::roll_gremlin_tsundere(&mut enemy, 0, false);
+        assert_eq!(enemy.move_id, move_ids::GREMLIN_ATTACK);
+        assert_eq!(enemy.move_damage(), 9);
+    }
+
+    // ------------------------------------------------------------------
+    // Stage D-C: Java-parity branch coverage for Act 3 + Act 4 enemy rolls.
+    // Each test drives `roll_next_move_with_num` with a num that lands on a
+    // specific Java `getMove(int num)` branch that was previously dropping num.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_darkling_harden_branch() {
+        // num in [40,70) && !lastMove(HARDEN) -> HARDEN (12 block).
+        let mut enemy = create_enemy("Darkling", 52, 52);
+        // Init Nip is lastMove; 50 falls in [40,70), HARDEN not last -> HARDEN.
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::DARK_HARDEN);
+        assert_eq!(enemy.move_block(), 12);
+    }
+
+    #[test]
+    fn test_darkling_nip_branch() {
+        // num>=70 && !lastTwoMoves(NIP) -> NIP (8).
+        let mut enemy = create_enemy("Darkling", 52, 52);
+        // Init move is Nip (single-entry history); lastTwoMoves(NIP) requires both
+        // last two to be NIP, len<2 -> false -> NIP branch fires.
+        roll_next_move_with_num(&mut enemy, 85);
+        assert_eq!(enemy.move_id, move_ids::DARK_NIP);
+        assert_eq!(enemy.move_damage(), 8);
+    }
+
+    #[test]
+    fn test_orb_walker_claw_branch() {
+        // num<40 && !lastTwoMoves(CLAW) -> CLAW (15).
+        let mut enemy = create_enemy("OrbWalker", 93, 93);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::OW_CLAW);
+        assert_eq!(enemy.move_damage(), 15);
+    }
+
+    #[test]
+    fn test_orb_walker_laser_branch() {
+        // num>=40 && !lastTwoMoves(LASER) -> LASER (10, +Burn).
+        // Init move is LASER; lastTwoMoves(LASER) needs two same -> false -> LASER.
+        let mut enemy = create_enemy("OrbWalker", 93, 93);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::OW_LASER);
+        assert_eq!(enemy.effect(mfx::BURN), Some(1));
+    }
+
+    #[test]
+    fn test_spiker_buff_branch() {
+        // num<50 but lastMove(ATTACK) -> BUFF path (increments thornsCount).
+        let mut enemy = create_enemy("Spiker", 50, 50);
+        let thorns_before = enemy.entity.status(sid::COUNT);
+        // Init queued SPIKER_ATTACK; num<50 && !lastMove(ATTACK) fails (last IS Attack).
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::SPIKER_BUFF);
+        assert_eq!(enemy.entity.status(sid::COUNT), thorns_before + 1);
+    }
+
+    #[test]
+    fn test_spiker_thorns_saturation_forces_attack() {
+        // thornsCount>5 forces ATTACK regardless of num / anti-repeat.
+        let mut enemy = create_enemy("Spiker", 50, 50);
+        enemy.entity.set_status(sid::COUNT, 6);
+        roll_next_move_with_num(&mut enemy, 10); // would normally hit Buff
+        assert_eq!(enemy.move_id, move_ids::SPIKER_ATTACK);
+    }
+
+    #[test]
+    fn test_repulsor_attack_branch() {
+        // num<20 && !lastMove(ATTACK) -> ATTACK (11).
+        let mut enemy = create_enemy("Repulsor", 42, 42);
+        // Init lastMove is Daze (not Attack) -> branch fires.
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::REPULSOR_ATTACK);
+        assert_eq!(enemy.move_damage(), 11);
+    }
+
+    #[test]
+    fn test_repulsor_daze_default_branch() {
+        // num>=20 -> DAZE (+2 daze cards).
+        let mut enemy = create_enemy("Repulsor", 42, 42);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::REPULSOR_DAZE);
+        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
+    }
+
+    #[test]
+    fn test_writhing_mass_first_multi_hit_branch() {
+        // First-move num<33 -> Multi Hit (7x3).
+        let mut enemy = create_enemy("WrithingMass", 160, 160);
+        // Clear history so the first-move check fires on this call.
+        enemy.move_history.clear();
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::WM_MULTI_HIT);
+        assert_eq!(enemy.move_hits(), 3);
+    }
+
+    #[test]
+    fn test_writhing_mass_first_attack_block_branch() {
+        // First-move num in [33,66) -> Attack+Block (15 dmg + 15 block).
+        let mut enemy = create_enemy("WrithingMass", 160, 160);
+        enemy.move_history.clear();
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::WM_ATTACK_BLOCK);
+        assert_eq!(enemy.move_block(), 15);
+    }
+
+    #[test]
+    fn test_writhing_mass_first_attack_debuff_branch() {
+        // First-move num>=66 -> Attack+Debuff (Weak 2 + Vuln 2).
+        let mut enemy = create_enemy("WrithingMass", 160, 160);
+        enemy.move_history.clear();
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::WM_ATTACK_DEBUFF);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(2));
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
+    }
+
+    #[test]
+    fn test_writhing_mass_big_hit_branch() {
+        // Non-first-move num<10 && !lastMove(BIG_HIT) -> BIG_HIT (32).
+        let mut enemy = create_enemy("WrithingMass", 160, 160);
+        roll_next_move_with_num(&mut enemy, 50); // first -> ATTACK_BLOCK
+        roll_next_move_with_num(&mut enemy, 5);  // non-first num<10 -> BIG_HIT
+        assert_eq!(enemy.move_id, move_ids::WM_BIG_HIT);
+        assert_eq!(enemy.move_damage(), 32);
+    }
+
+    #[test]
+    fn test_writhing_mass_mega_debuff_branch() {
+        // Non-first-move num<20 && !usedMega && !lastMove(MEGA) -> MEGA_DEBUFF.
+        let mut enemy = create_enemy("WrithingMass", 160, 160);
+        roll_next_move_with_num(&mut enemy, 50); // first -> ATTACK_BLOCK
+        roll_next_move_with_num(&mut enemy, 15); // num<20, mega not yet used
+        assert_eq!(enemy.move_id, move_ids::WM_MEGA_DEBUFF);
+        assert_eq!(enemy.entity.status(sid::USED_MEGA_DEBUFF), 1);
+    }
+
+    #[test]
+    fn test_spire_growth_quick_tackle_branch() {
+        // num<50 && !lastTwoMoves(QUICK_TACKLE) -> Quick Tackle (16).
+        let mut enemy = create_enemy("SpireGrowth", 170, 170);
+        // Init move is Quick Tackle; lastTwoMoves needs both last two same -> false.
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::SG_QUICK_TACKLE);
+        assert_eq!(enemy.move_damage(), 16);
+    }
+
+    #[test]
+    fn test_spire_growth_constrict_after_quick_tackle() {
+        // Two Quick Tackles in a row satisfy lastTwoMoves(QT); the next roll
+        // with num<50 fails the QT branch and falls through to Constrict (the
+        // player has not yet been constricted).
+        let mut enemy = create_enemy("SpireGrowth", 170, 170);
+        roll_next_move_with_num(&mut enemy, 10); // QT (1st — push init QT, then set QT)
+        roll_next_move_with_num(&mut enemy, 10); // lastTwoMoves(QT) now true -> Constrict.
+        assert_eq!(enemy.move_id, move_ids::SG_CONSTRICT);
+        assert_eq!(enemy.effect(mfx::CONSTRICT), Some(10));
+    }
+
+    #[test]
+    fn test_maw_nom_branch() {
+        // Has roared (init queued ROAR). num<50 && !lastMove(NOM) -> NOM.
+        let mut enemy = create_enemy("Maw", 75, 75);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::MAW_NOM);
+        // turnCount bumps from 1 to 2, hits = max(1, 2/2) = 1.
+        assert_eq!(enemy.move_hits(), 1);
+    }
+
+    #[test]
+    fn test_maw_slam_branch() {
+        // Has roared; num>=50, last wasn't SLAM/NOM -> SLAM (25).
+        let mut enemy = create_enemy("Maw", 75, 75);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::MAW_SLAM);
+        assert_eq!(enemy.move_damage(), 25);
+    }
+
+    #[test]
+    fn test_maw_drool_after_nom() {
+        // After NOM, num>=50 hits the lastMove(NOM) branch -> DROOL (+3 Str).
+        let mut enemy = create_enemy("Maw", 75, 75);
+        roll_next_move_with_num(&mut enemy, 10); // NOM
+        roll_next_move_with_num(&mut enemy, 80); // lastMove=NOM -> DROOL
+        assert_eq!(enemy.move_id, move_ids::MAW_DROOL);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+    }
+
+    #[test]
+    fn test_giant_head_glare_branch() {
+        // count>1, num<50, !lastTwoMoves(GLARE) -> GLARE (+Weak 1).
+        let mut enemy = create_enemy("GiantHead", 500, 500);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::GH_GLARE);
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+    }
+
+    #[test]
+    fn test_giant_head_count_branch() {
+        // count>1, num>=50, !lastTwoMoves(COUNT) -> COUNT (13).
+        let mut enemy = create_enemy("GiantHead", 500, 500);
+        // Init queued GH_COUNT; lastTwoMoves(COUNT) needs two matching -> false.
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::GH_COUNT);
+        assert_eq!(enemy.move_damage(), 13);
+    }
+
+    #[test]
+    fn test_nemesis_first_move_num_branch() {
+        // First move: num<50 -> Tri Attack, num>=50 -> Burn.
+        let mut low = create_enemy("Nemesis", 185, 185);
+        roll_next_move_with_num(&mut low, 10);
+        assert_eq!(low.move_id, move_ids::NEM_TRI_ATTACK);
+
+        let mut high = create_enemy("Nemesis", 185, 185);
+        roll_next_move_with_num(&mut high, 80);
+        assert_eq!(high.move_id, move_ids::NEM_BURN);
+        assert_eq!(high.effect(mfx::BURN), Some(3));
+    }
+
+    #[test]
+    fn test_nemesis_scythe_branch() {
+        // Non-first, num<30, !lastMove(Scythe) && cooldown<=0 -> Scythe (45).
+        let mut enemy = create_enemy("Nemesis", 185, 185);
+        roll_next_move_with_num(&mut enemy, 10); // first -> Tri Attack, clears first-move flag
+        roll_next_move_with_num(&mut enemy, 10); // num<30 -> Scythe
+        assert_eq!(enemy.move_id, move_ids::NEM_SCYTHE);
+        assert_eq!(enemy.move_damage(), 45);
+        assert_eq!(enemy.entity.status(sid::SCYTHE_COOLDOWN), 2);
+    }
+
+    #[test]
+    fn test_reptomancer_snake_strike_branch() {
+        // num<33 && !lastMove(SnakeStrike) -> SnakeStrike (13x2 + Weak 1).
+        let mut enemy = create_enemy("Reptomancer", 185, 185);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
+        assert_eq!(enemy.move_damage(), 13);
+        assert_eq!(enemy.move_hits(), 2);
+    }
+
+    #[test]
+    fn test_reptomancer_spawn_branch() {
+        // num in [33,66) && !lastTwoMoves(SPAWN) -> Spawn.
+        let mut enemy = create_enemy("Reptomancer", 185, 185);
+        // Init sets SPAWN; lastTwoMoves needs both last two -> false -> Spawn fires.
+        roll_next_move_with_num(&mut enemy, 50);
+        assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
+    }
+
+    #[test]
+    fn test_reptomancer_big_bite_branch() {
+        // num>=66 && !lastMove(BigBite) -> BigBite (30).
+        let mut enemy = create_enemy("Reptomancer", 185, 185);
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
+        assert_eq!(enemy.move_damage(), 30);
+    }
+
+    #[test]
+    fn test_awakened_one_phase1_soul_strike_branch() {
+        // Phase 1, num<25 && !lastMove(SoulStrike) -> SoulStrike (6x4).
+        let mut enemy = create_enemy("AwakenedOne", 300, 300);
+        // Init queued Slash; lastMove != SoulStrike -> branch fires.
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
+        assert_eq!(enemy.move_damage(), 6);
+        assert_eq!(enemy.move_hits(), 4);
+    }
+
+    #[test]
+    fn test_awakened_one_phase2_sludge_branch() {
+        // Phase 2, num<50 && !lastTwoMoves(Sludge) -> Sludge (18, +Void).
+        let mut enemy = create_enemy("AwakenedOne", 300, 300);
+        awakened_one_rebirth(&mut enemy); // enter phase 2, sets Dark Echo
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
+        assert_eq!(enemy.move_damage(), 18);
+        assert_eq!(enemy.effect(mfx::VOID), Some(1));
+    }
+
+    #[test]
+    fn test_time_eater_head_slam_branch() {
+        // num in [45,80), !lastMove(HeadSlam) -> HeadSlam (+Draw Reduction 1).
+        let mut enemy = create_enemy("TimeEater", 456, 456);
+        // Init queued Reverberate; lastMove != HeadSlam -> branch fires.
+        roll_next_move_with_num(&mut enemy, 60);
+        assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
+        assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
+    }
+
+    #[test]
+    fn test_time_eater_ripple_branch() {
+        // num>=80, !lastMove(Ripple) -> Ripple (20 block + Vuln 1 + Weak 1).
+        let mut enemy = create_enemy("TimeEater", 456, 456);
+        roll_next_move_with_num(&mut enemy, 90);
+        assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
+        assert_eq!(enemy.move_block(), 20);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+    }
+
+    #[test]
+    fn test_time_eater_haste_triggers_on_low_hp() {
+        // HP < max/2 && !usedHaste -> Haste (heal + remove debuffs).
+        let mut enemy = create_enemy("TimeEater", 456, 456);
+        enemy.entity.hp = enemy.entity.max_hp / 2 - 1;
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::TE_HASTE);
+        assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
+        assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
+        assert_eq!(enemy.entity.status(sid::USED_HASTE), 1);
+    }
+
+    // ----- Act 4 RNG parity (Stage D-C) -----
+    //
+    // Act 4 `getMove(int num)` IGNORES num in Java. Randomness is only
+    // `aiRng.randomBoolean()` inside each slot — those are DEFERRED. These
+    // tests exercise the deterministic `moveCount % 3` progression and the
+    // anti-repeat fallbacks that stand in for the randomBoolean draws.
+
+    #[test]
+    fn test_spire_shield_num_ignored_smash_cycle() {
+        // Regardless of num, slot 2 always produces Smash.
+        let mut enemy = create_enemy("SpireShield", 110, 110);
+        roll_next_move_with_num(&mut enemy, 0);  // slot 0 -> Fortify (last was Bash)
+        roll_next_move_with_num(&mut enemy, 0);  // slot 1 -> Bash (last was Fortify)
+        roll_next_move_with_num(&mut enemy, 99); // slot 2 -> Smash always
+        assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
+        assert_eq!(enemy.move_damage(), 34);
+    }
+
+    #[test]
+    fn test_spire_shield_slot1_anti_repeat() {
+        // Slot 1 is deterministic (!lastMove(BASH) -> BASH else FORTIFY).
+        let mut enemy = create_enemy("SpireShield", 110, 110);
+        roll_next_move_with_num(&mut enemy, 0); // slot 0 -> Fortify (Bash was init)
+        assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
+        roll_next_move_with_num(&mut enemy, 0); // slot 1 -> Bash (last wasn't Bash)
+        assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
+        assert_eq!(enemy.effect(mfx::STRENGTH_DOWN), Some(1));
+    }
+
+    #[test]
+    fn test_spire_spear_skewer_hits_scale_with_skewer_count() {
+        // Slot 1 is always Skewer; hit count is skewerCount (init 3).
+        let mut enemy = create_enemy("SpireSpear", 160, 160);
+        roll_next_move_with_num(&mut enemy, 50); // slot 0 -> Piercer (anti-repeat)
+        roll_next_move_with_num(&mut enemy, 50); // slot 1 -> Skewer
+        assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
+        assert_eq!(enemy.move_hits(), 3);
+        assert_eq!(enemy.move_damage(), 10);
+    }
+
+    #[test]
+    fn test_spire_spear_slot2_num_ignored() {
+        // Slot 2 is the DEFERRED randomBoolean; deterministic fallback picks
+        // Piercer iff last wasn't Piercer. Regardless of num.
+        let mut enemy = create_enemy("SpireSpear", 160, 160);
+        roll_next_move_with_num(&mut enemy, 0);  // slot 0 -> Piercer
+        roll_next_move_with_num(&mut enemy, 0);  // slot 1 -> Skewer
+        roll_next_move_with_num(&mut enemy, 99); // slot 2 -> Piercer (last was Skewer)
+        assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
+    }
+
+    #[test]
+    fn test_corrupt_heart_buff_escalation_beat_of_death() {
+        // Second buff (buffCount=1) grants +1 BeatOfDeath (beyond +2 Str).
+        let mut enemy = create_enemy("CorruptHeart", 750, 750);
+        // First cycle: 3 rolls advance through slot 0 (BloodShots) / slot 1
+        // (Echo) / slot 2 (Buff#1 -> Artifact 2). buff_count is now 1.
+        for _ in 0..3 {
+            roll_next_move_with_num(&mut enemy, 0);
+        }
+        // Second cycle: slot 0 / slot 1 / slot 2 (Buff#2 -> BeatOfDeath).
+        roll_next_move_with_num(&mut enemy, 0);
+        roll_next_move_with_num(&mut enemy, 0);
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
+        assert_eq!(enemy.effect(mfx::BEAT_OF_DEATH), Some(1));
+    }
+
+    #[test]
+    fn test_corrupt_heart_num_ignored_blood_shots_on_slot0() {
+        // Slot 0 is the DEFERRED randomBoolean; deterministic fallback always
+        // picks Blood Shots, regardless of num.
+        let mut enemy_low = create_enemy("CorruptHeart", 750, 750);
+        roll_next_move_with_num(&mut enemy_low, 0);
+        assert_eq!(enemy_low.move_id, move_ids::HEART_BLOOD_SHOTS);
+
+        let mut enemy_high = create_enemy("CorruptHeart", 750, 750);
+        roll_next_move_with_num(&mut enemy_high, 99);
+        assert_eq!(enemy_high.move_id, move_ids::HEART_BLOOD_SHOTS);
     }
 }

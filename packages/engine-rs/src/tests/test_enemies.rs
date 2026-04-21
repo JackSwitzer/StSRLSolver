@@ -130,15 +130,17 @@ mod enemy_tests {
         assert!(e.entity.status(sid::CURL_UP) > 0);
     }
     #[test] fn red_louse_no_three_bites() {
+        // With Java-parity RNG: num>=25 avoids the GROW branch so we get BITE, BITE.
+        // Third roll with num>=25 triggers anti-repeat !lastTwoMoves(BITE)=false -> GROW.
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 50); // BITE (initial was BITE, but num>=25 and not lastMove(GROW))
+        roll_next_move_with_num(&mut e, 50); // BITE, BITE, BITE history triggers anti-repeat
         assert_eq!(e.move_id, LOUSE_GROW);
     }
     #[test] fn red_louse_grow_str() {
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 50);
+        roll_next_move_with_num(&mut e, 50);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
 
@@ -153,9 +155,10 @@ mod enemy_tests {
         assert!(e.entity.status(sid::CURL_UP) > 0);
     }
     #[test] fn green_louse_spit_web_weak() {
+        // num>=25 avoids the early SPIT_WEB branch; two BITEs then anti-repeat -> SPIT_WEB.
         let mut e = create_enemy("GreenLouse", 14, 14);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 50);
+        roll_next_move_with_num(&mut e, 50);
         assert_eq!(e.move_id, LOUSE_SPIT_WEB);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
     }
@@ -168,21 +171,26 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 12);
     }
     #[test] fn bs_no_three_stabs() {
+        // Java SlaverBlue STAB is gated on !lastMove(STAB) && !lastTwoMoves(STAB).
+        // Preseed history with two STABs to force the anti-repeat branch.
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab -> stab
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab,stab -> MUST rake
+        e.move_history = vec![BS_STAB, BS_STAB];
+        e.move_id = BS_STAB;
+        roll_next_move_with_num(&mut e, 0); // num<40 but lastMove(STAB)=true -> RAKE
         assert_eq!(e.move_id, BS_RAKE);
     }
     #[test] fn bs_rake_weak() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        e.move_history = vec![BS_STAB, BS_STAB];
+        e.move_id = BS_STAB;
+        roll_next_move_with_num(&mut e, 0);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
     #[test] fn bs_rake_damage() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        e.move_history = vec![BS_STAB, BS_STAB];
+        e.move_id = BS_STAB;
+        roll_next_move_with_num(&mut e, 0);
         assert_eq!(e.move_damage(), 7);
     }
 
@@ -194,15 +202,20 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 13);
     }
     #[test] fn rs_entangle_once() {
+        // Java SlaverRed ENTANGLE gates on num>=75 && !usedEntangle && !firstMove.
+        // Initial move is already STAB (firstMove=true for history.len()==1), so we
+        // must roll twice: throwaway first, then num=80 triggers ENTANGLE.
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 60); // any non-entangle num, consumes firstMove
+        roll_next_move_with_num(&mut e, 80);
         assert_eq!(e.move_id, RS_ENTANGLE);
         assert_eq!(e.effect(mfx::ENTANGLE).unwrap(), 1);
     }
     #[test] fn rs_scrape_vuln() {
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // entangle
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // scrape or stab
+        roll_next_move_with_num(&mut e, 60); // any num, not entangle
+        roll_next_move_with_num(&mut e, 80); // entangle
+        roll_next_move_with_num(&mut e, 0); // num<55, not lastTwoMoves(SCRAPE) -> SCRAPE
         if e.move_id == RS_SCRAPE {
             assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 1);
         }
@@ -216,15 +229,17 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 3);
     }
     #[test] fn acid_s_alternates() {
+        // Java AcidSlime_S num<40 -> TACKLE, else LICK (with anti-repeat LICK->TACKLE).
+        // num=60 selects LICK; subsequent num=60 would re-select LICK but anti-repeat -> TACKLE.
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 60);
         assert_eq!(e.move_id, AS_LICK);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 60);
         assert_eq!(e.move_id, AS_TACKLE);
     }
     #[test] fn acid_s_lick_weak() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 60); // num>=40 -> LICK + Weak 1
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
 

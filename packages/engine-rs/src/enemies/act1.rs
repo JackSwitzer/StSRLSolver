@@ -43,72 +43,122 @@ pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::LOUSE_BITE) {
+pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, num: i32) {
+    // Java LouseNormal.getMove(int num):
+    //   if (num < 25 && !lastMove(GROW)) -> GROW (+3 str)
+    //   else if !lastTwoMoves(BITE) -> BITE (5-7 dmg, rolled once at combat-start
+    //     via a separate aiRng.random(5,7); parity for that roll is deferred —
+    //     see audit E9A1, requires a second RNG pull we don't have in this
+    //     single-num API)
+    //   else -> GROW
+    // Bite damage of 6 here is the expected value of the Java 5-7 roll; full
+    // per-combat randomised bite dmg is tracked as a follow-up.
+    if num < 25 && !last_move(enemy, move_ids::LOUSE_GROW) {
         enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, 3);
-    } else if last_move(enemy, move_ids::LOUSE_GROW) {
+    } else if !last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
     } else {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
+        enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, 3);
     }
 }
 
-pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::LOUSE_BITE) {
+pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, num: i32) {
+    // Java LouseDefensive.getMove(int num):
+    //   if (num < 25 && !lastMove(SPIT_WEB)) -> SPIT_WEB (Weak 2)
+    //   else if !lastTwoMoves(BITE) -> BITE (6-8 dmg, rolled once at combat-start
+    //     via aiRng.random(6,8); deferred — see audit E9A1)
+    //   else -> SPIT_WEB
+    // Bite damage of 6 here keeps the pre-existing fixture; full randomised
+    // bite dmg is tracked as a follow-up.
+    if num < 25 && !last_move(enemy, move_ids::LOUSE_SPIT_WEB) {
         enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 2);
-    } else if last_move(enemy, move_ids::LOUSE_SPIT_WEB) {
+    } else if !last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
     } else {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
+        enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 2);
     }
 }
 
-pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::BS_STAB) {
+pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, num: i32) {
+    // Java SlaverBlue.getMove(int num):
+    //   if (num < 40 && !lastMove(STAB) && !lastTwoMoves(STAB)) -> STAB (12 dmg)
+    //   else -> RAKE (7 dmg + Weak 1)
+    // The STAB branch is gated on both lastMove and lastTwoMoves guards so that
+    // after two consecutive STABs (or even one STAB) the slaver must RAKE.
+    if num < 40
+        && !last_move(enemy, move_ids::BS_STAB)
+        && !last_two_moves(enemy, move_ids::BS_STAB)
+    {
+        enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
+    } else {
         enemy.set_move(move_ids::BS_RAKE, 7, 1, 0);
         enemy.add_effect(mfx::WEAK, 1);
-    } else if last_move(enemy, move_ids::BS_RAKE) {
-        enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
-    } else {
-        enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
     }
 }
 
-pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, num: i32) {
+    // Java SlaverRed.getMove(int num):
+    //   Guard: firstMove skips ENTANGLE and uses the STAB branch directly.
+    //   if (num >= 75 && !usedEntangle && !firstMove) -> ENTANGLE (usedEntangle=true)
+    //   else if (num >= 55 && !lastTwoMoves(STAB)) -> STAB (13 dmg)
+    //   else if (!lastTwoMoves(SCRAPE)) -> SCRAPE (8 dmg + Vuln 1)
+    //   else -> STAB fallback
+    //
+    // In Rust the harness has already pushed the init move onto `move_history`
+    // before this fn runs, so `firstMove` == `history.len() == 1`.
+    let is_first_move = enemy.move_history.len() == 1;
     let used_entangle = enemy
         .move_history
         .iter()
         .any(|&m| m == move_ids::RS_ENTANGLE);
 
-    if !used_entangle && !enemy.move_history.is_empty() {
+    if num >= 75 && !used_entangle && !is_first_move {
         enemy.set_move(move_ids::RS_ENTANGLE, 0, 0, 0);
         enemy.add_effect(mfx::ENTANGLE, 1);
-    } else if last_move(enemy, move_ids::RS_ENTANGLE)
-        || last_two_moves(enemy, move_ids::RS_SCRAPE)
-    {
+    } else if num >= 55 && !last_two_moves(enemy, move_ids::RS_STAB) {
         enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
-    } else {
+    } else if !last_two_moves(enemy, move_ids::RS_SCRAPE) {
         enemy.set_move(move_ids::RS_SCRAPE, 8, 1, 0);
         enemy.add_effect(mfx::VULNERABLE, 1);
+    } else {
+        enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
     }
 }
 
-pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_move(enemy, move_ids::AS_TACKLE) {
+pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, num: i32) {
+    // Java AcidSlime_S.getMove(int num) (A0/A16-):
+    //   if (num < 40) -> TACKLE (3 dmg)
+    //   else          -> LICK (Weak 1), unless lastMove==LICK in which case
+    //                    force TACKLE (anti-repeat).
+    // Note: A17+ flips to a strict deterministic alternation starting with
+    // LICK; that ascension branch is deferred (see audit E16A1).
+    if num < 40 {
+        enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
+    } else if last_move(enemy, move_ids::AS_LICK) {
+        // Anti-repeat: can't LICK twice in a row.
+        enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
+    } else {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 1);
-    } else {
-        enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
     }
 }
 
-pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Spit -> Tackle -> Lick -> Spit -> ...
-    if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
+pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, num: i32) {
+    // Java AcidSlime_M.getMove(int num) (A0/A16-):
+    //   if (num < 30 && !lastTwoMoves(SPIT))   -> CORROSIVE_SPIT (7 dmg + Slimed 1)
+    //   else if (num < 70 && !lastMove(TACKLE)) -> TACKLE (10 dmg)
+    //   else if !lastTwoMoves(LICK)             -> LICK (Weak 1)
+    //   else                                    -> CORROSIVE_SPIT fallback
+    if num < 30 && !last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
+        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
+        enemy.add_effect(mfx::SLIMED, 1);
+    } else if num < 70 && !last_move(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_TACKLE, 10, 1, 0);
-    } else if last_move(enemy, move_ids::AS_TACKLE) {
+    } else if !last_two_moves(enemy, move_ids::AS_LICK) {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 1);
     } else {
@@ -117,16 +167,27 @@ pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Tackle -> Spit -> Lick -> Tackle -> ...
-    if last_move(enemy, move_ids::AS_TACKLE) {
+pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, num: i32) {
+    // Java AcidSlime_L.getMove(int num) (A0/A16-):
+    //   Same probability layout as AcidSlime_M but with bigger numbers and
+    //   Slimed 2 on the SPIT branch.
+    //   if (num < 30 && !lastTwoMoves(SPIT))   -> CORROSIVE_SPIT (11 dmg + Slimed 2)
+    //   else if (num < 70 && !lastMove(TACKLE)) -> TACKLE (16 dmg)
+    //   else if !lastTwoMoves(LICK)             -> LICK (Weak 2)
+    //   else                                    -> CORROSIVE_SPIT fallback
+    // (SplitPower passive — spawn two AcidSlime_M at half HP — is out of scope
+    // for this stage; see audit E18A1.)
+    if num < 30 && !last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
         enemy.add_effect(mfx::SLIMED, 2);
-    } else if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
+    } else if num < 70 && !last_move(enemy, move_ids::AS_TACKLE) {
+        enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
+    } else if !last_two_moves(enemy, move_ids::AS_LICK) {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 2);
     } else {
-        enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
+        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
+        enemy.add_effect(mfx::SLIMED, 2);
     }
 }
 
@@ -156,18 +217,60 @@ pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_looter(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_looter(enemy: &mut EnemyCombatState, num: i32) {
+    // Java Looter.getMove(int num):
+    //   Turns 1-2: always MUG (10 dmg + steal gold).
+    //   Turn 3: 50/50 split via `num < 50`:
+    //     num < 50  -> SMOKE_BOMB (11 block, preps escape)
+    //     num >= 50 -> MUG-variant (LUNGE: 12 dmg, preps escape)
+    //   Turn 4+: ESCAPE.
+    // Using LOOTER_SMOKE_BOMB for the smoke branch and re-using LOOTER_MUG for
+    // the stab-12 branch keeps the move-id space stable; the Lunge move-id
+    // (distinct in Java) is tracked as follow-up since it's out of scope here.
     let turns = enemy.move_history.len();
     if turns < 2 {
-        // Mug twice
         enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
     } else if turns == 2 {
-        // Smoke Bomb (block + prepare escape)
-        enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, 11);
+        if num < 50 {
+            enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, 11);
+        } else {
+            // Lunge variant: 12 dmg stab, also preps escape.
+            enemy.set_move(move_ids::LOOTER_MUG, 12, 1, 0);
+        }
     } else {
-        // Escape
         enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
         enemy.is_escaping = true;
+    }
+}
+
+/// GremlinTsundere / GremlinSneaky per-turn roll.
+///
+/// Java `GremlinTsundere.getMove(int num)`:
+///   if there are other live gremlins in this combat ->
+///       PROTECT (gain 7 block for a random ally; 6 block at A7+, 11 at A17+)
+///   else ->
+///       PUNCTURE (9 dmg solo-bash).
+///
+/// This function models the "is alone" decision via a caller-supplied boolean
+/// because `EnemyCombatState` has no view of other enemies. The match arm in
+/// `mod.rs:853` is currently empty (`GremlinTsundere | GremlinSneaky => {}`)
+/// and is OUTSIDE THIS STAGE'S EDIT SCOPE — so calling this helper from the
+/// dispatch is a follow-up wire-up. Until then, a tsundere still acts as a
+/// no-op in combat.
+///
+/// Block amount defaults to 7 (A0 value); ascension scaling (6 at A7+, 11 at
+/// A17+) is deferred, see audit E27A1.
+pub fn roll_gremlin_tsundere(enemy: &mut EnemyCombatState, _num: i32, has_other_allies: bool) {
+    if has_other_allies {
+        // PROTECT — buff that grants block to a random ally; we model it as a
+        // Buff intent keyed on GREMLIN_PROTECT so the dispatch/animation code
+        // can branch on move_id. The actual ally-block application is a
+        // separate combat-hooks concern (out of scope here).
+        enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+    } else {
+        // PUNCTURE — 9 dmg solo attack. Reuse GREMLIN_ATTACK move_id to stay
+        // inside the existing Gremlin move-id table.
+        enemy.set_move(move_ids::GREMLIN_ATTACK, 9, 1, 0);
     }
 }
 
@@ -188,12 +291,27 @@ pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_move(enemy, move_ids::NOB_BELLOW) || last_move(enemy, move_ids::NOB_SKULL_BASH) {
-        enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
+pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
+    // Java GremlinNob.getMove(int num):
+    //   Turn 1 (intent already set to BELLOW at construction).
+    //   Turn 2 (first getMove call): num < 33 -> SKULL_BASH (6 dmg + Vuln 2),
+    //                                else     -> RUSH (14 dmg).
+    //   Turn 3+: always RUSH.
+    // In Rust, the harness has already pushed the init move (BELLOW) onto
+    // `move_history` before this fn runs. So "turn 2" == `history.len() == 1`
+    // with the only entry being BELLOW.
+    let just_bellowed = enemy.move_history.len() == 1
+        && last_move(enemy, move_ids::NOB_BELLOW);
+    if just_bellowed {
+        if num < 33 {
+            enemy.set_move(move_ids::NOB_SKULL_BASH, 6, 1, 0);
+            enemy.add_effect(mfx::VULNERABLE, 2);
+        } else {
+            enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
+        }
     } else {
-        enemy.set_move(move_ids::NOB_SKULL_BASH, 6, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 2);
+        // Turn 3+: always RUSH.
+        enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
     }
 }
 

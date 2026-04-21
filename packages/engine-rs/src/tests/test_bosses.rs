@@ -314,18 +314,28 @@ mod boss_java_parity_tests {
 
     #[test]
     fn champ_turn_four_uses_java_taunt_branch() {
+        // Java Champ getMove branches on num (0..=99):
+        //   num<=15 && !lastMove(DEFENSIVE) -> Defensive
+        //   num<=30 && !lastMove(GLOAT|DEFENSIVE) -> Gloat
+        //   num<=55 && !lastMove(FACE_SLAP) -> Face Slap
+        //   !lastMove(HEAVY_SLASH) -> Heavy Slash; else -> Face Slap
+        // numTurns==4 overrides with Taunt and resets numTurns to 0.
         let mut enemy = create_enemy("Champ", 420, 420);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=60 -> Heavy Slash (skips all threshold branches since last was FACE_SLAP).
+        roll_next_move_with_num(&mut enemy, 60);
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=20 -> Gloat (skips Defensive since num>15; last is HEAVY_SLASH).
+        roll_next_move_with_num(&mut enemy, 20);
         assert_eq!(enemy.move_id, move_ids::CHAMP_GLOAT);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=50 -> Face Slap (skips Gloat since lastMove(GLOAT); num<=55 && !lastMove(FACE_SLAP)).
+        roll_next_move_with_num(&mut enemy, 50);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // numTurns hits 4 on the fourth roll -> Taunt branch fires regardless of num.
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::CHAMP_TAUNT);
         assert_eq!(enemy.entity.status(sid::NUM_TURNS), 0);
     }
@@ -456,19 +466,26 @@ mod boss_java_parity_tests {
 
     #[test]
     fn time_eater_haste_and_head_slam_cycle_matches_java() {
+        // Java Time Eater getMove (0..=99):
+        //   hp<maxHp/2 && !usedHaste -> Haste (overrides num branches).
+        //   num<45 && !lastTwoMoves(REVERB) -> Reverb; num<80 && !lastMove(HEAD_SLAM) -> HeadSlam;
+        //   else !lastMove(RIPPLE) -> Ripple.
         let mut enemy = create_enemy("TimeEater", 456, 456);
         enemy.entity.hp = 200;
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // Haste fires regardless of num (HP threshold branch).
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
         assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
         assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=50 hits the num<80 Head Slam branch (last=HASTE, !lastMove(HEAD_SLAM)=true).
+        roll_next_move_with_num(&mut enemy, 50);
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
         assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // num=85 hits the Ripple branch (last=HEAD_SLAM, !lastMove(RIPPLE)=true).
+        roll_next_move_with_num(&mut enemy, 85);
         assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
         assert_eq!(enemy.move_block(), 20);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
