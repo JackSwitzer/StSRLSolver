@@ -2219,13 +2219,9 @@ impl RunEngine {
             // silently-unchanged basics. This is strictly closer to Java than the
             // pre-fix behavior (silently do nothing).
             "Pandora's Box" | "PandorasBox" => {
-                self.run_state.deck.retain(|card| {
-                    !matches!(
-                        card.as_str(),
-                        "Strike" | "Strike" | "Strike" | "Strike"
-                            | "Defend" | "Defend" | "Defend" | "Defend"
-                    )
-                });
+                self.run_state
+                    .deck
+                    .retain(|card| !matches!(card.as_str(), "Strike" | "Defend"));
             }
             _ => {}
         }
@@ -4397,11 +4393,7 @@ mod tests {
                 .run_state
                 .deck
                 .iter()
-                .any(|c| matches!(
-                    c.as_str(),
-                    "Strike" | "Strike" | "Strike" | "Strike"
-                        | "Defend" | "Defend" | "Defend" | "Defend"
-                )),
+                .any(|c| matches!(c.as_str(), "Strike" | "Defend")),
             "Pandora's Box should remove all Strikes/Defends; deck was {:?}",
             engine.run_state.deck
         );

@@ -5,45 +5,36 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use sts_engine::actions::Action;
+use sts_engine::cards::global_registry;
+use sts_engine::combat_types::CardInstance;
 use sts_engine::engine::CombatEngine;
 use sts_engine::state::{CombatState, EnemyCombatState};
 
 #[derive(Clone)]
 struct Scenario {
     name: &'static str,
-    deck: Vec<String>,
+    deck: Vec<CardInstance>,
     enemies: Vec<EnemyCombatState>,
     seed: u64,
 }
 
-fn starter_watcher_deck() -> Vec<String> {
-    vec![
-        "Strike_P".to_string(),
-        "Strike_P".to_string(),
-        "Strike_P".to_string(),
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Defend_P".to_string(),
-        "Defend_P".to_string(),
-        "Defend_P".to_string(),
-        "Eruption".to_string(),
-        "Vigilance".to_string(),
-    ]
+fn build_deck(names: &[&str]) -> Vec<CardInstance> {
+    let registry = global_registry();
+    names.iter().map(|n| registry.make_card(n)).collect()
 }
 
-fn early_elite_deck() -> Vec<String> {
-    vec![
-        "Strike_P+".to_string(),
-        "Strike_P".to_string(),
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Defend_P".to_string(),
-        "Eruption".to_string(),
-        "Vigilance".to_string(),
-        "CutThroughFate".to_string(),
-        "Tantrum".to_string(),
-        "BowlingBash".to_string(),
-    ]
+fn starter_watcher_deck() -> Vec<CardInstance> {
+    build_deck(&[
+        "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend", "Defend",
+        "Eruption", "Vigilance",
+    ])
+}
+
+fn early_elite_deck() -> Vec<CardInstance> {
+    build_deck(&[
+        "Strike+", "Strike", "Strike", "Defend", "Defend", "Eruption", "Vigilance",
+        "CutThroughFate", "Tantrum", "BowlingBash",
+    ])
 }
 
 fn enemy(id: &str, hp: i32, dmg: i32, hits: i32) -> EnemyCombatState {
