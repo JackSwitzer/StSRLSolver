@@ -116,6 +116,11 @@ pub struct CombatEngine {
     pub phase: CombatPhase,
     pub card_registry: &'static CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
+    /// Per-combat enemy AI RNG. Java uses `AbstractDungeon.aiRng` consumed once per
+    /// `AbstractMonster.rollMove()` and passed as `num` to `getMove(int num)` for
+    /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
+    /// from `rng` so card/shuffle draws do not perturb intent sequences.
+    pub(crate) ai_rng: crate::seed::StsRandom,
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
@@ -138,6 +143,10 @@ impl CombatEngine {
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
+            // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
+            // when callers replay a snapshot. Mirrors Java's separate dungeon-level
+            // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
+            ai_rng: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
@@ -389,6 +398,7 @@ impl CombatEngine {
             phase: self.phase.clone(),
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
+            ai_rng: self.ai_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),

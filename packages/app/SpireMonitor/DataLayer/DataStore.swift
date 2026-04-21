@@ -12,6 +12,7 @@ final class DataStore {
     var metricStream: [TrainingMetricRecord] = []
     var systemStats: SystemStats?
     var systemHistory: [SystemStats] = []
+    var recordedRunReplay: RecordedRunReplayReportArtifact?
 
     var hasManifest: Bool {
         runManifest != nil

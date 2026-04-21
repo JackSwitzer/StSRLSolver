@@ -43,6 +43,7 @@ actor StatusPoller {
             store.artifactEpisodes = bundle.artifactEpisodes
             store.eventStream = bundle.events
             store.metricStream = bundle.metricStream
+            store.recordedRunReplay = bundle.recordedRunReplay
         }
     }
 }

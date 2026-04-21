@@ -147,6 +147,166 @@ ENCOUNTER_CATALOG: dict[str, EncounterSpec] = {
         floor_hint=16,
         enemies=(EncounterEnemySpec("TheGuardian", 240, 240, 9, 2),),
     ),
+
+    # =========================================================================
+    # Act 1 multi-slime hallway (referenced as "Lots of Slimes" in .run files).
+    # =========================================================================
+    "Lots of Slimes": EncounterSpec(
+        name="Lots of Slimes",
+        room_kind="hallway",
+        floor_hint=12,
+        enemies=(
+            EncounterEnemySpec("AcidSlime_S", 8, 8, 3, 1),
+            EncounterEnemySpec("AcidSlime_S", 8, 8, 3, 1),
+            EncounterEnemySpec("SpikeSlime_S", 11, 11, 5, 1),
+            EncounterEnemySpec("SpikeSlime_S", 11, 11, 5, 1),
+        ),
+    ),
+
+    # =========================================================================
+    # Act 2 hallways and elites. HP values are A0 base from StS reference; if
+    # they drift from Rust engine constants the new completeness test (audit
+    # §5.11) will surface the diff.
+    # =========================================================================
+    "Shell Parasite": EncounterSpec(
+        name="Shell Parasite",
+        room_kind="hallway",
+        floor_hint=18,
+        enemies=(EncounterEnemySpec("ShelledParasite", 68, 68, 10, 1),),
+    ),
+    "3 Byrds": EncounterSpec(
+        name="3 Byrds",
+        room_kind="hallway",
+        floor_hint=20,
+        enemies=(
+            EncounterEnemySpec("Byrd", 28, 28, 1, 5),
+            EncounterEnemySpec("Byrd", 28, 28, 1, 5),
+            EncounterEnemySpec("Byrd", 28, 28, 1, 5),
+        ),
+    ),
+    "Sentry and Sphere": EncounterSpec(
+        name="Sentry and Sphere",
+        room_kind="hallway",
+        floor_hint=22,
+        enemies=(
+            EncounterEnemySpec("Sentry", 39, 39, 9, 1),
+            EncounterEnemySpec("SphericGuardian", 18, 18, 10, 1),
+        ),
+    ),
+    "Slavers": EncounterSpec(
+        name="Slavers",
+        room_kind="hallway",
+        floor_hint=25,
+        enemies=(
+            EncounterEnemySpec("SlaverBlue", 46, 46, 12, 1),
+            EncounterEnemySpec("SlaverRed", 46, 46, 13, 1),
+        ),
+    ),
+    "Book of Stabbing": EncounterSpec(
+        name="Book of Stabbing",
+        room_kind="elite",
+        floor_hint=29,
+        enemies=(EncounterEnemySpec("BookOfStabbing", 168, 168, 6, 2),),
+    ),
+    "Centurion and Healer": EncounterSpec(
+        name="Centurion and Healer",
+        room_kind="hallway",
+        floor_hint=31,
+        enemies=(
+            EncounterEnemySpec("Centurion", 76, 76, 12, 1),
+            EncounterEnemySpec("Mystic", 48, 48, 8, 1),
+        ),
+    ),
+    "Collector": EncounterSpec(
+        name="Collector",
+        room_kind="boss",
+        floor_hint=33,
+        enemies=(EncounterEnemySpec("TheCollector", 282, 282, 18, 1),),
+    ),
+
+    # =========================================================================
+    # Act 3 hallways, elites, and boss.
+    # =========================================================================
+    "3 Shapes": EncounterSpec(
+        name="3 Shapes",
+        room_kind="hallway",
+        floor_hint=35,
+        enemies=(
+            EncounterEnemySpec("Repulsor", 30, 30, 11, 1),
+            EncounterEnemySpec("Spiker", 30, 30, 7, 1),
+            EncounterEnemySpec("Exploder", 30, 30, 9, 1),
+        ),
+    ),
+    "4 Shapes": EncounterSpec(
+        name="4 Shapes",
+        room_kind="hallway",
+        floor_hint=47,
+        enemies=(
+            EncounterEnemySpec("Repulsor", 30, 30, 11, 1),
+            EncounterEnemySpec("Spiker", 30, 30, 7, 1),
+            EncounterEnemySpec("Exploder", 30, 30, 9, 1),
+            EncounterEnemySpec("Repulsor", 30, 30, 11, 1),
+        ),
+    ),
+    "3 Darklings": EncounterSpec(
+        name="3 Darklings",
+        room_kind="elite",
+        floor_hint=36,
+        enemies=(
+            EncounterEnemySpec("Darkling", 48, 48, 9, 1),
+            EncounterEnemySpec("Darkling", 48, 48, 9, 1),
+            EncounterEnemySpec("Darkling", 48, 48, 9, 1),
+        ),
+    ),
+    "Transient": EncounterSpec(
+        name="Transient",
+        room_kind="hallway",
+        floor_hint=38,
+        enemies=(EncounterEnemySpec("Transient", 999, 999, 99, 1),),
+    ),
+    "Reptomancer": EncounterSpec(
+        name="Reptomancer",
+        room_kind="elite",
+        floor_hint=44,
+        enemies=(EncounterEnemySpec("Reptomancer", 180, 180, 34, 1),),
+    ),
+    "Nemesis": EncounterSpec(
+        name="Nemesis",
+        room_kind="elite",
+        floor_hint=46,
+        enemies=(EncounterEnemySpec("Nemesis", 185, 185, 6, 4),),
+    ),
+    "Spire Growth": EncounterSpec(
+        name="Spire Growth",
+        room_kind="hallway",
+        floor_hint=48,
+        enemies=(EncounterEnemySpec("SpireGrowth", 170, 170, 16, 1),),
+    ),
+    "Time Eater": EncounterSpec(
+        name="Time Eater",
+        room_kind="boss",
+        floor_hint=50,
+        enemies=(EncounterEnemySpec("TimeEater", 456, 456, 7, 3),),
+    ),
+
+    # =========================================================================
+    # Act 4: pre-Heart elite + Heart boss.
+    # =========================================================================
+    "Shield and Spear": EncounterSpec(
+        name="Shield and Spear",
+        room_kind="elite",
+        floor_hint=54,
+        enemies=(
+            EncounterEnemySpec("SpireShield", 240, 240, 12, 1),
+            EncounterEnemySpec("SpireSpear", 250, 250, 6, 2),
+        ),
+    ),
+    "The Heart": EncounterSpec(
+        name="The Heart",
+        room_kind="boss",
+        floor_hint=55,
+        enemies=(EncounterEnemySpec("CorruptHeart", 750, 750, 40, 1),),
+    ),
 }
 
 

@@ -8,24 +8,31 @@ use crate::status_ids::sid;
 // Act 1 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState) {
-    if last_move(enemy, move_ids::JW_CHOMP) {
+pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32) {
+    // Java JawWorm.getMove(int num) (decompiled monsters/exordium/JawWorm.java):
+    //   if (num < 25 && !lastTwoMoves(CHOMP)) -> CHOMP (11 dmg)
+    //   else if (num < 55 && !lastMove(BELLOW)) -> BELLOW (+3 str, 6 block)
+    //   else if !lastTwoMoves(THRASH) -> THRASH (7 dmg, 5 block)
+    //   First turn has no history, so only the num check applies:
+    //   0-24 CHOMP, 25-54 BELLOW, 55-99 THRASH (~25/30/45 split).
+    if num < 25 && !last_two_moves(enemy, move_ids::JW_CHOMP) {
+        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
+    } else if num < 55 && !last_move(enemy, move_ids::JW_BELLOW) {
         enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
         enemy.add_effect(mfx::STRENGTH, 3);
-    } else if last_move(enemy, move_ids::JW_BELLOW) {
+    } else if !last_two_moves(enemy, move_ids::JW_THRASH) {
         enemy.set_move(move_ids::JW_THRASH, 7, 1, 5);
-    } else if last_move(enemy, move_ids::JW_THRASH) {
-        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
     } else {
+        // All anti-repeat guards triggered; fall back to CHOMP.
         enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
     }
 }
 
-pub(super) fn roll_cultist(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_cultist(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::CULT_DARK_STRIKE, 6, 1, 0);
 }
 
-pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::FB_BITE) {
         enemy.set_move(move_ids::FB_GROW, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, 3);
@@ -36,7 +43,7 @@ pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, 3);
@@ -47,7 +54,7 @@ pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::LOUSE_BITE) {
         enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 2);
@@ -58,7 +65,7 @@ pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::BS_STAB) {
         enemy.set_move(move_ids::BS_RAKE, 7, 1, 0);
         enemy.add_effect(mfx::WEAK, 1);
@@ -69,7 +76,7 @@ pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, _num: i32) {
     let used_entangle = enemy
         .move_history
         .iter()
@@ -88,7 +95,7 @@ pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
     if last_move(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 1);
@@ -97,7 +104,7 @@ pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Spit -> Tackle -> Lick -> Spit -> ...
     if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
         enemy.set_move(move_ids::AS_TACKLE, 10, 1, 0);
@@ -110,7 +117,7 @@ pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Tackle -> Spit -> Lick -> Tackle -> ...
     if last_move(enemy, move_ids::AS_TACKLE) {
         enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
@@ -123,11 +130,11 @@ pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_spike_slime_s(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_spike_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
 }
 
-pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::SS_TACKLE) {
         enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::FRAIL, 1);
@@ -138,7 +145,7 @@ pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
     if last_two_moves(enemy, move_ids::SS_TACKLE) {
         enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::FRAIL, 2);
@@ -149,7 +156,7 @@ pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_looter(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_looter(enemy: &mut EnemyCombatState, _num: i32) {
     let turns = enemy.move_history.len();
     if turns < 2 {
         // Mug twice
@@ -181,7 +188,7 @@ pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, _num: i32) {
     if last_move(enemy, move_ids::NOB_BELLOW) || last_move(enemy, move_ids::NOB_SKULL_BASH) {
         enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
     } else {

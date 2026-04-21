@@ -69,6 +69,8 @@ struct ContentView: View {
                     ArtifactAnalysisView()
                 case .frontier:
                     FrontierInspectorView()
+                case .recordedRun:
+                    RecordedRunReplayView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

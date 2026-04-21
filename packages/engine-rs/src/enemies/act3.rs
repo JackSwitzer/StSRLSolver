@@ -8,7 +8,7 @@ use crate::status_ids::sid;
 // Act 3 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_darkling(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_darkling(enemy: &mut EnemyCombatState, _num: i32) {
     // Chomp (8x2), Harden (12 block + Reanimated), Nip (8).
     // If dead: Reincarnate (revive at 50% HP).
     if enemy.entity.hp <= 0 {
@@ -26,7 +26,7 @@ pub(super) fn roll_darkling(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState, _num: i32) {
     // Alternate: Claw (15) and Laser (10 + Burn)
     if last_two_moves(enemy, move_ids::OW_CLAW) {
         enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
@@ -41,7 +41,7 @@ pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_spiker(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_spiker(enemy: &mut EnemyCombatState, _num: i32) {
     // Attack (7 dmg) or Buff (+2 Thorns). Anti-repeat.
     if last_move(enemy, move_ids::SPIKER_ATTACK) {
         enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
@@ -53,7 +53,7 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState, _num: i32) {
     // Deterministic: Daze x4 -> Attack -> repeat
     let turn = enemy.entity.status(sid::TURN_COUNT) + 1;
     enemy.entity.set_status(sid::TURN_COUNT, turn);
@@ -65,7 +65,7 @@ pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_exploder(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_exploder(enemy: &mut EnemyCombatState, _num: i32) {
     let count = enemy.entity.status(sid::TURN_COUNT) + 1;
     enemy.entity.set_status(sid::TURN_COUNT, count);
 
@@ -77,7 +77,7 @@ pub(super) fn roll_exploder(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState, _num: i32) {
     // Cycle: Multi -> Block -> Debuff -> BigHit -> MegaDebuff(once) -> Multi -> ...
     if last_move(enemy, move_ids::WM_MULTI_HIT) {
         enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
@@ -135,7 +135,7 @@ pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, _num: i32) {
     // Constrict then alternate Quick Tackle (16) and Smash (22)
     if last_move(enemy, move_ids::SG_CONSTRICT) || last_two_moves(enemy, move_ids::SG_SMASH) {
         enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
@@ -149,7 +149,7 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_maw(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_maw(enemy: &mut EnemyCombatState, _num: i32) {
     let turn_count = enemy.entity.status(sid::TURN_COUNT) + 1;
     enemy.entity.set_status(sid::TURN_COUNT, turn_count);
 
@@ -170,7 +170,7 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_transient(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_transient(enemy: &mut EnemyCombatState, _num: i32) {
     let count = enemy.entity.status(sid::ATTACK_COUNT) + 1;
     enemy.entity.set_status(sid::ATTACK_COUNT, count);
     // Java: damage list pre-computed as startingDeathDmg + count*10
@@ -185,7 +185,7 @@ pub(super) fn roll_transient(enemy: &mut EnemyCombatState) {
 // Act 3 Elites
 // =========================================================================
 
-pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: count starts at 5 (A18: 4). Decremented in getMove each call.
     // When count <= 1: It Is Time mode. Damage = startingDeathDmg - count*5
     // (count goes negative: -1, -2, etc., capped at -6).
@@ -220,7 +220,7 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: scytheCooldown decremented FIRST in getMove, then pattern checked.
     // Intangible applied every turn in takeTurn if not already present (not just Scythe).
     // fireDmg default = 6 (A3+ = 7). Scythe always 45.
@@ -259,7 +259,7 @@ pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState, _num: i32) {
     // Spawn -> Snake Strike (13x2 + Weak) -> Big Bite (30) -> cycle
     if last_move(enemy, move_ids::REPTO_SPAWN) {
         enemy.set_move(move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0);
@@ -272,7 +272,7 @@ pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState, _num: i32) {
     // Wound (9 + Wound card) -> Explode (25 dmg, dies)
     if last_move(enemy, move_ids::SD_WOUND) {
         enemy.set_move(move_ids::SD_EXPLODE, 25, 1, 0);
@@ -286,7 +286,7 @@ pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState) {
 // Act 3 Bosses
 // =========================================================================
 
-pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, _num: i32) {
     let phase = enemy.entity.status(sid::PHASE);
 
     if phase == 1 {
@@ -345,7 +345,7 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
 }
 
-pub(super) fn roll_donu(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_donu(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: isAttacking flag toggles. Donu starts with isAttacking=false.
     // Circle -> isAttacking=true -> Beam -> isAttacking=false -> repeat.
     // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
@@ -358,7 +358,7 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_deca(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: Deca starts with isAttacking=true, alternates.
     // Beam (beamDmg x2 + 2 Daze) then Square (16 block, A19 also +3 Plated Armor).
     // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
@@ -371,7 +371,7 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState) {
+pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState, _num: i32) {
     // Java: Haste triggered when HP < maxHP/2 (once only).
     // Haste: remove debuffs, heal to 50%, A19 also gains headSlamDmg block.
     // Reverberate (reverbDmg x3), Head Slam (headSlamDmg + draw reduction, A19 + 2 Slimed),

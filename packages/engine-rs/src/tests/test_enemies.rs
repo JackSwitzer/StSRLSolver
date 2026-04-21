@@ -12,39 +12,44 @@ mod enemy_tests {
         assert_eq!(e.entity.hp, 44);
         assert_eq!(e.entity.max_hp, 44);
     }
+    // JawWorm intent now branches on the dispatched `num` (0..=99). These tests
+    // exercise specific branches via `roll_next_move_with_num` to stay deterministic;
+    // the pre-RNG-fix tests asserted the broken always-CHOMP-first behavior.
     #[test] fn jw_first_move_chomp() {
         let e = create_enemy("JawWorm", 44, 44);
+        // Initial intent is set in create_enemy; CHOMP is the canonical opener.
         assert_eq!(e.move_id, JW_CHOMP);
         assert_eq!(e.move_damage(), 11);
         assert_eq!(e.move_hits(), 1);
     }
     #[test] fn jw_after_chomp_bellow() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move(&mut e);
+        roll_next_move_with_num(&mut e, 30); // 25..55 -> BELLOW
         assert_eq!(e.move_id, JW_BELLOW);
         assert_eq!(e.move_block(), 6);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
     #[test] fn jw_after_bellow_thrash() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move(&mut e); // -> Bellow
-        roll_next_move(&mut e); // -> Thrash
+        roll_next_move_with_num(&mut e, 30); // -> BELLOW
+        roll_next_move_with_num(&mut e, 80); // -> THRASH (>=55)
         assert_eq!(e.move_id, JW_THRASH);
         assert_eq!(e.move_damage(), 7);
         assert_eq!(e.move_block(), 5);
     }
     #[test] fn jw_after_thrash_chomp() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move_with_num(&mut e, 30); // BELLOW
+        roll_next_move_with_num(&mut e, 80); // THRASH
+        roll_next_move_with_num(&mut e, 10); // CHOMP (<25, last two are CHOMP/BELLOW)
         assert_eq!(e.move_id, JW_CHOMP);
     }
     #[test] fn jw_6_turn_cycle() {
         let mut e = create_enemy("JawWorm", 44, 44);
         let mut ids = vec![e.move_id];
-        for _ in 0..5 {
-            roll_next_move(&mut e);
+        // Cycle nums to exercise each Java branch deterministically.
+        for &num in &[30, 80, 10, 30, 80] {
+            roll_next_move_with_num(&mut e, num);
             ids.push(e.move_id);
         }
         assert_eq!(ids[0], JW_CHOMP);
@@ -54,7 +59,7 @@ mod enemy_tests {
     }
     #[test] fn jw_bellow_has_no_damage() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move(&mut e); // -> Bellow
+        roll_next_move_with_num(&mut e, 30); // -> BELLOW
         assert_eq!(e.move_damage(), 0);
     }
 
@@ -67,14 +72,14 @@ mod enemy_tests {
     }
     #[test] fn cult_second_dark_strike() {
         let mut e = create_enemy("Cultist", 50, 50);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, CULT_DARK_STRIKE);
         assert_eq!(e.move_damage(), 6);
     }
     #[test] fn cult_always_dark_strike_after() {
         let mut e = create_enemy("Cultist", 50, 50);
         for _ in 0..10 {
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
             assert_eq!(e.move_id, CULT_DARK_STRIKE);
         }
     }
@@ -96,21 +101,21 @@ mod enemy_tests {
     }
     #[test] fn fb_no_three_bites() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e); // bite -> bite
-        roll_next_move(&mut e); // bite,bite -> MUST grow
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // bite -> bite
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // bite,bite -> MUST grow
         assert_eq!(e.move_id, FB_GROW);
     }
     #[test] fn fb_grow_gives_strength() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
     #[test] fn fb_after_grow_bite() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, FB_BITE);
     }
 
@@ -126,14 +131,14 @@ mod enemy_tests {
     }
     #[test] fn red_louse_no_three_bites() {
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, LOUSE_GROW);
     }
     #[test] fn red_louse_grow_str() {
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
 
@@ -149,8 +154,8 @@ mod enemy_tests {
     }
     #[test] fn green_louse_spit_web_weak() {
         let mut e = create_enemy("GreenLouse", 14, 14);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, LOUSE_SPIT_WEB);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
     }
@@ -164,20 +169,20 @@ mod enemy_tests {
     }
     #[test] fn bs_no_three_stabs() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e); // stab -> stab
-        roll_next_move(&mut e); // stab,stab -> MUST rake
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab -> stab
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab,stab -> MUST rake
         assert_eq!(e.move_id, BS_RAKE);
     }
     #[test] fn bs_rake_weak() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
     #[test] fn bs_rake_damage() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_damage(), 7);
     }
 
@@ -190,14 +195,14 @@ mod enemy_tests {
     }
     #[test] fn rs_entangle_once() {
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, RS_ENTANGLE);
         assert_eq!(e.effect(mfx::ENTANGLE).unwrap(), 1);
     }
     #[test] fn rs_scrape_vuln() {
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e); // entangle
-        roll_next_move(&mut e); // scrape or stab
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // entangle
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // scrape or stab
         if e.move_id == RS_SCRAPE {
             assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 1);
         }
@@ -212,14 +217,14 @@ mod enemy_tests {
     }
     #[test] fn acid_s_alternates() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, AS_LICK);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, AS_TACKLE);
     }
     #[test] fn acid_s_lick_weak() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
 
@@ -253,7 +258,7 @@ mod enemy_tests {
     }
     #[test] fn spike_s_stays_tackle() {
         let mut e = create_enemy("SpikeSlime_S", 10, 10);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SS_TACKLE);
     }
 
@@ -266,8 +271,8 @@ mod enemy_tests {
     }
     #[test] fn spike_m_no_three_tackles() {
         let mut e = create_enemy("SpikeSlime_M", 28, 28);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SS_LICK);
         assert_eq!(e.effect(mfx::FRAIL).unwrap(), 1);
     }
@@ -281,8 +286,8 @@ mod enemy_tests {
     }
     #[test] fn spike_l_frail_2() {
         let mut e = create_enemy("SpikeSlime_L", 64, 64);
-        roll_next_move(&mut e);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SS_LICK);
         assert_eq!(e.effect(mfx::FRAIL).unwrap(), 2);
     }
@@ -296,17 +301,17 @@ mod enemy_tests {
     }
     #[test] fn sentry_alternates_bolt_beam() {
         let mut e = create_enemy("Sentry", 38, 38);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
         assert_eq!(e.effect(mfx::DAZE).unwrap(), 2);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BOLT);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
     }
     #[test] fn sentry_beam_damage() {
         let mut e = create_enemy("Sentry", 38, 38);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_damage(), 9);
     }
 
@@ -323,18 +328,18 @@ mod enemy_tests {
     }
     #[test] fn guard_offensive_cycle() {
         let mut e = create_enemy("TheGuardian", 240, 240);
-        roll_next_move(&mut e); // -> Fierce Bash
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Fierce Bash
         assert_eq!(e.move_id, GUARD_FIERCE_BASH);
         assert_eq!(e.move_damage(), 32);
-        roll_next_move(&mut e); // -> Vent Steam
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Vent Steam
         assert_eq!(e.move_id, GUARD_VENT_STEAM);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
         assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 2);
-        roll_next_move(&mut e); // -> Whirlwind
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Whirlwind
         assert_eq!(e.move_id, GUARD_WHIRLWIND);
         assert_eq!(e.move_damage(), 5);
         assert_eq!(e.move_hits(), 4);
-        roll_next_move(&mut e); // -> Charging Up
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Charging Up
         assert_eq!(e.move_id, GUARD_CHARGING_UP);
     }
     #[test] fn guard_mode_shift_at_30() {
@@ -352,7 +357,7 @@ mod enemy_tests {
         let mut e = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut e, 30);
         assert_eq!(e.move_id, GUARD_ROLL_ATTACK);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, GUARD_TWIN_SLAM);
         assert_eq!(e.move_hits(), 2);
         assert_eq!(e.move_damage(), 8);
@@ -373,31 +378,31 @@ mod enemy_tests {
     }
     #[test] fn hex_second_divider() {
         let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, HEX_DIVIDER);
         assert_eq!(e.move_hits(), 6);
     }
     #[test] fn hex_full_7_cycle() {
         let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e); // Divider
-        roll_next_move(&mut e); // Sear
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Divider
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
         assert_eq!(e.move_damage(), 6);
         assert_eq!(e.effect(mfx::BURN).unwrap(), 1);
-        roll_next_move(&mut e); // Tackle
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
         assert_eq!(e.move_hits(), 2);
-        roll_next_move(&mut e); // Sear
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e); // Inflame
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inflame
         assert_eq!(e.move_id, HEX_INFLAME);
         assert_eq!(e.move_block(), 12);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 2);
-        roll_next_move(&mut e); // Tackle
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
-        roll_next_move(&mut e); // Sear
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e); // Inferno
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inferno
         assert_eq!(e.move_id, HEX_INFERNO);
         assert_eq!(e.move_hits(), 6);
         assert_eq!(e.effect(mfx::BURN_UPGRADE).unwrap(), 1);
@@ -405,7 +410,7 @@ mod enemy_tests {
     #[test] fn hex_cycle_repeats() {
         let mut e = create_enemy("Hexaghost", 250, 250);
         // Activate + Divider + 7 cycle + restart
-        for _ in 0..9 { roll_next_move(&mut e); }
+        for _ in 0..9 { roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); }
         // Should be back to Sear
         assert_eq!(e.move_id, HEX_SEAR);
     }
@@ -419,12 +424,12 @@ mod enemy_tests {
     }
     #[test] fn sb_full_cycle() {
         let mut e = create_enemy("SlimeBoss", 140, 140);
-        roll_next_move(&mut e); // Prep
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Prep
         assert_eq!(e.move_id, SB_PREP_SLAM);
-        roll_next_move(&mut e); // Slam
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Slam
         assert_eq!(e.move_id, SB_SLAM);
         assert_eq!(e.move_damage(), 35);
-        roll_next_move(&mut e); // Sticky
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sticky
         assert_eq!(e.move_id, SB_STICKY);
     }
     #[test] fn sb_split_at_50pct() {
@@ -464,7 +469,7 @@ mod enemy_tests {
         // Cycle to find Skull Bash
         let mut found = false;
         for _ in 0..10 {
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
             if e.move_id == NOB_SKULL_BASH {
                 found = true;
                 assert!(e.effect(mfx::VULNERABLE).is_some());
@@ -488,7 +493,7 @@ mod enemy_tests {
         let mut e = create_enemy("Lagavulin", 112, 112);
         let mut has_debuff = false;
         for _ in 0..10 {
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
             if e.move_id == LAGA_SIPHON {
                 has_debuff = true;
                 break;
@@ -507,7 +512,7 @@ mod enemy_tests {
     #[test] fn book_stab_count_increases() {
         let mut e = create_enemy("BookOfStabbing", 162, 162);
         let initial_hits = e.move_hits();
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         // After first turn, stab count should increase
         if e.move_id == BOOK_STAB {
             assert!(e.move_hits() >= initial_hits, "Book stab count should not decrease");
@@ -530,7 +535,7 @@ mod enemy_tests {
                 has_scythe = true;
                 break;
             }
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         }
         assert!(has_scythe, "Nemesis should have a high-damage scythe attack");
     }
@@ -545,7 +550,7 @@ mod enemy_tests {
         let mut e = create_enemy("BronzeAutomaton", 300, 300);
         let mut has_hyper = false;
         for _ in 0..10 {
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
             if e.move_id == BA_HYPER_BEAM {
                 has_hyper = true;
                 assert!(e.move_damage() >= 45, "Hyper Beam should deal 45+ damage");
@@ -591,7 +596,7 @@ mod enemy_tests {
                 has_blood_shots = true;
                 break;
             }
-            roll_next_move(&mut e);
+            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         }
         assert!(has_blood_shots, "Heart should use Blood Shots multi-hit");
     }
@@ -608,13 +613,13 @@ mod enemy_tests {
     #[test] fn move_history_recorded() {
         let mut e = create_enemy("JawWorm", 44, 44);
         assert!(e.move_history.is_empty());
-        roll_next_move(&mut e);
+        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_history.len(), 1);
         assert_eq!(e.move_history[0], JW_CHOMP);
     }
     #[test] fn move_history_multiple() {
         let mut e = create_enemy("Cultist", 50, 50);
-        for _ in 0..5 { roll_next_move(&mut e); }
+        for _ in 0..5 { roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); }
         assert_eq!(e.move_history.len(), 5);
     }
 }
