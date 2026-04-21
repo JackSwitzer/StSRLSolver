@@ -48,7 +48,7 @@ fn biased_leaf_eval(
 
 #[test]
 fn combat_puct_is_deterministic_and_replayable() {
-    let engine = engine_with(make_deck(&["Strike_R", "Defend_R", "Strike_R"]), 18, 5);
+    let engine = engine_with(make_deck(&["Strike", "Defend", "Strike"]), 18, 5);
     let mut config = CombatPuctConfigV1::hallway_default();
     config.min_visits = 16;
     config.visit_window = 4;
@@ -81,7 +81,7 @@ fn combat_puct_is_deterministic_and_replayable() {
 
 #[test]
 fn combat_puct_terminal_root_uses_terminal_override() {
-    let mut engine = engine_with(make_deck(&["Strike_R"]), 1, 0);
+    let mut engine = engine_with(make_deck(&["Strike"]), 1, 0);
     engine.state.combat_over = true;
     engine.state.player_won = true;
     let result = search_combat_puct(
@@ -106,7 +106,7 @@ fn combat_puct_converges_under_hallway_elite_and_boss_budgets() {
         CombatPuctConfigV1::elite_default(),
         CombatPuctConfigV1::boss_default(),
     ] {
-        let engine = engine_with(make_deck(&["Strike_R", "Defend_R"]), 20, 5);
+        let engine = engine_with(make_deck(&["Strike", "Defend"]), 20, 5);
         let result =
             search_combat_puct(&engine, config.clone(), test_execution_id, biased_leaf_eval(0.9))
                 .expect("puct should evaluate");
@@ -118,7 +118,7 @@ fn combat_puct_converges_under_hallway_elite_and_boss_budgets() {
 
 #[test]
 fn combat_puct_reports_hard_cap_when_convergence_is_disabled() {
-    let engine = engine_with(make_deck(&["Strike_R", "Defend_R", "Strike_R"]), 22, 5);
+    let engine = engine_with(make_deck(&["Strike", "Defend", "Strike"]), 22, 5);
     let config = CombatPuctConfigV1 {
         min_visits: 64,
         visit_window: 8,
@@ -137,7 +137,7 @@ fn combat_puct_reports_hard_cap_when_convergence_is_disabled() {
 
 #[test]
 fn combat_puct_reports_time_cap_when_leaf_eval_is_slow() {
-    let engine = engine_with(make_deck(&["Strike_R", "Defend_R", "Strike_R"]), 24, 6);
+    let engine = engine_with(make_deck(&["Strike", "Defend", "Strike"]), 24, 6);
     let config = CombatPuctConfigV1 {
         min_visits: 1_000,
         visit_window: 64,

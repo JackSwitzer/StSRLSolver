@@ -9,7 +9,7 @@ use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck_n};
 #[test]
 fn relic_wave15_fossilized_helix_engine_path_replaces_helper_tail() {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );

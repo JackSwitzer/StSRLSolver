@@ -211,7 +211,7 @@ fn test_card_runtime_backend_wave2_effect_data_deals_all_enemy_damage_without_ta
         -1,
         &ALL_ENEMY_DAMAGE_EFFECTS,
     );
-    let card_inst = engine.card_registry.make_card("Defend_R");
+    let card_inst = engine.card_registry.make_card("Defend");
     execute_card_effects(&mut engine, &card, card_inst, -1);
 
     assert_eq!(engine.state.enemies[0].entity.hp, 26);
@@ -222,7 +222,7 @@ fn test_card_runtime_backend_wave2_effect_data_deals_all_enemy_damage_without_ta
 fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_choices_without_tags() {
     let mut discard_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut discard_engine);
-    discard_engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Bash"]);
+    discard_engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     let discard_card = backend_card(
         "BackendDiscardChoice",
         CardType::Skill,
@@ -232,7 +232,7 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
         -1,
         &DISCARD_TWO_EFFECTS,
     );
-    let discard_inst = discard_engine.card_registry.make_card("Defend_R");
+    let discard_inst = discard_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut discard_engine, &discard_card, discard_inst, -1);
     assert_eq!(discard_engine.phase, CombatPhase::AwaitingChoice);
     let discard_choice = discard_engine.choice.as_ref().expect("discard choice");
@@ -243,7 +243,7 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
 
     let mut exhaust_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut exhaust_engine);
-    exhaust_engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Bash"]);
+    exhaust_engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     let exhaust_card = backend_card(
         "BackendExhaustChoice",
         CardType::Skill,
@@ -253,7 +253,7 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
         -1,
         &EXHAUST_TWO_EFFECTS,
     );
-    let exhaust_inst = exhaust_engine.card_registry.make_card("Defend_R");
+    let exhaust_inst = exhaust_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut exhaust_engine, &exhaust_card, exhaust_inst, -1);
     assert_eq!(exhaust_engine.phase, CombatPhase::AwaitingChoice);
     let exhaust_choice = exhaust_engine.choice.as_ref().expect("exhaust choice");
@@ -267,7 +267,7 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
 fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_work_without_tags() {
     let mut scry_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut scry_engine);
-    scry_engine.state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Bash"]);
+    scry_engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
     let scry_card = backend_card(
         "BackendScryChoice",
         CardType::Skill,
@@ -277,7 +277,7 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
         -1,
         &SCRY_THREE_EFFECTS,
     );
-    let scry_inst = scry_engine.card_registry.make_card("Defend_R");
+    let scry_inst = scry_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut scry_engine, &scry_card, scry_inst, -1);
     assert_eq!(scry_engine.phase, CombatPhase::AwaitingChoice);
     let scry_choice = scry_engine.choice.as_ref().expect("scry choice");
@@ -297,7 +297,7 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
         -1,
         &CHANNEL_TWO_LIGHTNING_EFFECTS,
     );
-    let channel_inst = orb_engine.card_registry.make_card("Defend_R");
+    let channel_inst = orb_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut orb_engine, &channel_card, channel_inst, -1);
     assert_eq!(orb_engine.state.orb_slots.occupied_count(), 2);
     assert_eq!(orb_engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
@@ -312,7 +312,7 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
         -1,
         &EVOKE_TWO_EFFECTS,
     );
-    let evoke_inst = orb_engine.card_registry.make_card("Defend_R");
+    let evoke_inst = orb_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut orb_engine, &evoke_card, evoke_inst, -1);
     assert_eq!(orb_engine.state.orb_slots.occupied_count(), 0);
     assert_eq!(orb_engine.state.enemies[0].entity.hp, 24);
@@ -329,7 +329,7 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
         -1,
         &X_COST_ENERGY_EFFECTS,
     );
-    let x_cost_inst = x_cost_engine.card_registry.make_card("Defend_R");
+    let x_cost_inst = x_cost_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut x_cost_engine, &x_cost_card, x_cost_inst, -1);
     assert_eq!(x_cost_engine.state.energy, 4);
 }

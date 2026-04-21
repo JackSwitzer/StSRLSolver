@@ -47,7 +47,7 @@ fn headbutt_moves_the_selected_discard_card_to_the_top_of_draw() {
     let mut engine = engine_for(
         &["Headbutt"],
         &["Shrug It Off"],
-        &["Strike_R", "Defend_R"],
+        &["Strike", "Defend"],
         3,
     );
 
@@ -62,14 +62,14 @@ fn headbutt_moves_the_selected_discard_card_to_the_top_of_draw() {
         engine
             .card_registry
             .card_name(engine.state.draw_pile.last().expect("top draw").def_id),
-        "Defend_R"
+        "Defend"
     );
 }
 
 #[test]
 fn true_grit_plus_uses_the_choice_surface_to_exhaust_the_selected_card() {
     let mut engine = engine_for(
-        &["True Grit+", "Strike_R", "Defend_R"],
+        &["True Grit+", "Strike", "Defend"],
         &[],
         &[],
         3,
@@ -82,20 +82,20 @@ fn true_grit_plus_uses_the_choice_surface_to_exhaust_the_selected_card() {
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(hand_count(&engine, "Strike_R"), 1);
-    assert_eq!(hand_count(&engine, "Defend_R"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
+    assert_eq!(hand_count(&engine, "Defend"), 0);
     assert!(engine
         .state
         .exhaust_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_R"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
 }
 
 #[test]
 fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
     let mut engine = engine_for(
-        &["Burning Pact", "Strike_R"],
-        &["Defend_R", "Bash"],
+        &["Burning Pact", "Strike"],
+        &["Defend", "Bash"],
         &[],
         3,
     );
@@ -109,14 +109,14 @@ fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
     let names = hand_names(&engine);
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(names.len(), 2);
-    assert!(names.contains(&"Defend_R".to_string()));
+    assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
 }
 
 #[test]
 fn second_wind_exhausts_all_non_attacks_and_triggers_exhaust_hooks_per_card() {
     let mut engine = engine_for(
-        &["Second Wind", "Defend_R", "Battle Trance", "Strike_R"],
+        &["Second Wind", "Defend", "Battle Trance", "Strike"],
         &[],
         &[],
         3,
@@ -125,7 +125,7 @@ fn second_wind_exhausts_all_non_attacks_and_triggers_exhaust_hooks_per_card() {
 
     assert!(play_self(&mut engine, "Second Wind"));
 
-    assert_eq!(hand_names(&engine), vec!["Strike_R"]);
+    assert_eq!(hand_names(&engine), vec!["Strike"]);
     assert_eq!(engine.state.exhaust_pile.len(), 2);
     assert_eq!(engine.state.player.block, 16);
 }
@@ -133,7 +133,7 @@ fn second_wind_exhausts_all_non_attacks_and_triggers_exhaust_hooks_per_card() {
 #[test]
 fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
     let mut engine = engine_for(
-        &["Fiend Fire", "Strike_R", "Defend_R"],
+        &["Fiend Fire", "Strike", "Defend"],
         &["Bash", "Shrug It Off"],
         &[],
         3,
@@ -153,7 +153,7 @@ fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
 #[test]
 fn storm_of_steel_discards_the_hand_and_adds_one_shiv_per_discarded_card() {
     let mut engine = engine_for(
-        &["Storm of Steel", "Strike_G", "Defend_G"],
+        &["Storm of Steel", "Strike", "Defend"],
         &[],
         &[],
         3,
@@ -167,18 +167,18 @@ fn storm_of_steel_discards_the_hand_and_adds_one_shiv_per_discarded_card() {
         .state
         .discard_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike_G"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike"));
     assert!(engine
         .state
         .discard_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_G"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
 }
 
 #[test]
 fn purity_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
     let mut engine = engine_for(
-        &["Purity", "Strike_R", "Defend_R", "Bash"],
+        &["Purity", "Strike", "Defend", "Bash"],
         &[],
         &[],
         3,
@@ -204,7 +204,7 @@ fn purity_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
 fn secret_technique_opens_a_skill_only_draw_pile_search_choice() {
     let mut engine = engine_for(
         &["Secret Technique"],
-        &["Strike_R", "Shrug It Off", "Bash"],
+        &["Strike", "Shrug It Off", "Bash"],
         &[],
         3,
     );
@@ -226,7 +226,7 @@ fn secret_technique_opens_a_skill_only_draw_pile_search_choice() {
 fn secret_technique_should_be_unplayable_with_no_skill_in_draw_pile() {
     let mut engine = engine_for(
         &["Secret Technique"],
-        &["Strike_R", "Bash"],
+        &["Strike", "Bash"],
         &[],
         3,
     );
@@ -255,7 +255,7 @@ fn secret_technique_should_be_unplayable_with_no_skill_in_draw_pile() {
 fn violence_draws_only_attacks_from_draw_pile_up_to_its_cap() {
     let mut engine = engine_for(
         &["Violence"],
-        &["Shrug It Off", "Strike_R", "Bash", "Defend_R"],
+        &["Shrug It Off", "Strike", "Bash", "Defend"],
         &[],
         3,
     );
@@ -264,7 +264,7 @@ fn violence_draws_only_attacks_from_draw_pile_up_to_its_cap() {
 
     let names = hand_names(&engine);
     assert_eq!(names.len(), 2);
-    assert!(names.iter().all(|name| name == "Strike_R" || name == "Bash"));
+    assert!(names.iter().all(|name| name == "Strike" || name == "Bash"));
     assert!(engine
         .state
         .draw_pile

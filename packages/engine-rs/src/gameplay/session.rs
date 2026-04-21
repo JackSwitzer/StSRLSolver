@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn combat_session_exposes_unified_action_surface() {
-        let engine = engine_with(make_deck(&["Strike_R"]), 20, 5);
+        let engine = engine_with(make_deck(&["Strike"]), 20, 5);
         let legal = engine.gameplay_legal_actions();
 
         assert!(legal.iter().all(|action| matches!(action, DecisionAction::Combat(_))));
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn combat_session_step_returns_runtime_snapshot_and_obs() {
-        let mut engine = engine_with(make_deck(&["Strike_R"]), 20, 5);
+        let mut engine = engine_with(make_deck(&["Strike"]), 20, 5);
         let result = engine.gameplay_step(&DecisionAction::Combat(Action::EndTurn));
 
         assert!(result.action_accepted);

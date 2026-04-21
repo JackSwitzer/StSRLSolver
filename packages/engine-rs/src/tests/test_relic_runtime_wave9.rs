@@ -30,14 +30,14 @@ fn opening_turn_draw_relics_follow_runtime_path() {
     let mut bag = engine_without_start_with_relics(
         &["Bag of Preparation"],
         &[
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Defend_R",
-            "Defend_R",
-            "Defend_R",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -49,14 +49,14 @@ fn opening_turn_draw_relics_follow_runtime_path() {
     let mut ring = engine_without_start_with_relics(
         &["Ring of the Snake"],
         &[
-            "Strike_G",
-            "Strike_G",
-            "Strike_G",
-            "Strike_G",
-            "Strike_G",
-            "Defend_G",
-            "Defend_G",
-            "Defend_G",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -70,56 +70,56 @@ fn opening_turn_draw_relics_follow_runtime_path() {
 #[test]
 fn card_play_relics_follow_runtime_path() {
     let mut opener_state = combat_state_with(
-        make_deck(&["Defend_R", "Defend_R", "Defend_R"]),
+        make_deck(&["Defend", "Defend", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
         20,
     );
     opener_state.relics.push("Letter Opener".to_string());
     let mut opener = engine_with_state(opener_state);
-    opener.state.hand = make_deck(&["Defend_R", "Defend_R", "Defend_R"]);
+    opener.state.hand = make_deck(&["Defend", "Defend", "Defend"]);
     opener.state.draw_pile.clear();
     let hp0 = opener.state.enemies[0].entity.hp;
     let hp1 = opener.state.enemies[1].entity.hp;
-    assert!(play_self(&mut opener, "Defend_R"));
-    assert!(play_self(&mut opener, "Defend_R"));
+    assert!(play_self(&mut opener, "Defend"));
+    assert!(play_self(&mut opener, "Defend"));
     assert_eq!(opener.state.enemies[0].entity.hp, hp0);
     assert_eq!(opener.state.enemies[1].entity.hp, hp1);
-    assert!(play_self(&mut opener, "Defend_R"));
+    assert!(play_self(&mut opener, "Defend"));
     assert_eq!(opener.state.enemies[0].entity.hp, hp0 - 5);
     assert_eq!(opener.state.enemies[1].entity.hp, hp1 - 5);
 
     let mut urn_state = combat_state_with(
-        make_deck(&["Inflame", "Defend_R"]),
+        make_deck(&["Inflame", "Defend"]),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         5,
     );
     urn_state.relics.push("Bird Faced Urn".to_string());
     let mut urn = engine_with_state(urn_state);
     urn.state.player.hp = 70;
-    urn.state.hand = make_deck(&["Inflame", "Defend_R"]);
+    urn.state.hand = make_deck(&["Inflame", "Defend"]);
     assert!(play_self(&mut urn, "Inflame"));
     assert_eq!(urn.state.player.hp, 72);
 
     let mut mummified_state = combat_state_with(
-        make_deck(&["Inflame", "Strike_R", "Defend_R"]),
+        make_deck(&["Inflame", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         5,
     );
     mummified_state.relics.push("Mummified Hand".to_string());
     let mut mummified = engine_with_state(mummified_state);
-    mummified.state.hand = make_deck(&["Inflame", "Strike_R", "Defend_R"]);
+    mummified.state.hand = make_deck(&["Inflame", "Strike", "Defend"]);
     assert!(play_self(&mut mummified, "Inflame"));
     assert!(mummified.state.hand.iter().any(|card| card.cost == 0));
 
     let mut yang_state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R"]),
+        make_deck(&["Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 60, 60)],
         5,
     );
     yang_state.relics.push("Yang".to_string());
     let mut yang = engine_with_state(yang_state);
-    yang.state.hand = make_deck(&["Strike_R", "Defend_R"]);
-    assert!(play_on_enemy(&mut yang, "Strike_R", 0));
+    yang.state.hand = make_deck(&["Strike", "Defend"]);
+    assert!(play_on_enemy(&mut yang, "Strike", 0));
     assert_eq!(yang.state.player.dexterity(), 1);
     assert_eq!(yang.state.player.status(sid::LOSE_DEXTERITY), 1);
 }

@@ -35,6 +35,7 @@ pub(crate) mod defect;
 mod colorless;
 mod curses;
 mod runtime_meta;
+mod starters;
 mod status;
 mod temp;
 
@@ -1305,6 +1306,8 @@ impl CardRegistry {
     pub fn new() -> Self {
         let mut card_specs: HashMap<&'static str, CardSpec> = HashMap::new();
 
+        // Universal Strike/Defend starters (replaces per-class Strike_R/G/B/P + Defend_*)
+        starters::register(&mut card_specs);
         watcher::register_watcher(&mut card_specs);
         ironclad::register_ironclad(&mut card_specs);
         silent::register_silent(&mut card_specs);
@@ -1447,7 +1450,7 @@ impl CardRegistry {
 
     /// Create an upgraded CardInstance from a string card name.
     /// The name should be the base name; this sets the UPGRADED flag.
-    /// For pre-registered upgraded defs (e.g. "Strike_P+"), pass the "+" name
+    /// For pre-registered upgraded defs (e.g. "Strike+"), pass the "+" name
     /// and the flag is set automatically.
     pub fn make_card_upgraded(&self, name: &str) -> CardInstance {
         let mut card = self.make_card(name);
@@ -1490,7 +1493,7 @@ mod tests {
     #[test]
     fn test_registry_lookup() {
         let reg = super::global_registry();
-        let strike = reg.get("Strike_P").unwrap();
+        let strike = reg.get("Strike").unwrap();
         assert_eq!(strike.base_damage, 6);
         assert_eq!(strike.cost, 1);
         assert_eq!(strike.card_type, CardType::Attack);
@@ -1499,7 +1502,7 @@ mod tests {
     #[test]
     fn test_upgraded_lookup() {
         let reg = super::global_registry();
-        let strike_plus = reg.get("Strike_P+").unwrap();
+        let strike_plus = reg.get("Strike+").unwrap();
         assert_eq!(strike_plus.base_damage, 9);
     }
 
@@ -1524,8 +1527,8 @@ mod tests {
 
     #[test]
     fn test_is_upgraded() {
-        assert!(CardRegistry::is_upgraded("Strike_P+"));
-        assert!(!CardRegistry::is_upgraded("Strike_P"));
+        assert!(CardRegistry::is_upgraded("Strike+"));
+        assert!(!CardRegistry::is_upgraded("Strike"));
     }
 
     // -----------------------------------------------------------------------
@@ -1961,7 +1964,7 @@ mod tests {
         let reg = super::global_registry();
         let ironclad_cards = [
             // Basic
-            "Strike_R", "Defend_R", "Bash",
+            "Strike", "Defend", "Bash",
             // Common
             "Anger", "Armaments", "Body Slam", "Clash", "Cleave",
             "Clothesline", "Flex", "Havoc", "Headbutt", "Heavy Blade",
@@ -2000,7 +2003,7 @@ mod tests {
         let reg = super::global_registry();
         let silent_cards = [
             // Basic
-            "Strike_G", "Defend_G", "Neutralize", "Survivor",
+            "Strike", "Defend", "Neutralize", "Survivor",
             // Common
             "Acrobatics", "Backflip", "Bane", "Blade Dance", "Cloak and Dagger",
             "Dagger Spray", "Dagger Throw", "Deadly Poison", "Deflect",
@@ -2102,7 +2105,7 @@ mod tests {
         let reg = super::global_registry();
         let defect_cards = [
             // Basic
-            "Strike_B", "Defend_B", "Zap", "Dualcast",
+            "Strike", "Defend", "Zap", "Dualcast",
             // Common
             "Ball Lightning", "Barrage", "Beam Cell", "Cold Snap",
             "Compile Driver", "Conserve Battery", "Coolheaded",
@@ -2148,10 +2151,10 @@ mod tests {
     fn test_defect_card_stats() {
         let reg = super::global_registry();
         // Basic
-        assert_card(&reg, "Strike_B", 1, 6, -1, -1, CardType::Attack);
-        assert_card(&reg, "Strike_B+", 1, 9, -1, -1, CardType::Attack);
-        assert_card(&reg, "Defend_B", 1, -1, 5, -1, CardType::Skill);
-        assert_card(&reg, "Defend_B+", 1, -1, 8, -1, CardType::Skill);
+        assert_card(&reg, "Strike", 1, 6, -1, -1, CardType::Attack);
+        assert_card(&reg, "Strike+", 1, 9, -1, -1, CardType::Attack);
+        assert_card(&reg, "Defend", 1, -1, 5, -1, CardType::Skill);
+        assert_card(&reg, "Defend+", 1, -1, 8, -1, CardType::Skill);
         assert_card(&reg, "Zap", 1, -1, -1, 1, CardType::Skill);
         assert_card(&reg, "Zap+", 0, -1, -1, 1, CardType::Skill);
         assert_card(&reg, "Dualcast", 1, -1, -1, -1, CardType::Skill);
@@ -2310,9 +2313,9 @@ mod tests {
     #[test]
     fn test_card_id_roundtrip() {
         let reg = super::global_registry();
-        let id = reg.card_id("Strike_P");
+        let id = reg.card_id("Strike");
         assert_ne!(id, u16::MAX, "Strike_P should have a valid ID");
-        assert_eq!(reg.card_name(id), "Strike_P");
+        assert_eq!(reg.card_name(id), "Strike");
         assert_eq!(reg.card_def_by_id(id).base_damage, 6);
     }
 
@@ -2332,8 +2335,8 @@ mod tests {
     #[test]
     fn test_base_and_upgraded_consecutive_ids() {
         let reg = super::global_registry();
-        let base_id = reg.card_id("Strike_P");
-        let upgraded_id = reg.card_id("Strike_P+");
+        let base_id = reg.card_id("Strike");
+        let upgraded_id = reg.card_id("Strike+");
         assert_ne!(base_id, u16::MAX);
         assert_ne!(upgraded_id, u16::MAX);
         // Sorting puts base before upgraded, so upgraded = base + 1
@@ -2355,15 +2358,15 @@ mod tests {
     #[test]
     fn test_is_strike() {
         let reg = super::global_registry();
-        assert!(reg.is_strike(reg.card_id("Strike_P")));
-        assert!(reg.is_strike(reg.card_id("Strike_P+")));
-        assert!(reg.is_strike(reg.card_id("Strike_R")));
+        assert!(reg.is_strike(reg.card_id("Strike")));
+        assert!(reg.is_strike(reg.card_id("Strike+")));
+        assert!(reg.is_strike(reg.card_id("Strike")));
         assert!(reg.is_strike(reg.card_id("Perfected Strike")));
         assert!(reg.is_strike(reg.card_id("Perfected Strike+")));
         assert!(reg.is_strike(reg.card_id("WindmillStrike")));
         assert!(reg.is_strike(reg.card_id("Swift Strike")));
         // Non-strikes
-        assert!(!reg.is_strike(reg.card_id("Defend_P")));
+        assert!(!reg.is_strike(reg.card_id("Defend")));
         assert!(!reg.is_strike(reg.card_id("Eruption")));
         assert!(!reg.is_strike(reg.card_id("Bash")));
         // Out-of-range
@@ -2390,7 +2393,7 @@ mod tests {
     fn test_card_def_by_id_matches_get() {
         let reg = super::global_registry();
         // Every card accessible via get() should match card_def_by_id()
-        for name in ["Strike_P", "Eruption", "Bash", "Neutralize", "Zap", "Apotheosis"] {
+        for name in ["Strike", "Eruption", "Bash", "Neutralize", "Zap", "Apotheosis"] {
             let by_name = reg.get(name).unwrap();
             let id = reg.card_id(name);
             let by_id = reg.card_def_by_id(id);
@@ -2403,9 +2406,9 @@ mod tests {
 
     #[test]
     fn gameplay_lookup_uses_canonical_registry() {
-        let def = super::gameplay_def("Strike_P").expect("card gameplay def");
+        let def = super::gameplay_def("Strike").expect("card gameplay def");
         assert_eq!(def.domain, crate::gameplay::GameplayDomain::Card);
-        assert_eq!(def.id, "Strike_P");
+        assert_eq!(def.id, "Strike");
         assert!(def.card_schema().is_some());
     }
 
@@ -2413,7 +2416,7 @@ mod tests {
     fn gameplay_exports_cover_registry_cards() {
         let exports = super::gameplay_export_defs();
         assert_eq!(exports.len(), super::global_registry().card_count());
-        assert!(exports.iter().any(|def| def.id == "Strike_P"));
+        assert!(exports.iter().any(|def| def.id == "Strike"));
         assert!(exports.iter().all(|def| def.domain == crate::gameplay::GameplayDomain::Card));
     }
 }

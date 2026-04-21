@@ -84,12 +84,12 @@ mod silent_card_java_parity_tests {
     // ---------------------------------------------------------------------
 
     card_pair_test!(strike_g,
-        "Strike_G", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
-        "Strike_G+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
+        "Strike", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
+        "Strike+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
     );
     card_pair_test!(defend_g,
-        "Defend_G", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
-        "Defend_G+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
+        "Defend", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
+        "Defend+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
     );
     card_pair_test!(neutralize,
         "Neutralize", 0, 3, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["weak"],
@@ -618,7 +618,7 @@ mod silent_card_java_parity_tests {
     #[test]
     fn grand_finale_is_blocked_when_draw_pile_is_not_empty() {
         let state = combat_state_with(
-            make_deck(&["Strike_G", "Strike_G", "Strike_G", "Strike_G", "Strike_G", "Defend_G"]),
+            make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Defend"]),
             vec![enemy("A", 60, 60, 1, 0, 1)],
             3,
         );

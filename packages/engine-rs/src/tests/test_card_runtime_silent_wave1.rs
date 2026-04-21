@@ -61,7 +61,7 @@ mod silent_wave1 {
     #[test]
     fn silent_runtime_cost_scaling_uses_the_production_engine_path() {
         let mut eviscerate_engine = engine_with(
-            make_deck(&["Strike_G", "Eviscerate"]),
+            make_deck(&["Strike", "Eviscerate"]),
             40,
             0,
         );
@@ -108,11 +108,11 @@ mod silent_wave1 {
         let reg = global_registry();
 
         let mut reflex_engine = engine_without_start(
-            make_deck_n("Strike_G", 6),
+            make_deck_n("Strike", 6),
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
         );
-        reflex_engine.state.draw_pile = make_deck_n("Strike_G", 6);
+        reflex_engine.state.draw_pile = make_deck_n("Strike", 6);
         reflex_engine.state.hand.clear();
         let reflex_card = reg.make_card("Reflex");
         reflex_engine.state.discard_pile.push(reflex_card);

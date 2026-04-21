@@ -72,14 +72,14 @@ def _resolve_unique_id(domain: str, value: str) -> str | None:
 
 
 WATCHER_CARD_ALIASES: dict[str, str] = {
-    "strike": "Strike_P",
-    "strikew": "Strike_P",
-    "strikewatcher": "Strike_P",
-    "strikepurple": "Strike_P",
-    "defend": "Defend_P",
-    "defendw": "Defend_P",
-    "defendwatcher": "Defend_P",
-    "defendpurple": "Defend_P",
+    "strike": "Strike",
+    "strikew": "Strike",
+    "strikewatcher": "Strike",
+    "strikepurple": "Strike",
+    "defend": "Defend",
+    "defendw": "Defend",
+    "defendwatcher": "Defend",
+    "defendpurple": "Defend",
 }
 
 

@@ -97,10 +97,10 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Pain", "Strike_R"]);
+    engine.state.hand = make_deck(&["Pain", "Strike"]);
 
     let hp_before = engine.state.player.hp;
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(hp_before - engine.state.player.hp, 1);
     assert_eq!(hand_count(&engine, "Pain"), 1);
 }

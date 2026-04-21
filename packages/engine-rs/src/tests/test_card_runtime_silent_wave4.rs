@@ -101,7 +101,7 @@ mod silent_wave4 {
         );
         assert!(dash.complex_hook.is_none());
 
-        let defend = reg.get("Defend_G").expect("Defend_G");
+        let defend = reg.get("Defend").expect("Defend");
         assert_eq!(defend.card_type, CardType::Skill);
         assert_eq!(defend.target, CardTarget::SelfTarget);
 
@@ -146,7 +146,7 @@ mod silent_wave4 {
     #[test]
     fn silent_wave4_calculated_gamble_discards_the_hand_then_draws_that_many() {
         let mut engine = engine_for(
-            &["Calculated Gamble", "Strike_G", "Defend_G"],
+            &["Calculated Gamble", "Strike", "Defend"],
             &["Neutralize", "Survivor", "Deflect"],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
@@ -164,12 +164,12 @@ mod silent_wave4 {
             .state
             .discard_pile
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Strike_G"));
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Strike"));
         assert!(engine
             .state
             .discard_pile
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_G"));
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
         assert!(engine
             .state
             .exhaust_pile
@@ -180,7 +180,7 @@ mod silent_wave4 {
     #[test]
     fn silent_wave4_concentrate_uses_the_canonical_discard_choice_surface() {
         let mut engine = engine_for(
-            &["Concentrate", "Defend_G", "Deflect", "Neutralize"],
+            &["Concentrate", "Defend", "Deflect", "Neutralize"],
             &[],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             1,
@@ -226,12 +226,12 @@ mod silent_wave4 {
     #[test]
     fn silent_wave4_defend_and_deflect_grant_their_expected_block_values() {
         let mut defend = engine_for(
-            &["Defend_G"],
+            &["Defend"],
             &[],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
         );
-        assert!(play_self(&mut defend, "Defend_G"));
+        assert!(play_self(&mut defend, "Defend"));
         assert!(defend.state.player.block >= 5);
 
         let mut deflect = engine_for(
@@ -249,7 +249,7 @@ mod silent_wave4 {
     fn silent_wave4_escape_plan_only_grants_block_when_the_drawn_card_is_a_skill() {
         let mut skill_draw = engine_for(
             &["Escape Plan"],
-            &["Defend_G"],
+            &["Defend"],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
         );
@@ -260,7 +260,7 @@ mod silent_wave4 {
 
         let mut attack_draw = engine_for(
             &["Escape Plan"],
-            &["Strike_G"],
+            &["Strike"],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
         );

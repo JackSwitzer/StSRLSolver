@@ -13,7 +13,7 @@ use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine
 #[test]
 fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_on_engine_path() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R"]),
+        make_deck(&["Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -24,8 +24,8 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Strike_R"));
-    engine.state.hand.push(engine.card_registry.make_card("Defend_R"));
+    engine.state.hand.push(engine.card_registry.make_card("Strike"));
+    engine.state.hand.push(engine.card_registry.make_card("Defend"));
 
     end_turn(&mut engine);
 
@@ -34,7 +34,7 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
             .state
             .hand
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Strike_R"),
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Strike"),
         "Runic Pyramid should retain the hand card that was not exhausted"
     );
     assert!(
@@ -42,12 +42,12 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
             .state
             .hand
             .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_R"),
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"),
         "Runic Pyramid should retain the second hand card"
     );
 
     let mut top_engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_R", "Defend_R"]),
+        make_deck(&["Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -55,18 +55,18 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
     top_engine.state.hand.clear();
     top_engine.state.draw_pile.clear();
     top_engine.state.discard_pile.clear();
-    top_engine.state.hand.push(top_engine.card_registry.make_card("Strike_R"));
-    top_engine.state.draw_pile.push(top_engine.card_registry.make_card("Defend_R"));
+    top_engine.state.hand.push(top_engine.card_registry.make_card("Strike"));
+    top_engine.state.draw_pile.push(top_engine.card_registry.make_card("Defend"));
 
     let enemy_hp_before = top_engine.state.enemies[0].entity.hp;
-    assert!(play_on_enemy(&mut top_engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut top_engine, "Strike", 0));
     assert!(enemy_hp_before > top_engine.state.enemies[0].entity.hp);
     assert!(
         top_engine
             .state
             .hand
             .iter()
-            .any(|card| top_engine.card_registry.card_name(card.def_id) == "Defend_R"),
+            .any(|card| top_engine.card_registry.card_name(card.def_id) == "Defend"),
         "Unceasing Top should draw when the hand becomes empty after a play"
     );
 }

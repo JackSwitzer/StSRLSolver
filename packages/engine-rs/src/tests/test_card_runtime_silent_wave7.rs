@@ -56,7 +56,7 @@ fn silent_wave7_registry_exports_match_typed_surface() {
 #[test]
 fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
     let mut adrenaline = one_enemy_engine("JawWorm", 50, 0);
-    adrenaline.state.draw_pile = make_deck(&["Strike_G", "Defend_G", "Neutralize"]);
+    adrenaline.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
     let draw_before = adrenaline.state.draw_pile.len();
     ensure_in_hand(&mut adrenaline, "Adrenaline");
     assert!(play_self(&mut adrenaline, "Adrenaline"));
@@ -65,7 +65,7 @@ fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
     assert!(exhaust_prefix_count(&adrenaline, "Adrenaline") >= 1);
 
     let mut adrenaline_plus = one_enemy_engine("JawWorm", 50, 0);
-    adrenaline_plus.state.draw_pile = make_deck(&["Strike_G", "Defend_G", "Neutralize"]);
+    adrenaline_plus.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
     ensure_in_hand(&mut adrenaline_plus, "Adrenaline+");
     assert!(play_self(&mut adrenaline_plus, "Adrenaline+"));
     assert_eq!(adrenaline_plus.state.energy, 5);
@@ -80,17 +80,17 @@ fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
 
     let mut footwork = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut footwork, "Footwork+");
-    ensure_in_hand(&mut footwork, "Defend_G");
+    ensure_in_hand(&mut footwork, "Defend");
     assert!(play_self(&mut footwork, "Footwork+"));
     assert_eq!(footwork.state.player.status(sid::DEXTERITY), 3);
-    assert!(play_self(&mut footwork, "Defend_G"));
+    assert!(play_self(&mut footwork, "Defend"));
     assert_eq!(footwork.state.player.block, 8);
 }
 
 #[test]
 fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
-    engine.state.draw_pile = make_deck(&["Strike_G", "Defend_G", "Neutralize"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
     engine.state.hand = make_deck(&["Prepared+", "Survivor"]);
 
     assert!(play_self(&mut engine, "Prepared+"));

@@ -8,20 +8,20 @@ use crate::tests::support::*;
 fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
     let registry = global_registry();
 
-    let strike_r = registry.get("Strike_R").expect("Strike_R should exist");
+    let strike_r = registry.get("Strike").expect("Strike_R should exist");
     assert_eq!(
         strike_r.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
     assert!(strike_r.uses_typed_primary_preamble());
 
-    let strike_r_plus = registry.get("Strike_R+").expect("Strike_R+ should exist");
+    let strike_r_plus = registry.get("Strike+").expect("Strike_R+ should exist");
     assert_eq!(
         strike_r_plus.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let defend_r = registry.get("Defend_R").expect("Defend_R should exist");
+    let defend_r = registry.get("Defend").expect("Defend_R should exist");
     assert_eq!(defend_r.card_type, CardType::Skill);
     assert_eq!(defend_r.target, CardTarget::SelfTarget);
     assert_eq!(defend_r.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
@@ -59,7 +59,7 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
     assert!(boot_sequence.has_test_marker("innate"));
     assert!(boot_sequence.exhaust);
 
-    let defend_p = registry.get("Defend_P").expect("Defend_P should exist");
+    let defend_p = registry.get("Defend").expect("Defend_P should exist");
     assert_eq!(defend_p.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let consecrate = registry.get("Consecrate").expect("Consecrate should exist");
@@ -78,12 +78,12 @@ fn backend_wave3_typed_attack_cards_follow_java_oracle_on_engine_path() {
     );
     force_player_turn(&mut engine);
 
-    ensure_in_hand(&mut engine, "Strike_R");
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    ensure_in_hand(&mut engine, "Strike");
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 34);
 
-    ensure_in_hand(&mut engine, "Strike_R+");
-    assert!(play_on_enemy(&mut engine, "Strike_R+", 0));
+    ensure_in_hand(&mut engine, "Strike+");
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 25);
 
     ensure_in_hand(&mut engine, "Cleave");
@@ -111,12 +111,12 @@ fn backend_wave3_typed_block_and_ethereal_cards_follow_java_oracle_on_engine_pat
     );
     force_player_turn(&mut engine);
 
-    ensure_in_hand(&mut engine, "Defend_R");
-    assert!(play_self(&mut engine, "Defend_R"));
+    ensure_in_hand(&mut engine, "Defend");
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.player.block, 5);
 
-    ensure_in_hand(&mut engine, "Defend_R+");
-    assert!(play_self(&mut engine, "Defend_R+"));
+    ensure_in_hand(&mut engine, "Defend+");
+    assert!(play_self(&mut engine, "Defend+"));
     assert_eq!(engine.state.player.block, 13);
 
     ensure_in_hand(&mut engine, "Deflect");
@@ -127,8 +127,8 @@ fn backend_wave3_typed_block_and_ethereal_cards_follow_java_oracle_on_engine_pat
     assert!(play_self(&mut engine, "Leap"));
     assert_eq!(engine.state.player.block, 26);
 
-    ensure_in_hand(&mut engine, "Defend_P");
-    assert!(play_self(&mut engine, "Defend_P"));
+    ensure_in_hand(&mut engine, "Defend");
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.player.block, 31);
 
     ensure_in_hand(&mut engine, "BootSequence");

@@ -195,7 +195,7 @@ fn test_card_runtime_defect_wave3_fission_and_multicast_cover_orb_evoke_and_x_co
     fission.channel_orb(OrbType::Frost);
     fission.channel_orb(OrbType::Dark);
     fission.state.hand = make_deck(&["Fission"]);
-    fission.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    fission.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_self(&mut fission, "Fission"));
     assert_eq!(fission.state.orb_slots.occupied_count(), 0);
     assert_eq!(fission.state.energy, 6);
@@ -229,7 +229,7 @@ fn test_card_runtime_defect_wave3_reboot_exhausts_and_refills_from_reset_piles()
         3,
     );
     force_player_turn(&mut reboot);
-    reboot.state.hand = make_deck(&["Reboot", "Strike_B", "Defend_B"]);
+    reboot.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     reboot.state.draw_pile.clear();
     reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
 

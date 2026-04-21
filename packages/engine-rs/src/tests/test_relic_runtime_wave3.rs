@@ -10,13 +10,13 @@ use super::support::{
 
 fn engine_with_relic_and_attacks(relic_id: &str, attack_count: usize) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
-        make_deck_n("Strike_R", attack_count.max(12)),
+        make_deck_n("Strike", attack_count.max(12)),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         20,
     );
     state.relics.push(relic_id.to_string());
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck_n("Strike_R", attack_count);
+    engine.state.hand = make_deck_n("Strike", attack_count);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine
@@ -26,8 +26,8 @@ fn engine_with_relic_and_attacks(relic_id: &str, attack_count: usize) -> crate::
 fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
     let mut engine = engine_with_relic_and_attacks("Ornamental Fan", 5);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.block, 0);
     assert_eq!(
         engine.hidden_effect_value("Ornamental Fan", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -35,20 +35,20 @@ fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
     );
 
     end_turn(&mut engine);
-    engine.state.hand = make_deck_n("Strike_R", 1);
+    engine.state.hand = make_deck_n("Strike", 1);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.block, 0);
     assert_eq!(
         engine.hidden_effect_value("Ornamental Fan", EffectOwner::PlayerRelic { slot: 0 }, 0),
         1
     );
 
-    engine.state.hand = make_deck_n("Strike_R", 2);
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    engine.state.hand = make_deck_n("Strike", 2);
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.block, 4);
     assert_eq!(
         engine.hidden_effect_value("Ornamental Fan", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -60,25 +60,25 @@ fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
 fn kunai_triggers_on_third_attack_and_resets_each_turn() {
     let mut engine = engine_with_relic_and_attacks("Kunai", 5);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.dexterity(), 0);
 
     end_turn(&mut engine);
-    engine.state.hand = make_deck_n("Strike_R", 1);
+    engine.state.hand = make_deck_n("Strike", 1);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.dexterity(), 0);
     assert_eq!(
         engine.hidden_effect_value("Kunai", EffectOwner::PlayerRelic { slot: 0 }, 0),
         1
     );
 
-    engine.state.hand = make_deck_n("Strike_R", 2);
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    engine.state.hand = make_deck_n("Strike", 2);
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.dexterity(), 1);
     assert_eq!(
         engine.hidden_effect_value("Kunai", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -90,25 +90,25 @@ fn kunai_triggers_on_third_attack_and_resets_each_turn() {
 fn shuriken_triggers_on_third_attack_and_resets_each_turn() {
     let mut engine = engine_with_relic_and_attacks("Shuriken", 5);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.strength(), 0);
 
     end_turn(&mut engine);
-    engine.state.hand = make_deck_n("Strike_R", 1);
+    engine.state.hand = make_deck_n("Strike", 1);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.strength(), 0);
     assert_eq!(
         engine.hidden_effect_value("Shuriken", EffectOwner::PlayerRelic { slot: 0 }, 0),
         1
     );
 
-    engine.state.hand = make_deck_n("Strike_R", 2);
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    engine.state.hand = make_deck_n("Strike", 2);
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.player.strength(), 1);
     assert_eq!(
         engine.hidden_effect_value("Shuriken", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -122,7 +122,7 @@ fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
     let starting_energy = first_engine.state.energy;
 
     for _ in 0..9 {
-        assert!(play_on_enemy(&mut first_engine, "Strike_R", 0));
+        assert!(play_on_enemy(&mut first_engine, "Strike", 0));
     }
 
     assert_eq!(first_engine.state.energy, starting_energy - 9);
@@ -133,19 +133,19 @@ fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 1),
+        make_deck_n("Strike", 1),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         20,
     );
     next_engine.state.relics.push("Nunchaku".to_string());
     next_engine.load_persisted_effects(persisted);
     next_engine.start_combat();
-    next_engine.state.hand = make_deck_n("Strike_R", 1);
+    next_engine.state.hand = make_deck_n("Strike", 1);
     next_engine.state.draw_pile.clear();
     next_engine.state.discard_pile.clear();
     let energy_before = next_engine.state.energy;
 
-    assert!(play_on_enemy(&mut next_engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut next_engine, "Strike", 0));
 
     assert_eq!(next_engine.state.energy, energy_before);
     assert_eq!(
@@ -159,7 +159,7 @@ fn ink_bottle_persists_nine_cards_and_draws_on_tenth_card() {
     let mut first_engine = engine_with_relic_and_attacks("InkBottle", 9);
 
     for _ in 0..9 {
-        assert!(play_on_enemy(&mut first_engine, "Strike_R", 0));
+        assert!(play_on_enemy(&mut first_engine, "Strike", 0));
     }
 
     assert_eq!(
@@ -169,24 +169,24 @@ fn ink_bottle_persists_nine_cards_and_draws_on_tenth_card() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 4),
+        make_deck_n("Strike", 4),
         vec![enemy_no_intent("JawWorm", 120, 120)],
         20,
     );
     next_engine.state.relics.push("InkBottle".to_string());
     next_engine.load_persisted_effects(persisted);
     next_engine.start_combat();
-    next_engine.state.hand = make_deck_n("Strike_R", 1);
-    next_engine.state.draw_pile = make_deck(&["Defend_R"]);
+    next_engine.state.hand = make_deck_n("Strike", 1);
+    next_engine.state.draw_pile = make_deck(&["Defend"]);
     next_engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut next_engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut next_engine, "Strike", 0));
 
     assert!(next_engine
         .state
         .hand
         .iter()
-        .any(|card| next_engine.card_registry.card_name(card.def_id) == "Defend_R"));
+        .any(|card| next_engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(
         next_engine.hidden_effect_value("InkBottle", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
@@ -196,7 +196,7 @@ fn ink_bottle_persists_nine_cards_and_draws_on_tenth_card() {
 #[test]
 fn happy_flower_persists_turn_counter_across_combats() {
     let mut state = combat_state_with(
-        make_deck_n("Strike_R", 20),
+        make_deck_n("Strike", 20),
         vec![enemy("JawWorm", 120, 120, 1, 0, 1)],
         3,
     );
@@ -215,7 +215,7 @@ fn happy_flower_persists_turn_counter_across_combats() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 20),
+        make_deck_n("Strike", 20),
         vec![enemy("JawWorm", 120, 120, 1, 0, 1)],
         3,
     );
@@ -234,7 +234,7 @@ fn happy_flower_persists_turn_counter_across_combats() {
 #[test]
 fn incense_burner_persists_turn_counter_across_combats() {
     let mut state = combat_state_with(
-        make_deck_n("Strike_R", 40),
+        make_deck_n("Strike", 40),
         vec![enemy("JawWorm", 120, 120, 1, 0, 1)],
         3,
     );
@@ -251,7 +251,7 @@ fn incense_burner_persists_turn_counter_across_combats() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 20),
+        make_deck_n("Strike", 20),
         vec![enemy("JawWorm", 120, 120, 1, 0, 1)],
         3,
     );
@@ -275,7 +275,7 @@ fn sundial_persists_two_shuffles_and_triggers_on_third_shuffle() {
     for _ in 0..2 {
         first_engine.state.hand.clear();
         first_engine.state.draw_pile.clear();
-        first_engine.state.discard_pile = make_deck(&["Strike_R"]);
+        first_engine.state.discard_pile = make_deck(&["Strike"]);
         first_engine.draw_cards(1);
     }
 
@@ -290,7 +290,7 @@ fn sundial_persists_two_shuffles_and_triggers_on_third_shuffle() {
     next_engine.load_persisted_effects(persisted);
     next_engine.state.hand.clear();
     next_engine.state.draw_pile.clear();
-    next_engine.state.discard_pile = make_deck(&["Strike_R"]);
+    next_engine.state.discard_pile = make_deck(&["Strike"]);
 
     next_engine.draw_cards(1);
 
@@ -304,17 +304,17 @@ fn sundial_persists_two_shuffles_and_triggers_on_third_shuffle() {
 #[test]
 fn orange_pellets_turn_reset_requires_all_three_card_types_in_same_turn() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R", "Inflame", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Inflame", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         5,
     );
     state.relics.push("OrangePellets".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Inflame"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(
         engine.hidden_effect_value("OrangePellets", EffectOwner::PlayerRelic { slot: 0 }, 0),
         1

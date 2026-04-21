@@ -76,14 +76,14 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
 #[test]
 fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = engine_without_start(
-        make_deck(&["Omniscience", "Strike_P", "Defend_P"]),
+        make_deck(&["Omniscience", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         4,
     );
     force_player_turn(&mut engine);
     engine.state.energy = 4;
     engine.state.hand = make_deck(&["Omniscience"]);
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -96,7 +96,7 @@ fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
     assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

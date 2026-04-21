@@ -79,7 +79,7 @@ mod silent_wave2 {
     fn silent_wave2_draw_and_shiv_cards_use_the_engine_path() {
         let mut backflip = engine_for(
             &["Backflip"],
-            &["Strike_G", "Defend_G", "Neutralize"],
+            &["Strike", "Defend", "Neutralize"],
             &[],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
@@ -91,7 +91,7 @@ mod silent_wave2 {
 
         let mut quick_slash = engine_for(
             &["Quick Slash"],
-            &["Strike_G"],
+            &["Strike"],
             &[],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
@@ -101,7 +101,7 @@ mod silent_wave2 {
         assert!(play_on_enemy(&mut quick_slash, "Quick Slash", 0));
         assert_eq!(quick_slash.state.enemies[0].entity.hp, hp_before - 8);
         assert_eq!(quick_slash.state.hand.len(), hand_before);
-        assert!(hand_names(&quick_slash).contains(&"Strike_G".to_string()));
+        assert!(hand_names(&quick_slash).contains(&"Strike".to_string()));
 
         let mut blade_dance = engine_for(
             &["Blade Dance"],
@@ -117,8 +117,8 @@ mod silent_wave2 {
     #[test]
     fn silent_wave2_dagger_throw_creates_real_discard_choice_and_enables_sneaky_strike_refund() {
         let mut engine = engine_for(
-            &["Dagger Throw", "Sneaky Strike", "Strike_G"],
-            &["Defend_G"],
+            &["Dagger Throw", "Sneaky Strike", "Strike"],
+            &["Defend"],
             &[],
             vec![enemy("JawWorm", 60, 60, 1, 0, 1)],
             3,
@@ -138,7 +138,7 @@ mod silent_wave2 {
             .state
             .hand
             .iter()
-            .position(|card| engine.card_registry.card_name(card.def_id) == "Strike_G")
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Strike")
             .expect("Strike_G should be in hand for the discard choice");
         engine.execute_action(&Action::Choose(discard_idx));
         assert_eq!(engine.phase, CombatPhase::PlayerTurn);

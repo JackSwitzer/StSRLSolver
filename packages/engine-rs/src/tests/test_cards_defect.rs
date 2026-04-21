@@ -74,10 +74,10 @@ mod defect_card_java_parity_tests {
 
     defect_test!(registry_starter_and_basics, {
         let cases = [
-            StatCase { id: "Strike_B", cost: 1, damage: 6, block: -1, magic: -1, card_type: CardType::Attack, exhaust: false },
-            StatCase { id: "Strike_B+", cost: 1, damage: 9, block: -1, magic: -1, card_type: CardType::Attack, exhaust: false },
-            StatCase { id: "Defend_B", cost: 1, damage: -1, block: 5, magic: -1, card_type: CardType::Skill, exhaust: false },
-            StatCase { id: "Defend_B+", cost: 1, damage: -1, block: 8, magic: -1, card_type: CardType::Skill, exhaust: false },
+            StatCase { id: "Strike", cost: 1, damage: 6, block: -1, magic: -1, card_type: CardType::Attack, exhaust: false },
+            StatCase { id: "Strike+", cost: 1, damage: 9, block: -1, magic: -1, card_type: CardType::Attack, exhaust: false },
+            StatCase { id: "Defend", cost: 1, damage: -1, block: 5, magic: -1, card_type: CardType::Skill, exhaust: false },
+            StatCase { id: "Defend+", cost: 1, damage: -1, block: 8, magic: -1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Zap", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Zap+", cost: 0, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Dualcast", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Skill, exhaust: false },
@@ -336,7 +336,7 @@ mod defect_card_java_parity_tests {
 
     defect_test!(compile_driver_draws_per_unique_orb, {
         let mut e = bare_engine(&["Compile Driver"], vec![enemy("JawWorm", 50, 0)]);
-        e.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Cold Snap"]);
+        e.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Cold Snap"]);
         set_orbs(&mut e, &[OrbType::Lightning, OrbType::Frost, OrbType::Dark]);
         ensure_in_hand(&mut e, "Compile Driver");
         let hand_before = e.state.hand.len();
@@ -518,7 +518,7 @@ mod defect_card_java_parity_tests {
     defect_test!(all_for_one_returns_zero_cost_cards_from_discard, {
         let mut e = bare_engine(&["All For One"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "All For One");
-        e.state.discard_pile = make_deck(&["Zap+", "Turbo", "Strike_B"]);
+        e.state.discard_pile = make_deck(&["Zap+", "Turbo", "Strike"]);
         play_on_enemy(&mut e, "All For One", 0);
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Zap+"));
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Turbo"));
@@ -587,7 +587,7 @@ mod defect_card_java_parity_tests {
     defect_test!(reboot_draws_a_fresh_hand, {
         let mut e = bare_engine(&["Reboot"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Reboot");
-        e.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Cold Snap"]);
+        e.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Cold Snap"]);
         play_self(&mut e, "Reboot");
         assert_eq!(e.state.hand.len(), 4); // Reboot draws base_magic=4 cards
     });

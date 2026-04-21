@@ -5,9 +5,71 @@ use crate::status_ids::sid;
 // Debuff-related power trigger functions
 
 pub fn decrement_debuffs(entity: &mut EntityState) {
-    decrement_status(entity, sid::WEAKENED);
-    decrement_status(entity, sid::VULNERABLE);
-    decrement_status(entity, sid::FRAIL);
+    // D59 parity fix: if the debuff was applied by an enemy THIS round, Java's
+    // `justApplied=true` skips the first `atEndOfRound` decrement so the debuff
+    // lasts its full duration. We mirror via parallel flag statuses that
+    // `apply_debuff_from_enemy` sets.
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::WEAKENED,
+        sid::WEAKENED_JUST_APPLIED,
+    );
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::VULNERABLE,
+        sid::VULNERABLE_JUST_APPLIED,
+    );
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::FRAIL,
+        sid::FRAIL_JUST_APPLIED,
+    );
+}
+
+fn decrement_debuff_with_just_applied(
+    entity: &mut EntityState,
+    debuff: StatusId,
+    just_applied_flag: StatusId,
+) {
+    if entity.status(just_applied_flag) > 0 {
+        // First round after enemy application: clear the flag but skip decrement.
+        entity.set_status(just_applied_flag, 0);
+        return;
+    }
+    decrement_status(entity, debuff);
+}
+
+/// Apply a debuff sourced from an enemy (as opposed to the player's own cards).
+///
+/// Mirrors Java `AbstractPower.justApplied = (source != null && !source.isPlayer)`.
+/// The justApplied flag causes `decrement_debuffs` to skip the first end-of-round
+/// decrement so the debuff actually affects the target for its full duration.
+/// Player-sourced debuffs on enemies use `apply_debuff` directly and decrement
+/// at end of each enemy turn as before.
+pub fn apply_debuff_from_enemy(
+    entity: &mut EntityState,
+    status: StatusId,
+    amount: i32,
+) -> bool {
+    let applied = apply_debuff(entity, status, amount);
+    if applied {
+        if let Some(flag) = just_applied_flag_for(status) {
+            entity.set_status(flag, 1);
+        }
+    }
+    applied
+}
+
+fn just_applied_flag_for(status: StatusId) -> Option<StatusId> {
+    if status == sid::WEAKENED {
+        Some(sid::WEAKENED_JUST_APPLIED)
+    } else if status == sid::VULNERABLE {
+        Some(sid::VULNERABLE_JUST_APPLIED)
+    } else if status == sid::FRAIL {
+        Some(sid::FRAIL_JUST_APPLIED)
+    } else {
+        None
+    }
 }
 
 /// Decrement a single status by 1. Remove if it reaches 0.

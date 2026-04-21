@@ -228,7 +228,7 @@ def default_imported_act1_scripts() -> tuple[ImportedAct1Script, ...]:
         neow_choice="Lose 6 Max HP, then remove Defend and Defend",
         starting_max_hp=62,
         starting_current_hp=61,
-        starting_removed_cards=("Defend_P", "Defend_P"),
+        starting_removed_cards=("Defend", "Defend"),
         floors=(
             ImportedAct1Floor(1, "Enemy", "Cultist reward: Follow-Up", 61, 62, 115, encounter="Cultist", damage_taken=0, turns=3, picked_card="Follow-Up", skipped_cards=("Empty Fist", "Crescendo")),
             ImportedAct1Floor(2, "Enemy", "Jaw Worm reward: Third Eye", 49, 62, 132, encounter="Jaw Worm", damage_taken=12, turns=3, picked_card="Third Eye", skipped_cards=("Mental Fortress", "Nirvana")),
@@ -239,7 +239,7 @@ def default_imported_act1_scripts() -> tuple[ImportedAct1Script, ...]:
             ImportedAct1Floor(7, "Elite", "Lagavulin reward: Ragnarok, Emerald key", 37, 56, 204, encounter="Lagavulin", damage_taken=12, turns=5, picked_card="Ragnarok", potions_gained=("Explosive Potion",), potions_used=("Bottled Miracle",), relics_gained=("Gambling Chip",), skipped_cards=("Crescendo", "Bowling Bash")),
             ImportedAct1Floor(8, "Enemy", "2 Fungi Beasts reward skipped", 37, 56, 229, encounter="2 Fungi Beasts", damage_taken=0, turns=2, skipped_cards=("Crescendo", "Protect", "Carve Reality")),
             ImportedAct1Floor(9, "Treasure", "Treasure chest: Akabeko", 37, 56, 256, relics_gained=("Akabeko",)),
-            ImportedAct1Floor(10, "Merchant", "Merchant: buy Frozen Eye, remove Defend", 37, 56, 10, relics_gained=("Frozen Eye",), cards_removed=("Defend_P",)),
+            ImportedAct1Floor(10, "Merchant", "Merchant: buy Frozen Eye, remove Defend", 37, 56, 10, relics_gained=("Frozen Eye",), cards_removed=("Defend",)),
             ImportedAct1Floor(11, "Rest Site", "Upgrade Ragnarok", 37, 56, 10, upgraded_cards=("Ragnarok",)),
             ImportedAct1Floor(12, "Elite", "Gremlin Nob reward skipped", 37, 56, 46, encounter="Gremlin Nob", damage_taken=0, turns=1, relics_gained=("Fossilized Helix",), skipped_cards=("Nirvana", "Signature Move", "Just Lucky")),
             ImportedAct1Floor(13, "Unknown", "Mushroom Lair reward skipped", 37, 56, 74, encounter="2 Fungi Beasts", damage_taken=0, turns=1, option_taken="Fought Mushrooms", relics_gained=("Odd Mushroom",), skipped_cards=("Sash Whip", "Flying Sleeves", "Pressure Points")),
@@ -263,7 +263,7 @@ def default_imported_act1_scripts() -> tuple[ImportedAct1Script, ...]:
         floors=(
             ImportedAct1Floor(1, "Enemy", "Jaw Worm reward: Tantrum", 54, 62, 115, encounter="Jaw Worm", damage_taken=7, turns=3, picked_card="Tantrum", skipped_cards=("Carve Reality", "Bowling Bash")),
             ImportedAct1Floor(2, "Enemy", "Small Slimes reward: Rushdown", 49, 62, 128, encounter="Small Slimes", damage_taken=5, turns=6, picked_card="Rushdown", potions_gained=("Bottled Miracle",), skipped_cards=("Weave", "Pressure Points")),
-            ImportedAct1Floor(3, "Unknown", "Wing Statue remove Defend", 42, 62, 128, option_taken="Card Removal", cards_removed=("Defend_P",), damage_taken=7),
+            ImportedAct1Floor(3, "Unknown", "Wing Statue remove Defend", 42, 62, 128, option_taken="Card Removal", cards_removed=("Defend",), damage_taken=7),
             ImportedAct1Floor(4, "Unknown (Enemy)", "2 Louse reward: Third Eye", 35, 62, 146, encounter="2 Louse", damage_taken=7, turns=2, picked_card="Third Eye", potions_gained=("Fruit Juice",), skipped_cards=("Protect", "Evaluate")),
             ImportedAct1Floor(5, "Enemy", "Red Slaver reward: Talk to the Hand", 34, 62, 163, encounter="Red Slaver", damage_taken=1, turns=3, picked_card="Talk to the Hand", skipped_cards=("Protect", "Cut Through Fate")),
             ImportedAct1Floor(6, "Rest Site", "Rested and used Fruit Juice", 59, 67, 163, potions_used=("Fruit Juice",), healed=25, max_hp_gained=5),

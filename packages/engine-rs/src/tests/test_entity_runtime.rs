@@ -71,7 +71,7 @@ fn persisted_relic_counters_reload_into_new_combat_runtime() {
 
 #[test]
 fn potion_use_flows_through_owner_aware_runtime() {
-    let mut state = combat_state_with(make_deck(&["Strike_P"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Toy Ornithopter".to_string());
     state.potions[0] = "Energy Potion".to_string();
     state.player.hp = 50;
@@ -102,7 +102,7 @@ fn potion_use_flows_through_owner_aware_runtime() {
 
 #[test]
 fn block_potion_runtime_keeps_flat_potion_block() {
-    let mut state = combat_state_with(make_deck(&["Strike_P"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.potions[0] = "Block Potion".to_string();
     state.player.add_status(sid::DEXTERITY, 3);
 
@@ -123,21 +123,21 @@ fn block_potion_runtime_keeps_flat_potion_block() {
 #[test]
 fn envenom_uses_runtime_damage_resolved_path_on_real_attack_hits() {
     let state = combat_state_with(
-        make_deck(&["Strike_G", "Strike_G"]),
+        make_deck(&["Strike", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
 
     let mut engine = engine_with_state(state);
     engine.state.player.set_status(sid::ENVENOM, 2);
-    engine.state.hand = make_deck(&["Strike_G", "Strike_G"]);
+    engine.state.hand = make_deck(&["Strike", "Strike"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.state.enemies[0].entity.block = 20;
     engine.rebuild_effect_runtime();
 
     engine.clear_event_log();
-    assert!(play_on_enemy(&mut engine, "Strike_G", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     let blocked_events = engine.take_event_log();
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 0);
@@ -148,7 +148,7 @@ fn envenom_uses_runtime_damage_resolved_path_on_real_attack_hits() {
     ensure_second_strike_for_envenom(&mut engine);
     engine.state.enemies[0].entity.block = 0;
     engine.clear_event_log();
-    assert!(play_on_enemy(&mut engine, "Strike_G", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     let unblocked_events = engine.take_event_log();
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2);
@@ -184,18 +184,18 @@ fn step_result_exposes_events_and_v2_observation() {
 
 #[test]
 fn orange_pellets_clears_debuffs_on_attack_skill_power_sequence() {
-    let mut state = combat_state_with(make_deck(&["Strike_R", "Defend_R", "Inflame"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike", "Defend", "Inflame"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("OrangePellets".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Inflame"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
     engine.state.player.set_status(sid::WEAKENED, 2);
     engine.state.player.set_status(sid::VULNERABLE, 2);
     engine.state.player.set_status(sid::FRAIL, 2);
     engine.state.player.set_status(sid::NO_DRAW, 1);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_self(&mut engine, "Defend"));
     assert!(play_self(&mut engine, "Inflame"));
 
     assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
@@ -211,17 +211,17 @@ fn orange_pellets_clears_debuffs_on_attack_skill_power_sequence() {
 #[test]
 fn orange_pellets_turn_reset_requires_all_three_types_in_the_same_turn() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Defend_R", "Inflame", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Inflame", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     state.relics.push("OrangePellets".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Inflame"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(
         engine.hidden_effect_value("OrangePellets", EffectOwner::PlayerRelic { slot: 0 }, 0),
         1
@@ -267,7 +267,7 @@ fn sundial_persists_counter_across_combats_on_engine_path() {
     for _ in 0..2 {
         first_engine.state.hand.clear();
         first_engine.state.draw_pile.clear();
-        first_engine.state.discard_pile = make_deck(&["Strike_R"]);
+        first_engine.state.discard_pile = make_deck(&["Strike"]);
         first_engine.draw_cards(1);
     }
 
@@ -282,7 +282,7 @@ fn sundial_persists_counter_across_combats_on_engine_path() {
     next_engine.load_persisted_effects(persisted);
     next_engine.state.hand.clear();
     next_engine.state.draw_pile.clear();
-    next_engine.state.discard_pile = make_deck(&["Strike_R"]);
+    next_engine.state.discard_pile = make_deck(&["Strike"]);
 
     next_engine.draw_cards(1);
 
@@ -342,7 +342,7 @@ fn philosophers_stone_buffs_all_enemies_at_combat_start() {
 
 #[test]
 fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"; 20]), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"; 20]), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 3);
     state.relics.push("Happy Flower".to_string());
 
     let mut engine = engine_with_state(state);
@@ -363,7 +363,7 @@ fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
 
 #[test]
 fn incense_burner_grants_intangible_on_sixth_turn_via_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"; 30]), vec![enemy("JawWorm", 120, 120, 1, 0, 1)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"; 30]), vec![enemy("JawWorm", 120, 120, 1, 0, 1)], 3);
     state.relics.push("Incense Burner".to_string());
 
     let mut engine = engine_with_state(state);
@@ -385,17 +385,17 @@ fn incense_burner_grants_intangible_on_sixth_turn_via_engine_path() {
 
 #[test]
 fn pocketwatch_grants_extra_draw_on_short_previous_turn() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"; 12]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"; 12]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Pocketwatch".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R"]);
+    engine.state.hand = make_deck(&["Strike"]);
     engine.state.draw_pile = make_deck(&[
-        "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R",
+        "Strike", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike",
     ]);
     engine.state.discard_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     end_turn(&mut engine);
 
     assert_eq!(engine.state.turn, 2);
@@ -412,11 +412,11 @@ fn pocketwatch_grants_extra_draw_on_short_previous_turn() {
 
 #[test]
 fn mummified_hand_sets_a_remaining_hand_card_cost_to_zero() {
-    let mut state = combat_state_with(make_deck(&["Inflame", "Strike_R", "Defend_R"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Inflame", "Strike", "Defend"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Mummified Hand".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Inflame", "Strike_R", "Defend_R"]);
+    engine.state.hand = make_deck(&["Inflame", "Strike", "Defend"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
@@ -428,13 +428,13 @@ fn mummified_hand_sets_a_remaining_hand_card_cost_to_zero() {
 
 #[test]
 fn centennial_puzzle_draws_only_on_first_hp_loss() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"; 10]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"; 10]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Centennial Puzzle".to_string());
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
     engine.state.draw_pile = make_deck(&[
-        "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R",
+        "Strike", "Strike", "Strike", "Strike", "Strike", "Strike",
     ]);
 
     engine.player_lose_hp(4);
@@ -447,7 +447,7 @@ fn centennial_puzzle_draws_only_on_first_hp_loss() {
 
 #[test]
 fn emotion_chip_marks_a_next_turn_orb_pulse_on_hp_loss() {
-    let mut state = combat_state_with(make_deck(&["Strike_B"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Emotion Chip".to_string());
 
     let mut engine = engine_with_state(state);
@@ -463,7 +463,7 @@ fn emotion_chip_marks_a_next_turn_orb_pulse_on_hp_loss() {
 
 #[test]
 fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"; 5]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"; 5]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Red Skull".to_string());
     state.player.hp = 50;
 
@@ -493,15 +493,15 @@ fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
 
 #[test]
 fn strike_dummy_buffs_strike_damage_on_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("StrikeDummy".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R"]);
+    engine.state.hand = make_deck(&["Strike"]);
     engine.state.draw_pile.clear();
     let hp_before = engine.state.enemies[0].entity.hp;
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 9);
 }
@@ -564,20 +564,20 @@ fn boot_raises_small_unblocked_damage_on_engine_path() {
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 5);
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
 }
 
 #[test]
 fn hand_drill_applies_vulnerable_when_block_breaks_on_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike_R"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("HandDrill".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_R"]);
+    engine.state.hand = make_deck(&["Strike"]);
     engine.state.draw_pile.clear();
     engine.state.enemies[0].entity.block = 2;
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
@@ -599,7 +599,7 @@ fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 15);
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 13); // D26: Boot bumps first hit raw=5 (not post-block), later hits unchanged
 }
 
 #[test]
@@ -621,7 +621,7 @@ fn blade_dance_generated_shiv_respects_wrist_blade_on_engine_path() {
 
 #[test]
 fn poison_tick_death_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike_R"]), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
 
     let mut engine = engine_with_state(state);
     engine.state.enemies[0].entity.set_status(sid::POISON, 1);
@@ -636,7 +636,7 @@ fn poison_tick_death_triggers_shared_enemy_death_effects() {
 
 #[test]
 fn thorns_kill_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike_R"]), vec![enemy("JawWorm", 3, 3, 1, 5, 1)], 3);
+    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy("JawWorm", 3, 3, 1, 5, 1)], 3);
 
     let mut engine = engine_with_state(state);
     engine.state.player.set_status(sid::THORNS, 3);
@@ -652,7 +652,7 @@ fn thorns_kill_triggers_shared_enemy_death_effects() {
 #[test]
 fn the_specimen_transfers_poison_on_engine_death_path() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_G"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 10, 10), enemy_no_intent("Cultist", 30, 30)],
         3,
     );
@@ -674,7 +674,7 @@ fn the_specimen_transfers_poison_on_engine_death_path() {
 
 #[test]
 fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
-    let mut state = combat_state_with(make_deck(&["Strike_B"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("FrozenCore".to_string());
 
     let mut engine = engine_with_state(state);
@@ -695,14 +695,14 @@ fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
 #[test]
 fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
     let mut state = combat_state_with(
-        make_deck(&["Concentrate", "Defend_G", "Defend_G", "Defend_G", "Strike_G"]),
+        make_deck(&["Concentrate", "Defend", "Defend", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     state.relics.push("HoveringKite".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Concentrate", "Defend_G", "Defend_G", "Defend_G"]);
+    engine.state.hand = make_deck(&["Concentrate", "Defend", "Defend", "Defend"]);
     engine.state.draw_pile.clear();
     engine.clear_event_log();
     let energy_before = engine.state.energy;
@@ -721,18 +721,18 @@ fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
 
     engine.state.energy = 0;
     engine.emit_event(GameEvent::empty(Trigger::TurnStart));
-    engine.on_card_discarded(engine.card_registry.make_card("Defend_G"));
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
 
     assert_eq!(engine.state.energy, 1);
 }
 
 #[test]
 fn warped_tongs_uses_runtime_turn_start_post_draw_hook() {
-    let mut state = combat_state_with(make_deck(&["Defend_G"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Defend"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("WarpedTongs".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Defend_G"]);
+    engine.state.hand = make_deck(&["Defend"]);
     engine.clear_event_log();
 
     engine.emit_event(GameEvent {
@@ -749,7 +749,7 @@ fn warped_tongs_uses_runtime_turn_start_post_draw_hook() {
     });
 
     let events = engine.take_event_log();
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend_G+");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend+");
     assert!(events
         .iter()
         .any(|record| record.event == Trigger::TurnStartPostDrawLate && record.def_id == Some("WarpedTongs")));
@@ -757,11 +757,11 @@ fn warped_tongs_uses_runtime_turn_start_post_draw_hook() {
 
 #[test]
 fn gambling_chip_uses_runtime_turn_start_post_draw_hook() {
-    let mut state = combat_state_with(make_deck(&["Strike_G", "Defend_G"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut state = combat_state_with(make_deck(&["Strike", "Defend"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Gambling Chip".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike_G", "Defend_G"]);
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
     engine.clear_event_log();
 
     engine.emit_event(GameEvent {
@@ -790,9 +790,9 @@ fn ensure_second_strike_for_envenom(engine: &mut crate::engine::CombatEngine) {
         .state
         .hand
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike_G")
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike")
     {
-        engine.state.hand = make_deck(&["Strike_G"]);
+        engine.state.hand = make_deck(&["Strike"]);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
     }

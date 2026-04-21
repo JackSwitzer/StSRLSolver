@@ -91,14 +91,14 @@ fn match_and_keep_board_starts_with_six_pairs_and_five_attempts() {
 fn match_and_keep_uses_the_current_run_class_for_the_starter_pair() {
     let mut engine = RunEngine::new(421, 10);
     engine.run_state.deck = vec![
-        "Strike_G".to_string(),
-        "Strike_G".to_string(),
-        "Strike_G".to_string(),
-        "Strike_G".to_string(),
-        "Defend_G".to_string(),
-        "Defend_G".to_string(),
-        "Defend_G".to_string(),
-        "Defend_G".to_string(),
+        "Strike".to_string(),
+        "Strike".to_string(),
+        "Strike".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Defend".to_string(),
+        "Defend".to_string(),
+        "Defend".to_string(),
         "Neutralize".to_string(),
         "Survivor".to_string(),
     ];

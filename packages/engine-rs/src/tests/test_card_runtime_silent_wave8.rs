@@ -16,7 +16,7 @@ use crate::tests::support::*;
 fn silent_wave8_registry_exports_match_typed_primary_surface() {
     let registry = global_registry();
 
-    let strike = registry.get("Strike_G").expect("Strike_G should exist");
+    let strike = registry.get("Strike").expect("Strike_G should exist");
     assert_eq!(strike.card_type, CardType::Attack);
     assert_eq!(strike.target, CardTarget::Enemy);
     assert_eq!(
@@ -24,7 +24,7 @@ fn silent_wave8_registry_exports_match_typed_primary_surface() {
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let defend = registry.get("Defend_G").expect("Defend_G should exist");
+    let defend = registry.get("Defend").expect("Defend_G should exist");
     assert_eq!(defend.card_type, CardType::Skill);
     assert_eq!(defend.target, CardTarget::SelfTarget);
     assert_eq!(defend.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
@@ -69,12 +69,12 @@ fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() 
     );
     force_player_turn(&mut engine);
 
-    ensure_in_hand(&mut engine, "Strike_G");
-    assert!(play_on_enemy(&mut engine, "Strike_G", 0));
+    ensure_in_hand(&mut engine, "Strike");
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 54);
 
-    ensure_in_hand(&mut engine, "Strike_G+");
-    assert!(play_on_enemy(&mut engine, "Strike_G+", 0));
+    ensure_in_hand(&mut engine, "Strike+");
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 45);
 
     ensure_in_hand(&mut engine, "Slice");
@@ -100,12 +100,12 @@ fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
     );
     force_player_turn(&mut engine);
 
-    ensure_in_hand(&mut engine, "Defend_G");
-    assert!(play_self(&mut engine, "Defend_G"));
+    ensure_in_hand(&mut engine, "Defend");
+    assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.player.block, 5);
 
-    ensure_in_hand(&mut engine, "Defend_G+");
-    assert!(play_self(&mut engine, "Defend_G+"));
+    ensure_in_hand(&mut engine, "Defend+");
+    assert!(play_self(&mut engine, "Defend+"));
     assert_eq!(engine.state.player.block, 13);
 
     ensure_in_hand(&mut engine, "Dash");

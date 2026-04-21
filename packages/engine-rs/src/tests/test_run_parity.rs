@@ -200,7 +200,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
-        engine.run_state.deck = vec!["Strike_P".to_string()];
+        engine.run_state.deck = vec!["Strike".to_string()];
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -218,7 +218,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
-        engine.run_state.deck = vec!["AscendersBane".to_string(), "Strike_P".to_string()];
+        engine.run_state.deck = vec!["AscendersBane".to_string(), "Strike".to_string()];
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
@@ -274,7 +274,7 @@ mod run_java_parity_tests {
     fn campfire_upgrade_adds_plus_suffix() {
         let mut engine = RunEngine::new(42, 0);
         engine.phase = RunPhase::Campfire;
-        engine.run_state.deck = vec!["Strike_P".to_string(), "Eruption".to_string()];
+        engine.run_state.deck = vec!["Strike".to_string(), "Eruption".to_string()];
         engine.step(&RunAction::CampfireUpgrade(1));
         assert_eq!(engine.run_state.deck[1], "Eruption+");
     }

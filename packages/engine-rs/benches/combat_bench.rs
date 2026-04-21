@@ -2,14 +2,18 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sts_engine::actions::Action;
+use sts_engine::cards::global_registry;
+use sts_engine::combat_types::CardInstance;
 use sts_engine::engine::CombatEngine;
 use sts_engine::state::{CombatState, EnemyCombatState};
 
 fn make_bench_state() -> CombatState {
-    let deck: Vec<String> = (0..5)
-        .map(|_| "Strike_P".to_string())
-        .chain((0..4).map(|_| "Defend_P".to_string()))
-        .chain(std::iter::once("Eruption".to_string()))
+    let registry = global_registry();
+    let deck: Vec<CardInstance> = (0..5)
+        .map(|_| "Strike")
+        .chain((0..4).map(|_| "Defend"))
+        .chain(std::iter::once("Eruption"))
+        .map(|name| registry.make_card(name))
         .collect();
 
     let mut enemy = EnemyCombatState::new("JawWorm", 44, 44);

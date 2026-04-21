@@ -57,7 +57,7 @@ dev = [
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = [
-    "tests",
+    "tests/training",
 ]
 python_files = [
     "test_*.py",

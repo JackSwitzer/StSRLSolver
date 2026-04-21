@@ -10,24 +10,24 @@ use crate::tests::support::{
 fn envenom_applies_poison_after_positive_attack_damage_on_engine_path() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/powers/EnvenomPower.java
     let state = combat_state_with(
-        make_deck(&["Strike_G"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
     let mut engine = engine_with_state(state);
     engine.state.player.set_status(sid::ENVENOM, 1);
     engine.rebuild_effect_runtime();
-    engine.state.hand = make_deck(&["Strike_G"]);
+    engine.state.hand = make_deck(&["Strike"]);
     engine.state.draw_pile.clear();
 
-    assert!(play_on_enemy(&mut engine, "Strike_G", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 1);
 }
 
 #[test]
 fn sadistic_nature_deals_damage_when_player_applies_a_debuff() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SadisticNature.java
-    let mut engine = engine_with(make_deck(&["Strike_R"; 10]), 30, 0);
+    let mut engine = engine_with(make_deck(&["Strike"; 10]), 30, 0);
     engine.state.player.set_status(sid::SADISTIC, 5);
     engine.rebuild_effect_runtime();
     ensure_in_hand(&mut engine, "Trip");
@@ -45,7 +45,7 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 
     for seed in 0..32 {
         let mut state = combat_state_with(
-            make_deck(&["Strike_G"]),
+            make_deck(&["Strike"]),
             vec![
                 enemy_no_intent("JawWorm", 20, 20),
                 enemy_no_intent("Cultist", 20, 20),
@@ -76,7 +76,7 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/PreservedInsect.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![
             enemy_no_intent("Sentry", 40, 40),
             enemy_no_intent("Sentry", 36, 36),
@@ -95,7 +95,7 @@ fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp(
 fn centennial_puzzle_draws_three_cards_only_on_first_hp_loss() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/CentennialPuzzle.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"; 10]),
+        make_deck(&["Strike"; 10]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
@@ -111,7 +111,7 @@ fn centennial_puzzle_draws_three_cards_only_on_first_hp_loss() {
     );
     engine.state.hand.clear();
     engine.state.draw_pile = make_deck(&[
-        "Strike_R", "Defend_R", "Bash", "Strike_R", "Defend_R", "Strike_R",
+        "Strike", "Defend", "Bash", "Strike", "Defend", "Strike",
     ]);
 
     engine.player_lose_hp(4);
@@ -133,7 +133,7 @@ fn centennial_puzzle_draws_three_cards_only_on_first_hp_loss() {
 fn red_skull_gains_and_loses_strength_when_crossing_bloodied_threshold() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
@@ -168,7 +168,7 @@ fn red_skull_gains_and_loses_strength_when_crossing_bloodied_threshold() {
 fn du_vu_doll_applies_strength_from_current_curse_count_on_combat_start() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/DuVuDoll.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
@@ -202,7 +202,7 @@ fn du_vu_doll_applies_strength_from_current_curse_count_on_combat_start() {
 fn girya_applies_strength_from_lift_counter_on_combat_start() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/Girya.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
@@ -236,7 +236,7 @@ fn girya_applies_strength_from_lift_counter_on_combat_start() {
 fn slavers_collar_grants_one_extra_energy_on_boss_turn_start() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("Hexaghost", 30, 30)],
         3,
     );
@@ -251,7 +251,7 @@ fn slavers_collar_grants_one_extra_energy_on_boss_turn_start() {
 fn red_skull_hidden_state_is_runtime_owned() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );
@@ -283,7 +283,7 @@ fn red_skull_hidden_state_is_runtime_owned() {
 fn centennial_puzzle_hidden_state_is_runtime_owned() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/CentennialPuzzle.java
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"; 10]),
+        make_deck(&["Strike"; 10]),
         vec![enemy_no_intent("JawWorm", 30, 30)],
         3,
     );

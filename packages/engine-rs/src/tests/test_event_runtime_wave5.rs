@@ -12,8 +12,8 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
 fn test_event_runtime_wave5_mind_bloom_awake_installs_mark_and_blocks_future_heal() {
     let mut engine = RunEngine::new(23, 20);
     engine.run_state.deck = vec![
-        "Strike_R".to_string(),
-        "Defend_R".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
         "Vigilance".to_string(),
     ];
     engine.run_state.current_hp = 20;

@@ -267,7 +267,7 @@ mod tests {
         assert!(registry.get(GameplayDomain::Relic, "OrangePellets").is_some());
         assert!(registry.get(GameplayDomain::Power, "thousand_cuts").is_some());
         assert!(registry.get(GameplayDomain::Potion, "SneckoOil").is_some());
-        assert!(registry.get(GameplayDomain::Card, "Strike_P").is_some());
+        assert!(registry.get(GameplayDomain::Card, "Strike").is_some());
     }
 
     #[test]
@@ -275,7 +275,7 @@ mod tests {
         let registry = GameplayRegistry::new();
 
         let strike_program = registry
-            .program(GameplayDomain::Card, "Strike_P")
+            .program(GameplayDomain::Card, "Strike")
             .expect("strike program");
         assert!(strike_program
             .steps
@@ -317,12 +317,12 @@ mod tests {
     #[test]
     fn typed_registry_lookups_match_domain_getters() {
         let registry = GameplayRegistry::new();
-        assert_eq!(registry.card("Strike_P"), registry.get(GameplayDomain::Card, "Strike_P"));
+        assert_eq!(registry.card("Strike"), registry.get(GameplayDomain::Card, "Strike"));
         assert_eq!(registry.enemy("JawWorm"), registry.get(GameplayDomain::Enemy, "JawWorm"));
         assert_eq!(registry.relic("OrangePellets"), registry.get(GameplayDomain::Relic, "OrangePellets"));
         assert_eq!(registry.power("thousand_cuts"), registry.get(GameplayDomain::Power, "thousand_cuts"));
         assert_eq!(registry.potion("SneckoOil"), registry.get(GameplayDomain::Potion, "SneckoOil"));
-        assert!(registry.contains(GameplayDomain::Card, "Strike_P"));
+        assert!(registry.contains(GameplayDomain::Card, "Strike"));
         assert!(registry.count_for_domain(GameplayDomain::Enemy) > 0);
     }
 
@@ -334,7 +334,7 @@ mod tests {
 
         assert_eq!(registry.count_for_domain(GameplayDomain::Card), exported_cards.len());
         assert_eq!(registry.count_for_domain(GameplayDomain::Enemy), exported_enemies.len());
-        assert_eq!(registry.card("Strike_P"), exported_cards.iter().find(|def| def.id == "Strike_P"));
+        assert_eq!(registry.card("Strike"), exported_cards.iter().find(|def| def.id == "Strike"));
         assert_eq!(registry.enemy("JawWorm"), exported_enemies.iter().find(|def| def.id == "JawWorm"));
     }
 }

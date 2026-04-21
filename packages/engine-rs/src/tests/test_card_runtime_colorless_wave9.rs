@@ -36,7 +36,7 @@ fn madness_sets_one_random_eligible_hand_card_to_zero_cost_and_exhausts() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Madness", "Strike_R", "Defend_R"]);
+    engine.state.hand = make_deck(&["Madness", "Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Madness"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

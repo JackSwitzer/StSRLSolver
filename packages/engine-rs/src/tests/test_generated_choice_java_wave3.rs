@@ -19,11 +19,11 @@ use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_stat
 
 const COLORLESS_CHOICES: &[&str] = &[
     "Apotheosis", "Bandage Up", "Bite", "Blind", "Chrysalis", "Dark Shackles", "Deep Breath",
-    "Defend_R", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
+    "Defend", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
     "Forethought", "Ghostly", "Good Instincts", "HandOfGreed", "Impatience", "J.A.X.",
     "Jack Of All Trades", "Madness", "Magnetism", "Master of Strategy", "Mayhem",
     "Metamorphosis", "Mind Blast", "Panacea", "Panache", "PanicButton", "Purity",
-    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike_R",
+    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike",
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
@@ -116,7 +116,7 @@ fn transmutation_plus_upgrades_generated_cards() {
 #[test]
 fn discovery_potions_open_java_style_choice_and_track_copy_count() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -164,7 +164,7 @@ fn discovery_potions_open_java_style_choice_and_track_copy_count() {
 #[test]
 fn master_reality_upgrades_resolved_generated_discovery_card() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -189,7 +189,7 @@ fn master_reality_upgrades_resolved_generated_discovery_card() {
 #[test]
 fn sacred_bark_discovery_choice_needs_copy_count_resolution() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

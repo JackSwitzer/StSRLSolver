@@ -10,7 +10,7 @@ mod card_registry_tests {
 
     #[test]
     fn strike_base_values() {
-        let c = reg().get("Strike_P").unwrap().clone();
+        let c = reg().get("Strike").unwrap().clone();
         assert_eq!(c.base_damage, 6);
         assert_eq!(c.cost, 1);
         assert_eq!(c.card_type, CardType::Attack);
@@ -21,14 +21,14 @@ mod card_registry_tests {
 
     #[test]
     fn strike_upgraded_values() {
-        let c = reg().get("Strike_P+").unwrap().clone();
+        let c = reg().get("Strike+").unwrap().clone();
         assert_eq!(c.base_damage, 9);
         assert_eq!(c.cost, 1);
     }
 
     #[test]
     fn defend_base_values() {
-        let c = reg().get("Defend_P").unwrap().clone();
+        let c = reg().get("Defend").unwrap().clone();
         assert_eq!(c.base_block, 5);
         assert_eq!(c.cost, 1);
         assert_eq!(c.card_type, CardType::Skill);
@@ -37,7 +37,7 @@ mod card_registry_tests {
 
     #[test]
     fn defend_upgraded_values() {
-        let c = reg().get("Defend_P+").unwrap().clone();
+        let c = reg().get("Defend+").unwrap().clone();
         assert_eq!(c.base_block, 8);
         assert_eq!(c.cost, 1);
     }
@@ -466,8 +466,8 @@ mod card_registry_tests {
     #[test]
     fn strike_r_same_as_p() {
         let r = reg();
-        let sp = r.get("Strike_P").unwrap();
-        let sr = r.get("Strike_R").unwrap();
+        let sp = r.get("Strike").unwrap();
+        let sr = r.get("Strike").unwrap();
         assert_eq!(sp.base_damage, sr.base_damage);
     }
 
@@ -475,17 +475,17 @@ mod card_registry_tests {
 
     #[test]
     fn is_upgraded_check() {
-        assert!(CardRegistry::is_upgraded("Strike_P+"));
+        assert!(CardRegistry::is_upgraded("Strike+"));
         assert!(CardRegistry::is_upgraded("Eruption+"));
         assert!(CardRegistry::is_upgraded("MentalFortress+"));
-        assert!(!CardRegistry::is_upgraded("Strike_P"));
+        assert!(!CardRegistry::is_upgraded("Strike"));
         assert!(!CardRegistry::is_upgraded("Eruption"));
     }
 
     #[test]
     fn base_id_strips_plus() {
-        assert_eq!(CardRegistry::base_id("Strike_P+"), "Strike_P");
-        assert_eq!(CardRegistry::base_id("Strike_P"), "Strike_P");
+        assert_eq!(CardRegistry::base_id("Strike+"), "Strike");
+        assert_eq!(CardRegistry::base_id("Strike"), "Strike");
     }
 
     #[test]
@@ -500,7 +500,7 @@ mod card_registry_tests {
     fn registry_has_all_expected_cards() {
         let r = reg();
         let expected = [
-            "Strike_P", "Strike_P+", "Defend_P", "Defend_P+",
+            "Strike", "Strike+", "Defend", "Defend+",
             "Eruption", "Eruption+", "Vigilance", "Vigilance+",
             "BowlingBash", "BowlingBash+", "CrushJoints", "CrushJoints+",
             "CutThroughFate", "CutThroughFate+", "EmptyBody", "EmptyBody+",
@@ -515,7 +515,7 @@ mod card_registry_tests {
             "Ragnarok", "Ragnarok+", "Miracle", "Miracle+",
             "Smite", "Smite+",
             "Slimed", "Wound", "Daze", "Burn", "AscendersBane",
-            "Strike_R", "Defend_R",
+            "Strike", "Defend",
         ];
         for id in &expected {
             assert!(r.get(id).is_some(), "Missing card: {}", id);

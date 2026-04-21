@@ -39,7 +39,7 @@ fn enlightenment_plus_sets_costs_in_hand_to_one() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Enlightenment+", "Mind Blast", "Strike_R"]);
+    engine.state.hand = make_deck(&["Enlightenment+", "Mind Blast", "Strike"]);
 
     assert!(play_self(&mut engine, "Enlightenment+"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

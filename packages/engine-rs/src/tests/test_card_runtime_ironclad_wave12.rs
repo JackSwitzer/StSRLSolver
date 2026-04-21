@@ -125,8 +125,8 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
 #[test]
 fn ironclad_wave12_burning_pact_uses_declarative_choice_and_deferred_draw() {
     let mut engine = engine_for(
-        &["Burning Pact", "Strike_R"],
-        &["Defend_R", "Bash"],
+        &["Burning Pact", "Strike"],
+        &["Defend", "Bash"],
         &[],
         3,
     );
@@ -141,7 +141,7 @@ fn ironclad_wave12_burning_pact_uses_declarative_choice_and_deferred_draw() {
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
     assert_eq!(names.len(), 2);
-    assert!(names.contains(&"Defend_R".to_string()));
+    assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
 }
 

@@ -20,7 +20,7 @@ use crate::tests::support::{
 
 fn relic_engine(relic_id: &str, energy: i32) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
-        make_deck_n("Strike_R", 20),
+        make_deck_n("Strike", 20),
         vec![enemy_no_intent("JawWorm", 160, 160)],
         energy,
     );
@@ -36,12 +36,12 @@ fn relic_engine(relic_id: &str, energy: i32) -> crate::engine::CombatEngine {
 #[test]
 fn orange_pellets_clears_debuffs_after_all_three_card_types_in_one_turn() {
     let mut engine = relic_engine("OrangePellets", 20);
-    engine.state.hand = make_deck(&["Strike_R", "Defend_R", "Inflame"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
     engine.state.player.set_status(sid::WEAKENED, 2);
     engine.state.player.set_status(sid::VULNERABLE, 2);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_self(&mut engine, "Defend"));
 
     assert!(play_self(&mut engine, "Inflame"));
     assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
@@ -63,12 +63,12 @@ fn orange_pellets_clears_debuffs_after_all_three_card_types_in_one_turn() {
 #[test]
 fn pocketwatch_grants_draw_after_short_previous_turn_and_skips_first_turn_bonus() {
     let mut engine = relic_engine("Pocketwatch", 3);
-    engine.state.hand = make_deck(&["Strike_R", "Strike_R", "Strike_R", "Strike_R"]);
-    engine.state.draw_pile = make_deck_n("Defend_R", 8);
+    engine.state.hand = make_deck(&["Strike", "Strike", "Strike", "Strike"]);
+    engine.state.draw_pile = make_deck_n("Defend", 8);
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     end_turn(&mut engine);
 
@@ -87,17 +87,17 @@ fn pocketwatch_grants_draw_after_short_previous_turn_and_skips_first_turn_bonus(
 #[test]
 fn pen_nib_triggers_on_tenth_attack_and_resets() {
     let mut engine = relic_engine("Pen Nib", 20);
-    engine.state.hand = make_deck_n("Strike_R", 10);
+    engine.state.hand = make_deck_n("Strike", 10);
 
     for expected_counter in 1..=9 {
         let hp_before = engine.state.enemies[0].entity.hp;
-        assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
         assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), expected_counter);
     }
 
     let hp_before_tenth = engine.state.enemies[0].entity.hp;
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before_tenth - 12);
     assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), 0);
 }
@@ -105,7 +105,7 @@ fn pen_nib_triggers_on_tenth_attack_and_resets() {
 #[test]
 fn velvet_choker_blocks_the_seventh_card_and_resets_next_turn() {
     let mut engine = relic_engine("Velvet Choker", 20);
-    engine.state.hand = make_deck_n("Defend_R", 7);
+    engine.state.hand = make_deck_n("Defend", 7);
 
     for expected in 1..=6 {
         let hand_before = engine.state.hand.len();
@@ -145,10 +145,10 @@ fn velvet_choker_blocks_the_seventh_card_and_resets_next_turn() {
 #[test]
 fn nunchaku_persists_across_combats_and_grants_energy_on_the_tenth_attack() {
     let mut first_engine = relic_engine("Nunchaku", 20);
-    first_engine.state.hand = make_deck_n("Strike_R", 10);
+    first_engine.state.hand = make_deck_n("Strike", 10);
 
     for _ in 0..9 {
-        assert!(play_on_enemy(&mut first_engine, "Strike_R", 0));
+        assert!(play_on_enemy(&mut first_engine, "Strike", 0));
     }
 
     assert_eq!(
@@ -158,17 +158,17 @@ fn nunchaku_persists_across_combats_and_grants_energy_on_the_tenth_attack() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 1),
+        make_deck_n("Strike", 1),
         vec![enemy_no_intent("JawWorm", 160, 160)],
         20,
     );
     next_engine.state.relics.push("Nunchaku".to_string());
     next_engine.load_persisted_effects(persisted);
     next_engine.start_combat();
-    next_engine.state.hand = make_deck_n("Strike_R", 1);
+    next_engine.state.hand = make_deck_n("Strike", 1);
 
     let energy_before = next_engine.state.energy;
-    assert!(play_on_enemy(&mut next_engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut next_engine, "Strike", 0));
     assert_eq!(next_engine.state.energy, energy_before);
     assert_eq!(
         next_engine.hidden_effect_value("Nunchaku", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -179,10 +179,10 @@ fn nunchaku_persists_across_combats_and_grants_energy_on_the_tenth_attack() {
 #[test]
 fn ink_bottle_persists_across_combats_and_draws_on_the_tenth_card() {
     let mut first_engine = relic_engine("InkBottle", 20);
-    first_engine.state.hand = make_deck_n("Strike_R", 10);
+    first_engine.state.hand = make_deck_n("Strike", 10);
 
     for _ in 0..9 {
-        assert!(play_on_enemy(&mut first_engine, "Strike_R", 0));
+        assert!(play_on_enemy(&mut first_engine, "Strike", 0));
     }
 
     assert_eq!(
@@ -192,22 +192,22 @@ fn ink_bottle_persists_across_combats_and_draws_on_the_tenth_card() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 1),
+        make_deck_n("Strike", 1),
         vec![enemy_no_intent("JawWorm", 160, 160)],
         20,
     );
     next_engine.state.relics.push("InkBottle".to_string());
     next_engine.load_persisted_effects(persisted);
     next_engine.start_combat();
-    next_engine.state.hand = make_deck_n("Strike_R", 1);
-    next_engine.state.draw_pile = make_deck(&["Defend_R"]);
+    next_engine.state.hand = make_deck_n("Strike", 1);
+    next_engine.state.draw_pile = make_deck(&["Defend"]);
 
-    assert!(play_on_enemy(&mut next_engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut next_engine, "Strike", 0));
     assert!(next_engine
         .state
         .hand
         .iter()
-        .any(|card| next_engine.card_registry.card_name(card.def_id) == "Defend_R"));
+        .any(|card| next_engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(
         next_engine.hidden_effect_value("InkBottle", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
@@ -229,7 +229,7 @@ fn happy_flower_persists_turn_progress_across_combats() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 8),
+        make_deck_n("Strike", 8),
         vec![enemy_no_intent("JawWorm", 160, 160)],
         3,
     );
@@ -258,7 +258,7 @@ fn incense_burner_persists_turn_progress_across_combats() {
 
     let persisted = first_engine.export_persisted_effects();
     let mut next_engine = engine_without_start(
-        make_deck_n("Strike_R", 8),
+        make_deck_n("Strike", 8),
         vec![enemy_no_intent("JawWorm", 160, 160)],
         3,
     );

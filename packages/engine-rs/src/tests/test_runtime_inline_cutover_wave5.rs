@@ -16,21 +16,21 @@ fn legal_play_names(engine: &CombatEngine) -> Vec<&'static str> {
 
 #[test]
 fn canonical_legality_helper_blocks_and_allows_card_specific_plays() {
-    let mut clash_blocked = engine_with(make_deck(&["Clash", "Defend_R"]), 50, 0);
-    clash_blocked.state.hand = make_deck(&["Clash", "Defend_R"]);
+    let mut clash_blocked = engine_with(make_deck(&["Clash", "Defend"]), 50, 0);
+    clash_blocked.state.hand = make_deck(&["Clash", "Defend"]);
     clash_blocked.state.draw_pile.clear();
     clash_blocked.state.discard_pile.clear();
     assert!(!legal_play_names(&clash_blocked).contains(&"Clash"));
 
-    let mut signature_blocked = engine_with(make_deck(&["SignatureMove", "Strike_P"]), 50, 0);
-    signature_blocked.state.hand = make_deck(&["SignatureMove", "Strike_P"]);
+    let mut signature_blocked = engine_with(make_deck(&["SignatureMove", "Strike"]), 50, 0);
+    signature_blocked.state.hand = make_deck(&["SignatureMove", "Strike"]);
     signature_blocked.state.draw_pile.clear();
     signature_blocked.state.discard_pile.clear();
     assert!(!legal_play_names(&signature_blocked).contains(&"Signature Move"));
 
-    let mut finale_blocked = engine_with(make_deck(&["Grand Finale", "Strike_G"]), 50, 0);
+    let mut finale_blocked = engine_with(make_deck(&["Grand Finale", "Strike"]), 50, 0);
     finale_blocked.state.hand = make_deck(&["Grand Finale"]);
-    finale_blocked.state.draw_pile = make_deck(&["Strike_G"]);
+    finale_blocked.state.draw_pile = make_deck(&["Strike"]);
     finale_blocked.state.discard_pile.clear();
     assert!(!legal_play_names(&finale_blocked).contains(&"Grand Finale"));
 
@@ -44,7 +44,7 @@ fn canonical_legality_helper_blocks_and_allows_card_specific_plays() {
 #[test]
 fn canonical_cost_helper_matches_runtime_scaling_rules() {
     let registry = crate::cards::global_registry();
-    let mut engine = engine_with(make_deck(&["Strike_R"]), 50, 0);
+    let mut engine = engine_with(make_deck(&["Strike"]), 50, 0);
 
     engine.state.player.set_status(sid::HP_LOSS_THIS_COMBAT, 2);
     let blood_for_blood = registry.get("Blood for Blood").expect("Blood for Blood");

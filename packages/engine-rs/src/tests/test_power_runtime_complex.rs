@@ -29,7 +29,7 @@ fn thousand_cuts_runtime_hook_hits_all_living_enemies() {
         enemy_no_intent("JawWorm", 40, 40),
         enemy_no_intent("Cultist", 35, 35),
     ];
-    let mut engine = engine_without_start(make_deck_n("Strike_R", 5), enemies, 3);
+    let mut engine = engine_without_start(make_deck_n("Strike", 5), enemies, 3);
     engine.state.player.set_status(sid::THOUSAND_CUTS, 2);
 
     let mut runtime_state = EffectState::default();
@@ -51,7 +51,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
         enemy_no_intent("JawWorm", 50, 50),
         enemy_no_intent("Cultist", 45, 45),
     ];
-    let mut engine = engine_without_start(make_deck_n("Strike_R", 5), enemies, 3);
+    let mut engine = engine_without_start(make_deck_n("Strike", 5), enemies, 3);
     engine.state.player.set_status(sid::PANACHE, 10);
 
     let mut runtime_state = EffectState::default();
@@ -108,7 +108,7 @@ fn electrodynamics_lightning_passive_hits_all_enemies_instead_of_channeling_on_a
         enemy_no_intent("JawWorm", 40, 40),
         enemy_no_intent("Cultist", 35, 35),
     ];
-    let mut engine = engine_without_start(make_deck_n("Strike_B", 5), enemies, 3);
+    let mut engine = engine_without_start(make_deck_n("Strike", 5), enemies, 3);
     engine.init_defect_orbs(1);
     engine.state.player.set_status(sid::ELECTRODYNAMICS, 1);
     engine.channel_orb(OrbType::Lightning);
@@ -122,7 +122,7 @@ fn electrodynamics_lightning_passive_hits_all_enemies_instead_of_channeling_on_a
 #[test]
 fn electrodynamics_no_longer_channels_extra_lightning_when_attack_card_is_played() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_B"]),
+        make_deck(&["Strike"]),
         vec![
             enemy_no_intent("JawWorm", 40, 40),
             enemy_no_intent("Cultist", 35, 35),
@@ -132,7 +132,7 @@ fn electrodynamics_no_longer_channels_extra_lightning_when_attack_card_is_played
     engine.init_defect_orbs(2);
     engine.state.player.set_status(sid::ELECTRODYNAMICS, 1);
     engine.channel_orb(OrbType::Lightning);
-    engine.state.hand = make_deck(&["Strike_B"]);
+    engine.state.hand = make_deck(&["Strike"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
@@ -143,7 +143,7 @@ fn electrodynamics_no_longer_channels_extra_lightning_when_attack_card_is_played
         .iter()
         .filter(|orb| orb.orb_type == OrbType::Lightning)
         .count();
-    assert!(play_on_enemy(&mut engine, "Strike_B", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     let after_lightning = engine
         .state
         .orb_slots

@@ -25,7 +25,7 @@ fn one_enemy_engine(hp: i32) -> crate::engine::CombatEngine {
 
 #[test]
 fn defect_wave6_registry_exports_honest_runtime_surface() {
-    let strike = global_registry().get("Strike_B+").expect("Strike_B+ should exist");
+    let strike = global_registry().get("Strike+").expect("Strike_B+ should exist");
     assert_eq!(strike.card_type, CardType::Attack);
     assert_eq!(strike.target, CardTarget::Enemy);
     assert_eq!(strike.base_damage, 9);
@@ -34,7 +34,7 @@ fn defect_wave6_registry_exports_honest_runtime_surface() {
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let defend = global_registry().get("Defend_B+").expect("Defend_B+ should exist");
+    let defend = global_registry().get("Defend+").expect("Defend_B+ should exist");
     assert_eq!(defend.card_type, CardType::Skill);
     assert_eq!(defend.target, CardTarget::SelfTarget);
     assert_eq!(defend.base_block, 8);
@@ -93,13 +93,13 @@ fn defect_wave6_registry_exports_honest_runtime_surface() {
 #[test]
 fn defect_wave6_strike_defend_leap_boot_sequence_and_reinforced_body_follow_engine_path() {
     let mut strike = one_enemy_engine(20);
-    ensure_in_hand(&mut strike, "Strike_B+");
-    assert!(play_on_enemy(&mut strike, "Strike_B+", 0));
+    ensure_in_hand(&mut strike, "Strike+");
+    assert!(play_on_enemy(&mut strike, "Strike+", 0));
     assert_eq!(strike.state.enemies[0].entity.hp, 11);
 
     let mut defend = one_enemy_engine(20);
-    ensure_in_hand(&mut defend, "Defend_B+");
-    assert!(play_self(&mut defend, "Defend_B+"));
+    ensure_in_hand(&mut defend, "Defend+");
+    assert!(play_self(&mut defend, "Defend+"));
     assert_eq!(defend.state.player.block, 8);
 
     let mut leap = one_enemy_engine(20);
@@ -131,10 +131,10 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     );
     force_player_turn(&mut self_repair);
     self_repair.state.player.hp = 40;
-    self_repair.state.hand = make_deck(&["Self Repair+", "Strike_B"]);
+    self_repair.state.hand = make_deck(&["Self Repair+", "Strike"]);
     assert!(play_self(&mut self_repair, "Self Repair+"));
     assert_eq!(self_repair.state.player.status(sid::SELF_REPAIR), 10);
-    assert!(play_on_enemy(&mut self_repair, "Strike_B", 0));
+    assert!(play_on_enemy(&mut self_repair, "Strike", 0));
     assert!(self_repair.state.player_won);
     assert_eq!(self_repair.state.player.hp, 40);
 
@@ -146,12 +146,12 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     force_player_turn(&mut machine_learning);
     machine_learning.state.hand = make_deck(&["Machine Learning+"]);
     machine_learning.state.draw_pile = make_deck(&[
-        "Strike_B",
-        "Defend_B",
+        "Strike",
+        "Defend",
         "Zap",
         "Dualcast",
-        "Strike_B",
-        "Defend_B",
+        "Strike",
+        "Defend",
     ]);
     assert!(play_self(&mut machine_learning, "Machine Learning+"));
     assert_eq!(machine_learning.state.player.status(sid::DRAW), 1);

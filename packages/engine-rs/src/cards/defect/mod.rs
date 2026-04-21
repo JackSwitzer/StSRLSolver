@@ -23,7 +23,7 @@ mod coolheaded;
 mod core_surge;
 mod creative_ai;
 mod darkness;
-mod defend_b;
+// defend_b removed; unified `cards::starters::register` provides Strike/Defend
 mod defragment;
 mod doom_and_gloom;
 mod double_energy;
@@ -67,7 +67,7 @@ mod steam;
 mod steam_power;
 mod storm;
 mod streamline;
-mod strike_b;
+// strike_b removed; unified `cards::starters::register` provides Strike/Defend
 mod sunder;
 mod sweeping_beam;
 mod tempest;
@@ -100,7 +100,7 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
     core_surge::register(cards);
     creative_ai::register(cards);
     darkness::register(cards);
-    defend_b::register(cards);
+    // defend_b::register(cards); // moved to cards::starters::register
     defragment::register(cards);
     doom_and_gloom::register(cards);
     double_energy::register(cards);
@@ -144,7 +144,7 @@ pub fn register_defect(cards: &mut HashMap<&'static str, CardDef>) {
     steam_power::register(cards);
     storm::register(cards);
     streamline::register(cards);
-    strike_b::register(cards);
+    // strike_b::register(cards); // moved to cards::starters::register
     sunder::register(cards);
     sweeping_beam::register(cards);
     tempest::register(cards);

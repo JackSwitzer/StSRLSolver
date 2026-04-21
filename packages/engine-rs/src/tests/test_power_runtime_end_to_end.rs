@@ -25,12 +25,12 @@ fn thousand_cuts_hits_all_enemies_via_engine_play_path() {
     ];
     let mut engine = engine_with_state(combat_state_with(Vec::new(), enemies, 3));
     engine.state.player.set_status(sid::THOUSAND_CUTS, 2);
-    engine.state.hand = make_deck(&["Defend_R"]);
+    engine.state.hand = make_deck(&["Defend"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.clear_event_log();
 
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_self(&mut engine, "Defend"));
 
     assert_eq!(engine.state.player.block, 5);
     assert_eq!(engine.state.enemies[0].entity.hp, 38);
@@ -54,23 +54,23 @@ fn panache_tracks_cards_and_bursts_on_the_fifth_real_play() {
     let mut engine = engine_with_state(combat_state_with(Vec::new(), enemies, 10));
     engine.state.player.set_status(sid::PANACHE, 7);
     engine.state.hand = make_deck(&[
-        "Defend_R",
-        "Defend_R",
-        "Defend_R",
-        "Defend_R",
-        "Defend_R",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
     ]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
     for plays in 1..=4 {
-        assert!(play_self(&mut engine, "Defend_R"));
+        assert!(play_self(&mut engine, "Defend"));
         assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), plays);
         assert_eq!(engine.state.enemies[0].entity.hp, 50);
         assert_eq!(engine.state.enemies[1].entity.hp, 45);
     }
 
-    assert!(play_self(&mut engine, "Defend_R"));
+    assert!(play_self(&mut engine, "Defend"));
 
     assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 43);
@@ -114,8 +114,8 @@ fn mayhem_moves_the_remaining_top_draw_card_into_hand_on_turn_start() {
     engine.state.hand.clear();
     engine.state.discard_pile.clear();
     engine.state.draw_pile = make_deck(&[
-        "Strike_R",
-        "Defend_R",
+        "Strike",
+        "Defend",
         "Bash",
         "Shrug It Off",
         "Inflame",
@@ -127,7 +127,7 @@ fn mayhem_moves_the_remaining_top_draw_card_into_hand_on_turn_start() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 6);
-    assert!(hand_names(&engine).contains(&"Strike_R".to_string()));
+    assert!(hand_names(&engine).contains(&"Strike".to_string()));
     assert!(engine.state.draw_pile.is_empty());
 
     let events = engine.take_event_log();
@@ -149,8 +149,8 @@ fn tools_of_the_trade_draws_then_opens_and_resolves_a_real_discard_choice() {
     engine.state.hand.clear();
     engine.state.discard_pile.clear();
     engine.state.draw_pile = make_deck(&[
-        "Strike_R",
-        "Defend_R",
+        "Strike",
+        "Defend",
         "Bash",
         "Shrug It Off",
         "Inflame",

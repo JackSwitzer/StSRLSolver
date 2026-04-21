@@ -90,7 +90,7 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
 fn defect_wave11_ftl_draws_under_threshold_and_stops_at_threshold() {
     let mut draws = one_enemy_engine(40, 3);
     draws.state.hand = make_deck(&["FTL+"]);
-    draws.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
 
     assert!(play_on_enemy(&mut draws, "FTL+", 0));
     assert_eq!(draws.state.hand.len(), 4);
@@ -99,7 +99,7 @@ fn defect_wave11_ftl_draws_under_threshold_and_stops_at_threshold() {
     let mut gated = one_enemy_engine(40, 3);
     gated.state.cards_played_this_turn = 3;
     gated.state.hand = make_deck(&["FTL"]);
-    gated.state.draw_pile = make_deck(&["Strike_B", "Defend_B"]);
+    gated.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
     assert!(play_on_enemy(&mut gated, "FTL", 0));
     assert_eq!(gated.state.hand.len(), 0);

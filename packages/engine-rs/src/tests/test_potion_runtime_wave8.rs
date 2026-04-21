@@ -52,11 +52,11 @@ fn wave8_blessing_bottled_and_liquid_memories_stay_slot_scoped_on_action_path() 
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/BottledMiracle.java
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidMemories.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Zap"]),
+        make_deck(&["Strike", "Defend", "Bash", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
     engine.state.discard_pile = make_deck(&["Bash"]);
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "BlessingOfTheForge".to_string();
@@ -72,7 +72,7 @@ fn wave8_blessing_bottled_and_liquid_memories_stay_slot_scoped_on_action_path() 
             .iter()
             .map(|card| engine.card_registry.card_name(card.def_id))
             .collect::<Vec<_>>(),
-        vec!["Strike_P+", "Defend_P+"]
+        vec!["Strike+", "Defend+"]
     );
     assert!(engine.state.potions[0].is_empty());
 
@@ -114,12 +114,12 @@ fn wave8_ambrosia_entropic_darkness_capacity_and_gamblers_brew_use_runtime_path(
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/PotionOfCapacity.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Zap", "Dualcast", "Bash"]),
+        make_deck(&["Strike", "Defend", "Zap", "Dualcast", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.init_defect_orbs(2);
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
     engine.state.draw_pile = make_deck(&["Zap", "Dualcast", "Bash"]);
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "Ambrosia".to_string();
@@ -156,7 +156,7 @@ fn wave8_smoke_bomb_flees_on_the_canonical_runtime_path() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -177,7 +177,7 @@ fn wave8_stance_potion_matches_java_choose_one_semantics() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/StancePotion.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -203,7 +203,7 @@ fn wave8_smoke_bomb_respects_java_can_use_restrictions() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("The Guardian", 250, 250)],
         3,
     ));
@@ -222,7 +222,7 @@ fn wave8_smoke_bomb_stays_legal_against_normal_enemies() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -240,7 +240,7 @@ fn wave8_smoke_bomb_rejects_back_attack_non_boss_enemies() {
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
     // - decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![{
             let mut enemy = enemy_no_intent("JawWorm", 40, 40);
             enemy.back_attack = true;

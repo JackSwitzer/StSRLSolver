@@ -14,7 +14,7 @@ use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck_n};
 #[test]
 fn relic_wave16_start_combat_buffs_and_temp_cards_match_canonical_runtime() {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", 12),
+        make_deck_n("Strike", 12),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
         3,
     );
@@ -45,7 +45,7 @@ fn relic_wave16_start_combat_buffs_and_temp_cards_match_canonical_runtime() {
 #[test]
 fn relic_wave16_opening_draw_relics_match_canonical_runtime() {
     let mut bag = engine_without_start(
-        make_deck_n("Strike_R", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -54,7 +54,7 @@ fn relic_wave16_opening_draw_relics_match_canonical_runtime() {
     assert_eq!(bag.state.hand.len(), 7);
 
     let mut ring = engine_without_start(
-        make_deck_n("Strike_G", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -66,7 +66,7 @@ fn relic_wave16_opening_draw_relics_match_canonical_runtime() {
 #[test]
 fn relic_wave16_runtime_mutagenic_strength_and_ninja_scroll_stay_authoritative() {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", 10),
+        make_deck_n("Strike", 10),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );

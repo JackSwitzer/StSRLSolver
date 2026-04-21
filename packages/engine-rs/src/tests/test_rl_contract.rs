@@ -94,11 +94,11 @@ fn combat_obs_v3_exposes_potions_and_choice_context() {
     let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.deck = vec![
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Strike_P".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Strike".to_string(),
         "ThirdEye".to_string(),
     ];
     engine.run_state.potions[0] = "Block Potion".to_string();
@@ -408,7 +408,7 @@ fn rl_surface_does_not_fabricate_blocked_campfire_or_empty_event_actions() {
     engine.run_state.relics.push("Coffee Dripper".to_string());
     engine.run_state.relics.push("Fusion Hammer".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-    engine.run_state.deck = vec!["Strike_P+".to_string(), "Defend_P+".to_string()];
+    engine.run_state.deck = vec!["Strike+".to_string(), "Defend+".to_string()];
     engine.debug_set_campfire_phase();
 
     let campfire_context = engine.current_decision_context();
@@ -429,11 +429,11 @@ fn step_with_result_surfaces_illegal_actions_and_decision_context() {
     let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.deck = vec![
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Strike_P".to_string(),
-        "Defend_P".to_string(),
-        "Strike_P".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Strike".to_string(),
         "ThirdEye".to_string(),
     ];
     engine.run_state.potions[0] = "Block Potion".to_string();

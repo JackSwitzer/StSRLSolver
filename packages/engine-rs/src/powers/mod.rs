@@ -90,6 +90,7 @@ pub use buffs::process_end_of_round;
 
 // -- debuffs --
 pub use debuffs::decrement_debuffs;
+pub use debuffs::apply_debuff_from_enemy;
 pub use debuffs::tick_poison;
 pub use debuffs::apply_lose_strength;
 pub use debuffs::apply_lose_dexterity;

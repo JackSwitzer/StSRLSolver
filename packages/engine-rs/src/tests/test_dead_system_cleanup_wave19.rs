@@ -22,7 +22,7 @@ use crate::tests::support::{
 #[test]
 fn relic_dead_helper_cleanup_wave19_scalar_bonuses_now_live_on_engine_path() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R", "Shiv"]),
+        make_deck(&["Strike", "Shiv"]),
         vec![enemy_no_intent("JawWorm", 80, 80)],
         3,
     );
@@ -34,11 +34,11 @@ fn relic_dead_helper_cleanup_wave19_scalar_bonuses_now_live_on_engine_path() {
     ];
 
     let mut engine = engine_with_state(state);
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
     ensure_in_hand(&mut engine, "Shiv");
 
     let hp_before = engine.state.enemies[0].entity.hp;
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
     assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 17);
 

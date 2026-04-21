@@ -91,7 +91,7 @@ fn ironclad_wave10_rampage_and_true_grit_follow_the_typed_primary_surface() {
     assert_eq!(played_once.misc, 16, "Rampage+ should store its next damage on the played copy");
 
     let mut true_grit = one_enemy_engine(40, 3);
-    true_grit.state.hand = make_deck(&["True Grit", "Strike_R", "Defend_R"]);
+    true_grit.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
     assert!(play_self(&mut true_grit, "True Grit"));
     assert_eq!(true_grit.state.player.block, 7);
     assert_eq!(true_grit.state.exhaust_pile.len(), 1);

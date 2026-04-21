@@ -121,7 +121,7 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
 
     let mut heatsinks = one_enemy_engine(50);
     heatsinks.state.hand = make_deck(&["Heatsinks+", "Buffer"]);
-    heatsinks.state.draw_pile = make_deck(&["Strike_B", "Defend_B"]);
+    heatsinks.state.draw_pile = make_deck(&["Strike", "Defend"]);
     assert!(play_self(&mut heatsinks, "Heatsinks+"));
     assert_eq!(heatsinks.state.player.status(sid::HEATSINK), 2);
     assert!(play_self(&mut heatsinks, "Buffer"));
@@ -137,7 +137,7 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert_eq!(hello_world.state.hand.len(), 1);
     assert_eq!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
-        "Strike_R"
+        "Strike"
     );
 
     let mut loop_card = one_enemy_engine(60);

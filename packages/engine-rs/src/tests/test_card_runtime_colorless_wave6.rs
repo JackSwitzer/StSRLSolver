@@ -38,7 +38,7 @@ fn mind_blast_uses_draw_pile_size_for_attack_damage() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Mind Blast"]);
-    engine.state.draw_pile = make_deck(&["Strike_R", "Defend_R", "Strike_R"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
 
     assert!(play_on_enemy(&mut engine, "Mind Blast", 0));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

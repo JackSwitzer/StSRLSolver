@@ -62,7 +62,7 @@ fn relic_wave12_runtime_combat_start_temp_cards_match_canonical_runtime() {
 #[test]
 fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
     let mut state = combat_state_with(
-        make_deck(&["Strike_R"; 10]),
+        make_deck(&["Strike"; 10]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -77,12 +77,12 @@ fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
     engine.state.draw_pile = make_deck(&[
-        "Strike_R",
-        "Defend_R",
+        "Strike",
+        "Defend",
         "Bash",
-        "Strike_R",
-        "Defend_R",
-        "Strike_R",
+        "Strike",
+        "Defend",
+        "Strike",
     ]);
 
     engine.player_lose_hp(11);
@@ -113,7 +113,7 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
     for expected_shuffle in [1, 2, 0] {
         shuffle.state.hand.clear();
         shuffle.state.draw_pile.clear();
-        shuffle.state.discard_pile = make_deck(&["Strike_R"]);
+        shuffle.state.discard_pile = make_deck(&["Strike"]);
         shuffle.draw_cards(1);
         assert_eq!(
             shuffle.hidden_effect_value("Sundial", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -124,14 +124,14 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
     assert_eq!(shuffle.state.player.block, 18);
 
     let mut state = combat_state_with(
-        make_deck_n("Strike_G", 3),
+        make_deck_n("Strike", 3),
         vec![enemy_no_intent("JawWorm", 10, 10), enemy_no_intent("Cultist", 30, 30)],
         3,
     );
     state.relics = vec!["Gremlin Horn".to_string(), "The Specimen".to_string()];
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_G"]);
+    engine.state.draw_pile = make_deck(&["Strike"]);
     engine.state.enemies[0].entity.set_status(sid::POISON, 5);
     engine.state.enemies[0].entity.hp = 0;
 

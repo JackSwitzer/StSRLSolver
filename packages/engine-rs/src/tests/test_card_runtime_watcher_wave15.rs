@@ -139,7 +139,7 @@ fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = one_enemy_engine(40, 0);
     engine.state.energy = 4;
     ensure_in_hand(&mut engine, "Omniscience");
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -149,7 +149,7 @@ fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike_P");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
     assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

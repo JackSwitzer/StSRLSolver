@@ -314,7 +314,7 @@ fn event_reward_items_flow_through_ordered_reward_screen() {
 fn deck_selection_purge_reward_removes_the_selected_card() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.deck = vec![
-        "Strike_P".to_string(),
+        "Strike".to_string(),
         "Wallop".to_string(),
         "Vigilance".to_string(),
     ];
@@ -334,7 +334,7 @@ fn deck_selection_purge_reward_removes_the_selected_card() {
             choices: vec![
                 RewardChoice::Card {
                     index: 0,
-                    card_id: "Strike_P".to_string(),
+                    card_id: "Strike".to_string(),
                 },
                 RewardChoice::Card {
                     index: 1,

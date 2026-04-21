@@ -38,7 +38,7 @@ fn silent_wave11_registry_exports_show_typed_primary_surface_for_shiv() {
 
 #[test]
 fn silent_wave11_shiv_follows_engine_path_for_primary_damage_and_exhaust() {
-    let mut engine = engine_with(make_deck(&["Shiv", "Strike_G"]), 40, 0);
+    let mut engine = engine_with(make_deck(&["Shiv", "Strike"]), 40, 0);
     engine.state.hand = make_deck(&["Shiv"]);
     let hp_before = engine.state.enemies[0].entity.hp;
 

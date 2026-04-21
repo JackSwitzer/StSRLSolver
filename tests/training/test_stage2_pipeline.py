@@ -16,11 +16,11 @@ def test_imported_act1_cases_reconstruct_watcher_combat_entries() -> None:
         "lesson_learned_shell",
     }
     assert cases[0].deck[:5] == (
-        "Strike_P",
-        "Strike_P",
-        "Strike_P",
-        "Strike_P",
-        "Defend_P",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Defend",
     )
     assert cases[0].relics == ("PureWater",)
     assert "TalkToTheHand" in cases[-1].deck

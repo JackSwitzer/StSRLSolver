@@ -1844,7 +1844,7 @@ fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
 
 fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
     let mut map = HashMap::new();
-    for line in include_str!("../../../engine/content/cards.py").lines() {
+    for line in include_str!("../../content/generated-cards.txt").lines() {
         let Some((_, id_rest)) = line.split_once("id=\"") else {
             continue;
         };
@@ -2034,7 +2034,7 @@ const COLORLESS_GENERATION_POOL: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -2061,7 +2061,7 @@ const COLORLESS_GENERATION_POOL: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",

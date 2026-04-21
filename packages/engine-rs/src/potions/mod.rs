@@ -489,12 +489,12 @@ pub(crate) fn apply_potion_scaled(
 
         "AttackPotion" => {
             let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike")); }
             true
         }
         "SkillPotion" => {
             let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend_P")); }
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend")); }
             true
         }
         "PowerPotion" => {
@@ -504,7 +504,7 @@ pub(crate) fn apply_potion_scaled(
         }
         "ColorlessPotion" => {
             let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike_P")); }
+            if state.hand.len() < 10 { state.hand.push(registry.make_card("Strike")); }
             true
         }
 
@@ -611,7 +611,7 @@ mod tests {
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
         let mut state =
-            CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
+            CombatState::new(80, 80, vec![enemy], make_deck_n("Strike", 5), 3);
         state.potions = vec!["".to_string(); 3];
         state
     }
@@ -620,7 +620,7 @@ mod tests {
         let e1 = EnemyCombatState::new("JawWorm", 44, 44);
         let e2 = EnemyCombatState::new("Cultist", 50, 50);
         let mut state =
-            CombatState::new(80, 80, vec![e1, e2], make_deck_n("Strike_P", 5), 3);
+            CombatState::new(80, 80, vec![e1, e2], make_deck_n("Strike", 5), 3);
         state.potions = vec!["".to_string(); 3];
         state
     }

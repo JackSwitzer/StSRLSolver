@@ -85,11 +85,11 @@ mod ironclad_wave1_card_runtime_tests {
             }],
         );
 
-        let mut engine = engine_for(&["True Grit", "Strike_P"], &[], &[], 40, 3);
+        let mut engine = engine_for(&["True Grit", "Strike"], &[], &[], 40, 3);
         let hp_before = engine.state.player.hp;
         assert!(play_self(&mut engine, "True Grit"));
         assert_eq!(engine.state.player.hp, hp_before);
-        assert_eq!(exhaust_prefix_count(&engine, "Strike_"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
         assert_eq!(discard_prefix_count(&engine, "True Grit"), 1);
     }
 
@@ -131,8 +131,8 @@ mod ironclad_wave1_card_runtime_tests {
 
         let mut perfected_strike = engine_for(
             &["Perfected Strike"],
-            &["Strike_P", "Strike_P"],
-            &["Strike_P"],
+            &["Strike", "Strike"],
+            &["Strike"],
             80,
             3,
         );

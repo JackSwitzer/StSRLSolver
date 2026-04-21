@@ -4,14 +4,14 @@ from __future__ import annotations
 
 
 WATCHER_STARTER_DECK = (
-    "Strike_P",
-    "Strike_P",
-    "Strike_P",
-    "Strike_P",
-    "Defend_P",
-    "Defend_P",
-    "Defend_P",
-    "Defend_P",
+    "Strike",
+    "Strike",
+    "Strike",
+    "Strike",
+    "Defend",
+    "Defend",
+    "Defend",
+    "Defend",
     "Eruption",
     "Vigilance",
     "Miracle",

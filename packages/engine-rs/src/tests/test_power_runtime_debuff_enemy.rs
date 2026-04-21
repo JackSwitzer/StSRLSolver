@@ -11,7 +11,7 @@ use crate::tests::support::{
 
 #[test]
 fn sadistic_nature_runtime_triggers_on_skill_debuff_application() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
     engine.state.player.set_status(sid::SADISTIC, 5);
     ensure_in_hand(&mut engine, "Trip");
 
@@ -23,7 +23,7 @@ fn sadistic_nature_runtime_triggers_on_skill_debuff_application() {
 
 #[test]
 fn sadistic_nature_runtime_skips_artifact_blocked_debuffs() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
     engine.state.player.set_status(sid::SADISTIC, 5);
     engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
     ensure_in_hand(&mut engine, "Trip");
@@ -43,22 +43,22 @@ fn sadistic_nature_def_uses_debuff_applied_trigger() {
 
 #[test]
 fn envenom_runtime_triggers_only_on_unblocked_attack_damage() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 10), 50, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
     engine.state.player.set_status(sid::ENVENOM, 2);
     engine.state.enemies[0].entity.block = 20;
     engine.rebuild_effect_runtime();
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
 
     assert!(engine
         .effect_runtime
         .has_instance("envenom", EffectOwner::PlayerPower));
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 0);
 
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
     engine.state.enemies[0].entity.block = 0;
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2);
     assert!(engine.event_log.iter().any(|record| {
         record.event == Trigger::DamageResolved
@@ -77,7 +77,7 @@ fn time_warp_def_uses_after_use_card_runtime_trigger() {
 
 #[test]
 fn time_warp_runtime_snapshot_installs_enemy_power_when_active() {
-    let mut engine = engine_with(make_deck_n("Strike_R", 10), 250, 0);
+    let mut engine = engine_with(make_deck_n("Strike", 10), 250, 0);
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 5);
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP_ACTIVE, 1);
     engine.rebuild_effect_runtime();
@@ -94,7 +94,7 @@ fn time_warp_twelfth_card_ends_turn_resets_counter_and_buffs_all_monsters() {
     let mut second_enemy = enemy_no_intent("Cultist", 40, 40);
     second_enemy.entity.set_status(sid::STRENGTH, 1);
     let mut engine = engine_with_enemies(
-        make_deck_n("Strike_R", 12),
+        make_deck_n("Strike", 12),
         vec![EnemyCombatState::new("TimeEater", 250, 250), second_enemy],
         3,
     );
@@ -102,9 +102,9 @@ fn time_warp_twelfth_card_ends_turn_resets_counter_and_buffs_all_monsters() {
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 11);
     engine.rebuild_effect_runtime();
     engine.clear_event_log();
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
 
-    assert!(play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::TIME_WARP), 0);
     assert_eq!(engine.state.enemies[0].entity.strength(), 2);

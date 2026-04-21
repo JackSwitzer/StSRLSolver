@@ -78,14 +78,14 @@ fn note_for_yourself_claims_stored_card_then_saves_selected_deck_card_for_future
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.deck.len(), deck_before.len());
     assert_eq!(
-        engine.run_state.deck.iter().filter(|card| card.as_str() == "Strike_P").count(),
+        engine.run_state.deck.iter().filter(|card| card.as_str() == "Strike").count(),
         deck_before
             .iter()
-            .filter(|card| card.as_str() == "Strike_P")
+            .filter(|card| card.as_str() == "Strike")
             .count()
             - 1
     );
-    assert_eq!(engine.debug_current_note_for_yourself_card(), "Strike_P");
+    assert_eq!(engine.debug_current_note_for_yourself_card(), "Strike");
 
     let mut next_run = RunEngine::new(56, 20);
     next_run.debug_set_typed_event_state(typed_shrine_event("NoteForYourself"));
@@ -96,7 +96,7 @@ fn note_for_yourself_claims_stored_card_then_saves_selected_deck_card_for_future
         .expect("next run note reward screen should exist");
     assert_eq!(
         reward_choice_card_id(&next_screen.items[0].choices[0]),
-        Some("Strike_P")
+        Some("Strike")
     );
 
     next_run.debug_reset_note_for_yourself_card();

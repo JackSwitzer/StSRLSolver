@@ -42,7 +42,7 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     );
     assert_eq!(boot.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
-    let defend = reg.get("Defend_B").expect("Defend_B");
+    let defend = reg.get("Defend").expect("Defend");
     assert_eq!(defend.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(defend.complex_hook.is_none());
 
@@ -115,8 +115,8 @@ fn test_card_runtime_defect_wave4_boot_sequence_defend_and_buffer_follow_engine_
         3,
     );
     force_player_turn(&mut defend);
-    defend.state.hand = make_deck(&["Defend_B+"]);
-    assert!(play_self(&mut defend, "Defend_B+"));
+    defend.state.hand = make_deck(&["Defend+"]);
+    assert!(play_self(&mut defend, "Defend+"));
     assert_eq!(defend.state.player.block, 8);
 
     let mut buffer = engine_without_start(
@@ -168,7 +168,7 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
     );
     force_player_turn(&mut ftl_draws);
     ftl_draws.state.hand = make_deck(&["FTL+"]);
-    ftl_draws.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
     assert_eq!(ftl_draws.state.hand.len(), 4);
 
@@ -180,7 +180,7 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
     force_player_turn(&mut ftl_gated);
     ftl_gated.state.cards_played_this_turn = 3;
     ftl_gated.state.hand = make_deck(&["FTL"]);
-    ftl_gated.state.draw_pile = make_deck(&["Strike_B", "Defend_B"]);
+    ftl_gated.state.draw_pile = make_deck(&["Strike", "Defend"]);
     assert!(play_on_enemy(&mut ftl_gated, "FTL", 0));
     assert_eq!(ftl_gated.state.hand.len(), 0);
 

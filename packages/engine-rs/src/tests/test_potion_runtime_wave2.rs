@@ -33,7 +33,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -60,7 +60,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",
@@ -93,7 +93,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
         .is_some());
 
     let mut ambrosia = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -109,7 +109,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     }));
 
     let mut capacity = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -121,7 +121,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     assert_eq!(capacity.state.player.status(sid::ORB_SLOTS), orb_slots_before + 4);
 
     let mut miracle = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -132,7 +132,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     assert_eq!(hand_names(&miracle), vec!["Miracle", "Miracle"]);
 
     let mut cunning = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -146,7 +146,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
 #[test]
 fn random_generation_potions_pick_the_right_card_families() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

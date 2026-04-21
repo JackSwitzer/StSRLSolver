@@ -35,7 +35,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -62,7 +62,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",
@@ -78,7 +78,7 @@ const COLORLESS_CHOICES: &[&str] = &[
 #[test]
 fn wish_uses_named_choice_flow_for_its_java_menu() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Wish", "Strike_P", "Defend_P", "Strike_P", "Defend_P"]),
+        make_deck(&["Wish", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -104,7 +104,7 @@ fn wish_uses_named_choice_flow_for_its_java_menu() {
 #[test]
 fn discovery_potions_open_zero_cost_generated_choice_and_consume_the_slot() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

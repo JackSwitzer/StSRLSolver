@@ -27,7 +27,7 @@ fn engine_without_start_with_relics(
 fn twisted_funnel_applies_poison_to_all_enemies_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["TwistedFunnel"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![
             enemy_no_intent("JawWorm", 40, 40),
             enemy_no_intent("Cultist", 44, 44),
@@ -46,14 +46,14 @@ fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["Snecko Eye"],
         &[
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Strike_R",
-            "Defend_R",
-            "Defend_R",
-            "Defend_R",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -70,7 +70,7 @@ fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
 fn sling_grants_strength_only_in_elite_fights_on_runtime_path() {
     let mut elite_engine = engine_without_start_with_relics(
         &["Sling"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("GremlinNob", 90, 90)],
         3,
     );
@@ -79,7 +79,7 @@ fn sling_grants_strength_only_in_elite_fights_on_runtime_path() {
 
     let mut hallway_engine = engine_without_start_with_relics(
         &["Sling"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -91,7 +91,7 @@ fn sling_grants_strength_only_in_elite_fights_on_runtime_path() {
 fn teardrop_locket_starts_player_in_calm_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["TeardropLocket"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -105,7 +105,7 @@ fn teardrop_locket_starts_player_in_calm_on_runtime_path() {
 fn pantograph_heals_only_at_boss_combat_start_on_runtime_path() {
     let mut boss_engine = engine_without_start_with_relics(
         &["Pantograph"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("Hexaghost", 250, 250)],
         3,
     );
@@ -115,7 +115,7 @@ fn pantograph_heals_only_at_boss_combat_start_on_runtime_path() {
 
     let mut hallway_engine = engine_without_start_with_relics(
         &["Pantograph"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -128,7 +128,7 @@ fn pantograph_heals_only_at_boss_combat_start_on_runtime_path() {
 fn preserved_insect_non_elite_hallway_fight_does_not_reduce_enemy_hp() {
     let mut engine = engine_without_start_with_relics(
         &["PreservedInsect"],
-        &["Strike_R", "Strike_R", "Strike_R", "Strike_R", "Strike_R"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![
             enemy_no_intent("JawWorm", 20, 20),
             enemy_no_intent("Cultist", 40, 40),
@@ -145,7 +145,7 @@ fn preserved_insect_non_elite_hallway_fight_does_not_reduce_enemy_hp() {
 #[test]
 fn runtime_hidden_state_relics_do_not_grant_strength_without_stored_progress() {
     let mut du_vu_engine = engine_without_start(
-        make_deck_n("Strike_R", 5),
+        make_deck_n("Strike", 5),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -158,7 +158,7 @@ fn runtime_hidden_state_relics_do_not_grant_strength_without_stored_progress() {
     );
 
     let mut girya_engine = engine_without_start(
-        make_deck_n("Strike_R", 5),
+        make_deck_n("Strike", 5),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );

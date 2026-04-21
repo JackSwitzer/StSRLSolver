@@ -34,7 +34,7 @@ fn bonfire_offer_branch_is_supported_and_uses_shared_deck_selection() {
 fn bonfire_choice_opens_canonical_event_reward_selection() {
     let mut engine = RunEngine::new(73, 20);
     engine.run_state.deck = vec![
-        "Defend_P".to_string(),
+        "Defend".to_string(),
         "Wallop".to_string(),
         "Scrawl".to_string(),
     ];

@@ -29,7 +29,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Chrysalis",
     "Dark Shackles",
     "Deep Breath",
-    "Defend_R",
+    "Defend",
     "Discovery",
     "Dramatic Entrance",
     "Enlightenment",
@@ -56,7 +56,7 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Sadistic Nature",
     "Secret Technique",
     "Secret Weapon",
-    "Strike_R",
+    "Strike",
     "Swift Strike",
     "The Bomb",
     "Thinking Ahead",
@@ -74,7 +74,7 @@ fn generation_potions_use_engine_action_path_and_consume_slot() {
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/ColorlessPotion.java
     // - decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -152,7 +152,7 @@ fn generation_potions_use_engine_action_path_and_consume_slot() {
 #[test]
 fn generation_potions_emit_runtime_manual_activation_records() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -186,13 +186,13 @@ fn generation_potions_emit_runtime_manual_activation_records() {
 #[test]
 fn distilled_chaos_moves_top_draw_cards_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_B", "Defend_B", "Zap"]),
+        make_deck(&["Strike", "Defend", "Zap"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.init_defect_orbs(3);
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
     engine.state.potions[0] = "DistilledChaos".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -208,12 +208,12 @@ fn distilled_chaos_moves_top_draw_cards_via_action_path() {
 #[test]
 fn liquid_memories_returns_discard_cards_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.discard_pile = make_deck(&["Strike_P", "Bash", "Shrug It Off"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Bash", "Shrug It Off"]);
     engine.state.potions[0] = "LiquidMemories".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -232,7 +232,7 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
 #[test]
 fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -250,11 +250,11 @@ fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
 #[test]
 fn elixir_uses_runtime_action_path_and_exhausts_hand() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     engine.state.exhaust_pile.clear();
     engine.state.potions[0] = "Elixir".to_string();
     engine.clear_event_log();
@@ -273,23 +273,23 @@ fn elixir_uses_runtime_action_path_and_exhausts_hand() {
 #[test]
 fn blessing_of_the_forge_upgrades_hand_via_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P"]),
+        make_deck(&["Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
     engine.state.potions[0] = "BlessingOfTheForge".to_string();
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine), vec!["Strike_P+", "Defend_P+"]);
+    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+"]);
     assert!(engine.state.potions[0].is_empty());
 }
 
 #[test]
 fn bottled_miracle_and_cunning_potion_use_runtime_hooks() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -310,20 +310,20 @@ fn bottled_miracle_and_cunning_potion_use_runtime_hooks() {
 #[test]
 fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
     engine.state.hand = make_deck(&[
-        "Strike_P",
-        "Defend_P",
+        "Strike",
+        "Defend",
         "Bash",
         "Zap",
         "Dualcast",
         "Inflame",
         "Shrug It Off",
-        "Defend_P",
+        "Defend",
     ]);
     engine.state.potions[0] = "BottledMiracle".to_string();
     engine.state.potions[1] = "CunningPotion".to_string();
@@ -347,11 +347,11 @@ fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_act
 #[test]
 fn gamblers_brew_discards_then_redraws_through_engine_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     engine.state.draw_pile = make_deck(&["Shrug It Off", "Inflame", "Zap", "Dualcast"]);
     engine.state.discard_pile.clear();
     engine.state.potions[0] = "GamblersBrew".to_string();
@@ -367,12 +367,12 @@ fn gamblers_brew_discards_then_redraws_through_engine_path() {
 #[test]
 fn snecko_oil_runtime_action_path_draws_and_applies_confusion() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike_P", "Defend_P", "Bash", "Shrug It Off"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Shrug It Off"]);
     engine.state.potions[0] = "SneckoOil".to_string();
 
     use_potion(&mut engine, 0, -1);
@@ -389,7 +389,7 @@ fn snecko_oil_runtime_action_path_draws_and_applies_confusion() {
 #[test]
 fn temporary_effect_potions_apply_statuses_through_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -428,7 +428,7 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 #[test]
 fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -462,7 +462,7 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
 #[test]
 fn ambrosia_essence_of_darkness_and_capacity_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -490,7 +490,7 @@ fn ambrosia_essence_of_darkness_and_capacity_use_runtime_action_path() {
 #[test]
 fn smoke_bomb_uses_runtime_action_path_and_consumes_its_slot() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P"]),
+        make_deck(&["Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

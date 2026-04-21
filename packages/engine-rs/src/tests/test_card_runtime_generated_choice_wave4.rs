@@ -17,18 +17,18 @@ use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_stat
 
 const COLORLESS_CHOICES: &[&str] = &[
     "Apotheosis", "Bandage Up", "Bite", "Blind", "Chrysalis", "Dark Shackles", "Deep Breath",
-    "Defend_R", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
+    "Defend", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
     "Forethought", "Ghostly", "Good Instincts", "HandOfGreed", "Impatience", "J.A.X.",
     "Jack Of All Trades", "Madness", "Magnetism", "Master of Strategy", "Mayhem",
     "Metamorphosis", "Mind Blast", "Panacea", "Panache", "PanicButton", "Purity",
-    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike_R",
+    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike",
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
 #[test]
 fn discovery_moves_to_generated_choice_runtime_and_resolves_a_zero_cost_colorless_card() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Discovery", "Strike_P", "Defend_P"]),
+        make_deck(&["Discovery", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -71,7 +71,7 @@ fn discovery_moves_to_generated_choice_runtime_and_resolves_a_zero_cost_colorles
 #[test]
 fn discovery_plus_keeps_the_same_choice_runtime_without_exhausting() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Discovery+", "Strike_P", "Defend_P"]),
+        make_deck(&["Discovery+", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));

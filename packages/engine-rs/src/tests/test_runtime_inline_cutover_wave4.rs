@@ -18,12 +18,12 @@ fn body_slam_engine_path_uses_direct_damage_modifier_cutover() {
 
 #[test]
 fn rage_legal_action_and_engine_path_still_work_after_inline_cutover() {
-    let mut engine = engine_with(make_deck(&["Rage", "Strike_R"]), 50, 0);
-    engine.state.hand = make_deck(&["Rage", "Strike_R"]);
+    let mut engine = engine_with(make_deck(&["Rage", "Strike"]), 50, 0);
+    engine.state.hand = make_deck(&["Rage", "Strike"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     ensure_in_hand(&mut engine, "Rage");
-    ensure_in_hand(&mut engine, "Strike_R");
+    ensure_in_hand(&mut engine, "Strike");
 
     assert!(engine.get_legal_actions().iter().any(|action| matches!(
         action,
@@ -32,7 +32,7 @@ fn rage_legal_action_and_engine_path_still_work_after_inline_cutover() {
     )));
 
     assert!(crate::tests::support::play_self(&mut engine, "Rage"));
-    assert!(crate::tests::support::play_on_enemy(&mut engine, "Strike_R", 0));
+    assert!(crate::tests::support::play_on_enemy(&mut engine, "Strike", 0));
 
     assert_eq!(engine.state.player.status(sid::RAGE), 3);
     assert_eq!(engine.state.player.block, 3);

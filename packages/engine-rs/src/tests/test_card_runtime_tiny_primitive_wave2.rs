@@ -126,7 +126,7 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
 fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtime_surface() {
     let mut ftl_draws = single_enemy_engine(40, 3);
     ftl_draws.state.hand = make_deck(&["FTL+"]);
-    ftl_draws.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap", "Dualcast"]);
+    ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
     assert_eq!(ftl_draws.state.enemies[0].entity.hp, 34);
     assert_eq!(ftl_draws.state.hand.len(), 4);
@@ -134,7 +134,7 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     let mut ftl_gated = single_enemy_engine(40, 3);
     ftl_gated.state.cards_played_this_turn = 3;
     ftl_gated.state.hand = make_deck(&["FTL"]);
-    ftl_gated.state.draw_pile = make_deck(&["Strike_B", "Defend_B"]);
+    ftl_gated.state.draw_pile = make_deck(&["Strike", "Defend"]);
     assert!(play_on_enemy(&mut ftl_gated, "FTL", 0));
     assert_eq!(ftl_gated.state.enemies[0].entity.hp, 35);
     assert_eq!(ftl_gated.state.hand.len(), 0);
@@ -157,7 +157,7 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(feed.state.player.hp, hp_before + 3);
 
     let mut all_out_attack = single_enemy_engine(40, 3);
-    all_out_attack.state.hand = make_deck(&["All-Out Attack", "Strike_G"]);
+    all_out_attack.state.hand = make_deck(&["All-Out Attack", "Strike"]);
     let hand_before = all_out_attack.state.hand.len();
     assert!(play_self(&mut all_out_attack, "All-Out Attack"));
     assert_eq!(all_out_attack.state.enemies[0].entity.hp, 30);

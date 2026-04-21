@@ -111,13 +111,13 @@ mod silent_wave3 {
         assert_eq!(bane_engine.state.enemies[0].entity.hp, hp_before - 14);
 
         let mut finisher_engine = engine_for(
-            &["Backstab", "Strike_G", "Finisher"],
+            &["Backstab", "Strike", "Finisher"],
             &[],
             vec![enemy("JawWorm", 60, 60, 1, 0, 1)],
             3,
         );
         assert!(play_on_enemy(&mut finisher_engine, "Backstab", 0));
-        assert!(play_on_enemy(&mut finisher_engine, "Strike_G", 0));
+        assert!(play_on_enemy(&mut finisher_engine, "Strike", 0));
         let hp_before = finisher_engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut finisher_engine, "Finisher", 0));
         assert_eq!(finisher_engine.state.attacks_played_this_turn, 3);
@@ -145,7 +145,7 @@ mod silent_wave3 {
             .any(|card| die_die_die.card_registry.card_name(card.def_id) == "Die Die Die"));
 
         let mut all_out = engine_for(
-            &["All-Out Attack", "Strike_G", "Defend_G"],
+            &["All-Out Attack", "Strike", "Defend"],
             &[],
             vec![
                 enemy_no_intent("JawWorm", 40, 40),

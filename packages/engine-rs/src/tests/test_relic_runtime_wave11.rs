@@ -18,7 +18,7 @@ use crate::tests::support::{
 #[test]
 fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
     let mut state = combat_state_with(
-        make_deck_n("Defend_R", 10),
+        make_deck_n("Defend", 10),
         vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 120, 120)],
         3,
     );
@@ -59,7 +59,7 @@ fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
 #[test]
 fn relic_wave11_runtime_end_turn_and_post_draw_paths_match_canonical_runtime() {
     let mut state = combat_state_with(
-        make_deck(&["Defend_P", "Defend_P", "Defend_P"]),
+        make_deck(&["Defend", "Defend", "Defend"]),
         vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
         3,
     );
@@ -70,7 +70,7 @@ fn relic_wave11_runtime_end_turn_and_post_draw_paths_match_canonical_runtime() {
         "Inserter".to_string(),
     ];
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Defend_P", "Defend_P"]);
+    engine.state.hand = make_deck(&["Defend", "Defend"]);
     let hp_before = engine.state.player.hp;
     assert_eq!(engine.state.mantra, 1);
     assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 3 }, 0), 1);

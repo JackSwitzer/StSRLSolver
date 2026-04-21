@@ -23,7 +23,7 @@ fn engine_without_start_with_relics(
     deck: usize,
 ) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
-        make_deck_n("Strike_R", deck),
+        make_deck_n("Strike", deck),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
@@ -58,22 +58,22 @@ fn dead_cleanup_wave9_mutagenic_strength_applies_at_combat_start_like_java() {
 #[test]
 fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     let mut kunai_state = combat_state_with(
-        make_deck_n("Strike_R", 6),
+        make_deck_n("Strike", 6),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     kunai_state.relics.push("Kunai".to_string());
     let mut kunai = engine_with_state(kunai_state);
-    kunai.state.hand = make_deck_n("Strike_R", 3);
+    kunai.state.hand = make_deck_n("Strike", 3);
     kunai.state.draw_pile.clear();
     assert_eq!(
         kunai.hidden_effect_value("Kunai", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
     );
-    assert!(play_on_enemy(&mut kunai, "Strike_R", 0));
-    assert!(play_on_enemy(&mut kunai, "Strike_R", 0));
+    assert!(play_on_enemy(&mut kunai, "Strike", 0));
+    assert!(play_on_enemy(&mut kunai, "Strike", 0));
     assert_eq!(kunai.state.player.dexterity(), 0);
-    assert!(play_on_enemy(&mut kunai, "Strike_R", 0));
+    assert!(play_on_enemy(&mut kunai, "Strike", 0));
     assert_eq!(kunai.state.player.dexterity(), 1);
     assert_eq!(
         kunai.hidden_effect_value("Kunai", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -81,22 +81,22 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     );
 
     let mut shuriken_state = combat_state_with(
-        make_deck_n("Strike_R", 6),
+        make_deck_n("Strike", 6),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     shuriken_state.relics.push("Shuriken".to_string());
     let mut shuriken = engine_with_state(shuriken_state);
-    shuriken.state.hand = make_deck_n("Strike_R", 3);
+    shuriken.state.hand = make_deck_n("Strike", 3);
     shuriken.state.draw_pile.clear();
     assert_eq!(
         shuriken.hidden_effect_value("Shuriken", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
     );
-    assert!(play_on_enemy(&mut shuriken, "Strike_R", 0));
-    assert!(play_on_enemy(&mut shuriken, "Strike_R", 0));
+    assert!(play_on_enemy(&mut shuriken, "Strike", 0));
+    assert!(play_on_enemy(&mut shuriken, "Strike", 0));
     assert_eq!(shuriken.state.player.strength(), 0);
-    assert!(play_on_enemy(&mut shuriken, "Strike_R", 0));
+    assert!(play_on_enemy(&mut shuriken, "Strike", 0));
     assert_eq!(shuriken.state.player.strength(), 1);
     assert_eq!(
         shuriken.hidden_effect_value("Shuriken", EffectOwner::PlayerRelic { slot: 0 }, 0),
@@ -104,13 +104,13 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     );
 
     let mut opener_state = combat_state_with(
-        make_deck_n("Defend_R", 4),
+        make_deck_n("Defend", 4),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
         3,
     );
     opener_state.relics.push("Letter Opener".to_string());
     let mut opener = engine_with_state(opener_state);
-    opener.state.hand = make_deck_n("Defend_R", 3);
+    opener.state.hand = make_deck_n("Defend", 3);
     opener.state.draw_pile.clear();
     let hp0 = opener.state.enemies[0].entity.hp;
     let hp1 = opener.state.enemies[1].entity.hp;
@@ -118,11 +118,11 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
         opener.hidden_effect_value("Letter Opener", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
     );
-    assert!(play_self(&mut opener, "Defend_R"));
-    assert!(play_self(&mut opener, "Defend_R"));
+    assert!(play_self(&mut opener, "Defend"));
+    assert!(play_self(&mut opener, "Defend"));
     assert_eq!(opener.state.enemies[0].entity.hp, hp0);
     assert_eq!(opener.state.enemies[1].entity.hp, hp1);
-    assert!(play_self(&mut opener, "Defend_R"));
+    assert!(play_self(&mut opener, "Defend"));
     assert_eq!(opener.state.enemies[0].entity.hp, hp0 - 5);
     assert_eq!(opener.state.enemies[1].entity.hp, hp1 - 5);
     assert_eq!(
@@ -131,32 +131,32 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     );
 
     let mut urn_state = combat_state_with(
-        make_deck_n("Strike_R", 4),
+        make_deck_n("Strike", 4),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     urn_state.relics.push("Bird Faced Urn".to_string());
     let mut urn = engine_with_state(urn_state);
     urn.state.player.hp = 70;
-    urn.state.hand = make_deck_n("Strike_R", 1);
-    assert!(play_self(&mut urn, "Strike_R"));
+    urn.state.hand = make_deck_n("Strike", 1);
+    assert!(play_self(&mut urn, "Strike"));
     assert_eq!(urn.state.player.hp, 70);
     urn.state.hand = make_deck_n("Inflame", 1);
     assert!(play_self(&mut urn, "Inflame"));
     assert_eq!(urn.state.player.hp, 72);
 
     let mut yang_state = combat_state_with(
-        make_deck_n("Strike_R", 2),
+        make_deck_n("Strike", 2),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     yang_state.relics.push("Yang".to_string());
     let mut yang = engine_with_state(yang_state);
-    yang.state.hand = make_deck_n("Strike_R", 2);
-    assert!(play_on_enemy(&mut yang, "Strike_R", 0));
+    yang.state.hand = make_deck_n("Strike", 2);
+    assert!(play_on_enemy(&mut yang, "Strike", 0));
     assert_eq!(yang.state.player.dexterity(), 1);
     assert_eq!(yang.state.player.status(sid::LOSE_DEXTERITY), 1);
-    yang.state.hand = make_deck_n("Defend_R", 1);
-    assert!(play_self(&mut yang, "Defend_R"));
+    yang.state.hand = make_deck_n("Defend", 1);
+    assert!(play_self(&mut yang, "Defend"));
     assert_eq!(yang.state.player.dexterity(), 1);
 }

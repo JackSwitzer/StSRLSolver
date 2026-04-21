@@ -51,7 +51,7 @@ fn test_potion_runtime_wave3_registry_exports_are_canonical() {
 #[test]
 fn test_potion_runtime_wave3_slot_scoped_activation_rebuilds_runtime_on_each_equip() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -64,7 +64,7 @@ fn test_potion_runtime_wave3_slot_scoped_activation_rebuilds_runtime_on_each_equ
     assert!(engine.state.potions[0].is_empty());
 
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -80,7 +80,7 @@ fn test_potion_runtime_wave3_slot_scoped_activation_rebuilds_runtime_on_each_equ
 #[test]
 fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -98,12 +98,12 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     use_potion(&mut engine, 0, -1);
     assert_eq!(hand_names(&engine), vec!["Shiv", "Shiv", "Shiv"]);
 
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P"]);
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
     equip_potion(&mut engine, 0, "BlessingOfTheForge");
     use_potion(&mut engine, 0, -1);
-    assert_eq!(hand_names(&engine), vec!["Strike_P+", "Defend_P+"]);
+    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+"]);
 
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "Elixir");
     use_potion(&mut engine, 0, -1);
     assert!(engine.state.hand.is_empty());
@@ -113,13 +113,13 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
 #[test]
 fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike_P", "Defend_P", "Bash", "Inflame"]),
+        make_deck(&["Strike", "Defend", "Bash", "Inflame"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
     engine.state.potions = vec![String::new(); 3];
 
-    engine.state.discard_pile = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.discard_pile = make_deck(&["Strike", "Defend", "Bash"]);
     engine.state.hand.clear();
     equip_potion(&mut engine, 0, "LiquidMemories");
     use_potion(&mut engine, 0, -1);
@@ -127,7 +127,7 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     assert_eq!(hand_names(&engine), vec!["Bash"]);
     assert_eq!(engine.state.discard_pile.len(), 2);
 
-    engine.state.hand = make_deck(&["Strike_P", "Defend_P", "Bash"]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "GamblersBrew");
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.hand.len(), 3);
@@ -137,7 +137,7 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     engine.init_defect_orbs(3);
     engine.state.hand.clear();
     engine.state.discard_pile.clear();
-    engine.state.draw_pile = make_deck(&["Strike_B", "Defend_B", "Zap"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
     equip_potion(&mut engine, 0, "DistilledChaos");
     use_potion(&mut engine, 0, -1);
     assert!(engine.state.hand.is_empty());

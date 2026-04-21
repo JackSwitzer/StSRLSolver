@@ -40,7 +40,7 @@ fn hand_names(engine: &CombatEngine) -> Vec<String> {
 #[test]
 fn calculated_gamble_discards_the_remaining_hand_then_draws_the_same_count() {
     let mut engine = engine_for(
-        &["Calculated Gamble", "Strike_G", "Defend_G"],
+        &["Calculated Gamble", "Strike", "Defend"],
         &["Neutralize", "Survivor", "Deflect"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -55,19 +55,19 @@ fn calculated_gamble_discards_the_remaining_hand_then_draws_the_same_count() {
         "Neutralize" | "Survivor" | "Deflect"
     )));
     assert_eq!(hand_count(&engine, "Calculated Gamble"), 0);
-    assert_eq!(hand_count(&engine, "Strike_G"), 0);
-    assert_eq!(hand_count(&engine, "Defend_G"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 0);
+    assert_eq!(hand_count(&engine, "Defend"), 0);
     assert_eq!(engine.state.discard_pile.len(), 2);
     assert!(engine
         .state
         .discard_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike_G"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Strike"));
     assert!(engine
         .state
         .discard_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend_G"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert!(engine
         .state
         .exhaust_pile
@@ -78,7 +78,7 @@ fn calculated_gamble_discards_the_remaining_hand_then_draws_the_same_count() {
 #[test]
 fn calculated_gamble_plus_draws_one_extra_card_after_discarding_the_remaining_hand() {
     let mut engine = engine_for(
-        &["Calculated Gamble+", "Strike_G", "Defend_G"],
+        &["Calculated Gamble+", "Strike", "Defend"],
         &["Neutralize", "Survivor", "Deflect"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -92,8 +92,8 @@ fn calculated_gamble_plus_draws_one_extra_card_after_discarding_the_remaining_ha
         name.as_str(),
         "Neutralize" | "Survivor" | "Deflect"
     )));
-    assert_eq!(hand_count(&engine, "Strike_G"), 0);
-    assert_eq!(hand_count(&engine, "Defend_G"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 0);
+    assert_eq!(hand_count(&engine, "Defend"), 0);
     assert_eq!(engine.state.discard_pile.len(), 3);
     assert!(engine
         .state
@@ -105,7 +105,7 @@ fn calculated_gamble_plus_draws_one_extra_card_after_discarding_the_remaining_ha
 #[test]
 fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runtime_primitive() {
     let mut engine = engine_for(
-        &["Nightmare", "Strike_G", "Defend_G"],
+        &["Nightmare", "Strike", "Defend"],
         &[],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -123,7 +123,7 @@ fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runt
 #[test]
 fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
     let mut engine = engine_for(
-        &["Nightmare", "Strike_G", "Defend_G"],
+        &["Nightmare", "Strike", "Defend"],
         &["Neutralize", "Survivor", "Deflect"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -132,8 +132,8 @@ fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
     assert!(play_self(&mut engine, "Nightmare"));
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.hand.len(), 2);
-    assert_eq!(hand_count(&engine, "Strike_G"), 1);
-    assert_eq!(hand_count(&engine, "Strike_G+"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
+    assert_eq!(hand_count(&engine, "Strike+"), 0);
 
     engine.execute_action(&Action::EndTurn);
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

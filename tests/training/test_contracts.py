@@ -92,7 +92,7 @@ def test_parse_combat_training_state_builds_dense_candidates():
             "hand": [
                 {
                     "hand_index": 0,
-                    "card_id": "Strike_P",
+                    "card_id": "Strike",
                     "card_name": "Strike",
                     "card_type": "Attack",
                     "target": "Enemy",
@@ -158,7 +158,7 @@ def test_parse_combat_training_state_builds_dense_candidates():
                 "description": "Play Strike",
                 "card": {
                     "hand_index": 0,
-                    "card_id": "Strike_P",
+                    "card_id": "Strike",
                     "card_name": "Strike",
                     "card_type": "Attack",
                     "cost_for_turn": 1,
@@ -182,7 +182,7 @@ def test_parse_combat_training_state_builds_dense_candidates():
         ],
     }
     state = parse_combat_training_state(payload)
-    assert state.observation.hand[0].card_id == "Strike_P"
+    assert state.observation.hand[0].card_id == "Strike"
     assert state.legal_candidates[1].target is not None
     assert state.legal_candidates[1].dense_index == 1
 
@@ -216,7 +216,7 @@ def test_parse_combat_snapshot_roundtrip_shape():
         "player_effects": [],
         "hand": [
             {
-                "card_id": "Strike_P",
+                "card_id": "Strike",
                 "cost_for_turn": 1,
                 "base_cost": 1,
                 "misc": -1,
@@ -258,7 +258,7 @@ def test_parse_combat_snapshot_roundtrip_shape():
 
     snapshot = parse_combat_snapshot(payload)
 
-    assert snapshot.hand[0].card_id == "Strike_P"
+    assert snapshot.hand[0].card_id == "Strike"
     assert snapshot.enemies[0].enemy_name == "Cultist"
     assert snapshot.potions[0] == "FlexPotion"
     assert snapshot.relic_counters[0].counter_name == "ink_bottle"

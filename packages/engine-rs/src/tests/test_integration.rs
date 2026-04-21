@@ -115,7 +115,7 @@ mod engine_integration_tests {
     // ---- Conclude discards hand (end_turn) ----
     #[test] fn conclude_ends_turn() {
         let mut e = engine_with(
-            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Conclude", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -130,7 +130,7 @@ mod engine_integration_tests {
     // ---- CutThroughFate draws cards ----
     #[test] fn cut_through_fate_draws() {
         let mut e = engine_with(
-            make_deck(&["CutThroughFate", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P"]),
+            make_deck(&["CutThroughFate", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "CutThroughFate");
@@ -143,7 +143,7 @@ mod engine_integration_tests {
     // ---- WheelKick draws 2 ----
     #[test] fn wheel_kick_draws_2() {
         let mut e = engine_with(
-            make_deck(&["WheelKick", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P"]),
+            make_deck(&["WheelKick", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "WheelKick");
@@ -273,7 +273,7 @@ mod engine_integration_tests {
     // ---- Rushdown power install + draw on wrath ----
     #[test] fn rushdown_install_and_trigger() {
         let mut e = engine_with(
-            make_deck(&["Adaptation", "Eruption", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]),
+            make_deck(&["Adaptation", "Eruption", "Strike", "Strike", "Strike", "Defend", "Defend"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Adaptation");
@@ -289,7 +289,7 @@ mod engine_integration_tests {
     // ---- MentalFortress install + block on stance change ----
     #[test] fn mental_fortress_install_and_trigger() {
         let mut e = engine_with(
-            make_deck(&["MentalFortress", "Eruption", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["MentalFortress", "Eruption", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         play_self(&mut e, "MentalFortress");
@@ -318,28 +318,28 @@ mod engine_integration_tests {
     // ---- Vigor consumed on first attack only ----
     #[test] fn vigor_consumed_on_attack() {
         let mut e = engine_with(
-            make_deck_n("Strike_P", 5), 100, 0,
+            make_deck_n("Strike", 5), 100, 0,
         );
         e.state.player.set_status(sid::VIGOR, 8);
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 14); // 6+8
         assert_eq!(e.state.player.status(sid::VIGOR), 0);
     }
 
     #[test] fn vigor_not_consumed_on_skill() {
         let mut e = engine_with(
-            make_deck_n("Defend_P", 5), 100, 0,
+            make_deck_n("Defend", 5), 100, 0,
         );
         e.state.player.set_status(sid::VIGOR, 8);
-        play_self(&mut e, "Defend_P");
+        play_self(&mut e, "Defend");
         assert_eq!(e.state.player.status(sid::VIGOR), 8);
     }
 
     // ---- Entangle clears at end of turn ----
     #[test] fn entangle_clears_end_turn() {
         let mut e = engine_with(
-            make_deck_n("Strike_P", 5), 100, 5,
+            make_deck_n("Strike", 5), 100, 5,
         );
         e.state.player.set_status(sid::ENTANGLED, 1);
         e.execute_action(&Action::EndTurn);
@@ -372,11 +372,11 @@ mod engine_integration_tests {
     // ---- InnerPeace in Calm draws, not in Calm enters Calm ----
     #[test] fn inner_peace_calm_draws() {
         let mut e = engine_with(
-            make_deck(&["InnerPeace", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Defend_P", "Defend_P"]),
+            make_deck(&["InnerPeace", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend", "Defend"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "InnerPeace");
-        while e.state.draw_pile.len() < 3 { e.state.draw_pile.push(e.card_registry.make_card("Defend_P")); }
+        while e.state.draw_pile.len() < 3 { e.state.draw_pile.push(e.card_registry.make_card("Defend")); }
         e.state.stance = Stance::Calm;
         let hs = e.state.hand.len();
         play_self(&mut e, "InnerPeace");
@@ -395,7 +395,7 @@ mod engine_integration_tests {
     // ---- Divinity auto-exits turn start ----
     #[test] fn divinity_auto_exit() {
         let mut e = engine_with(
-            make_deck_n("Strike_P", 10), 100, 5,
+            make_deck_n("Strike", 10), 100, 5,
         );
         e.state.stance = Stance::Divinity;
         e.execute_action(&Action::EndTurn);
@@ -418,7 +418,7 @@ mod engine_integration_tests {
     // ---- Fairy auto-revive ----
     #[test] fn fairy_revives_on_death() {
         let mut e = engine_with(
-            make_deck_n("Strike_P", 5), 100, 200,
+            make_deck_n("Strike", 5), 100, 200,
         );
         e.state.potions[0] = "FairyPotion".to_string();
         e.execute_action(&Action::EndTurn);
@@ -429,10 +429,10 @@ mod engine_integration_tests {
     // ---- Full combat: kill enemy with strikes ----
     #[test] fn full_combat_kill() {
         let mut e = engine_with(
-            make_deck_n("Strike_P", 10), 12, 0,
+            make_deck_n("Strike", 10), 12, 0,
         );
-        play(&mut e, "Strike_P");
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
+        play(&mut e, "Strike");
         assert_eq!(e.state.enemies[0].entity.hp, 0);
         assert!(e.state.combat_over);
         assert!(e.state.player_won);
@@ -440,7 +440,7 @@ mod engine_integration_tests {
 
     // ---- Potion targeting in legal actions ----
     #[test] fn fire_potion_targeted_actions() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.potions[0] = "Fire Potion".to_string();
         let actions = e.get_legal_actions();
         let pot: Vec<_> = actions.iter().filter(|a| matches!(a, Action::UsePotion { .. })).collect();
@@ -448,7 +448,7 @@ mod engine_integration_tests {
     }
 
     #[test] fn block_potion_untargeted_action() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.potions[0] = "Block Potion".to_string();
         let actions = e.get_legal_actions();
         let pot: Vec<_> = actions.iter().filter(|a| matches!(a, Action::UsePotion { potion_idx: 0, target_idx: -1 })).collect();
@@ -458,7 +458,7 @@ mod engine_integration_tests {
     // ---- Wound/Daze cannot be played ----
     #[test] fn wound_not_playable() {
         let e = engine_with(
-            make_deck(&["Wound", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Wound", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
@@ -470,7 +470,7 @@ mod engine_integration_tests {
 
     #[test] fn daze_not_playable() {
         let e = engine_with(
-            make_deck(&["Daze", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Daze", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
@@ -483,7 +483,7 @@ mod engine_integration_tests {
     // ---- Slimed can be played (costs 1, exhausts) ----
     #[test] fn slimed_playable_and_exhausts() {
         let e = engine_with(
-            make_deck(&["Slimed", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Slimed", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
@@ -495,43 +495,43 @@ mod engine_integration_tests {
 
     // ---- Strength affects all attacks ----
     #[test] fn strength_all_attacks() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.player.set_status(sid::STRENGTH, 5);
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 11);
     }
 
     // ---- Dexterity affects all block ----
     #[test] fn dexterity_all_block() {
-        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Defend", 5), 100, 0);
         e.state.player.set_status(sid::DEXTERITY, 3);
-        play_self(&mut e, "Defend_P");
+        play_self(&mut e, "Defend");
         assert_eq!(e.state.player.block, 8); // 5+3
     }
 
     // ---- Frail reduces block ----
     #[test] fn frail_reduces_block() {
-        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Defend", 5), 100, 0);
         e.state.player.set_status(sid::FRAIL, 2);
-        play_self(&mut e, "Defend_P");
+        play_self(&mut e, "Defend");
         assert_eq!(e.state.player.block, 3); // 5*0.75=3.75->3
     }
 
     // ---- Weak reduces attack ----
     #[test] fn weak_reduces_attack() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.player.set_status(sid::WEAKENED, 2);
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 4); // 6*0.75=4.5->4
     }
 
     // ---- Energy tracking ----
     #[test] fn energy_decreases_on_play() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         assert_eq!(e.state.energy, 3);
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.energy, 2);
     }
 
@@ -548,10 +548,10 @@ mod engine_integration_tests {
 
     // ---- Hand limit 10 ----
     #[test] fn hand_limit_10() {
-        let mut e = engine_with(make_deck_n("Strike_P", 20), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 20), 100, 0);
         assert_eq!(e.state.hand.len(), 5); // drew 5
         // Force more draws
-        e.state.draw_pile = make_deck_n("Strike_P", 10);
+        e.state.draw_pile = make_deck_n("Strike", 10);
         // Manually draw
         for _ in 0..10 {
             if e.state.hand.len() >= 10 { break; }
@@ -562,7 +562,7 @@ mod engine_integration_tests {
 
     // ---- LoseStrength applied at turn start ----
     #[test] fn lose_strength_at_turn_start() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 5);
         e.state.player.set_status(sid::STRENGTH, 5);
         e.state.player.set_status(sid::LOSE_STRENGTH, 5);
         e.execute_action(&Action::EndTurn);
@@ -572,7 +572,7 @@ mod engine_integration_tests {
 
     // ---- LoseDexterity applied at turn start ----
     #[test] fn lose_dexterity_at_turn_start() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 5);
         e.state.player.set_status(sid::DEXTERITY, 5);
         e.state.player.set_status(sid::LOSE_DEXTERITY, 5);
         e.execute_action(&Action::EndTurn);
@@ -623,16 +623,16 @@ mod engine_integration_tests {
 
     // ---- Block + Defend stack from multiple plays ----
     #[test] fn multiple_defends_stack_block() {
-        let mut e = engine_with(make_deck_n("Defend_P", 5), 100, 0);
-        play_self(&mut e, "Defend_P");
-        play_self(&mut e, "Defend_P");
+        let mut e = engine_with(make_deck_n("Defend", 5), 100, 0);
+        play_self(&mut e, "Defend");
+        play_self(&mut e, "Defend");
         assert_eq!(e.state.player.block, 10);
     }
 
     // ---- Block decays at start of player turn ----
     #[test] fn block_decays_turn_start() {
-        let mut e = engine_with(make_deck_n("Defend_P", 10), 100, 5);
-        play_self(&mut e, "Defend_P");
+        let mut e = engine_with(make_deck_n("Defend", 10), 100, 5);
+        play_self(&mut e, "Defend");
         assert_eq!(e.state.player.block, 5);
         e.execute_action(&Action::EndTurn);
         // Block decays at start of new turn
@@ -641,7 +641,7 @@ mod engine_integration_tests {
 
     // ---- Enemy block decays at start of enemy turn ----
     #[test] fn enemy_block_decays() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 0);
         e.state.enemies[0].entity.block = 10;
         e.execute_action(&Action::EndTurn);
         // Enemy block decays at start of their turn
@@ -650,7 +650,7 @@ mod engine_integration_tests {
 
     // ---- Debuffs decrement on enemies too ----
     #[test] fn enemy_debuffs_decrement() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 5);
         e.state.enemies[0].entity.set_status(sid::WEAKENED, 2);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 1);
@@ -658,7 +658,7 @@ mod engine_integration_tests {
 
     // ---- Turn counter increments ----
     #[test] fn turn_counter() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 5);
         assert_eq!(e.state.turn, 1);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.turn, 2);
@@ -668,9 +668,9 @@ mod engine_integration_tests {
 
     // ---- Cards played counter ----
     #[test] fn cards_played_counter() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
-        play(&mut e, "Strike_P");
-        play(&mut e, "Strike_P");
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
+        play(&mut e, "Strike");
+        play(&mut e, "Strike");
         assert_eq!(e.state.cards_played_this_turn, 2);
         assert_eq!(e.state.total_cards_played, 2);
     }
@@ -678,20 +678,20 @@ mod engine_integration_tests {
     // ---- Attacks played counter ----
     #[test] fn attacks_played_counter() {
         let mut e = engine_with(
-            make_deck(&["Strike_P", "Defend_P", "Strike_P", "Defend_P", "Strike_P"]),
+            make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
             100, 0,
         );
-        play(&mut e, "Strike_P");
-        play_self(&mut e, "Defend_P");
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
+        play_self(&mut e, "Defend");
+        play(&mut e, "Strike");
         assert_eq!(e.state.attacks_played_this_turn, 2);
         assert_eq!(e.state.cards_played_this_turn, 3);
     }
 
     // ---- Counters reset on new turn ----
     #[test] fn counters_reset_new_turn() {
-        let mut e = engine_with(make_deck_n("Strike_P", 10), 100, 5);
-        play(&mut e, "Strike_P");
+        let mut e = engine_with(make_deck_n("Strike", 10), 100, 5);
+        play(&mut e, "Strike");
         assert_eq!(e.state.cards_played_this_turn, 1);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.cards_played_this_turn, 0);
@@ -700,9 +700,9 @@ mod engine_integration_tests {
 
     // ---- Empty draw pile + empty discard = no draw ----
     #[test] fn no_cards_no_draw() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 5);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 5);
         // Play all cards, discard all, end turn
-        for _ in 0..3 { play(&mut e, "Strike_P"); }
+        for _ in 0..3 { play(&mut e, "Strike"); }
         // Now discard and draw piles will be refilled on end turn
         e.execute_action(&Action::EndTurn);
         // Turn 2: cards should be drawn from discard
@@ -713,7 +713,7 @@ mod engine_integration_tests {
     #[test] fn relic_and_potion_combined() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 5, 1, 0);
-        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike_P", 5), 3);
+        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike", 5), 3);
         state.relics.push("Vajra".to_string());
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -724,20 +724,20 @@ mod engine_integration_tests {
 
     // ---- Pen Nib doubles in Wrath = 4x ----
     #[test] fn pen_nib_in_wrath() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.stance = Stance::Wrath;
         e.state.relics.push("Pen Nib".to_string());
         // Set counter to 9 so next attack triggers
         e.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         // 6 * 2.0 (wrath) = 12, * 2 (pen nib) = 24
         assert_eq!(e.state.enemies[0].entity.hp, hp - 24);
     }
 
     // ---- Vulnerable + Wrath incoming = 3x ----
     #[test] fn vuln_wrath_incoming() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 10);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 10);
         e.state.stance = Stance::Wrath;
         e.state.player.set_status(sid::VULNERABLE, 2);
         let hp = e.state.player.hp;
@@ -771,16 +771,16 @@ mod engine_integration_tests {
 
     // ---- Strike+ deals 9 damage ----
     #[test] fn strike_plus_9() {
-        let mut e = engine_with(make_deck_n("Strike_P+", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike+", 5), 100, 0);
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P+");
+        play(&mut e, "Strike+");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 9);
     }
 
     // ---- Defend+ gives 8 block ----
     #[test] fn defend_plus_8() {
-        let mut e = engine_with(make_deck_n("Defend_P+", 5), 100, 0);
-        play_self(&mut e, "Defend_P+");
+        let mut e = engine_with(make_deck_n("Defend+", 5), 100, 0);
+        play_self(&mut e, "Defend+");
         assert_eq!(e.state.player.block, 8);
     }
 
@@ -808,11 +808,11 @@ mod engine_integration_tests {
     // ---- Rushdown + MentalFortress combined on Wrath entry ----
     #[test] fn rushdown_and_mf_on_wrath() {
         let mut e = engine_with(
-            make_deck(&["Eruption", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Defend_P"]),
+            make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Eruption");
-        while e.state.draw_pile.len() < 2 { e.state.draw_pile.push(e.card_registry.make_card("Defend_P")); }
+        while e.state.draw_pile.len() < 2 { e.state.draw_pile.push(e.card_registry.make_card("Defend")); }
         e.state.player.set_status(sid::RUSHDOWN, 2);
         e.state.player.set_status(sid::MENTAL_FORTRESS, 4);
         let hs = e.state.hand.len();
@@ -824,7 +824,7 @@ mod engine_integration_tests {
 
     // ---- No duplicate EndTurn in legal actions ----
     #[test] fn single_end_turn_action() {
-        let e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let e = engine_with(make_deck_n("Strike", 5), 100, 0);
         let actions = e.get_legal_actions();
         let end_turns = actions.iter().filter(|a| matches!(a, Action::EndTurn)).count();
         assert_eq!(end_turns, 1);
@@ -832,7 +832,7 @@ mod engine_integration_tests {
 
     // ---- Empty potions don't appear in actions ----
     #[test] fn empty_potions_no_actions() {
-        let e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let e = engine_with(make_deck_n("Strike", 5), 100, 0);
         let actions = e.get_legal_actions();
         let pots = actions.iter().filter(|a| matches!(a, Action::UsePotion { .. })).count();
         assert_eq!(pots, 0);
@@ -849,7 +849,7 @@ mod engine_integration_tests {
 
     // ---- Potion kills enemy -> combat ends ----
     #[test] fn potion_kill_ends_combat() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 15, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 15, 0);
         e.state.potions[0] = "Fire Potion".to_string();
         e.execute_action(&Action::UsePotion { potion_idx: 0, target_idx: 0 });
         assert!(e.state.combat_over);
@@ -865,16 +865,16 @@ mod engine_integration_tests {
 
     // ---- Divinity outgoing damage 3x ----
     #[test] fn divinity_3x_damage() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 0);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 0);
         e.state.stance = Stance::Divinity;
         let hp = e.state.enemies[0].entity.hp;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.enemies[0].entity.hp, hp - 18); // 6*3=18
     }
 
     // ---- Divinity does NOT increase incoming damage ----
     #[test] fn divinity_no_incoming_mult() {
-        let mut e = engine_with(make_deck_n("Strike_P", 5), 100, 10);
+        let mut e = engine_with(make_deck_n("Strike", 5), 100, 10);
         e.state.stance = Stance::Divinity;
         let hp = e.state.player.hp;
         e.execute_action(&Action::EndTurn);
@@ -896,7 +896,7 @@ mod gameplay_registry_surface_tests {
         assert_eq!(registry.count_for_domain(GameplayDomain::Card), card_exports.len());
         assert_eq!(registry.count_for_domain(GameplayDomain::Enemy), enemy_exports.len());
 
-        for expected in ["Strike_P", "Eruption", "Neutralize", "Zap"] {
+        for expected in ["Strike", "Eruption", "Neutralize", "Zap"] {
             let registry_def = registry.card(expected).expect("card in canonical registry");
             let export_def = card_exports
                 .iter()
@@ -1066,11 +1066,11 @@ mod bugfix_regression_tests {
     #[test]
     fn crush_joints_vuln_after_skill() {
         let mut e = engine_with(
-            make_deck(&["Defend_P", "CrushJoints", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Defend", "CrushJoints", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         // Play Defend (Skill) first
-        play_self(&mut e, "Defend_P");
+        play_self(&mut e, "Defend");
         // Now play CrushJoints — should apply Vulnerable
         play(&mut e, "CrushJoints");
         let vuln = e.state.enemies[0].entity.status(sid::VULNERABLE);
@@ -1080,11 +1080,11 @@ mod bugfix_regression_tests {
     #[test]
     fn crush_joints_no_vuln_after_attack() {
         let mut e = engine_with(
-            make_deck(&["Strike_P", "CrushJoints", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Strike", "CrushJoints", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         // Play Strike (Attack) first
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         // CrushJoints should NOT apply Vulnerable
         play(&mut e, "CrushJoints");
         let vuln = e.state.enemies[0].entity.status(sid::VULNERABLE);
@@ -1094,11 +1094,11 @@ mod bugfix_regression_tests {
     #[test]
     fn follow_up_energy_after_attack() {
         let mut e = engine_with(
-            make_deck(&["Strike_P", "FollowUp", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Strike", "FollowUp", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         // Play Strike (Attack) first
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         let energy_before = e.state.energy;
         // FollowUp costs 1 but gives 1 back if last was Attack
         play(&mut e, "FollowUp");
@@ -1108,10 +1108,10 @@ mod bugfix_regression_tests {
     #[test]
     fn follow_up_no_energy_after_skill() {
         let mut e = engine_with(
-            make_deck(&["Defend_P", "FollowUp", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Defend", "FollowUp", "Strike", "Strike", "Strike"]),
             100, 0,
         );
-        play_self(&mut e, "Defend_P");
+        play_self(&mut e, "Defend");
         let energy_before = e.state.energy;
         play(&mut e, "FollowUp");
         // FollowUp costs 1, no refund after Skill
@@ -1121,7 +1121,7 @@ mod bugfix_regression_tests {
     #[test]
     fn talk_to_the_hand_applies_block_return() {
         let mut e = engine_with(
-            make_deck(&["TalkToTheHand", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["TalkToTheHand", "Strike", "Strike", "Strike", "Strike"]),
             100, 10,
         );
         play(&mut e, "TalkToTheHand");
@@ -1132,7 +1132,7 @@ mod bugfix_regression_tests {
     #[test]
     fn block_return_grants_block_on_player_attack() {
         let mut e = engine_with(
-            make_deck(&["TalkToTheHand", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["TalkToTheHand", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         play(&mut e, "TalkToTheHand");
@@ -1140,7 +1140,7 @@ mod bugfix_regression_tests {
         assert_eq!(br, 2); // TalkToTheHand base_magic=2
         // Player attacks marked enemy — should gain block
         let block_before = e.state.player.block;
-        play(&mut e, "Strike_P");
+        play(&mut e, "Strike");
         assert_eq!(e.state.player.block, block_before + br,
             "Player should gain BlockReturn block when attacking marked enemy");
     }
@@ -1169,7 +1169,7 @@ mod bugfix_regression_tests {
     #[test]
     fn conclude_advances_turn_counter() {
         let mut e = engine_with(
-            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Conclude", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -1182,7 +1182,7 @@ mod bugfix_regression_tests {
     fn conclude_triggers_enemy_turn() {
         // With enemy damage > 0, end_turn should cause player damage
         let mut e = engine_with(
-            make_deck(&["Conclude", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Conclude", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             100, 5,
         );
         ensure_in_hand(&mut e, "Conclude");
@@ -1197,7 +1197,7 @@ mod bugfix_regression_tests {
     fn retain_card_stays_in_hand() {
         // Smite has "retain" effect
         let mut e = engine_with(
-            make_deck(&["Smite", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Smite", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         ensure_in_hand(&mut e, "Smite");
@@ -1213,7 +1213,7 @@ mod bugfix_regression_tests {
     fn ethereal_card_exhausts_at_end_turn() {
         // Daze has "ethereal" and "unplayable" effects
         let mut e = engine_with(
-            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]),
+            make_deck(&["Strike", "Strike", "Strike", "Strike", "Defend"]),
             100, 0,
         );
         // Manually add a Daze to hand
@@ -1232,7 +1232,7 @@ mod bugfix_regression_tests {
     fn ascenders_bane_exhausts_at_end_turn() {
         // AscendersBane has "ethereal" and "unplayable"
         let mut e = engine_with(
-            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P"]),
+            make_deck(&["Strike", "Strike", "Strike", "Strike", "Defend"]),
             100, 0,
         );
         e.state.hand.push(e.card_registry.make_card("AscendersBane"));
@@ -1246,7 +1246,7 @@ mod bugfix_regression_tests {
     fn normal_card_not_retained_or_exhausted() {
         // Verify that Strike (no retain/ethereal) does not stay in hand or go to exhaust
         let mut e = engine_with(
-            make_deck(&["Strike_P", "Strike_P", "Strike_P", "Strike_P", "Defend_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P", "Strike_P"]),
+            make_deck(&["Strike", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let exhaust_before = e.state.exhaust_pile.len();
@@ -1302,7 +1302,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn player_poison_ticks_at_end_of_turn() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 6, 1, 0); // JawWorm does 6 damage
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1327,7 +1327,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn player_poison_kills_player() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let state = CombatState::new(3, 80, vec![enemy], deck, 3);
@@ -1346,7 +1346,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_intangible() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 30, 1);
         e.start_combat();
 
@@ -1363,7 +1363,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_torii() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 4, 1);
         e.start_combat();
 
@@ -1380,7 +1380,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn enemy_attack_respects_tungsten_rod() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
@@ -1399,7 +1399,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn guardian_mode_shift_triggers_on_damage() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let enemy = enemies::create_enemy("TheGuardian", 240, 240);
         let state = CombatState::new(80, 80, vec![enemy], deck, 10);
         let mut e = CombatEngine::new(state, 42);
@@ -1408,7 +1408,7 @@ mod combat_engine_p0_p1_regression {
         // Deal enough damage to trigger mode shift (threshold=30)
         // Strike does 6 damage, we need 5 strikes (6*5=30)
         for _ in 0..5 {
-            play_card(&mut e, "Strike_P", 0);
+            play_card(&mut e, "Strike", 0);
         }
 
         // Guardian should have shifted to defensive mode
@@ -1418,7 +1418,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn slime_boss_splits_at_half_hp() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 20);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 20);
         let enemy = enemies::create_enemy("SlimeBoss", 140, 140);
         let state = CombatState::new(80, 80, vec![enemy], deck, 50);
         let mut e = CombatEngine::new(state, 42);
@@ -1428,7 +1428,7 @@ mod combat_engine_p0_p1_regression {
         e.state.enemies[0].entity.hp = 71; // Just above 50% (70)
 
         // Strike does 6 damage -> brings to 65, which is <= 70 -> triggers split
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
 
         // Boss should be dead (hp set to 0 by split) and 2 new slimes spawned
         assert!(e.state.enemies[0].entity.is_dead(),
@@ -1443,8 +1443,8 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn gremlin_nob_enrage_on_non_attack() {
-        let mut deck: Vec<CardInstance> = make_deck_n("Defend_P", 5);
-        deck.extend(make_deck_n("Strike_P", 5));
+        let mut deck: Vec<CardInstance> = make_deck_n("Defend", 5);
+        deck.extend(make_deck_n("Strike", 5));
         let enemy = enemies::create_enemy("GremlinNob", 106, 106);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1453,7 +1453,7 @@ mod combat_engine_p0_p1_regression {
         let str_before = e.state.enemies[0].entity.strength();
 
         // Play a Defend (Skill) — should trigger Enrage (+2 Str)
-        play_card(&mut e, "Defend_P", -1);
+        play_card(&mut e, "Defend", -1);
 
         let str_after = e.state.enemies[0].entity.strength();
         assert_eq!(str_after, str_before + 2,
@@ -1462,7 +1462,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn gremlin_nob_no_enrage_on_attack() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let enemy = enemies::create_enemy("GremlinNob", 106, 106);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1471,7 +1471,7 @@ mod combat_engine_p0_p1_regression {
         let str_before = e.state.enemies[0].entity.strength();
 
         // Play a Strike (Attack) — should NOT trigger Enrage
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
 
         let str_after = e.state.enemies[0].entity.strength();
         assert_eq!(str_after, str_before,
@@ -1480,7 +1480,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn lagavulin_sleeps_then_wakes() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let enemy = enemies::create_enemy("Lagavulin", 112, 112);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -1495,14 +1495,14 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn lagavulin_wakes_on_damage() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let enemy = enemies::create_enemy("Lagavulin", 112, 112);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
         // Attack Lagavulin — should wake it up
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
 
         assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 0,
             "Lagavulin should wake up when damaged");
@@ -1514,7 +1514,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn pen_nib_doubles_damage_via_full_calc() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 20);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 20);
         let mut enemy = EnemyCombatState::new("JawWorm", 200, 200);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 50);
@@ -1526,7 +1526,7 @@ mod combat_engine_p0_p1_regression {
         e.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
 
         let hp_before = e.state.enemies[0].entity.hp;
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         let hp_after = e.state.enemies[0].entity.hp;
 
         // Strike does 6 base, Pen Nib doubles to 12
@@ -1538,7 +1538,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn plated_armor_decrements_on_hp_loss() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 10, 1);
         e.start_combat();
 
@@ -1554,7 +1554,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn plated_armor_not_decremented_when_fully_blocked() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut e = make_engine(deck, "JawWorm", 100, 5, 1);
         e.start_combat();
 
@@ -1572,7 +1572,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn talk_to_the_hand_no_block_when_enemy_blocks() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 50; // Enough block to absorb Strike damage
@@ -1582,7 +1582,7 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         let block_before = e.state.player.block;
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         let block_after = e.state.player.block;
 
         // Strike does 6 damage, enemy has 50 block -> 0 HP damage -> no BlockReturn
@@ -1592,7 +1592,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn talk_to_the_hand_grants_block_on_hp_damage() {
-        let deck: Vec<CardInstance> = make_deck_n("Strike_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         enemy.entity.block = 0;
@@ -1602,7 +1602,7 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         let block_before = e.state.player.block;
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         let block_after = e.state.player.block;
 
         // Strike does 6 HP damage -> BlockReturn should trigger
@@ -1614,7 +1614,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn anchor_block_preserved_turn_1() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1629,7 +1629,7 @@ mod combat_engine_p0_p1_regression {
 
     #[test]
     fn block_resets_normally_on_turn_2() {
-        let deck: Vec<CardInstance> = make_deck_n("Defend_P", 10);
+        let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80, vec![enemy], deck, 3);
@@ -1638,7 +1638,7 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Play a Defend to gain block, then end turn
-        play_card(&mut e, "Defend_P", -1);
+        play_card(&mut e, "Defend", -1);
         let block_after_defend = e.state.player.block;
         assert_eq!(block_after_defend, 15, "Should have block from Anchor(10) + Defend(5)");
 
@@ -1806,12 +1806,12 @@ mod effect_handler_tests {
     // ===== 5. Sash Whip: weak_if_last_attack =====
     #[test]
     fn sash_whip_applies_weak_after_attack() {
-        let mut deck = make_deck_n("Strike_P", 5);
+        let mut deck = make_deck_n("Strike", 5);
         deck.extend(make_deck_n("SashWhip", 5));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         // Play a Strike first (Attack type)
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         // Now play SashWhip — should apply Weak
         play_card(&mut e, "SashWhip", 0);
         assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 1,
@@ -1947,7 +1947,7 @@ mod effect_handler_tests {
     #[test]
     fn wreath_of_flame_grants_vigor() {
         let mut deck = make_deck_n("WreathOfFlame", 5);
-        deck.extend(make_deck_n("Strike_P", 5));
+        deck.extend(make_deck_n("Strike", 5));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         play_card(&mut e, "WreathOfFlame", -1);
@@ -1959,7 +1959,7 @@ mod effect_handler_tests {
     #[test]
     fn blasphemy_enters_divinity_and_kills_next_turn() {
         let mut deck = make_deck(&["Blasphemy"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         ensure_in_hand(&mut e, "Blasphemy");
@@ -1979,7 +1979,7 @@ mod effect_handler_tests {
     #[test]
     fn vault_skips_enemy_turn() {
         let mut deck = make_deck(&["Vault"]);
-        deck.extend(make_deck_n("Defend_P", 9));
+        deck.extend(make_deck_n("Defend", 9));
         let mut e = make_engine_with_deck_and_enemy(deck, 100, 20);
         e.start_combat();
         ensure_in_hand(&mut e, "Vault");
@@ -2009,7 +2009,7 @@ mod effect_handler_tests {
     #[test]
     fn meditate_returns_card_from_discard() {
         let mut deck = make_deck(&["Meditate"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Meditate") {
@@ -2034,12 +2034,12 @@ mod effect_handler_tests {
     #[test]
     fn signature_move_blocked_with_other_attacks() {
         let mut deck = make_deck(&["SignatureMove"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         // Should have both SignatureMove and Strikes in hand
         if e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "SignatureMove") &&
-           e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike_P") {
+           e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike") {
             let actions = e.get_legal_actions();
             let sig_move_action = actions.iter().find(|a| {
                 if let Action::PlayCard { card_idx, .. } = a {
@@ -2055,7 +2055,7 @@ mod effect_handler_tests {
     #[test]
     fn battle_hymn_adds_smite_each_turn() {
         let mut deck = make_deck(&["BattleHymn"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "BattleHymn") {
@@ -2073,7 +2073,7 @@ mod effect_handler_tests {
     #[test]
     fn like_water_gains_block_in_calm() {
         let mut deck = make_deck(&["LikeWater"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "LikeWater") {
@@ -2095,7 +2095,7 @@ mod effect_handler_tests {
     #[test]
     fn devotion_gains_mantra_each_turn() {
         let mut deck = make_deck(&["Devotion"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Devotion") {
@@ -2113,7 +2113,7 @@ mod effect_handler_tests {
     #[test]
     fn deva_form_gains_increasing_energy() {
         let mut deck = make_deck(&["DevaForm"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "DevaForm") {
@@ -2133,7 +2133,7 @@ mod effect_handler_tests {
     #[test]
     fn fasting_grants_str_dex_loses_energy() {
         let mut deck = make_deck(&["Fasting2"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Fasting") {
@@ -2166,7 +2166,7 @@ mod effect_handler_tests {
     #[test]
     fn study_adds_insight_at_end_of_turn() {
         let mut deck = make_deck(&["Study"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Study") {
@@ -2187,7 +2187,7 @@ mod effect_handler_tests {
     #[test]
     fn establishment_is_installed() {
         let mut deck = make_deck(&["Establishment"]);
-        deck.extend(make_deck_n("Defend_P", 14));
+        deck.extend(make_deck_n("Defend", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Establishment") {
@@ -2202,15 +2202,15 @@ mod effect_handler_tests {
     #[test]
     fn swivel_makes_next_attack_free() {
         let mut deck = make_deck(&["Swivel"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "Swivel");
-        ensure_in_hand(&mut e, "Strike_P");
+        ensure_in_hand(&mut e, "Strike");
         play_card(&mut e, "Swivel", -1);
         assert_eq!(e.state.player.status(sid::NEXT_ATTACK_FREE), 1);
         let energy_before = e.state.energy;
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         // Strike normally costs 1, but NextAttackFree should make it 0
         assert_eq!(e.state.energy, energy_before,
             "Next attack after Swivel should cost 0 energy");
@@ -2221,7 +2221,7 @@ mod effect_handler_tests {
     // ===== 30. Burn: end_turn_damage =====
     #[test]
     fn burn_deals_damage_at_end_of_turn() {
-        let deck = make_deck_n("Defend_P", 10);
+        let deck = make_deck_n("Defend", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         // Add Burn to hand
@@ -2236,7 +2236,7 @@ mod effect_handler_tests {
     // ===== 31. Doubt: end_turn_weak =====
     #[test]
     fn doubt_applies_weak_at_end_of_turn() {
-        let deck = make_deck_n("Defend_P", 10);
+        let deck = make_deck_n("Defend", 10);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         e.state.hand.push(e.card_registry.make_card("Doubt"));
@@ -2256,7 +2256,7 @@ mod effect_handler_tests {
     #[test]
     fn brilliance_deals_extra_damage_from_mantra() {
         let mut deck = make_deck(&["Brilliance"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "Brilliance");
@@ -2272,7 +2272,7 @@ mod effect_handler_tests {
     // ===== 33. Omega: deals damage at end of turn =====
     #[test]
     fn omega_deals_damage_at_end_of_turn() {
-        let deck = make_deck_n("Defend_P", 15);
+        let deck = make_deck_n("Defend", 15);
         let mut e = make_engine_with_deck_and_enemy(deck, 200, 0);
         e.start_combat();
         e.state.player.set_status(sid::OMEGA, 50);
@@ -2288,7 +2288,7 @@ mod effect_handler_tests {
     #[test]
     fn nirvana_gains_block_on_scry() {
         let mut deck = make_deck(&["CutThroughFate"]);
-        deck.extend(make_deck_n("Strike_P", 14));
+        deck.extend(make_deck_n("Strike", 14));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         if !e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "CutThroughFate") {
@@ -2339,7 +2339,7 @@ mod effect_handler_tests {
     #[test]
     fn conjure_blade_creates_expunger() {
         let mut deck = make_deck(&["ConjureBlade"]);
-        deck.extend(make_deck_n("Strike_P", 9));
+        deck.extend(make_deck_n("Strike", 9));
         let mut e = make_engine_with_deck(deck);
         e.start_combat();
         ensure_in_hand(&mut e, "ConjureBlade");
@@ -2373,7 +2373,7 @@ mod effect_handler_tests {
         use crate::enemies;
         let mut boss = enemies::create_enemy("SlimeBoss", 140, 140);
         boss.set_move(1, 0, 0, 0);
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![boss], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2399,7 +2399,7 @@ mod effect_handler_tests {
         let mut ao = enemies::create_enemy("AwakenedOne", 100, 300);
         ao.entity.set_status(sid::PHASE, 1);
         ao.set_move(1, 10, 1, 0);
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![ao], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2421,7 +2421,7 @@ mod effect_handler_tests {
         let mut boss = enemies::create_enemy("SlimeBoss", 75, 140);
         boss.entity.set_status(sid::POISON, 5);
         boss.set_move(1, 0, 0, 0);
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![boss], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2440,7 +2440,7 @@ mod effect_handler_tests {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
         let mut deck: Vec<CardInstance> = make_deck_n("Burn", 5);
-        deck.extend(make_deck_n("Defend_P", 5));
+        deck.extend(make_deck_n("Defend", 5));
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2463,7 +2463,7 @@ mod effect_handler_tests {
     fn runic_pyramid_keeps_status_and_curse_cards() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.state.relics.push("Runic Pyramid".to_string());
@@ -2507,7 +2507,7 @@ mod effect_handler_tests {
     fn pain_triggers_on_card_play() {
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2515,7 +2515,7 @@ mod effect_handler_tests {
         e.state.hand.push(e.card_registry.make_card("Pain"));
         let hp_before = e.state.player.hp;
         // Play a Strike — Pain should deal 1 HP loss per Pain in hand
-        play_card(&mut e, "Strike_P", 0);
+        play_card(&mut e, "Strike", 0);
         assert_eq!(e.state.player.hp, hp_before - 1,
             "Pain should deal 1 HP loss when a card is played. HP went from {} to {}",
             hp_before, e.state.player.hp);
@@ -2536,7 +2536,7 @@ mod effect_handler_tests {
         champ.add_effect(crate::combat_types::mfx::REMOVE_DEBUFFS, 1);
         champ.add_effect(crate::combat_types::mfx::STRENGTH, 6);
 
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![champ], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2564,7 +2564,7 @@ mod effect_handler_tests {
         te.add_effect(crate::combat_types::mfx::REMOVE_DEBUFFS, 1);
         te.entity.set_status(sid::WEAKENED, 3);
 
-        let deck = make_deck_n("Strike_P", 10);
+        let deck = make_deck_n("Strike", 10);
         let state = CombatState::new(80, 80, vec![te], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
@@ -2586,7 +2586,7 @@ mod effect_handler_tests {
 
     #[test]
     fn time_eater_12_card_mechanic_triggers() {
-        let deck = make_deck_n("Strike_P", 20);
+        let deck = make_deck_n("Strike", 20);
         let mut te = crate::enemies::create_enemy("TimeEater", 456, 456);
         te.set_move(te.move_id, 0, 0, 0); // Neuter damage for test
         let state = CombatState::new(80, 80, vec![te], deck, 99);
@@ -2597,7 +2597,7 @@ mod effect_handler_tests {
         e.state.energy = 99;
         // We start with 5 cards in hand, need 12 total. Add more to hand.
         for _ in 0..10 {
-            let card = e.card_registry.make_card("Strike_P");
+            let card = e.card_registry.make_card("Strike");
             e.state.hand.push(card);
         }
 
@@ -2628,7 +2628,7 @@ mod effect_handler_tests {
 
     #[test]
     fn transient_dies_after_5_turns() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let mut trans = crate::enemies::create_enemy("Transient", 999, 999);
         trans.set_move(trans.move_id, 0, 0, 0); // Neuter first turn damage
         let state = CombatState::new(9999, 9999, vec![trans], deck, 3);
@@ -2648,7 +2648,7 @@ mod effect_handler_tests {
 
     #[test]
     fn nemesis_gains_intangible_on_turn() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let mut nem = crate::enemies::create_enemy("Nemesis", 185, 185);
         nem.set_move(nem.move_id, 0, 0, 0); // Neuter damage
         let state = CombatState::new(80, 80, vec![nem], deck, 3);
@@ -2679,7 +2679,7 @@ mod effect_handler_tests {
 
     #[test]
     fn collector_spawns_torch_heads() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let collector = crate::enemies::create_enemy("TheCollector", 282, 282);
         let state = CombatState::new(80, 80, vec![collector], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -2696,7 +2696,7 @@ mod effect_handler_tests {
 
     #[test]
     fn automaton_spawns_bronze_orbs() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let auto = crate::enemies::create_enemy("BronzeAutomaton", 300, 300);
         let state = CombatState::new(80, 80, vec![auto], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -2712,7 +2712,7 @@ mod effect_handler_tests {
 
     #[test]
     fn reptomancer_spawns_snake_daggers() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
         let state = CombatState::new(80, 80, vec![repto], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -2727,7 +2727,7 @@ mod effect_handler_tests {
 
     #[test]
     fn gremlin_leader_spawns_gremlins() {
-        let deck = make_deck_n("Defend_P", 20);
+        let deck = make_deck_n("Defend", 20);
         let gl = crate::enemies::create_enemy("GremlinLeader", 140, 140);
         let state = CombatState::new(80, 80, vec![gl], deck, 3);
         let mut e = CombatEngine::new(state, 42);
@@ -2862,7 +2862,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn card_gen_random_attack_to_hand() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 10;
         let ib = e.card_registry.make_card("Infernal Blade");
@@ -2873,7 +2873,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn transmutation_adds_x_cards() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 3;
         let t = e.card_registry.make_card("Transmutation");
@@ -2891,8 +2891,8 @@ mod effect_handler_tests {
 
     #[test] fn secret_weapon_searches_attacks() {
         let mut e = make_engine_with_deck(make_deck(&[
-            "Defend_G", "Defend_G", "Defend_G", "Defend_G", "Defend_G",
-            "Strike_R", "Strike_R", "Strike_R",
+            "Defend", "Defend", "Defend", "Defend", "Defend",
+            "Strike", "Strike", "Strike",
         ]));
         e.start_combat();
         e.state.energy = 10;
@@ -2907,11 +2907,11 @@ mod effect_handler_tests {
     }
 
     #[test] fn hologram_returns_from_discard() {
-        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        let mut e = make_engine_with_deck(make_deck_n("Defend", 10));
         e.start_combat();
         e.state.energy = 10;
         // Put a card in discard
-        let card = e.card_registry.make_card("Strike_R");
+        let card = e.card_registry.make_card("Strike");
         e.state.discard_pile.push(card);
         let holo = e.card_registry.make_card("Hologram");
         e.state.hand.push(holo);
@@ -2920,14 +2920,14 @@ mod effect_handler_tests {
         assert_eq!(e.phase, CombatPhase::AwaitingChoice);
         e.execute_action(&Action::Choose(0));
         // Strike should now be in hand
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike_R"),
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike"),
             "Strike_R should be in hand after Hologram");
-        assert!(e.state.discard_pile.iter().all(|c| e.card_registry.card_name(c.def_id) != "Strike_R"),
+        assert!(e.state.discard_pile.iter().all(|c| e.card_registry.card_name(c.def_id) != "Strike"),
             "Strike_R should not be in discard after Hologram");
     }
 
     #[test] fn recycle_exhausts_and_gains_energy() {
-        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        let mut e = make_engine_with_deck(make_deck_n("Defend", 10));
         e.start_combat();
         e.state.energy = 1; // just enough for Recycle
         let rec = e.card_registry.make_card("Recycle");
@@ -2953,7 +2953,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn concentrate_discards_and_gains_energy() {
-        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        let mut e = make_engine_with_deck(make_deck_n("Defend", 10));
         e.start_combat();
         e.state.energy = 5;
         let conc = e.card_registry.make_card("Concentrate");
@@ -2972,7 +2972,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn thinking_ahead_draws_then_puts_on_top() {
-        let mut e = make_engine_with_deck(make_deck_n("Defend_G", 10));
+        let mut e = make_engine_with_deck(make_deck_n("Defend", 10));
         e.start_combat();
         e.state.energy = 10;
         let ta = e.card_registry.make_card("Thinking Ahead");
@@ -2987,7 +2987,7 @@ mod effect_handler_tests {
 
     #[test] fn instance_cost_override_respected() {
         // A card with instance cost set to 0 should be playable with 0 energy
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 0;
         // Streamline normally costs 2, but set instance cost to 0
@@ -3003,7 +3003,7 @@ mod effect_handler_tests {
 
     #[test] fn instance_cost_neg1_uses_carddef_cost() {
         // Default instance cost (-1) should use CardDef cost
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 1; // Streamline costs 2, so not enough
         let card = e.card_registry.make_card("Streamline");
@@ -3024,7 +3024,7 @@ mod effect_handler_tests {
 
     #[test] fn innate_cards_drawn_first() {
         // Backstab has "innate" tag — should appear in opening hand
-        let mut deck = make_deck_n("Defend_G", 9);
+        let mut deck = make_deck_n("Defend", 9);
         let reg = crate::cards::global_registry();
         deck.push(reg.make_card("Backstab"));
         let mut e = make_engine_with_deck(deck);
@@ -3035,7 +3035,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn phantasmal_killer_sets_double_damage() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 10;
         let pk = e.card_registry.make_card("Phantasmal Killer");
@@ -3046,7 +3046,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn biased_cognition_loses_focus_each_turn() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 5);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 5);
         e.start_combat();
         e.state.energy = 10;
         let bc = e.card_registry.make_card("Biased Cognition");
@@ -3069,7 +3069,7 @@ mod effect_handler_tests {
             e.set_move(1, 0, 0, 0);
             e
         }).collect();
-        let state = CombatState::new(80, 80, enemies, make_deck_n("Strike_R", 10), 10);
+        let state = CombatState::new(80, 80, enemies, make_deck_n("Strike", 10), 10);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
         // Apply Corpse Explosion to enemy 0
@@ -3084,7 +3084,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn blood_for_blood_cost_reduces_on_hp_loss() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         // Blood for Blood costs 4, reduce by 1 per HP lost
         let bfb = e.card_registry.make_card("Blood for Blood");
@@ -3099,7 +3099,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn retain_hand_flag_keeps_all_cards() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 15), 200, 5);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 15), 200, 5);
         e.start_combat();
         e.state.energy = 10;
         e.state.player.set_status(sid::RETAIN_HAND_FLAG, 1);
@@ -3111,7 +3111,7 @@ mod effect_handler_tests {
     }
 
     #[test] fn sneaky_strike_refunds_energy_after_discard() {
-        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend_G", 10), 200, 0);
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 10;
         // Simulate having discarded this turn

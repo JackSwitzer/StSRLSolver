@@ -948,7 +948,7 @@ mod tests {
     #[test]
     fn test_card_effect_vector_strike() {
         let registry = crate::cards::global_registry();
-        let ev = card_effect_vector("Strike_P", &registry);
+        let ev = card_effect_vector("Strike", &registry);
         assert!(ev[1] > 0.0, "Strike should have damage > 0");
         assert_eq!(ev[8], 1.0, "Strike should be attack type");
     }

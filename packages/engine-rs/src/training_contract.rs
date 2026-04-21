@@ -1443,7 +1443,7 @@ mod tests {
 
     #[test]
     fn combat_training_state_exposes_tokens_and_candidates() {
-        let engine = engine_with(make_deck(&["Strike_R", "Defend_R"]), 20, 5);
+        let engine = engine_with(make_deck(&["Strike", "Defend"]), 20, 5);
         let state = combat_training_state_from_combat(&engine, crate::encode_combat_action);
 
         assert_eq!(state.schema_versions.combat_observation_schema_version, 1);
@@ -1461,7 +1461,7 @@ mod tests {
                 && candidate
                     .card
                     .as_ref()
-                    .is_some_and(|card| card.card_id == "Strike_R")));
+                    .is_some_and(|card| card.card_id == "Strike")));
     }
 
     #[test]
@@ -1521,7 +1521,7 @@ mod tests {
 
     #[test]
     fn combat_snapshot_roundtrip_preserves_training_surface() {
-        let mut engine = engine_with(make_deck(&["Strike_P", "Defend_P", "Eruption"]), 30, 12);
+        let mut engine = engine_with(make_deck(&["Strike", "Defend", "Eruption"]), 30, 12);
         engine.state.potions = vec!["FlexPotion".to_string(), "".to_string(), "".to_string()];
         engine.state.relics = vec!["PureWater".to_string()];
         engine.state.relic_counters[crate::relic_flags::counter::INK_BOTTLE] = 6;

@@ -60,7 +60,7 @@ fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
         3,
     );
     force_player_turn(&mut engine);
-    engine.state.hand = make_deck(&["Forethought+", "Strike_R", "Defend_R"]);
+    engine.state.hand = make_deck(&["Forethought+", "Strike", "Defend"]);
 
     assert!(play_self(&mut engine, "Forethought+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -69,7 +69,7 @@ fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike_R");
+    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike");
     assert_eq!(engine.state.draw_pile[0].cost, 0);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend_R");
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend");
 }

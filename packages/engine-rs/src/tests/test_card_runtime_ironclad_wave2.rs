@@ -180,7 +180,7 @@ mod ironclad_wave2_card_runtime_tests {
         let mut headbutt_engine = engine_for(
             &["Headbutt"],
             &["Shrug It Off"],
-            &["Strike_R", "Defend_R"],
+            &["Strike", "Defend"],
             50,
             3,
         );
@@ -212,14 +212,14 @@ mod ironclad_wave2_card_runtime_tests {
             &selected_name,
         ));
 
-        let mut pommel_engine = engine_for(&["Pommel Strike"], &["Strike_P"], &[], 50, 3);
+        let mut pommel_engine = engine_for(&["Pommel Strike"], &["Strike"], &[], 50, 3);
         let hand_before = pommel_engine.state.hand.len();
         let hp_before = pommel_engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut pommel_engine, "Pommel Strike", 0));
         assert_eq!(pommel_engine.state.enemies[0].entity.hp, hp_before - 9);
         assert_eq!(pommel_engine.state.hand.len(), hand_before);
         assert_eq!(draw_prefix_count(&pommel_engine, "Strike_"), 0);
-        assert_eq!(pommel_engine.state.hand.iter().filter(|c| pommel_engine.card_registry.card_name(c.def_id) == "Strike_P").count(), 1);
+        assert_eq!(pommel_engine.state.hand.iter().filter(|c| pommel_engine.card_registry.card_name(c.def_id) == "Strike").count(), 1);
 
         let mut thunderclap_engine = engine_for(
             &["Thunderclap"],
@@ -267,7 +267,7 @@ mod ironclad_wave2_card_runtime_tests {
 
         let mut battle_trance_engine = engine_for(
             &["Battle Trance"],
-            &["Strike_R", "Defend_R", "Bash"],
+            &["Strike", "Defend", "Bash"],
             &[],
             50,
             3,

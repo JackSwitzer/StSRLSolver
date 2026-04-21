@@ -117,7 +117,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     for c in engine.state.draw_pile.iter_mut() {
         if !c.is_upgraded() {
             let name = engine.card_registry.card_name(c.def_id);
-            if !name.starts_with("Strike_") && !name.starts_with("Defend_") {
+            if !name.starts_with("Strike") && !name.starts_with("Defend") {
                 engine.card_registry.upgrade_card(c);
                 upgraded = true;
                 break;
@@ -128,7 +128,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
         for c in engine.state.discard_pile.iter_mut() {
             if !c.is_upgraded() {
                 let name = engine.card_registry.card_name(c.def_id);
-                if !name.starts_with("Strike_") && !name.starts_with("Defend_") {
+                if !name.starts_with("Strike") && !name.starts_with("Defend") {
                     engine.card_registry.upgrade_card(c);
                     break;
                 }

@@ -53,12 +53,12 @@ fn colorless_wave10_registry_exports_enlightenment_and_violence_typed_surfaces()
 #[test]
 fn violence_moves_random_attacks_from_draw_to_hand() {
     let mut state = crate::tests::support::combat_state_with(
-        make_deck(&["Violence", "Strike_B", "Strike_B", "Strike_B", "Defend_B", "Defend_B"]),
+        make_deck(&["Violence", "Strike", "Strike", "Strike", "Defend", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     state.hand = make_deck(&["Violence"]);
-    state.draw_pile = make_deck(&["Strike_B", "Strike_B", "Strike_B", "Defend_B", "Defend_B"]);
+    state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Defend", "Defend"]);
     let mut engine = crate::engine::CombatEngine::new(state, TEST_SEED);
     force_player_turn(&mut engine);
     engine.state.turn = 1;
@@ -70,7 +70,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
             .state
             .hand
             .iter()
-            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike_"))
+            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
             .count(),
         3,
     );
@@ -79,7 +79,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
             .state
             .draw_pile
             .iter()
-            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike_"))
+            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Strike"))
             .count(),
         0,
     );
@@ -88,7 +88,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
             .state
             .draw_pile
             .iter()
-            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Defend_"))
+            .filter(|c| engine.card_registry.card_name(c.def_id).starts_with("Defend"))
             .count(),
         2,
     );
