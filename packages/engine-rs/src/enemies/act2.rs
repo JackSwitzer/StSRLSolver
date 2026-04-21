@@ -475,14 +475,21 @@ pub(super) fn roll_collector(enemy: &mut EnemyCombatState, num: i32) {
     let turns = enemy.move_history.len();
     let ult_used = enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF);
 
-    // Java getMove:
-    //   initialSpawn                          -> Spawn (handled at create_enemy)
-    //   turnsTaken>=3 && !ultUsed             -> MegaDebuff
+    // Java TheCollector.getMove (decompiled monsters/city/TheCollector.java:180):
+    //   initialSpawn                           -> Spawn (handled at create_enemy)
+    //   turnsTaken >= 3 && !ultUsed            -> MegaDebuff
     //   num<=25 && isMinionDead && !lastMove(5) -> Revive (deferred: needs minion-dead signal)
-    //   num<=70 && !lastTwoMoves(FIREBALL)    -> Fireball
-    //   !lastMove(BUFF)                        -> Buff
-    //   else                                   -> Fireball
-    if turns == 4 && !ult_used {
+    //   num<=70 && !lastTwoMoves(FIREBALL)     -> Fireball
+    //   !lastMove(BUFF)                         -> Buff
+    //   else                                    -> Fireball
+    //
+    // In Java, `turnsTaken` increments in takeTurn *after* the move executes,
+    // and getMove is queued right after. So the call where `turnsTaken == 3`
+    // is the third post-turn getMove (queuing MegaDebuff for turn 4).
+    // In Rust, roll_next_move_with_num pushes the just-executed move into
+    // move_history at entry, so `turns == move_history.len()` after the push
+    // matches Java's post-increment turnsTaken.
+    if turns >= 3 && !ult_used {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
         enemy.add_effect(mfx::VULNERABLE, 3);
         enemy.add_effect(mfx::WEAK, 3);

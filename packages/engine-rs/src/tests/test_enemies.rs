@@ -22,26 +22,27 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 11);
         assert_eq!(e.move_hits(), 1);
     }
-    #[test] fn jw_after_chomp_bellow() {
+    // Java JawWorm.java:146 default branches: 0-24 CHOMP / 25-54 THRASH / 55-99 BELLOW.
+    #[test] fn jw_after_chomp_thrash() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // 25..55 -> BELLOW
-        assert_eq!(e.move_id, JW_BELLOW);
-        assert_eq!(e.move_block(), 6);
-        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
-    }
-    #[test] fn jw_after_bellow_thrash() {
-        let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // -> BELLOW
-        roll_next_move_with_num(&mut e, 80); // -> THRASH (>=55)
+        roll_next_move_with_num(&mut e, 30); // 25..55, !lastTwoMoves(THRASH) -> THRASH
         assert_eq!(e.move_id, JW_THRASH);
         assert_eq!(e.move_damage(), 7);
         assert_eq!(e.move_block(), 5);
     }
-    #[test] fn jw_after_thrash_chomp() {
+    #[test] fn jw_after_thrash_bellow() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // BELLOW
-        roll_next_move_with_num(&mut e, 80); // THRASH
-        roll_next_move_with_num(&mut e, 10); // CHOMP (<25, last two are CHOMP/BELLOW)
+        roll_next_move_with_num(&mut e, 30); // -> THRASH
+        roll_next_move_with_num(&mut e, 80); // >=55, !lastMove(BELLOW) -> BELLOW
+        assert_eq!(e.move_id, JW_BELLOW);
+        assert_eq!(e.move_block(), 6);
+        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
+    }
+    #[test] fn jw_after_bellow_chomp() {
+        let mut e = create_enemy("JawWorm", 44, 44);
+        roll_next_move_with_num(&mut e, 30); // THRASH
+        roll_next_move_with_num(&mut e, 80); // BELLOW
+        roll_next_move_with_num(&mut e, 10); // <25, !lastMove(CHOMP) -> CHOMP
         assert_eq!(e.move_id, JW_CHOMP);
     }
     #[test] fn jw_6_turn_cycle() {
@@ -53,13 +54,14 @@ mod enemy_tests {
             ids.push(e.move_id);
         }
         assert_eq!(ids[0], JW_CHOMP);
-        assert_eq!(ids[1], JW_BELLOW);
-        assert_eq!(ids[2], JW_THRASH);
+        assert_eq!(ids[1], JW_THRASH);
+        assert_eq!(ids[2], JW_BELLOW);
         assert_eq!(ids[3], JW_CHOMP);
     }
     #[test] fn jw_bellow_has_no_damage() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // -> BELLOW
+        roll_next_move_with_num(&mut e, 80); // >=55 -> BELLOW
+        assert_eq!(e.move_id, JW_BELLOW);
         assert_eq!(e.move_damage(), 0);
     }
 

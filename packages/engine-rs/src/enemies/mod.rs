@@ -954,19 +954,20 @@ mod tests {
 
     #[test]
     fn test_jaw_worm_pattern() {
+        // Java JawWorm.java:146: 0-24 CHOMP / 25-54 THRASH / 55-99 BELLOW default.
         let mut enemy = create_enemy("JawWorm", 44, 44);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
 
-        roll_next_move_with_num(&mut enemy, 30); // -> BELLOW
-        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
-
-        roll_next_move_with_num(&mut enemy, 80); // -> THRASH
+        roll_next_move_with_num(&mut enemy, 30); // 25..55 -> THRASH
         assert_eq!(enemy.move_id, move_ids::JW_THRASH);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_block(), 5);
 
-        roll_next_move_with_num(&mut enemy, 10); // -> CHOMP
+        roll_next_move_with_num(&mut enemy, 80); // >=55, !lastMove(BELLOW) -> BELLOW
+        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+
+        roll_next_move_with_num(&mut enemy, 10); // <25, !lastMove(CHOMP) -> CHOMP
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
     }
 
@@ -1336,22 +1337,25 @@ mod tests {
         let mut enemy = create_enemy("TheCollector", 282, 282);
         assert_eq!(enemy.move_id, move_ids::COLL_SPAWN);
 
-        // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
+        // Java TheCollector.getMove: turnsTaken >= 3 && !ultUsed -> MegaDebuff.
+        // Call 1 (post-SPAWN, turns=1): Fireball.
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 18);
 
+        // Call 2 (turns=2): Fireball (lastTwoMoves(FIREBALL) not yet true).
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
-
-        // Mega Debuff at turn 4 (turnsTaken >= 3)
+        // Call 3 (turns=3): MegaDebuff fires per Java's >=3 guard.
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
         assert_eq!(enemy.effect(mfx::WEAK), Some(3));
+
+        // Call 4 (turns=4, ultUsed=true): falls through to Fireball cycle.
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
     }
 
     // ----- Act 3 -----
@@ -1954,11 +1958,20 @@ mod tests {
 
     #[test]
     fn test_collector_buff_branch() {
-        // lastTwoMoves(FIREBALL) -> Buff (STRENGTH + block).
+        // Java: Buff fires when !lastMove(BUFF) after MegaDebuff has already
+        // consumed the turnsTaken>=3 gate (ultUsed=true). Seed history to
+        // emulate post-MegaDebuff with two queued Fireballs so the anti-repeat
+        // falls through to Buff.
         let mut enemy = create_enemy("TheCollector", 282, 282);
-        roll_next_move_with_num(&mut enemy, 50); // Fireball
-        roll_next_move_with_num(&mut enemy, 50); // Fireball
-        roll_next_move_with_num(&mut enemy, 50); // -> Buff
+        enemy.move_history = vec![
+            move_ids::COLL_SPAWN,
+            move_ids::COLL_FIREBALL,
+            move_ids::COLL_FIREBALL,
+            move_ids::COLL_MEGA_DEBUFF,
+            move_ids::COLL_FIREBALL,
+        ];
+        enemy.set_move(move_ids::COLL_FIREBALL, 18, 1, 0);
+        roll_next_move_with_num(&mut enemy, 50);
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
     }

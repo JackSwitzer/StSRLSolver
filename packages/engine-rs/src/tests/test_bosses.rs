@@ -287,16 +287,24 @@ mod boss_java_parity_tests {
 
     #[test]
     fn collector_a2_scaling_matches_java_expectations() {
+        // Java TheCollector.getMove: turnsTaken >= 3 && !ultUsed -> MegaDebuff.
+        // Call 1 (post-SPAWN, turns=1): Fireball at A2 damage (21).
+        // Call 2 (post-Fireball, turns=2): Fireball again (anti-repeat not yet).
+        // Call 3 (post-Fireball x2, turns=3): MegaDebuff fires per Java's >=3.
         let mut enemy = create_enemy("TheCollector", 300, 300);
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 21);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
-        assert_eq!(enemy.move_block(), 18);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(4));
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+        assert_eq!(enemy.move_damage(), 21);
+
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
+        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
+        assert_eq!(enemy.effect(mfx::WEAK), Some(3));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(3));
     }
 
     #[test]

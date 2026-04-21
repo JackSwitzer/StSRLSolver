@@ -9,22 +9,45 @@ use crate::status_ids::sid;
 // =========================================================================
 
 pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32) {
-    // Java JawWorm.getMove(int num) (decompiled monsters/exordium/JawWorm.java):
-    //   if (num < 25 && !lastTwoMoves(CHOMP)) -> CHOMP (11 dmg)
-    //   else if (num < 55 && !lastMove(BELLOW)) -> BELLOW (+3 str, 6 block)
-    //   else if !lastTwoMoves(THRASH) -> THRASH (7 dmg, 5 block)
-    //   First turn has no history, so only the num check applies:
-    //   0-24 CHOMP, 25-54 BELLOW, 55-99 THRASH (~25/30/45 split).
-    if num < 25 && !last_two_moves(enemy, move_ids::JW_CHOMP) {
-        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
-    } else if num < 55 && !last_move(enemy, move_ids::JW_BELLOW) {
-        enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
-        enemy.add_effect(mfx::STRENGTH, 3);
-    } else if !last_two_moves(enemy, move_ids::JW_THRASH) {
+    // Java JawWorm.getMove(int num) (decompiled monsters/exordium/JawWorm.java:146):
+    //   byte 1 = CHOMP (11 dmg), byte 2 = BELLOW (+3 str, 6 block),
+    //   byte 3 = THRASH (7 dmg, 5 block).
+    //   if (num < 25):
+    //     default CHOMP; if lastMove(CHOMP) sub-roll aiRng.randomBoolean(0.5625)
+    //       -> BELLOW (56.25%) else THRASH.
+    //   else if (num < 55):
+    //     default THRASH; if lastTwoMoves(THRASH) sub-roll 0.357
+    //       -> CHOMP (35.7%) else BELLOW.
+    //   else:
+    //     default BELLOW; if lastMove(BELLOW) sub-roll 0.416
+    //       -> CHOMP (41.6%) else THRASH.
+    //   First turn picks the default by num: 0-24 CHOMP, 25-54 THRASH, 55-99
+    //   BELLOW (~25/30/45 split).
+    //   Sub-roll exact parity is deferred -- we don't have a second RNG pull
+    //   in the single-num API -- so the fallback picks the dominant branch.
+    //   See parity register D-JW-SUBROLL.
+    if num < 25 {
+        if last_move(enemy, move_ids::JW_CHOMP) {
+            // Deferred sub-roll: dominant branch is BELLOW (56.25%).
+            enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
+            enemy.add_effect(mfx::STRENGTH, 3);
+        } else {
+            enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
+        }
+    } else if num < 55 {
+        if last_two_moves(enemy, move_ids::JW_THRASH) {
+            // Deferred sub-roll: dominant branch is BELLOW (64.3%).
+            enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
+            enemy.add_effect(mfx::STRENGTH, 3);
+        } else {
+            enemy.set_move(move_ids::JW_THRASH, 7, 1, 5);
+        }
+    } else if last_move(enemy, move_ids::JW_BELLOW) {
+        // Deferred sub-roll: dominant branch is THRASH (58.4%).
         enemy.set_move(move_ids::JW_THRASH, 7, 1, 5);
     } else {
-        // All anti-repeat guards triggered; fall back to CHOMP.
-        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
+        enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
+        enemy.add_effect(mfx::STRENGTH, 3);
     }
 }
 

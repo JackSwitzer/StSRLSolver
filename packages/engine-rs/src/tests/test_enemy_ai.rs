@@ -203,13 +203,15 @@ mod enemy_ai_java_parity_tests {
 
     #[test]
     fn act1_patterns_match_java() {
-        // JawWorm is probabilistic (post-AI-RNG-fix); test each branch via num.
+        // JawWorm is probabilistic (post-AI-RNG-fix); test each Java branch.
+        // Java JawWorm.java:146: 0-24 CHOMP / 25-54 THRASH / 55-99 BELLOW default.
         let mut e = make("JawWorm", 44);
-        roll_with_num(&mut e, 30); // 25..55 -> BELLOW
-        expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
-        roll_with_num(&mut e, 80); // >=55 and !lastTwoMoves(THRASH) -> THRASH
+        // history starts empty; first roll pushes CHOMP, so lastMove=CHOMP.
+        roll_with_num(&mut e, 30); // 25..55 + !lastTwoMoves(THRASH) -> THRASH
         expect_move(&e, move_ids::JW_THRASH, 7, 1, 5, &[]);
-        roll_with_num(&mut e, 10); // <25 and !lastTwoMoves(CHOMP) -> CHOMP
+        roll_with_num(&mut e, 80); // >=55 + !lastMove(BELLOW) -> BELLOW
+        expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
+        roll_with_num(&mut e, 10); // <25 + !lastMove(CHOMP) -> CHOMP
         expect_move(&e, move_ids::JW_CHOMP, 11, 1, 0, &[]);
 
         let mut e = make("Cultist", 50);

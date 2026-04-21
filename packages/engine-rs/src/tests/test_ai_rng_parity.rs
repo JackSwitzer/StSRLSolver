@@ -27,39 +27,29 @@ mod ai_rng_parity_tests {
     // same wrong move_id.
 
     #[test]
-    fn jaw_worm_num_below_25_picks_chomp_on_first_turn() {
+    fn jaw_worm_num_below_25_defaults_to_chomp() {
+        // Java JawWorm.java:152: num < 25 && !lastMove(CHOMP) -> CHOMP default.
+        // Clear history + move_id so the anti-repeat guards don't fire.
         let mut e = create_enemy("JawWorm", 44, 44);
-        // Initial intent in create_enemy is CHOMP; rolling with num=0 (no prior
-        // history matching CHOMP twice) should keep CHOMP per Java's
-        // `num < 25 && !lastTwoMoves(CHOMP)`.
+        e.move_history.clear();
+        e.move_id = 0;
         roll_next_move_with_num(&mut e, 0);
-        assert_eq!(e.move_id, move_ids::JW_CHOMP, "num=0 should yield CHOMP");
+        assert_eq!(e.move_id, move_ids::JW_CHOMP, "num=0 default -> CHOMP");
         assert_eq!(e.move_damage(), 11);
     }
 
     #[test]
-    fn jaw_worm_num_25_to_54_picks_bellow_on_first_turn() {
+    fn jaw_worm_num_25_to_54_defaults_to_thrash() {
+        // Java JawWorm.java:162: num in [25, 55) && !lastTwoMoves(THRASH) -> THRASH.
         for num in [25, 30, 50, 54] {
             let mut e = create_enemy("JawWorm", 44, 44);
-            roll_next_move_with_num(&mut e, num);
-            assert_eq!(
-                e.move_id,
-                move_ids::JW_BELLOW,
-                "num={num} should yield BELLOW"
-            );
-            assert_eq!(e.move_block(), 6);
-        }
-    }
-
-    #[test]
-    fn jaw_worm_num_55_to_99_picks_thrash_on_first_turn() {
-        for num in [55, 75, 99] {
-            let mut e = create_enemy("JawWorm", 44, 44);
+            e.move_history.clear();
+            e.move_id = 0;
             roll_next_move_with_num(&mut e, num);
             assert_eq!(
                 e.move_id,
                 move_ids::JW_THRASH,
-                "num={num} should yield THRASH"
+                "num={num} default -> THRASH"
             );
             assert_eq!(e.move_damage(), 7);
             assert_eq!(e.move_block(), 5);
@@ -67,47 +57,63 @@ mod ai_rng_parity_tests {
     }
 
     #[test]
-    fn jaw_worm_anti_repeat_chomp_blocks_third_chomp() {
-        // After two consecutive CHOMPs in move_history, num<25 must NOT pick
-        // CHOMP (Java's `!lastTwoMoves(CHOMP)` guard). It should fall through
-        // to the next branch.
-        let mut e = create_enemy("JawWorm", 44, 44);
-        // Seed history directly so lastTwoMoves(CHOMP) is unambiguously true
-        // BEFORE the next push happens. roll_next_move_with_num pushes the
-        // *current* move_id first, so we set the current to CHOMP and seed
-        // exactly one prior CHOMP -- after the push, the last two entries are
-        // [CHOMP, CHOMP].
-        e.move_history.push(move_ids::JW_CHOMP);
-        e.set_move(move_ids::JW_CHOMP, 11, 1, 0);
-        roll_next_move_with_num(&mut e, 0);
-        assert_ne!(
-            e.move_id,
-            move_ids::JW_CHOMP,
-            "lastTwoMoves(CHOMP) should block a third CHOMP at num=0"
-        );
-        // num<25 + CHOMP-blocked + !lastMove(BELLOW)=true -> BELLOW.
-        assert_eq!(e.move_id, move_ids::JW_BELLOW);
+    fn jaw_worm_num_55_to_99_defaults_to_bellow() {
+        // Java JawWorm.java:178: num >= 55 && !lastMove(BELLOW) -> BELLOW default.
+        for num in [55, 75, 99] {
+            let mut e = create_enemy("JawWorm", 44, 44);
+            e.move_history.clear();
+            e.move_id = 0;
+            roll_next_move_with_num(&mut e, num);
+            assert_eq!(
+                e.move_id,
+                move_ids::JW_BELLOW,
+                "num={num} default -> BELLOW"
+            );
+            assert_eq!(e.move_block(), 6);
+        }
     }
 
     #[test]
-    fn jaw_worm_three_branch_distribution_is_balanced() {
-        // Drive 1000 fresh JawWorm rolls under uniform num in [0, 99].
-        // Expected ~25% CHOMP, ~30% BELLOW, ~45% THRASH per Java's getMove.
-        // Anti-repeat guards on a fresh enemy with no prior history don't trigger.
-        let mut counts = [0_i32; 3]; // CHOMP, BELLOW, THRASH
+    fn jaw_worm_num_below_25_subroll_when_last_is_chomp() {
+        // Java JawWorm.java:153-158: num<25 + lastMove(CHOMP) enters sub-roll
+        // aiRng.randomBoolean(0.5625f) -> 56.25% BELLOW / 43.75% THRASH.
+        // Our single-num API picks the dominant branch (BELLOW).
+        let mut e = create_enemy("JawWorm", 44, 44);
+        // roll_next_move_with_num pushes move_id first; set current to CHOMP
+        // and clear history so the push seeds history as [CHOMP].
+        e.move_history.clear();
+        e.set_move(move_ids::JW_CHOMP, 11, 1, 0);
+        roll_next_move_with_num(&mut e, 0);
+        assert_eq!(
+            e.move_id,
+            move_ids::JW_BELLOW,
+            "num<25 + lastMove(CHOMP) -> BELLOW sub-roll fallback"
+        );
+        assert_eq!(e.move_block(), 6);
+    }
+
+    #[test]
+    fn jaw_worm_three_branch_distribution_matches_java() {
+        // Drive num=0..99 under empty history (guards inactive). Per Java:
+        //   0-24  -> CHOMP  (25 counts)
+        //   25-54 -> THRASH (30 counts)
+        //   55-99 -> BELLOW (45 counts)
+        let mut counts = [0_i32; 3]; // CHOMP, THRASH, BELLOW
         for num in 0..100 {
             let mut e = create_enemy("JawWorm", 44, 44);
+            e.move_history.clear();
+            e.move_id = 0;
             roll_next_move_with_num(&mut e, num);
             match e.move_id {
                 x if x == move_ids::JW_CHOMP => counts[0] += 1,
-                x if x == move_ids::JW_BELLOW => counts[1] += 1,
-                x if x == move_ids::JW_THRASH => counts[2] += 1,
-                _ => panic!("unexpected JawWorm intent"),
+                x if x == move_ids::JW_THRASH => counts[1] += 1,
+                x if x == move_ids::JW_BELLOW => counts[2] += 1,
+                _ => panic!("unexpected JawWorm intent {}", e.move_id),
             }
         }
         assert_eq!(counts[0], 25, "CHOMP count");
-        assert_eq!(counts[1], 30, "BELLOW count");
-        assert_eq!(counts[2], 45, "THRASH count");
+        assert_eq!(counts[1], 30, "THRASH count");
+        assert_eq!(counts[2], 45, "BELLOW count");
     }
 
     // §5.2 -- multi-enemy stream order: every roll_next_move call consumes
