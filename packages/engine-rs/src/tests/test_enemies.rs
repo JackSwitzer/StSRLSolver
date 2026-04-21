@@ -2,6 +2,7 @@
 mod enemy_tests {
     use crate::enemies::*;
     use crate::combat_types::mfx;
+    use crate::state::EnemyCombatState;
     use crate::status_ids::sid;
     use crate::enemies::move_ids::*;
 
@@ -129,7 +130,8 @@ mod enemy_tests {
     }
     #[test] fn red_louse_curl_up() {
         let e = create_enemy("RedLouse", 12, 12);
-        assert!(e.entity.status(sid::CURL_UP) > 0);
+        // Java LouseNormal CurlUpPower amount = 5 (mod.rs:417).
+        assert_eq!(e.entity.status(sid::CURL_UP), 5);
     }
     #[test] fn red_louse_no_three_bites() {
         // With Java-parity RNG: num>=25 avoids the GROW branch so we get BITE, BITE.
@@ -154,7 +156,8 @@ mod enemy_tests {
     }
     #[test] fn green_louse_curl_up() {
         let e = create_enemy("GreenLouse", 14, 14);
-        assert!(e.entity.status(sid::CURL_UP) > 0);
+        // Java LouseDefensive CurlUpPower amount = 5 (mod.rs:421).
+        assert_eq!(e.entity.status(sid::CURL_UP), 5);
     }
     #[test] fn green_louse_spit_web_weak() {
         // num>=25 avoids the early SPIT_WEB branch; two BITEs then anti-repeat -> SPIT_WEB.
@@ -332,144 +335,10 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 9);
     }
 
-    // ========== The Guardian ==========
-
-    #[test] fn guard_first_charging() {
-        let e = create_enemy("TheGuardian", 240, 240);
-        assert_eq!(e.move_id, GUARD_CHARGING_UP);
-        assert_eq!(e.move_block(), 9);
-    }
-    #[test] fn guard_mode_shift_threshold() {
-        let e = create_enemy("TheGuardian", 240, 240);
-        assert_eq!(e.entity.status(sid::MODE_SHIFT), 30);
-    }
-    #[test] fn guard_offensive_cycle() {
-        let mut e = create_enemy("TheGuardian", 240, 240);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Fierce Bash
-        assert_eq!(e.move_id, GUARD_FIERCE_BASH);
-        assert_eq!(e.move_damage(), 32);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Vent Steam
-        assert_eq!(e.move_id, GUARD_VENT_STEAM);
-        assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
-        assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Whirlwind
-        assert_eq!(e.move_id, GUARD_WHIRLWIND);
-        assert_eq!(e.move_damage(), 5);
-        assert_eq!(e.move_hits(), 4);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Charging Up
-        assert_eq!(e.move_id, GUARD_CHARGING_UP);
-    }
-    #[test] fn guard_mode_shift_at_30() {
-        let mut e = create_enemy("TheGuardian", 240, 240);
-        assert!(!guardian_check_mode_shift(&mut e, 29));
-        assert!(guardian_check_mode_shift(&mut e, 1));
-        assert_eq!(e.entity.status(sid::SHARP_HIDE), 3);
-    }
-    #[test] fn guard_mode_shift_threshold_increases() {
-        let mut e = create_enemy("TheGuardian", 240, 240);
-        guardian_check_mode_shift(&mut e, 30);
-        assert_eq!(e.entity.status(sid::MODE_SHIFT), 40);
-    }
-    #[test] fn guard_defensive_cycle() {
-        let mut e = create_enemy("TheGuardian", 240, 240);
-        guardian_check_mode_shift(&mut e, 30);
-        assert_eq!(e.move_id, GUARD_ROLL_ATTACK);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(e.move_id, GUARD_TWIN_SLAM);
-        assert_eq!(e.move_hits(), 2);
-        assert_eq!(e.move_damage(), 8);
-    }
-    #[test] fn guard_switch_back_to_offensive() {
-        let mut e = create_enemy("TheGuardian", 240, 240);
-        guardian_check_mode_shift(&mut e, 30);
-        guardian_switch_to_offensive(&mut e);
-        assert_eq!(e.entity.status(sid::SHARP_HIDE), 0);
-        assert_eq!(e.move_id, GUARD_CHARGING_UP);
-    }
-
-    // ========== Hexaghost ==========
-
-    #[test] fn hex_first_activate() {
-        let e = create_enemy("Hexaghost", 250, 250);
-        assert_eq!(e.move_id, HEX_ACTIVATE);
-    }
-    #[test] fn hex_second_divider() {
-        let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(e.move_id, HEX_DIVIDER);
-        assert_eq!(e.move_hits(), 6);
-    }
-    #[test] fn hex_full_7_cycle() {
-        let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Divider
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
-        assert_eq!(e.move_id, HEX_SEAR);
-        assert_eq!(e.move_damage(), 6);
-        assert_eq!(e.effect(mfx::BURN).unwrap(), 1);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
-        assert_eq!(e.move_id, HEX_TACKLE);
-        assert_eq!(e.move_hits(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
-        assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inflame
-        assert_eq!(e.move_id, HEX_INFLAME);
-        assert_eq!(e.move_block(), 12);
-        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
-        assert_eq!(e.move_id, HEX_TACKLE);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
-        assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inferno
-        assert_eq!(e.move_id, HEX_INFERNO);
-        assert_eq!(e.move_hits(), 6);
-        assert_eq!(e.effect(mfx::BURN_UPGRADE).unwrap(), 1);
-    }
-    #[test] fn hex_cycle_repeats() {
-        let mut e = create_enemy("Hexaghost", 250, 250);
-        // Activate + Divider + 7 cycle + restart
-        for _ in 0..9 { roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); }
-        // Should be back to Sear
-        assert_eq!(e.move_id, HEX_SEAR);
-    }
-
-    // ========== Slime Boss ==========
-
-    #[test] fn sb_first_sticky() {
-        let e = create_enemy("SlimeBoss", 140, 140);
-        assert_eq!(e.move_id, SB_STICKY);
-        assert_eq!(e.effect(mfx::SLIMED).unwrap(), 3);
-    }
-    #[test] fn sb_full_cycle() {
-        let mut e = create_enemy("SlimeBoss", 140, 140);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Prep
-        assert_eq!(e.move_id, SB_PREP_SLAM);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Slam
-        assert_eq!(e.move_id, SB_SLAM);
-        assert_eq!(e.move_damage(), 35);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sticky
-        assert_eq!(e.move_id, SB_STICKY);
-    }
-    #[test] fn sb_split_at_50pct() {
-        let mut e = create_enemy("SlimeBoss", 140, 140);
-        assert!(!slime_boss_should_split(&e));
-        e.entity.hp = 70;
-        assert!(slime_boss_should_split(&e));
-    }
-    #[test] fn sb_split_below_50pct() {
-        let mut e = create_enemy("SlimeBoss", 140, 140);
-        e.entity.hp = 50;
-        assert!(slime_boss_should_split(&e));
-    }
-    #[test] fn sb_no_split_at_71() {
-        let mut e = create_enemy("SlimeBoss", 140, 140);
-        e.entity.hp = 71;
-        assert!(!slime_boss_should_split(&e));
-    }
-    #[test] fn sb_no_split_if_dead() {
-        let mut e = create_enemy("SlimeBoss", 140, 140);
-        e.entity.hp = 0;
-        assert!(!slime_boss_should_split(&e));
-    }
+    // ========== Act 1 Bosses ==========
+    // Guardian / Hexaghost / SlimeBoss boss tests moved to `test_bosses.rs`
+    // (covers A0/A2/A4/A9/A19 scaling + cycle with Java file:line citations).
+    // This file covers common/elite enemies only.
 
     // ========== Gremlin Nob (Elite) ==========
 
@@ -482,18 +351,14 @@ mod enemy_tests {
         assert_eq!(e.entity.status(sid::ENRAGE), 2);
     }
     #[test] fn nob_skull_bash_vuln() {
+        // Java GremlinNob turn 2 `num < 33 && lastMove(BELLOW) → SKULL_BASH + Vuln(2)`
+        // (act1.rs:328-331). Initial intent is BELLOW; one roll with num=10
+        // lands squarely in the SkullBash branch.
         let mut e = create_enemy("GremlinNob", 106, 106);
-        // Cycle to find Skull Bash
-        let mut found = false;
-        for _ in 0..10 {
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-            if e.move_id == NOB_SKULL_BASH {
-                found = true;
-                assert!(e.effect(mfx::VULNERABLE).is_some());
-                break;
-            }
-        }
-        assert!(found, "Nob should use Skull Bash in first 10 moves");
+        roll_next_move_with_num(&mut e, 10);
+        assert_eq!(e.move_id, NOB_SKULL_BASH);
+        assert_eq!(e.move_damage(), 6);
+        assert_eq!(e.effect(mfx::VULNERABLE), Some(2));
     }
 
     // ========== Lagavulin (Elite) ==========
@@ -504,19 +369,24 @@ mod enemy_tests {
     }
     #[test] fn lagavulin_has_metallicize() {
         let e = create_enemy("Lagavulin", 112, 112);
-        assert!(e.entity.status(sid::METALLICIZE) >= 8);
+        // Java Lagavulin MetallicizePower amount = 8 (mod.rs:480).
+        assert_eq!(e.entity.status(sid::METALLICIZE), 8);
     }
     #[test] fn lagavulin_debuff_move() {
+        // Java Lagavulin: SLEEP_TURNS=3 at init (mod.rs:481). Three rolls tick
+        // sleep down; on the 3rd roll Metallicize clears and move = ATTACK
+        // (act1.rs:344-351). 4th roll alternates into SIPHON via last_move(ATTACK)
+        // (act1.rs:353-358). Lagavulin's AI doesn't consume num so pass 0.
         let mut e = create_enemy("Lagavulin", 112, 112);
-        let mut has_debuff = false;
-        for _ in 0..10 {
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-            if e.move_id == LAGA_SIPHON {
-                has_debuff = true;
-                break;
-            }
+        for _ in 0..3 {
+            roll_next_move_with_num(&mut e, 0);
         }
-        assert!(has_debuff, "Lagavulin should use Siphon Soul");
+        assert_eq!(e.move_id, LAGA_ATTACK, "turn 3 wakes to ATTACK");
+        assert_eq!(e.entity.status(sid::METALLICIZE), 0, "wake clears Metallicize");
+        roll_next_move_with_num(&mut e, 0);
+        assert_eq!(e.move_id, LAGA_SIPHON);
+        assert_eq!(e.effect(mfx::SIPHON_STR), Some(1));
+        assert_eq!(e.effect(mfx::SIPHON_DEX), Some(1));
     }
 
     // ========== Book of Stabbing (Elite) ==========
@@ -524,16 +394,16 @@ mod enemy_tests {
     #[test] fn book_first_stab() {
         let e = create_enemy("BookOfStabbing", 162, 162);
         assert_eq!(e.move_id, BOOK_STAB);
-        assert!(e.move_hits() >= 2);
+        // Java BookOfStabbing start: stabCount=1, first attack hits=2 (mod.rs:553-554).
+        assert_eq!(e.move_hits(), 2);
     }
     #[test] fn book_stab_count_increases() {
         let mut e = create_enemy("BookOfStabbing", 162, 162);
-        let initial_hits = e.move_hits();
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        // After first turn, stab count should increase
-        if e.move_id == BOOK_STAB {
-            assert!(e.move_hits() >= initial_hits, "Book stab count should not decrease");
-        }
+        // Deterministic num>=15, no prior STABs in lastTwoMoves → Stab++ branch
+        // (act2.rs:248-254): stabCount goes 2 → 3, hits goes 2 → 3.
+        roll_next_move_with_num(&mut e, 50);
+        assert_eq!(e.move_id, BOOK_STAB);
+        assert_eq!(e.move_hits(), 3);
     }
 
     // ========== Nemesis (Elite) ==========
@@ -545,77 +415,23 @@ mod enemy_tests {
             "Nemesis should not start with Intangible (applied per turn)");
     }
     #[test] fn nemesis_scythe_attack() {
+        // Java Nemesis: first roll with num<50 → TRI_ATTACK (act3.rs:354-363);
+        // second roll with num<30, cooldown<=0, !lastMove(SCYTHE) → SCYTHE with
+        // fixed damage 45 (act3.rs:365-368).
         let mut e = create_enemy("Nemesis", 185, 185);
-        let mut has_scythe = false;
-        for _ in 0..6 {
-            if e.move_damage() >= 40 {
-                has_scythe = true;
-                break;
-            }
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        }
-        assert!(has_scythe, "Nemesis should have a high-damage scythe attack");
+        roll_next_move_with_num(&mut e, 0); // first_move, num<50 → TRI_ATTACK
+        assert_eq!(e.move_id, NEM_TRI_ATTACK);
+        roll_next_move_with_num(&mut e, 0); // num<30, cooldown<=0 → SCYTHE
+        assert_eq!(e.move_id, NEM_SCYTHE);
+        assert_eq!(e.move_damage(), 45);
+        // SCYTHE sets cooldown=2 (act3.rs:368)
+        assert_eq!(e.entity.status(sid::SCYTHE_COOLDOWN), 2);
     }
 
-    // ========== Bronze Automaton (Act 2 Boss) ==========
-
-    #[test] fn automaton_first_spawn_orbs() {
-        let e = create_enemy("BronzeAutomaton", 300, 300);
-        assert_eq!(e.move_id, BA_SPAWN_ORBS);
-    }
-    #[test] fn automaton_hyper_beam() {
-        let mut e = create_enemy("BronzeAutomaton", 300, 300);
-        let mut has_hyper = false;
-        for _ in 0..10 {
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-            if e.move_id == BA_HYPER_BEAM {
-                has_hyper = true;
-                assert!(e.move_damage() >= 45, "Hyper Beam should deal 45+ damage");
-                break;
-            }
-        }
-        assert!(has_hyper, "Automaton should use Hyper Beam");
-    }
-
-    // ========== Awakened One (Act 3 Boss) ==========
-
-    #[test] fn awakened_first_slash() {
-        let e = create_enemy("AwakenedOne", 300, 300);
-        assert_eq!(e.move_id, AO_SLASH);
-        assert_eq!(e.move_damage(), 20);
-    }
-    #[test] fn awakened_has_curiosity() {
-        let e = create_enemy("AwakenedOne", 300, 300);
-        assert_eq!(e.entity.status(sid::CURIOSITY), 1);
-    }
-    #[test] fn awakened_phase_1() {
-        let e = create_enemy("AwakenedOne", 300, 300);
-        assert_eq!(e.entity.status(sid::PHASE), 1);
-    }
-
-    // ========== Corrupt Heart (Final Boss) ==========
-
-    #[test] fn heart_create() {
-        let e = create_enemy("CorruptHeart", 750, 750);
-        assert_eq!(e.entity.hp, 750);
-        assert_eq!(e.entity.max_hp, 750);
-    }
-    // D158: removed `heart_has_invincible` — the assertion had `|| true` which made
-    // it always pass regardless of state. Coverage already lives in
-    // test_bosses.rs::corrupt_heart_initial_invincible_matches_java (L509-525) which
-    // asserts the exact A0/A19 Invincible values (300 / 200).
-    #[test] fn heart_blood_shots() {
-        let mut e = create_enemy("CorruptHeart", 750, 750);
-        let mut has_blood_shots = false;
-        for _ in 0..6 {
-            if e.move_hits() >= 12 || e.move_id == HEART_BLOOD_SHOTS {
-                has_blood_shots = true;
-                break;
-            }
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        }
-        assert!(has_blood_shots, "Heart should use Blood Shots multi-hit");
-    }
+    // ========== Act 2-4 Bosses ==========
+    // BronzeAutomaton / AwakenedOne / CorruptHeart boss tests moved to
+    // `test_bosses.rs` (covers A0/A2/A4/A9/A19 scaling, phase transitions,
+    // debilitate cycle, with Java file:line citations). Single-source coverage.
 
     // ========== Unknown enemy ==========
 
@@ -637,6 +453,130 @@ mod enemy_tests {
         let mut e = create_enemy("Cultist", 50, 50);
         for _ in 0..5 { roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); }
         assert_eq!(e.move_history.len(), 5);
+    }
+
+    // =========================================================================
+    // Ascension coverage — Cycle 1.6 / D118 RED baseline
+    // =========================================================================
+    //
+    // Each test targets a specific ascension-scaling gap that Rust's
+    // `create_enemy` / `roll_*` pipeline fails to honour. Tests cite the
+    // exact Rust site where A0 values are hardcoded so Cycle 4 knows what
+    // to patch. Tests are expected RED until Cycle 4 threads `ascension`
+    // through the enemy pipeline and closes D118.
+    //
+    // Helper: `create_enemy_with_ascension(id, ascension)` picks canonical
+    // Java HP per ascension band (the only scaling implemented today is
+    // via `run.rs` HP lookup, and not all of the targeted enemies have one
+    // — see run.rs:1334/1461 for the precedent). Damage tables and effect
+    // amounts are the Cycle 4 contract.
+
+    /// HP table per (enemy, ascension band). Values match Java `setHp(hpRange)`
+    /// picking the high end for determinism. Ascension only changes HP here;
+    /// damage/effect scaling is Cycle 4's job.
+    fn create_enemy_with_ascension(id: &str, ascension: i32) -> EnemyCombatState {
+        let (hp, max_hp) = match id {
+            // Java GremlinNob: hpRange {82,86} (A7+ {85,90}).
+            "GremlinNob" => if ascension >= 7 { (90, 90) } else { (86, 86) },
+            // Java Snecko: hpRange {114,120} (A7+ {120,125}).
+            "Snecko" => if ascension >= 7 { (125, 125) } else { (120, 120) },
+            // Java Spiker: hpRange {152,156} (A7+ {160,165}).
+            "Spiker" => if ascension >= 7 { (165, 165) } else { (156, 156) },
+            // Java SpireShield: hpRange {99,106} (A9+ {112,119}).
+            "SpireShield" => if ascension >= 9 { (119, 119) } else { (106, 106) },
+            _ => panic!(
+                "create_enemy_with_ascension: id={id:?} not cataloged; \
+                 Cycle 1.6 scope is {{GremlinNob, Snecko, Spiker, SpireShield}}."
+            ),
+        };
+        // TODO(cycle-4, D118): plumb `ascension` through `create_enemy` so
+        // damage tables / effect amounts / HP ranges scale. Today the non-HP
+        // arms of scaling are UNSCALED — tests on A2+/A17+ values RED.
+        let _ = ascension;
+        create_enemy(id, hp, max_hp)
+    }
+
+    #[test]
+    fn nob_a2_enrage_amount_is_three() {
+        // Java GremlinNob.GremlinNob(): addPower(new EnragePower(this,
+        // ascensionLevel >= 2 ? 3 : 2)). Rust `create_enemy` at
+        // enemies/mod.rs:476 hardcodes ENRAGE=2 regardless of ascension.
+        let e = create_enemy_with_ascension("GremlinNob", 2);
+        assert_eq!(
+            e.entity.status(sid::ENRAGE),
+            3,
+            "Nob A2+ ENRAGE amount must be 3 per Java DEBUFF_AMOUNT \
+             (D118 — enemies/mod.rs:476 hardcodes 2)",
+        );
+    }
+
+    #[test]
+    fn snecko_a17_bite_damage_is_eighteen() {
+        // Java Snecko: damage[1] (BITE) = 15 at A0/A1, 18 at A2+.
+        // Rust `act2.rs:303` hardcodes 15 regardless of ascension.
+        let mut e = create_enemy_with_ascension("Snecko", 17);
+        // num>=40 with no prior lastTwoMoves(BITE) -> BITE branch.
+        roll_next_move_with_num(&mut e, 99);
+        assert_eq!(e.move_id, SNECKO_BITE);
+        assert_eq!(
+            e.move_damage(),
+            18,
+            "Snecko A2+ BITE damage must be 18 per Java damage[1] \
+             (D118 — enemies/act2.rs:303 hardcodes 15)",
+        );
+    }
+
+    #[test]
+    fn snecko_a17_tail_vulnerable_is_three() {
+        // Java Snecko: Tail applies Vulnerable = vulnAmount; A17+ bumps
+        // vulnAmount from 2 → 3. Rust `act2.rs:296` hardcodes VULNERABLE 2.
+        let mut e = create_enemy_with_ascension("Snecko", 17);
+        roll_next_move_with_num(&mut e, 0); // num<40 -> TAIL
+        assert_eq!(e.move_id, SNECKO_TAIL);
+        assert_eq!(
+            e.effect(mfx::VULNERABLE),
+            Some(3),
+            "Snecko A17+ Tail Vulnerable must be 3 per Java vulnAmount \
+             (D118 — enemies/act2.rs:296 hardcodes 2)",
+        );
+    }
+
+    #[test]
+    fn spiker_a17_thorns_buff_is_three() {
+        // Java Spiker: BUFF_AMOUNT = ascensionLevel >= 17 ? 3 : 2.
+        // Rust `act3.rs:86` emits mfx::THORNS 2 regardless of ascension.
+        let mut e = create_enemy_with_ascension("Spiker", 17);
+        // Force BUFF: num>=50 with no prior ATTACK history triggers the
+        // BUFF_THORNS branch at act3.rs:79-88.
+        roll_next_move_with_num(&mut e, 99);
+        assert_eq!(e.move_id, SPIKER_BUFF);
+        assert_eq!(
+            e.effect(mfx::THORNS),
+            Some(3),
+            "Spiker A17+ Thorns BUFF amount must be 3 per Java BUFF_AMOUNT \
+             (D118 — enemies/act3.rs:86 hardcodes 2)",
+        );
+    }
+
+    #[test]
+    fn spire_shield_a19_hp_and_bash_damage() {
+        // Java SpireShield: hpRange A0 {99,106} / A9+ {112,119};
+        //   Bash damage = 12 at A0/A1/A2, 14 at A3+.
+        // Rust `enemies/mod.rs:774` hardcodes Bash=12 on initial intent,
+        // `act4.rs:38` hardcodes Bash=12 on subsequent rolls. The A9+ HP
+        // selection is plumbed via the helper so HP passes; Bash fails.
+        let e = create_enemy_with_ascension("SpireShield", 19);
+        assert_eq!(
+            e.entity.max_hp, 119,
+            "SpireShield A9+ max_hp must be 119 per Java hpRange",
+        );
+        assert_eq!(e.move_id, SHIELD_BASH);
+        assert_eq!(
+            e.move_damage(),
+            14,
+            "SpireShield A3+ Bash damage must be 14 per Java damage[1] \
+             (D118 — enemies/mod.rs:774 + enemies/act4.rs:38 hardcode 12)",
+        );
     }
 }
 

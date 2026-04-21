@@ -176,6 +176,8 @@ mod test_rl_contract;
 mod test_run_parity;
 mod test_combat_puct;
 mod test_search_harness;
+mod test_snapshot_determinism;
+mod test_combat_hooks_integration;
 mod test_state;
 mod test_interactions;
 mod test_runtime_inline_cutover_wave1;
