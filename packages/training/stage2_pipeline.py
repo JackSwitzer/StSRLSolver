@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 import json
+import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
@@ -38,6 +39,24 @@ POTION_VARIANTS: tuple[tuple[str, ...], ...] = (
     ("FirePotion",),
     ("DexterityPotion",),
 )
+
+# Collection runs single-process against the Rust engine; this constant is the
+# truth reported into the manifest so downstream tooling can't misread it.
+COLLECTION_WORKER_COUNT: int = 1
+
+# Minimum root solve probability on the Act 1 boss encounter for a
+# reconstructed validation seed to count as cleared. Watcher A0 is the focus,
+# so 0.5 is the current floor — raise it as the policy improves.
+BOSS_SOLVE_VALIDATION_THRESHOLD: float = 0.5
+
+# Weight multiplier per room kind when building the synthetic encounter
+# rotation. Bosses and elites are the decision-theoretically interesting rooms
+# for Watcher A0, so they receive extra coverage over hallways.
+ROOM_KIND_CORPUS_WEIGHTS: Mapping[str, int] = {
+    "hallway": 1,
+    "elite": 2,
+    "boss": 3,
+}
 
 
 @dataclass(frozen=True)
@@ -286,9 +305,26 @@ def _mutate_snapshot_for_bucket(snapshot: dict[str, Any], bucket_index: int, pot
     return mutated
 
 
+# Deterministic shuffle seed for the weighted encounter pool. The catalog is
+# ordered hallway-first, so rotating over a sorted-weighted pool with small
+# corpora would never reach bosses. A fixed-seed shuffle interleaves room
+# kinds while keeping corpus generation reproducible.
+_ENCOUNTER_POOL_SHUFFLE_SEED = 20260421
+
+
+def _weighted_encounter_pool() -> tuple[str, ...]:
+    pool: list[str] = []
+    for name, spec in ENCOUNTER_CATALOG.items():
+        weight = int(ROOM_KIND_CORPUS_WEIGHTS.get(spec.room_kind, 1))
+        pool.extend(name for _ in range(max(1, weight)))
+    shuffler = random.Random(_ENCOUNTER_POOL_SHUFFLE_SEED)
+    shuffler.shuffle(pool)
+    return tuple(pool)
+
+
 def _build_synthetic_snapshot_cases(total_cases: int) -> tuple[SnapshotCase, ...]:
     engine_mod = load_engine_module()
-    encounter_names = tuple(ENCOUNTER_CATALOG.keys())
+    encounter_names = _weighted_encounter_pool()
     families = _weighted_family_pool()
     buckets = 8
     cases: list[SnapshotCase] = []
@@ -738,7 +774,11 @@ def build_seed_validation_report(
                 "solve_rate": round(mean_solve, 4),
                 "expected_hp_loss": round(mean_hp_loss, 4),
                 "combats": len(seed_records),
-                "boss_cleared": any(record.case.act1_floor == 16 and record.puct_result.root_outcome.solve_probability >= 0.5 for record in seed_records),
+                "boss_cleared": any(
+                    record.case.act1_floor == 16
+                    and record.puct_result.root_outcome.solve_probability >= BOSS_SOLVE_VALIDATION_THRESHOLD
+                    for record in seed_records
+                ),
                 "checkpoint": checkpoint,
                 "source_url": script.source_url,
                 "reconstructed_floors": [floor.floor for floor in script.floors if floor.is_combat],

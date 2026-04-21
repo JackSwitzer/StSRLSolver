@@ -40,6 +40,7 @@ from .run_logging import TrainingArtifacts, TrainingRunLogger
 from .seed_imports import default_imported_act1_scripts
 from .shared_memory import CombatPuctTargetExample
 from .stage2_pipeline import (
+    COLLECTION_WORKER_COUNT,
     PuctCollectionRecord,
     build_seed_validation_report,
     frontier_points_from_records,
@@ -697,7 +698,7 @@ def _run_phase1_puct_overnight(
             sweep_config="phase1_puct",
             search_policy="rust_puct_policy_value",
             planned_games=target_cases,
-            worker_count=12,
+            worker_count=COLLECTION_WORKER_COUNT,
             corpus_name="watcher_a0_act1_snapshot",
             corpus_slices=tuple(sorted({case.slice_name for case in cases})),
             benchmark_groups=tuple(sorted({case.deck_family for case in cases})),
