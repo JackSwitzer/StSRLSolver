@@ -17,7 +17,11 @@ archive_active() {
   if [[ -f "$pid_file" ]]; then
     local prev_pid
     prev_pid="$(<"$pid_file")"
-    if [[ -n "$prev_pid" ]] && kill -0 "$prev_pid" 2>/dev/null; then
+    # Validate pid_file content is numeric before signalling — malformed content
+    # (whitespace, stale hex, empty) would either silently fall through or, if
+    # the file is writable by another user, could cause `kill -0` to probe an
+    # unrelated pid.
+    if [[ "$prev_pid" =~ ^[0-9]+$ ]] && kill -0 "$prev_pid" 2>/dev/null; then
       printf 'refusing to archive: pid %s still running (pid_file=%s)\n' "$prev_pid" "$pid_file" >&2
       return 1
     fi

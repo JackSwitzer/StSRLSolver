@@ -685,7 +685,10 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Spiker", 170);
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[(mfx::THORNS, 2)]);
-        expect_status(&e, sid::THORNS, 5);
+        // Thorns stays at init value (3) after roll — combat_hooks applies +2 at
+        // intent-execute time via mfx::THORNS. Roll-time status bump was removed
+        // to avoid the +4/turn double-apply (was PR code-review finding).
+        expect_status(&e, sid::THORNS, 3);
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
