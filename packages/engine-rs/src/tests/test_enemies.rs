@@ -600,11 +600,10 @@ mod enemy_tests {
         assert_eq!(e.entity.hp, 750);
         assert_eq!(e.entity.max_hp, 750);
     }
-    #[test] fn heart_has_invincible() {
-        let e = create_enemy("CorruptHeart", 750, 750);
-        // Heart should have Invincible status or beat of death
-        assert!(e.entity.status(sid::INVINCIBLE) > 0 || e.entity.status(sid::BEAT_OF_DEATH) > 0 || true);
-    }
+    // D158: removed `heart_has_invincible` — the assertion had `|| true` which made
+    // it always pass regardless of state. Coverage already lives in
+    // test_bosses.rs::corrupt_heart_initial_invincible_matches_java (L509-525) which
+    // asserts the exact A0/A19 Invincible values (300 / 200).
     #[test] fn heart_blood_shots() {
         let mut e = create_enemy("CorruptHeart", 750, 750);
         let mut has_blood_shots = false;
