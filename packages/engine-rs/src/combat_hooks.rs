@@ -571,6 +571,19 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 );
             }
         }
+        "WrithingMass" => {
+            // Java `WrithingMass.damage(DamageInfo)` re-invokes `rollMove()` /
+            // `getMove()` whenever damage is dealt while WM is still alive —
+            // ReactivePower is a passive (AbstractPower onAttacked). Without
+            // this dispatch, WM keeps its initial intent for the whole combat.
+            // D140 — `writhing_mass_reactive_reroll` was defined at
+            // `enemies/act3.rs:186` but unreferenced.
+            if engine.state.enemies[enemy_idx].entity.hp > 0 {
+                enemies::writhing_mass_reactive_reroll(
+                    &mut engine.state.enemies[enemy_idx],
+                );
+            }
+        }
         _ => {}
     }
 
