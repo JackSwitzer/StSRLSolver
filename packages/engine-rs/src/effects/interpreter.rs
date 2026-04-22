@@ -625,14 +625,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             for idx in living {
                 let mark = engine.state.enemies[idx].entity.status(sid::MARK);
                 if mark > 0 {
-                    engine.state.enemies[idx].entity.hp -= mark;
-                    engine.state.total_damage_dealt += mark;
-                    total_mark_damage += mark;
+                    // D124: Pressure Points / TriggerMarks = HP_LOSS damage.
+                    // Route through canonical HP_LOSS entry so Intangible caps
+                    // to 1 and boss hooks fire.
+                    let hp_loss = engine.apply_hp_loss_to_enemy(idx, mark);
+                    total_mark_damage += hp_loss;
                     if engine.state.enemies[idx].entity.hp <= 0 {
-                        engine.state.enemies[idx].entity.hp = 0;
                         any_killed = true;
                     }
-                    engine.record_enemy_hp_damage(idx, mark);
                 }
             }
             if total_mark_damage > 0 {
@@ -1035,13 +1035,17 @@ fn deal_flat_damage(
     amount: i32,
 ) {
     match target {
+        // D91: Flat DealDamage targeting Player resolves to HP_LOSS in Java
+        // (Brutality uses `LoseHPAction`; no existing Target::Player flat-damage
+        // effect maps to NORMAL damage). Route through HP_LOSS entry so
+        // Intangible caps to 1 and Tungsten applies.
         Target::Player => {
-            engine.player_lose_hp(amount);
+            engine.apply_hp_loss_to_player(amount);
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            engine.player_lose_hp(amount);
+            engine.apply_hp_loss_to_player(amount);
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;

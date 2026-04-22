@@ -187,12 +187,12 @@ Per enemy-tests audit:
 | D88 | open; HolyWater generates wrong cards | `relics/defs/holy_water.rs:7-11` still adds 3 literal HolyWater cards |
 | D89 | open; Fasting energy drain never fires | Chains to dead dispatch |
 | D90 | open; Malleable no reset | `engine.rs:2520-2527` confirmed |
-| D91 | open; `deal_damage_to_player` bypasses pipeline | Engine-wide, 30+ call sites |
+| D91 | **closed** (Cycle 5); `apply_damage_to_player` / `apply_hp_loss_to_player` canonical entry points wired | `effects/runtime.rs:1713-1721`, `effects/interpreter.rs:1037-1049`, `engine.rs:2706-2779` |
 | D100 | open; Collector REVIVE missing | Explicit "deferred: needs minion-dead signal" comment |
 | D111 | open; pre-draw/post-draw conflation | Chains to dead dispatch |
 | D112 | open; SadisticPower filters | Confirmed |
 | D123 | open; DevaForm pre-increment | Confirmed |
-| D124 | open; Pressure Points bypasses pipeline | `effects/interpreter.rs:621-629` subtracts directly from entity.hp |
+| D124 | **closed** (Cycle 5); Pressure Points + MarkPower routed through `apply_hp_loss_to_enemy` | `effects/interpreter.rs:620-644`, `effects/runtime.rs:1130-1150`, `effects/hooks_complex.rs:75-95` |
 | D129/D130 | **closed** (Stage F) | Both cleanly closed |
 | D131 | deferred; JawWorm sub-roll | Dominant branch fallback comment at `act1.rs:26-28` |
 | D132 | open; Byrd grounded Fly-Up | Unchanged |
@@ -239,8 +239,14 @@ Group with D163-D164 as "enemy-damage edge cases" PR.
 (GremlinWizard 2-turn→3), D154 (Lagavulin 2:1), D155/D156 (Sentry
 BOLT/BEAM). Watcher-A0 training-path impact.
 
-**Wave 5 — damage pipeline P0:** D91 `deal_damage_to_player` bypass,
-D124 Pressure Points bypass. Engine-wide fix; ~30 call sites.
+**Wave 5 — damage pipeline P0:** D91 + D124 **closed in Cycle 5**.
+Canonical entry points `apply_damage_to_player` (NORMAL) and
+`apply_hp_loss_to_player` / `apply_hp_loss_to_enemy` (HP_LOSS) wired in
+`engine.rs:2706-2779`. Dispatch call sites rerouted in
+`effects/runtime.rs:1109-1150/1713-1721`,
+`effects/interpreter.rs:620-644/1037-1049`, and
+`effects/hooks_complex.rs:75-95`. 15 new routing tests in
+`tests/test_damage_pipeline_routing.rs`; full Rust suite 2324/0.
 
 **Wave 6 — test hygiene:** `test_enemies.rs` weak-assert rewrite,
 ascension coverage (per-act common × 4), duplicated boss coverage

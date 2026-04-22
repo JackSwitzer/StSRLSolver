@@ -1134,14 +1134,13 @@ impl EffectRuntime {
                 for idx in living {
                     let mark = engine.state.enemies[idx].entity.status(sid::MARK);
                     if mark > 0 {
-                        engine.state.enemies[idx].entity.hp -= mark;
-                        engine.state.total_damage_dealt += mark;
-                        total_mark_damage += mark;
+                        // D124: HP_LOSS pipeline — Intangible caps to 1,
+                        // block bypassed, boss hooks fire.
+                        let hp_loss = engine.apply_hp_loss_to_enemy(idx, mark);
+                        total_mark_damage += hp_loss;
                         if engine.state.enemies[idx].entity.hp <= 0 {
-                            engine.state.enemies[idx].entity.hp = 0;
                             any_killed = true;
                         }
-                        engine.record_enemy_hp_damage(idx, mark);
                     }
                 }
                 engine.runtime_card_total_unblocked_damage += total_mark_damage;
@@ -1712,7 +1711,14 @@ impl EffectRuntime {
         event: &GameEvent,
     ) {
         match target {
-            Target::Player => engine.deal_damage_to_player(amount),
+            // Java `DealDamage(Target::Player)` currently resolves only to
+            // Brutality's `LoseHPAction` (HP_LOSS). Route through the
+            // HP_LOSS pipeline: Intangible cap-to-1, Tungsten -1, bypass
+            // block. See D91 and `decompiled/java-src/com/megacrit/cardcrawl/
+            // actions/common/LoseHPAction.java:36`.
+            Target::Player => {
+                engine.apply_hp_loss_to_player(amount);
+            }
             Target::SelfEntity => {
                 if let EffectOwner::EnemyPower { enemy_idx } = owner {
                     let idx = enemy_idx as usize;

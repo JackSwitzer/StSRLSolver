@@ -2689,15 +2689,93 @@ impl CombatEngine {
         damage
     }
 
-    pub fn deal_damage_to_player(&mut self, damage: i32) {
-        let player = &mut self.state.player;
-        let blocked = player.block.min(damage);
-        let hp_damage = damage - blocked;
-        player.block -= blocked;
-
-        if hp_damage > 0 {
-            self.player_lose_hp(hp_damage);
+    /// NORMAL damage to player. Routes through `calculate_incoming_damage`
+    /// so Wrath/Vulnerable multipliers, Intangible cap, Block absorption,
+    /// Torii, and Tungsten Rod all apply (D91).
+    ///
+    /// Returns the actual HP loss (after all modifiers + block).
+    ///
+    /// Java oracle: `AbstractPlayer.damage(DamageInfo)` with
+    /// `DamageType.NORMAL`. See
+    /// `decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1385`.
+    ///
+    /// Use `apply_hp_loss_to_player` for HP_LOSS damage (Brutality, poison
+    /// tick, Burn, Regret, Pain) — those bypass block and skip Wrath/Vuln
+    /// per `AbstractCreature.decrementBlock:175` and
+    /// `WrathStance.atDamageReceive:46`.
+    pub fn apply_damage_to_player(&mut self, damage: i32) -> i32 {
+        if damage <= 0 {
+            return 0;
         }
+        let is_wrath = self.state.stance == Stance::Wrath;
+        let player_vuln = self.state.player.is_vulnerable();
+        let player_intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+        let has_torii = self.state.has_relic("Torii");
+        let has_tungsten = self.state.has_relic("Tungsten Rod");
+        let has_odd_mushroom = self.state.has_relic("Odd Mushroom");
+
+        let result = damage::calculate_incoming_damage(
+            damage,
+            self.state.player.block,
+            is_wrath,
+            player_vuln,
+            player_intangible,
+            has_torii,
+            has_tungsten,
+            has_odd_mushroom,
+        );
+        self.state.player.block = result.block_remaining;
+        if result.hp_loss > 0 {
+            self.player_lose_hp(result.hp_loss);
+        }
+        result.hp_loss
+    }
+
+    /// HP_LOSS damage to player. Bypasses block, respects Intangible cap-to-1
+    /// and Tungsten Rod -1. Used by Brutality, Burn, Regret, Pain, poison
+    /// ticks, and any Java `LoseHPAction` callers (D91).
+    ///
+    /// Returns the actual HP loss.
+    ///
+    /// Java oracle: `AbstractCreature.decrementBlock:175` skips block for
+    /// HP_LOSS, and `AbstractPlayer.damage:1394` caps to 1 if Intangible.
+    pub fn apply_hp_loss_to_player(&mut self, amount: i32) -> i32 {
+        if amount <= 0 {
+            return 0;
+        }
+        let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+        let tungsten = self.state.has_relic("Tungsten Rod");
+        let hp_loss = damage::apply_hp_loss(amount, intangible, tungsten);
+        if hp_loss > 0 {
+            self.player_lose_hp(hp_loss);
+        }
+        hp_loss
+    }
+
+    /// HP_LOSS damage to an enemy. Bypasses block, respects enemy Intangible
+    /// cap-to-1, still triggers boss on-damage hooks (Rebirth, Mode Shift,
+    /// phase shifts) via `record_enemy_hp_damage` (D124).
+    ///
+    /// Java oracle: `AbstractMonster.damage:624` caps by `IntangiblePlayer`
+    /// and `AbstractCreature.decrementBlock:175` skips block for HP_LOSS.
+    pub fn apply_hp_loss_to_enemy(&mut self, enemy_idx: usize, amount: i32) -> i32 {
+        if enemy_idx >= self.state.enemies.len() || amount <= 0 {
+            return 0;
+        }
+        if !self.state.enemies[enemy_idx].is_alive() {
+            return 0;
+        }
+        let mut hp_loss = amount;
+        if self.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0 && hp_loss > 1 {
+            hp_loss = 1;
+        }
+        self.state.enemies[enemy_idx].entity.hp -= hp_loss;
+        self.state.total_damage_dealt += hp_loss;
+        if self.state.enemies[enemy_idx].entity.hp <= 0 {
+            self.state.enemies[enemy_idx].entity.hp = 0;
+        }
+        self.record_enemy_hp_damage(enemy_idx, hp_loss);
+        hp_loss
     }
 
     // =======================================================================

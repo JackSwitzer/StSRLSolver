@@ -109,6 +109,7 @@ mod test_card_runtime_generated_choice_wave5;
 mod test_card_runtime_generated_choice_wave6;
 mod test_card_legality_wave1;
 mod test_damage;
+mod test_damage_pipeline_routing;
 mod test_ai_rng_parity;
 mod test_debuff_timing_parity;
 mod test_enemy_ai;

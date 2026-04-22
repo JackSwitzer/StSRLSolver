@@ -83,14 +83,11 @@ pub fn hook_pressure_points(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     for idx in living {
         let mark = engine.state.enemies[idx].entity.status(sid::MARK);
         if mark > 0 {
-            // Pressure Points deals HP loss equal to Mark -- bypasses block entirely
-            engine.state.enemies[idx].entity.hp -= mark;
-            engine.state.total_damage_dealt += mark;
-            if engine.state.enemies[idx].entity.hp <= 0 {
-                engine.state.enemies[idx].entity.hp = 0;
-            }
-            // Still fire boss hooks (rebirth, mode shift, etc.)
-            crate::combat_hooks::on_enemy_damaged(engine, idx, mark);
+            // D124: Pressure Points deals HP_LOSS damage (Java MarkPower.triggerMarks
+            // dispatches `LoseHPAction`). Route through the canonical HP_LOSS pipeline
+            // so Intangible caps to 1 (Java AbstractMonster.damage:624) and boss
+            // on-damage hooks still fire.
+            engine.apply_hp_loss_to_enemy(idx, mark);
         }
     }
 }
