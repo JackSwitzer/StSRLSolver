@@ -129,6 +129,7 @@ mod test_event_runtime_wave21;
 mod test_entity_runtime;
 mod test_bosses;
 mod test_corruptheart_a0;
+mod test_enemies_p0_parity;
 mod test_integration;
 mod test_potions;
 mod test_potion_runtime_wave2;

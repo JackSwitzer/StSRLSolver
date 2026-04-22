@@ -956,6 +956,7 @@ pub use act1::guardian_check_mode_shift;
 pub use act1::guardian_switch_to_offensive;
 pub use act1::hexaghost_set_divider;
 pub use act1::lagavulin_wake_up;
+pub use act1::sentry_fix_first_moves;
 pub use act1::slime_boss_should_split;
 pub use act3::writhing_mass_reactive_reroll;
 

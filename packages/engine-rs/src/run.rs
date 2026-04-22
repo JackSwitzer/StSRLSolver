@@ -1238,7 +1238,7 @@ impl RunEngine {
         // Create enemies — thread ascension so damage/effect scaling (D118)
         // matches Java. HP bands already scale via `roll_enemy_hp`.
         let ascension = self.run_state.ascension;
-        let mut enemy_states: Vec<EnemyCombatState> = expanded
+        let enemy_states: Vec<EnemyCombatState> = expanded
             .iter()
             .map(|id| {
                 let (hp, max_hp) = self.roll_enemy_hp(id);
@@ -1246,14 +1246,10 @@ impl RunEngine {
             })
             .collect();
 
-        // Sentry stagger: middle sentry starts on Beam, others on Bolt
-        if expanded.len() == 3
-            && expanded.iter().all(|id| id == "Sentry")
-        {
-            use crate::enemies::move_ids;
-            enemy_states[1].set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
-            enemy_states[1].add_effect(crate::combat_types::mfx::DAZE, 2);
-        }
+        // Sentry stagger now handled inside `CombatEngine::start_combat` via
+        // `enemies::sentry_fix_first_moves`, which applies Java's
+        // `monsters.lastIndexOf(this) % 2` positional rule to any Sentry group
+        // size (not just the hard-coded triple). See D155 / D156.
 
         // Create combat state — convert deck strings to CardInstance
         let registry = crate::cards::global_registry();

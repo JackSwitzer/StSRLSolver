@@ -239,6 +239,12 @@ impl CombatEngine {
             return;
         }
 
+        // Positional first-move post-process for enemies whose opener depends
+        // on their slot in the monster group. Today only Sentry uses this
+        // (Java `Sentry.getMove` keys on `monsters.lastIndexOf(this) % 2`).
+        // Must run before any effect runtime or turn hooks observe intents.
+        crate::enemies::sentry_fix_first_moves(&mut self.state.enemies);
+
         self.rebuild_effect_runtime();
 
         // Apply combat-start relic + power effects via owner-aware runtime.

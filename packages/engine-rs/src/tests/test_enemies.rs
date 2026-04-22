@@ -373,16 +373,22 @@ mod enemy_tests {
         assert_eq!(e.entity.status(sid::METALLICIZE), 8);
     }
     #[test] fn lagavulin_debuff_move() {
-        // Java Lagavulin: SLEEP_TURNS=3 at init (mod.rs:481). Three rolls tick
-        // sleep down; on the 3rd roll Metallicize clears and move = ATTACK
-        // (act1.rs:344-351). 4th roll alternates into SIPHON via last_move(ATTACK)
-        // (act1.rs:353-358). Lagavulin's AI doesn't consume num so pass 0.
+        // Java Lagavulin.java L209-223 getMove: awake cycle is
+        //   STRONG_ATK -> STRONG_ATK -> SIPHON_SOUL -> STRONG_ATK -> ...
+        // (2:1 attack-to-debuff ratio; D154 parity fix). SLEEP_TURNS=3 at
+        // init — three rolls tick sleep down; the 3rd roll clears Metallicize
+        // and sets LAGA_ATTACK as the first awake intent. Subsequent rolls
+        // follow the 2:1 cycle. Lagavulin's AI doesn't consume `num`, so pass 0.
         let mut e = create_enemy("Lagavulin", 112, 112);
         for _ in 0..3 {
             roll_next_move_with_num(&mut e, 0);
         }
         assert_eq!(e.move_id, LAGA_ATTACK, "turn 3 wakes to ATTACK");
         assert_eq!(e.entity.status(sid::METALLICIZE), 0, "wake clears Metallicize");
+        // Turn 4: one ATTACK in awake history — !lastTwoMoves(ATTACK) -> ATTACK.
+        roll_next_move_with_num(&mut e, 0);
+        assert_eq!(e.move_id, LAGA_ATTACK, "turn 4 is second ATTACK in 2:1 cycle");
+        // Turn 5: two ATTACKs in a row -> SIPHON_SOUL with Str+Dex debuff.
         roll_next_move_with_num(&mut e, 0);
         assert_eq!(e.move_id, LAGA_SIPHON);
         assert_eq!(e.effect(mfx::SIPHON_STR), Some(1));

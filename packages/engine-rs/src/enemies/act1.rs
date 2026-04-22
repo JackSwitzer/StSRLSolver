@@ -305,11 +305,22 @@ pub(super) fn roll_gremlin_simple(enemy: &mut EnemyCombatState, dmg: i32, weak: 
 }
 
 pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
-    if last_move(enemy, move_ids::GREMLIN_PROTECT) {
-        // Ultimate Blast after charging
+    // Java GremlinWizard.java L42 initializes `currentCharge = 1`, L66-96 case
+    // CHARGE(2) increments it and only emits ULTIMATE_BLAST when it reaches 3.
+    // That yields a 3-turn cycle CHARGE -> CHARGE -> ULTIMATE_BLAST, not the
+    // 2-turn alternation the pre-fix Rust implemented.
+    //
+    // In Rust the turn-1 opener is pre-seeded as GREMLIN_PROTECT in
+    // `create_enemy_with_ascension`; `roll_next_move_with_num` pushes the
+    // executed move onto `move_history` before dispatching here. Two
+    // consecutive PROTECT moves in `move_history` mark the end of a charge
+    // cycle, so the next intent is ULTIMATE_BLAST. After ULTIMATE_BLAST
+    // executes, last_two_moves(PROTECT) is false and we go back to PROTECT.
+    if last_two_moves(enemy, move_ids::GREMLIN_PROTECT) {
+        // Ultimate Blast after two charge turns.
         enemy.set_move(move_ids::GREMLIN_ATTACK, 25, 1, 0);
     } else {
-        // Charge up again
+        // Charge up (turn 1 or turn 2 of a cycle).
         enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
     }
 }
@@ -350,8 +361,17 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
         }
     } else {
-        // Awake: alternate Attack and Siphon Soul
-        if last_move(enemy, move_ids::LAGA_ATTACK) {
+        // Awake — Java Lagavulin.java L209-223 getMove:
+        //   isOut && debuffTurnCount < 2:
+        //     lastTwoMoves(STRONG_ATK=3) -> DEBUFF, else STRONG_ATK.
+        //   else -> DEBUFF.
+        //
+        // `debuffTurnCount` increments on STRONG_ATK and resets on DEBUFF,
+        // yielding the cycle STRONG_ATK -> STRONG_ATK -> SIPHON_SOUL -> ...
+        // Rust mirrors that with `last_two_moves(LAGA_ATTACK) -> SIPHON`,
+        // which is equivalent because the counter only exceeds 2 precisely
+        // when the two most recent moves were both STRONG_ATK.
+        if last_two_moves(enemy, move_ids::LAGA_ATTACK) {
             enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
             enemy.add_effect(mfx::SIPHON_STR, 1);
             enemy.add_effect(mfx::SIPHON_DEX, 1);
@@ -369,11 +389,56 @@ pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
+    // Java Sentry.java L142-146: after first move, lastMove(BEAM) ? BOLT : BEAM.
+    // Rust labels are semantically inverted (see sentry_fix_first_moves docs),
+    // but the alternation is label-symmetric: whichever move was just played,
+    // flip to the other. The positional opener is handled separately in
+    // `sentry_fix_first_moves`.
     if last_move(enemy, move_ids::SENTRY_BOLT) {
         enemy.set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
         enemy.add_effect(mfx::DAZE, 2);
     } else {
         enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
+    }
+}
+
+/// Post-process Sentry openers to match Java's positional first-move logic.
+///
+/// Java `Sentry.getMove(int)` L132-141 reads
+/// `AbstractDungeon.getMonsters().monsters.lastIndexOf(this) % 2`:
+///   * even-index Sentry -> BOLT (byte 3, Dazed card inserter, no damage)
+///   * odd-index  Sentry -> BEAM (byte 4, 9-damage attack)
+///
+/// In Rust the move_id labels are inverted relative to Java — our
+/// `SENTRY_BEAM` carries the DAZE payload (= Java's BOLT) and our
+/// `SENTRY_BOLT` is the 9-damage attack (= Java's BEAM). This helper
+/// rewrites each Sentry's opener by its position in the enemies vector so
+/// the player-visible behavior matches Java:
+///   * idx 0, 2, 4, ... -> SENTRY_BEAM opener (daze cards, Java BOLT effect)
+///   * idx 1, 3, 5, ... -> SENTRY_BOLT opener (9-damage, Java BEAM effect)
+///
+/// Called from `CombatEngine::start_combat` after enemy construction so the
+/// fix-up runs once per combat and applies to every encounter shape that
+/// includes Sentries (not just the hard-coded 3-Sentry sprite in
+/// `run.rs`).
+pub fn sentry_fix_first_moves(enemies: &mut [EnemyCombatState]) {
+    for (idx, enemy) in enemies.iter_mut().enumerate() {
+        if enemy.id != "Sentry" {
+            continue;
+        }
+        // Only touch enemies whose opener is still pristine (no moves have
+        // been rolled yet). `create_enemy_with_ascension` pushes the opener
+        // via `set_move` but leaves `move_history` empty; if a caller has
+        // already rolled, respect their state.
+        if !enemy.move_history.is_empty() {
+            continue;
+        }
+        if idx % 2 == 0 {
+            enemy.set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
+            enemy.add_effect(mfx::DAZE, 2);
+        } else {
+            enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
+        }
     }
 }
 
