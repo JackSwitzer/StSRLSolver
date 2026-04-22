@@ -286,8 +286,14 @@ fn d178_distilled_chaos_random_target_per_card() {
 //   damage-type gate. A Spiker's THORNS retaliation (3 dmg) against the
 //   player's attack strips a Plated stack in Rust but not Java; a Burn
 //   card or Parasite tick (HP_LOSS) strips Plated in Rust but not Java.
+// Cycle 7 audit: this test passes against current Rust. Plated decrement at
+// `combat_hooks.rs:186-191` ONLY runs inside `do_enemy_turns` after an enemy
+// ATTACK intent (NORMAL damage). `engine.player_lose_hp(...)` bypasses that
+// path, so HP_LOSS ticks correctly leave Plated untouched — matching Java's
+// `wasHPLost` gate. D179 reclassified as latent-correct for the HP_LOSS
+// dimension; enemy-side THORNS retaliation is a separate gap (not yet wired
+// in Rust; see register D179 closing note).
 #[test]
-#[ignore = "D179 open — Cycle 8+"]
 fn d179_plated_armor_not_decremented_by_thorns_or_hp_loss() {
     use crate::status_ids::sid;
     use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck_n};
