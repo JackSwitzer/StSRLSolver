@@ -11,7 +11,9 @@ use crate::state::Stance;
 use crate::status_ids::sid;
 
 // ===========================================================================
-// Demon Form — TurnStart: gain Strength equal to stacks
+// Demon Form — TurnStartPostDraw: gain Strength equal to stacks
+// Java `DemonFormPower.atStartOfTurnPostDraw` (D111). Applying before draw
+// (the original Rust wiring) leaks Strength to Turn-1 hand evaluation.
 // ===========================================================================
 
 static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -21,7 +23,7 @@ static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus
 ))];
 
 static DEMON_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &DEMON_FORM_EFFECTS,
     counter: None,
@@ -37,7 +39,8 @@ pub static DEF_DEMON_FORM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Noxious Fumes — TurnStart: poison all enemies
+// Noxious Fumes — TurnStartPostDraw: poison all enemies
+// Java `NoxiousFumesPower.atStartOfTurnPostDraw` (D111).
 // ===========================================================================
 
 static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -47,7 +50,7 @@ static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddSta
 ))];
 
 static NOXIOUS_FUMES_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &NOXIOUS_FUMES_EFFECTS,
     counter: None,
@@ -63,7 +66,9 @@ pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Brutality — TurnStart: draw 1 card, lose HP equal to stacks
+// Brutality — TurnStartPostDraw: draw N cards, lose HP equal to stacks
+// Java `BrutalityPower.atStartOfTurnPostDraw` (D111). Pre-draw Rust wiring
+// mis-sequenced the draw-then-damage order and flipped the hand-size cap.
 // ===========================================================================
 
 // Brutality loses HP equal to stacks. DealDamage(Player, ...) routes through
@@ -75,7 +80,7 @@ static BRUTALITY_EFFECTS: [Effect; 2] = [
 ];
 
 static BRUTALITY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &BRUTALITY_EFFECTS,
     counter: None,
@@ -507,6 +512,45 @@ pub static DEF_TOOLS_OF_THE_TRADE: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Fasting (EnergyDown) — TurnStart: drain FASTING energy at start of turn
+//
+// Java `EnergyDownPower.atStartOfTurn` (pre-draw) at
+// `decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EnergyDownPower.java:52-55`
+// dispatches `LoseEnergyAction(amount)`. Pre-Cycle-3, Rust only reduced
+// `max_energy` when Fasting was played, leaving the defining cost
+// (-1 energy/turn) as a silent no-op because `process_start_of_turn` was
+// never called from production (D89).
+// ===========================================================================
+
+static FASTING_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_fasting(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let fasting = engine.state.player.status(sid::FASTING);
+    if fasting > 0 {
+        engine.state.energy = (engine.state.energy - fasting).max(0);
+    }
+}
+
+pub static DEF_FASTING: EntityDef = EntityDef {
+    id: "fasting",
+    name: "Fasting",
+    kind: EntityKind::Power,
+    triggers: &FASTING_TRIGGERS,
+    complex_hook: Some(hook_fasting),
+    status_guard: Some(sid::FASTING),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -516,8 +560,9 @@ mod tests {
 
     #[test]
     fn test_demon_form_def() {
+        // Java DemonFormPower.atStartOfTurnPostDraw (D111).
         assert_eq!(DEF_DEMON_FORM.triggers.len(), 1);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStart);
+        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEMON_FORM.triggers[0].condition, TriggerCondition::Always);
         assert!(DEF_DEMON_FORM.complex_hook.is_none());
     }
@@ -525,12 +570,20 @@ mod tests {
     #[test]
     fn test_brutality_has_two_effects() {
         assert_eq!(DEF_BRUTALITY.triggers[0].effects.len(), 2);
+        // Java BrutalityPower.atStartOfTurnPostDraw (D111).
+        assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 
     #[test]
-    fn test_all_simple_turn_start_defs_have_correct_trigger() {
+    fn test_noxious_fumes_post_draw_trigger() {
+        // Java NoxiousFumesPower.atStartOfTurnPostDraw (D111).
+        assert_eq!(DEF_NOXIOUS_FUMES.triggers[0].trigger, Trigger::TurnStartPostDraw);
+    }
+
+    #[test]
+    fn test_pre_draw_turn_start_defs_have_correct_trigger() {
+        // Powers that Java fires at `atStartOfTurn` (pre-draw).
         let defs = [
-            &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES, &DEF_BRUTALITY,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
             &DEF_DEVOTION, &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
@@ -540,6 +593,18 @@ mod tests {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
+        }
+    }
+
+    #[test]
+    fn test_post_draw_turn_start_defs_have_correct_trigger() {
+        // Powers that Java fires at `atStartOfTurnPostDraw`.
+        let defs = [
+            &DEF_DEMON_FORM, &DEF_BRUTALITY, &DEF_NOXIOUS_FUMES,
+        ];
+        for def in &defs {
+            assert_eq!(def.kind, EntityKind::Power);
+            assert_eq!(def.triggers[0].trigger, Trigger::TurnStartPostDraw);
         }
     }
 
@@ -555,6 +620,15 @@ mod tests {
             assert_eq!(def.triggers.len(), 1);
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStartPostDraw);
         }
+    }
+
+    #[test]
+    fn test_fasting_def_drains_energy() {
+        // D89: Fasting PowerDef carries a complex hook that drains energy
+        // at start of player turn, matching Java EnergyDownPower.atStartOfTurn.
+        assert_eq!(DEF_FASTING.triggers[0].trigger, Trigger::TurnStart);
+        assert!(DEF_FASTING.complex_hook.is_some());
+        assert_eq!(DEF_FASTING.status_guard, Some(sid::FASTING));
     }
 }
 

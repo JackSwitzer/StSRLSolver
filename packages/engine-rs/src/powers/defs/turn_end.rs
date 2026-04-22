@@ -163,6 +163,44 @@ pub static DEF_STUDY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Equilibrium — TurnEnd: decrement stacks by 1 (end-of-round, isTurnBased)
+//
+// Java `EquilibriumPower.atEndOfRound` (decompiled at
+// `decompiled/java-src/com/megacrit/cardcrawl/powers/EquilibriumPower.java:48-54`)
+// reduces the power by 1 each round; at 0 the power is removed. Pre-Cycle-3
+// Rust defined `decrement_equilibrium` inside `process_end_of_turn`, but
+// that helper was only called from unit tests (D70), so Watcher's
+// retain-hand cue never decayed.
+//
+// Java triggers at `atEndOfRound` (after enemy turns). Rust's declarative
+// `TurnEnd` fires before enemy turns. This is observationally equivalent
+// because EQUILIBRIUM is not read during enemy turns; the stack count
+// exposed to the NEXT player turn is the same either way.
+// ===========================================================================
+
+static EQUILIBRIUM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
+    Target::Player,
+    sid::EQUILIBRIUM,
+    AmountSource::Fixed(-1),
+))];
+
+static EQUILIBRIUM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &EQUILIBRIUM_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_EQUILIBRIUM: EntityDef = EntityDef {
+    id: "equilibrium",
+    name: "Equilibrium",
+    kind: EntityKind::Power,
+    triggers: &EQUILIBRIUM_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::EQUILIBRIUM),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -193,11 +231,19 @@ mod tests {
     fn test_all_turn_end_defs() {
         let defs = [
             &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_COMBUST,
-            &DEF_OMEGA, &DEF_LIKE_WATER, &DEF_STUDY,
+            &DEF_OMEGA, &DEF_LIKE_WATER, &DEF_STUDY, &DEF_EQUILIBRIUM,
         ];
         for def in &defs {
             assert_eq!(def.kind, EntityKind::Power);
             assert_eq!(def.triggers[0].trigger, Trigger::TurnEnd);
         }
+    }
+
+    #[test]
+    fn test_equilibrium_def_decrements_at_end_of_turn() {
+        // D70: Equilibrium PowerDef decrements stacks by 1 at end of round.
+        assert_eq!(DEF_EQUILIBRIUM.triggers[0].trigger, Trigger::TurnEnd);
+        assert_eq!(DEF_EQUILIBRIUM.status_guard, Some(sid::EQUILIBRIUM));
+        assert_eq!(DEF_EQUILIBRIUM.triggers[0].effects.len(), 1);
     }
 }

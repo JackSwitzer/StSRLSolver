@@ -178,6 +178,7 @@ mod test_combat_puct;
 mod test_search_harness;
 mod test_snapshot_determinism;
 mod test_combat_hooks_integration;
+mod test_powers_dispatch_wired;
 mod test_state;
 mod test_interactions;
 mod test_runtime_inline_cutover_wave1;

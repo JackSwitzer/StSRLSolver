@@ -53,6 +53,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
     &turn_start::DEF_TOOLS_OF_THE_TRADE,
+    &turn_start::DEF_FASTING,
 
     // -- Turn End --
     &turn_end::DEF_METALLICIZE,
@@ -61,6 +62,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_EQUILIBRIUM,
 
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
@@ -123,12 +125,14 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
     &turn_start::DEF_TOOLS_OF_THE_TRADE,
+    &turn_start::DEF_FASTING,
     &turn_end::DEF_METALLICIZE,
     &turn_end::DEF_PLATED_ARMOR,
     &turn_end::DEF_COMBUST,
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_EQUILIBRIUM,
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
     &card_play::DEF_HEATSINK,
@@ -171,8 +175,8 @@ mod tests {
     #[test]
     fn test_power_defs_count() {
         assert!(
-            POWER_DEFS.len() >= 49,
-            "Expected at least 49 power defs, got {}",
+            POWER_DEFS.len() >= 51,
+            "Expected at least 51 power defs (Cycle 3 added Fasting + Equilibrium), got {}",
             POWER_DEFS.len()
         );
     }
