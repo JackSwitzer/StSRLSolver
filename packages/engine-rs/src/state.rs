@@ -153,6 +153,12 @@ pub struct EnemyCombatState {
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
+    /// Ascension level in effect for this enemy. Java monsters read
+    /// `AbstractDungeon.ascensionLevel` globally; Rust carries it per-enemy so
+    /// snapshots stay deterministic. Damage tables / effect amounts branch on
+    /// this in `enemies::create_enemy_with_ascension` and the per-enemy
+    /// `roll_*` dispatchers (D118).
+    pub ascension: i32,
 }
 
 impl EnemyCombatState {
@@ -168,6 +174,7 @@ impl EnemyCombatState {
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
+            ascension: 0,
         }
     }
 

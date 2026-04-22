@@ -29,13 +29,14 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
     //   slot 2: Smash (always)
     // Base damages: Bash 12 (A3+ 14), Smash 34 (A3+ 38), Fortify 30 block all.
     let mc = enemy.entity.status(sid::MOVE_COUNT);
+    let bash_dmg = if enemy.ascension >= 3 { 14 } else { 12 };
 
     match mc % 3 {
         0 => {
             // DEFERRED: Java slot 0 is aiRng.randomBoolean() -> Fortify or Bash.
             // Deterministic fallback: Bash unless last move was Bash, then Fortify.
             if !last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
+                enemy.set_move(move_ids::SHIELD_BASH, bash_dmg, 1, 0);
                 enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
@@ -44,7 +45,7 @@ pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
         1 => {
             // Deterministic anti-repeat: Bash iff !lastMove(Bash), else Fortify.
             if !last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
+                enemy.set_move(move_ids::SHIELD_BASH, bash_dmg, 1, 0);
                 enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);

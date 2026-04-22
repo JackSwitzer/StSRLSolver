@@ -81,9 +81,11 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState, num: i32) {
     } else {
         // Thorns is applied at intent-execute time by combat_hooks via mfx::THORNS.
         // Do NOT bump sid::THORNS here — that would double-apply (+4 instead of Java's +2).
+        // Java Spiker: BUFF_AMOUNT = ascensionLevel >= 17 ? 3 : 2.
+        let buff_amt = if enemy.ascension >= 17 { 3 } else { 2 };
         enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
         enemy.entity.set_status(sid::COUNT, thorns_count + 1);
-        enemy.add_effect(mfx::THORNS, 2);
+        enemy.add_effect(mfx::THORNS, buff_amt);
     }
 }
 

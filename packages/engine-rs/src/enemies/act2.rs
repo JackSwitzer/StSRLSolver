@@ -289,18 +289,22 @@ pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
 
 pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, num: i32) {
     // Java getMove (first-turn Glare handled at create_enemy):
-    //   num<40 -> Tail(8 + Vuln 2)
-    //   else   -> if lastTwoMoves(BITE) Tail, else Bite(15)
+    //   num<40 -> Tail(8 + vulnAmount)
+    //   else   -> if lastTwoMoves(BITE) Tail, else Bite(damage[1])
+    // Ascension: Snecko.damage[1] = 15 at A0/A1, 18 at A2+;
+    //            Snecko.vulnAmount = 3 at A17+, else 2.
+    let bite_dmg = if enemy.ascension >= 2 { 18 } else { 15 };
+    let vuln_amt = if enemy.ascension >= 17 { 3 } else { 2 };
     if num < 40 {
         enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 2);
+        enemy.add_effect(mfx::VULNERABLE, vuln_amt);
         return;
     }
     if last_two_moves(enemy, move_ids::SNECKO_BITE) {
         enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 2);
+        enemy.add_effect(mfx::VULNERABLE, vuln_amt);
     } else {
-        enemy.set_move(move_ids::SNECKO_BITE, 15, 1, 0);
+        enemy.set_move(move_ids::SNECKO_BITE, bite_dmg, 1, 0);
     }
 }
 

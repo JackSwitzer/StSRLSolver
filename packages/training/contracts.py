@@ -372,6 +372,11 @@ class EnemySnapshot:
     # round-trip on snapshot→restore. Default `()` keeps legacy fixtures
     # that predate the field working.
     move_history: tuple[int, ...] = ()
+    # D118 — ascension the enemy was constructed at. Damage tables /
+    # effect magnitudes scale off this on every `roll_*` dispatch
+    # (Snecko BITE 15→18 at A2+, Spiker THORNS 2→3 at A17+, etc.).
+    # Default `0` keeps legacy fixtures working.
+    ascension: int = 0
 
 
 @dataclass(frozen=True)
@@ -509,6 +514,7 @@ def parse_combat_snapshot(payload: Mapping[str, Any]) -> CombatSnapshot:
                     **item,
                     "statuses": _tuple_of(item["statuses"], lambda status: StatusToken(**status)),
                     "move_history": tuple(item.get("move_history", ())),
+                    "ascension": int(item.get("ascension", 0)),
                 }
             ),
         ),

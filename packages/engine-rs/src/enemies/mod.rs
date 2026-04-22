@@ -394,8 +394,29 @@ pub mod move_ids {
     pub const HEART_BUFF: i32 = 4;
 }
 
+/// Create an enemy at A0 balance. Convenience wrapper over
+/// [`create_enemy_with_ascension`] for the many call sites that do not yet
+/// thread ascension (tests, spawn hooks, legacy scaffolding). Prefer
+/// [`create_enemy_with_ascension`] in production paths — see D118.
 pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
+    create_enemy_with_ascension(enemy_id, hp, max_hp, 0)
+}
+
+/// Create an enemy and pre-populate ascension-sensitive constants.
+///
+/// Damage tables / debuff magnitudes that Java selects at construction time
+/// (e.g. `GremlinNob`'s `EnragePower(this, ascensionLevel >= 2 ? 3 : 2)` or
+/// `SpireShield.damage[1]`'s A3+ bump) are resolved here. Branches that Java
+/// evaluates inside `getMove` are handled in the per-enemy `roll_*`
+/// dispatchers and consult `enemy.ascension` directly.
+pub fn create_enemy_with_ascension(
+    enemy_id: &str,
+    hp: i32,
+    max_hp: i32,
+    ascension: i32,
+) -> EnemyCombatState {
     let mut enemy = EnemyCombatState::new(enemy_id, hp, max_hp);
+    enemy.ascension = ascension;
 
     match enemy_id {
         // =================================================================
@@ -473,7 +494,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "GremlinNob" | "Gremlin Nob" => {
             enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
-            enemy.entity.set_status(sid::ENRAGE, 2);
+            // Java GremlinNob: `new EnragePower(this, ascensionLevel >= 2 ? 3 : 2)`.
+            let enrage = if ascension >= 2 { 3 } else { 2 };
+            enemy.entity.set_status(sid::ENRAGE, enrage);
         }
         "Lagavulin" => {
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
@@ -771,7 +794,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // 3-move cycle. First turn: Bash or Fortify (50/50 in Java).
             // Bash: 12 (A3+ = 14). Smash: 34 (A3+ = 38). Fortify: 30 block.
             // Bash applies -1 Str or -1 Focus (random if player has orbs).
-            enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
+            let bash = if ascension >= 3 { 14 } else { 12 };
+            enemy.set_move(move_ids::SHIELD_BASH, bash, 1, 0);
             enemy.add_effect(mfx::STRENGTH_DOWN, 1);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
         }

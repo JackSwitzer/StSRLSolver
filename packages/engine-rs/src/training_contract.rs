@@ -526,6 +526,11 @@ pub struct EnemySnapshotV1 {
     /// pre-merge triage (`pre-merge-triage-2026-04-21.md` §F2).
     #[serde(default)]
     pub move_history: Vec<i32>,
+    /// Ascension level the enemy was constructed at. Damage tables /
+    /// debuff magnitudes consult this on every `roll_*` dispatch (D118).
+    /// Default `0` keeps legacy fixtures working.
+    #[serde(default)]
+    pub ascension: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -738,6 +743,7 @@ pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
                 is_escaping: enemy.is_escaping,
                 statuses: collect_status_tokens(&enemy.entity.statuses),
                 move_history: enemy.move_history.clone(),
+                ascension: enemy.ascension,
             })
             .collect(),
         potions: state.potions.clone(),
@@ -766,6 +772,9 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
         state.entity.block = enemy.block;
         apply_status_tokens(&mut state.entity.statuses, &enemy.statuses);
         state.back_attack = enemy.back_attack;
+        // D118 — restore ascension so post-snapshot `roll_*` dispatchers pick
+        // the correct scaling branch (Snecko BITE 18, Spiker THORNS 3, etc.).
+        state.ascension = enemy.ascension;
         // Restore move_history BEFORE `set_move` so the enemy has full memory
         // of its prior intents — JawWorm/Cultist/CorruptHeart `getMove` bodies
         // consult `last_move` / `last_two_moves` and would diverge without it.

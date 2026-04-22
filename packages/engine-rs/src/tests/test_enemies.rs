@@ -471,11 +471,13 @@ mod enemy_tests {
     // — see run.rs:1334/1461 for the precedent). Damage tables and effect
     // amounts are the Cycle 4 contract.
 
-    /// HP table per (enemy, ascension band). Values match Java `setHp(hpRange)`
-    /// picking the high end for determinism. Ascension only changes HP here;
-    /// damage/effect scaling is Cycle 4's job.
-    fn create_enemy_with_ascension(id: &str, ascension: i32) -> EnemyCombatState {
-        let (hp, max_hp) = match id {
+    /// HP per (enemy, ascension band). Values match Java `setHp(hpRange)`
+    /// picking the high end for determinism. HP bands are NOT yet plumbed
+    /// through `create_enemy_with_ascension` (run.rs owns HP rolling via
+    /// `roll_enemy_hp`); this local helper just picks the canonical high-end
+    /// value so tests on HP-sensitive enemies don't need bespoke lookups.
+    fn hp_for(id: &str, ascension: i32) -> (i32, i32) {
+        match id {
             // Java GremlinNob: hpRange {82,86} (A7+ {85,90}).
             "GremlinNob" => if ascension >= 7 { (90, 90) } else { (86, 86) },
             // Java Snecko: hpRange {114,120} (A7+ {120,125}).
@@ -485,76 +487,70 @@ mod enemy_tests {
             // Java SpireShield: hpRange {99,106} (A9+ {112,119}).
             "SpireShield" => if ascension >= 9 { (119, 119) } else { (106, 106) },
             _ => panic!(
-                "create_enemy_with_ascension: id={id:?} not cataloged; \
-                 Cycle 1.6 scope is {{GremlinNob, Snecko, Spiker, SpireShield}}."
+                "hp_for: id={id:?} not cataloged; \
+                 D118 test scope is {{GremlinNob, Snecko, Spiker, SpireShield}}.",
             ),
-        };
-        // TODO(cycle-4, D118): plumb `ascension` through `create_enemy` so
-        // damage tables / effect amounts / HP ranges scale. Today the non-HP
-        // arms of scaling are UNSCALED — tests on A2+/A17+ values RED.
-        let _ = ascension;
-        create_enemy(id, hp, max_hp)
+        }
+    }
+
+    fn scaled(id: &str, ascension: i32) -> EnemyCombatState {
+        let (hp, max_hp) = hp_for(id, ascension);
+        create_enemy_with_ascension(id, hp, max_hp, ascension)
     }
 
     #[test]
     fn nob_a2_enrage_amount_is_three() {
         // Java GremlinNob.GremlinNob(): addPower(new EnragePower(this,
-        // ascensionLevel >= 2 ? 3 : 2)). Rust `create_enemy` at
-        // enemies/mod.rs:476 hardcodes ENRAGE=2 regardless of ascension.
-        let e = create_enemy_with_ascension("GremlinNob", 2);
+        // ascensionLevel >= 2 ? 3 : 2)). D118 closed via plumbed
+        // `create_enemy_with_ascension`.
+        let e = scaled("GremlinNob", 2);
         assert_eq!(
             e.entity.status(sid::ENRAGE),
             3,
-            "Nob A2+ ENRAGE amount must be 3 per Java DEBUFF_AMOUNT \
-             (D118 — enemies/mod.rs:476 hardcodes 2)",
+            "Nob A2+ ENRAGE amount must be 3 per Java DEBUFF_AMOUNT",
         );
     }
 
     #[test]
     fn snecko_a17_bite_damage_is_eighteen() {
         // Java Snecko: damage[1] (BITE) = 15 at A0/A1, 18 at A2+.
-        // Rust `act2.rs:303` hardcodes 15 regardless of ascension.
-        let mut e = create_enemy_with_ascension("Snecko", 17);
+        let mut e = scaled("Snecko", 17);
         // num>=40 with no prior lastTwoMoves(BITE) -> BITE branch.
         roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.move_id, SNECKO_BITE);
         assert_eq!(
             e.move_damage(),
             18,
-            "Snecko A2+ BITE damage must be 18 per Java damage[1] \
-             (D118 — enemies/act2.rs:303 hardcodes 15)",
+            "Snecko A2+ BITE damage must be 18 per Java damage[1]",
         );
     }
 
     #[test]
     fn snecko_a17_tail_vulnerable_is_three() {
         // Java Snecko: Tail applies Vulnerable = vulnAmount; A17+ bumps
-        // vulnAmount from 2 → 3. Rust `act2.rs:296` hardcodes VULNERABLE 2.
-        let mut e = create_enemy_with_ascension("Snecko", 17);
+        // vulnAmount from 2 -> 3.
+        let mut e = scaled("Snecko", 17);
         roll_next_move_with_num(&mut e, 0); // num<40 -> TAIL
         assert_eq!(e.move_id, SNECKO_TAIL);
         assert_eq!(
             e.effect(mfx::VULNERABLE),
             Some(3),
-            "Snecko A17+ Tail Vulnerable must be 3 per Java vulnAmount \
-             (D118 — enemies/act2.rs:296 hardcodes 2)",
+            "Snecko A17+ Tail Vulnerable must be 3 per Java vulnAmount",
         );
     }
 
     #[test]
     fn spiker_a17_thorns_buff_is_three() {
         // Java Spiker: BUFF_AMOUNT = ascensionLevel >= 17 ? 3 : 2.
-        // Rust `act3.rs:86` emits mfx::THORNS 2 regardless of ascension.
-        let mut e = create_enemy_with_ascension("Spiker", 17);
+        let mut e = scaled("Spiker", 17);
         // Force BUFF: num>=50 with no prior ATTACK history triggers the
-        // BUFF_THORNS branch at act3.rs:79-88.
+        // BUFF_THORNS branch.
         roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.move_id, SPIKER_BUFF);
         assert_eq!(
             e.effect(mfx::THORNS),
             Some(3),
-            "Spiker A17+ Thorns BUFF amount must be 3 per Java BUFF_AMOUNT \
-             (D118 — enemies/act3.rs:86 hardcodes 2)",
+            "Spiker A17+ Thorns BUFF amount must be 3 per Java BUFF_AMOUNT",
         );
     }
 
@@ -562,10 +558,7 @@ mod enemy_tests {
     fn spire_shield_a19_hp_and_bash_damage() {
         // Java SpireShield: hpRange A0 {99,106} / A9+ {112,119};
         //   Bash damage = 12 at A0/A1/A2, 14 at A3+.
-        // Rust `enemies/mod.rs:774` hardcodes Bash=12 on initial intent,
-        // `act4.rs:38` hardcodes Bash=12 on subsequent rolls. The A9+ HP
-        // selection is plumbed via the helper so HP passes; Bash fails.
-        let e = create_enemy_with_ascension("SpireShield", 19);
+        let e = scaled("SpireShield", 19);
         assert_eq!(
             e.entity.max_hp, 119,
             "SpireShield A9+ max_hp must be 119 per Java hpRange",
@@ -574,8 +567,7 @@ mod enemy_tests {
         assert_eq!(
             e.move_damage(),
             14,
-            "SpireShield A3+ Bash damage must be 14 per Java damage[1] \
-             (D118 — enemies/mod.rs:774 + enemies/act4.rs:38 hardcode 12)",
+            "SpireShield A3+ Bash damage must be 14 per Java damage[1]",
         );
     }
 }

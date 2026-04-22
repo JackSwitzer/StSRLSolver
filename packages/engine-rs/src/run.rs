@@ -1235,12 +1235,14 @@ impl RunEngine {
             }
         }).collect();
 
-        // Create enemies
+        // Create enemies — thread ascension so damage/effect scaling (D118)
+        // matches Java. HP bands already scale via `roll_enemy_hp`.
+        let ascension = self.run_state.ascension;
         let mut enemy_states: Vec<EnemyCombatState> = expanded
             .iter()
             .map(|id| {
                 let (hp, max_hp) = self.roll_enemy_hp(id);
-                enemies::create_enemy(id, hp, max_hp)
+                enemies::create_enemy_with_ascension(id, hp, max_hp, ascension)
             })
             .collect();
 
