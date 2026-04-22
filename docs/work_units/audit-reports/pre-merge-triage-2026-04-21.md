@@ -187,12 +187,12 @@ Per enemy-tests audit:
 | D88 | open; HolyWater generates wrong cards | `relics/defs/holy_water.rs:7-11` still adds 3 literal HolyWater cards |
 | D89 | open; Fasting energy drain never fires | Chains to dead dispatch |
 | D90 | open; Malleable no reset | `engine.rs:2520-2527` confirmed |
-| D91 | **closed** (Cycle 5); `apply_damage_to_player` / `apply_hp_loss_to_player` canonical entry points wired | `effects/runtime.rs:1713-1721`, `effects/interpreter.rs:1037-1049`, `engine.rs:2706-2779` |
+| D91 | **closed** (Cycle 5 @ 10c34602); `apply_damage_to_player` / `apply_hp_loss_to_player` canonical entry points wired | `effects/runtime.rs:1713-1721`, `effects/interpreter.rs:1037-1049`, `engine.rs:2706-2779` |
 | D100 | open; Collector REVIVE missing | Explicit "deferred: needs minion-dead signal" comment |
 | D111 | open; pre-draw/post-draw conflation | Chains to dead dispatch |
 | D112 | open; SadisticPower filters | Confirmed |
 | D123 | open; DevaForm pre-increment | Confirmed |
-| D124 | **closed** (Cycle 5); Pressure Points + MarkPower routed through `apply_hp_loss_to_enemy` | `effects/interpreter.rs:620-644`, `effects/runtime.rs:1130-1150`, `effects/hooks_complex.rs:75-95` |
+| D124 | **closed** (Cycle 5 @ 10c34602); Pressure Points + MarkPower routed through `apply_hp_loss_to_enemy` | `effects/interpreter.rs:620-644`, `effects/runtime.rs:1130-1150`, `effects/hooks_complex.rs:75-95` |
 | D129/D130 | **closed** (Stage F) | Both cleanly closed |
 | D131 | deferred; JawWorm sub-roll | Dominant branch fallback comment at `act1.rs:26-28` |
 | D132 | open; Byrd grounded Fly-Up | Unchanged |
