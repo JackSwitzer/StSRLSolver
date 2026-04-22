@@ -521,13 +521,22 @@ mod boss_java_parity_tests {
 
     #[test]
     fn corrupt_heart_a9_and_a19_scaling_matches_java_expectations() {
-        let enemy = create_enemy("CorruptHeart", 800, 800);
-        assert_eq!(enemy.entity.hp, 800);
-        assert_eq!(enemy.entity.max_hp, 800);
-        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 200);
-        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 2);
-        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 15);
-        assert_eq!(enemy.entity.status(sid::ECHO_DMG), 45);
+        // D144: scaling is ascension-gated, not HP-gated. A9 bumps the HP pool
+        // but keeps A4-tier damage + A0-tier INVINCIBLE/BEAT. A19 flips the
+        // latter pair on top.
+        let a9 = create_enemy_with_ascension("CorruptHeart", 800, 800, 9);
+        assert_eq!(a9.entity.hp, 800);
+        assert_eq!(a9.entity.max_hp, 800);
+        assert_eq!(a9.entity.status(sid::INVINCIBLE), 300);
+        assert_eq!(a9.entity.status(sid::BEAT_OF_DEATH), 1);
+        assert_eq!(a9.entity.status(sid::BLOOD_HIT_COUNT), 15);
+        assert_eq!(a9.entity.status(sid::ECHO_DMG), 45);
+
+        let a19 = create_enemy_with_ascension("CorruptHeart", 800, 800, 19);
+        assert_eq!(a19.entity.status(sid::INVINCIBLE), 200);
+        assert_eq!(a19.entity.status(sid::BEAT_OF_DEATH), 2);
+        assert_eq!(a19.entity.status(sid::BLOOD_HIT_COUNT), 15);
+        assert_eq!(a19.entity.status(sid::ECHO_DMG), 45);
     }
 
     #[test]

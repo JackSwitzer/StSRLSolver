@@ -807,6 +807,12 @@ pub fn create_enemy_with_ascension(
             enemy.entity.set_status(sid::SKEWER_COUNT, 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
+            // Java `CorruptHeart.java:92-101` — scaling is gated on the run's
+            // ascension, not on the Heart's current HP (D144):
+            //   A0-A3   : bloodHit 12, echoDmg 40, INVINCIBLE 300, BEAT 1
+            //   A4-A18  : bloodHit 15, echoDmg 45, INVINCIBLE 300, BEAT 1
+            //   A19+    : bloodHit 15, echoDmg 45, INVINCIBLE 200, BEAT 2
+            // HP pool (750 A0-A8, 800 A9+) is caller-supplied and not mutated here.
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.add_effect(mfx::WEAK, 2);
@@ -814,17 +820,13 @@ pub fn create_enemy_with_ascension(
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::BUFF_COUNT, 0);
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-            if hp >= 800 {
-                enemy.entity.set_status(sid::INVINCIBLE, 200);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 2);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 15);
-                enemy.entity.set_status(sid::ECHO_DMG, 45);
-            } else {
-                enemy.entity.set_status(sid::INVINCIBLE, 300);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
-                enemy.entity.set_status(sid::ECHO_DMG, 40);
-            }
+
+            let (blood_hit, echo_dmg) = if ascension >= 4 { (15, 45) } else { (12, 40) };
+            let (invincible, beat_of_death) = if ascension >= 19 { (200, 2) } else { (300, 1) };
+            enemy.entity.set_status(sid::BLOOD_HIT_COUNT, blood_hit);
+            enemy.entity.set_status(sid::ECHO_DMG, echo_dmg);
+            enemy.entity.set_status(sid::INVINCIBLE, invincible);
+            enemy.entity.set_status(sid::BEAT_OF_DEATH, beat_of_death);
         }
 
         _ => {
@@ -2577,15 +2579,15 @@ mod tests {
     }
 
     #[test]
-    fn test_corrupt_heart_num_ignored_blood_shots_on_slot0() {
-        // Slot 0 is the DEFERRED randomBoolean; deterministic fallback always
-        // picks Blood Shots, regardless of num.
+    fn test_corrupt_heart_slot0_num_splits_blood_shots_and_echo() {
+        // D143: Java `CorruptHeart.java:171-199` slot 0 uses aiRng.randomBoolean().
+        // Rust mapping: num < 50 -> Blood Shots, num >= 50 -> Echo.
         let mut enemy_low = create_enemy("CorruptHeart", 750, 750);
         roll_next_move_with_num(&mut enemy_low, 0);
         assert_eq!(enemy_low.move_id, move_ids::HEART_BLOOD_SHOTS);
 
         let mut enemy_high = create_enemy("CorruptHeart", 750, 750);
         roll_next_move_with_num(&mut enemy_high, 99);
-        assert_eq!(enemy_high.move_id, move_ids::HEART_BLOOD_SHOTS);
+        assert_eq!(enemy_high.move_id, move_ids::HEART_ECHO);
     }
 }

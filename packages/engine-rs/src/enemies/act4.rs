@@ -99,11 +99,10 @@ pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
-pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java CorruptHeart.getMove(num) — num is ignored; randomness only in
-    // slot 0 via aiRng.randomBoolean(). Cycle: moveCount % 3.
+pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, num: i32) {
+    // Java CorruptHeart.getMove(num) cycles `moveCount % 3`:
     //   isFirstMove -> Debilitate, isFirstMove=false, return (no increment).
-    //   slot 0: randomBoolean() -> Blood Shots ELSE Echo      (DEFERRED boolean)
+    //   slot 0: randomBoolean() -> Blood Shots ELSE Echo      (D143: num<50 gate)
     //   slot 1: !lastMove(ECHO) -> Echo ELSE Blood Shots      (deterministic)
     //   slot 2: Buff (+2 Str + escalating: Artifact 2, +1 BeatOfDeath,
     //           PainfulStabs, +10 Str, +50 Str thereafter)
@@ -123,9 +122,15 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, _num: i32) {
 
     match mc % 3 {
         0 => {
-            // DEFERRED: Java slot 0 is aiRng.randomBoolean() -> Blood Shots or Echo.
-            // Deterministic fallback: Blood Shots first (slot 1 covers the echo path).
-            enemy.set_move(move_ids::HEART_BLOOD_SHOTS, 2, blood_count, 0);
+            // Java `CorruptHeart.java:171-199` slot 0: `aiRng.randomBoolean()`
+            // -> BLOOD_SHOTS else ECHO. The aiRng `num` passed through from
+            // `roll_next_move` is used as the equivalent 50/50 gate: num < 50
+            // matches Java's randomBoolean() true branch (D143).
+            if num < 50 {
+                enemy.set_move(move_ids::HEART_BLOOD_SHOTS, 2, blood_count, 0);
+            } else {
+                enemy.set_move(move_ids::HEART_ECHO, echo_dmg, 1, 0);
+            }
         }
         1 => {
             // Deterministic anti-repeat: Echo iff last wasn't Echo, else Blood Shots.
