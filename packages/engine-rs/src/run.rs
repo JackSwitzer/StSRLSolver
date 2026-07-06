@@ -3728,6 +3728,25 @@ impl RunEngine {
         self.combat_engine.as_ref()
     }
 
+    /// RNG stream counters currently tracked by this run, keyed by the
+    /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
+    /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
+    ///
+    /// While in combat, delegates to `CombatEngine::rng_counters` (which
+    /// tracks `card`/`ai` distinctly); outside combat, only the run-level
+    /// catch-all `rng` counter is available and is reported as `card`
+    /// (today's engine does not yet separate map/shop/event/relic/etc.
+    /// streams — see `docs/vault/rng-system-analysis.md` for the full
+    /// 13-stream target this will grow into).
+    pub fn rng_counters(&self) -> HashMap<String, u64> {
+        if let Some(combat) = &self.combat_engine {
+            return combat.rng_counters().into_iter().collect();
+        }
+        let mut counters = HashMap::new();
+        counters.insert("card".to_string(), self.rng.counter as u64);
+        counters
+    }
+
     pub fn current_combat_context(&self) -> Option<CombatContext> {
         self.combat_engine.as_ref().map(build_combat_context)
     }

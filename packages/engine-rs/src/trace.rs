@@ -427,6 +427,236 @@ pub fn parse_masks(json_text: &str) -> Result<Vec<Mask>, String> {
 }
 
 // ===========================================================================
+// T3 — Differ: field-by-field, canonical order, RNG counters first
+// ===========================================================================
+
+/// Secondary diffs at the first-diverging record are capped at this many
+/// entries in the report (`docs/goal/TOOLING.md` § T3).
+pub const MAX_SECONDARY_DIFFS: usize = 20;
+
+/// Diff `java` vs `rust` trace records (already-parsed, header excluded)
+/// field-by-field in canonical order — RNG counters first, per T3 ("for
+/// enemy-AI work the counter delta is the diagnosis") — and build a
+/// [`DivergenceReport`]. `masks` excludes matching paths from divergence
+/// (still surfaced in the report's `masked` list).
+///
+/// Used by both `bin/trace_replay.rs` (against a real Java golden) and
+/// `tests/test_trace_oracle.rs` (against an in-process synthetic "java"
+/// side), so the diffing algorithm has exactly one implementation.
+pub fn diff_records(
+    script_name: &str,
+    seed: &str,
+    java: &[TraceRecord],
+    rust: &[TraceRecord],
+    masks: &[Mask],
+) -> DivergenceReport {
+    let total_actions = java.len().max(rust.len()) as u64;
+    let mut matched_actions: u64 = 0;
+    let mut first_divergence = None;
+    let mut masked = Vec::new();
+    let mut secondary = Vec::new();
+
+    'records: for i in 0..java.len().min(rust.len()) {
+        let j = &java[i];
+        let r = &rust[i];
+        let diffs = record_field_diffs(j, r);
+
+        let mut record_diverged = false;
+        for (path, jv, rv) in diffs {
+            if let Some(mask) = matching_mask(masks, &path) {
+                masked.push(MaskedDiff {
+                    path,
+                    java: jv,
+                    rust: rv,
+                    id: mask.id.clone(),
+                });
+                continue;
+            }
+            if first_divergence.is_none() {
+                first_divergence = Some(FirstDivergence {
+                    idx: j.idx,
+                    floor: j.floor,
+                    turn: j.turn,
+                    path,
+                    java: jv,
+                    rust: rv,
+                    rng_at_divergence: RngSnapshotPair {
+                        java: j.post.rng.clone(),
+                        rust: r.post.rng.clone(),
+                    },
+                });
+                record_diverged = true;
+            } else if secondary.len() < MAX_SECONDARY_DIFFS {
+                secondary.push(FieldDiff { path, java: jv, rust: rv });
+            }
+        }
+
+        if record_diverged {
+            break 'records;
+        }
+        matched_actions += 1;
+    }
+
+    // A trace with fewer records than the other (e.g. one side stopped
+    // early, or the script only partially replayed) is a divergence even
+    // if every common-prefix record matched exactly — it must never be
+    // silently reported as "match".
+    if first_divergence.is_none() && java.len() != rust.len() {
+        let java_ended = java.len() < rust.len();
+        let cutoff = if java_ended { &rust[matched_actions as usize] } else { &java[matched_actions as usize] };
+        let absent = serde_json::json!("absent (trace ended)");
+        let present = serde_json::json!(cutoff.post.rng.clone());
+        first_divergence = Some(FirstDivergence {
+            idx: cutoff.idx,
+            floor: cutoff.floor,
+            turn: cutoff.turn,
+            path: "post".to_string(),
+            java: if java_ended { absent.clone() } else { present.clone() },
+            rust: if java_ended { present } else { absent },
+            rng_at_divergence: RngSnapshotPair {
+                java: if java_ended { BTreeMap::new() } else { cutoff.post.rng.clone() },
+                rust: if java_ended { cutoff.post.rng.clone() } else { BTreeMap::new() },
+            },
+        });
+    }
+
+    let status = if first_divergence.is_some() {
+        DivergenceStatus::Diverged
+    } else {
+        DivergenceStatus::Match
+    };
+
+    DivergenceReport {
+        status,
+        script: script_name.to_string(),
+        seed: seed.to_string(),
+        matched_actions,
+        total_actions,
+        first_divergence,
+        masked,
+        secondary,
+    }
+}
+
+fn matching_mask<'a>(masks: &'a [Mask], path: &str) -> Option<&'a Mask> {
+    masks
+        .iter()
+        .find(|mask| path == mask.path || path.starts_with(&format!("{}.", mask.path)))
+}
+
+/// Field-by-field diff of a single record's `post`. Returns
+/// `(json_pointer_ish_path, java_value, rust_value)` for every field that
+/// differs, RNG counters first.
+fn record_field_diffs(
+    java: &TraceRecord,
+    rust: &TraceRecord,
+) -> Vec<(String, serde_json::Value, serde_json::Value)> {
+    let mut diffs = Vec::new();
+
+    // 1. RNG counters first.
+    let mut rng_keys: Vec<&String> = java.post.rng.keys().chain(rust.post.rng.keys()).collect();
+    rng_keys.sort();
+    rng_keys.dedup();
+    for key in rng_keys {
+        let jv = java.post.rng.get(key).copied();
+        let rv = rust.post.rng.get(key).copied();
+        if jv != rv {
+            diffs.push((format!("post.rng.{key}"), serde_json::json!(jv), serde_json::json!(rv)));
+        }
+    }
+
+    // 2. Player.
+    push_diff(&mut diffs, "post.player.hp", java.post.player.hp, rust.post.player.hp);
+    push_diff(&mut diffs, "post.player.max_hp", java.post.player.max_hp, rust.post.player.max_hp);
+    push_diff(&mut diffs, "post.player.block", java.post.player.block, rust.post.player.block);
+    push_diff(&mut diffs, "post.player.energy", java.post.player.energy, rust.post.player.energy);
+    push_diff_str(&mut diffs, "post.player.stance", &java.post.player.stance, &rust.post.player.stance);
+    push_diff(&mut diffs, "post.player.gold", java.post.player.gold, rust.post.player.gold);
+
+    // 3. Enemies (index-aligned).
+    let enemy_count = java.post.enemies.len().max(rust.post.enemies.len());
+    for idx in 0..enemy_count {
+        let base = format!("post.enemies[{idx}]");
+        match (java.post.enemies.get(idx), rust.post.enemies.get(idx)) {
+            (Some(je), Some(re)) => {
+                push_diff_str(&mut diffs, &format!("{base}.id"), &je.id, &re.id);
+                push_diff(&mut diffs, &format!("{base}.hp"), je.hp, re.hp);
+                push_diff(&mut diffs, &format!("{base}.max_hp"), je.max_hp, re.max_hp);
+                push_diff(&mut diffs, &format!("{base}.block"), je.block, re.block);
+                push_diff(&mut diffs, &format!("{base}.intent.move_id"), je.intent.move_id, re.intent.move_id);
+                push_diff(&mut diffs, &format!("{base}.intent.dmg"), je.intent.dmg, re.intent.dmg);
+                push_diff(&mut diffs, &format!("{base}.intent.hits"), je.intent.hits, re.intent.hits);
+            }
+            (Some(_), None) => {
+                diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
+            }
+            (None, Some(_)) => {
+                diffs.push((base, serde_json::json!("absent"), serde_json::json!("present")))
+            }
+            (None, None) => {}
+        }
+    }
+
+    // 4. Piles.
+    push_diff_vec(&mut diffs, "post.piles.hand", &java.post.piles.hand, &rust.post.piles.hand);
+    push_diff_vec(
+        &mut diffs,
+        "post.piles.draw_ordered",
+        &java.post.piles.draw_ordered,
+        &rust.post.piles.draw_ordered,
+    );
+    push_diff_vec(&mut diffs, "post.piles.discard", &java.post.piles.discard, &rust.post.piles.discard);
+    push_diff_vec(&mut diffs, "post.piles.exhaust", &java.post.piles.exhaust, &rust.post.piles.exhaust);
+
+    // 5. Relics + potions.
+    let java_relics: Vec<&str> = java.post.relics.iter().map(|r| r.id.as_str()).collect();
+    let rust_relics: Vec<&str> = rust.post.relics.iter().map(|r| r.id.as_str()).collect();
+    if java_relics != rust_relics {
+        diffs.push((
+            "post.relics".to_string(),
+            serde_json::json!(java_relics),
+            serde_json::json!(rust_relics),
+        ));
+    }
+    push_diff_vec(&mut diffs, "post.potions", &java.post.potions, &rust.post.potions);
+
+    diffs
+}
+
+fn push_diff<T: PartialEq + serde::Serialize>(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    path: &str,
+    java: T,
+    rust: T,
+) {
+    if java != rust {
+        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+    }
+}
+
+fn push_diff_str(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    path: &str,
+    java: &str,
+    rust: &str,
+) {
+    if java != rust {
+        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+    }
+}
+
+fn push_diff_vec(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    path: &str,
+    java: &[String],
+    rust: &[String],
+) {
+    if java != rust {
+        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+    }
+}
+
+// ===========================================================================
 // Canonical RNG stream keys (for producers/differs that want the full list)
 // ===========================================================================
 
@@ -450,3 +680,244 @@ pub const CANONICAL_RNG_KEYS: &[&str] = &[
     "misc",
     "map",
 ];
+
+// ===========================================================================
+// Replay support — TraceAction -> RunAction, and RunEngine -> PostState.
+//
+// Shared by `bin/trace_replay.rs` (against a real Java golden, T3/T4) and
+// `tests/test_trace_oracle.rs` (in-process synthetic fixture, T5), so the
+// action-mapping and state-snapshotting logic has exactly one
+// implementation. This is deliberately a "layer on top of core" module
+// (depends on `run`/`engine`/`state`, per `docs/goal/GOAL.md`'s
+// architecture target — core sim never depends back on `trace`).
+// ===========================================================================
+
+/// Map a script `TraceAction` to the engine's `RunAction`.
+///
+/// Implemented today: `PLAY_CARD`, `END_TURN`, `USE_POTION` (combat), plus
+/// `NEOW` and `PATH` (straightforward 1:1 index mappings off `run.rs`'s
+/// `RunAction::ChooseNeowOption`/`ChoosePath`). Anything else is a hard
+/// error naming the unsupported action type — per T3, the differ must
+/// never guess semantics for an action it doesn't recognize.
+pub fn map_action(
+    engine: &crate::run::RunEngine,
+    action: &TraceAction,
+) -> Result<crate::run::RunAction, String> {
+    use crate::actions::Action;
+    use crate::run::RunAction;
+
+    match action {
+        TraceAction::PlayCard { hand_idx, target, .. } => {
+            Ok(RunAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
+        }
+        TraceAction::EndTurn => Ok(RunAction::CombatAction(Action::EndTurn)),
+        TraceAction::UsePotion { idx, target } => {
+            Ok(RunAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
+        }
+        TraceAction::Neow { choice } => Ok(RunAction::ChooseNeowOption(*choice)),
+        TraceAction::Path { choice } => Ok(RunAction::ChoosePath(*choice)),
+        unsupported => Err(format!(
+            "unsupported action type for trace_replay (engine phase={:?}): {unsupported:?}. \
+             RunEngine mapping for this action type is not implemented yet; see \
+             docs/goal/UNITS.md U05 for scope.",
+            engine.current_phase()
+        )),
+    }
+}
+
+fn phase_label(phase: crate::run::RunPhase) -> &'static str {
+    use crate::run::RunPhase;
+    match phase {
+        RunPhase::Neow => "NEOW",
+        RunPhase::MapChoice => "MAP",
+        RunPhase::Combat => "COMBAT",
+        RunPhase::CardReward => "CARD_REWARD",
+        RunPhase::Campfire => "CAMPFIRE",
+        RunPhase::Shop => "SHOP",
+        RunPhase::Event => "EVENT",
+        RunPhase::GameOver => "GAME_OVER",
+    }
+}
+
+/// Build a [`TraceRecord`] from the engine's *current* (post-step) state.
+pub fn build_trace_record(engine: &crate::run::RunEngine, idx: u64, action: TraceAction) -> TraceRecord {
+    let floor = engine.run_state.floor;
+    let phase = engine.current_phase();
+    let turn = engine.get_combat_engine().map(|c| c.state.turn).unwrap_or(0);
+
+    TraceRecord {
+        v: 1,
+        idx,
+        floor,
+        turn,
+        phase: phase_label(phase).to_string(),
+        action,
+        post: build_post_state(engine),
+    }
+}
+
+/// Snapshot the engine's current state into a [`PostState`].
+///
+/// Outside combat there is no `CombatState` to report player/enemy detail
+/// from; a minimal but well-formed `PostState` is built from `RunState` so
+/// every record still round-trips through the schema.
+pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
+    let rng: BTreeMap<String, u64> = engine.rng_counters().into_iter().collect();
+
+    let Some(combat) = engine.get_combat_engine() else {
+        return PostState {
+            player: PlayerPostState {
+                hp: engine.run_state.current_hp,
+                max_hp: engine.run_state.max_hp,
+                block: 0,
+                energy: 0,
+                stance: "Neutral".to_string(),
+                gold: engine.run_state.gold,
+                powers: vec![],
+                orbs: vec![],
+            },
+            enemies: vec![],
+            piles: PilePostState { hand: vec![], draw_ordered: vec![], discard: vec![], exhaust: vec![] },
+            relics: engine
+                .run_state
+                .relics
+                .iter()
+                .map(|id| RelicPostState { id: id.clone(), counter: -1 })
+                .collect(),
+            potions: engine.run_state.potions.clone(),
+            rng,
+        };
+    };
+
+    let state = &combat.state;
+    let registry = combat.card_registry;
+
+    let card_name = |inst: &crate::combat_types::CardInstance| -> String {
+        let mut name = registry.card_name(inst.def_id).to_string();
+        if inst.is_upgraded() && !name.ends_with('+') {
+            name.push('+');
+        }
+        name
+    };
+
+    let powers_from_statuses = |statuses: &[i16; 256]| -> Vec<PowerPostState> {
+        statuses
+            .iter()
+            .enumerate()
+            .filter(|(_, &amt)| amt != 0)
+            .map(|(i, &amt)| PowerPostState {
+                id: crate::status_ids::status_name(crate::ids::StatusId(i as u16)).to_string(),
+                amt: amt as i32,
+            })
+            .collect()
+    };
+
+    let enemies: Vec<EnemyPostState> = state
+        .enemies
+        .iter()
+        .enumerate()
+        .map(|(idx, enemy)| EnemyPostState {
+            id: enemy.id.clone(),
+            idx,
+            hp: enemy.entity.hp,
+            max_hp: enemy.entity.max_hp,
+            block: enemy.entity.block,
+            intent: IntentPostState {
+                move_id: enemy.move_id,
+                name: String::new(),
+                dmg: enemy.move_damage(),
+                hits: enemy.move_hits(),
+            },
+            powers: powers_from_statuses(&enemy.entity.statuses),
+            move_history: enemy.move_history.clone(),
+        })
+        .collect();
+
+    let orbs: Vec<OrbPostState> = state
+        .orb_slots
+        .slots
+        .iter()
+        .filter(|orb| orb.orb_type != crate::orbs::OrbType::Empty)
+        .map(|orb| OrbPostState {
+            id: orb.orb_type.as_str().to_string(),
+            evoke_amount: orb.evoke_amount,
+            passive_amount: orb.base_passive,
+        })
+        .collect();
+
+    PostState {
+        player: PlayerPostState {
+            hp: state.player.hp,
+            max_hp: state.player.max_hp,
+            block: state.player.block,
+            energy: state.energy,
+            stance: state.stance.as_str().to_string(),
+            gold: engine.run_state.gold,
+            powers: powers_from_statuses(&state.player.statuses),
+            orbs,
+        },
+        enemies,
+        piles: PilePostState {
+            hand: state.hand.iter().map(card_name).collect(),
+            draw_ordered: state.draw_pile.iter().map(card_name).collect(),
+            discard: state.discard_pile.iter().map(card_name).collect(),
+            exhaust: state.exhaust_pile.iter().map(card_name).collect(),
+        },
+        relics: state.relics.iter().map(|id| RelicPostState { id: id.clone(), counter: -1 }).collect(),
+        potions: state.potions.iter().filter(|p| !p.is_empty()).cloned().collect(),
+        rng,
+    }
+}
+
+/// Replay an [`ActionScript`] in-process through a fresh [`crate::run::RunEngine`],
+/// returning one [`TraceRecord`] per executed action. Stops early on the
+/// script's stop condition or run completion. Errors (unsupported action,
+/// illegal action) mirror `bin/trace_replay.rs`'s behavior.
+pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> {
+    let seed = crate::seed::seed_from_string(&script.seed);
+    let mut engine = crate::run::RunEngine::new(seed, script.ascension);
+    let mut records = Vec::with_capacity(script.actions.len());
+
+    for (idx, action) in script.actions.iter().enumerate() {
+        let run_action = map_action(&engine, action)?;
+        let legal = engine.get_legal_actions();
+        if !legal.contains(&run_action) {
+            return Err(format!(
+                "action {idx} ({action:?}) is not legal in the current engine state (phase={:?})",
+                engine.current_phase()
+            ));
+        }
+        engine.step(&run_action);
+        records.push(build_trace_record(&engine, idx as u64, action.clone()));
+
+        if let Some(max_floor) = script.stop.max_floor {
+            if engine.run_state.floor >= max_floor {
+                break;
+            }
+        }
+        if let Some(max_actions) = script.stop.max_actions {
+            if records.len() as u64 >= max_actions {
+                break;
+            }
+        }
+        if engine.is_done() {
+            break;
+        }
+    }
+
+    Ok(records)
+}
+
+/// Build a [`TraceHeader`] for a replayed script (Rust-produced trace).
+pub fn header_for_script(script: &ActionScript) -> TraceHeader {
+    TraceHeader {
+        v: 1,
+        kind: "header".to_string(),
+        seed: script.seed.clone(),
+        seed_long: crate::seed::seed_from_string(&script.seed) as i64,
+        character: script.character.clone(),
+        ascension: script.ascension,
+        game_version: "rust-sim".to_string(),
+        mods: vec![],
+    }
+}
