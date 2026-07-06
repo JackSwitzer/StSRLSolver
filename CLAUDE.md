@@ -37,6 +37,7 @@ uv run pytest tests/training -q
 
 ## Key Docs
 
+- `AGENTS.md` + `docs/goal/GOAL.md` — conversion goal spec: end state, unit queue, oracle tooling, inventory (the /goal loop)
 - `docs/CLAUDE-training.md`
 - `docs/training-log-shape.md`
 - `docs/work_units/combat-first-training-rebuild.md`
