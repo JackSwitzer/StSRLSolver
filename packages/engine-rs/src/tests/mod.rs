@@ -180,3 +180,4 @@ mod test_state;
 mod test_interactions;
 mod test_runtime_inline_cutover_wave1;
 mod test_runtime_inline_cutover_wave2;
+mod test_trace_schema;
