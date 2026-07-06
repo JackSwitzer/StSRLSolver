@@ -7,7 +7,7 @@ Update the Status column in place as work lands (`ready` → `in-progress` → `
 | id | title | env | depends | status |
 |----|-------|-----|---------|--------|
 | U00 | Ship viz source from worktree | local | — | ready |
-| U01 | Clean room: archive legacy, fix stale docs | sandbox | — | ready |
+| U01 | Clean room: archive legacy, fix stale docs | sandbox | — | done |
 | U02 | Trace schema module (`trace.rs`) | sandbox | — | ready |
 | U03 | Sim-core boundaries + `check-arch` | sandbox | — | ready |
 | U04 | TraceLab mod + `trace_java.sh` | game | U02 | ready |

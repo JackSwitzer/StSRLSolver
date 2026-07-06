@@ -1,14 +1,9 @@
 # Slay the Spire RL Training Rebuild
 
-This worktree is the stacked training branch, not the engine base branch.
+## Repo shape
 
-## Active Branch Shape
-
-- engine base branch: `codex/universal-gameplay-runtime`
-- training branch: `codex/training-rebuild`
-- current PR stack:
-  - [PR #132](https://github.com/JackSwitzer/StSRLSolver/pull/132) -> `main`
-  - [PR #133](https://github.com/JackSwitzer/StSRLSolver/pull/133) -> `codex/universal-gameplay-runtime`
+Work happens on `main` plus per-unit branches (`claude/uNN-*` / `codex/uNN-*`) per
+`docs/goal/UNITS.md`; see `AGENTS.md` for agent rules.
 
 ## Active System
 
