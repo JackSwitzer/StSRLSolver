@@ -1281,7 +1281,13 @@ impl RunEngine {
         combat_state.relic_counters = self.run_state.relic_flags.counters;
 
         let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
-        let mut engine = CombatEngine::new(combat_state, combat_seed);
+        // Java reseeds cardRandomRng to seed + floorNum on each floor.
+        let card_random_seed = self.seed.wrapping_add(self.run_state.floor as u64);
+        let mut engine = CombatEngine::new_with_card_random_seed(
+            combat_state,
+            combat_seed,
+            card_random_seed,
+        );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
 

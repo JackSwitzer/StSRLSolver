@@ -116,6 +116,9 @@ pub struct CombatEngine {
     pub phase: CombatPhase,
     pub card_registry: &'static CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.cardRandomRng`, used by random card placement
+    /// and card-owned random choices. RunEngine seeds this with seed + floor.
+    pub(crate) card_random_rng: crate::seed::StsRandom,
     /// Per-combat enemy AI RNG. Java uses `AbstractDungeon.aiRng` consumed once per
     /// `AbstractMonster.rollMove()` and passed as `num` to `getMove(int num)` for
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
@@ -136,6 +139,14 @@ pub struct CombatEngine {
 impl CombatEngine {
     /// Create a new combat engine.
     pub fn new(state: CombatState, seed: u64) -> Self {
+        Self::new_with_card_random_seed(state, seed, seed)
+    }
+
+    pub(crate) fn new_with_card_random_seed(
+        state: CombatState,
+        seed: u64,
+        card_random_seed: u64,
+    ) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
         Self {
@@ -143,6 +154,7 @@ impl CombatEngine {
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
+            card_random_rng: crate::seed::StsRandom::new(card_random_seed),
             // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
             // when callers replay a snapshot. Mirrors Java's separate dungeon-level
             // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
@@ -174,6 +186,10 @@ impl CombatEngine {
     pub fn rng_counters(&self) -> std::collections::BTreeMap<String, u64> {
         let mut counters = std::collections::BTreeMap::new();
         counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert(
+            "cardRandom".to_string(),
+            self.card_random_rng.counter as u64,
+        );
         counters.insert("ai".to_string(), self.ai_rng.counter as u64);
         counters
     }
@@ -412,6 +428,7 @@ impl CombatEngine {
             phase: self.phase.clone(),
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
+            card_random_rng: self.card_random_rng.clone(),
             ai_rng: self.ai_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
@@ -1408,9 +1425,10 @@ impl CombatEngine {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
                 } else {
-                    let mut retained_inst = card_inst;
-                    retained_inst.set_retained(true);
-                    kept.push(retained_inst);
+                    // Runic Pyramid keeps cards without setting Java's retain
+                    // or selfRetain flags. That distinction matters to
+                    // EstablishmentPowerAction.
+                    kept.push(card_inst);
                 }
             }
             // Track retained cards for Establishment cost reduction
@@ -1468,7 +1486,7 @@ impl CombatEngine {
             // Establishment uses Java's modifyCostForCombat semantics, so the
             // retained-card discount persists across turns instead of being a
             // one-turn override that resets back to the printed cost.
-            if establishment > 0 {
+            if establishment > 0 && (card_def.runtime_traits().retain || card_inst.is_retained()) {
                 let current_cost = if card_inst.cost >= 0 {
                     card_inst.cost
                 } else {

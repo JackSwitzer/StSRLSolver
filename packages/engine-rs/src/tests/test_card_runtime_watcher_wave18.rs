@@ -57,8 +57,8 @@ fn test_card_runtime_watcher_wave18_registry_documents_the_remaining_hook_cleanu
     assert!(conjure_blade.complex_hook.is_none());
 
     let fasting = registry.get("Fasting2").expect("Fasting should exist");
-    assert_eq!(fasting.effect_data.len(), 3);
-    assert!(fasting.complex_hook.is_none());
+    assert_eq!(fasting.effect_data.len(), 2);
+    assert!(fasting.complex_hook.is_some());
 
     let lesson_learned = registry
         .get("LessonLearned")

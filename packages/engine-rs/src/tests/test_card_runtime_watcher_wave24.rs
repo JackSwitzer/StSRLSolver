@@ -67,10 +67,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(fasting.complex_hook.is_none());
+    assert!(fasting.complex_hook.is_some());
 
     let fasting_plus = registry.get("Fasting2+").expect("Fasting+ should exist");
     assert_eq!(
@@ -78,10 +77,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(fasting_plus.complex_hook.is_none());
+    assert!(fasting_plus.complex_hook.is_some());
 
     let omniscience = registry.get("Omniscience").expect("Omniscience should exist");
     assert_eq!(
@@ -126,13 +124,15 @@ fn watcher_wave24_collect_and_fasting_follow_typed_effect_data() {
     assert!(play_self(&mut fasting, "Fasting2"));
     assert_eq!(fasting.state.player.status(sid::STRENGTH), 3);
     assert_eq!(fasting.state.player.status(sid::DEXTERITY), 3);
-    assert_eq!(fasting.state.max_energy, 2);
+    assert_eq!(fasting.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(fasting.state.max_energy, 3);
 
     let mut fasting_plus = engine_with(crate::tests::support::make_deck(&["Fasting2+"]), 40, 0);
     assert!(play_self(&mut fasting_plus, "Fasting2+"));
     assert_eq!(fasting_plus.state.player.status(sid::STRENGTH), 4);
     assert_eq!(fasting_plus.state.player.status(sid::DEXTERITY), 4);
-    assert_eq!(fasting_plus.state.max_energy, 2);
+    assert_eq!(fasting_plus.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(fasting_plus.state.max_energy, 3);
 }
 
 #[test]

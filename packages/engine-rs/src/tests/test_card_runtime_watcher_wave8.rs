@@ -53,11 +53,9 @@ fn watcher_wave8_registry_exports_match_typed_surface() {
     let evaluate = registry.get("Evaluate").expect("Evaluate should be registered");
     assert_eq!(
         evaluate.effect_data,
-        &[
-            E::Simple(SE::GainBlock(A::Block)),
-            E::Simple(SE::AddCard("Insight", Pile::Draw, A::Fixed(1))),
-        ]
+        &[E::Simple(SE::GainBlock(A::Block))]
     );
+    assert!(evaluate.complex_hook.is_some());
 
     let follow_up = registry.get("FollowUp").expect("FollowUp should be registered");
     assert_eq!(follow_up.effect_data[0], E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)));

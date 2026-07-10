@@ -825,6 +825,7 @@ fn supplemental_test_markers(id: &str) -> &'static [&'static str] {
         "Wish" | "Wish+" => &["wish"],
         "DeusExMachina" | "DeusExMachina+" => &["deus_ex_machina"],
         "Collect" | "Collect+" => &["mantra"],
+        "Evaluate" | "Evaluate+" => &["insight_to_draw"],
         "StormOfSteel" | "StormOfSteel+" | "Storm of Steel" | "Storm of Steel+" => {
             &["storm_of_steel", "add_shivs"]
         }

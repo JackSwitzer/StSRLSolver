@@ -1182,6 +1182,52 @@ mod watcher_card_java_parity_tests {
             assert_eq!(draw_prefix_count(&engine, "Insight"), 1);
         }
     );
+    // Source-derived (verify card/Establishment): EstablishmentPowerAction
+    // reduces only cards with retain/selfRetain. Runic Pyramid merely prevents
+    // discard, so an ordinary Strike must not receive the discount. Upgrade is innate.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Establishment.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EstablishmentPowerAction.java
+    #[test]
+    fn establishment_source_ignores_ordinary_runic_pyramid_cards() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.relics.push("Runic Pyramid".to_string());
+        engine.state.hand = make_deck(&["Establishment", "Protect", "Strike"]);
+        play_self(&mut engine, "Establishment");
+        end_turn(&mut engine);
+
+        let protect = engine.state.hand.iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "Protect")
+            .expect("Protect retained");
+        let strike = engine.state.hand.iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+            .expect("Strike held by Runic Pyramid");
+        assert_eq!(protect.cost, 1);
+        assert_eq!(strike.cost, 1);
+
+        let plus = reg().get("Establishment+").expect("Establishment+ registered");
+        assert_eq!((plus.cost, plus.base_magic), (1, 1));
+        assert!(plus.runtime_traits().innate);
+    }
+    // Source-derived (verify card/Evaluate): Evaluate.java gains 6 block (10
+    // upgraded), then MakeTempCardInDrawPileAction inserts one Insight at a
+    // random spot. CardGroup.addToRandomSpot consumes one RNG tick and leaves
+    // the existing top card on top.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Evaluate.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    #[test]
+    fn evaluate_source_inserts_insight_with_one_rng_tick_without_moving_top() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
+        ensure_in_hand(&mut engine, "Evaluate+");
+        let rng_before = engine.card_random_rng.counter;
+        let catch_all_before = engine.rng.counter;
+        play_self(&mut engine, "Evaluate+");
+        assert_eq!(engine.state.player.block, 10);
+        assert_eq!(draw_prefix_count(&engine, "Insight"), 1);
+        assert_eq!(engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id), "Worship");
+        assert_eq!(engine.card_random_rng.counter, rng_before + 1);
+        assert_eq!(engine.rng.counter, catch_all_before);
+    }
     watcher_test!(
         fasting_java_parity,
         base = ("Fasting2", "Fasting", 2, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, []),
@@ -1192,9 +1238,31 @@ mod watcher_card_java_parity_tests {
             play_self(&mut engine, "Fasting2");
             assert_eq!(engine.state.player.strength(), 3);
             assert_eq!(engine.state.player.dexterity(), 3);
-            assert_eq!(engine.state.max_energy, 2);
+            assert_eq!(engine.state.player.status(sid::ENERGY_DOWN), 1);
+            assert_eq!(engine.state.max_energy, 3);
+            end_turn(&mut engine);
+            assert_eq!(engine.state.energy, 2);
         }
     );
+    // Source-derived (verify card/Fasting2): Fasting.java applies Strength and
+    // Dexterity before EnergyDownPower(1). Energy Down is a debuff, so Artifact
+    // consumes itself and blocks only that power; max energy remains unchanged.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Fasting.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EnergyDownPower.java
+    #[test]
+    fn fasting_source_energy_down_is_artifact_blockable_and_not_max_energy() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.player.set_status(sid::ARTIFACT, 1);
+        ensure_in_hand(&mut engine, "Fasting2");
+        play_self(&mut engine, "Fasting2");
+        assert_eq!(engine.state.player.strength(), 3);
+        assert_eq!(engine.state.player.dexterity(), 3);
+        assert_eq!(engine.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(engine.state.player.status(sid::ENERGY_DOWN), 0);
+        assert_eq!(engine.state.max_energy, 3);
+        end_turn(&mut engine);
+        assert_eq!(engine.state.energy, 3);
+    }
     watcher_test!(
         judgement_java_parity,
         base = ("Judgement", "Judgement", 1, -1, -1, 30, CardType::Skill, CardTarget::Enemy, false, None, ["judgement"]),

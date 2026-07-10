@@ -2150,7 +2150,8 @@ mod effect_handler_tests {
         play_card(&mut e, "Fasting2", -1);
         assert_eq!(e.state.player.strength(), 3, "Fasting should give 3 Strength");
         assert_eq!(e.state.player.dexterity(), 3, "Fasting should give 3 Dexterity");
-        assert_eq!(e.state.max_energy, 2, "Fasting should reduce max energy by 1");
+        assert_eq!(e.state.player.status(sid::ENERGY_DOWN), 1);
+        assert_eq!(e.state.max_energy, 3, "Fasting should not change max energy");
     }
 
     // ===== 26. Install Power: MasterReality =====

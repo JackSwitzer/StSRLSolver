@@ -37,6 +37,7 @@ fn hook(
     engine.state.player.set_status(sid::FRAIL, 0);
     engine.state.player.set_status(sid::ENTANGLED, 0);
     engine.state.player.set_status(sid::NO_DRAW, 0);
+    engine.state.player.set_status(sid::ENERGY_DOWN, 0);
     state.set(0, 0);
     state.set(1, 0);
     state.set(2, 0);

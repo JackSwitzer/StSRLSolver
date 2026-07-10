@@ -1,6 +1,7 @@
 use crate::cards::global_registry;
 use crate::effects::declarative::{Effect as E, SimpleEffect as SE};
 use crate::state::Stance;
+use crate::status_ids::sid;
 use crate::tests::support::*;
 
 fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatEngine {
@@ -106,7 +107,8 @@ fn watcher_power_cards_install_and_trigger_through_the_existing_runtime() {
     assert!(play_self(&mut fasting, "Fasting2"));
     assert_eq!(fasting.state.player.strength(), 3);
     assert_eq!(fasting.state.player.dexterity(), 3);
-    assert_eq!(fasting.state.max_energy, 2);
+    assert_eq!(fasting.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(fasting.state.max_energy, 3);
     assert_eq!(fasting.state.energy, 1);
 
     let mut mental_fortress = one_enemy_engine("JawWorm", 100, 0);

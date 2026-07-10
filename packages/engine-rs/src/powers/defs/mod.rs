@@ -47,6 +47,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_MAGNETISM,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_ENERGY_DOWN,
 
     // -- Turn Start (complex) --
     &turn_start::DEF_CREATIVE_AI,
@@ -121,6 +122,7 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_CREATIVE_AI,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_ENERGY_DOWN,
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
     &turn_start::DEF_TOOLS_OF_THE_TRADE,

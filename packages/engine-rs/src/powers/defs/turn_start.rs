@@ -10,6 +10,34 @@ use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::state::Stance;
 use crate::status_ids::sid;
 
+fn hook_energy_down(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner == EffectOwner::PlayerPower && event.kind == Trigger::TurnStart {
+        let amount = engine.state.player.status(sid::ENERGY_DOWN);
+        engine.state.energy = (engine.state.energy - amount).max(0);
+    }
+}
+
+static ENERGY_DOWN_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+pub static DEF_ENERGY_DOWN: EntityDef = EntityDef {
+    id: "energy_down",
+    name: "Energy Down",
+    kind: EntityKind::Power,
+    triggers: &ENERGY_DOWN_TRIGGERS,
+    complex_hook: Some(hook_energy_down),
+    status_guard: Some(sid::ENERGY_DOWN),
+};
+
 // ===========================================================================
 // Demon Form — TurnStart: gain Strength equal to stacks
 // ===========================================================================
