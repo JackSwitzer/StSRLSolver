@@ -28,4 +28,4 @@ uv run pytest tests/training -q                   # if anything near training wa
 
 ## Context
 
-Java reference: `decompiled/java-src/com/megacrit/cardcrawl/` (grep it liberally). Mechanics notes: `docs/vault/`. Known gaps: `docs/work_units/comprehensive-audit-2026-04-17.md`. Deviations: `docs/work_units/parity-deviations-register.md`.
+Java reference: `decompiled/java-src/com/megacrit/cardcrawl/` (grep it liberally). It is local-only (gitignored, ~2000 files); if missing, regenerate it with `scripts/decompile_java.sh` (CFR 0.152 over the Steam `desktop-1.0.jar`; recipe + checksums in `decompiled/manifest.json`). Mechanics notes: `docs/vault/`. Known gaps: `docs/work_units/comprehensive-audit-2026-04-17.md`. Deviations: `docs/work_units/parity-deviations-register.md`.

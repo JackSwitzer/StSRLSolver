@@ -162,6 +162,12 @@ fn write_jsonl(path: &str, script: &ActionScript, records: &[TraceRecord]) -> Re
 // Trace JSONL parsing (header + records)
 // ===========================================================================
 
+#[derive(serde::Deserialize)]
+struct MetaLine {
+    #[serde(default)]
+    kind: Option<String>,
+}
+
 fn parse_trace_jsonl(text: &str) -> Result<(TraceHeader, Vec<TraceRecord>), String> {
     let mut lines = text.lines().filter(|line| !line.trim().is_empty());
     let header_line = lines.next().ok_or("trace file is empty")?;
@@ -171,6 +177,13 @@ fn parse_trace_jsonl(text: &str) -> Result<(TraceHeader, Vec<TraceRecord>), Stri
 
     let mut records = Vec::new();
     for (line_no, line) in lines.enumerate() {
+        // Skip meta records (header/end sentinels carry a `kind`; data records do not).
+        if serde_json::from_str::<MetaLine>(line)
+            .map(|meta| meta.kind.is_some())
+            .unwrap_or(false)
+        {
+            continue;
+        }
         let record: TraceRecord = serde_json::from_str(line)
             .map_err(|err| format!("bad trace record on line {}: {err}", line_no + 2))?;
         record.check_version()?;
