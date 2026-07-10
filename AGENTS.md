@@ -40,7 +40,7 @@ uv run pytest tests/training -q                 # only if you touched anything n
 
 ## Context map
 
-`docs/goal/GOAL.md` (end state, invariants, quarantine policy) · `docs/goal/FINDINGS.md` (known gaps F1-F5 — good first targets) · `docs/goal/BENCHMARKS.md` (B0-B5 ladder; B0 done) · `docs/goal/TOOLING.md` (trace schema/oracle contracts) · `docs/goal/UNITS.md` (infra work queue) · `docs/vault/` (mechanics notes: RNG streams, seeds, launch procedures).
+`docs/goal/GOAL.md` (end state, invariants, quarantine policy) · `docs/goal/FINDINGS.md` (known gaps F1-F7 — good first targets) · `docs/goal/BENCHMARKS.md` (B0-B5 ladder; B0 done) · `docs/goal/TOOLING.md` (trace schema/oracle contracts) · `docs/goal/UNITS.md` (infra work queue) · `docs/vault/` (mechanics notes: RNG streams, seeds, launch procedures).
 
 ## Running the loop (human setup)
 

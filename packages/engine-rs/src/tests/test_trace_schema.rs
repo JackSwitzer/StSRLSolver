@@ -293,6 +293,16 @@ fn parse_masks_rejects_file_with_any_bad_id() {
 }
 
 #[test]
+fn parse_masks_rejects_unsupported_scope() {
+    // The differ only implements scope "all" today; a narrower scope string
+    // must fail loudly instead of being silently applied to every record.
+    let json = r#"[{"id":"DEV-004","path":"post.rng.ai","scope":"3LGMWP6QYAWB@f4","reason":"scoped","register":"docs/work_units/parity-deviations-register.md"}]"#;
+    let err = parse_masks(json).expect_err("non-'all' scope must be rejected");
+    assert!(err.contains("scope"), "error should mention scope: {err}");
+    assert!(err.contains("DEV-004"), "error should name offending mask: {err}");
+}
+
+#[test]
 fn parse_masks_accepts_well_formed_file() {
     let json = r#"[{"id":"DEV-003","path":"post.neow.options","scope":"all","reason":"ok","register":"docs/work_units/parity-deviations-register.md"}]"#;
     let masks = parse_masks(json).expect("well-formed masks file should parse");

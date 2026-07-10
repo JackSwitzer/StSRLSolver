@@ -12,6 +12,8 @@ What gets built between here and the Definition of Done. One pipeline, seven too
                               scripts/trace_diff.sh ──► logs/traces/<name>/report.json
                                                │                │
                               scripts/goal.sh coverage ──► ledger.json    ParityView (viz)
+                              (goal.sh is future — U07; ledger.json is
+                               seeded today by scripts/extract.sh)
 ```
 
 ## T1 — Trace schema (`packages/engine-rs/src/trace.rs`)
@@ -81,28 +83,33 @@ Maps script actions → `RunAction`, steps `RunEngine`, emits the same schema, d
 
 ## T4 — `scripts/trace_diff.sh <script.json>`
 
-Orchestrator: golden exists in `data/traces/java/` (keyed by script-hash) → run trace_replay + differ; report + both traces land in `logs/traces/<name>/`. Golden missing → fail with "needs mint" (never auto-launches the game). Reuses `test_engine_rs.sh` env setup for cargo.
+Orchestrator: golden exists at `data/traces/java/<script-stem>.jsonl` → run trace_replay + differ; report + both traces land in `logs/traces/<script-stem>/`. Golden missing → fail with "needs mint", exit 3 (never auto-launches the game). Reuses `test_engine_rs.sh` env setup for cargo.
 
 ## T5 — Corpus + oracle tests
 
 - Mint session (human-attended): A/B same-seed Java-vs-Java determinism check first, then ~10 A0 seeds (chosen from `$GAME/runs/WATCHER/`'s 311 runs + `docs/vault/verified-seeds.md` for coverage) + golden-run `1776347657` reconstruction. Goldens committed to `data/traces/java/` (protected).
 - `src/tests/test_trace_oracle.rs` — replays every committed golden in-process, no game, part of the lib suite.
 
-## T6 — `scripts/goal.sh` (bash + jq, the loop's steering wheel)
+## T6 — `scripts/goal.sh` (bash + jq, the loop's steering wheel) — **future, not yet built (U03/U07)**
 
-- `status` — units table + ledger counts (green/red/quarantined) + next actionable item
-- `next` — prints the single next thing to do (ready unit, else first red ledger row of the open unit)
-- `ledger` — regenerate `docs/goal/ledger.json`: enumerate Watcher-reachable content from engine registries × `decompiled/java-src` (cards from `cards/purple`+colorless+curses+statuses, Act 1-4 Watcher-pool relics/potions/enemies/events/bosses)
+Today the ledger is seeded/refreshed by `scripts/extract.sh` (statuses preserved on re-run) and worked by hand per `AGENTS.md`; `goal.sh` adds tooling on top:
+
+- `status` — units table + ledger counts (verified/unverified/quarantined) + next actionable item
+- `next` — prints the single next thing to do (ready unit, else first unverified ledger row of the open unit)
 - `coverage` — scan corpus traces, stamp `covered_by` on ledger rows, flag reachable-but-never-exercised
 - `check-arch` — dependency-direction lint: core modules must not import `obs|search|training_contract|pyo3` (grep-based; DoD item 4)
 - `quarantine <ledger-id> --dev DEV-NNN` — flips status + verifies register entry + mask exist
 
-Ledger row:
+Ledger row (actual shape, `docs/goal/ledger.json`):
 
 ```json
-{"id":"card/EmptyBody","kind":"card","java_ref":"decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyBody.java",
- "status":"green","oracle":"cargo test --lib empty_body","covered_by":["3LGMWP6QYAWB@f4"],"dev":null}
+{"id":"card/EmptyBody","kind":"card","class":"EmptyBody",
+ "java_ref":"decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyBody.java",
+ "methods_ref":"reference/extracted/methods/card/EmptyBody.java",
+ "status":"unverified","verified_by":null,"dev":null}
 ```
+
+Statuses: `unverified` → `verified` (source citation + source-derived test) or `quarantined` (DEV-NNN). U07 may add fields (e.g. `covered_by`) without breaking existing rows.
 
 ## T7 — ParityView (viz)
 

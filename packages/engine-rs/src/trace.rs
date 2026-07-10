@@ -422,6 +422,17 @@ pub fn parse_masks(json_text: &str) -> Result<Vec<Mask>, String> {
         serde_json::from_str(json_text).map_err(|err| format!("invalid masks JSON: {err}"))?;
     for mask in &masks {
         mask.check_id()?;
+        // The differ only implements `scope: "all"` today (`matching_mask`
+        // applies a mask to every record). Silently accepting a narrower
+        // scope string and then applying it globally would over-mask, so an
+        // unknown scope is a hard error until narrower scopes are built.
+        if mask.scope != "all" {
+            return Err(format!(
+                "mask '{}' has unsupported scope '{}' (only \"all\" is implemented; \
+                 a narrower scope would be silently applied to every record)",
+                mask.id, mask.scope
+            ));
+        }
     }
     Ok(masks)
 }
@@ -891,7 +902,13 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
         records.push(build_trace_record(&engine, idx as u64, action.clone()));
 
         if let Some(max_floor) = script.stop.max_floor {
-            if engine.run_state.floor >= max_floor {
+            // Match the Java harness's stop semantics exactly
+            // (packages/harness-java/.../tracelab/ScriptRunner.java:
+            // `AbstractDungeon.floorNum > script.stop.max_floor`): actions ON
+            // the max floor still execute; the run stops only once the floor
+            // number exceeds it. `>=` here would truncate the Rust trace a
+            // floor early and diff as a spurious length mismatch.
+            if engine.run_state.floor > max_floor {
                 break;
             }
         }

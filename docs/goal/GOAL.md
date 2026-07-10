@@ -9,9 +9,9 @@
 ## Definition of Done
 
 1. **Corpus exact** — every trace script in `data/traces/scripts/` replays through the Rust engine with a `match` verdict against its frozen Java golden in `data/traces/java/`: identical per-action player/enemy state, ordered piles, intents, gold, relic counters, and **all 13 RNG stream counters** (`docs/vault/rng-system-analysis.md`). Corpus = ~10 seeded Watcher A0 full runs (coverage-maximizing seeds) + the golden run `1776347657` (23 combats incl. Heart).
-2. **Coverage proven** — the generated ledger (`docs/goal/ledger.json`) shows every Watcher-reachable card, relic, potion, enemy, event, and boss either `green` (exercised by the corpus and exact) or `quarantined` (see Edge-Case Policy). No `red`, no `unknown`.
+2. **Coverage proven** — the ledger (`docs/goal/ledger.json`, seeded by `scripts/extract.sh`) shows every Watcher-reachable card, relic, potion, enemy, event, and boss either `verified` (source-cited, source-derived test, corpus-exact where covered) or `quarantined` (see Edge-Case Policy). No `unverified` rows on the Watcher-reachable set.
 3. **Existing tests green** — `./scripts/test_engine_rs.sh test --lib` (2219+ tests) and `uv run pytest tests/training -q` pass throughout; count only goes up.
-4. **Sim-first boundaries hold** — core sim modules have no dependency on obs/search/training-contract/PyO3; python bindings behind a cargo feature; `scripts/goal.sh check-arch` passes (see TOOLING.md T6).
+4. **Sim-first boundaries hold** — core sim modules have no dependency on obs/search/training-contract/PyO3; python bindings behind a cargo feature; `scripts/goal.sh check-arch` passes (future tool — built by U03/U07, see TOOLING.md T6; until it exists this item is checked by review).
 5. **Quarantine triaged** — every quarantined item has an entry in `docs/work_units/parity-deviations-register.md` and a mask in `docs/goal/masks.json`; the quarantine list is short enough to review in one sitting (guideline: <15 items).
 6. **Divergences inspectable** — the viz ParityView renders any divergence report side-by-side (Java vs Rust at the diverging action) using the SVG sprites.
 
@@ -34,7 +34,7 @@ Nasty items (weird RNG ordering, Wish/Nightmare-class cards, timing quirks) must
 
 1. **Effort cap**: 2 serious attempts per item (an attempt = focused session with a hypothesis, ending in a divergence report you can explain or can't).
 2. Cap exceeded → **quarantine**: set ledger status `quarantined`, add a `DEV-NNN` entry to `docs/work_units/parity-deviations-register.md` (what diverges, smallest repro script, suspected cause), add a matching mask in `docs/goal/masks.json` scoped as narrowly as possible (exact path + item, never blanket).
-3. Move on. Quarantined items never block green ones. Humans triage the quarantine list periodically; fixing one = removing its mask and turning the row green.
+3. Move on. Quarantined items never block verified ones. Humans triage the quarantine list periodically; fixing one = removing its mask and flipping the row to `verified`.
 4. Never mask to make a diff pass without a register entry. A mask without a `DEV-` reference is a spec violation.
 
 ## Invariants (hard rules for every agent)

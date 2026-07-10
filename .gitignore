@@ -20,7 +20,9 @@ build/
 .DS_Store
 
 # Game assets & decompiled code (DO NOT COMMIT)
-decompiled/
+# No trailing slash: worktrees symlink `decompiled` to the main checkout's
+# copy, and `decompiled/` (dir-only) would leave the symlink untracked-visible.
+decompiled
 jdk8/
 _ModTheSpire/
 mts-source/
