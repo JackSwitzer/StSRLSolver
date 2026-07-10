@@ -57,3 +57,14 @@ Java emits `"Potion Slot"` for an empty potion slot; Rust emits `""`. Normalize 
 ## Resolved
 
 _(none yet)_
+
+## F8 — April 2026 parity stack: unmerged fix quarry (tag `april-2026-parity-stack`)
+
+Eleven stacked April PRs (#138-148, now closed) contained ~4,600 lines of unmerged engine parity fixes — enemy AI across acts 1-4 (`enemies/act1..4.rs`, `enemies/mod.rs`), powers dispatch wiring, damage-pipeline routing, CorruptHeart A0, snapshot determinism — plus ~3,700 lines of source-cited tests. They pre-date the verification-sweep contract, so they were **never merged**: they are another unverified draft, and main's engine moved since April (conflicts guaranteed).
+
+**How to use when verifying a related ledger row** (enemies, powers, damage): consult the quarry as a *hint*, then verify from decompiled source as always:
+```bash
+git diff main...april-2026-parity-stack -- packages/engine-rs/src/enemies/act2.rs   # prior fix attempt
+git show april-2026-parity-stack:docs/work_units/parity-deviations-register.md      # April D-register (main's has since diverged)
+```
+The per-area audit findings are imported at `docs/work_units/audit-reports/` (enemies-act1.md, powers-buffs-debuffs.md, damage-engine-flow.md, watcher-cards.md, …) — read the relevant one before starting a batch of rows in that area. A hint that disagrees with the decompiled source loses; a hint that agrees saves you the derivation.
